@@ -2,12 +2,16 @@ using Npgsql;
 
 namespace Ankus.IntegrationTests;
 
-/// <summary>Checks source-generated scalar JSON contracts inside the Native AOT extension.</summary>
+/// <summary>
+/// Checks source-generated scalar JSON contracts inside the Native AOT extension.
+/// </summary>
 /// <param name="context">The test context.</param>
 [TestClass]
 public sealed class ScalarJsonTests(TestContext context)
 {
-    /// <summary>Checks serialized text and independent PostgreSQL binary values without a decimal or DateTime intermediary.</summary>
+    /// <summary>
+    /// Checks serialized text and independent PostgreSQL binary values without a decimal or DateTime intermediary.
+    /// </summary>
     /// <param name="type">The scalar type.</param>
     /// <param name="input">The PostgreSQL input.</param>
     /// <param name="expectedText">The exact converter output string.</param>
@@ -49,7 +53,9 @@ public sealed class ScalarJsonTests(TestContext context)
             Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(2), reader.GetFieldValue<byte[]>(3));
         }, context.CancellationToken);
 
-    /// <summary>Checks exact unquoted number tokens, exponent normalization, and independently nullable scalar properties.</summary>
+    /// <summary>
+    /// Checks exact unquoted number tokens, exponent normalization, and independently nullable scalar properties.
+    /// </summary>
     [TestMethod]
     public Task ScalarJsonNumbersAndNullsUseExactContracts()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ScalarJsonNumbersAndNullsUseExactContracts), async (connection, transaction, token) =>
@@ -66,7 +72,9 @@ public sealed class ScalarJsonTests(TestContext context)
             Assert.AreEqual("{\"Date\":null,\"Time\":null,\"TimeTz\":null,\"Timestamp\":null,\"TimestampTz\":null,\"Interval\":null,\"Numeric\":null}", reader.GetString(2));
         }, context.CancellationToken);
 
-    /// <summary>Checks IntervalStyle-dependent output remains parseable with the same stored components.</summary>
+    /// <summary>
+    /// Checks IntervalStyle-dependent output remains parseable with the same stored components.
+    /// </summary>
     /// <param name="style">The session interval style.</param>
     [TestMethod]
     [DataRow("postgres")]
@@ -90,7 +98,9 @@ public sealed class ScalarJsonTests(TestContext context)
             Assert.AreEqual(reader.GetString(3), reader.GetString(2));
         }, context.CancellationToken);
 
-    /// <summary>Checks JsonException paths and native causes while finally executes, writes survive and native contexts are released.</summary>
+    /// <summary>
+    /// Checks JsonException paths and native causes while finally executes, writes survive and native contexts are released.
+    /// </summary>
     /// <param name="type">The scalar type.</param>
     /// <param name="json">The invalid property.</param>
     /// <param name="code">The expected native cause or JSON token failure.</param>

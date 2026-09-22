@@ -388,7 +388,9 @@ public static unsafe class NativeBackend
     internal static T Temporal<T>(TemporalOperation operation, ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Temporal, (int)operation, parameters);
 
-    /// <summary>Calls a PostgreSQL numeric routine through the guarded scalar boundary.</summary>
+    /// <summary>
+    /// Calls a PostgreSQL numeric routine through the guarded scalar boundary.
+    /// </summary>
     internal static T Numeric<T>(NumericOperation operation, ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Numeric, (int)operation, parameters);
 

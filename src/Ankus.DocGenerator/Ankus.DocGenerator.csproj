@@ -10,7 +10,7 @@
     <PackageReference Include="Docfx.App" />
     <ProjectReference Include="../Ankus.Runtime/Ankus.Runtime.csproj" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
-    <ProjectReference Include="../../tests/Ankus.Testing/Ankus.Testing.csproj" />
+    <ProjectReference Include="../Ankus.Testing/Ankus.Testing.csproj" />
     <None Include="filter.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

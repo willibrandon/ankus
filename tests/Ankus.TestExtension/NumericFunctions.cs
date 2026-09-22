@@ -2,53 +2,71 @@ using System.Globalization;
 
 namespace Ankus.TestExtension;
 
-/// <summary>Exercises full-range numeric values and checked decimal adapters in Native AOT.</summary>
+/// <summary>
+/// Exercises full-range numeric values and checked decimal adapters in Native AOT.
+/// </summary>
 public static class NumericFunctions
 {
-    /// <summary>Returns numeric through a selected function/SPI ownership path.</summary>
+    /// <summary>
+    /// Returns numeric through a selected function/SPI ownership path.
+    /// </summary>
     /// <param name="value">The value or SQL NULL.</param>
     /// <param name="mode">The ownership path.</param>
     /// <returns>The owned numeric.</returns>
     [PgFunction]
     public static PgNumeric? ExchangeNumeric(PgNumeric? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns decimal through a selected function/SPI ownership path.</summary>
+    /// <summary>
+    /// Returns decimal through a selected function/SPI ownership path.
+    /// </summary>
     /// <param name="value">The value or SQL NULL.</param>
     /// <param name="mode">The ownership path.</param>
     /// <returns>The exact decimal.</returns>
     [PgFunction]
     public static decimal? ExchangeDecimal(decimal? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Parses text with PostgreSQL's input rules.</summary>
+    /// <summary>
+    /// Parses text with PostgreSQL's input rules.
+    /// </summary>
     /// <param name="text">The candidate text.</param>
     /// <returns>The parsed numeric.</returns>
     [PgFunction]
     public static PgNumeric NumericFromText(string text) => PgNumeric.Parse(text);
 
-    /// <summary>Checks failed TryParse input and its default out value.</summary>
+    /// <summary>
+    /// Checks failed TryParse input and its default out value.
+    /// </summary>
     /// <param name="text">The candidate input.</param>
     /// <returns>The parse flag and numeric text.</returns>
     [PgFunction]
     public static string NumericTryParse(string? text) => PgNumeric.TryParse(text, out PgNumeric value) + ":" + value.Text;
 
-    /// <summary>Returns the exact decimal result constructed in managed code.</summary>
+    /// <summary>
+    /// Returns the exact decimal result constructed in managed code.
+    /// </summary>
     /// <returns>A scaled decimal result.</returns>
     [PgFunction]
     public static decimal DecimalFromManaged() => 12345678901234567890.123456789m;
 
-    /// <summary>Exercises floating-point to numeric conversion.</summary>
+    /// <summary>
+    /// Exercises floating-point to numeric conversion.
+    /// </summary>
     /// <param name="value">The floating-point value.</param>
     /// <returns>The PostgreSQL conversion.</returns>
     [PgFunction]
     public static PgNumeric NumericFromDouble(double value) => PgNumeric.FromDouble(value);
 
-    /// <summary>Exercises numeric to floating-point conversion.</summary>
+    /// <summary>
+    /// Exercises numeric to floating-point conversion.
+    /// </summary>
     /// <param name="value">The numeric value.</param>
     /// <returns>The PostgreSQL conversion.</returns>
     [PgFunction]
     public static double NumericToDouble(PgNumeric value) => value.ToDouble();
 
-    /// <summary>Compares managed numeric ordering and equality with native SQL comparators.</summary>
+    /// <summary>
+    /// Compares managed numeric ordering and equality with native SQL comparators.
+    /// </summary>
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>The order sign, equality, and equality of hashes.</returns>
@@ -56,7 +74,9 @@ public static class NumericFunctions
     public static string NumericComparison(PgNumeric left, PgNumeric right)
         => $"{Math.Sign(left.CompareTo(right))}:{left == right}:{left.GetHashCode() == right.GetHashCode()}";
 
-    /// <summary>Runs an arithmetic or precision operation.</summary>
+    /// <summary>
+    /// Runs an arithmetic or precision operation.
+    /// </summary>
     /// <param name="operation">The operation.</param>
     /// <param name="left">The primary operand.</param>
     /// <param name="right">The secondary operand.</param>
@@ -88,7 +108,9 @@ public static class NumericFunctions
         _ => throw new ArgumentException("Unknown numeric operation.", nameof(operation)),
     };
 
-    /// <summary>Extracts exact temporal fields through all six temporal value types.</summary>
+    /// <summary>
+    /// Extracts exact temporal fields through all six temporal value types.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The temporal text.</param>
     /// <param name="part">The field.</param>
@@ -109,7 +131,9 @@ public static class NumericFunctions
         };
     }
 
-    /// <summary>Retains numeric domain values across session disposal and subsequent calls.</summary>
+    /// <summary>
+    /// Retains numeric domain values across session disposal and subsequent calls.
+    /// </summary>
     /// <returns>The owned text and decimal conversion.</returns>
     [PgFunction]
     public static string NumericDomain()
@@ -119,7 +143,9 @@ public static class NumericFunctions
         return row.Get<PgNumeric>(0).Text + ":" + row.Get<decimal>(0).ToString(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Checks native and managed errors preserve session state and prior writes.</summary>
+    /// <summary>
+    /// Checks native and managed errors preserve session state and prior writes.
+    /// </summary>
     /// <param name="operation">The failing operation.</param>
     /// <param name="left">The primary operand text.</param>
     /// <param name="right">The secondary operand text.</param>
@@ -162,7 +188,9 @@ public static class NumericFunctions
             return $"{failure}:{finalized}:" + session.ExecuteScalar<long>("SELECT count(*) FROM numeric_writes");
         });
 
-    /// <summary>Checks repeated operations and conversion failures release temporary native contexts.</summary>
+    /// <summary>
+    /// Checks repeated operations and conversion failures release temporary native contexts.
+    /// </summary>
     /// <returns>The extra context count and surviving plan result.</returns>
     [PgFunction]
     public static string NumericContextGrowth()

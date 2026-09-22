@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 
 namespace Ankus.Tool;
 
-/// <summary>Creates an independently restorable extension solution from the tool's bundled source templates.</summary>
+/// <summary>
+/// Creates an independently restorable extension solution from the tool's bundled source templates.
+/// </summary>
 internal static partial class ProjectScaffolder
 {
     private static readonly HashSet<string> s_keywords = new(StringComparer.Ordinal)

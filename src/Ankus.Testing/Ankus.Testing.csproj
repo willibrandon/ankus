@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Npgsql" />
-    <ProjectReference Include="../../src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
   </ItemGroup>
 
 </Project>

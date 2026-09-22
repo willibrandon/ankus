@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Npgsql" />
-    <ProjectReference Include="../Ankus.Testing/Ankus.Testing.csproj" />
+    <ProjectReference Include="../../src/Ankus.Testing/Ankus.Testing.csproj" />
     <ProjectReference Include="../../src/Ankus.Tool/Ankus.Tool.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

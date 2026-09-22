@@ -2,10 +2,14 @@ using System.Globalization;
 
 namespace Ankus.TestExtension;
 
-/// <summary>Exercises temporal construction, operators, precision and explicit timezone formatting.</summary>
+/// <summary>
+/// Exercises temporal construction, operators, precision and explicit timezone formatting.
+/// </summary>
 public static class TemporalConvenienceFunctions
 {
-    /// <summary>Constructs timestamp or timetz fields inside a generated callback.</summary>
+    /// <summary>
+    /// Constructs timestamp or timetz fields inside a generated callback.
+    /// </summary>
     /// <param name="type">The target temporal type.</param>
     /// <param name="year">The year, or fixed offset seconds for timetz.</param>
     /// <param name="month">The month.</param>
@@ -27,7 +31,9 @@ public static class TemporalConvenienceFunctions
             _ => throw new ArgumentException("Unknown type.", nameof(type)),
         };
 
-    /// <summary>Constructs a seven-component interval through the scalar dispatcher.</summary>
+    /// <summary>
+    /// Constructs a seven-component interval through the scalar dispatcher.
+    /// </summary>
     /// <param name="years">Years.</param>
     /// <param name="months">Months.</param>
     /// <param name="weeks">Weeks.</param>
@@ -40,7 +46,9 @@ public static class TemporalConvenienceFunctions
     public static PgInterval IntervalFactory(int years, int months, int weeks, int days, int hours, int minutes, double seconds)
         => PgInterval.Create(years, months, weeks, days, hours, minutes, seconds);
 
-    /// <summary>Constructs unit intervals and exercises checked component absolute values.</summary>
+    /// <summary>
+    /// Constructs unit intervals and exercises checked component absolute values.
+    /// </summary>
     /// <param name="unit">The constructor or operation.</param>
     /// <param name="value">The amount or interval text.</param>
     /// <returns>The interval.</returns>
@@ -59,13 +67,17 @@ public static class TemporalConvenienceFunctions
         _ => throw new ArgumentException("Unknown unit.", nameof(unit)),
     };
 
-    /// <summary>Compares the interval sign convention to PostgreSQL.</summary>
+    /// <summary>
+    /// Compares the interval sign convention to PostgreSQL.
+    /// </summary>
     /// <param name="value">The interval.</param>
     /// <returns>The comparison sign.</returns>
     [PgFunction]
     public static int IntervalSign(PgInterval value) => value.Sign;
 
-    /// <summary>Rounds temporal values through their native type modifiers.</summary>
+    /// <summary>
+    /// Rounds temporal values through their native type modifiers.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="value">The temporal input.</param>
     /// <param name="precision">The requested precision.</param>
@@ -80,7 +92,9 @@ public static class TemporalConvenienceFunctions
         _ => throw new ArgumentException("Unknown type.", nameof(type)),
     };
 
-    /// <summary>Reads the SQL current/local clock family.</summary>
+    /// <summary>
+    /// Reads the SQL current/local clock family.
+    /// </summary>
     /// <param name="type">The clock type.</param>
     /// <param name="precision">The fractional-second precision.</param>
     /// <returns>The PostgreSQL clock text.</returns>
@@ -95,7 +109,9 @@ public static class TemporalConvenienceFunctions
         _ => throw new ArgumentException("Unknown type.", nameof(type)),
     };
 
-    /// <summary>Formats instants and offset times in an explicit zone.</summary>
+    /// <summary>
+    /// Formats instants and offset times in an explicit zone.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="value">The temporal input.</param>
     /// <param name="zone">The output timezone.</param>
@@ -104,13 +120,17 @@ public static class TemporalConvenienceFunctions
     public static string TemporalIsoZone(string type, string value, string zone)
         => type == "timetz" ? PgTimeTz.Parse(value).ToIsoString(zone) : PgTimestampTz.Parse(value).ToIsoString(zone);
 
-    /// <summary>Extracts local time and offset from an instant.</summary>
+    /// <summary>
+    /// Extracts local time and offset from an instant.
+    /// </summary>
     /// <param name="value">The instant.</param>
     /// <returns>The local time and offset, or SQL NULL for infinity.</returns>
     [PgFunction]
     public static PgTimeTz? TimestampTimeTz(PgTimestampTz value) => value.ToTimeTz();
 
-    /// <summary>Checks new native routines unwind managed frames and preserve prior writes on error.</summary>
+    /// <summary>
+    /// Checks new native routines unwind managed frames and preserve prior writes on error.
+    /// </summary>
     /// <param name="operation">The invalid constructor, format or rounding operation.</param>
     /// <returns>The native error code, finally count, context growth and surviving writes.</returns>
     [PgFunction]
@@ -158,7 +178,9 @@ public static class TemporalConvenienceFunctions
         return $"{failure}:{finalized}:" + (session.ExecuteScalar<long>(count) - before) + ":" + plan.ExecuteScalar<long>();
     });
 
-    /// <summary>Exercises all temporal arithmetic operators, including reversed addition and multiplication.</summary>
+    /// <summary>
+    /// Exercises all temporal arithmetic operators, including reversed addition and multiplication.
+    /// </summary>
     /// <param name="type">The primary type.</param>
     /// <param name="operation">The operator.</param>
     /// <param name="left">The primary operand text.</param>

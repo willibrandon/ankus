@@ -2,12 +2,16 @@ using Npgsql;
 
 namespace Ankus.IntegrationTests;
 
-/// <summary>Verifies exact numeric storage, server arithmetic, decimal conversion, and guarded error recovery.</summary>
+/// <summary>
+/// Verifies exact numeric storage, server arithmetic, decimal conversion, and guarded error recovery.
+/// </summary>
 /// <param name="context">The per-test context.</param>
 [TestClass]
 public sealed class NumericTests(TestContext context)
 {
-    /// <summary>Verifies exact numeric payload and scale through every implemented ownership path.</summary>
+    /// <summary>
+    /// Verifies exact numeric payload and scale through every implemented ownership path.
+    /// </summary>
     /// <param name="text">The numeric input or SQL NULL.</param>
     [TestMethod]
     [DataRow("0.0000")]
@@ -45,7 +49,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual(8, count);
             }, context.CancellationToken);
 
-    /// <summary>Verifies decimal values survive all SPI paths while retaining representable scale.</summary>
+    /// <summary>
+    /// Verifies decimal values survive all SPI paths while retaining representable scale.
+    /// </summary>
     /// <param name="text">The exact decimal value.</param>
     [TestMethod]
     [DataRow("79228162514264337593543950335")]
@@ -69,7 +75,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual("12345678901234567890.123456789", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks native parsing at full numeric limits and exponent normalization without a decimal intermediary.</summary>
+    /// <summary>
+    /// Checks native parsing at full numeric limits and exponent normalization without a decimal intermediary.
+    /// </summary>
     [TestMethod]
     public Task FullRangeParsingAndScaleStayExact()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(FullRangeParsingAndScaleStayExact),
@@ -91,7 +99,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual("0.000", reader.GetString(3));
             }, context.CancellationToken);
 
-    /// <summary>Checks native numeric operations against independently written SQL, including result scale.</summary>
+    /// <summary>
+    /// Checks native numeric operations against independently written SQL, including result scale.
+    /// </summary>
     /// <param name="operation">The managed operation.</param>
     /// <param name="left">The primary input.</param>
     /// <param name="right">The secondary input.</param>
@@ -140,7 +150,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
             }, context.CancellationToken);
 
-    /// <summary>Checks high-range temporal extraction retains exact fractional seconds.</summary>
+    /// <summary>
+    /// Checks high-range temporal extraction retains exact fractional seconds.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The temporal input.</param>
     /// <param name="field">The field enum.</param>
@@ -169,7 +181,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
             }, context.CancellationToken);
 
-    /// <summary>Verifies native and managed failures preserve writes and run finally.</summary>
+    /// <summary>
+    /// Verifies native and managed failures preserve writes and run finally.
+    /// </summary>
     /// <param name="operation">The failing operation.</param>
     /// <param name="left">The primary input.</param>
     /// <param name="right">The secondary input.</param>
@@ -200,7 +214,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual($"{expected}:1:2", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks domains, nullable metadata, full native cleanup, and floating-point conversions.</summary>
+    /// <summary>
+    /// Checks domains, nullable metadata, full native cleanup, and floating-point conversions.
+    /// </summary>
     [TestMethod]
     public Task NumericDomainsConversionsAndCleanupRemainOwned()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(NumericDomainsConversionsAndCleanupRemainOwned),
@@ -228,7 +244,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.IsTrue(reader.GetBoolean(7));
             }, context.CancellationToken);
 
-    /// <summary>Verifies comparisons of values received from PostgreSQL match native ordering, including special values.</summary>
+    /// <summary>
+    /// Verifies comparisons of values received from PostgreSQL match native ordering, including special values.
+    /// </summary>
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     [TestMethod]
@@ -263,7 +281,9 @@ public sealed class NumericTests(TestContext context)
                 }
             }, context.CancellationToken);
 
-    /// <summary>Checks packed, compressed and external numeric datums are detoasted and copied before native cleanup.</summary>
+    /// <summary>
+    /// Checks packed, compressed and external numeric datums are detoasted and copied before native cleanup.
+    /// </summary>
     /// <param name="storage">The requested storage mode.</param>
     [TestMethod]
     [DataRow("EXTENDED")]
@@ -299,7 +319,9 @@ public sealed class NumericTests(TestContext context)
                 Assert.AreEqual(text, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks generated decimal input adapters reject rounding and nonfinite values while the backend survives.</summary>
+    /// <summary>
+    /// Checks generated decimal input adapters reject rounding and nonfinite values while the backend survives.
+    /// </summary>
     /// <param name="input">The unrepresentable value.</param>
     [TestMethod]
     [DataRow("8.0000000000000000000000000001")]

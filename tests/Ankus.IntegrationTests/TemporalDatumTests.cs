@@ -66,7 +66,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 }
             }, context.CancellationToken);
 
-    /// <summary>Verifies ordinary .NET types work in generated methods, typed NULLs, and SPI's generic readers.</summary>
+    /// <summary>
+    /// Verifies ordinary .NET types work in generated methods, typed NULLs, and SPI's generic readers.
+    /// </summary>
     /// <param name="mode">The ownership path.</param>
     [TestMethod]
     [DataRow(0)]
@@ -105,7 +107,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 }
             }, context.CancellationToken);
 
-    /// <summary>Verifies read-side epoch, offset direction, and interval field ordering against independent numeric expectations.</summary>
+    /// <summary>
+    /// Verifies read-side epoch, offset direction, and interval field ordering against independent numeric expectations.
+    /// </summary>
     [TestMethod]
     public Task NativeInputUsesPostgresEpochAndIndependentFields()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(NativeInputUsesPostgresEpochAndIndependentFields),
@@ -118,7 +122,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreEqual("-1|1|2|19817|-3|4|1|-2|3", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Verifies write-side conversions independently using PostgreSQL binary storage, rather than SQL interval equality.</summary>
+    /// <summary>
+    /// Verifies write-side conversions independently using PostgreSQL binary storage, rather than SQL interval equality.
+    /// </summary>
     /// <param name="expression">The managed construction.</param>
     /// <param name="expected">The PostgreSQL value.</param>
     /// <param name="type">The binary protocol function prefix.</param>
@@ -144,7 +150,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
             }, context.CancellationToken);
 
-    /// <summary>Verifies infinity has a distinct managed representation from finite interval components.</summary>
+    /// <summary>
+    /// Verifies infinity has a distinct managed representation from finite interval components.
+    /// </summary>
     [TestMethod]
     public Task IntervalInfinityIsExplicitAndNativeErrorsRecover()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(IntervalInfinityIsExplicitAndNativeErrorsRecover),
@@ -162,7 +170,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreEqual("22008:1:3", reader.GetString(3));
             }, context.CancellationToken);
 
-    /// <summary>Verifies domain datums use their base conversion and do not borrow backend storage.</summary>
+    /// <summary>
+    /// Verifies domain datums use their base conversion and do not borrow backend storage.
+    /// </summary>
     [TestMethod]
     public Task TemporalDomainsRemainOwnedAfterSpiCleanup()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(TemporalDomainsRemainOwnedAfterSpiCleanup),
@@ -183,7 +193,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreEqual("-1|1|2|19817|-3|4|1|-2|3", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Verifies loss of full-range, end-of-day, or calendar information raises a managed error safely.</summary>
+    /// <summary>
+    /// Verifies loss of full-range, end-of-day, or calendar information raises a managed error safely.
+    /// </summary>
     /// <param name="expression">The unsupported conversion or invalid constructor.</param>
     [TestMethod]
     [DataRow("exchange_date_only('infinity', 0)")]
@@ -213,7 +225,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreEqual("2000-01-01", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Verifies timezone and interval settings change formatting but not exact temporal storage.</summary>
+    /// <summary>
+    /// Verifies timezone and interval settings change formatting but not exact temporal storage.
+    /// </summary>
     /// <param name="zone">The session timezone.</param>
     /// <param name="style">The interval display style.</param>
     [TestMethod]
@@ -240,7 +254,9 @@ public sealed class TemporalDatumTests(TestContext context)
                 Assert.AreEqual(0L, reader.GetInt64(3));
             }, context.CancellationToken);
 
-    /// <summary>Verifies a calendar day remains different from 24 elapsed hours across a daylight-saving transition.</summary>
+    /// <summary>
+    /// Verifies a calendar day remains different from 24 elapsed hours across a daylight-saving transition.
+    /// </summary>
     [TestMethod]
     public Task CalendarDaysRemainDistinctFromElapsedHours()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(CalendarDaysRemainDistinctFromElapsedHours),

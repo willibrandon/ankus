@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Ankus;
 
-/// <summary>Converts intervals to and from PostgreSQL strings on the active backend, retaining IntervalStyle and independent components.</summary>
+/// <summary>
+/// Converts intervals to and from PostgreSQL strings on the active backend, retaining IntervalStyle and independent components.
+/// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgIntervalConverter : JsonConverter<PgInterval>
 {

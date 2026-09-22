@@ -4,12 +4,16 @@ using Npgsql;
 
 namespace Ankus.IntegrationTests;
 
-/// <summary>Verifies numeric contracts against independent PostgreSQL casts and backend recovery.</summary>
+/// <summary>
+/// Verifies numeric contracts against independent PostgreSQL casts and backend recovery.
+/// </summary>
 /// <param name="context">The per-test context.</param>
 [TestClass]
 public sealed class NumericContractTests(TestContext context)
 {
-    /// <summary>Checks input and output coercion against PostgreSQL's numeric typmod, including rounding carry.</summary>
+    /// <summary>
+    /// Checks input and output coercion against PostgreSQL's numeric typmod, including rounding carry.
+    /// </summary>
     /// <param name="input">The unconstrained numeric text.</param>
     [TestMethod]
     [DataRow("0")]
@@ -39,7 +43,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(3), reader.GetFieldValue<byte[]>(4));
             }, context.CancellationToken);
 
-    /// <summary>Coercion precedes checked decimal conversion, and return constraints run after managed decimal creation.</summary>
+    /// <summary>
+    /// Coercion precedes checked decimal conversion, and return constraints run after managed decimal creation.
+    /// </summary>
     [TestMethod]
     public Task DecimalConstraintsAndNullableValuesKeepTheirContracts()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(DecimalConstraintsAndNullableValuesKeepTheirContracts),
@@ -68,7 +74,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreEqual(reader.GetString(9), reader.GetString(8));
             }, context.CancellationToken);
 
-    /// <summary>Checks negative scales and scales above precision, including away-from-zero ties and zero padding.</summary>
+    /// <summary>
+    /// Checks negative scales and scales above precision, including away-from-zero ties and zero padding.
+    /// </summary>
     /// <param name="function">The constrained boundary.</param>
     /// <param name="input">The numeric input.</param>
     /// <param name="declaration">The native numeric type modifier.</param>
@@ -92,7 +100,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
             }, context.CancellationToken);
 
-    /// <summary>Rejects values outside a declared constraint, including overflow introduced by rounding.</summary>
+    /// <summary>
+    /// Rejects values outside a declared constraint, including overflow introduced by rounding.
+    /// </summary>
     /// <param name="function">The constrained boundary.</param>
     /// <param name="input">The out-of-range input.</param>
     [TestMethod]
@@ -120,7 +130,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreEqual("1.24", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks rounded integer casts, float precision, signed zero, subnormal values and special values.</summary>
+    /// <summary>
+    /// Checks rounded integer casts, float precision, signed zero, subnormal values and special values.
+    /// </summary>
     /// <param name="input">The numeric to cast.</param>
     /// <param name="type">The PostgreSQL primitive name.</param>
     [TestMethod]
@@ -160,7 +172,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreEqual(expectedText, reader.GetString(1));
             }, context.CancellationToken);
 
-    /// <summary>Float4 input conversion must use float4_numeric, rather than widening and using float8 precision.</summary>
+    /// <summary>
+    /// Float4 input conversion must use float4_numeric, rather than widening and using float8 precision.
+    /// </summary>
     /// <param name="input">The single-precision input text.</param>
     [TestMethod]
     [DataRow("1.23456789")]
@@ -182,7 +196,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
             }, context.CancellationToken);
 
-    /// <summary>Checks static generic integer conversion reaches all primitive widths in Native AOT.</summary>
+    /// <summary>
+    /// Checks static generic integer conversion reaches all primitive widths in Native AOT.
+    /// </summary>
     /// <param name="kind">The target type.</param>
     /// <param name="input">The exact input outside narrower primitive ranges.</param>
     [TestMethod]
@@ -209,7 +225,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreEqual(input, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks native and generated boundary failures preserve writes, plans and managed unwinding without memory growth.</summary>
+    /// <summary>
+    /// Checks native and generated boundary failures preserve writes, plans and managed unwinding without memory growth.
+    /// </summary>
     /// <param name="kind">The failing route.</param>
     /// <param name="expected">SQLSTATE, invocation/finally counts, context growth, plan result and surviving sum.</param>
     [TestMethod]
@@ -227,7 +245,9 @@ public sealed class NumericContractTests(TestContext context)
                 Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Checks generic interfaces and mixed primitive operators retain exact arithmetic and display scale.</summary>
+    /// <summary>
+    /// Checks generic interfaces and mixed primitive operators retain exact arithmetic and display scale.
+    /// </summary>
     [TestMethod]
     public Task GenericArithmeticPreservesScale()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(GenericArithmeticPreservesScale),

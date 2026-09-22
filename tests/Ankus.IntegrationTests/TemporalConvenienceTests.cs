@@ -2,12 +2,16 @@ using Npgsql;
 
 namespace Ankus.IntegrationTests;
 
-/// <summary>Compares new temporal conveniences with independent PostgreSQL expressions.</summary>
+/// <summary>
+/// Compares new temporal conveniences with independent PostgreSQL expressions.
+/// </summary>
 /// <param name="context">The test context.</param>
 [TestClass]
 public sealed class TemporalConvenienceTests(TestContext context)
 {
-    /// <summary>Checks multi-field construction and individual unit factories, including signs and full-range microseconds.</summary>
+    /// <summary>
+    /// Checks multi-field construction and individual unit factories, including signs and full-range microseconds.
+    /// </summary>
     /// <param name="actualSql">The generated callback expression.</param>
     /// <param name="expectedSql">The independent SQL expression.</param>
     [TestMethod]
@@ -45,7 +49,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
         }, context.CancellationToken);
 
-    /// <summary>Checks all operator routes, including commuted overloads, negative operands, rollover and DST.</summary>
+    /// <summary>
+    /// Checks all operator routes, including commuted overloads, negative operands, rollover and DST.
+    /// </summary>
     /// <param name="type">The primary operand type.</param>
     /// <param name="operation">The operator route.</param>
     /// <param name="left">The primary input.</param>
@@ -100,7 +106,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual(reader.GetString(0), reader.GetString(1));
         }, context.CancellationToken);
 
-    /// <summary>Checks rounding before/at/after ties, negative timestamps, end-of-day rollover, and infinity.</summary>
+    /// <summary>
+    /// Checks rounding before/at/after ties, negative timestamps, end-of-day rollover, and infinity.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The temporal input.</param>
     /// <param name="precision">The fractional precision.</param>
@@ -130,7 +138,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual(reader.GetString(0), reader.GetString(1));
         }, context.CancellationToken);
 
-    /// <summary>Checks precision-qualified clocks against SQL and ensures explicit zone formatting cannot change session settings.</summary>
+    /// <summary>
+    /// Checks precision-qualified clocks against SQL and ensures explicit zone formatting cannot change session settings.
+    /// </summary>
     /// <param name="precision">The clock precision.</param>
     [TestMethod]
     [DataRow(0)]
@@ -162,7 +172,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual("German, DMY", reader.GetString(7));
         }, context.CancellationToken);
 
-    /// <summary>Checks target-instant DST resolution, historical second offsets, BC dates and infinity formatting.</summary>
+    /// <summary>
+    /// Checks target-instant DST resolution, historical second offsets, BC dates and infinity formatting.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The input.</param>
     /// <param name="zone">The explicit zone.</param>
@@ -187,7 +199,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
 
-    /// <summary>Checks interval sign against native comparison, including mixed components that cancel.</summary>
+    /// <summary>
+    /// Checks interval sign against native comparison, including mixed components that cancel.
+    /// </summary>
     /// <param name="input">The interval.</param>
     [TestMethod]
     [DataRow("1 month -30 days")]
@@ -206,7 +220,9 @@ public sealed class TemporalConvenienceTests(TestContext context)
             Assert.AreEqual((int)reader.GetDouble(0), reader.GetInt32(1));
         }, context.CancellationToken);
 
-    /// <summary>Checks constructor, rounding and formatting failures preserve managed finally, active plans and writes.</summary>
+    /// <summary>
+    /// Checks constructor, rounding and formatting failures preserve managed finally, active plans and writes.
+    /// </summary>
     /// <param name="operation">The invalid operation.</param>
     /// <param name="code">The expected native SQLSTATE.</param>
     [TestMethod]

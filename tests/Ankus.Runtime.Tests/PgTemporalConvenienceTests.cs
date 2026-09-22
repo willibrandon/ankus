@@ -3,11 +3,15 @@ using System.Text.Json.Serialization;
 
 namespace Ankus.Runtime.Tests;
 
-/// <summary>Checks detached interval operations and the scalar converters' backend-access contract.</summary>
+/// <summary>
+/// Checks detached interval operations and the scalar converters' backend-access contract.
+/// </summary>
 [TestClass]
 public sealed class PgTemporalConvenienceTests
 {
-    /// <summary>Checks exact construction and comparison scale without backend access or Int64 overflow.</summary>
+    /// <summary>
+    /// Checks exact construction and comparison scale without backend access or Int64 overflow.
+    /// </summary>
     [TestMethod]
     public void IntervalComponentConveniencesPreserveExactStorage()
     {
@@ -32,7 +36,9 @@ public sealed class PgTemporalConvenienceTests
         Assert.ThrowsExactly<InvalidOperationException>(() => PgInterval.PositiveInfinity.ToComparisonMicroseconds());
     }
 
-    /// <summary>Invalid precision fails before backend access, whereas valid precision still requires the backend.</summary>
+    /// <summary>
+    /// Invalid precision fails before backend access, whereas valid precision still requires the backend.
+    /// </summary>
     /// <param name="precision">An out-of-range precision.</param>
     [TestMethod]
     [DataRow(-1)]
@@ -50,7 +56,9 @@ public sealed class PgTemporalConvenienceTests
         Assert.ThrowsExactly<InvalidOperationException>(() => default(PgTimestamp).Round(6));
     }
 
-    /// <summary>Checks numeric JSON writes remain available outside PostgreSQL and temporal operations preserve access errors.</summary>
+    /// <summary>
+    /// Checks numeric JSON writes remain available outside PostgreSQL and temporal operations preserve access errors.
+    /// </summary>
     [TestMethod]
     public void ScalarConvertersPreserveBackendAccessErrors()
     {

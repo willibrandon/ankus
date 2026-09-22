@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Ankus;
 
-/// <summary>Converts full-range instants to and from PostgreSQL ISO strings using the session timezone.</summary>
+/// <summary>
+/// Converts full-range instants to and from PostgreSQL ISO strings using the session timezone.
+/// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgTimestampTzConverter : JsonConverter<PgTimestampTz>
 {

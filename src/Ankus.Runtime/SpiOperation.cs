@@ -100,6 +100,8 @@ internal enum SpiOperation : byte
     /// </summary>
     Temporal,
 
-    /// <summary>Calls an allowlisted numeric routine without opening an SPI connection.</summary>
+    /// <summary>
+    /// Calls an allowlisted numeric routine without opening an SPI connection.
+    /// </summary>
     Numeric,
 }

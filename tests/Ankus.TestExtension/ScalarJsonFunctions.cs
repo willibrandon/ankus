@@ -4,10 +4,14 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Ankus.TestExtension;
 
-/// <summary>Exercises statically generated JSON contracts for full-range scalar values inside Native AOT.</summary>
+/// <summary>
+/// Exercises statically generated JSON contracts for full-range scalar values inside Native AOT.
+/// </summary>
 public static class ScalarJsonFunctions
 {
-    /// <summary>Reads and writes a scalar property using its statically registered converter.</summary>
+    /// <summary>
+    /// Reads and writes a scalar property using its statically registered converter.
+    /// </summary>
     /// <param name="type">The scalar type.</param>
     /// <param name="json">The object containing a Value property.</param>
     /// <returns>The serialized object.</returns>
@@ -25,7 +29,9 @@ public static class ScalarJsonFunctions
         _ => throw new ArgumentException("Unknown type.", nameof(type)),
     };
 
-    /// <summary>Recovers from JSON validation errors while preserving prior writes and an active prepared plan.</summary>
+    /// <summary>
+    /// Recovers from JSON validation errors while preserving prior writes and an active prepared plan.
+    /// </summary>
     /// <param name="type">The scalar type.</param>
     /// <param name="json">The input object.</param>
     /// <returns>The exception path, native SQLSTATE, finally count, retained contexts and surviving writes.</returns>

@@ -21,7 +21,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         _publishDirectory = publishDirectory;
     }
 
-    /// <summary>Gets the running cluster, with the extension installed in the public schema.</summary>
+    /// <summary>
+    /// Gets the running cluster, with the extension installed in the public schema.
+    /// </summary>
     public PostgresTestCluster Cluster { get; }
 
     /// <summary>
@@ -104,7 +106,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         }
     }
 
-    /// <summary>Stops the backend before deleting the temporary published library. Logs remain available.</summary>
+    /// <summary>
+    /// Stops the backend before deleting the temporary published library. Logs remain available.
+    /// </summary>
     /// <returns>A task completing after shutdown and file cleanup.</returns>
     public ValueTask DisposeAsync()
     {

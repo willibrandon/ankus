@@ -3,11 +3,15 @@ using System.Numerics;
 
 namespace Ankus.Runtime.Tests;
 
-/// <summary>Verifies numeric ownership, value ordering, display scale, and checked .NET conversions.</summary>
+/// <summary>
+/// Verifies numeric ownership, value ordering, display scale, and checked .NET conversions.
+/// </summary>
 [TestClass]
 public sealed class PgNumericTests
 {
-    /// <summary>Verifies decimal scale and extremes survive exact conversion without backend access.</summary>
+    /// <summary>
+    /// Verifies decimal scale and extremes survive exact conversion without backend access.
+    /// </summary>
     [TestMethod]
     public void DecimalConversionsPreserveValueAndScale()
     {
@@ -22,7 +26,9 @@ public sealed class PgNumericTests
         Assert.AreEqual(0.0000000000000000000000000001m, PgNumeric.FromDecimal(0.0000000000000000000000000001m).ToDecimal());
     }
 
-    /// <summary>Rejects the rounding and underflow which decimal parsing would otherwise perform silently.</summary>
+    /// <summary>
+    /// Rejects the rounding and underflow which decimal parsing would otherwise perform silently.
+    /// </summary>
     /// <param name="text">Canonical PostgreSQL output outside decimal's exact value set.</param>
     [TestMethod]
     [DataRow("0.00000000000000000000000000001")]
@@ -36,7 +42,9 @@ public sealed class PgNumericTests
     public void UnrepresentableDecimalsAreRejected(string text)
         => Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromCanonicalText(text).ToDecimal());
 
-    /// <summary>Checks equality/hash normalization, including NaN and differently scaled zeroes.</summary>
+    /// <summary>
+    /// Checks equality/hash normalization, including NaN and differently scaled zeroes.
+    /// </summary>
     /// <param name="left">The first canonical numeric.</param>
     /// <param name="right">The numerically equal canonical numeric.</param>
     [TestMethod]
@@ -58,7 +66,9 @@ public sealed class PgNumericTests
         Assert.IsTrue(first >= second);
     }
 
-    /// <summary>Checks sign, integer-digit width, fractional digits, and PostgreSQL special-value ordering.</summary>
+    /// <summary>
+    /// Checks sign, integer-digit width, fractional digits, and PostgreSQL special-value ordering.
+    /// </summary>
     [TestMethod]
     public void OrderingMatchesNumericMagnitudeAndSpecialValues()
     {
@@ -85,7 +95,9 @@ public sealed class PgNumericTests
         Assert.IsFalse(PgNumeric.PositiveInfinity.IsFinite);
     }
 
-    /// <summary>Checks integer conversions beyond decimal and refuses fractional/nonfinite input.</summary>
+    /// <summary>
+    /// Checks integer conversions beyond decimal and refuses fractional/nonfinite input.
+    /// </summary>
     [TestMethod]
     public void BigIntegersAndRedundantFractionalZerosRemainExact()
     {
@@ -102,7 +114,9 @@ public sealed class PgNumericTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PgNumeric.FromBigInteger(-limit));
     }
 
-    /// <summary>Checks all binary integer widths, signs, exact narrowing, and independent overflow boundaries.</summary>
+    /// <summary>
+    /// Checks all binary integer widths, signs, exact narrowing, and independent overflow boundaries.
+    /// </summary>
     [TestMethod]
     public void GenericIntegerConversionsAreExactAndChecked()
     {
@@ -123,7 +137,9 @@ public sealed class PgNumericTests
         Assert.AreEqual(huge, PgNumeric.FromInteger(huge).ToInteger<BigInteger>());
     }
 
-    /// <summary>Checks exact implicit and explicit conversions preserve primitive extremes and decimal scale.</summary>
+    /// <summary>
+    /// Checks exact implicit and explicit conversions preserve primitive extremes and decimal scale.
+    /// </summary>
     [TestMethod]
     public void PrimitiveConversionOperatorsPreserveValues()
     {
@@ -143,7 +159,9 @@ public sealed class PgNumericTests
         Assert.AreEqual("1", PgNumeric.One.Text);
     }
 
-    /// <summary>Checks empty and singleton sums require no backend and always dispose their source enumerator.</summary>
+    /// <summary>
+    /// Checks empty and singleton sums require no backend and always dispose their source enumerator.
+    /// </summary>
     [TestMethod]
     public void SumPreservesSingletonScaleAndDisposesOnFailure()
     {
@@ -184,7 +202,9 @@ public sealed class PgNumericTests
         Assert.AreEqual(T.One, PgNumeric.FromDecimal(1.000m).ToInteger<T>());
     }
 
-    /// <summary>Checks numeric/decimal row conversions and independent cell type metadata.</summary>
+    /// <summary>
+    /// Checks numeric/decimal row conversions and independent cell type metadata.
+    /// </summary>
     [TestMethod]
     public void RowConversionsUseExactNumericSemantics()
     {

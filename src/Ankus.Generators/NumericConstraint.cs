@@ -4,7 +4,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
-/// <summary>Reads declarative numeric constraints without loading or executing extension code.</summary>
+/// <summary>
+/// Reads declarative numeric constraints without loading or executing extension code.
+/// </summary>
 internal static class NumericConstraint
 {
     private static readonly DiagnosticDescriptor s_invalidConstraint = new(

@@ -1,6 +1,8 @@
 namespace Ankus;
 
-/// <summary>Selects a PostgreSQL numeric routine within the native guard.</summary>
+/// <summary>
+/// Selects a PostgreSQL numeric routine within the native guard.
+/// </summary>
 internal enum NumericOperation
 {
     Parse, Add, Subtract, Multiply, Divide, Remainder, Negate, Abs, Round, Truncate,

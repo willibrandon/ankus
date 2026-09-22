@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Ankus;
 
-/// <summary>Converts full-range times, including 24:00, to and from PostgreSQL ISO strings on the active backend.</summary>
+/// <summary>
+/// Converts full-range times, including 24:00, to and from PostgreSQL ISO strings on the active backend.
+/// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgTimeConverter : JsonConverter<PgTime>
 {

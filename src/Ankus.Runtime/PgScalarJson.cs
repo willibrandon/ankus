@@ -2,7 +2,9 @@ using System.Text.Json;
 
 namespace Ankus;
 
-/// <summary>Shares JSON token and input-error handling without reflection or loss of numeric precision.</summary>
+/// <summary>
+/// Shares JSON token and input-error handling without reflection or loss of numeric precision.
+/// </summary>
 internal static class PgScalarJson
 {
     internal static T Read<T>(ref Utf8JsonReader reader, Func<string, T> parse, bool allowNumber = false)

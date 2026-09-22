@@ -13,7 +13,9 @@ namespace Ankus;
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue, Inherited = false)]
 public sealed class PgNumericPrecisionAttribute : Attribute
 {
-    /// <summary>Declares numeric precision and scale.</summary>
+    /// <summary>
+    /// Declares numeric precision and scale.
+    /// </summary>
     /// <param name="precision">The maximum significant digits, one through 1000.</param>
     /// <param name="scale">The scale, -1000 through 1000. The default is zero.</param>
     public PgNumericPrecisionAttribute(int precision, int scale = 0)
@@ -26,9 +28,13 @@ public sealed class PgNumericPrecisionAttribute : Attribute
         Scale = scale;
     }
 
-    /// <summary>Gets the maximum significant digits.</summary>
+    /// <summary>
+    /// Gets the maximum significant digits.
+    /// </summary>
     public int Precision { get; }
 
-    /// <summary>Gets the declared scale.</summary>
+    /// <summary>
+    /// Gets the declared scale.
+    /// </summary>
     public int Scale { get; }
 }

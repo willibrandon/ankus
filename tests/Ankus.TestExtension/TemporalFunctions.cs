@@ -5,84 +5,108 @@ namespace Ankus.TestExtension;
 /// </summary>
 public static class TemporalFunctions
 {
-    /// <summary>Returns a date through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a date through the requested ownership path.
+    /// </summary>
     /// <param name="value">The date or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned date.</returns>
     [PgFunction]
     public static PgDate? ExchangeDate(PgDate? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a time through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a time through the requested ownership path.
+    /// </summary>
     /// <param name="value">The time or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned time.</returns>
     [PgFunction]
     public static PgTime? ExchangeTime(PgTime? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a time and offset through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a time and offset through the requested ownership path.
+    /// </summary>
     /// <param name="value">The time or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned time.</returns>
     [PgFunction]
     public static PgTimeTz? ExchangeTimetz(PgTimeTz? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a wall-clock timestamp through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a wall-clock timestamp through the requested ownership path.
+    /// </summary>
     /// <param name="value">The timestamp or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned timestamp.</returns>
     [PgFunction]
     public static PgTimestamp? ExchangeTimestamp(PgTimestamp? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns an instant through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns an instant through the requested ownership path.
+    /// </summary>
     /// <param name="value">The instant or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned instant.</returns>
     [PgFunction]
     public static PgTimestampTz? ExchangeTimestamptz(PgTimestampTz? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns an interval through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns an interval through the requested ownership path.
+    /// </summary>
     /// <param name="value">The interval or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The owned interval.</returns>
     [PgFunction]
     public static PgInterval? ExchangeInterval(PgInterval? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a DateOnly through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a DateOnly through the requested ownership path.
+    /// </summary>
     /// <param name="value">The date or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The .NET date.</returns>
     [PgFunction]
     public static DateOnly? ExchangeDateOnly(DateOnly? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a TimeOnly through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a TimeOnly through the requested ownership path.
+    /// </summary>
     /// <param name="value">The time or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The .NET time.</returns>
     [PgFunction]
     public static TimeOnly? ExchangeTimeOnly(TimeOnly? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns an unspecified DateTime through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns an unspecified DateTime through the requested ownership path.
+    /// </summary>
     /// <param name="value">The timestamp or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The .NET timestamp.</returns>
     [PgFunction]
     public static DateTime? ExchangeDateTime(DateTime? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns a DateTimeOffset through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns a DateTimeOffset through the requested ownership path.
+    /// </summary>
     /// <param name="value">The instant or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The .NET instant.</returns>
     [PgFunction]
     public static DateTimeOffset? ExchangeDateTimeOffset(DateTimeOffset? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Returns an elapsed TimeSpan through the requested ownership path.</summary>
+    /// <summary>
+    /// Returns an elapsed TimeSpan through the requested ownership path.
+    /// </summary>
     /// <param name="value">The duration or SQL NULL.</param>
     /// <param name="mode">The SPI path.</param>
     /// <returns>The .NET duration.</returns>
     [PgFunction]
     public static TimeSpan? ExchangeTimeSpan(TimeSpan? value, int mode) => Exchange(value, mode);
 
-    /// <summary>Reads all temporal fields independently of the native output converter.</summary>
+    /// <summary>
+    /// Reads all temporal fields independently of the native output converter.
+    /// </summary>
     /// <param name="date">The date.</param>
     /// <param name="time">The time.</param>
     /// <param name="offset">The time and offset.</param>
@@ -97,38 +121,50 @@ public static class TemporalFunctions
             FormattableString.Invariant(
                 $"{stamp.MicrosecondsSinceEpoch}|{instant.MicrosecondsSinceEpoch}|{span.Months}|{span.Days}|{span.Microseconds}");
 
-    /// <summary>Constructs a date without the native input converter.</summary>
+    /// <summary>
+    /// Constructs a date without the native input converter.
+    /// </summary>
     /// <param name="days">The day offset.</param>
     /// <returns>The date.</returns>
     [PgFunction]
     public static PgDate DateFromDays(int days) => new(days);
 
-    /// <summary>Constructs a time without the native input converter.</summary>
+    /// <summary>
+    /// Constructs a time without the native input converter.
+    /// </summary>
     /// <param name="micros">The time in microseconds.</param>
     /// <returns>The time.</returns>
     [PgFunction]
     public static PgTime TimeFromMicros(long micros) => new(micros);
 
-    /// <summary>Constructs a time with second-resolution offset.</summary>
+    /// <summary>
+    /// Constructs a time with second-resolution offset.
+    /// </summary>
     /// <param name="micros">The time in microseconds.</param>
     /// <param name="offset">The seconds east of UTC.</param>
     /// <returns>The time with offset.</returns>
     [PgFunction]
     public static PgTimeTz TimetzFromParts(long micros, int offset) => new(new PgTime(micros), offset);
 
-    /// <summary>Constructs a wall-clock timestamp without the native input converter.</summary>
+    /// <summary>
+    /// Constructs a wall-clock timestamp without the native input converter.
+    /// </summary>
     /// <param name="micros">The epoch-relative microseconds.</param>
     /// <returns>The timestamp.</returns>
     [PgFunction]
     public static PgTimestamp TimestampFromMicros(long micros) => new(micros);
 
-    /// <summary>Constructs an instant without the native input converter.</summary>
+    /// <summary>
+    /// Constructs an instant without the native input converter.
+    /// </summary>
     /// <param name="micros">The epoch-relative UTC microseconds.</param>
     /// <returns>The instant.</returns>
     [PgFunction]
     public static PgTimestampTz TimestamptzFromMicros(long micros) => new(micros);
 
-    /// <summary>Constructs an interval without the native input converter.</summary>
+    /// <summary>
+    /// Constructs an interval without the native input converter.
+    /// </summary>
     /// <param name="months">The month component.</param>
     /// <param name="days">The day component.</param>
     /// <param name="micros">The elapsed-time component.</param>
@@ -136,21 +172,27 @@ public static class TemporalFunctions
     [PgFunction]
     public static PgInterval IntervalFromParts(int months, int days, long micros) => new(months, days, micros);
 
-    /// <summary>Returns interval infinity through a parameterized session query.</summary>
+    /// <summary>
+    /// Returns interval infinity through a parameterized session query.
+    /// </summary>
     /// <param name="negative">Whether to return negative infinity.</param>
     /// <returns>The infinite interval.</returns>
     [PgFunction]
     public static PgInterval IntervalInfinity(bool negative)
         => Exchange(negative ? PgInterval.NegativeInfinity : PgInterval.PositiveInfinity, 3);
 
-    /// <summary>Checks that native interval infinities become explicit managed values.</summary>
+    /// <summary>
+    /// Checks that native interval infinities become explicit managed values.
+    /// </summary>
     /// <param name="value">The interval.</param>
     /// <returns>Zero for finite values, one for positive infinity, or negative one for negative infinity.</returns>
     [PgFunction]
     public static int IntervalInfinityKind(PgInterval value)
         => value.IsFinite ? 0 : value == PgInterval.PositiveInfinity ? 1 : -1;
 
-    /// <summary>Materializes domain values and verifies that their storage survives later SPI calls.</summary>
+    /// <summary>
+    /// Materializes domain values and verifies that their storage survives later SPI calls.
+    /// </summary>
     /// <param name="sql">A query returning the six temporal types in order.</param>
     /// <returns>The copied fields.</returns>
     [PgFunction]
@@ -162,7 +204,9 @@ public static class TemporalFunctions
             row.Get<PgTimestamp>(3), row.Get<PgTimestampTz>(4), row.Get<PgInterval>(5));
     }
 
-    /// <summary>Recovers from a PostgreSQL interval-sentinel collision inside a session subtransaction.</summary>
+    /// <summary>
+    /// Recovers from a PostgreSQL interval-sentinel collision inside a session subtransaction.
+    /// </summary>
     /// <returns>The SQLSTATE, preserved row count, and successful follow-up interval.</returns>
     [PgFunction]
     public static string IntervalWriteRecovery()
@@ -182,17 +226,23 @@ public static class TemporalFunctions
             }
         });
 
-    /// <summary>Exercises rejected sub-microsecond .NET results at the generated output boundary.</summary>
+    /// <summary>
+    /// Exercises rejected sub-microsecond .NET results at the generated output boundary.
+    /// </summary>
     /// <returns>An unrepresentable time.</returns>
     [PgFunction]
     public static TimeOnly SubMicrosecondTime() => new(1);
 
-    /// <summary>Exercises rejected UTC DateTime results at the timezone-free output boundary.</summary>
+    /// <summary>
+    /// Exercises rejected UTC DateTime results at the timezone-free output boundary.
+    /// </summary>
     /// <returns>A timestamp with an incompatible kind.</returns>
     [PgFunction]
     public static DateTime UtcWallClock() => new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    /// <summary>Checks managed SPI conversion failures leave a session usable and do not lose preceding writes.</summary>
+    /// <summary>
+    /// Checks managed SPI conversion failures leave a session usable and do not lose preceding writes.
+    /// </summary>
     /// <returns>The failure count and successfully read timestamp.</returns>
     [PgFunction]
     public static string TemporalReadRecovery()
@@ -232,7 +282,9 @@ public static class TemporalFunctions
                 session.ExecuteScalar<DateTime>("SELECT timestamp '2000-01-01'").Kind;
         });
 
-    /// <summary>Counts native context retention from repeated interval and timetz parameter construction.</summary>
+    /// <summary>
+    /// Counts native context retention from repeated interval and timetz parameter construction.
+    /// </summary>
     /// <returns>The number of extra subtransaction contexts.</returns>
     [PgFunction]
     public static long TemporalContextGrowth()

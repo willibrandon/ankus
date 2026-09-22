@@ -39,10 +39,11 @@ Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
 
-`Ankus.TestExtension` contains attributed backend probes. `Ankus.IntegrationTests`
-invokes them and checks their SQL results. `Ankus.Testing` owns cluster startup,
-transactions, diagnostics, and shutdown. FATAL and PANIC tests use dedicated
-clusters.
+`tests/Ankus.TestExtension` contains attributed backend probes. `tests/Ankus.IntegrationTests`
+invokes them and checks their SQL results. The public `Ankus.Testing` package lives
+in `src/Ankus.Testing` and owns cluster startup, transactions, diagnostics, and
+shutdown. Repository-specific fixtures stay under `tests/`. FATAL and PANIC tests
+use dedicated clusters.
 
 ## Publish the sample
 

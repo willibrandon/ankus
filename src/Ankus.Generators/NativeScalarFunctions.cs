@@ -1,9 +1,13 @@
 namespace Ankus.Generators;
 
-/// <summary>Validates and invokes allowlisted scalar signatures inside the native guard.</summary>
+/// <summary>
+/// Validates and invokes allowlisted scalar signatures inside the native guard.
+/// </summary>
 internal static class NativeScalarFunctions
 {
-    /// <summary>Gets the typed scalar function table contract and invocation helper.</summary>
+    /// <summary>
+    /// Gets the typed scalar function table contract and invocation helper.
+    /// </summary>
     internal const string Source = """
         typedef struct AnkusScalarFunction
         {

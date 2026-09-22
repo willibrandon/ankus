@@ -43,7 +43,7 @@ public sealed class ToolCommandTests(TestContext context)
         Directory.CreateDirectory(feed);
         s_version = "0.0.0-test." + Guid.NewGuid().ToString("N");
         foreach (string project in new[] { "src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
-                     "src/Ankus.Sdk", "src/Ankus.Tool", "tests/Ankus.Testing" })
+                     "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing" })
         {
             await ProcessRunner.RunCheckedAsync("dotnet",
                 ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:Version=" + s_version,
@@ -475,7 +475,9 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("PackagedClusterLoadsNativeExtension", report.Descendants(ns + "UnitTestResult").Single().Attribute("testName")!.Value);
     }
 
-    /// <summary>Checks a generated package-only solution discovers and runs managed and native tests with plain dotnet test.</summary>
+    /// <summary>
+    /// Checks a generated package-only solution discovers and runs managed and native tests with plain dotnet test.
+    /// </summary>
     [TestMethod]
     public async Task NewSolutionRunsManagedAndBackendTests()
     {
@@ -537,7 +539,9 @@ public sealed class ToolCommandTests(TestContext context)
 
     }
 
-    /// <summary>Build and CREATE EXTENSION failures fail native test initialization and remove the owned publish/cluster directories.</summary>
+    /// <summary>
+    /// Build and CREATE EXTENSION failures fail native test initialization and remove the owned publish/cluster directories.
+    /// </summary>
     /// <param name="failure">The initialization stage to fail.</param>
     [TestMethod]
     [DataRow("build")]
@@ -576,7 +580,9 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.binlog"));
     }
 
-    /// <summary>Checks keyword namespaces, explicit SQL names, and token-like project names generate valid C# without recursive replacement.</summary>
+    /// <summary>
+    /// Checks keyword namespaces, explicit SQL names, and token-like project names generate valid C# without recursive replacement.
+    /// </summary>
     /// <param name="name">The managed project name.</param>
     /// <param name="extension">The explicit SQL extension name.</param>
     [TestMethod]
@@ -594,7 +600,9 @@ public sealed class ToolCommandTests(TestContext context)
         build.EnsureSuccess("dotnet", ["build"]);
     }
 
-    /// <summary>Checks invalid names fail before creating destination directories or files.</summary>
+    /// <summary>
+    /// Checks invalid names fail before creating destination directories or files.
+    /// </summary>
     /// <param name="name">The candidate project name.</param>
     /// <param name="extension">The SQL extension override, or null.</param>
     [TestMethod]
@@ -617,7 +625,9 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.IsEmpty(Directory.GetFileSystemEntries(Path.GetDirectoryName(output)!));
     }
 
-    /// <summary>Checks an existing destination remains byte-for-byte unchanged.</summary>
+    /// <summary>
+    /// Checks an existing destination remains byte-for-byte unchanged.
+    /// </summary>
     [TestMethod]
     public async Task NewPreservesExistingFiles()
     {
@@ -631,7 +641,9 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreSequenceEqual([file], Directory.GetFileSystemEntries(output));
     }
 
-    /// <summary>A solution with multiple extensions requires explicit selection rather than publishing an arbitrary project.</summary>
+    /// <summary>
+    /// A solution with multiple extensions requires explicit selection rather than publishing an arbitrary project.
+    /// </summary>
     [TestMethod]
     public async Task NewSolutionWithMultipleExtensionsRequiresSelection()
     {

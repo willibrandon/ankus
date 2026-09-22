@@ -46,9 +46,14 @@ Linux, and macOS.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
 - **`dotnet test`**: **995 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
-- Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
+- The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
+- The testing-package move preserves its assembly, namespace, NuGet identity, and author APIs. Solution references,
+  documentation generation, and isolated package-consumer tests use the new path. The post-move Release build has
+  zero warnings/errors, and plain `dotnet test` still passes all 995 cases, including installed-package and generated-solution tests.
+- XML summary tags use separate opening, text, and closing lines. CA1000 is an error in the repository and generated
+  extension projects; generic types do not expose static members.
 - The sample contains ordinary `[PgFunction]`-attributed `Add` and `Greet` methods. Ankus generates
   managed dispatchers, native entry points, module magic, finfo, datum conversions, and SQL.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
@@ -463,7 +468,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. Background-worker template awaits worker API |
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: installed CLI registration with locked/atomic configuration updates; provisioning pending |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
-| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `tests/Ankus.Testing`; development CLI pending |
+| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `src/Ankus.Testing`; development CLI pending |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend tests, reusable publish/load fixture; attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |

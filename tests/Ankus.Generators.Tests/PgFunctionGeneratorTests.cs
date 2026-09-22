@@ -163,7 +163,9 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
 
-    /// <summary>Verifies .NET aliases cannot silently replace full-range overloads with the same SQL signature.</summary>
+    /// <summary>
+    /// Verifies .NET aliases cannot silently replace full-range overloads with the same SQL signature.
+    /// </summary>
     /// <param name="clrType">The ordinary .NET type.</param>
     /// <param name="pgType">The full-range PostgreSQL type.</param>
     [TestMethod]
@@ -200,7 +202,9 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
         Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
     }
 
-    /// <summary>Rejects misplaced or out-of-range numeric constraints before any native compilation.</summary>
+    /// <summary>
+    /// Rejects misplaced or out-of-range numeric constraints before any native compilation.
+    /// </summary>
     /// <param name="method">The invalid constrained method.</param>
     [TestMethod]
     [DataRow("public static int Echo([Ankus.PgNumericPrecision(5, 2)] int value) => value;")]
@@ -219,7 +223,9 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
             .ToString(diagnostic.Location.SourceSpan));
     }
 
-    /// <summary>Type modifiers do not distinguish SQL overloads, even when CLR types and constraints differ.</summary>
+    /// <summary>
+    /// Type modifiers do not distinguish SQL overloads, even when CLR types and constraints differ.
+    /// </summary>
     [TestMethod]
     public void NumericConstraintsDoNotCreateSqlOverloads()
     {

@@ -33,6 +33,7 @@ csharp_indent_case_contents_when_block = false
 # a first-party analyzer will enforce it once Ankus.Analyzers is available.
 dotnet_diagnostic.IDE0044.severity = error
 dotnet_diagnostic.IDE0305.severity = error
+dotnet_diagnostic.CA1000.severity = error
 csharp_style_prefer_collection_expression = when_types_loosely_match:error
 dotnet_diagnostic.IDE0005.severity = warning
 

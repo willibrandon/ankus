@@ -7,7 +7,9 @@ namespace Ankus.TestExtension;
 /// </summary>
 public static class TemporalOperationFunctions
 {
-    /// <summary>Runs a temporal operation and returns its native textual representation.</summary>
+    /// <summary>
+    /// Runs a temporal operation and returns its native textual representation.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="operation">The method to exercise.</param>
     /// <param name="left">The primary operand.</param>
@@ -26,7 +28,9 @@ public static class TemporalOperationFunctions
             _ => throw new ArgumentException("Unknown temporal type.", nameof(type)),
         };
 
-    /// <summary>Constructs a date with native calendar validation.</summary>
+    /// <summary>
+    /// Constructs a date with native calendar validation.
+    /// </summary>
     /// <param name="year">The signed year.</param>
     /// <param name="month">The month.</param>
     /// <param name="day">The day.</param>
@@ -34,7 +38,9 @@ public static class TemporalOperationFunctions
     [PgFunction]
     public static PgDate MakePgDate(int year, int month, int day) => PgDate.Create(year, month, day);
 
-    /// <summary>Constructs a time with native fractional-second handling.</summary>
+    /// <summary>
+    /// Constructs a time with native fractional-second handling.
+    /// </summary>
     /// <param name="hour">The hour.</param>
     /// <param name="minute">The minute.</param>
     /// <param name="second">The fractional seconds.</param>
@@ -42,7 +48,9 @@ public static class TemporalOperationFunctions
     [PgFunction]
     public static PgTime MakePgTime(int hour, int minute, double second) => PgTime.Create(hour, minute, second);
 
-    /// <summary>Checks TryParse results and their output value on both success and failure.</summary>
+    /// <summary>
+    /// Checks TryParse results and their output value on both success and failure.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="text">The candidate input.</param>
     /// <returns>The success flag and formatted out value.</returns>
@@ -58,12 +66,16 @@ public static class TemporalOperationFunctions
         _ => throw new ArgumentException("Unknown temporal type.", nameof(type)),
     };
 
-    /// <summary>Checks invalid managed UTF-16 is rejected before native parsing.</summary>
+    /// <summary>
+    /// Checks invalid managed UTF-16 is rejected before native parsing.
+    /// </summary>
     /// <returns>The parse flag and out value.</returns>
     [PgFunction]
     public static string TryParseInvalidUtf16() => PgDate.TryParse("\ud800", out PgDate value) + ":" + value.ToPostgresString();
 
-    /// <summary>Checks native errors can be caught inside an active session while retaining prior writes and finally execution.</summary>
+    /// <summary>
+    /// Checks native errors can be caught inside an active session while retaining prior writes and finally execution.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="operation">The operation that should fail.</param>
     /// <param name="left">The primary operand.</param>
@@ -96,7 +108,9 @@ public static class TemporalOperationFunctions
             return $"{state}:{source}:{finalized}:" + session.ExecuteScalar<long>("SELECT count(*) FROM temporal_writes");
         });
 
-    /// <summary>Truncates an instant in an explicit timezone.</summary>
+    /// <summary>
+    /// Truncates an instant in an explicit timezone.
+    /// </summary>
     /// <param name="value">The UTC instant.</param>
     /// <param name="part">The truncation field.</param>
     /// <param name="zone">The timezone.</param>
@@ -104,7 +118,9 @@ public static class TemporalOperationFunctions
     [PgFunction]
     public static PgTimestampTz TruncateInZone(PgTimestampTz value, string part, string zone) => value.Truncate(Part(part), zone);
 
-    /// <summary>Verifies direct calls do not replace the active SPI connection or retain operation contexts.</summary>
+    /// <summary>
+    /// Verifies direct calls do not replace the active SPI connection or retain operation contexts.
+    /// </summary>
     /// <returns>The before/after connection and context deltas, plus the surviving plan result.</returns>
     [PgFunction]
     public static string TemporalOperationsPreserveSession()
@@ -136,7 +152,9 @@ public static class TemporalOperationFunctions
                 plan.ExecuteScalar<int>(SpiParameter.Create(40));
         });
 
-    /// <summary>Reads server clocks in one statement, including direct operations inside an open SPI session.</summary>
+    /// <summary>
+    /// Reads server clocks in one statement, including direct operations inside an open SPI session.
+    /// </summary>
     /// <returns>The clock checks performed entirely in the backend.</returns>
     [PgFunction]
     public static string TemporalClocks()

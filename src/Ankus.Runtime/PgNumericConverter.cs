@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Ankus;
 
-/// <summary>Writes numeric strings losslessly and reads strings or exact JSON number tokens on the active backend.</summary>
+/// <summary>
+/// Writes numeric strings losslessly and reads strings or exact JSON number tokens on the active backend.
+/// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgNumericConverter : JsonConverter<PgNumeric>
 {

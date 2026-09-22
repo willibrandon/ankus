@@ -3,13 +3,17 @@ using System.Numerics;
 
 namespace Ankus.TestExtension;
 
-/// <summary>Exercises numeric constraints and generic conversions in the published native library.</summary>
+/// <summary>
+/// Exercises numeric constraints and generic conversions in the published native library.
+/// </summary>
 public static class NumericContractFunctions
 {
     private static int s_called;
     private static int s_finalized;
 
-    /// <summary>Reports the numeric actually delivered to managed code after input coercion.</summary>
+    /// <summary>
+    /// Reports the numeric actually delivered to managed code after input coercion.
+    /// </summary>
     /// <param name="value">The constrained input or SQL NULL.</param>
     /// <returns>The coerced text, or a marker proving nullable inputs enter the method.</returns>
     [PgFunction]
@@ -19,7 +23,9 @@ public static class NumericContractFunctions
         return value?.Text ?? "managed null";
     }
 
-    /// <summary>Returns a numeric whose return constraint applies after the method's finally block.</summary>
+    /// <summary>
+    /// Returns a numeric whose return constraint applies after the method's finally block.
+    /// </summary>
     /// <param name="value">The unconstrained input.</param>
     /// <returns>The constrained result or SQL NULL.</returns>
     [PgFunction]
@@ -37,41 +43,53 @@ public static class NumericContractFunctions
         }
     }
 
-    /// <summary>Checks numeric coercion precedes exact decimal narrowing.</summary>
+    /// <summary>
+    /// Checks numeric coercion precedes exact decimal narrowing.
+    /// </summary>
     /// <param name="value">The constrained decimal.</param>
     /// <returns>The exact narrowed decimal text, including scale.</returns>
     [PgFunction]
     public static string ConstrainedDecimalInput([PgNumericPrecision(5, 2)] decimal? value)
         => value?.ToString(CultureInfo.InvariantCulture) ?? "managed null";
 
-    /// <summary>Coerces the result of a decimal method after its return.</summary>
+    /// <summary>
+    /// Coerces the result of a decimal method after its return.
+    /// </summary>
     /// <param name="value">The original decimal.</param>
     /// <returns>The constrained numeric.</returns>
     [PgFunction]
     [return: PgNumericPrecision(5, 2)]
     public static decimal? ConstrainedDecimalOutput(decimal? value) => value;
 
-    /// <summary>Uses the default zero scale on an input parameter.</summary>
+    /// <summary>
+    /// Uses the default zero scale on an input parameter.
+    /// </summary>
     /// <param name="value">The numeric input.</param>
     /// <returns>The input rounded to an integer.</returns>
     [PgFunction]
     public static string ConstrainedWholeInput([PgNumericPrecision(5)] PgNumeric value) => value.Text;
 
-    /// <summary>Applies a negative scale to a returned numeric on PostgreSQL 15 or later.</summary>
+    /// <summary>
+    /// Applies a negative scale to a returned numeric on PostgreSQL 15 or later.
+    /// </summary>
     /// <param name="value">The original numeric.</param>
     /// <returns>The rounded numeric.</returns>
     [PgFunction]
     [return: PgNumericPrecision(2, -3)]
     public static PgNumeric ConstrainedNegativeScale(PgNumeric value) => value;
 
-    /// <summary>Applies a scale larger than precision on PostgreSQL 15 or later.</summary>
+    /// <summary>
+    /// Applies a scale larger than precision on PostgreSQL 15 or later.
+    /// </summary>
     /// <param name="value">The original numeric.</param>
     /// <returns>The rounded numeric.</returns>
     [PgFunction]
     [return: PgNumericPrecision(3, 5)]
     public static PgNumeric ConstrainedFractionalScale(PgNumeric value) => value;
 
-    /// <summary>Applies independent constraints to two parameters and one return.</summary>
+    /// <summary>
+    /// Applies independent constraints to two parameters and one return.
+    /// </summary>
     /// <param name="left">The first constrained operand.</param>
     /// <param name="right">The second constrained operand.</param>
     /// <returns>The product with the return constraint.</returns>
@@ -80,7 +98,9 @@ public static class NumericContractFunctions
     public static PgNumeric ConstrainedProduct([PgNumericPrecision(5, 2)] PgNumeric left, [PgNumericPrecision(4, 1)] PgNumeric right)
         => left * right;
 
-    /// <summary>Exercises native numeric-to-primitive casts, converting their results to invariant text.</summary>
+    /// <summary>
+    /// Exercises native numeric-to-primitive casts, converting their results to invariant text.
+    /// </summary>
     /// <param name="value">The numeric input.</param>
     /// <param name="kind">The target primitive.</param>
     /// <returns>The native-cast value.</returns>
@@ -95,13 +115,17 @@ public static class NumericContractFunctions
         _ => throw new ArgumentException("Unknown primitive.", nameof(kind)),
     };
 
-    /// <summary>Exercises the float4 conversion independently of float8 widening.</summary>
+    /// <summary>
+    /// Exercises the float4 conversion independently of float8 widening.
+    /// </summary>
     /// <param name="value">The single-precision input.</param>
     /// <returns>The native numeric.</returns>
     [PgFunction]
     public static PgNumeric NumericFromSingle(float value) => (PgNumeric)value;
 
-    /// <summary>Checks closed generic integer conversions in Native AOT.</summary>
+    /// <summary>
+    /// Checks closed generic integer conversions in Native AOT.
+    /// </summary>
     /// <param name="value">The integer numeric.</param>
     /// <param name="kind">The target integer.</param>
     /// <returns>The numeric after checked generic narrowing and conversion back.</returns>
@@ -124,7 +148,9 @@ public static class NumericContractFunctions
         _ => throw new ArgumentException("Unknown integer.", nameof(kind)),
     };
 
-    /// <summary>Checks generic arithmetic interfaces, mixed primitive operations, and one-pass summation.</summary>
+    /// <summary>
+    /// Checks generic arithmetic interfaces, mixed primitive operations, and one-pass summation.
+    /// </summary>
     /// <param name="left">The first operand.</param>
     /// <param name="right">The second operand.</param>
     /// <returns>The calculated numeric.</returns>
@@ -136,7 +162,9 @@ public static class NumericContractFunctions
         where T : IMultiplyOperators<T, T, T>, IMultiplicativeIdentity<T, T>, IUnaryPlusOperators<T, T>
         => (+left * right) * T.MultiplicativeIdentity;
 
-    /// <summary>Checks failures unwind, preserve prior writes/plans, and release native operation contexts.</summary>
+    /// <summary>
+    /// Checks failures unwind, preserve prior writes/plans, and release native operation contexts.
+    /// </summary>
     /// <param name="kind">The failing conversion route.</param>
     /// <returns>Error, invocation/finally counts, context growth, and surviving database state.</returns>
     [PgFunction]

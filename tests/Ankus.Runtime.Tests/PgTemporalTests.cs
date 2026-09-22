@@ -6,7 +6,9 @@ namespace Ankus.Runtime.Tests;
 [TestClass]
 public sealed class PgTemporalTests
 {
-    /// <summary>Checks value ordering can be used outside PostgreSQL, including extreme ranges and equal instants.</summary>
+    /// <summary>
+    /// Checks value ordering can be used outside PostgreSQL, including extreme ranges and equal instants.
+    /// </summary>
     [TestMethod]
     public void TemporalOrderingWorksWithoutBackendAccess()
     {
@@ -37,7 +39,9 @@ public sealed class PgTemporalTests
         Assert.IsTrue(new PgTimestampTz(1) >= new PgTimestampTz(1));
     }
 
-    /// <summary>Checks timetz ordering retains the day boundary and breaks UTC-time ties by offset.</summary>
+    /// <summary>
+    /// Checks timetz ordering retains the day boundary and breaks UTC-time ties by offset.
+    /// </summary>
     [TestMethod]
     public void OffsetTimeOrderingMatchesPostgresTieBreaking()
     {
@@ -54,7 +58,9 @@ public sealed class PgTemporalTests
         Assert.IsLessThan(0, new PgTimeTz(default, 57599).CompareTo(new PgTimeTz(PgTime.EndOfDay, -57599)));
     }
 
-    /// <summary>Checks temporal input validation and ensures TryParse does not hide missing backend access.</summary>
+    /// <summary>
+    /// Checks temporal input validation and ensures TryParse does not hide missing backend access.
+    /// </summary>
     [TestMethod]
     public void TemporalParsingValidatesTextAndPreservesAccessErrors()
     {
@@ -84,7 +90,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<InvalidOperationException>(() => default(PgTime).ToPostgresString());
     }
 
-    /// <summary>Checks date conversion independently at the epoch, leap day, and .NET boundaries.</summary>
+    /// <summary>
+    /// Checks date conversion independently at the epoch, leap day, and .NET boundaries.
+    /// </summary>
     /// <param name="year">The year.</param>
     /// <param name="month">The month.</param>
     /// <param name="day">The day.</param>
@@ -103,7 +111,9 @@ public sealed class PgTemporalTests
         Assert.IsTrue(PgDate.FromDateOnly(value).IsFinite);
     }
 
-    /// <summary>Checks inclusive/exclusive PostgreSQL date range boundaries without relying on DateOnly's narrow range.</summary>
+    /// <summary>
+    /// Checks inclusive/exclusive PostgreSQL date range boundaries without relying on DateOnly's narrow range.
+    /// </summary>
     [TestMethod]
     public void DateRangeRetainsFiniteExtremesAndInfinities()
     {
@@ -121,7 +131,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<InvalidOperationException>(() => new PgDate(2921940).ToDateOnly());
     }
 
-    /// <summary>Checks midnight, microsecond precision, final instant, and PostgreSQL's distinct end-of-day value.</summary>
+    /// <summary>
+    /// Checks midnight, microsecond precision, final instant, and PostgreSQL's distinct end-of-day value.
+    /// </summary>
     [TestMethod]
     public void TimeOnlyRejectsEndOfDayAndSubMicroseconds()
     {
@@ -135,7 +147,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new PgTime(86400000001));
     }
 
-    /// <summary>Checks second-resolution offsets, including PostgreSQL's wider range than DateTimeOffset.</summary>
+    /// <summary>
+    /// Checks second-resolution offsets, including PostgreSQL's wider range than DateTimeOffset.
+    /// </summary>
     /// <param name="seconds">The offset east of UTC.</param>
     [TestMethod]
     [DataRow(-57599)]
@@ -153,7 +167,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new PgTimeTz(default, 57600));
     }
 
-    /// <summary>Checks pre-epoch precision and prevents implicit timezone conversion for wall-clock timestamps.</summary>
+    /// <summary>
+    /// Checks pre-epoch precision and prevents implicit timezone conversion for wall-clock timestamps.
+    /// </summary>
     [TestMethod]
     public void TimestampConversionPreservesKindAndMicroseconds()
     {
@@ -168,7 +184,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<ArgumentException>(() => PgTimestamp.FromDateTime(epoch.AddTicks(1)));
     }
 
-    /// <summary>Checks full PostgreSQL timestamp boundaries and infinity while .NET conversions refuse unrepresentable values.</summary>
+    /// <summary>
+    /// Checks full PostgreSQL timestamp boundaries and infinity while .NET conversions refuse unrepresentable values.
+    /// </summary>
     /// <param name="offset">The finite timestamp offset.</param>
     [TestMethod]
     [DataRow(-211813488000000000L)]
@@ -193,7 +211,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<InvalidOperationException>(() => PgTimestampTz.NegativeInfinity.ToDateTimeOffset());
     }
 
-    /// <summary>Checks UTC normalization without server/local timezone dependence and without sentinel substitution.</summary>
+    /// <summary>
+    /// Checks UTC normalization without server/local timezone dependence and without sentinel substitution.
+    /// </summary>
     [TestMethod]
     public void DateTimeOffsetNormalizesToUtcExactly()
     {
@@ -209,7 +229,9 @@ public sealed class PgTemporalTests
         Assert.AreEqual(maximum, PgTimestampTz.FromDateTimeOffset(maximum).ToDateTimeOffset());
     }
 
-    /// <summary>Checks interval component identity and refusal to approximate calendar units as elapsed time.</summary>
+    /// <summary>
+    /// Checks interval component identity and refusal to approximate calendar units as elapsed time.
+    /// </summary>
     [TestMethod]
     public void IntervalKeepsCalendarComponentsAndExplicitInfinity()
     {
@@ -230,7 +252,9 @@ public sealed class PgTemporalTests
         Assert.ThrowsExactly<InvalidOperationException>(() => PgInterval.NegativeInfinity.ToTimeSpan());
     }
 
-    /// <summary>Checks signed elapsed microseconds without introducing a calendar-day component.</summary>
+    /// <summary>
+    /// Checks signed elapsed microseconds without introducing a calendar-day component.
+    /// </summary>
     /// <param name="ticks">The exact elapsed .NET ticks.</param>
     [TestMethod]
     [DataRow(0L)]

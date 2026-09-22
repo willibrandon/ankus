@@ -1,9 +1,13 @@
 namespace Ankus.Generators;
 
-/// <summary>Invokes PostgreSQL's numeric arithmetic and typmod routines through the native guard.</summary>
+/// <summary>
+/// Invokes PostgreSQL's numeric arithmetic and typmod routines through the native guard.
+/// </summary>
 internal static class NativeNumericOperations
 {
-    /// <summary>Gets numeric operation signatures and native adapters.</summary>
+    /// <summary>
+    /// Gets numeric operation signatures and native adapters.
+    /// </summary>
     internal const string Source = """
         #include "utils/array.h"
 

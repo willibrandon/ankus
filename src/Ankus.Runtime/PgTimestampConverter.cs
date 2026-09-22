@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Ankus;
 
-/// <summary>Converts full-range wall-clock timestamps to and from PostgreSQL ISO strings on the active backend.</summary>
+/// <summary>
+/// Converts full-range wall-clock timestamps to and from PostgreSQL ISO strings on the active backend.
+/// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class PgTimestampConverter : JsonConverter<PgTimestamp>
 {

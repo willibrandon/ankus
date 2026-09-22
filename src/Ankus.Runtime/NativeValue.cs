@@ -159,7 +159,9 @@ public unsafe struct NativeValue
     /// <returns>The JSONB value.</returns>
     public readonly PgJsonb ReadJsonb() => new(ReadString());
 
-    /// <summary>Copies canonical PostgreSQL numeric output into an owned managed value.</summary>
+    /// <summary>
+    /// Copies canonical PostgreSQL numeric output into an owned managed value.
+    /// </summary>
     /// <returns>The full-range numeric.</returns>
     public readonly PgNumeric ReadNumeric() => PgNumeric.FromCanonicalText(ReadString());
 

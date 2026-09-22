@@ -9,7 +9,9 @@ namespace Ankus.IntegrationTests;
 [TestClass]
 public sealed class TemporalOperationTests(TestContext context)
 {
-    /// <summary>Verifies calendar, timezone, field, and arithmetic behavior using PostgreSQL as the independent oracle.</summary>
+    /// <summary>
+    /// Verifies calendar, timezone, field, and arithmetic behavior using PostgreSQL as the independent oracle.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="operation">The managed operation.</param>
     /// <param name="left">The primary operand.</param>
@@ -103,7 +105,9 @@ public sealed class TemporalOperationTests(TestContext context)
                 Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
             }, context.CancellationToken);
 
-    /// <summary>Verifies native calendar constructors, explicit-zone truncation, clock semantics, and SPI ownership preservation.</summary>
+    /// <summary>
+    /// Verifies native calendar constructors, explicit-zone truncation, clock semantics, and SPI ownership preservation.
+    /// </summary>
     [TestMethod]
     public Task ConstructorsClocksAndSessionsUseNativeSemantics()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ConstructorsClocksAndSessionsUseNativeSemantics),
@@ -125,7 +129,9 @@ public sealed class TemporalOperationTests(TestContext context)
                 Assert.AreEqual("0:0:42", reader.GetString(4));
             }, context.CancellationToken);
 
-    /// <summary>Verifies exact text formats under session settings and DateStyle-independent ISO output.</summary>
+    /// <summary>
+    /// Verifies exact text formats under session settings and DateStyle-independent ISO output.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The PostgreSQL input.</param>
     /// <param name="settings">The local display settings.</param>
@@ -163,7 +169,9 @@ public sealed class TemporalOperationTests(TestContext context)
                 }
             }, context.CancellationToken);
 
-    /// <summary>Verifies invalid syntax, overflow, unsupported units, and unknown zones recover inside the managed callback.</summary>
+    /// <summary>
+    /// Verifies invalid syntax, overflow, unsupported units, and unknown zones recover inside the managed callback.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="operation">The failing operation.</param>
     /// <param name="left">The primary operand.</param>
@@ -200,7 +208,9 @@ public sealed class TemporalOperationTests(TestContext context)
                 Assert.AreEqual($"{sqlState}:True:1:2", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Verifies TryParse returns a default out value for bad input and an exact value for valid input.</summary>
+    /// <summary>
+    /// Verifies TryParse returns a default out value for bad input and an exact value for valid input.
+    /// </summary>
     /// <param name="type">The temporal type.</param>
     /// <param name="input">The candidate text.</param>
     /// <param name="expected">The success flag and out value.</param>
@@ -230,7 +240,9 @@ public sealed class TemporalOperationTests(TestContext context)
                 Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
-    /// <summary>Verifies invalid UTF-16 becomes a failed parse rather than reaching the PostgreSQL input routine.</summary>
+    /// <summary>
+    /// Verifies invalid UTF-16 becomes a failed parse rather than reaching the PostgreSQL input routine.
+    /// </summary>
     [TestMethod]
     public Task TryParseRejectsInvalidManagedEncoding()
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(TryParseRejectsInvalidManagedEncoding),
