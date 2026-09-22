@@ -416,6 +416,11 @@ public static unsafe class NativeBackend
         }
     }
 
+    /// <summary>
+    /// Queries the active backend's client and server log thresholds through the native guard.
+    /// </summary>
+    /// <param name="level">The severity to check.</param>
+    /// <returns>Whether PostgreSQL would route a message at that level.</returns>
     internal static bool IsLogEnabled(PgLogLevel level)
     {
         CheckAccess();
@@ -425,6 +430,11 @@ public static unsafe class NativeBackend
         return result._rowsAffected != 0;
     }
 
+    /// <summary>
+    /// Reports an enabled nonterminal diagnostic through the native guard and releases its transport buffers.
+    /// </summary>
+    /// <param name="level">The nonterminal reporting severity.</param>
+    /// <param name="diagnostic">The validated message and optional diagnostic fields.</param>
     internal static void Report(PgLogLevel level, PgDiagnostic diagnostic)
     {
         CheckAccess();

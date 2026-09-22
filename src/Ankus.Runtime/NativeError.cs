@@ -104,6 +104,11 @@ public static class NativeError
         return code;
     }
 
+    /// <summary>
+    /// Copies a managed diagnostic into native transport with allocator-matched UTF-8 field buffers.
+    /// </summary>
+    /// <param name="diagnostic">The validated diagnostic to report.</param>
+    /// <param name="error">The initialized destination, whose buffers the caller must release even after failure.</param>
     internal static unsafe void WriteDiagnostic(PgDiagnostic diagnostic, NativeCallError* error)
     {
         error->SqlState = diagnostic.SqlState is null ? 0 : PackSqlState(diagnostic.SqlState);

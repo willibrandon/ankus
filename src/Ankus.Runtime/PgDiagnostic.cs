@@ -100,6 +100,10 @@ public sealed class PgDiagnostic
     /// </summary>
     public string? DetailLog { get; init; }
 
+    /// <summary>
+    /// Creates an ERROR exception preserving every diagnostic field, defaulting an unspecified SQLSTATE to XX000.
+    /// </summary>
+    /// <returns>The exception to unwind through managed code before native reporting.</returns>
     internal PgException ToException() => new(SqlState ?? "XX000", Message, Detail, Hint)
     {
         Context = Context,

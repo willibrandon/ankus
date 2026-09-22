@@ -20,6 +20,14 @@ internal static partial class ProjectScaffolder
         "__arglist", "__makeref", "__reftype", "__refvalue",
     };
 
+    /// <summary>
+    /// Creates a version-matched extension solution in a new directory using an atomic move from staging.
+    /// </summary>
+    /// <param name="name">The portable C# project name, optionally containing namespace segments.</param>
+    /// <param name="output">The destination directory, or null to use the project name.</param>
+    /// <param name="extension">The SQL extension name, or null to derive it from the project name.</param>
+    /// <param name="token">Cancellation for template I/O and the final move.</param>
+    /// <returns>The absolute destination path.</returns>
     internal static async Task<string> CreateAsync(string name, string? output, string? extension, CancellationToken token)
     {
         ValidateName(name);

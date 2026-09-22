@@ -58,6 +58,9 @@ public readonly record struct PgInterval
     /// </summary>
     public bool IsFinite => _infinity == 0;
 
+    /// <summary>
+    /// Gets the native transport discriminator: negative one for negative infinity, zero for finite, or one for positive infinity.
+    /// </summary>
     internal int Infinity => _infinity;
 
     /// <summary>

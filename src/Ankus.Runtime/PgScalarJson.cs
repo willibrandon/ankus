@@ -7,6 +7,14 @@ namespace Ankus;
 /// </summary>
 internal static class PgScalarJson
 {
+    /// <summary>
+    /// Parses a JSON scalar without numeric narrowing and wraps supported PostgreSQL input errors as JSON errors.
+    /// </summary>
+    /// <typeparam name="T">The scalar result type.</typeparam>
+    /// <param name="reader">The reader positioned on the value token.</param>
+    /// <param name="parse">The scalar's PostgreSQL text parser.</param>
+    /// <param name="allowNumber">Whether to accept exact unquoted number text as well as strings.</param>
+    /// <returns>The parsed scalar.</returns>
     internal static T Read<T>(ref Utf8JsonReader reader, Func<string, T> parse, bool allowNumber = false)
     {
         string text;

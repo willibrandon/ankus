@@ -91,10 +91,29 @@ internal static class PgTemporal
         _ => throw new ArgumentOutOfRangeException(nameof(part)),
     });
 
+    /// <summary>
+    /// Contains the .NET tick count at PostgreSQL's epoch, 2000-01-01 midnight.
+    /// </summary>
     internal const long EpochTicks = 630_822_816_000_000_000;
+
+    /// <summary>
+    /// Contains the DateOnly day number at PostgreSQL's epoch.
+    /// </summary>
     internal const int EpochDayNumber = 730_119;
+
+    /// <summary>
+    /// Contains the microseconds in one 24-hour day, independent of timezone transitions.
+    /// </summary>
     internal const long MicrosecondsPerDay = 86_400_000_000;
+
+    /// <summary>
+    /// Contains the inclusive finite timestamp minimum in microseconds since PostgreSQL's epoch.
+    /// </summary>
     internal const long MinTimestamp = -211_813_488_000_000_000;
+
+    /// <summary>
+    /// Contains the exclusive finite timestamp upper bound in microseconds since PostgreSQL's epoch.
+    /// </summary>
     internal const long EndTimestamp = 9_223_371_331_200_000_000;
 
     /// <summary>

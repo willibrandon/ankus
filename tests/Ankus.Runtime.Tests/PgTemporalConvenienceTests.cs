@@ -75,6 +75,9 @@ public sealed class PgTemporalConvenienceTests
     }
 }
 
+/// <summary>
+/// Supplies scalar JSON metadata for detached conversion tests without a PostgreSQL binding.
+/// </summary>
 [JsonSerializable(typeof(PgNumeric))]
 [JsonSerializable(typeof(PgDate))]
 internal sealed partial class DetachedScalarContext : JsonSerializerContext;

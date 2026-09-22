@@ -5,6 +5,12 @@ namespace Ankus;
 /// </summary>
 internal static class SpiTemporal
 {
+    /// <summary>
+    /// Applies the matching PostgreSQL/.NET temporal adapter, rejecting range, precision, and calendar-component loss.
+    /// </summary>
+    /// <param name="value">The non-null source temporal value.</param>
+    /// <param name="target">The requested temporal type, optionally nullable.</param>
+    /// <returns>The converted value.</returns>
     internal static object Convert(object value, Type target)
     {
         return value switch

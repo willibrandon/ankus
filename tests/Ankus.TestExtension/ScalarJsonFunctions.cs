@@ -69,10 +69,29 @@ public static class ScalarJsonFunctions
         => PgJson.Serialize(json.Deserialize(metadata) ?? throw new JsonException("Expected an object."), metadata);
 }
 
+/// <summary>
+/// Wraps a scalar to exercise source-generated JSON conversion inside a PostgreSQL callback.
+/// </summary>
+/// <typeparam name="T">The scalar under test.</typeparam>
+/// <param name="Value">The wrapped value.</param>
 internal sealed record ScalarEnvelope<T>(T Value);
+
+/// <summary>
+/// Exercises independent nullable temporal and numeric properties in one source-generated JSON contract.
+/// </summary>
+/// <param name="Date">The nullable date.</param>
+/// <param name="Time">The nullable wall-clock time.</param>
+/// <param name="TimeTz">The nullable fixed-offset time.</param>
+/// <param name="Timestamp">The nullable wall-clock timestamp.</param>
+/// <param name="TimestampTz">The nullable UTC timestamp.</param>
+/// <param name="Interval">The nullable calendar interval.</param>
+/// <param name="Numeric">The nullable full-range numeric value.</param>
 internal sealed record NullableScalars(PgDate? Date, PgTime? Time, PgTimeTz? TimeTz, PgTimestamp? Timestamp,
     PgTimestampTz? TimestampTz, PgInterval? Interval, PgNumeric? Numeric);
 
+/// <summary>
+/// Supplies statically generated metadata for scalar JSON tests running under Native AOT.
+/// </summary>
 [JsonSerializable(typeof(ScalarEnvelope<PgDate>))]
 [JsonSerializable(typeof(ScalarEnvelope<PgTime>))]
 [JsonSerializable(typeof(ScalarEnvelope<PgTimeTz>))]

@@ -14,6 +14,12 @@ internal static class NumericConstraint
         "PgNumericPrecision requires a PgNumeric or decimal value, precision from 1 through 1000, and scale from -1000 through 1000",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
+    /// <summary>
+    /// Validates numeric precision attributes on a function's parameters and result, reporting each invalid declaration.
+    /// </summary>
+    /// <param name="method">The attributed function.</param>
+    /// <param name="context">The generator context receiving diagnostics.</param>
+    /// <returns>Whether every declared numeric constraint is valid.</returns>
     internal static bool Validate(IMethodSymbol method, SourceProductionContext context)
     {
         bool valid = Validate(method.ReturnType, method.GetReturnTypeAttributes(), context);
@@ -25,6 +31,11 @@ internal static class NumericConstraint
         return valid;
     }
 
+    /// <summary>
+    /// Emits the managed rescaling suffix for an already validated numeric constraint.
+    /// </summary>
+    /// <param name="attributes">The parameter or return-value attributes.</param>
+    /// <returns>A Rescale invocation suffix, or an empty string when no constraint is declared.</returns>
     internal static string Rescale(ImmutableArray<AttributeData> attributes)
     {
         AttributeData? attribute = Find(attributes);
