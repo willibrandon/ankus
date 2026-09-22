@@ -52,6 +52,7 @@ internal static class PgFunctionEmitter
         {
             FunctionType type = parameters[index];
             string slot = "arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]";
+            string numeric = slot + ".ReadNumeric()" + NumericConstraint.Rescale(method.Parameters[index].GetAttributes());
             string value = type.Managed switch
             {
                 "string" => slot + ".ReadString()",
@@ -59,8 +60,8 @@ internal static class PgFunctionEmitter
                 "global::System.Guid" => slot + ".ReadGuid()",
                 "global::Ankus.PgJson" => slot + ".ReadJson()",
                 "global::Ankus.PgJsonb" => slot + ".ReadJsonb()",
-                "global::Ankus.PgNumeric" => slot + ".ReadNumeric()",
-                "decimal" => slot + ".ReadNumeric().ToDecimal()",
+                "global::Ankus.PgNumeric" => numeric,
+                "decimal" => numeric + ".ToDecimal()",
                 "bool" => slot + ".Integral != 0",
                 "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
                 "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
@@ -93,14 +94,16 @@ internal static class PgFunctionEmitter
 
             string temporalValue = result.IsTemporal && result.ClrTemporalName.Length != 0
                 ? $"global::Ankus.Pg{result.TemporalName}.From{result.ClrTemporalName}({value})" : value;
+            string numericValue = (result.Managed == "decimal" ? $"global::Ankus.PgNumeric.FromDecimal({value})" : value)
+                + NumericConstraint.Rescale(method.GetReturnTypeAttributes());
             source.AppendLine(result.Managed switch
             {
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
-                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" or "global::Ankus.PgNumeric" =>
+                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
                     $"            *result = global::Ankus.NativeValue.FromString({value}.Text);",
-                "decimal" => $"            *result = global::Ankus.NativeValue.FromString(global::Ankus.PgNumeric.FromDecimal({value}).Text);",
+                "global::Ankus.PgNumeric" or "decimal" => $"            *result = global::Ankus.NativeValue.FromString({numericValue}.Text);",
                 "bool" => $"            result->Integral = {value} ? 1 : 0;",
                 "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
                 "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",

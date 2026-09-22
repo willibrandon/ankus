@@ -78,6 +78,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             string name = GetSqlName(method);
+            if (!NumericConstraint.Validate(method, context))
+            {
+                continue;
+            }
+
             string signature = name + "(" + string.Join(",", method.Parameters.Select(
                 static parameter => FunctionType.Create(parameter.Type)!.Sql)) + ")";
             if (!IsValidName(name) || !names.Add(signature))

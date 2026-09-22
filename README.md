@@ -58,6 +58,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `byte[]` | `bytea` |
 | `Guid` | `uuid` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
+| `decimal`, `PgNumeric` | `numeric` |
 | `DateOnly`, `PgDate` | `date` |
 | `TimeOnly`, `PgTime` | `time` |
 | `PgTimeTz` | `timetz` |

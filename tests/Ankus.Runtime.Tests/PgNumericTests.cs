@@ -102,6 +102,88 @@ public sealed class PgNumericTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PgNumeric.FromBigInteger(-limit));
     }
 
+    /// <summary>Checks all binary integer widths, signs, exact narrowing, and independent overflow boundaries.</summary>
+    [TestMethod]
+    public void GenericIntegerConversionsAreExactAndChecked()
+    {
+        VerifyIntegerRange<sbyte>();
+        VerifyIntegerRange<byte>();
+        VerifyIntegerRange<short>();
+        VerifyIntegerRange<ushort>();
+        VerifyIntegerRange<int>();
+        VerifyIntegerRange<uint>();
+        VerifyIntegerRange<long>();
+        VerifyIntegerRange<ulong>();
+        VerifyIntegerRange<nint>();
+        VerifyIntegerRange<nuint>();
+        VerifyIntegerRange<Int128>();
+        VerifyIntegerRange<UInt128>();
+        BigInteger huge = BigInteger.Pow(10, 1000) - 1;
+        Assert.AreEqual(huge.ToString(CultureInfo.InvariantCulture), PgNumeric.FromInteger(huge).Text);
+        Assert.AreEqual(huge, PgNumeric.FromInteger(huge).ToInteger<BigInteger>());
+    }
+
+    /// <summary>Checks exact implicit and explicit conversions preserve primitive extremes and decimal scale.</summary>
+    [TestMethod]
+    public void PrimitiveConversionOperatorsPreserveValues()
+    {
+        PgNumeric[] values = [sbyte.MinValue, byte.MaxValue, short.MinValue, ushort.MaxValue, int.MinValue, uint.MaxValue,
+            long.MinValue, ulong.MaxValue, (nint)(-42), (nuint)42, Int128.MinValue, UInt128.MaxValue, 1.2300m,
+            BigInteger.Pow(10, 40)];
+        string[] expected = ["-128", "255", "-32768", "65535", "-2147483648", "4294967295",
+            "-9223372036854775808", "18446744073709551615", "-42", "42", "-170141183460469231731687303715884105728",
+            "340282366920938463463374607431768211455", "1.2300", "10000000000000000000000000000000000000000"];
+        Assert.AreSequenceEqual(expected, values.Select(static value => value.Text));
+        Assert.AreEqual(1.2300m, (decimal)values[12]);
+        Assert.AreEqual(BigInteger.Pow(10, 40), (BigInteger)values[13]);
+        Assert.ThrowsExactly<OverflowException>(() => (decimal)PgNumeric.PositiveInfinity);
+        Assert.ThrowsExactly<OverflowException>(() => (BigInteger)PgNumeric.FromDecimal(1.1m));
+        Assert.AreEqual("1.2300", (+values[12]).Text);
+        Assert.AreEqual("0", PgNumeric.Zero.Text);
+        Assert.AreEqual("1", PgNumeric.One.Text);
+    }
+
+    /// <summary>Checks empty and singleton sums require no backend and always dispose their source enumerator.</summary>
+    [TestMethod]
+    public void SumPreservesSingletonScaleAndDisposesOnFailure()
+    {
+        Assert.AreEqual(PgNumeric.Zero, PgNumeric.Sum([]));
+        Assert.AreEqual("1.2300", PgNumeric.Sum([PgNumeric.FromDecimal(1.2300m)]).Text);
+        int finalized = 0;
+        IEnumerable<PgNumeric> Source()
+        {
+            try
+            {
+                yield return PgNumeric.One;
+                yield return PgNumeric.One;
+            }
+            finally
+            {
+                finalized++;
+            }
+        }
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgNumeric.Sum(Source()));
+        Assert.AreEqual(1, finalized);
+        Assert.ThrowsExactly<ArgumentNullException>(() => PgNumeric.Sum(null!));
+    }
+
+    private static void VerifyIntegerRange<T>() where T : IBinaryInteger<T>, IMinMaxValue<T>
+    {
+        foreach (T value in new[] { T.MinValue, T.Zero, T.One, T.MaxValue })
+        {
+            Assert.AreEqual(value.ToString(null, CultureInfo.InvariantCulture), PgNumeric.FromInteger(value).Text);
+            Assert.AreEqual(value, PgNumeric.FromInteger(value).ToInteger<T>());
+        }
+
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromBigInteger(BigInteger.CreateChecked(T.MinValue) - 1).ToInteger<T>());
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromBigInteger(BigInteger.CreateChecked(T.MaxValue) + 1).ToInteger<T>());
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.FromDecimal(1.1m).ToInteger<T>());
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.NaN.ToInteger<T>());
+        Assert.ThrowsExactly<OverflowException>(() => PgNumeric.PositiveInfinity.ToInteger<T>());
+        Assert.AreEqual(T.One, PgNumeric.FromDecimal(1.000m).ToInteger<T>());
+    }
+
     /// <summary>Checks numeric/decimal row conversions and independent cell type metadata.</summary>
     [TestMethod]
     public void RowConversionsUseExactNumericSemantics()

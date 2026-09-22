@@ -14,10 +14,10 @@ The default value is zero. Equality ignores trailing fractional zeroes and treat
 
 ```csharp
 [JsonConverter(typeof(PgNumericConverter))]
-public readonly struct PgNumeric : IComparable<PgNumeric>, IEquatable<PgNumeric>
+public readonly struct PgNumeric : IComparable<PgNumeric>, IAdditionOperators<PgNumeric, PgNumeric, PgNumeric>, ISubtractionOperators<PgNumeric, PgNumeric, PgNumeric>, IMultiplyOperators<PgNumeric, PgNumeric, PgNumeric>, IDivisionOperators<PgNumeric, PgNumeric, PgNumeric>, IModulusOperators<PgNumeric, PgNumeric, PgNumeric>, IUnaryNegationOperators<PgNumeric, PgNumeric>, IUnaryPlusOperators<PgNumeric, PgNumeric>, IComparisonOperators<PgNumeric, PgNumeric, bool>, IEqualityOperators<PgNumeric, PgNumeric, bool>, IAdditiveIdentity<PgNumeric, PgNumeric>, IMultiplicativeIdentity<PgNumeric, PgNumeric>, IEquatable<PgNumeric>
 ```
 
-Implements: [IComparable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IAdditionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditionoperators-3), [ISubtractionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.isubtractionoperators-3), [IMultiplyOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplyoperators-3), [IDivisionOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.idivisionoperators-3), [IModulusOperators&lt;PgNumeric, PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imodulusoperators-3), [IUnaryNegationOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunarynegationoperators-2), [IUnaryPlusOperators&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iunaryplusoperators-2), [IComparisonOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.icomparisonoperators-3), [IEqualityOperators&lt;PgNumeric, PgNumeric, bool&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iequalityoperators-3), [IAdditiveIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.iadditiveidentity-2), [IMultiplicativeIdentity&lt;PgNumeric, PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.numerics.imultiplicativeidentity-2), [IEquatable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Methods
 
@@ -190,6 +190,52 @@ The floating-point value.
 Returns: [PgNumeric](/api/ankus.pgnumeric/)
 
 The numeric value, with the server's conversion precision.
+
+<a id="member-3cbe27d02586bd79"></a>
+
+### FromInteger&lt;TInteger&gt;(TInteger)
+
+Converts any binary integer exactly without requiring a backend, including Int128 and UInt128.
+
+```csharp
+public static PgNumeric FromInteger<TInteger>(TInteger value) where TInteger : IBinaryInteger<TInteger>
+```
+
+Type parameters:
+
+`TInteger`
+
+The integer type.
+
+Parameters:
+
+`value` — <code>TInteger</code>
+
+The integer value.
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+The exact numeric with scale zero.
+
+<a id="member-d6e8dec5e841d938"></a>
+
+### FromSingle(float)
+
+Converts a single-precision value with PostgreSQL's float4-to-numeric precision rules.
+
+```csharp
+public static PgNumeric FromSingle(float value)
+```
+
+Parameters:
+
+`value` — [float](https://learn.microsoft.com/dotnet/api/system.single)
+
+The floating-point value.
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+The PostgreSQL numeric approximation.
 
 <a id="member-26f3a4588bbf8b38"></a>
 
@@ -377,6 +423,26 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 
 The square root.
 
+<a id="member-c419ef58cc99f2cf"></a>
+
+### Sum(IEnumerable&lt;PgNumeric&gt;)
+
+Sums values in enumeration order with PostgreSQL arithmetic; an empty sequence yields zero.
+
+```csharp
+public static PgNumeric Sum(IEnumerable<PgNumeric> values)
+```
+
+Parameters:
+
+`values` — [IEnumerable&lt;PgNumeric&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1)
+
+The sequence, enumerated once and disposed even when an operation fails.
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+The sum, retaining PostgreSQL result scale and special-value semantics.
+
 <a id="member-4ea8fce5afe3ebbb"></a>
 
 ### ToBigInteger()
@@ -423,6 +489,72 @@ Returns: [double](https://learn.microsoft.com/dotnet/api/system.double)
 
 The floating-point approximation.
 
+<a id="member-59a9bd404ed9d719"></a>
+
+### ToInt16()
+
+Casts to PostgreSQL smallint, rounding ties away from zero and reporting native range errors.
+
+```csharp
+public short ToInt16()
+```
+
+Returns: [short](https://learn.microsoft.com/dotnet/api/system.int16)
+
+The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.
+
+<a id="member-3adf5ffb94e9c2ea"></a>
+
+### ToInt32()
+
+Casts to PostgreSQL integer, rounding ties away from zero and reporting native range errors.
+
+```csharp
+public int ToInt32()
+```
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.
+
+<a id="member-c1843d807c0fe53b"></a>
+
+### ToInt64()
+
+Casts to PostgreSQL bigint, rounding ties away from zero and reporting native range errors.
+
+```csharp
+public long ToInt64()
+```
+
+Returns: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.
+
+<a id="member-3b7b9541e61c9e40"></a>
+
+### ToInteger&lt;TInteger&gt;()
+
+Converts exactly to an integer, rejecting fractional, nonfinite, and out-of-range values.
+
+```csharp
+public TInteger ToInteger<TInteger>() where TInteger : IBinaryInteger<TInteger>
+```
+
+Type parameters:
+
+`TInteger`
+
+The requested integer type.
+
+Returns: <code>TInteger</code>
+
+The exact integer. This conversion does not require a backend.
+
+Exceptions:
+
+- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): The value cannot be represented exactly in the requested integer type.
+
 <a id="member-1fd31efc96b58926"></a>
 
 ### ToNormalizedString()
@@ -436,6 +568,20 @@ public string ToNormalizedString()
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The normalized numeric text.
+
+<a id="member-6e294bb284b80f6c"></a>
+
+### ToSingle()
+
+Converts to single precision using PostgreSQL's rounding, overflow, and underflow rules.
+
+```csharp
+public float ToSingle()
+```
+
+Returns: [float](https://learn.microsoft.com/dotnet/api/system.single)
+
+The floating-point approximation.
 
 <a id="member-6faac9b93116c892"></a>
 
@@ -498,6 +644,18 @@ Whether the input was valid. Backend-access and operational errors still throw.
 
 ## Properties
 
+<a id="member-1ba5b51fb446f44a"></a>
+
+### AdditiveIdentity
+
+Gets the additive identity for generic arithmetic.
+
+```csharp
+static PgNumeric AdditiveIdentity { get; }
+```
+
+Value: [PgNumeric](/api/ankus.pgnumeric/)
+
 <a id="member-d4b9e43948ebb789"></a>
 
 ### IsFinite
@@ -522,6 +680,18 @@ public bool IsNaN { get; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-263d36b9c58149e0"></a>
+
+### MultiplicativeIdentity
+
+Gets the multiplicative identity for generic arithmetic.
+
+```csharp
+static PgNumeric MultiplicativeIdentity { get; }
+```
+
+Value: [PgNumeric](/api/ankus.pgnumeric/)
+
 <a id="member-c6307246b5c76996"></a>
 
 ### NaN
@@ -542,6 +712,18 @@ Gets negative infinity. Native numeric infinities require PostgreSQL 14 or later
 
 ```csharp
 public static PgNumeric NegativeInfinity { get; }
+```
+
+Value: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-c7a86bc8ebf1db67"></a>
+
+### One
+
+Gets one with scale zero, without backend access.
+
+```csharp
+public static PgNumeric One { get; }
 ```
 
 Value: [PgNumeric](/api/ankus.pgnumeric/)
@@ -594,6 +776,18 @@ public string Text { get; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-8a0416663c05a886"></a>
+
+### Zero
+
+Gets zero with scale zero, without backend access.
+
+```csharp
+public static PgNumeric Zero { get; }
+```
+
+Value: [PgNumeric](/api/ankus.pgnumeric/)
+
 
 ## Operators
 
@@ -604,7 +798,7 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 Adds numeric values in PostgreSQL.
 
 ```csharp
-public static PgNumeric operator +(PgNumeric left, PgNumeric right)
+static PgNumeric operator +(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -622,7 +816,7 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 Divides numeric values using PostgreSQL's result-scale rules.
 
 ```csharp
-public static PgNumeric operator /(PgNumeric left, PgNumeric right)
+static PgNumeric operator /(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -638,7 +832,7 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 ### operator ==(PgNumeric, PgNumeric)
 
 ```csharp
-public static bool operator ==(PgNumeric left, PgNumeric right)
+static bool operator ==(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -649,6 +843,102 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-4f70f1ecdcf5ead3"></a>
+
+### explicit operator decimal(PgNumeric)
+
+Converts exactly to decimal, rejecting rounding, overflow, and nonfinite values.
+
+```csharp
+public static explicit operator decimal(PgNumeric value)
+```
+
+Parameters:
+
+`value` — [PgNumeric](/api/ankus.pgnumeric/)
+
+Returns: [decimal](https://learn.microsoft.com/dotnet/api/system.decimal)
+
+<a id="member-5e3a422d05ca4cce"></a>
+
+### explicit operator double(PgNumeric)
+
+Converts to double precision using PostgreSQL's precision and range rules.
+
+```csharp
+public static explicit operator double(PgNumeric value)
+```
+
+Parameters:
+
+`value` — [PgNumeric](/api/ankus.pgnumeric/)
+
+Returns: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+<a id="member-18bcfd3d8ecd0db7"></a>
+
+### explicit operator BigInteger(PgNumeric)
+
+Converts exactly to an arbitrary integer, rejecting fractional and nonfinite values.
+
+```csharp
+public static explicit operator BigInteger(PgNumeric value)
+```
+
+Parameters:
+
+`value` — [PgNumeric](/api/ankus.pgnumeric/)
+
+Returns: [BigInteger](https://learn.microsoft.com/dotnet/api/system.numerics.biginteger)
+
+<a id="member-f289813bf287bd2d"></a>
+
+### explicit operator float(PgNumeric)
+
+Converts to single precision using PostgreSQL's precision and range rules.
+
+```csharp
+public static explicit operator float(PgNumeric value)
+```
+
+Parameters:
+
+`value` — [PgNumeric](/api/ankus.pgnumeric/)
+
+Returns: [float](https://learn.microsoft.com/dotnet/api/system.single)
+
+<a id="member-23cf04e867eaa352"></a>
+
+### explicit operator PgNumeric(double)
+
+Converts from double precision using PostgreSQL's float8-to-numeric rules.
+
+```csharp
+public static explicit operator PgNumeric(double value)
+```
+
+Parameters:
+
+`value` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-802d2dbb58528a7e"></a>
+
+### explicit operator PgNumeric(float)
+
+Converts from single precision using PostgreSQL's float4-to-numeric rules.
+
+```csharp
+public static explicit operator PgNumeric(float value)
+```
+
+Parameters:
+
+`value` — [float](https://learn.microsoft.com/dotnet/api/system.single)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
 <a id="member-73338a57b1c30464"></a>
 
 ### operator &gt;(PgNumeric, PgNumeric)
@@ -656,7 +946,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Tests whether the left numeric is greater than the right numeric.
 
 ```csharp
-public static bool operator >(PgNumeric left, PgNumeric right)
+static bool operator >(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -674,7 +964,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Tests whether the left numeric is greater than or equal to the right numeric.
 
 ```csharp
-public static bool operator >=(PgNumeric left, PgNumeric right)
+static bool operator >=(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -685,12 +975,236 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-502bae8b2766e4c3"></a>
+
+### implicit operator PgNumeric(byte)
+
+Converts an unsigned byte exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(byte value)
+```
+
+Parameters:
+
+`value` — [byte](https://learn.microsoft.com/dotnet/api/system.byte)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-91e15181273fa932"></a>
+
+### implicit operator PgNumeric(decimal)
+
+Converts a decimal exactly, preserving scale without backend access.
+
+```csharp
+public static implicit operator PgNumeric(decimal value)
+```
+
+Parameters:
+
+`value` — [decimal](https://learn.microsoft.com/dotnet/api/system.decimal)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-fe6df0c722667eb1"></a>
+
+### implicit operator PgNumeric(Int128)
+
+Converts a signed 128-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(Int128 value)
+```
+
+Parameters:
+
+`value` — [Int128](https://learn.microsoft.com/dotnet/api/system.int128)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-039c677db42a6675"></a>
+
+### implicit operator PgNumeric(short)
+
+Converts a signed 16-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(short value)
+```
+
+Parameters:
+
+`value` — [short](https://learn.microsoft.com/dotnet/api/system.int16)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-5681809318f8294d"></a>
+
+### implicit operator PgNumeric(int)
+
+Converts a signed 32-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(int value)
+```
+
+Parameters:
+
+`value` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-a652e1b7699c8240"></a>
+
+### implicit operator PgNumeric(long)
+
+Converts a signed 64-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(long value)
+```
+
+Parameters:
+
+`value` — [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-1a29a3d58e3e9748"></a>
+
+### implicit operator PgNumeric(nint)
+
+Converts a native-sized signed integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(nint value)
+```
+
+Parameters:
+
+`value` — [nint](https://learn.microsoft.com/dotnet/api/system.intptr)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-8b2574d854e73ddc"></a>
+
+### implicit operator PgNumeric(BigInteger)
+
+Converts an arbitrary integer within PostgreSQL's numeric range without backend access.
+
+```csharp
+public static implicit operator PgNumeric(BigInteger value)
+```
+
+Parameters:
+
+`value` — [BigInteger](https://learn.microsoft.com/dotnet/api/system.numerics.biginteger)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-acd3efd53f1971c1"></a>
+
+### implicit operator PgNumeric(sbyte)
+
+Converts a signed byte exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(sbyte value)
+```
+
+Parameters:
+
+`value` — [sbyte](https://learn.microsoft.com/dotnet/api/system.sbyte)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-21000dc06f0d0c77"></a>
+
+### implicit operator PgNumeric(UInt128)
+
+Converts an unsigned 128-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(UInt128 value)
+```
+
+Parameters:
+
+`value` — [UInt128](https://learn.microsoft.com/dotnet/api/system.uint128)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-ac6dcb986065c8fd"></a>
+
+### implicit operator PgNumeric(ushort)
+
+Converts an unsigned 16-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(ushort value)
+```
+
+Parameters:
+
+`value` — [ushort](https://learn.microsoft.com/dotnet/api/system.uint16)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-16b7c205295722f1"></a>
+
+### implicit operator PgNumeric(uint)
+
+Converts an unsigned 32-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(uint value)
+```
+
+Parameters:
+
+`value` — [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-29ea5b1a699ed3ae"></a>
+
+### implicit operator PgNumeric(ulong)
+
+Converts an unsigned 64-bit integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(ulong value)
+```
+
+Parameters:
+
+`value` — [ulong](https://learn.microsoft.com/dotnet/api/system.uint64)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-01a85f211563c2fe"></a>
+
+### implicit operator PgNumeric(nuint)
+
+Converts a native-sized unsigned integer exactly without backend access.
+
+```csharp
+public static implicit operator PgNumeric(nuint value)
+```
+
+Parameters:
+
+`value` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
 <a id="member-3d0e12a509884dce"></a>
 
 ### operator !=(PgNumeric, PgNumeric)
 
 ```csharp
-public static bool operator !=(PgNumeric left, PgNumeric right)
+static bool operator !=(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -708,7 +1222,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Tests whether the left numeric is less than the right numeric.
 
 ```csharp
-public static bool operator <(PgNumeric left, PgNumeric right)
+static bool operator <(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -726,7 +1240,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Tests whether the left numeric is less than or equal to the right numeric.
 
 ```csharp
-public static bool operator <=(PgNumeric left, PgNumeric right)
+static bool operator <=(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -744,7 +1258,7 @@ Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Computes PostgreSQL's numeric remainder.
 
 ```csharp
-public static PgNumeric operator %(PgNumeric left, PgNumeric right)
+static PgNumeric operator %(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -762,7 +1276,7 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 Multiplies numeric values in PostgreSQL.
 
 ```csharp
-public static PgNumeric operator *(PgNumeric left, PgNumeric right)
+static PgNumeric operator *(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -780,7 +1294,7 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 Subtracts numeric values in PostgreSQL.
 
 ```csharp
-public static PgNumeric operator -(PgNumeric left, PgNumeric right)
+static PgNumeric operator -(PgNumeric left, PgNumeric right)
 ```
 
 Parameters:
@@ -798,7 +1312,23 @@ Returns: [PgNumeric](/api/ankus.pgnumeric/)
 Negates a numeric value in PostgreSQL.
 
 ```csharp
-public static PgNumeric operator -(PgNumeric value)
+static PgNumeric operator -(PgNumeric value)
+```
+
+Parameters:
+
+`value` — [PgNumeric](/api/ankus.pgnumeric/)
+
+Returns: [PgNumeric](/api/ankus.pgnumeric/)
+
+<a id="member-f02eabe891c0bb00"></a>
+
+### operator +(PgNumeric)
+
+Returns the value unchanged, retaining display scale.
+
+```csharp
+static PgNumeric operator +(PgNumeric value)
 ```
 
 Parameters:

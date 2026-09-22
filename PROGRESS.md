@@ -39,7 +39,7 @@ Linux, and macOS.
   `Ankus.Testing`, and `Ankus.Tool`. The NuGet SDK supports cold restore and native publishing
   without repository imports; isolated consumers exercise the installed tool, direct publishing,
   Central Package Management, and package-backed MSTest discovery.
-- **`dotnet test`**: **899 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **979 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -63,7 +63,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 721 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 788 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -84,6 +84,12 @@ Linux, and macOS.
   Generated decimal adapters and typed SPI conversions reject overflow, rounding, and underflow; finite integer
   conversion uses `BigInteger`. The native scalar signature dispatcher is shared with temporal routines.
   PostgreSQL 14+ temporal `Extract` returns numeric directly; PG13 retains its floating-point extraction limits.
+- `PgNumericPrecision` constrains generated numeric/decimal parameters and returns through guarded PostgreSQL
+  rescaling. Input constraints precede user code and checked decimal narrowing; return constraints follow managed
+  method unwinding. `ANKUS003` rejects invalid declarations. Generic checked integer conversion covers all .NET
+  binary integer widths, including UInt128 and BigInteger; server integer/float casts retain PostgreSQL rounding and
+  range errors. Exact primitive conversions, generic operator interfaces and one-pass `Sum` complete the numeric
+  convenience surface. Recovery tests preserve prior writes/plans and retain zero extra native contexts.
 - `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `TimeSpan` have checked temporal mappings.
   `PgDate`, `PgTime`, `PgTimeTz`, `PgTimestamp`, `PgTimestampTz`, and `PgInterval` preserve PostgreSQL's
   full finite range, infinities, 24:00, second-resolution offsets, and independent calendar components.
@@ -249,9 +255,10 @@ Reference surface: `pgrx/src/datum/{numeric.rs,numeric_support/}` and PostgreSQL
 `src/backend/utils/adt/numeric.c`. The decimal conversion guard accounts for the documented
 round-to-nearest behavior of `Decimal.Parse/TryParse` when an input exceeds decimal precision;
 a successful parse alone does not establish an exact conversion.
-Verified on PostgreSQL 18.6 / Linux x64. Remaining numeric parity includes declarative precision/scale
-constraints on function boundaries and additional primitive/generic numeric conveniences.
-Other server versions/platforms remain unvalidated.
+Verified on PostgreSQL 18.6 / Linux x64, including declarative precision/scale constraints, primitive casts,
+generic checked integer conversions, mixed arithmetic and summation. Other server versions/platforms remain
+unvalidated. Exact .NET integer narrowing rejects fractions and signed-to-unsigned overflow; PostgreSQL-style
+integer casts are exposed separately as `ToInt16`, `ToInt32`, and `ToInt64`.
 
 | Source behavior | Ankus API/implementation | Concrete test evidence |
 |---|---|---|
@@ -264,6 +271,11 @@ Other server versions/platforms remain unvalidated.
 | Error recovery, prior-write preservation, managed finally and cleanup | Shared guarded scalar boundary, disposable operation/diagnostic contexts | `NumericErrorsPreserveSessionState`, `NumericDomainsConversionsAndCleanupRemainOwned` (100 successful/failing operations, zero extra contexts and live prepared plan) |
 | Compile-time alias handling and Native AOT dispatch | `FunctionType`, numeric buffers, shared scalar signature dispatcher | `PgFunctionGeneratorTests.SupportedFunctionsCompile`, `ClrAliasesShareSqlSignatures`; all numeric integration cases publish and load the actual Native AOT extension |
 | Lossless numeric JSON strings and exact unquoted input | Statically registered `PgNumericConverter`; raw number text passed to PostgreSQL | `ScalarJsonPreservesFullRangeAndScale`, `ScalarJsonNumbersAndNullsUseExactContracts`, `ScalarJsonFailuresPreservePathsAndBackend`; `ScalarConvertersPreserveBackendAccessErrors` checks detached numeric writes and backend-only reads |
+| Numeric precision and scale declarations | `PgNumericPrecisionAttribute`, semantic validation and generated guarded `Rescale` calls; SQL signatures remain unconstrained numeric | `NumericContractTests.NumericBoundariesMatchPostgresTypmods`, `DecimalConstraintsAndNullableValuesKeepTheirContracts`, `ExtendedScalesMatchPostgres`, `ConstraintOverflowLeavesBackendUsable`; `PgFunctionGeneratorTests.InvalidNumericConstraintsAreRejected`, `NumericConstraintsDoNotCreateSqlOverloads` |
+| Primitive conversions using PostgreSQL routines | Native `float4_numeric`, `numeric_float4`, `numeric_int2/int4/int8`; explicit floating-point operators | `NumericContractTests.PrimitiveCastsMatchServer` compares signed integer results and floating-point bits, including subnormals and special values; `SinglePrecisionInputUsesServerPrecision` compares numeric binary output |
+| Exact generic integer conversion and primitive operators | `FromInteger<T>/ToInteger<T>` with `IBinaryInteger<T>`, checked BigInteger conversion; exact implicit integer/decimal operators | `PgNumericTests.GenericIntegerConversionsAreExactAndChecked` tests all 12 fixed/native integer widths at and just beyond bounds; `PrimitiveConversionOperatorsPreserveValues`; `NumericContractTests.GenericIntegersExecuteInNativeAot` covers 13 closed generic integer types |
+| Generic arithmetic and sequence summation | Fine-grained .NET operator/identity interfaces; `PgNumeric.Sum` | `NumericContractTests.GenericArithmeticPreservesScale`; `PgNumericTests.SumPreservesSingletonScaleAndDisposesOnFailure` checks empty/singleton behavior and iterator cleanup |
+| Generated constraint/cast failure recovery | Shared native guard and existing exception transport | `NumericContractTests.NumericContractFailuresPreserveSession` repeats five failure routes 50 times each; input failures never invoke user code, return failures follow user finally, outer finally always runs, writes/plans survive and native context growth is zero |
 
 ### NuGet consumer evidence
 
@@ -506,7 +518,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
-| `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Partial: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion and lossless JSON. Declarative signature constraints and additional primitive/generic conveniences remain |
+| `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB and metadata-based serialization; network, geometry and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
@@ -614,7 +626,7 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Core temporal arithmetic, floating-point extraction, parsing/formatting, named-timezone operations and clocks
       - [x] Full-range numeric and checked decimal conversion, native arithmetic/rescaling and exact numeric temporal extraction
       - [x] Temporal operators, component/unit factories, precision clocks, explicit-zone ISO and temporal/numeric JSON
-      - [ ] Numeric function-boundary constraints and remaining primitive/generic conveniences
+      - [x] Numeric function-boundary constraints, primitive casts, checked generic conversions and operator/sum conveniences
       - [ ] Remaining temporal accessor/raw-factory/timezone conveniences and time_of_day
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
@@ -766,3 +778,12 @@ The phases track implementation of the complete pgrx feature surface.
   `dotnet test`: 894 passed, 0 failed, 0 skipped (716 integration cases, including 136 new temporal/JSON cases).
   The four new runtime cases verify exact interval limits, checked precision and detached converter access.
   `pnpm build`, `pnpm check` and API freshness verification pass; the reference has 34 pages and 524 members.
+- 2026-09-22 — Packaged the MSBuild project SDK, runtime, generator, configuration, testing harness and tool.
+  Cold consumers outside the checkout use only NuGet artifacts. Installed-tool and direct publishing load real
+  extensions, including CPM/global.json and paths with spaces; an external MSTest consumer verifies ordinary
+  discovery and native error recovery. `dotnet test`: 899 passed, 0 failed, 0 skipped (721 integration cases).
+- 2026-09-22 — Added declarative numeric precision/scale with `ANKUS003` validation and native guarded rescaling;
+  PostgreSQL primitive casts, exact generic integer conversion, exact implicit primitive operators, .NET generic
+  operator interfaces and one-pass numeric summation. Added 67 backend cases, 10 generator cases and three runtime
+  cases. `dotnet test`: 979 passed, 0 failed, 0 skipped (788 integration cases). The generated reference now contains
+  35 pages and 560 members. Platform/version validation remains pending.

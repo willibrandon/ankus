@@ -4,3 +4,4 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|------
 ANKUS001 | Ankus | Error | Unsupported PostgreSQL function signature
 ANKUS002 | Ankus | Error | Invalid or duplicate PostgreSQL function name
+ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint

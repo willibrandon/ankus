@@ -51,6 +51,9 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("[Ankus.PgFunction] public static Ankus.PgNumeric? Echo(Ankus.PgNumeric? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static decimal Echo(decimal value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static decimal? Echo(decimal? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] [return: Ankus.PgNumericPrecision(5, 2)] public static Ankus.PgNumeric Echo([Ankus.PgNumericPrecision(6, 3)] Ankus.PgNumeric value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] [return: Ankus.PgNumericPrecision(5)] public static decimal? Echo([Ankus.PgNumericPrecision(8, 4)] decimal? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] [return: Ankus.PgNumericPrecision(1000, -1000)] public static Ankus.PgNumeric? Echo([Ankus.PgNumericPrecision(1, 1000)] Ankus.PgNumeric? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgDate Echo(Ankus.PgDate value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgTime Echo(Ankus.PgTime value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgTimeTz Echo(Ankus.PgTimeTz value) => value;", "echo")]
@@ -195,6 +198,39 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
 
         Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
+    }
+
+    /// <summary>Rejects misplaced or out-of-range numeric constraints before any native compilation.</summary>
+    /// <param name="method">The invalid constrained method.</param>
+    [TestMethod]
+    [DataRow("public static int Echo([Ankus.PgNumericPrecision(5, 2)] int value) => value;")]
+    [DataRow("[return: Ankus.PgNumericPrecision(5, 2)] public static string Echo(string value) => value;")]
+    [DataRow("[return: Ankus.PgNumericPrecision(0)] public static decimal Echo(decimal value) => value;")]
+    [DataRow("[return: Ankus.PgNumericPrecision(1001)] public static decimal Echo(decimal value) => value;")]
+    [DataRow("public static decimal Echo([Ankus.PgNumericPrecision(5, -1001)] decimal value) => value;")]
+    [DataRow("public static decimal Echo([Ankus.PgNumericPrecision(5, 1001)] decimal value) => value;")]
+    public void InvalidNumericConstraintsAreRejected(string method)
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS003", diagnostic.Id);
+        Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.StartsWith("Ankus.PgNumericPrecision", diagnostic.Location.SourceTree!.GetText(context.CancellationToken)
+            .ToString(diagnostic.Location.SourceSpan));
+    }
+
+    /// <summary>Type modifiers do not distinguish SQL overloads, even when CLR types and constraints differ.</summary>
+    [TestMethod]
+    public void NumericConstraintsDoNotCreateSqlOverloads()
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            public static class Functions
+            {
+                [Ankus.PgFunction] public static decimal Echo([Ankus.PgNumericPrecision(5, 2)] decimal value) => value;
+                [Ankus.PgFunction] public static Ankus.PgNumeric Echo([Ankus.PgNumericPrecision(6, 3)] Ankus.PgNumeric value) => value;
+            }
+            """);
+        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
     }
 
     private (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string source)

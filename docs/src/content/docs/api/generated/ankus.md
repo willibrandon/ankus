@@ -31,6 +31,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgException](/api/ankus.pgexception/)
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
 - [PgLog](/api/ankus.pglog/)
+- [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [Spi](/api/ankus.spi/)
 - [SpiColumn](/api/ankus.spicolumn/)
 - [SpiCursor](/api/ankus.spicursor/)

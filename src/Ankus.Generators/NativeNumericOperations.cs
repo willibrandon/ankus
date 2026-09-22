@@ -13,7 +13,8 @@ internal static class NativeNumericOperations
             ANKUS_NUM_REMAINDER, ANKUS_NUM_NEGATE, ANKUS_NUM_ABS, ANKUS_NUM_ROUND, ANKUS_NUM_TRUNCATE,
             ANKUS_NUM_CEILING, ANKUS_NUM_FLOOR, ANKUS_NUM_SQRT, ANKUS_NUM_EXP, ANKUS_NUM_LOG,
             ANKUS_NUM_LOG_BASE, ANKUS_NUM_POWER, ANKUS_NUM_GCD, ANKUS_NUM_LCM,
-            ANKUS_NUM_FROM_DOUBLE, ANKUS_NUM_TO_DOUBLE, ANKUS_NUM_RESCALE
+            ANKUS_NUM_FROM_DOUBLE, ANKUS_NUM_TO_DOUBLE, ANKUS_NUM_RESCALE,
+            ANKUS_NUM_FROM_SINGLE, ANKUS_NUM_TO_SINGLE, ANKUS_NUM_TO_INT16, ANKUS_NUM_TO_INT32, ANKUS_NUM_TO_INT64
         };
 
         static Datum
@@ -56,7 +57,12 @@ internal static class NativeNumericOperations
             {ANKUS_NUM_LCM, numeric_lcm, NUMERICOID, 2, {NUMERICOID, NUMERICOID}},
             {ANKUS_NUM_FROM_DOUBLE, float8_numeric, NUMERICOID, 1, {FLOAT8OID}},
             {ANKUS_NUM_TO_DOUBLE, numeric_float8, FLOAT8OID, 1, {NUMERICOID}},
-            {ANKUS_NUM_RESCALE, ankus_numeric_rescale, NUMERICOID, 3, {NUMERICOID, INT4OID, INT4OID}}
+            {ANKUS_NUM_RESCALE, ankus_numeric_rescale, NUMERICOID, 3, {NUMERICOID, INT4OID, INT4OID}},
+            {ANKUS_NUM_FROM_SINGLE, float4_numeric, NUMERICOID, 1, {FLOAT4OID}},
+            {ANKUS_NUM_TO_SINGLE, numeric_float4, FLOAT4OID, 1, {NUMERICOID}},
+            {ANKUS_NUM_TO_INT16, numeric_int2, INT2OID, 1, {NUMERICOID}},
+            {ANKUS_NUM_TO_INT32, numeric_int4, INT4OID, 1, {NUMERICOID}},
+            {ANKUS_NUM_TO_INT64, numeric_int8, INT8OID, 1, {NUMERICOID}}
         };
 
         static void

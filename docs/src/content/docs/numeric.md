@@ -52,8 +52,32 @@ public static PgNumeric Price(PgNumeric value) => value.Rescale(precision: 10, s
 `Rescale` applies PostgreSQL's declared precision and scale, including its rounding
 and range checks. PostgreSQL 15+ supports negative scales and scales larger than
 precision. `Round` breaks ties away from zero; .NET's default decimal rounding
-uses ties-to-even. Explicit rescaling is useful when returning a constrained value
-from a function, whose SQL signature otherwise uses unconstrained `numeric`.
+uses ties-to-even.
+
+## Function constraints
+
+Declare precision and scale on parameters and return values:
+
+```csharp
+[PgFunction]
+[return: PgNumericPrecision(10, 2)]
+public static PgNumeric AddTax([PgNumericPrecision(10, 2)] PgNumeric amount)
+    => amount * 1.20m;
+```
+
+The input is rounded before the method runs. The return value is rounded after
+the method returns, including after its `finally` blocks. Overflow raises a native
+PostgreSQL range error. For `decimal` parameters, rescaling happens before checked
+decimal conversion. Nullable parameters and results retain their SQL NULL behavior.
+
+Precision must be 1–1000 and scale must be -1000–1000; omitted scale means zero.
+Negative scales and scales above precision require PostgreSQL 15+. Invalid values
+or an attribute on a nonnumeric type produce compiler diagnostic `ANKUS003`.
+
+PostgreSQL discards type modifiers in function signatures. Ankus enforces these
+constraints through the guarded dispatcher; they do not distinguish SQL overloads
+and do not apply to direct C# method calls. Use `Rescale` for an explicit conversion
+inside managed code.
 
 Parsing and arithmetic require the active PostgreSQL backend thread. Native errors
 become catchable `PgException` instances. Text access, comparison, hashing, and exact
@@ -63,8 +87,32 @@ become catchable `PgException` instances. Text access, comparison, hashing, and 
 
 `FromDecimal` and `ToDecimal` preserve numeric value exactly. `FromBigInteger` and
 `ToBigInteger` handle finite integers within PostgreSQL's range; fractional inputs
-are rejected by `ToBigInteger`. `FromDouble` and `ToDouble` use the server's
-floating-point conversion rules and may lose precision.
+are rejected by `ToBigInteger`.
+
+`FromInteger<T>` and `ToInteger<T>` support .NET binary integer types, including
+unsigned values, `Int128`, `UInt128`, and `BigInteger`. Narrowing is exact and
+checked: fractions, negative-to-unsigned conversions, and overflow throw
+`OverflowException`. These operations work without a backend.
+
+```csharp
+PgNumeric large = ulong.MaxValue;        // exact implicit conversion
+ulong original = large.ToInteger<ulong>();
+PgNumeric scaled = 12.3400m;             // retains decimal scale
+```
+
+Integer and decimal operands can be mixed with `PgNumeric` arithmetic. The type
+also implements the .NET arithmetic, comparison, and identity operator interfaces
+for generic algorithms. `PgNumeric.Sum(values)` enumerates once, uses PostgreSQL
+addition, and returns zero for an empty sequence.
+
+`ToInt16`, `ToInt32`, and `ToInt64` use PostgreSQL casts: they round ties away from
+zero and raise `PgException` for out-of-range or nonfinite input. Use `ToInteger<T>`
+when rounding is not acceptable.
+
+`FromSingle`/`ToSingle` and `FromDouble`/`ToDouble` use the server's floating-point
+conversion rules and may lose precision. Explicit casts between `PgNumeric` and
+`float` or `double` use the same routines. Floating-point conversions and server
+integer casts require the backend.
 
 Both `PgNumeric` and `decimal` work in typed SPI queries, prepared plans, sessions,
 cursors, and local row edits:

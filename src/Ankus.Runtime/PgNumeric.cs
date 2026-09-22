@@ -9,7 +9,12 @@ namespace Ankus;
 /// The default value is zero. Equality ignores trailing fractional zeroes and treats NaN as equal to NaN.
 /// </summary>
 [JsonConverter(typeof(PgNumericConverter))]
-public readonly record struct PgNumeric : IComparable<PgNumeric>
+public readonly record struct PgNumeric : IComparable<PgNumeric>,
+    IAdditionOperators<PgNumeric, PgNumeric, PgNumeric>, ISubtractionOperators<PgNumeric, PgNumeric, PgNumeric>,
+    IMultiplyOperators<PgNumeric, PgNumeric, PgNumeric>, IDivisionOperators<PgNumeric, PgNumeric, PgNumeric>,
+    IModulusOperators<PgNumeric, PgNumeric, PgNumeric>, IUnaryNegationOperators<PgNumeric, PgNumeric>,
+    IUnaryPlusOperators<PgNumeric, PgNumeric>, IComparisonOperators<PgNumeric, PgNumeric, bool>,
+    IAdditiveIdentity<PgNumeric, PgNumeric>, IMultiplicativeIdentity<PgNumeric, PgNumeric>
 {
     private readonly string? _text;
 
@@ -17,6 +22,18 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>
 
     /// <summary>Gets the owned, culture-independent PostgreSQL output text, retaining display scale.</summary>
     public string Text => _text ?? "0";
+
+    /// <summary>Gets zero with scale zero, without backend access.</summary>
+    public static PgNumeric Zero => default;
+
+    /// <summary>Gets one with scale zero, without backend access.</summary>
+    public static PgNumeric One => new("1");
+
+    /// <summary>Gets the additive identity for generic arithmetic.</summary>
+    public static PgNumeric AdditiveIdentity => Zero;
+
+    /// <summary>Gets the multiplicative identity for generic arithmetic.</summary>
+    public static PgNumeric MultiplicativeIdentity => One;
 
     /// <summary>Gets PostgreSQL's not-a-number value, which sorts above all other numeric values.</summary>
     public static PgNumeric NaN => new("NaN");
@@ -125,6 +142,26 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>
         return new(text);
     }
 
+    /// <summary>Converts any binary integer exactly without requiring a backend, including Int128 and UInt128.</summary>
+    /// <typeparam name="TInteger">The integer type.</typeparam>
+    /// <param name="value">The integer value.</param>
+    /// <returns>The exact numeric with scale zero.</returns>
+    public static PgNumeric FromInteger<TInteger>(TInteger value) where TInteger : IBinaryInteger<TInteger>
+        => FromBigInteger(BigInteger.CreateChecked(value));
+
+    /// <summary>Converts exactly to an integer, rejecting fractional, nonfinite, and out-of-range values.</summary>
+    /// <typeparam name="TInteger">The requested integer type.</typeparam>
+    /// <returns>The exact integer. This conversion does not require a backend.</returns>
+    /// <exception cref="OverflowException">The value cannot be represented exactly in the requested integer type.</exception>
+    public TInteger ToInteger<TInteger>() where TInteger : IBinaryInteger<TInteger>
+        => TInteger.CreateChecked(ToBigInteger());
+
+    /// <summary>Converts a single-precision value with PostgreSQL's float4-to-numeric precision rules.</summary>
+    /// <param name="value">The floating-point value.</param>
+    /// <returns>The PostgreSQL numeric approximation.</returns>
+    public static PgNumeric FromSingle(float value)
+        => NativeBackend.Numeric<PgNumeric>(NumericOperation.FromSingle, [SpiParameter.Create(value)]);
+
     /// <summary>Converts a floating-point value using PostgreSQL's float8-to-numeric conversion.</summary>
     /// <param name="value">The floating-point value.</param>
     /// <returns>The numeric value, with the server's conversion precision.</returns>
@@ -160,6 +197,43 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>
     /// <summary>Converts to double using PostgreSQL's precision and range rules.</summary>
     /// <returns>The floating-point approximation.</returns>
     public double ToDouble() => NativeBackend.Numeric<double>(NumericOperation.ToDouble, [SpiParameter.Create(this)]);
+
+    /// <summary>Converts to single precision using PostgreSQL's rounding, overflow, and underflow rules.</summary>
+    /// <returns>The floating-point approximation.</returns>
+    public float ToSingle() => NativeBackend.Numeric<float>(NumericOperation.ToSingle, [SpiParameter.Create(this)]);
+
+    /// <summary>Casts to PostgreSQL smallint, rounding ties away from zero and reporting native range errors.</summary>
+    /// <returns>The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.</returns>
+    public short ToInt16() => NativeBackend.Numeric<short>(NumericOperation.ToInt16, [SpiParameter.Create(this)]);
+
+    /// <summary>Casts to PostgreSQL integer, rounding ties away from zero and reporting native range errors.</summary>
+    /// <returns>The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.</returns>
+    public int ToInt32() => NativeBackend.Numeric<int>(NumericOperation.ToInt32, [SpiParameter.Create(this)]);
+
+    /// <summary>Casts to PostgreSQL bigint, rounding ties away from zero and reporting native range errors.</summary>
+    /// <returns>The server-rounded integer. Use ToInteger for an exact, backend-independent conversion.</returns>
+    public long ToInt64() => NativeBackend.Numeric<long>(NumericOperation.ToInt64, [SpiParameter.Create(this)]);
+
+    /// <summary>Sums values in enumeration order with PostgreSQL arithmetic; an empty sequence yields zero.</summary>
+    /// <param name="values">The sequence, enumerated once and disposed even when an operation fails.</param>
+    /// <returns>The sum, retaining PostgreSQL result scale and special-value semantics.</returns>
+    public static PgNumeric Sum(IEnumerable<PgNumeric> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        using IEnumerator<PgNumeric> enumerator = values.GetEnumerator();
+        if (!enumerator.MoveNext())
+        {
+            return Zero;
+        }
+
+        PgNumeric result = enumerator.Current;
+        while (enumerator.MoveNext())
+        {
+            result += enumerator.Current;
+        }
+
+        return result;
+    }
 
     /// <summary>Rounds to a declared precision and scale with PostgreSQL's numeric typmod rules.</summary>
     /// <param name="precision">The maximum significant digits, one through 1000.</param>
@@ -288,6 +362,8 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>
     public static PgNumeric operator %(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Remainder, left, right);
     /// <summary>Negates a numeric value in PostgreSQL.</summary>
     public static PgNumeric operator -(PgNumeric value) => value.Unary(NumericOperation.Negate);
+    /// <summary>Returns the value unchanged, retaining display scale.</summary>
+    public static PgNumeric operator +(PgNumeric value) => value;
     /// <summary>Tests whether the left numeric is less than the right numeric.</summary>
     public static bool operator <(PgNumeric left, PgNumeric right) => left.CompareTo(right) < 0;
     /// <summary>Tests whether the left numeric is greater than the right numeric.</summary>
@@ -296,6 +372,47 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>
     public static bool operator <=(PgNumeric left, PgNumeric right) => left.CompareTo(right) <= 0;
     /// <summary>Tests whether the left numeric is greater than or equal to the right numeric.</summary>
     public static bool operator >=(PgNumeric left, PgNumeric right) => left.CompareTo(right) >= 0;
+
+    /// <summary>Converts a signed byte exactly without backend access.</summary>
+    public static implicit operator PgNumeric(sbyte value) => FromInteger(value);
+    /// <summary>Converts an unsigned byte exactly without backend access.</summary>
+    public static implicit operator PgNumeric(byte value) => FromInteger(value);
+    /// <summary>Converts a signed 16-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(short value) => FromInteger(value);
+    /// <summary>Converts an unsigned 16-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(ushort value) => FromInteger(value);
+    /// <summary>Converts a signed 32-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(int value) => FromInteger(value);
+    /// <summary>Converts an unsigned 32-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(uint value) => FromInteger(value);
+    /// <summary>Converts a signed 64-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(long value) => FromInteger(value);
+    /// <summary>Converts an unsigned 64-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(ulong value) => FromInteger(value);
+    /// <summary>Converts a native-sized signed integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(nint value) => FromInteger(value);
+    /// <summary>Converts a native-sized unsigned integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(nuint value) => FromInteger(value);
+    /// <summary>Converts a signed 128-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(Int128 value) => FromInteger(value);
+    /// <summary>Converts an unsigned 128-bit integer exactly without backend access.</summary>
+    public static implicit operator PgNumeric(UInt128 value) => FromInteger(value);
+    /// <summary>Converts a decimal exactly, preserving scale without backend access.</summary>
+    public static implicit operator PgNumeric(decimal value) => FromDecimal(value);
+    /// <summary>Converts an arbitrary integer within PostgreSQL's numeric range without backend access.</summary>
+    public static implicit operator PgNumeric(BigInteger value) => FromBigInteger(value);
+    /// <summary>Converts from single precision using PostgreSQL's float4-to-numeric rules.</summary>
+    public static explicit operator PgNumeric(float value) => FromSingle(value);
+    /// <summary>Converts from double precision using PostgreSQL's float8-to-numeric rules.</summary>
+    public static explicit operator PgNumeric(double value) => FromDouble(value);
+    /// <summary>Converts exactly to decimal, rejecting rounding, overflow, and nonfinite values.</summary>
+    public static explicit operator decimal(PgNumeric value) => value.ToDecimal();
+    /// <summary>Converts exactly to an arbitrary integer, rejecting fractional and nonfinite values.</summary>
+    public static explicit operator BigInteger(PgNumeric value) => value.ToBigInteger();
+    /// <summary>Converts to single precision using PostgreSQL's precision and range rules.</summary>
+    public static explicit operator float(PgNumeric value) => value.ToSingle();
+    /// <summary>Converts to double precision using PostgreSQL's precision and range rules.</summary>
+    public static explicit operator double(PgNumeric value) => value.ToDouble();
 
     private PgNumeric Unary(NumericOperation operation) => NativeBackend.Numeric<PgNumeric>(operation, [SpiParameter.Create(this)]);
     private PgNumeric WithScale(NumericOperation operation, int scale)
