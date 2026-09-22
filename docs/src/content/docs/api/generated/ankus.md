@@ -11,6 +11,7 @@ Assembly: `Ankus.Runtime.dll`
 
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
+- [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)
 - [PgDiagnostic](/api/ankus.pgdiagnostic/)
 - [PgEnumAttribute](/api/ankus.pgenumattribute/)
 - [PgEnumInfo](/api/ankus.pgenuminfo/)
@@ -64,5 +65,6 @@ Assembly: `Ankus.Runtime.dll`
 - [PgLogLevel](/api/ankus.pgloglevel/)
 - [PgNullInput](/api/ankus.pgnullinput/)
 - [PgParallelSafety](/api/ankus.pgparallelsafety/)
+- [PgSetMode](/api/ankus.pgsetmode/)
 - [PgSqlOrder](/api/ankus.pgsqlorder/)
 - [PgVolatility](/api/ankus.pgvolatility/)

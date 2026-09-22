@@ -25,6 +25,7 @@ internal static class NativeTemporalTypes
                     value->auxiliary1 = -time->zone;
                     break;
                 }
+
                 case INTERVALOID:
                 {
                     Interval *interval = DatumGetIntervalP(datum);
@@ -34,6 +35,7 @@ internal static class NativeTemporalTypes
                         value->temporal_infinity = INTERVAL_IS_NOBEGIN(interval) ? -1 : 1;
                         break;
                     }
+
         #endif
                     value->integral = interval->time;
                     value->auxiliary1 = interval->day;
@@ -55,6 +57,7 @@ internal static class NativeTemporalTypes
                         ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("date out of range")));
                     return DateADTGetDatum((DateADT) days);
                 }
+
                 case TIMESTAMPOID:
                 case TIMESTAMPTZOID:
                 {
@@ -63,6 +66,7 @@ internal static class NativeTemporalTypes
                         ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("timestamp out of range")));
                     return type == TIMESTAMPOID ? TimestampGetDatum(timestamp) : TimestampTzGetDatum(timestamp);
                 }
+
                 case TIMEOID:
                 case TIMETZOID:
                 {
@@ -78,6 +82,7 @@ internal static class NativeTemporalTypes
                     time->zone = -value->auxiliary1;
                     return TimeTzADTPGetDatum(time);
                 }
+
                 case INTERVALOID:
                 {
                     Interval *interval = palloc(sizeof(Interval));
@@ -93,6 +98,7 @@ internal static class NativeTemporalTypes
                         ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("interval infinity requires PostgreSQL 17")));
         #endif
                     }
+
                     interval->time = value->integral;
                     interval->day = value->auxiliary1;
                     interval->month = value->auxiliary2;
@@ -103,9 +109,11 @@ internal static class NativeTemporalTypes
         #endif
                     return IntervalPGetDatum(interval);
                 }
+
                 default:
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("unsupported temporal type")));
             }
+
             return (Datum) 0;
         }
         """;

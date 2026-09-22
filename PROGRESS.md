@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1759 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1984 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -61,6 +61,9 @@ Linux, and macOS.
 - IDE0290 enforces primary constructors in the repository; eligible public constructors retain their signatures
   and initialization behavior. Warning suppressions are prohibited, and both prior test pragmas were removed
   while preserving direct `ToArray()` copy-mutation assertions. Consumer templates contain no repository style rules.
+- IDE2003 enforces a blank line after closing blocks before the next statement. Existing C#, embedded native
+  code and emitted dispatchers follow the rule. Connected clauses and enclosing closing braces remain together.
+  A negative build probe fails on missing separation and passes after the blank line is inserted.
 - Internal declarations also carry XML documentation. A Roslyn scan across sources, tests, samples and bundled
   templates found 101 omissions; all are documented, including enum members and internal interface contracts.
   The follow-up scan reports zero omissions. Private declarations are outside that scan's scope.
@@ -93,6 +96,10 @@ Linux, and macOS.
 - `[PgOperator]` generates binary/prefix operators with commutator, negator, selectivity and hash/merge options.
   `[PgCast]` generates explicit, assignment and implicit casts, including PostgreSQL typmod/explicitness arguments.
   Both imply a backing function, accept optional `[PgFunction]` configuration, and expose separate SQL dependency IDs.
+- `IEnumerable<T>` generates SETOF for supported values and TABLE for named tuple elements, with explicit
+  column-name overrides, planner row estimates, streaming and PostgreSQL tuple-store materialization.
+  Iterator ownership survives suspension and releases on completion, LIMIT, portal closure, native errors and
+  cancellation. Restricted abort cleanup frees owned plans and safely defers cursor closure past portal scans.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -111,7 +118,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1124 integration cases include operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1176 integration cases include SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -568,6 +575,36 @@ The declarations cover supported input/output types. Composite/custom-type opera
 operator-class generation, custom SQL translation hooks, and the full PostgreSQL/platform matrix remain active work
 in their respective inventory rows. Validation artifacts are under `.git/testagent/operators/`.
 
+### Set-returning function evidence
+
+References: pgrx `iter.rs`, `srf_tests.rs`, and the `srf`/`spi_srf` examples; PostgreSQL `funcapi.c`,
+`execSRF.c`, `nodeProjectSet.c`, expression/memory cleanup, portal management and transaction cleanup.
+Ordinary `IEnumerable<T>` declarations use shared scalar converters and the existing guarded backend boundary.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| SETOF values, empty/null sequences and nullable elements | Typed enumerable callbacks; SQL NULL is a row, distinct from end-of-set | `SetElementConversionFamiliesCompile`, `SetSequenceAndElementNullabilityCompileIndependently`, `ScalarSetsPreserveEmptyAndNullSemantics`, `TypedSetColumnsPreserveExactNativeValues` |
+| Named TABLE columns, one-column tables and long tuples | Named flat C# tuples or `[return: PgColumnNames(...)]`; PostgreSQL's 1664 record-column limit | `TableColumnsPreserveNamesTypesAndValues`, `TableColumnOverridesSupportScalarAndTupleRows`, `LongTableTuplesCompileEveryOutputColumn`, `TableTupleBeyondPostgresRecordLimitIsDiagnosed` |
+| Identifier, shape, options and graph validation | ANKUS008 result diagnostics; existing declaration/graph validation; per-column enum dependencies | `TableColumnNamesUseUtf8LengthLimits`, `InvalidSetRowShapesAndNamesAreDiagnosed`, `SetRowsAcceptPositiveRepresentableBoundaries`, `InvalidSetOptionsAreDiagnosed`, `TableGraphDependsOnEveryOutputEnumAndCustomSql`, `SetReturnEnumDependencyCyclesAreDiagnosed`, `SetOutputIsDeterministicAcrossDeclarationOrder` |
+| Planner rows, strictness and execution modes | `PgFunction.Rows`, `PgSetMode`, required-argument handling and executor mode negotiation | `SetCatalogRetainsRowsAndTableContracts`, `ExecutorModesDisposeExactlyOnce`, `EmptyExecutionDoesNotLeakEnumerators` distinguish lazy SELECT-list LIMIT from eager FROM/forced materialization |
+| Exactly-once managed ownership | `NativeSet` owns a GCHandle, clears it before user disposal and frees it even if Dispose throws | `EmptySequenceOwnsAnIteratorUntilExplicitDisposal`, `SingletonNullIsARowBeforeCompletion`, `MultipleRowsPreserveValuesAndReadCurrentOncePerRow`, `EarlyDisposalClearsTheHandleBeforeCallingUserCode`, `DisposalFailureStillReleasesTheManagedRoot` |
+| Independent factory/GetEnumerator/MoveNext/Current/Dispose errors | Managed callback catches errors before returning to native; reset cleanup preserves primary errors | `IteratorFailuresPreserveOwnershipAndRecover`, `ExecutorErrorsAbortEnumeratorsWithoutReplacingTheError`, `EarlyDisposalFailureIsReportedExactlyOnce`, `RowConversionFailuresReleaseEnumerator` |
+| Suspended state, ordinary disposal with SPI and native abort | Expression shutdown supplies a snapshot; memory reset denies new SQL while allowing owned resource release | `ClosingPortalDisposesAbandonedSequence`, `SuspendedArgumentsAndSpiPlansRetainValues`, `InterleavedPortalsResumeIndependentEnumerators`, `NestedSetFailuresRecoverInsideSpi` |
+| Repeated plan/cursor cleanup, including adopted parent cursors | Stable cursor registry queues abort closes; transaction callbacks and memory reset drain after PostgreSQL portal scans | `AbortCleanupReleasesOwnedPlansAndCursors` repeats twenty failures and checks resource baselines; `AbortCleanupReleasesAdoptedParentCursor` verifies ownership across rollback to a savepoint |
+| Cancellation between native row steps | Native CHECK_FOR_INTERRUPTS, managed iterator cleanup and same-session recovery | `CancellationDisposesSuspendedSequence`, `PureManagedMaterializationObservesCancellation` (no backend call inside the materialized iterator) |
+| Materialization spill and bounded row allocations | PostgreSQL tuplestore and per-row context reset | `MaterializedTuplestoreSpillsAndPreservesEveryRow`, `MaterializedRowContextsRemainBoundedAcrossSpill` verify exact values, temporary disk blocks and bounded context storage across 16 MiB of rows |
+| Numeric precision for each yielded element | Existing `[return: PgNumericPrecision]` rescaling in the set writer | `SetNumericPrecisionRoundsNullsAndRecoversFromOverflow` checks rounding, NULL, overflow SQLSTATE and recovery |
+| Relocation, removal/reinstallation and package-only consumption | `Ankus.Examples.Sets`, shared SDK packaging and SQL graph | `SetSampleRelocatesAndReinstalls`, `SdkSupportsDirectPublishWithCentralPackages` |
+
+This milestone adds 161 generator, 12 direct iterator and 52 backend/sample cases. Plain `dotnet test` passes
+all 1984 cases on PostgreSQL 18.6/Linux x64, including cold package consumption. The non-incremental Release
+build has zero warnings/errors; the internal XML scan checks 525 declarations with zero omissions.
+These regressions exposed and verified fixes for missing disposal snapshots and unsafe cursor deletion during
+PostgreSQL's abort scan. IDE0008/IDE0290/IDE2003 verification passes; consumer templates retain independent
+style choices. The site build, type checks and API freshness check pass; the generated API contains 65 pages
+and 820 members. The site build still reports its existing duplicate `/404` route and missing public site URL
+warnings; neither warning is disabled. Validation artifacts are under `.git/testagent/sets/`.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -575,6 +612,7 @@ The generated API currently supports accessible, synchronous static methods with
 the .NET/full-range PostgreSQL temporal types, network/geometric values, typed ranges and generated enums. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
+SETOF and TABLE cover these supported value families through `IEnumerable<T>` and named tuple elements.
 Custom installation SQL strings/files and generated declarations, including operators and casts, share a dependency-ordered graph.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
@@ -680,10 +718,10 @@ The target architecture consists of:
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: built-in scalar, temporal, numeric and array types; nullability, overloads, variadics, named/defaulted arguments and execution options |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: supported scalar/array/enum types and SETOF/TABLE; nullability, overloads, variadics, named/defaulted arguments and execution options |
 | `#[pg_schema]` | `[PgSchema("name")]`, nested inheritance and per-function overrides | Owned/existing schemas and relocation metadata implemented; future type/dependency graph integration pending |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
-| SETOF / TABLE (`SetOfIterator`, `TableIterator`) | generated streaming and materialized set/table results | ☐ |
+| SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
@@ -700,7 +738,7 @@ The target architecture consists of:
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
 | `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
-| `iter`, `pg_sys` tuple-store APIs | managed tuple-store integration | ☐ |
+| `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
 | `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | ☐ |
 | `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
@@ -768,13 +806,13 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous built-in scalar/temporal/numeric/array types, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics; polymorphic/raw types pending |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous supported scalar/array/enum types, SETOF/TABLE, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics; polymorphic/raw types pending |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
-| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults implemented; table/aggregate fields and composite resolution pending |
-| `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Pending |
+| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults and TABLE field names implemented; aggregate fields and composite resolution pending |
+| `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom/composite operand families and matrix validation remain required |
@@ -847,7 +885,7 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums` and `samples/Ankus.Examples.Operators`
+The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators` and `samples/Ankus.Examples.Sets`
 samples are validated. Full example parity is pending.
 
 Required test-source inventory:
@@ -913,7 +951,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
     - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads
      - [x] Scalar arrays, vectors, dimensions/lower bounds, NULL elements and SQL variadics
-    - [ ] `[PgSchema]`, explicit function options, SETOF, remaining datum mappings
+    - [x] `[PgSchema]`, explicit function options, SETOF and named TABLE results
+    - [ ] Remaining datum mappings and polymorphic/raw signatures
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -1155,3 +1194,14 @@ The phases track implementation of the complete pgrx feature surface.
   emits neither a style `.editorconfig` nor code-style build enforcement. Removed duplicate analyzer release-file
   entries without disabling diagnostics. Automatic operator classes, further type families, and the full port/platform
   inventory remain active requirements.
+- 2026-09-22 — Added SETOF/TABLE declarations through ordinary `IEnumerable<T>` and named tuples, column-name
+  overrides, planner rows, streaming and PostgreSQL tuple-store materialization. Typed iterator ownership covers
+  early LIMIT/portal shutdown, native errors, cancellation and restricted owned-resource cleanup during abort.
+  Regressions identified and verified disposal snapshots and deferred cursor release after PostgreSQL portal scans,
+  including adoption of parent-transaction cursors. Added 161 generator, 12 runtime and 52 backend/sample cases.
+  Plain `dotnet test`: 1984 passed, zero failures/skips on PostgreSQL 18.6/Linux x64, including the packed SDK consumer.
+  Non-incremental Release build: zero warnings/errors; internal XML scan: 525 declarations, zero omissions.
+  Site build/type/API freshness checks pass; 65 API pages document 820 members. Existing site warnings for the
+  duplicate 404 route and missing public site URL remain visible. IDE2003 enforces blank lines after closing blocks;
+  repository sources and emitted dispatchers are corrected, without applying repository style to consumers.
+  The wider runtime/tooling/type inventory and PostgreSQL/platform matrix remain active requirements.

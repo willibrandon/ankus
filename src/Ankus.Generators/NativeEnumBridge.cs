@@ -83,6 +83,7 @@ internal static class NativeEnumBridge
                 else
                     namespace_oid = get_func_namespace(ankus_function_oid);
             }
+
             type = GetSysCacheOid2(TYPENAMENSP, Anum_pg_type_oid,
                 CStringGetDatum(type_name), ObjectIdGetDatum(namespace_oid));
             if (!OidIsValid(type) || get_typtype(type) != TYPTYPE_ENUM)
@@ -92,6 +93,7 @@ internal static class NativeEnumBridge
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT),
                     errmsg("PostgreSQL enum type \"%s\" does not exist in the declared schema", type_name)));
             }
+
             return type;
         }
 
@@ -123,6 +125,7 @@ internal static class NativeEnumBridge
                 ankus_copy_owned(&result->text, (unsigned char *) utf8, strlen(utf8));
                 return;
             }
+
             if (request->scalar_operation == 3)
             {
                 oid = DatumGetObjectId(ankus_write_enum(&request->parameters[1].value,

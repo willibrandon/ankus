@@ -31,6 +31,7 @@ internal static class Program
             {
                 throw new InvalidOperationException($"Expected PostgreSQL {major}, but '{installation.PgConfigPath}' is {installation.Label}.");
             }
+
             ExtensionManifest manifest = ExtensionManifest.Read(assembly);
             IReadOnlyDictionary<string, string> package = ExtensionPackage.Create(arguments[5], arguments[6], arguments[7], manifest.Sql, manifest.Relocatable);
             Directory.CreateDirectory(output);

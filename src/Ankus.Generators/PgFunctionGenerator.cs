@@ -100,6 +100,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
             native.AppendLine(GuardedBackend.Source);
+            if (methods.Any(static method => SetResult.IsSequence(method.ReturnType)))
+            {
+                native.AppendLine(NativeSetBridge.Source);
+            }
         }
 
         var graph = new SqlGraph(context);
@@ -149,6 +153,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine("{");
             native.AppendLine("    (void) type;");
         }
+
         foreach (INamedTypeSymbol type in enumTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
         {
             EnumDeclaration? enumeration = EnumDeclaration.Create(type, context);
@@ -186,28 +191,36 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         {
             native.AppendLine("    return false;");
             native.AppendLine("}");
+            native.AppendLine();
         }
 
         if (!enumTypes.IsEmpty)
         {
             managed.AppendLine("    }");
+            managed.AppendLine();
         }
 
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
-            if (!IsSupported(method))
+            SetResult? set = SetResult.Create(method, context, out bool validSet);
+            if (!validSet)
+            {
+                continue;
+            }
+
+            if (!IsSupported(method, set))
             {
                 context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
                 continue;
             }
 
             string name = GetSqlName(method);
-            if (!NumericConstraint.Validate(method, context))
+            if (!NumericConstraint.Validate(method, context, set))
             {
                 continue;
             }
 
-            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context);
+            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set);
             if (declaration is null)
             {
                 continue;
@@ -223,16 +236,25 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             string callback = GetCallbackName(method, name);
             var sql = new StringBuilder();
-            PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+            if (set is null)
+            {
+                PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+            }
+            else
+            {
+                PgSetEmitter.Emit(method, declaration, set, callback, managed, native, sql, exports);
+            }
+
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
             AttributeData? functionAttribute = method.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
             if (functionAttribute is not null)
             {
                 graph.Configure(entity, functionAttribute);
             }
+
             graph.Add(entity);
             OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
-            foreach (ITypeSymbol type in method.Parameters.Select(static parameter => parameter.Type).Concat([method.ReturnType]))
+            foreach (ITypeSymbol type in method.Parameters.Select(static parameter => parameter.Type).Concat(set?.Types ?? [method.ReturnType]))
             {
                 FunctionType contract = FunctionType.Create(type)!;
                 EnumDeclaration? enumeration = (contract.Element ?? contract).Enumeration;
@@ -271,11 +293,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static string Metadata(string key, string value)
         => $"[assembly: global::System.Reflection.AssemblyMetadata(\"{key}\", {SymbolDisplay.FormatLiteral(value, quote: true)})]\n";
 
-    private static bool IsSupported(IMethodSymbol method)
+    private static bool IsSupported(IMethodSymbol method, SetResult? set)
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            FunctionType.Create(method.ReturnType) is null || method.Parameters.Length > 100 ||
+            (set is null && FunctionType.Create(method.ReturnType) is null) || method.Parameters.Length > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
             method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
                 FunctionType.Create(parameter.Type) is null ||

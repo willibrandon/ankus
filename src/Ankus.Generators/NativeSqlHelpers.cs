@@ -22,6 +22,7 @@ internal static class NativeSqlHelpers
             {
                 return NULL;
             }
+
             return pg_any_to_server((char *) parameter->value.data, parameter->value.length, PG_UTF8);
         }
 
@@ -44,6 +45,7 @@ internal static class NativeSqlHelpers
             {
                 quoted = quote_literal_cstr(first);
             }
+
             utf8 = pg_server_to_any(quoted, strlen(quoted), PG_UTF8);
             ankus_copy_owned(&result->text, (unsigned char *) utf8, strlen(utf8));
             /* PostgreSQL allocations belong to the disposable operation context. */

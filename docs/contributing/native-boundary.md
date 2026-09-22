@@ -378,3 +378,36 @@ arrays and arrays of their underlying integer type.
 
 Generated installation SQL is UTF-8. Control files declare `encoding = 'UTF8'`
 so PostgreSQL transcodes labels, names and custom SQL for the target database.
+
+## Set-returning functions
+
+Generated enumerable callbacks initialize a typed managed iterator, advance it,
+and dispose it through a GCHandle. PostgreSQL owns the native state in its
+multi-call context. An expression-context shutdown callback disposes the iterator
+on normal early termination; a memory-context reset callback covers abort paths
+where PostgreSQL deliberately skips expression callbacks. The handle is cleared
+and released before invoking user disposal, preventing repeat cleanup after an error.
+
+Every callback saves and restores the active function OID and managed backend
+binding. Early expression shutdown supplies an active snapshot when the executor
+has already removed it. Abort cleanup denies queries but permits release of owned
+SPI plans and cursors through the native guard without starting a subtransaction.
+The existing nested recovery guard also covers failures during that cleanup.
+Cursor release during rollback marks a stable registry entry for closure. Native
+transaction callbacks drain it after PostgreSQL's portal scan; a transaction-memory
+reset callback covers cleanup queued during the later portal deletion scan.
+Already-deleted portals invalidate their entries. Surviving parent-transaction
+cursors are closed without executor callbacks against failed transaction state.
+Active or pinned portals remain queued until safe cleanup. No cursor hash entry
+is removed from inside PostgreSQL's abort scan.
+
+Managed rows use the same conversion expressions as scalar functions. Native
+TABLE conversion selects each tuple descriptor attribute's OID, preserving enum
+and array identity independently of the overall RECORD return type. Output buffers
+are released in native `PG_FINALLY` blocks on successful conversion and errors.
+One-column TABLE results use the scalar datum ABI, as PostgreSQL requires.
+
+Value-per-call execution returns a single row and leaves the iterator rooted for
+the next call. Materialization writes to a PostgreSQL tuple store owned by the
+query context, resetting temporary conversion storage between rows and allowing
+`work_mem`-controlled spill. Interrupt checks occur before each iterator advance.

@@ -101,6 +101,7 @@ public unsafe partial struct NativeValue
         {
             throw new InvalidOperationException("Invalid array element conversion discriminator.");
         }
+
         return oid;
     }
 

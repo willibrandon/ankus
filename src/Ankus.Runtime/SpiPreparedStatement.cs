@@ -153,7 +153,8 @@ public sealed class SpiPreparedStatement : IDisposable
             return;
         }
 
-        CheckAccess();
+        NativeBackend.CheckDisposalAccess(_backend);
+        _session?.CheckAccess();
         CheckNotExecuting();
         nint plan = Handle;
         try

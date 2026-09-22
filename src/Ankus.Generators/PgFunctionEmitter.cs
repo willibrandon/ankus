@@ -51,33 +51,7 @@ internal static class PgFunctionEmitter
         {
             FunctionType type = parameters[index];
             string slot = "arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]";
-            string numeric = slot + ".ReadNumeric()" + NumericConstraint.Rescale(method.Parameters[index].GetAttributes());
-            string value = type.Managed switch
-            {
-                _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
-                    (type.IsVector ? ".ToVector()" : string.Empty),
-                _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
-                _ when type.RangeSubtype is not null => slot + ".ReadRange<" + type.RangeSubtype.Managed + ">()",
-                _ when type.Enumeration is not null => "global::Ankus.PgEnums.Parse<" + type.Managed + ">(" + slot + ".ReadString())",
-                "string" => slot + ".ReadString()",
-                "byte[]" => slot + ".ReadBytes()",
-                "global::System.Guid" => slot + ".ReadGuid()",
-                "global::Ankus.PgInet" => slot + ".ReadInet()",
-                "global::Ankus.PgCidr" => slot + ".ReadCidr()",
-                "global::System.Net.IPAddress" => slot + ".ReadInet().ToIPAddress()",
-                "global::System.Net.IPNetwork" => slot + ".ReadCidr().ToIPNetwork()",
-                "global::Ankus.PgJson" => slot + ".ReadJson()",
-                "global::Ankus.PgJsonb" => slot + ".ReadJsonb()",
-                "global::Ankus.PgNumeric" => numeric,
-                "decimal" => numeric + ".ToDecimal()",
-                "bool" => slot + ".Integral != 0",
-                "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
-                "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
-                _ when type.IsTemporal => slot + ".Read" + type.TemporalName + "()" +
-                    (type.ClrTemporalName.Length == 0 ? string.Empty : ".To" + type.ClrTemporalName + "()"),
-                _ => "(" + type.Managed + ")" + slot + "." + type.Field,
-            };
-            arguments.Add(type.Nullable ? $"({slot}.IsNull != 0 ? ({type.Managed}?)null : {value})" : value);
+            arguments.Add(ManagedConversion.Read(type, slot, NumericConstraint.Rescale(method.Parameters[index].GetAttributes())));
         }
 
         string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -98,35 +72,10 @@ internal static class PgFunctionEmitter
                 source.AppendLine("                result->IsNull = 1;");
                 source.AppendLine("                return 0;");
                 source.AppendLine("            }");
+                source.AppendLine();
             }
 
-            string temporalValue = result.IsTemporal && result.ClrTemporalName.Length != 0
-                ? $"global::Ankus.Pg{result.TemporalName}.From{result.ClrTemporalName}({value})" : value;
-            string numericValue = (result.Managed == "decimal" ? $"global::Ankus.PgNumeric.FromDecimal({value})" : value)
-                + NumericConstraint.Rescale(method.GetReturnTypeAttributes());
-            source.AppendLine(result.Managed switch
-            {
-                _ when result.Element is not null => "            *result = global::Ankus.NativeValue.FromArray(" +
-                    (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
-                _ when result.GeometryName.Length != 0 => $"            *result = global::Ankus.NativeValue.From{result.GeometryName}({value});",
-                _ when result.RangeSubtype is not null => $"            *result = global::Ankus.NativeValue.FromRange({value});",
-                _ when result.Enumeration is not null => $"            *result = global::Ankus.NativeValue.FromString(global::Ankus.PgEnums.GetLabel({value}));",
-                "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
-                "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
-                "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
-                "global::Ankus.PgInet" => $"            *result = global::Ankus.NativeValue.FromInet({value});",
-                "global::Ankus.PgCidr" => $"            *result = global::Ankus.NativeValue.FromCidr({value});",
-                "global::System.Net.IPAddress" => $"            *result = global::Ankus.NativeValue.FromInet(new global::Ankus.PgInet({value}));",
-                "global::System.Net.IPNetwork" => $"            *result = global::Ankus.NativeValue.FromCidr(new global::Ankus.PgCidr({value}));",
-                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
-                    $"            *result = global::Ankus.NativeValue.FromString({value}.Text);",
-                "global::Ankus.PgNumeric" or "decimal" => $"            *result = global::Ankus.NativeValue.FromString({numericValue}.Text);",
-                "bool" => $"            result->Integral = {value} ? 1 : 0;",
-                "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
-                "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",
-                _ when result.IsTemporal => $"            *result = global::Ankus.NativeValue.From{result.TemporalName}({temporalValue});",
-                _ => $"            result->{result.Field} = {value};",
-            });
+            source.AppendLine("            " + ManagedConversion.Write(result, value, "result", NumericConstraint.Rescale(method.GetReturnTypeAttributes())));
         }
 
         source.AppendLine("            return 0;");
@@ -141,6 +90,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
         source.AppendLine("        }");
         source.AppendLine("    }");
+        source.AppendLine();
     }
 
     private static void EmitNative(string name, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
@@ -167,6 +117,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("    {");
         source.AppendLine("        ereport(ERROR, (errmsg(\"Incorrect argument count for generated Ankus function\")));");
         source.AppendLine("    }");
+        source.AppendLine();
         for (int index = 0; index < parameters.Length; index++)
         {
             if (!parameters[index].Nullable)
@@ -175,6 +126,7 @@ internal static class PgFunctionEmitter
                 source.AppendLine("    {");
                 source.AppendLine("        PG_RETURN_NULL();");
                 source.AppendLine("    }");
+                source.AppendLine();
             }
         }
 
@@ -223,6 +175,7 @@ internal static class PgFunctionEmitter
             }
 
             source.AppendLine("    }");
+            source.AppendLine();
         }
 
         source.AppendLine("    previous_function = ankus_function_oid;");
@@ -241,10 +194,12 @@ internal static class PgFunctionEmitter
         source.AppendLine("    {");
         source.AppendLine("        ankus_raise_error(&error);");
         source.AppendLine("    }");
+        source.AppendLine();
         source.AppendLine("    if (result.is_null)");
         source.AppendLine("    {");
         source.AppendLine("        PG_RETURN_NULL();");
         source.AppendLine("    }");
+        source.AppendLine();
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
         if (result.Element is not null)
@@ -291,5 +246,6 @@ internal static class PgFunctionEmitter
         source.AppendLine("    PG_END_TRY();");
         source.AppendLine("    return datum;");
         source.AppendLine("}");
+        source.AppendLine();
     }
 }

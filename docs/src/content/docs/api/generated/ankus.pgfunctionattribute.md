@@ -129,6 +129,19 @@ public string[] Requires { get; set; }
 
 Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-617a915a342d456a"></a>
+
+### Rows
+
+Gets or sets the positive finite estimated row count for a set-returning function. The default is 1000.
+This option is only valid for IEnumerable returns.
+
+```csharp
+public double Rows { get; set; }
+```
+
+Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
 <a id="member-50d4f8c172a722e1"></a>
 
 ### Schema
@@ -167,6 +180,19 @@ public bool SecurityDefiner { get; set; }
 ```
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-52c80cf31801c2c7"></a>
+
+### SetMode
+
+Gets or sets how a set-returning function produces rows. Auto prefers one row per call.
+This option is only valid for IEnumerable returns.
+
+```csharp
+public PgSetMode SetMode { get; set; }
+```
+
+Value: [PgSetMode](/api/ankus.pgsetmode/)
 
 <a id="member-1893f39c6c0b9383"></a>
 

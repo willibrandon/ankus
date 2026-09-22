@@ -32,6 +32,7 @@ internal static class NativeScalarFunctions
                         match = match && entry->argument_types[argument] == request->parameters[argument].type_oid &&
                             !request->parameters[argument].value.is_null;
                 }
+
                 if (match)
                 {
                     LOCAL_FCINFO(call, 7);
@@ -47,6 +48,7 @@ internal static class NativeScalarFunctions
                         call->args[argument].value = ankus_parameter_datum(&request->parameters[argument]);
                         call->args[argument].isnull = false;
                     }
+
                     datum = FunctionCallInvoke(call);
                     result->text.is_null = call->isnull;
                     if (!call->isnull)
@@ -54,6 +56,7 @@ internal static class NativeScalarFunctions
                     return;
                 }
             }
+
             ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("unsupported scalar operation signature")));
         }
         """;

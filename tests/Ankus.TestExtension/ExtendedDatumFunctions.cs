@@ -149,6 +149,7 @@ public static class ExtendedDatumFunctions
                 {
                     return plan.ExecuteScalar<T>(SpiParameter.Create(value));
                 }
+
             case 3:
                 return Spi.Connect(session => session.ExecuteScalar<T>(sql, SpiParameter.Create(value)));
             case 4:
@@ -158,6 +159,7 @@ public static class ExtendedDatumFunctions
                     cursor.Fetch(1);
                     return rows[0].Get<T>(0);
                 }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode));
         }

@@ -78,7 +78,12 @@ public sealed class SpiCursor : IDisposable
             return;
         }
 
-        CheckAccess();
+        NativeBackend.CheckDisposalAccess(_backend);
+        if (_fetching)
+        {
+            throw new InvalidOperationException("A cursor cannot be disposed recursively while it is fetching.");
+        }
+
         NativeBackend.CloseCursor(Identity);
         Identity = 0;
     }

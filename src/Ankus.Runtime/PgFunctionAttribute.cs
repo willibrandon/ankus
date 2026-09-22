@@ -66,6 +66,18 @@ public sealed class PgFunctionAttribute : Attribute
     public double Cost { get; set; } = 1;
 
     /// <summary>
+    /// Gets or sets the positive finite estimated row count for a set-returning function. The default is 1000.
+    /// This option is only valid for IEnumerable returns.
+    /// </summary>
+    public double Rows { get; set; } = 1000;
+
+    /// <summary>
+    /// Gets or sets how a set-returning function produces rows. Auto prefers one row per call.
+    /// This option is only valid for IEnumerable returns.
+    /// </summary>
+    public PgSetMode SetMode { get; set; }
+
+    /// <summary>
     /// Gets or sets an ordered schema search path scoped to this function. Null preserves the caller's search path.
     /// Each entry is a schema identifier, including the special $user and pg_temp entries.
     /// </summary>

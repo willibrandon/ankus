@@ -57,7 +57,19 @@ internal static class GuardedBackend
                 {
                     int code;
                     MemoryContext operation_context = NULL;
-                    if (request->operation == ANKUS_SPI_OPEN_SESSION)
+                    if (request->cleanup_only)
+                    {
+                        /* Abort cleanup releases owned resources without SQL or a new subtransaction.
+                         * The outer recovery guard also protects diagnostic capture on this path. */
+                        if (request->session_id != 0 ||
+                            (request->operation != ANKUS_SPI_FREE_PLAN && request->operation != ANKUS_SPI_CLOSE_CURSOR))
+                            ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                                errmsg("Only owned resource release is allowed during Ankus abort cleanup")));
+                        code = ankus_run_spi_request(request, result);
+                        if (code < 0)
+                            ereport(ERROR, (errmsg("Ankus resource cleanup failed: %s", SPI_result_code_string(code))));
+                    }
+                    else if (request->operation == ANKUS_SPI_OPEN_SESSION)
                     {
                         /* Keep this subtransaction until close so partial SPI_connect failures can be rolled back safely. */
                         BeginInternalSubTransaction(NULL);
@@ -66,6 +78,7 @@ internal static class GuardedBackend
                         {
                             ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                         }
+
                         ankus_register_session(request, caller_context, caller_owner, caller_nest_level);
                     }
                     else
@@ -83,11 +96,13 @@ internal static class GuardedBackend
                         {
                             ankus_require_session(request->session_id);
                         }
+
                         if ((direct || !standalone) && request->operation != ANKUS_SPI_CLOSE_SESSION)
                         {
                             operation_context = AllocSetContextCreate(CurrentMemoryContext, "Ankus SPI operation", ALLOCSET_SMALL_SIZES);
                             MemoryContextSwitchTo(operation_context);
                         }
+
                         if (request->operation != ANKUS_SPI_CLOSE_SESSION)
                         {
                             if (reporting)
@@ -129,10 +144,12 @@ internal static class GuardedBackend
                             {
                                 code = quote ? ankus_quote(request, result) : ankus_run_spi_request(request, result);
                             }
+
                             if (code < 0)
                             {
                                 ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
                             }
+
                             retained_plan = request->operation == ANKUS_SPI_KEEP_PLAN;
                             if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
                                 request->operation == ANKUS_SPI_FETCH_CURSOR || request->operation == ANKUS_SPI_EXPLAIN)
@@ -141,19 +158,23 @@ internal static class GuardedBackend
                                 {
                                     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
                                 }
+
                                 result->processed = (int64) SPI_processed;
                                 if (request->result_mode)
                                 {
                                     ankus_collect_result(result, request->result_mode == 2);
                                 }
+
                                 SPI_freetuptable(SPI_tuptable);
                             }
                         }
+
                         if (operation_context != NULL)
                         {
                             MemoryContextSwitchTo(CurTransactionContext);
                             MemoryContextDelete(operation_context);
                         }
+
                         if ((standalone && !direct) || request->operation == ANKUS_SPI_CLOSE_SESSION)
                         {
                             code = SPI_finish();
@@ -161,17 +182,20 @@ internal static class GuardedBackend
                             {
                                 ereport(ERROR, (errmsg("SPI_finish failed: %s", SPI_result_code_string(code))));
                             }
+
                             if (request->operation == ANKUS_SPI_CLOSE_SESSION)
                             {
                                 request->session_id = 0;
                             }
                         }
+
                         ReleaseCurrentSubTransaction();
                         if (request->operation == ANKUS_SPI_CLOSE_SESSION)
                         {
                             ReleaseCurrentSubTransaction();
                         }
                     }
+
                     MemoryContextSwitchTo(caller_context);
                     if (request->operation != ANKUS_SPI_OPEN_SESSION)
                     {
@@ -191,6 +215,7 @@ internal static class GuardedBackend
                     {
                         RollbackAndReleaseCurrentSubTransaction();
                     }
+
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
                     if ((request->operation == ANKUS_SPI_PREPARE || retained_plan) && request->plan != NULL)
@@ -199,9 +224,11 @@ internal static class GuardedBackend
                         {
                             ankus_detach_session_plan(request->plan);
                         }
+
                         SPI_freeplan(request->plan);
                         request->plan = NULL;
                     }
+
                     ankus_capture_error(data, error);
                     MemoryContextSwitchTo(caller_context);
                     MemoryContextDelete(diagnostic_context);

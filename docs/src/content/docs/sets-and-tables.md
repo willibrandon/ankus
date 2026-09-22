@@ -1,0 +1,147 @@
+---
+title: Sets and tables
+description: Return PostgreSQL sets and named tables from ordinary C# iterators.
+---
+
+Declare a `[PgFunction]` method with an `IEnumerable<T>` return type to produce
+`SETOF T`. Use `yield return`, a collection expression, or another synchronous
+sequence. Ankus generates the PostgreSQL iterator protocol and owns its cleanup.
+
+```csharp
+[PgFunction]
+public static IEnumerable<int> Series(int start, int count)
+{
+    for (int offset = 0; offset < count; offset++)
+    {
+        yield return checked(start + offset);
+    }
+}
+```
+
+```sql
+SELECT * FROM series(10, 3); -- 10, 11, 12
+```
+
+The declared return type must be `IEnumerable<T>`. Existing scalar mappings keep
+their meaning: `int[]` returns a PostgreSQL integer array, while
+`IEnumerable<int[]>` returns a set of integer arrays. Each element can use any
+supported [function type](/function-declarations/), including generated enums,
+shaped arrays, ranges, numeric values, and full-range temporal values.
+
+## Named TABLE rows
+
+Return named C# tuples to generate `RETURNS TABLE`. Tuple element names become
+snake_case SQL column names, in their declared order.
+
+```csharp
+[PgFunction]
+public static IEnumerable<(int WordNumber, string Word)> Words(string text)
+{
+    string[] words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+    for (int index = 0; index < words.Length; index++)
+    {
+        yield return (index + 1, words[index]);
+    }
+}
+```
+
+```sql
+SELECT word_number, word FROM words('hello PostgreSQL');
+SELECT * FROM words('one two') WITH ORDINALITY;
+```
+
+Use `[return: PgColumnNames(...)]` to provide exact SQL names. It also expresses a
+one-column TABLE without a tuple wrapper:
+
+```csharp
+[PgFunction]
+[return: PgColumnNames("value")]
+public static IEnumerable<int?> Values() => [1, null, 3];
+
+[PgFunction]
+[return: PgColumnNames("id", "display_name")]
+public static IEnumerable<(int, string?)> People() => [(1, "Ada"), (2, null)];
+```
+
+Names must be distinct PostgreSQL identifiers and must not duplicate an input
+parameter name. Flat tuples support up to PostgreSQL's 1,664-field record limit;
+nested tuples and nullable tuple rows are rejected. Make individual fields
+nullable to represent SQL NULL. `ValueTuple<T>` is supported with an explicit
+single column name.
+
+## Empty sets and NULL
+
+An empty sequence returns zero rows. A nullable sequence that returns `null`
+also returns zero rows. A nullable *element* produces a row containing SQL NULL:
+
+```csharp
+[PgFunction]
+public static IEnumerable<int?>? OptionalValues(bool absent)
+    => absent ? null : [null, 42];
+```
+
+Strict NULL-input handling returns an empty set without invoking the method.
+For a mixed nullable/non-nullable signature, a NULL for any required parameter
+also returns an empty set. Existing `PgNullInput` options continue to apply.
+
+## Streaming and materialization
+
+The default `PgSetMode.Auto` produces one row per PostgreSQL call whenever the
+caller supports it. If the caller accepts only a materialized result, Ankus
+fills a PostgreSQL tuple store. `ValuePerCall` and `Materialize` require their
+respective caller modes and reject an incompatible context.
+
+```csharp
+[PgFunction(SetMode = PgSetMode.Materialize, Rows = 100)]
+public static IEnumerable<(int WordNumber, string Word)> AllWords(string text)
+    => Words(text);
+```
+
+`Rows` sets PostgreSQL's positive, finite planner estimate; the default is 1000.
+It does not limit the result. Materialization uses PostgreSQL's `work_mem` and
+can spill to temporary files. Converted per-row storage is released between rows.
+
+SQL placement affects when rows are consumed. A set in a SELECT list can stop
+early under `LIMIT`:
+
+```sql
+SELECT series(0, 1000000) LIMIT 2;
+```
+
+PostgreSQL normally materializes a function in `FROM` before applying an outer
+`LIMIT`, even when the function uses the value-per-call protocol. Forced
+materialization also consumes the complete sequence before a SELECT-list
+`LIMIT` can stop reading its rows.
+
+## Iterator lifetime and errors
+
+The sequence factory and `GetEnumerator` run once for each set invocation.
+`MoveNext` and `Current` run as rows are requested. Ankus roots the iterator
+across native calls and calls `Dispose` exactly once after acquisition, including
+empty results, early termination, portal closure, errors, and cancellation.
+An iterator's `finally` blocks therefore run when PostgreSQL abandons the result.
+
+Each normal callback has the usual guarded backend binding, so iterator bodies
+can use SPI and enum catalog APIs after resumption. Ordinary completion and early
+termination also permit backend calls during disposal. During PostgreSQL abort
+cleanup, queries and catalog operations are unavailable: the transaction or
+executor may already be shutting down. Disposal of owned SPI plans and cursors
+still releases those resources through a restricted native guard. Keep other
+abort cleanup independent of database work.
+Cursor closure during rollback is deferred until PostgreSQL finishes scanning
+its cursor registry, including when the iterator adopted a cursor opened before
+the failed savepoint.
+
+Factory, iteration, conversion, and normal disposal exceptions become PostgreSQL
+errors after managed frames unwind. If disposal also fails while another error
+is being handled, Ankus preserves the original error and reports a cleanup
+warning. PostgreSQL interrupt checks run between rows; they cannot preempt a
+managed `MoveNext` that never returns or calls a guarded backend API.
+
+`[return: PgNumericPrecision(...)]` constrains each numeric element of a scalar
+set. TABLE fields can be rescaled explicitly in the iterator. Operators and
+casts cannot return sets. SQL graph IDs, prerequisites, enum dependencies, and
+function execution options work as they do for scalar functions.
+
+See the sets sample in `samples/Ankus.Examples.Sets`
+for streaming integers and streaming/materialized word tables.

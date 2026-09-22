@@ -47,6 +47,7 @@ internal static class NativeSessionBridge
                     entry->plan = NULL;
                 }
             }
+
             while (*position != NULL)
             {
                 if (*position == session)
@@ -54,6 +55,7 @@ internal static class NativeSessionBridge
                     *position = session->previous;
                     return;
                 }
+
                 position = &(*position)->previous;
             }
         }
@@ -66,6 +68,7 @@ internal static class NativeSessionBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("SPI session identity capacity exhausted")));
             }
+
             /* SPI_connect has made its procedure context current. SPI_finish invalidates this entry. */
             session = palloc0(sizeof(AnkusSession));
             session->identity = ++ankus_next_session_id;
@@ -113,6 +116,7 @@ internal static class NativeSessionBridge
                     pfree(entry);
                     return;
                 }
+
                 position = &entry->next;
             }
         }

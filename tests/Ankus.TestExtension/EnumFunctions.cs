@@ -213,6 +213,7 @@ public static class EnumFunctions
         {
             try { _ = PgEnums.GetValueOid(EnumMood.Low); }
             catch (PgException error) when (error.SqlState == "22P02") { failures++; }
+
             try { _ = PgEnums.Lookup(0); }
             catch (PgException error) when (error.SqlState == "22P03") { failures++; }
         }
@@ -250,6 +251,7 @@ public static class EnumFunctions
         bool caught = false;
         try { Spi.Execute("SELECT enum_values.enum_undefined()"); }
         catch (PgException error) when (error.SqlState == "38000") { caught = true; }
+
         return caught && nested == value && PgEnums.GetTypeOid<EnumMood>() == before &&
             PgEnums.Lookup(PgEnums.GetValueOid(value)).Label == PgEnums.GetLabel(value);
     }

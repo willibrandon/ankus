@@ -13,6 +13,7 @@ internal static class NativeGeometryOperations
             static Datum name(PG_FUNCTION_ARGS) { \
                 return DirectFunctionCall1(input, CStringGetDatum(TextDatumGetCString(PG_GETARG_DATUM(0)))); \
             }
+
         ANKUS_GEOMETRY_PARSE(ankus_point_parse, point_in)
         ANKUS_GEOMETRY_PARSE(ankus_lseg_parse, lseg_in)
         ANKUS_GEOMETRY_PARSE(ankus_line_parse, line_in)

@@ -402,6 +402,10 @@ public sealed class ToolCommandTests(TestContext context)
                     [PgCast]
                     public static int CodeValue(PackageCode value) => (int)value;
 
+                    [PgFunction]
+                    public static IEnumerable<(PackageCode Code, int NumericValue)> PackageRows()
+                        => [(PackageCode.First, 17), (PackageCode.Last, 25)];
+
                     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, Cost = 2.5)]
                     public static int PackageDefault(int inputValue = 41) => inputValue + 1;
                 }
@@ -432,6 +436,8 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT 'Last'::package_contract.package_code::integer";
         Assert.AreEqual(25, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT string_agg(code::text || ':' || numeric_value, ',' ORDER BY numeric_value) FROM package_contract.package_rows()";
+        Assert.AreEqual("First:17,Last:25", await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT extrelocatable FROM pg_extension WHERE extname = 'ankus_tool_probe'";
         Assert.IsFalse(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(context.CancellationToken)));
     }

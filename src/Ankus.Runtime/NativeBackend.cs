@@ -16,18 +16,27 @@ public static unsafe class NativeBackend
     private static int s_callbackDepth;
 
     [ThreadStatic]
+    private static int s_abortCleanupDepth;
+
+    [ThreadStatic]
     private static SpiSession? s_session;
 
     /// <summary>
     /// Enters a native callback scope, preserving the previous binding for recursive SPI calls.
     /// </summary>
     /// <param name="execute">The native guarded SPI entry point.</param>
+    /// <param name="abortCleanup">Whether this scope may only release resources during query abort.</param>
     /// <returns>The previous callback binding, restored by generated code in a finally block.</returns>
-    public static nint Enter(nint execute)
+    public static nint Enter(nint execute, bool abortCleanup = false)
     {
         nint previous = s_execute;
         s_execute = execute;
         s_callbackDepth++;
+        if (abortCleanup)
+        {
+            s_abortCleanupDepth++;
+        }
+
         return previous;
     }
 
@@ -35,10 +44,15 @@ public static unsafe class NativeBackend
     /// Restores the enclosing native callback scope.
     /// </summary>
     /// <param name="previous">The binding saved on entry.</param>
-    public static void Exit(nint previous)
+    /// <param name="abortCleanup">Whether the matching entry established an abort-cleanup scope.</param>
+    public static void Exit(nint previous, bool abortCleanup = false)
     {
         s_execute = previous;
         s_callbackDepth--;
+        if (abortCleanup)
+        {
+            s_abortCleanupDepth--;
+        }
     }
 
     /// <summary>
@@ -166,6 +180,19 @@ public static unsafe class NativeBackend
     /// </summary>
     /// <param name="owner">The required native binding, or zero to accept any active binding.</param>
     internal static void CheckAccess(nint owner = 0)
+    {
+        CheckDisposalAccess(owner);
+        if (s_abortCleanupDepth != 0)
+        {
+            throw new InvalidOperationException("PostgreSQL queries are unavailable during aborted iterator cleanup.");
+        }
+    }
+
+    /// <summary>
+    /// Verifies the owning thread and binding while permitting resource release during abort cleanup.
+    /// </summary>
+    /// <param name="owner">The required native binding, or zero for any active binding.</param>
+    internal static void CheckDisposalAccess(nint owner = 0)
     {
         if (s_execute == 0 || (owner != 0 && s_execute != owner))
         {
@@ -328,7 +355,7 @@ public static unsafe class NativeBackend
     /// <param name="identity">The cursor identity.</param>
     internal static void CloseCursor(long identity)
     {
-        CheckAccess();
+        CheckDisposalAccess();
         var request = new NativeSpiRequest { _operation = SpiOperation.CloseCursor, _cursorId = identity };
         NativeSpiResult result = default;
         Invoke(&request, &result);
@@ -603,6 +630,16 @@ public static unsafe class NativeBackend
 
     private static void Invoke(NativeSpiRequest* request, NativeSpiResult* result)
     {
+        if (s_abortCleanupDepth != 0)
+        {
+            if (request->_operation is not (SpiOperation.FreePlan or SpiOperation.CloseCursor) || request->_sessionId != 0)
+            {
+                throw new InvalidOperationException("Only owned PostgreSQL resources may be released during aborted iterator cleanup.");
+            }
+
+            request->_cleanupOnly = 1;
+        }
+
         var execute = (delegate* unmanaged[Cdecl]<NativeSpiRequest*, NativeSpiResult*, NativeCallError*, int>)s_execute;
         NativeCallError error = default;
         try

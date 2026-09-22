@@ -39,6 +39,7 @@ public static class SpiCursorFunctions
                 batch = cursor.Fetch(batchSize);
                 rows.AddRange(batch);
             }
+
             while (batch.Count != 0);
         }
 

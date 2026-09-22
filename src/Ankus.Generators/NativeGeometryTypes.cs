@@ -42,6 +42,7 @@ internal static class NativeGeometryTypes
                     owned->detoasted = unpacked;
                 datum = PointerGetDatum(unpacked);
             }
+
             wire = DatumGetByteaP(DirectFunctionCall1(ankus_geometry_io(type, false), datum));
             owned->serialized = (char *) wire;
             value->data = (unsigned char *) VARDATA(wire);
@@ -78,8 +79,10 @@ internal static class NativeGeometryTypes
                         ((PATH *) empty)->closed = closed;
                     return PointerGetDatum(empty);
                 }
+
                 buffer.cursor = 0;
             }
+
             result = DirectFunctionCall1(ankus_geometry_io(type, true), PointerGetDatum(&buffer));
             pq_getmsgend(&buffer);
             return result;

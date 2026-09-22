@@ -194,6 +194,7 @@ internal static class NativeTemporalOperations
                 ankus_result_value(numeric, NUMERICOID, &result->text);
                 return;
             }
+
         #endif
             if (operation == ANKUS_TEMP_PARSE || operation == ANKUS_TEMP_FORMAT || operation == ANKUS_TEMP_ISO)
             {
@@ -227,8 +228,10 @@ internal static class NativeTemporalOperations
                         getTypeOutputInfo(argument->type_oid, &function, &variable);
                         text = OidOutputFunctionCall(function, datum);
                     }
+
                     datum = CStringGetTextDatum(text);
                 }
+
                 ankus_result_value(datum, output, &result->text);
                 return;
             }

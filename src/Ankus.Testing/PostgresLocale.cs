@@ -36,6 +36,7 @@ internal static class PostgresLocale
         {
             return ["--locale=C"];
         }
+
         bool hasUtf8 = result.ExitCode == 0 &&
             result.StandardOutput.Split('\n').Any(
                 static value => value.Trim() is "C.UTF-8" or "C.utf8");

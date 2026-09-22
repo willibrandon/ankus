@@ -36,6 +36,10 @@ before changing an area.
 - Never disable warnings. Fix the underlying issue without warning pragmas,
   suppression attributes, `NoWarn`, or reducing an enforced diagnostic's severity.
 - Do not leave an extra blank line immediately after an opening brace.
+- Leave a blank line after a closing block brace before the next statement or
+  declaration. Keep connected `else`, `catch`, and `finally` clauses together;
+  adjacent enclosing closing braces do not need a blank line. IDE2003 enforces
+  statement separation in repository builds.
 - Keep repository coding style out of consumer templates. `ankus new` must not
   impose this repository's `.editorconfig` rules or code-style build enforcement.
 - Document public and internal declarations with XML comments. Put XML summary

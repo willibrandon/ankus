@@ -527,6 +527,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgCast(Ankus.PgCastContext.Assignment)]
                 public static Second?[]? Convert(First?[]? value) => null;
             }
+
             [Ankus.PgEnum(Name = "First", Schema = "Types")] public enum First { Value }
             [Ankus.PgEnum(Name = "Second", Schema = "Types")] public enum Second { Value }
             """);

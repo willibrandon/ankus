@@ -29,6 +29,13 @@ internal static class OperatorCastDeclaration
                 continue;
             }
 
+            if (SetResult.IsSequence(method.ReturnType))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name,
+                    "Operators and casts cannot return sets."));
+                continue;
+            }
+
             (string Sql, string Signature)? declaration = kind == "operator"
                 ? CreateOperator(method, function, attribute, context)
                 : CreateCast(method, function, attribute, context);

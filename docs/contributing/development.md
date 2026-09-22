@@ -118,6 +118,11 @@ Use primary constructors wherever supported by IDE0290. The repository enforces
 Constructor validation, visibility and native layouts must remain
 unchanged when applying the conversion.
 
+Leave a blank line after a closing block brace before the next statement or
+declaration. IDE2003 enforces statement separation during repository builds.
+Connected `else`, `catch`, and `finally` clauses and adjacent enclosing closing
+braces stay together. Do not insert a blank line immediately after an opening brace.
+
 Fix warnings at their source. Do not add warning pragmas, suppression attributes,
 `NoWarn`, or lower an enforced diagnostic's severity.
 

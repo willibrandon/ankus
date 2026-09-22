@@ -43,6 +43,7 @@ internal static class NativeExtendedTypes
                 {
                     owned->detoasted = unpacked;
                 }
+
                 owned->serialized = DatumGetCString(DirectFunctionCall1(type == JSONBOID ? jsonb_out : numeric_out,
                     PointerGetDatum(unpacked)));
                 converted = pg_server_to_any(owned->serialized, strlen(owned->serialized), PG_UTF8);
@@ -50,6 +51,7 @@ internal static class NativeExtendedTypes
                 {
                     owned->converted = converted;
                 }
+
                 value->data = (unsigned char *) converted;
                 value->length = strlen(converted);
             }
@@ -69,14 +71,17 @@ internal static class NativeExtendedTypes
                 {
                     ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid UUID transport length")));
                 }
+
                 uuid = palloc(sizeof(pg_uuid_t));
                 memcpy(uuid->data, value->data, UUID_LEN);
                 return UUIDPGetDatum(uuid);
             }
+
             if (ankus_geometry_io(type, true) != NULL)
             {
                 return ankus_write_geometry(value, type);
             }
+
             if (type == INETOID || type == CIDROID)
             {
                 char bytes[20];
@@ -96,6 +101,7 @@ internal static class NativeExtendedTypes
                 pq_getmsgend(&buffer);
                 return result;
             }
+
             if (type == JSONOID || type == JSONBOID || type == NUMERICOID)
             {
                 char *text = pg_any_to_server((char *) value->data, value->length, PG_UTF8);
@@ -108,8 +114,10 @@ internal static class NativeExtendedTypes
                 {
                     pfree(text);
                 }
+
                 return result;
             }
+
             return ankus_write_buffer(value, type != BYTEAOID);
         }
 

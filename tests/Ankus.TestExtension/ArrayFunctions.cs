@@ -291,6 +291,7 @@ public static class ArrayFunctions
                 {
                     return plan.ExecuteScalar<T>(SpiParameter.Create(value));
                 }
+
             case 3: return Spi.Connect(session => session.ExecuteScalar<T>(sql, SpiParameter.Create(value)));
             case 4:
                 using (SpiCursor cursor = Spi.OpenCursor(sql, SpiParameter.Create(value)))
@@ -299,6 +300,7 @@ public static class ArrayFunctions
                     cursor.Fetch(1);
                     return row.Get<T>(0);
                 }
+
             case 5:
                 return Spi.Connect(session =>
                 {
@@ -311,6 +313,7 @@ public static class ArrayFunctions
                 {
                     return plan.ExecuteScalar<T>(SpiParameter.Create(value));
                 }
+
             case 7:
                 SpiRow edited = Spi.Query("SELECT 42 AS value")[0];
                 edited.Set("value", value);

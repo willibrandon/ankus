@@ -50,10 +50,12 @@ internal static class NativeArrayBridge
                 ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                     errmsg("Array element type OID %u has no Ankus conversion", type)));
             }
+
             if ((Pointer) array != DatumGetPointer(datum))
             {
                 owned->detoasted = (struct varlena *) array;
             }
+
             get_typlenbyvalalign(type, &length, &by_value, &alignment);
             deconstruct_array(array, type, length, by_value, alignment, &elements, &nulls, &count);
             initStringInfo(&buffer);
@@ -65,6 +67,7 @@ internal static class NativeArrayBridge
                 pq_sendint32(&buffer, ARR_DIMS(array)[index]);
                 pq_sendint32(&buffer, ARR_LBOUND(array)[index]);
             }
+
             for (int index = 0; index < count; index++)
             {
                 AnkusValue item = {0};
@@ -75,6 +78,7 @@ internal static class NativeArrayBridge
                 {
                     ankus_read_value(elements[index], base_type, &item, &item_owned);
                 }
+
                 pq_sendint64(&buffer, item.integral);
                 pq_sendint32(&buffer, item.auxiliary1);
                 pq_sendint32(&buffer, item.auxiliary2);
@@ -85,16 +89,20 @@ internal static class NativeArrayBridge
                 {
                     pq_sendbytes(&buffer, (char *) item.data, item.length);
                 }
+
                 ankus_free_input(&item_owned);
             }
+
             if (elements != NULL)
             {
                 pfree(elements);
             }
+
             if (nulls != NULL)
             {
                 pfree(nulls);
             }
+
             owned->serialized = buffer.data;
             value->data = (unsigned char *) buffer.data;
             value->length = buffer.len;
@@ -120,6 +128,7 @@ internal static class NativeArrayBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus array header")));
             }
+
             rank = pq_getmsgint(&buffer, 4);
             count = pq_getmsgint(&buffer, 4);
             if (rank < 0 || rank > MAXDIM || count < 0 ||
@@ -128,15 +137,18 @@ internal static class NativeArrayBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus array shape or element type")));
             }
+
             for (int index = 0; index < rank; index++)
             {
                 lengths[index] = pq_getmsgint(&buffer, 4);
                 bounds[index] = pq_getmsgint(&buffer, 4);
             }
+
             if (ArrayGetNItems(rank, lengths) != count || (count == 0 && rank != 0))
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Inconsistent Ankus array dimensions")));
             }
+
             ArrayCheckBounds(rank, lengths, bounds);
             get_typlenbyvalalign(element_type, &length, &by_value, &alignment);
             elements = palloc(sizeof(Datum) * (Size) Max(count, 1));
@@ -160,6 +172,7 @@ internal static class NativeArrayBridge
                 {
                     ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus array element")));
                 }
+
                 nulls[index] = is_null;
                 parameter.value.is_null = is_null;
                 data = pq_getmsgbytes(&buffer, parameter.value.length);
@@ -169,6 +182,7 @@ internal static class NativeArrayBridge
                     terminated = pnstrdup(data, parameter.value.length);
                     data = terminated;
                 }
+
                 parameter.value.data = (unsigned char *) data;
                 elements[index] = ankus_parameter_datum(&parameter);
                 if (terminated != NULL)
@@ -176,6 +190,7 @@ internal static class NativeArrayBridge
                     pfree(terminated);
                 }
             }
+
             pq_getmsgend(&buffer);
             array = construct_md_array(elements, nulls, rank, lengths, bounds, element_type, length, by_value, alignment);
             for (int index = 0; index < count; index++)
@@ -185,6 +200,7 @@ internal static class NativeArrayBridge
                     pfree(DatumGetPointer(elements[index]));
                 }
             }
+
             pfree(elements);
             pfree(nulls);
             return PointerGetDatum(array);

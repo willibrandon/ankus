@@ -59,6 +59,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgEnumLabel("")] Empty = 3,
                 @event = 1
             }
+
             public static class Probe
             {
                 public static string Labels() => string.Join("|",
@@ -153,6 +154,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgEnumLabel("highest's")] High = {{maximum}},
                 [Ankus.PgEnumLabel("lowest")] Low = {{minimum}}
             }
+
             public static class Functions
             {
                 [Ankus.PgFunction] public static Value Echo(Value high = Value.High, Value? low = Value.Low, Value? absent = null) => high;
@@ -330,6 +332,7 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 [Ankus.PgFunction(Id = "function")] public static Values.Mood Echo(Values.Mood value) => value;
             }
+
             [Ankus.PgSchema("types", Id = "schema")]
             public static class Values
             {

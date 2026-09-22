@@ -57,6 +57,7 @@ internal static class NativeBridge
             {
                 owned->detoasted = unpacked;
             }
+
             value->data = (unsigned char *) VARDATA_ANY(unpacked);
             value->length = VARSIZE_ANY_EXHDR(unpacked);
             if (is_text)
@@ -78,10 +79,12 @@ internal static class NativeBridge
             {
                 pfree(owned->converted);
             }
+
             if (owned->detoasted != NULL)
             {
                 pfree(owned->detoasted);
             }
+
             if (owned->serialized != NULL)
             {
                 pfree(owned->serialized);
@@ -111,6 +114,7 @@ internal static class NativeBridge
                     length = strlen(converted);
                 }
             }
+
             result = (struct varlena *) palloc((Size) length + VARHDRSZ);
             SET_VARSIZE(result, length + VARHDRSZ);
             memcpy(VARDATA(result), data, length);
@@ -118,6 +122,7 @@ internal static class NativeBridge
             {
                 pfree(converted);
             }
+
             return PointerGetDatum(result);
         }
 

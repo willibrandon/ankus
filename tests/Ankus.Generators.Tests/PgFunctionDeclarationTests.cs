@@ -78,6 +78,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static class Inner { [Ankus.PgFunction] public static int F() => 2; }
                 [Ankus.PgFunction(Schema = "override")] public static int F() => 3;
             }
+
             [Ankus.PgSchema("empty")]
             public static class Empty;
             """);

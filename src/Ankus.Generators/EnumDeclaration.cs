@@ -157,6 +157,7 @@ internal sealed class EnumDeclaration
             Encoding.UTF8.GetByteCount(Schema).ToString(System.Globalization.CultureInfo.InvariantCulture) + " };");
         source.AppendLine("        if (ankus_resolve_enum(&name, &schema, true) == type) return true;");
         source.AppendLine("    }");
+        source.AppendLine();
     }
 
     private static string Utf8Literal(string value) => "\"" + string.Concat(Encoding.UTF8.GetBytes(value).Select(static item =>

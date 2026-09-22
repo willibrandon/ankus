@@ -50,6 +50,7 @@ internal static class NativeRangeOperations
                     ankus_result_value(datum, output, &result->text);
                     return;
                 }
+
                 if (operation == 2 && output == TEXTOID && OidIsValid(ankus_range_subtype(argument->type_oid)))
                 {
                     bool variable;
@@ -61,6 +62,7 @@ internal static class NativeRangeOperations
                     return;
                 }
             }
+
             ankus_call_scalar(ankus_range_functions, lengthof(ankus_range_functions), request, result);
         }
 

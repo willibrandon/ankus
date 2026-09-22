@@ -103,6 +103,7 @@ internal static class NativeRangeBridge
                 terminated = pnstrdup(data, parameter.value.length);
                 data = terminated;
             }
+
             parameter.value.data = (unsigned char *) data;
             result = ankus_parameter_datum(&parameter);
             if (terminated != NULL)
@@ -152,6 +153,7 @@ internal static class NativeRangeBridge
                 if (!empty && !upper.infinite)
                     pfree(DatumGetPointer(upper.val));
             }
+
             return RangeTypePGetDatum(range);
         }
 

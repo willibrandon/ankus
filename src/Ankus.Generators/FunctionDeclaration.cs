@@ -42,8 +42,9 @@ internal sealed class FunctionDeclaration
     /// <param name="method">The attributed static method.</param>
     /// <param name="name">The validated SQL function name.</param>
     /// <param name="context">The generator context receiving declaration diagnostics.</param>
+    /// <param name="set">The validated set return, or null for a scalar function.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
-    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context)
+    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
@@ -101,6 +102,27 @@ internal sealed class FunctionDeclaration
             "COST " + cost.ToString("R", CultureInfo.InvariantCulture),
         };
 
+        if (set is not null)
+        {
+            double rows = Value(attribute, "Rows", 1000d);
+            int mode = Value(attribute, "SetMode", 0);
+            if (double.IsNaN(rows) || double.IsInfinity(rows) || rows <= 0 || rows > float.MaxValue || (float)rows == 0)
+            {
+                return Invalid("Rows must be positive, finite, and representable as PostgreSQL's real row estimate.");
+            }
+
+            if (mode is < 0 or > 2)
+            {
+                return Invalid("SetMode must be a defined PgSetMode value.");
+            }
+
+            options.Add("ROWS " + rows.ToString("R", CultureInfo.InvariantCulture));
+        }
+        else if (attribute?.NamedArguments.Any(static argument => argument.Key is "Rows" or "SetMode") == true)
+        {
+            return Invalid("Rows and SetMode require an IEnumerable return.");
+        }
+
         string? support = Value<string?>(attribute, "SupportFunction", null);
         if (support is not null)
         {
@@ -142,6 +164,11 @@ internal sealed class FunctionDeclaration
             if (!SqlText.IsIdentifier(parameterName) || !parameterNames.Add(parameterName))
             {
                 return Invalid("SQL parameter names must be distinct identifiers of at most 63 UTF-8 bytes.");
+            }
+
+            if (set?.Names?.Contains(parameterName, StringComparer.Ordinal) == true)
+            {
+                return Invalid("Input and TABLE output parameters must have distinct SQL names.");
             }
 
             string? expression = Value<string?>(parameterAttribute, "Default", null);

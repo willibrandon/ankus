@@ -206,6 +206,7 @@ public sealed class PostgresInstallation
             await Task.WhenAll(standardOutput, standardError).ConfigureAwait(false);
             throw;
         }
+
         string output = (await standardOutput.ConfigureAwait(false)).Trim();
         string error = (await standardError.ConfigureAwait(false)).Trim();
 

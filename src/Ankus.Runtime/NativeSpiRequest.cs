@@ -87,4 +87,9 @@ internal unsafe struct NativeSpiRequest
     /// Contains the expected scalar result type, validated by the native dispatcher.
     /// </summary>
     internal uint _scalarResultOid;
+
+    /// <summary>
+    /// Requests resource release without opening a subtransaction during executor abort cleanup.
+    /// </summary>
+    internal byte _cleanupOnly;
 }

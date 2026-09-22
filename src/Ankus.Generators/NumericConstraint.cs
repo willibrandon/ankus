@@ -19,10 +19,12 @@ internal static class NumericConstraint
     /// </summary>
     /// <param name="method">The attributed function.</param>
     /// <param name="context">The generator context receiving diagnostics.</param>
+    /// <param name="set">The optional set result whose scalar element may be constrained.</param>
     /// <returns>Whether every declared numeric constraint is valid.</returns>
-    internal static bool Validate(IMethodSymbol method, SourceProductionContext context)
+    internal static bool Validate(IMethodSymbol method, SourceProductionContext context, SetResult? set = null)
     {
-        bool valid = Validate(method.ReturnType, method.GetReturnTypeAttributes(), context);
+        bool valid = Validate(set is { Columns.Length: 1, Names: null } ? set.Types[0] : method.ReturnType,
+            method.GetReturnTypeAttributes(), context);
         foreach (IParameterSymbol parameter in method.Parameters)
         {
             valid &= Validate(parameter.Type, parameter.GetAttributes(), context);

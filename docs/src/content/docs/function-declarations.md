@@ -121,6 +121,8 @@ public static int Maximum(int left, int right) => Math.Max(left, right);
 | `CreateOrReplace` | `false` | Emits `CREATE OR REPLACE FUNCTION`, retaining compatible function identities and dependencies. |
 | `SearchPath` | `null` | An ordered list of schema names scoped to the call. An empty array clears the path; null preserves the caller's setting. |
 | `SupportFunction` | `null` | An existing planner support routine, optionally schema-qualified. PostgreSQL validates its signature during installation. |
+| `Rows` | `1000` | Positive finite row estimate for an `IEnumerable<T>` return. |
+| `SetMode` | `Auto` | Prefer one row per call, or require `ValuePerCall`/`Materialize` for a set return. |
 
 These options are promises to PostgreSQL. Choose them to match the method's
 behavior; the generator does not infer purity, privilege requirements, or
@@ -142,3 +144,7 @@ to every execution mode.
 
 `PgOperator` and `PgCast` also expose static methods as functions. Add `PgFunction`
 alongside them to select the options described here. See [operators and casts](/operators-and-casts/).
+
+`IEnumerable<T>` returns a set; named tuple elements declare TABLE output columns.
+See [sets and tables](/sets-and-tables/) for column names, NULL rows, execution modes,
+iterator disposal and cancellation.

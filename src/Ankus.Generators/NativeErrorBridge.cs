@@ -87,6 +87,7 @@ internal static class NativeErrorBridge
                 {
                     value->release(value->data);
                 }
+
                 memset(value, 0, sizeof(AnkusValue));
             }
         }
@@ -132,6 +133,7 @@ internal static class NativeErrorBridge
                         memcpy(error->message, utf8, clipped);
                         error->message[clipped] = '\0';
                     }
+
                     value->data = malloc((Size) length + 1);
                     if (value->data != NULL)
                     {
@@ -143,6 +145,7 @@ internal static class NativeErrorBridge
                     {
                         error->flags |= ANKUS_ERROR_INCOMPLETE;
                     }
+
                     if (utf8 != text)
                     {
                         pfree(utf8);
@@ -161,6 +164,7 @@ internal static class NativeErrorBridge
             {
                 return NULL;
             }
+
             converted = pg_any_to_server((char *) value->data, value->length, PG_UTF8);
             /* Own every string before releasing the native or managed transport allocator. */
             copy = pstrdup(converted);
@@ -168,6 +172,7 @@ internal static class NativeErrorBridge
             {
                 pfree(converted);
             }
+
             return copy;
         }
 
@@ -195,6 +200,7 @@ internal static class NativeErrorBridge
                 {
                     data.message = pstrdup(pg_any_to_server(error->message, strlen(error->message), PG_UTF8));
                 }
+
                 data.detail = ankus_error_field(error, ANKUS_ERROR_DETAIL);
                 data.hint = ankus_error_field(error, ANKUS_ERROR_HINT);
                 data.context = ankus_error_field(error, ANKUS_ERROR_CONTEXT);
@@ -225,6 +231,7 @@ internal static class NativeErrorBridge
                 /* Context callbacks already ran for this error; replaying them would duplicate SQL frames. */
                 ReThrowError(&data);
             }
+
             ThrowErrorData(&data);
         }
 

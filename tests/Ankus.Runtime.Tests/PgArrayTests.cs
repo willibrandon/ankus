@@ -261,6 +261,7 @@ public sealed class PgArrayTests
         {
             source.Release();
         }
+
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(offset), replacement);
         NativeValue malformed = NativeValue.FromBytes(bytes);
         ArrayFlag(ref malformed) = -1;

@@ -37,6 +37,7 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
         {
             _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
         }
+
         _values = [.. values];
         _lengths = _values.Length == 0 ? [] : [_values.Length];
         _lowerBounds = _values.Length == 0 ? [] : [1];
@@ -54,6 +55,7 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
         {
             _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
         }
+
         SpiArray.ValidateShape(values.Length, lengths, lowerBounds);
         _values = [.. values];
         _lengths = values.IsEmpty ? [] : [.. lengths];

@@ -36,6 +36,8 @@ dotnet_diagnostic.IDE0305.severity = error
 dotnet_diagnostic.CA1000.severity = error
 dotnet_diagnostic.IDE0290.severity = error
 csharp_style_prefer_primary_constructors = true:error
+dotnet_diagnostic.IDE2003.severity = error
+dotnet_style_allow_statement_immediately_after_block_experimental = false:error
 csharp_style_prefer_collection_expression = when_types_loosely_match:error
 dotnet_diagnostic.IDE0005.severity = warning
 

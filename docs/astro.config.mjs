@@ -42,6 +42,7 @@ export default defineConfig({
           label: 'Working with PostgreSQL',
           items: [
             { label: 'Function declarations', slug: 'function-declarations' },
+            { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Operators and casts', slug: 'operators-and-casts' },
             { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },

@@ -72,6 +72,7 @@ public sealed class ArrayDatumTests(TestContext context)
                         {
                             Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1), $"{name}, path {mode}, row {rows}");
                         }
+
                         rows++;
                     }
 
@@ -126,6 +127,7 @@ public sealed class ArrayDatumTests(TestContext context)
                         {
                             Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1), name);
                         }
+
                         rows++;
                     }
 

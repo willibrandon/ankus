@@ -67,6 +67,7 @@ internal static class NativeSpiBridge
             int log_level;
             int scalar_operation;
             Oid scalar_result_oid;
+            uint8 cleanup_only;
         } AnkusRequest;
 
         typedef struct AnkusColumn
@@ -111,9 +112,11 @@ internal static class NativeSpiBridge
                 {
                     free(result->columns[column].name.data);
                 }
+
                 free(result->columns);
                 result->columns = NULL;
             }
+
             if (result->values != NULL)
             {
                 Size count = (Size) result->row_count * result->column_count;
@@ -121,6 +124,7 @@ internal static class NativeSpiBridge
                 {
                     free(result->values[index].data);
                 }
+
                 free(result->values);
                 result->values = NULL;
             }
@@ -134,6 +138,7 @@ internal static class NativeSpiBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("Unable to allocate SPI result buffer")));
             }
+
             value->length = length;
             memcpy(value->data, data, length);
             value->data[length] = '\0';
@@ -147,6 +152,7 @@ internal static class NativeSpiBridge
             {
                 return (Datum) 0;
             }
+
             switch (parameter->type_oid)
             {
                 case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
@@ -171,12 +177,14 @@ internal static class NativeSpiBridge
                     memcpy(&floating, &bits, sizeof(floating));
                     return Float4GetDatum(floating);
                 }
+
                 case FLOAT8OID:
                 {
                     float8 floating;
                     memcpy(&floating, &value->integral, sizeof(floating));
                     return Float8GetDatum(floating);
                 }
+
                 case TEXTOID:
                 case BYTEAOID:
                 case UUIDOID:
@@ -194,9 +202,11 @@ internal static class NativeSpiBridge
                     {
                         return ankus_write_array(value, get_element_type(parameter->type_oid));
                     }
+
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("SPI parameter type OID %u has no Ankus conversion", parameter->type_oid)));
             }
+
             return (Datum) 0;
         }
 
@@ -211,11 +221,13 @@ internal static class NativeSpiBridge
             {
                 return ankus_cursor_operation(request, result);
             }
+
             if (request->operation == ANKUS_SPI_KEEP_PLAN)
             {
                 ankus_detach_session_plan(request->plan);
                 return 0;
             }
+
             if (request->operation == ANKUS_SPI_FREE_PLAN)
             {
                 SPIPlanPtr plan = request->plan;
@@ -224,8 +236,10 @@ internal static class NativeSpiBridge
                 {
                     ankus_detach_session_plan(plan);
                 }
+
                 return SPI_freeplan(plan);
             }
+
             if (request->parameter_count > 0)
             {
                 types = palloc(sizeof(Oid) * (Size) request->parameter_count);
@@ -241,12 +255,14 @@ internal static class NativeSpiBridge
                     }
                 }
             }
+
             if (request->operation == ANKUS_SPI_EXECUTE_PLAN || request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR)
             {
                 if (SPI_getargcount(request->plan) != request->parameter_count)
                 {
                     return SPI_ERROR_PARAM;
                 }
+
                 for (int index = 0; index < request->parameter_count; index++)
                 {
                     if (SPI_getargtypeid(request->plan, index) != types[index])
@@ -254,24 +270,29 @@ internal static class NativeSpiBridge
                         return SPI_ERROR_PARAM;
                     }
                 }
+
                 if (request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR)
                 {
                     Portal portal = SPI_cursor_open(NULL, request->plan, values, nulls, request->read_only != 0);
                     return ankus_return_cursor(portal, result);
                 }
+
                 return SPI_execute_plan(request->plan, values, nulls, request->read_only != 0, request->limit);
             }
+
             sql = pg_any_to_server(request->command, request->command_length, PG_UTF8);
             if (request->operation == ANKUS_SPI_EXPLAIN && list_length(pg_parse_query(sql)) != 1)
             {
                 ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), errmsg("EXPLAIN requires exactly one SQL statement")));
             }
+
             if (request->operation == ANKUS_SPI_OPEN_CURSOR)
             {
                 Portal portal = SPI_cursor_open_with_args(NULL, sql, request->parameter_count, types, values, nulls,
                     request->read_only != 0, 0);
                 return ankus_return_cursor(portal, result);
             }
+
             if (request->operation == ANKUS_SPI_PREPARE)
             {
                 SPIPlanPtr plan = SPI_prepare(sql, request->parameter_count, types);
@@ -280,6 +301,7 @@ internal static class NativeSpiBridge
                 {
                     return SPI_result;
                 }
+
                 code = SPI_keepplan(plan);
                 if (code == 0)
                 {
@@ -289,12 +311,15 @@ internal static class NativeSpiBridge
                         ankus_register_session_plan(plan);
                     }
                 }
+
                 return code;
             }
+
             if (request->parameter_count == 0)
             {
                 return SPI_execute(sql, request->read_only != 0, request->limit);
             }
+
             return SPI_execute_with_args(sql, request->parameter_count, types, values, nulls,
                 request->read_only != 0, request->limit);
         }
@@ -329,12 +354,14 @@ internal static class NativeSpiBridge
                     value->integral = bits;
                     break;
                 }
+
                 case FLOAT8OID:
                 {
                     float8 floating = DatumGetFloat8(datum);
                     memcpy(&value->integral, &floating, sizeof(floating));
                     break;
                 }
+
                 case TEXTOID:
                 case VARCHAROID:
                 case BPCHAROID:
@@ -354,11 +381,13 @@ internal static class NativeSpiBridge
                         ankus_read_enum(datum, value, owned);
                         break;
                     }
+
                     if (OidIsValid(get_element_type(type)))
                     {
                         ankus_read_array(datum, value, owned);
                         break;
                     }
+
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("SPI result type OID %u has no Ankus conversion", type)));
             }
@@ -376,6 +405,7 @@ internal static class NativeSpiBridge
             {
                 ankus_copy_owned(value, input.data, input.length);
             }
+
             ankus_free_input(&owned);
         }
 
@@ -391,6 +421,7 @@ internal static class NativeSpiBridge
             {
                 return;
             }
+
             descriptor = SPI_tuptable->tupdesc;
             rows = scalar ? Min(SPI_processed, 1) : SPI_processed;
             columns = scalar ? Min(descriptor->natts, 1) : descriptor->natts;
@@ -398,6 +429,7 @@ internal static class NativeSpiBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("SPI result exceeds managed array capacity")));
             }
+
             result->row_count = (int32) rows;
             result->column_count = columns;
             count = (Size) result->row_count * result->column_count;
@@ -408,6 +440,7 @@ internal static class NativeSpiBridge
             {
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("Unable to allocate SPI result")));
             }
+
             for (int column = 0; column < result->column_count; column++)
             {
                 Form_pg_attribute attribute = TupleDescAttr(descriptor, column);
@@ -421,6 +454,7 @@ internal static class NativeSpiBridge
                     pfree(utf8);
                 }
             }
+
             for (int row = 0; row < result->row_count; row++)
             {
                 for (int column = 0; column < result->column_count; column++)
@@ -436,6 +470,7 @@ internal static class NativeSpiBridge
                             ankus_check_result_enum(result->columns[column].base_type_oid);
                             validated[column] = true;
                         }
+
                         ankus_result_value(datum, result->columns[column].base_type_oid, value);
                     }
                 }

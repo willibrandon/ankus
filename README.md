@@ -111,6 +111,11 @@ and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs)
 
 ## Querying PostgreSQL
 
+Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elements
+for `RETURNS TABLE`. Ordinary C# iterators support streaming, PostgreSQL-backed
+materialization, and cleanup when a query stops early. See [sets and tables](docs/src/content/docs/sets-and-tables.md)
+and the [sets sample](samples/Ankus.Examples.Sets/SetFunctions.cs).
+
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 
 ```csharp

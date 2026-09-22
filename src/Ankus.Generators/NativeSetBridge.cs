@@ -1,0 +1,307 @@
+namespace Ankus.Generators;
+
+/// <summary>
+/// Owns PostgreSQL set execution, tuple conversion, and managed iterator cleanup across executor exits.
+/// </summary>
+internal static class NativeSetBridge
+{
+    /// <summary>
+    /// Gets value-per-call and materialized execution using the existing guarded datum and SPI boundaries.
+    /// </summary>
+    internal const string Source = """
+        #include "funcapi.h"
+        #include "executor/executor.h"
+        #include "utils/tuplestore.h"
+        #include "utils/snapmgr.h"
+
+        typedef int (*AnkusSetCallback)(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);
+
+        typedef struct AnkusSetState
+        {
+            MemoryContextCallback reset;
+            void *iterator;
+            AnkusSetCallback callback;
+            Oid function;
+            ExprContext *econtext;
+            TupleDesc descriptor;
+            Oid *argument_types;
+            int columns;
+            AnkusValue *row;
+            Datum *values;
+            bool *nulls;
+            bool materialize;
+        } AnkusSetState;
+
+        static int
+        ankus_set_call(AnkusSetState *state, int operation, const AnkusValue *arguments, AnkusError *error, bool backend)
+        {
+            Oid previous = ankus_function_oid;
+            int status;
+            ankus_function_oid = state->function;
+            status = state->callback(operation, &state->iterator, arguments, state->row, error,
+                backend ? ankus_spi_execute : NULL);
+            ankus_function_oid = previous;
+            return status;
+        }
+
+        static void
+        ankus_set_release_row(AnkusSetState *state)
+        {
+            for (int index = 0; index < state->columns; index++)
+            {
+                if (state->row[index].release != NULL)
+                    state->row[index].release(state->row[index].data);
+                memset(&state->row[index], 0, sizeof(AnkusValue));
+            }
+        }
+
+        static void
+        ankus_set_abort_cleanup(void *argument)
+        {
+            AnkusSetState *state = argument;
+            AnkusError error = {0};
+            int status;
+            if (state->row != NULL)
+                ankus_set_release_row(state);
+            if (state->iterator == NULL)
+                return;
+            /* The executor skips expression callbacks on abort. Managed cleanup still runs,
+             * but cannot enter a backend that may already be dismantling its transaction. */
+            status = ankus_set_call(state, 3, NULL, &error, true);
+            ankus_release_error(&error);
+            if (status != 0)
+                ereport(WARNING, (errmsg("Ankus iterator disposal failed during query abort")));
+        }
+
+        static void
+        ankus_set_dispose(AnkusSetState *state)
+        {
+            AnkusError error = {0};
+            if (state->iterator != NULL && ankus_set_call(state, 2, NULL, &error, true) != 0)
+                ankus_raise_error(&error);
+        }
+
+        static void
+        ankus_set_shutdown(Datum argument)
+        {
+            AnkusSetState *state = (AnkusSetState *) DatumGetPointer(argument);
+            bool snapshot = !ActiveSnapshotSet();
+            /* Registered after init_MultiFuncCall, so cleanup precedes deletion of its context. */
+            if (snapshot)
+                PushActiveSnapshot(GetTransactionSnapshot());
+            PG_TRY();
+            {
+                ankus_set_dispose(state);
+            }
+            PG_FINALLY();
+            {
+                if (snapshot)
+                    PopActiveSnapshot();
+            }
+            PG_END_TRY();
+        }
+
+        static void
+        ankus_set_finish(FunctionCallInfo fcinfo, FuncCallContext *context, AnkusSetState *state)
+        {
+            ankus_set_dispose(state);
+            UnregisterExprContextCallback(state->econtext, ankus_set_shutdown, PointerGetDatum(state));
+            end_MultiFuncCall(fcinfo, context);
+        }
+
+        static AnkusSetState *
+        ankus_set_initialize(FunctionCallInfo fcinfo, FuncCallContext *context, AnkusSetCallback callback,
+            int columns, int arguments, const bool *required, int mode)
+        {
+            ReturnSetInfo *info = (ReturnSetInfo *) fcinfo->resultinfo;
+            MemoryContext previous = MemoryContextSwitchTo(context->multi_call_memory_ctx);
+            AnkusSetState *state = palloc0(sizeof(AnkusSetState));
+            TupleDesc descriptor = NULL;
+            Oid scalar_type;
+            int argument_count;
+            bool skip = false;
+            TypeFuncClass result_kind;
+            state->function = fcinfo->flinfo->fn_oid;
+            state->callback = callback;
+            state->columns = columns;
+            state->econtext = info->econtext;
+            state->reset.func = ankus_set_abort_cleanup;
+            state->reset.arg = state;
+            MemoryContextRegisterResetCallback(context->multi_call_memory_ctx, &state->reset);
+            context->user_fctx = state;
+
+            state->materialize = mode == 2 || (mode == 0 && !(info->allowedModes & SFRM_ValuePerCall));
+            if ((state->materialize && !(info->allowedModes & SFRM_Materialize)) ||
+                (!state->materialize && !(info->allowedModes & SFRM_ValuePerCall)))
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("The caller does not support the requested Ankus set execution mode")));
+
+            (void) get_func_signature(state->function, &state->argument_types, &argument_count);
+            if (argument_count != arguments || PG_NARGS() != arguments)
+                ereport(ERROR, (errmsg("Incorrect argument count for generated Ankus set function")));
+            result_kind = get_call_result_type(fcinfo, &scalar_type, &descriptor);
+            if (columns > 1)
+            {
+                if (result_kind != TYPEFUNC_COMPOSITE || descriptor == NULL || descriptor->natts != columns)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus TABLE result has an incompatible row descriptor")));
+                state->descriptor = BlessTupleDesc(CreateTupleDescCopy(descriptor));
+            }
+            else
+            {
+                if (result_kind != TYPEFUNC_SCALAR)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus SETOF result requires a scalar column type")));
+                state->descriptor = CreateTemplateTupleDesc(1);
+                TupleDescInitEntry(state->descriptor, 1, "value", scalar_type, -1, 0);
+            }
+
+            state->row = palloc0(sizeof(AnkusValue) * columns);
+            state->values = palloc0(sizeof(Datum) * columns);
+            state->nulls = palloc0(sizeof(bool) * columns);
+            RegisterExprContextCallback(info->econtext, ankus_set_shutdown, PointerGetDatum(state));
+            MemoryContextSwitchTo(previous);
+
+            for (int index = 0; index < arguments; index++)
+                if (required[index] && PG_ARGISNULL(index))
+                    skip = true;
+            if (!skip)
+            {
+                AnkusValue *input = palloc0(sizeof(AnkusValue) * Max(arguments, 1));
+                AnkusInputBuffer *owned = palloc0(sizeof(AnkusInputBuffer) * Max(arguments, 1));
+                AnkusError error = {0};
+                int status = 0;
+                PG_TRY();
+                {
+                    for (int index = 0; index < arguments; index++)
+                    {
+                        input[index].is_null = PG_ARGISNULL(index);
+                        if (!input[index].is_null)
+                            ankus_read_value(PG_GETARG_DATUM(index), state->argument_types[index], &input[index], &owned[index]);
+                    }
+
+                    status = ankus_set_call(state, 0, input, &error, true);
+                }
+                PG_FINALLY();
+                {
+                    for (int index = 0; index < arguments; index++)
+                        ankus_free_input(&owned[index]);
+                    pfree(owned);
+                    pfree(input);
+                }
+                PG_END_TRY();
+                if (status != 0)
+                    ankus_raise_error(&error);
+            }
+
+            return state;
+        }
+
+        static bool
+        ankus_set_next(AnkusSetState *state)
+        {
+            AnkusError error = {0};
+            volatile int status = 2;
+            CHECK_FOR_INTERRUPTS();
+            if (state->iterator == NULL)
+                return false;
+            PG_TRY();
+            {
+                status = ankus_set_call(state, 1, NULL, &error, true);
+                if (status == 0)
+                {
+                    for (int index = 0; index < state->columns; index++)
+                    {
+                        AnkusParameter cell = {0};
+                        cell.type_oid = TupleDescAttr(state->descriptor, index)->atttypid;
+                        cell.value = state->row[index];
+                        state->nulls[index] = cell.value.is_null != 0;
+                        state->values[index] = ankus_parameter_datum(&cell);
+                    }
+                }
+            }
+            PG_FINALLY();
+            {
+                ankus_set_release_row(state);
+            }
+            PG_END_TRY();
+            if (status == 1)
+            {
+                AnkusError cleanup = {0};
+                int cleanup_status = ankus_set_call(state, 2, NULL, &cleanup, true);
+                if (cleanup_status != 0)
+                {
+                    ankus_release_error(&cleanup);
+                    ereport(WARNING, (errmsg("Ankus iterator disposal also failed after a row error")));
+                }
+
+                ankus_raise_error(&error);
+            }
+
+            return status == 0;
+        }
+
+        static Datum
+        ankus_set_execute(FunctionCallInfo fcinfo, AnkusSetCallback callback, int columns, int arguments,
+            const bool *required, int mode)
+        {
+            FuncCallContext *context;
+            AnkusSetState *state;
+            ReturnSetInfo *info;
+            if (SRF_IS_FIRSTCALL())
+            {
+                context = SRF_FIRSTCALL_INIT();
+                state = ankus_set_initialize(fcinfo, context, callback, columns, arguments, required, mode);
+            }
+            else
+            {
+                context = SRF_PERCALL_SETUP();
+                state = context->user_fctx;
+            }
+
+            info = (ReturnSetInfo *) fcinfo->resultinfo;
+            if (state->materialize)
+            {
+                MemoryContext previous = MemoryContextSwitchTo(info->econtext->ecxt_per_query_memory);
+                Tuplestorestate *store = tuplestore_begin_heap((info->allowedModes & SFRM_Materialize_Random) != 0, false, work_mem);
+                TupleDesc descriptor = CreateTupleDescCopy(state->descriptor);
+                MemoryContext row_context = AllocSetContextCreate(context->multi_call_memory_ctx, "Ankus set row", ALLOCSET_SMALL_SIZES);
+                MemoryContextSwitchTo(row_context);
+                while (ankus_set_next(state))
+                {
+                    tuplestore_putvalues(store, descriptor, state->values, state->nulls);
+                    MemoryContextReset(row_context);
+                }
+
+                MemoryContextSwitchTo(previous);
+                ankus_set_finish(fcinfo, context, state);
+                info->returnMode = SFRM_Materialize;
+                info->setResult = store;
+                info->setDesc = descriptor;
+                fcinfo->isnull = true;
+                return (Datum) 0;
+            }
+
+            info->returnMode = SFRM_ValuePerCall;
+            if (!ankus_set_next(state))
+            {
+                ankus_set_finish(fcinfo, context, state);
+                info->isDone = ExprEndResult;
+                fcinfo->isnull = true;
+                return (Datum) 0;
+            }
+
+            if (columns == 1)
+            {
+                Datum value = state->values[0];
+                fcinfo->isnull = state->nulls[0];
+                SRF_RETURN_NEXT(context, value);
+            }
+            else
+            {
+                HeapTuple tuple = heap_form_tuple(state->descriptor, state->values, state->nulls);
+                fcinfo->isnull = false;
+                SRF_RETURN_NEXT(context, HeapTupleGetDatum(tuple));
+            }
+        }
+
+        """;
+}

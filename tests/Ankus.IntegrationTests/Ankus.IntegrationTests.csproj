@@ -13,6 +13,7 @@
     <ProjectReference Include="../../samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
