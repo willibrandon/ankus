@@ -12,10 +12,10 @@ Assembly: `Ankus.Runtime.dll`
 Represents PostgreSQL time without time zone at microsecond precision, including 24:00:00.
 
 ```csharp
-public readonly struct PgTime : IEquatable<PgTime>
+public readonly struct PgTime : IComparable<PgTime>, IEquatable<PgTime>
 ```
 
-Implements: [IEquatable&lt;PgTime&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgTime&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTime&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -40,34 +40,75 @@ Exceptions:
 - [ArgumentOutOfRangeException](https://learn.microsoft.com/dotnet/api/system.argumentoutofrangeexception): The offset is negative or later than 24:00:00.
 
 
-## Properties
-
-<a id="member-03e5da6b307a3448"></a>
-
-### EndOfDay
-
-Gets PostgreSQL's 24:00:00 value.
-
-```csharp
-public static PgTime EndOfDay { get; }
-```
-
-Value: [PgTime](/api/ankus.pgtime/)
-
-<a id="member-f64fab690592ee09"></a>
-
-### Microseconds
-
-Gets the microseconds since midnight. The end-of-day value is distinct from midnight.
-
-```csharp
-public long Microseconds { get; }
-```
-
-Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
-
-
 ## Methods
+
+<a id="member-7921145ba6c25658"></a>
+
+### Add(PgInterval)
+
+Adds the interval's time component, wrapping at midnight as PostgreSQL does.
+
+```csharp
+public PgTime Add(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The resulting time.
+
+<a id="member-27a2b74391d038b1"></a>
+
+### CompareTo(PgTime)
+
+Compares wall-clock times, retaining 24:00 as later than midnight, without requiring an active backend.
+
+```csharp
+public int CompareTo(PgTime other)
+```
+
+Parameters:
+
+`other` — [PgTime](/api/ankus.pgtime/)
+
+The time to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for earlier, equal, or later times.
+
+<a id="member-9d4434b2d84e587b"></a>
+
+### Create(int, int, double)
+
+Constructs a time using PostgreSQL's field validation and fractional-second rounding.
+
+```csharp
+public static PgTime Create(int hour, int minute, double second)
+```
+
+Parameters:
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour, including 24 only for the end-of-day value.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The seconds, including a fractional part.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The time.
 
 <a id="member-120582a58127551d"></a>
 
@@ -131,6 +172,114 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-386ddb9659e8ff76"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a floating-point field using PostgreSQL date_part semantics.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field value.
+
+<a id="member-e8fb512a14696b1d"></a>
+
+### Parse(string)
+
+Parses PostgreSQL time syntax on the active backend thread.
+
+```csharp
+public static PgTime Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The time text.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The parsed time.
+
+<a id="member-494c9041dc1b642b"></a>
+
+### Subtract(PgInterval)
+
+Subtracts the interval's time component, wrapping at midnight.
+
+```csharp
+public PgTime Subtract(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The resulting time.
+
+<a id="member-dbc40012b416b316"></a>
+
+### Subtract(PgTime)
+
+Subtracts another wall-clock time without wrapping the difference.
+
+```csharp
+public PgInterval Subtract(PgTime other)
+```
+
+Parameters:
+
+`other` — [PgTime](/api/ankus.pgtime/)
+
+The time to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The signed interval.
+
+<a id="member-cf8834551cb617ae"></a>
+
+### ToIsoString()
+
+Formats the time using PostgreSQL's ISO JSON representation.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO time.
+
+<a id="member-f5e2e18d737450ae"></a>
+
+### ToPostgresString()
+
+Formats the time using PostgreSQL's output routine.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The time text.
+
 <a id="member-f602ddf5ccddaedc"></a>
 
 ### ToString()
@@ -159,6 +308,57 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The value is 24:00:00.
 
+<a id="member-ffe10073907d8e34"></a>
+
+### TryParse(string?, out PgTime)
+
+Tries to parse PostgreSQL time syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgTime value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The time text.
+
+`value` — [PgTime](/api/ankus.pgtime/)
+
+The parsed time, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
+
+
+## Properties
+
+<a id="member-03e5da6b307a3448"></a>
+
+### EndOfDay
+
+Gets PostgreSQL's 24:00:00 value.
+
+```csharp
+public static PgTime EndOfDay { get; }
+```
+
+Value: [PgTime](/api/ankus.pgtime/)
+
+<a id="member-f64fab690592ee09"></a>
+
+### Microseconds
+
+Gets the microseconds since midnight. The end-of-day value is distinct from midnight.
+
+```csharp
+public long Microseconds { get; }
+```
+
+Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
 
 ## Operators
 
@@ -178,12 +378,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-2fb01c823fbb8aaf"></a>
+
+### operator &gt;(PgTime, PgTime)
+
+Tests whether the left time follows the right time.
+
+```csharp
+public static bool operator >(PgTime left, PgTime right)
+```
+
+Parameters:
+
+`left` — [PgTime](/api/ankus.pgtime/)
+
+`right` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-c934a036e26ee3ba"></a>
+
+### operator &gt;=(PgTime, PgTime)
+
+Tests whether the left time follows or equals the right time.
+
+```csharp
+public static bool operator >=(PgTime left, PgTime right)
+```
+
+Parameters:
+
+`left` — [PgTime](/api/ankus.pgtime/)
+
+`right` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-d9eb923f71a0fca5"></a>
 
 ### operator !=(PgTime, PgTime)
 
 ```csharp
 public static bool operator !=(PgTime left, PgTime right)
+```
+
+Parameters:
+
+`left` — [PgTime](/api/ankus.pgtime/)
+
+`right` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-60435212a63fa0a4"></a>
+
+### operator &lt;(PgTime, PgTime)
+
+Tests whether the left time precedes the right time.
+
+```csharp
+public static bool operator <(PgTime left, PgTime right)
+```
+
+Parameters:
+
+`left` — [PgTime](/api/ankus.pgtime/)
+
+`right` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-38bc4a5dc23f102f"></a>
+
+### operator &lt;=(PgTime, PgTime)
+
+Tests whether the left time precedes or equals the right time.
+
+```csharp
+public static bool operator <=(PgTime left, PgTime right)
 ```
 
 Parameters:

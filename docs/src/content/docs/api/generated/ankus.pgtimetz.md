@@ -12,10 +12,10 @@ Assembly: `Ankus.Runtime.dll`
 Represents PostgreSQL time with time zone as a local time and a fixed offset, without a date or zone name.
 
 ```csharp
-public readonly struct PgTimeTz : IEquatable<PgTimeTz>
+public readonly struct PgTimeTz : IComparable<PgTimeTz>, IEquatable<PgTimeTz>
 ```
 
-Implements: [IEquatable&lt;PgTimeTz&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgTimeTz&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTimeTz&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -45,6 +45,66 @@ Exceptions:
 
 
 ## Methods
+
+<a id="member-e6b92f56e4800c48"></a>
+
+### Add(PgInterval)
+
+Adds the interval's time component while retaining the fixed offset.
+
+```csharp
+public PgTimeTz Add(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The resulting time and offset.
+
+<a id="member-00d966b4d8180e98"></a>
+
+### AtTimeZone(string)
+
+Converts the time to a named zone using PostgreSQL's timetz rules, including its current-date DST resolution.
+
+```csharp
+public PgTimeTz AtTimeZone(string zone)
+```
+
+Parameters:
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The shifted local time and offset.
+
+<a id="member-cf64259f0b63c419"></a>
+
+### CompareTo(PgTimeTz)
+
+Compares UTC-adjusted times without wrapping at midnight, breaking ties by PostgreSQL's offset order.
+
+```csharp
+public int CompareTo(PgTimeTz other)
+```
+
+Parameters:
+
+`other` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+The time and offset to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for lesser, equal, or greater values. No backend is required.
 
 <a id="member-08563660c18484f0"></a>
 
@@ -84,6 +144,94 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-7bdc4a3c5115692e"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a floating-point field using PostgreSQL date_part semantics.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field value.
+
+<a id="member-920e399c2474f847"></a>
+
+### Parse(string)
+
+Parses PostgreSQL fixed-offset time syntax on the active backend thread.
+
+```csharp
+public static PgTimeTz Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The time and timezone text.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The parsed time and offset.
+
+<a id="member-0c492b1da76c046f"></a>
+
+### Subtract(PgInterval)
+
+Subtracts the interval's time component while retaining the fixed offset.
+
+```csharp
+public PgTimeTz Subtract(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The resulting time and offset.
+
+<a id="member-ea943bab12ae3355"></a>
+
+### ToIsoString()
+
+Formats the time and offset using PostgreSQL's ISO JSON representation.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO time and offset.
+
+<a id="member-ed02d06583de3f89"></a>
+
+### ToPostgresString()
+
+Formats the time and offset using PostgreSQL's output routine.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL text.
+
 <a id="member-1edcd82c84271633"></a>
 
 ### ToString()
@@ -93,6 +241,44 @@ public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-55b16d4c358b63f7"></a>
+
+### ToTime()
+
+Removes the offset without shifting the local time.
+
+```csharp
+public PgTime ToTime()
+```
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The wall-clock time.
+
+<a id="member-8c66bcc93406de59"></a>
+
+### TryParse(string?, out PgTimeTz)
+
+Tries to parse PostgreSQL fixed-offset time syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgTimeTz value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The time and offset text.
+
+`value` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+The parsed value, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
 
 
 ## Properties
@@ -152,12 +338,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-b69d4b78a18d5da3"></a>
+
+### operator &gt;(PgTimeTz, PgTimeTz)
+
+Tests whether the left value sorts after the right value.
+
+```csharp
+public static bool operator >(PgTimeTz left, PgTimeTz right)
+```
+
+Parameters:
+
+`left` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`right` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-ca08aa1c45c3dba4"></a>
+
+### operator &gt;=(PgTimeTz, PgTimeTz)
+
+Tests whether the left value sorts after or equals the right value.
+
+```csharp
+public static bool operator >=(PgTimeTz left, PgTimeTz right)
+```
+
+Parameters:
+
+`left` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`right` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-56f1c820aa1e0c36"></a>
 
 ### operator !=(PgTimeTz, PgTimeTz)
 
 ```csharp
 public static bool operator !=(PgTimeTz left, PgTimeTz right)
+```
+
+Parameters:
+
+`left` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`right` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-72af1a395e0263bd"></a>
+
+### operator &lt;(PgTimeTz, PgTimeTz)
+
+Tests whether the left value sorts before the right value.
+
+```csharp
+public static bool operator <(PgTimeTz left, PgTimeTz right)
+```
+
+Parameters:
+
+`left` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`right` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-e10f4580dab10b8d"></a>
+
+### operator &lt;=(PgTimeTz, PgTimeTz)
+
+Tests whether the left value sorts before or equals the right value.
+
+```csharp
+public static bool operator <=(PgTimeTz left, PgTimeTz right)
 ```
 
 Parameters:

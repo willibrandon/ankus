@@ -1,0 +1,34 @@
+namespace Ankus;
+
+/// <summary>
+/// Selects an allowlisted PostgreSQL temporal operation in the native guard.
+/// </summary>
+internal enum TemporalOperation
+{
+    Parse,
+    Format,
+    FormatIso,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Negate,
+    Truncate,
+    Age,
+    AtTimeZone,
+    Part,
+    JustifyDays,
+    JustifyHours,
+    Justify,
+    Compare,
+    TransactionTimestamp,
+    StatementTimestamp,
+    ClockTimestamp,
+    FromUnixTimeSeconds,
+    ToDate,
+    ToTime,
+    ToTimestamp,
+    ToTimestampTz,
+    MakeDate,
+    MakeTime,
+}

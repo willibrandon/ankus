@@ -49,7 +49,7 @@ internal unsafe struct NativeSpiResult
     internal NativeValue _cursorName;
 
     /// <summary>
-    /// Contains owned UTF-8 output from a native SQL text helper.
+    /// Contains an owned scalar result from a native helper, including UTF-8 text and temporal values.
     /// </summary>
     internal NativeValue _text;
 

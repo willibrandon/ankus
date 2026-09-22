@@ -382,6 +382,31 @@ public static unsafe class NativeBackend
         }
     }
 
+    /// <summary>
+    /// Calls a native temporal routine and copies its result before releasing per-operation storage.
+    /// </summary>
+    internal static T Temporal<T>(TemporalOperation operation, ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        uint typeOid = SpiType.GetOid<T>();
+        var request = new NativeSpiRequest
+        {
+            _operation = SpiOperation.Temporal,
+            _temporalOperation = operation,
+            _temporalResultOid = typeOid,
+        };
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, parameters, &result);
+            return SpiRow.Convert<T>(SpiType.FromNative(result._text, typeOid));
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
     internal static bool IsLogEnabled(PgLogLevel level)
     {
         CheckAccess();

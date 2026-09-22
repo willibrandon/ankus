@@ -57,6 +57,79 @@ public readonly record struct PgInterval
 
     internal int Infinity => _infinity;
 
+    /// <summary>Parses PostgreSQL interval syntax on the active backend thread.</summary>
+    /// <param name="text">The interval text.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval Parse(string text) => PgTemporal.Call<PgInterval>(TemporalOperation.Parse, PgTemporal.Text(text));
+
+    /// <summary>Tries to parse PostgreSQL interval syntax on the active backend thread.</summary>
+    /// <param name="text">The interval text.</param>
+    /// <param name="value">The parsed interval, or the default value on invalid input.</param>
+    /// <returns>Whether the input is valid. Backend-access and operational errors still throw.</returns>
+    public static bool TryParse(string? text, out PgInterval value) => PgTemporal.TryParse(text, out value);
+
+    /// <summary>Formats the interval using the session's IntervalStyle.</summary>
+    /// <returns>The PostgreSQL interval text.</returns>
+    public string ToPostgresString() => PgTemporal.Call<string>(TemporalOperation.Format, SpiParameter.Create(this));
+
+    /// <summary>Adds interval components using PostgreSQL's overflow and infinity rules.</summary>
+    /// <param name="other">The interval to add.</param>
+    /// <returns>The resulting interval.</returns>
+    public PgInterval Add(PgInterval other)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.Add, SpiParameter.Create(this), SpiParameter.Create(other));
+
+    /// <summary>Subtracts interval components using PostgreSQL's overflow and infinity rules.</summary>
+    /// <param name="other">The interval to subtract.</param>
+    /// <returns>The resulting interval.</returns>
+    public PgInterval Subtract(PgInterval other)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.Subtract, SpiParameter.Create(this), SpiParameter.Create(other));
+
+    /// <summary>Scales the interval with PostgreSQL's fractional-month and fractional-day rules.</summary>
+    /// <param name="factor">The multiplier.</param>
+    /// <returns>The scaled interval.</returns>
+    public PgInterval Multiply(double factor)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.Multiply, SpiParameter.Create(this), SpiParameter.Create(factor));
+
+    /// <summary>Divides the interval with PostgreSQL's fractional-month and fractional-day rules.</summary>
+    /// <param name="divisor">The divisor.</param>
+    /// <returns>The divided interval.</returns>
+    public PgInterval Divide(double divisor)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.Divide, SpiParameter.Create(this), SpiParameter.Create(divisor));
+
+    /// <summary>Negates all interval components with PostgreSQL overflow and infinity handling.</summary>
+    /// <returns>The negated interval.</returns>
+    public PgInterval Negate() => PgTemporal.Call<PgInterval>(TemporalOperation.Negate, SpiParameter.Create(this));
+
+    /// <summary>Normalizes thirty-day groups into months using PostgreSQL justify_days.</summary>
+    /// <returns>The normalized interval.</returns>
+    public PgInterval JustifyDays() => PgTemporal.Call<PgInterval>(TemporalOperation.JustifyDays, SpiParameter.Create(this));
+
+    /// <summary>Normalizes twenty-four-hour groups into calendar days using PostgreSQL justify_hours.</summary>
+    /// <returns>The normalized interval.</returns>
+    public PgInterval JustifyHours() => PgTemporal.Call<PgInterval>(TemporalOperation.JustifyHours, SpiParameter.Create(this));
+
+    /// <summary>Normalizes months, days, hours, and mixed component signs using PostgreSQL justify_interval.</summary>
+    /// <returns>The normalized interval.</returns>
+    public PgInterval Justify() => PgTemporal.Call<PgInterval>(TemporalOperation.Justify, SpiParameter.Create(this));
+
+    /// <summary>Truncates an interval to a PostgreSQL field.</summary>
+    /// <param name="part">The truncation field.</param>
+    /// <returns>The truncated interval.</returns>
+    public PgInterval Truncate(PgDateTimePart part)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.Truncate, PgTemporal.Part(part), SpiParameter.Create(this));
+
+    /// <summary>Reads a floating-point field using PostgreSQL date_part semantics.</summary>
+    /// <param name="part">The field.</param>
+    /// <returns>The field, or null for an undefined field of an infinite value.</returns>
+    public double? GetPart(PgDateTimePart part)
+        => PgTemporal.Call<double?>(TemporalOperation.Part, PgTemporal.Part(part), SpiParameter.Create(this));
+
+    /// <summary>Compares with PostgreSQL's thirty-day-month convention, separately from exact managed component equality.</summary>
+    /// <param name="other">The interval to compare.</param>
+    /// <returns>A negative value, zero, or a positive value when this interval sorts before, equals, or sorts after the other.</returns>
+    public int CompareInPostgres(PgInterval other)
+        => PgTemporal.Call<int>(TemporalOperation.Compare, SpiParameter.Create(this), SpiParameter.Create(other));
+
     /// <summary>
     /// Converts a fixed duration to elapsed microseconds without adding calendar-day semantics.
     /// </summary>

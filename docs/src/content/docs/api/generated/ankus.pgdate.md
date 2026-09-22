@@ -13,10 +13,10 @@ Represents PostgreSQL date, including BC dates, its full finite range, and both 
 The default value is 2000-01-01.
 
 ```csharp
-public readonly struct PgDate : IEquatable<PgDate>
+public readonly struct PgDate : IComparable<PgDate>, IEquatable<PgDate>
 ```
 
-Implements: [IEquatable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgDate&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -41,58 +41,135 @@ Exceptions:
 - [ArgumentOutOfRangeException](https://learn.microsoft.com/dotnet/api/system.argumentoutofrangeexception): The finite offset is outside PostgreSQL's date range.
 
 
-## Properties
-
-<a id="member-46ab4b72c5bbe718"></a>
-
-### DaysSinceEpoch
-
-Gets the PostgreSQL day offset, including its infinity sentinels.
-
-```csharp
-public int DaysSinceEpoch { get; }
-```
-
-Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
-
-<a id="member-3544bdc2b6669a36"></a>
-
-### IsFinite
-
-Gets whether this date is finite.
-
-```csharp
-public bool IsFinite { get; }
-```
-
-Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
-
-<a id="member-5f21576b784de9ff"></a>
-
-### NegativeInfinity
-
-Gets negative infinity.
-
-```csharp
-public static PgDate NegativeInfinity { get; }
-```
-
-Value: [PgDate](/api/ankus.pgdate/)
-
-<a id="member-4762a3e0cc44bedb"></a>
-
-### PositiveInfinity
-
-Gets positive infinity.
-
-```csharp
-public static PgDate PositiveInfinity { get; }
-```
-
-Value: [PgDate](/api/ankus.pgdate/)
-
-
 ## Methods
+
+<a id="member-5046d3c3ffe0388e"></a>
+
+### Add(PgInterval)
+
+Adds a calendar interval, yielding a timestamp.
+
+```csharp
+public PgTimestamp Add(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The resulting timestamp.
+
+<a id="member-48bbae02583b85f4"></a>
+
+### AddDays(int)
+
+Adds calendar days with PostgreSQL range and infinity rules.
+
+```csharp
+public PgDate AddDays(int days)
+```
+
+Parameters:
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of days.
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The resulting date.
+
+<a id="member-5d8049b55cbaa74d"></a>
+
+### AtTime(PgTime)
+
+Combines a date and wall-clock time, accepting PostgreSQL's 24:00 value.
+
+```csharp
+public PgTimestamp AtTime(PgTime time)
+```
+
+Parameters:
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+The time of day.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp.
+
+<a id="member-5e05f68a637be1c8"></a>
+
+### AtTime(PgTimeTz)
+
+Combines a date and fixed-offset time to produce an instant.
+
+```csharp
+public PgTimestampTz AtTime(PgTimeTz time)
+```
+
+Parameters:
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+The time and fixed offset.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
+<a id="member-4db75b131adb361c"></a>
+
+### CompareTo(PgDate)
+
+Compares dates, including infinities, without requiring an active backend.
+
+```csharp
+public int CompareTo(PgDate other)
+```
+
+Parameters:
+
+`other` — [PgDate](/api/ankus.pgdate/)
+
+The date to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for earlier, equal, or later dates.
+
+<a id="member-3eaca02eb787c85c"></a>
+
+### Create(int, int, int)
+
+Constructs a date using PostgreSQL's calendar; negative years denote BC and year zero is invalid.
+
+```csharp
+public static PgDate Create(int year, int month, int day)
+```
+
+Parameters:
+
+`year` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed year.
+
+`month` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The month, one through twelve.
+
+`day` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The day of month.
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The date.
 
 <a id="member-66369a417cd57ebc"></a>
 
@@ -152,6 +229,86 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-71a725b2ccb6cd63"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a field with PostgreSQL date_part semantics, returning floating-point values.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field to read.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field, or null for an undefined field of an infinite value.
+
+<a id="member-9dba8a3b2f9d9119"></a>
+
+### Parse(string)
+
+Parses PostgreSQL date syntax using the current backend's DateStyle.
+
+```csharp
+public static PgDate Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The date text, including PostgreSQL special values.
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The parsed date.
+
+<a id="member-f92be54abaa3cbb9"></a>
+
+### Subtract(PgDate)
+
+Computes the signed day difference using PostgreSQL's infinity rules.
+
+```csharp
+public int Subtract(PgDate other)
+```
+
+Parameters:
+
+`other` — [PgDate](/api/ankus.pgdate/)
+
+The date to subtract.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The number of days.
+
+<a id="member-1e16f60c85513dba"></a>
+
+### Subtract(PgInterval)
+
+Subtracts a calendar interval, yielding a timestamp.
+
+```csharp
+public PgTimestamp Subtract(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The resulting timestamp.
+
 <a id="member-049e988b856bc705"></a>
 
 ### ToDateOnly()
@@ -170,6 +327,34 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite or outside years 1–9999.
 
+<a id="member-e78bf1909258a649"></a>
+
+### ToIsoString()
+
+Formats the date using PostgreSQL's ISO JSON date representation, independently of DateStyle.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO date, or PostgreSQL's infinity spelling.
+
+<a id="member-6c07dc7448477359"></a>
+
+### ToPostgresString()
+
+Formats the date using the current backend's DateStyle.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL text.
+
 <a id="member-789bc24da72ac574"></a>
 
 ### ToString()
@@ -179,6 +364,109 @@ public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-dd2528f8a6450159"></a>
+
+### ToTimestamp()
+
+Converts the date to midnight without a timezone, checking PostgreSQL's narrower timestamp range.
+
+```csharp
+public PgTimestamp ToTimestamp()
+```
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The midnight timestamp.
+
+<a id="member-7711432c0bf292e4"></a>
+
+### ToTimestampTz()
+
+Converts the date to midnight in the current session's timezone.
+
+```csharp
+public PgTimestampTz ToTimestampTz()
+```
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
+<a id="member-768e9656cf88a560"></a>
+
+### TryParse(string?, out PgDate)
+
+Tries to parse PostgreSQL date syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgDate value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The date text.
+
+`value` — [PgDate](/api/ankus.pgdate/)
+
+The parsed date, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
+
+
+## Properties
+
+<a id="member-46ab4b72c5bbe718"></a>
+
+### DaysSinceEpoch
+
+Gets the PostgreSQL day offset, including its infinity sentinels.
+
+```csharp
+public int DaysSinceEpoch { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-3544bdc2b6669a36"></a>
+
+### IsFinite
+
+Gets whether this date is finite.
+
+```csharp
+public bool IsFinite { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-5f21576b784de9ff"></a>
+
+### NegativeInfinity
+
+Gets negative infinity.
+
+```csharp
+public static PgDate NegativeInfinity { get; }
+```
+
+Value: [PgDate](/api/ankus.pgdate/)
+
+<a id="member-4762a3e0cc44bedb"></a>
+
+### PositiveInfinity
+
+Gets positive infinity.
+
+```csharp
+public static PgDate PositiveInfinity { get; }
+```
+
+Value: [PgDate](/api/ankus.pgdate/)
 
 
 ## Operators
@@ -199,12 +487,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-d25f1437e2700c65"></a>
+
+### operator &gt;(PgDate, PgDate)
+
+Tests whether the left date follows the right date.
+
+```csharp
+public static bool operator >(PgDate left, PgDate right)
+```
+
+Parameters:
+
+`left` — [PgDate](/api/ankus.pgdate/)
+
+`right` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-6fac015ac1816ee5"></a>
+
+### operator &gt;=(PgDate, PgDate)
+
+Tests whether the left date follows or equals the right date.
+
+```csharp
+public static bool operator >=(PgDate left, PgDate right)
+```
+
+Parameters:
+
+`left` — [PgDate](/api/ankus.pgdate/)
+
+`right` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-209354344642cc50"></a>
 
 ### operator !=(PgDate, PgDate)
 
 ```csharp
 public static bool operator !=(PgDate left, PgDate right)
+```
+
+Parameters:
+
+`left` — [PgDate](/api/ankus.pgdate/)
+
+`right` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-548643a89f328a1f"></a>
+
+### operator &lt;(PgDate, PgDate)
+
+Tests whether the left date precedes the right date.
+
+```csharp
+public static bool operator <(PgDate left, PgDate right)
+```
+
+Parameters:
+
+`left` — [PgDate](/api/ankus.pgdate/)
+
+`right` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-fd0d7bfb13ec961a"></a>
+
+### operator &lt;=(PgDate, PgDate)
+
+Tests whether the left date precedes or equals the right date.
+
+```csharp
+public static bool operator <=(PgDate left, PgDate right)
 ```
 
 Parameters:

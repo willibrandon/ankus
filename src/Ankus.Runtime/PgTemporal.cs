@@ -5,6 +5,82 @@ namespace Ankus;
 /// </summary>
 internal static class PgTemporal
 {
+    /// <summary>
+    /// Calls a PostgreSQL temporal routine on the active backend thread.
+    /// </summary>
+    internal static T Call<T>(TemporalOperation operation, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.Temporal<T>(operation, parameters);
+
+    /// <summary>
+    /// Parses temporal text, catching input data errors while preserving backend-access and operational failures.
+    /// </summary>
+    internal static bool TryParse<T>(string? text, out T value) where T : struct
+    {
+        value = default;
+        if (text is null || text.Contains('\0', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            value = Call<T>(TemporalOperation.Parse, Text(text));
+            return true;
+        }
+        catch (PgException error) when (error.SqlState is "22007" or "22008" or "22009" or "22015" or "22023")
+        {
+            return false;
+        }
+        catch (System.Text.EncoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates text that will be passed to a PostgreSQL input or timezone routine.
+    /// </summary>
+    internal static SpiParameter Text(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("PostgreSQL temporal text cannot contain a zero character.", nameof(value));
+        }
+
+        return SpiParameter.Create(value);
+    }
+
+    /// <summary>
+    /// Maps public field names to PostgreSQL's spellings without culture-sensitive enum formatting.
+    /// </summary>
+    internal static SpiParameter Part(PgDateTimePart part) => SpiParameter.Create(part switch
+    {
+        PgDateTimePart.Century => "century",
+        PgDateTimePart.Day => "day",
+        PgDateTimePart.Decade => "decade",
+        PgDateTimePart.DayOfWeek => "dow",
+        PgDateTimePart.DayOfYear => "doy",
+        PgDateTimePart.Epoch => "epoch",
+        PgDateTimePart.Hour => "hour",
+        PgDateTimePart.IsoDayOfWeek => "isodow",
+        PgDateTimePart.IsoYear => "isoyear",
+        PgDateTimePart.Julian => "julian",
+        PgDateTimePart.Microseconds => "microseconds",
+        PgDateTimePart.Millennium => "millennium",
+        PgDateTimePart.Milliseconds => "milliseconds",
+        PgDateTimePart.Minute => "minute",
+        PgDateTimePart.Month => "month",
+        PgDateTimePart.Quarter => "quarter",
+        PgDateTimePart.Second => "second",
+        PgDateTimePart.TimeZone => "timezone",
+        PgDateTimePart.TimeZoneHour => "timezone_hour",
+        PgDateTimePart.TimeZoneMinute => "timezone_minute",
+        PgDateTimePart.Week => "week",
+        PgDateTimePart.Year => "year",
+        _ => throw new ArgumentOutOfRangeException(nameof(part)),
+    });
+
     internal const long EpochTicks = 630_822_816_000_000_000;
     internal const int EpochDayNumber = 730_119;
     internal const long MicrosecondsPerDay = 86_400_000_000;

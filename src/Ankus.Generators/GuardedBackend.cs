@@ -27,7 +27,8 @@ internal static class GuardedBackend
             bool standalone = request->session_id == 0;
             bool quote = ankus_is_quote_request(request->operation);
             bool reporting = request->operation == ANKUS_SPI_REPORT;
-            bool direct = quote || reporting;
+            bool temporal = request->operation == ANKUS_SPI_TEMPORAL;
+            bool direct = quote || reporting || temporal;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_IS_LOG_ENABLED)
@@ -87,6 +88,11 @@ internal static class GuardedBackend
                             if (reporting)
                             {
                                 ankus_report(request->diagnostic, ankus_log_level(request->log_level));
+                                code = 0;
+                            }
+                            else if (temporal)
+                            {
+                                ankus_temporal_operation(request, result);
                                 code = 0;
                             }
                             else

@@ -45,6 +45,354 @@ The signed day component.
 The signed time component.
 
 
+## Methods
+
+<a id="member-ccb031ae8808ef39"></a>
+
+### Add(PgInterval)
+
+Adds interval components using PostgreSQL's overflow and infinity rules.
+
+```csharp
+public PgInterval Add(PgInterval other)
+```
+
+Parameters:
+
+`other` — [PgInterval](/api/ankus.pginterval/)
+
+The interval to add.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The resulting interval.
+
+<a id="member-a52151d94617da69"></a>
+
+### CompareInPostgres(PgInterval)
+
+Compares with PostgreSQL's thirty-day-month convention, separately from exact managed component equality.
+
+```csharp
+public int CompareInPostgres(PgInterval other)
+```
+
+Parameters:
+
+`other` — [PgInterval](/api/ankus.pginterval/)
+
+The interval to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value when this interval sorts before, equals, or sorts after the other.
+
+<a id="member-d4dd5637ed6db864"></a>
+
+### Divide(double)
+
+Divides the interval with PostgreSQL's fractional-month and fractional-day rules.
+
+```csharp
+public PgInterval Divide(double divisor)
+```
+
+Parameters:
+
+`divisor` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The divisor.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The divided interval.
+
+<a id="member-5f078cc276400b59"></a>
+
+### Equals(PgInterval)
+
+```csharp
+public bool Equals(PgInterval other)
+```
+
+Parameters:
+
+`other` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-1ae0b7217568f1ae"></a>
+
+### Equals(object)
+
+```csharp
+public override bool Equals(object obj)
+```
+
+Parameters:
+
+`obj` — [object](https://learn.microsoft.com/dotnet/api/system.object)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-02b6bf7d58a78d74"></a>
+
+### FromTimeSpan(TimeSpan)
+
+Converts a fixed duration to elapsed microseconds without adding calendar-day semantics.
+
+```csharp
+public static PgInterval FromTimeSpan(TimeSpan value)
+```
+
+Parameters:
+
+`value` — [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
+
+The elapsed duration at whole-microsecond precision.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+An interval with zero months and days.
+
+Exceptions:
+
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The duration contains sub-microsecond ticks.
+
+<a id="member-44d99e3e8c437a5f"></a>
+
+### GetHashCode()
+
+```csharp
+public override int GetHashCode()
+```
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-89145ef945f28ad1"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a floating-point field using PostgreSQL date_part semantics.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field, or null for an undefined field of an infinite value.
+
+<a id="member-f754020c3de85722"></a>
+
+### Justify()
+
+Normalizes months, days, hours, and mixed component signs using PostgreSQL justify_interval.
+
+```csharp
+public PgInterval Justify()
+```
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The normalized interval.
+
+<a id="member-7ef1900324718335"></a>
+
+### JustifyDays()
+
+Normalizes thirty-day groups into months using PostgreSQL justify_days.
+
+```csharp
+public PgInterval JustifyDays()
+```
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The normalized interval.
+
+<a id="member-5d64e1eaeeebd843"></a>
+
+### JustifyHours()
+
+Normalizes twenty-four-hour groups into calendar days using PostgreSQL justify_hours.
+
+```csharp
+public PgInterval JustifyHours()
+```
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The normalized interval.
+
+<a id="member-c5c8d291e3204e92"></a>
+
+### Multiply(double)
+
+Scales the interval with PostgreSQL's fractional-month and fractional-day rules.
+
+```csharp
+public PgInterval Multiply(double factor)
+```
+
+Parameters:
+
+`factor` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The multiplier.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The scaled interval.
+
+<a id="member-e45be8977a4a6847"></a>
+
+### Negate()
+
+Negates all interval components with PostgreSQL overflow and infinity handling.
+
+```csharp
+public PgInterval Negate()
+```
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The negated interval.
+
+<a id="member-512c213626423d31"></a>
+
+### Parse(string)
+
+Parses PostgreSQL interval syntax on the active backend thread.
+
+```csharp
+public static PgInterval Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The interval text.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-1a46d78138026abc"></a>
+
+### Subtract(PgInterval)
+
+Subtracts interval components using PostgreSQL's overflow and infinity rules.
+
+```csharp
+public PgInterval Subtract(PgInterval other)
+```
+
+Parameters:
+
+`other` — [PgInterval](/api/ankus.pginterval/)
+
+The interval to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The resulting interval.
+
+<a id="member-64f1bf28cfe0da91"></a>
+
+### ToPostgresString()
+
+Formats the interval using the session's IntervalStyle.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL interval text.
+
+<a id="member-180f7fe6e0747535"></a>
+
+### ToString()
+
+```csharp
+public override string ToString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-46349a07bbffdfdc"></a>
+
+### ToTimeSpan()
+
+Converts an interval containing only elapsed time. Calendar months or days require a reference timestamp.
+
+```csharp
+public TimeSpan ToTimeSpan()
+```
+
+Returns: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
+
+The fixed duration.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The interval is infinite or contains calendar months or days.
+- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): The microseconds exceed TimeSpan's range.
+
+<a id="member-bfda8581a6ad05e4"></a>
+
+### Truncate(PgDateTimePart)
+
+Truncates an interval to a PostgreSQL field.
+
+```csharp
+public PgInterval Truncate(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The truncation field.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The truncated interval.
+
+<a id="member-04c9949fc2e961c3"></a>
+
+### TryParse(string?, out PgInterval)
+
+Tries to parse PostgreSQL interval syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgInterval value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The interval text.
+
+`value` — [PgInterval](/api/ankus.pginterval/)
+
+The parsed interval, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
+
+
 ## Properties
 
 <a id="member-042fdec0313fc92b"></a>
@@ -120,100 +468,6 @@ public static PgInterval PositiveInfinity { get; }
 ```
 
 Value: [PgInterval](/api/ankus.pginterval/)
-
-
-## Methods
-
-<a id="member-5f078cc276400b59"></a>
-
-### Equals(PgInterval)
-
-```csharp
-public bool Equals(PgInterval other)
-```
-
-Parameters:
-
-`other` — [PgInterval](/api/ankus.pginterval/)
-
-Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
-
-<a id="member-1ae0b7217568f1ae"></a>
-
-### Equals(object)
-
-```csharp
-public override bool Equals(object obj)
-```
-
-Parameters:
-
-`obj` — [object](https://learn.microsoft.com/dotnet/api/system.object)
-
-Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
-
-<a id="member-02b6bf7d58a78d74"></a>
-
-### FromTimeSpan(TimeSpan)
-
-Converts a fixed duration to elapsed microseconds without adding calendar-day semantics.
-
-```csharp
-public static PgInterval FromTimeSpan(TimeSpan value)
-```
-
-Parameters:
-
-`value` — [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
-
-The elapsed duration at whole-microsecond precision.
-
-Returns: [PgInterval](/api/ankus.pginterval/)
-
-An interval with zero months and days.
-
-Exceptions:
-
-- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The duration contains sub-microsecond ticks.
-
-<a id="member-44d99e3e8c437a5f"></a>
-
-### GetHashCode()
-
-```csharp
-public override int GetHashCode()
-```
-
-Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
-
-<a id="member-180f7fe6e0747535"></a>
-
-### ToString()
-
-```csharp
-public override string ToString()
-```
-
-Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-<a id="member-46349a07bbffdfdc"></a>
-
-### ToTimeSpan()
-
-Converts an interval containing only elapsed time. Calendar months or days require a reference timestamp.
-
-```csharp
-public TimeSpan ToTimeSpan()
-```
-
-Returns: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
-
-The fixed duration.
-
-Exceptions:
-
-- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The interval is infinite or contains calendar months or days.
-- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): The microseconds exceed TimeSpan's range.
 
 
 ## Operators

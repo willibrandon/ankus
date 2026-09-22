@@ -13,10 +13,10 @@ Represents a PostgreSQL timestamp with time zone as a UTC instant, including inf
 PostgreSQL does not retain the original offset or zone name.
 
 ```csharp
-public readonly struct PgTimestampTz : IEquatable<PgTimestampTz>
+public readonly struct PgTimestampTz : IComparable<PgTimestampTz>, IEquatable<PgTimestampTz>
 ```
 
-Implements: [IEquatable&lt;PgTimestampTz&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgTimestampTz&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTimestampTz&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -42,6 +42,86 @@ Exceptions:
 
 
 ## Methods
+
+<a id="member-a802eb1d56273469"></a>
+
+### Add(PgInterval)
+
+Adds a calendar interval in the session timezone, retaining daylight-saving distinctions.
+
+```csharp
+public PgTimestampTz Add(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The resulting UTC instant.
+
+<a id="member-3878b8bc80a6914d"></a>
+
+### Age(PgTimestampTz)
+
+Computes a symbolic calendar difference in the session timezone.
+
+```csharp
+public PgInterval Age(PgTimestampTz other)
+```
+
+Parameters:
+
+`other` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The instant to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The calendar interval returned by PostgreSQL age.
+
+<a id="member-87b1a0e9f8419ac4"></a>
+
+### AtTimeZone(string)
+
+Converts the instant to a wall-clock timestamp in a named timezone.
+
+```csharp
+public PgTimestamp AtTimeZone(string zone)
+```
+
+Parameters:
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The local wall-clock timestamp.
+
+<a id="member-d1896a0b8991cc56"></a>
+
+### CompareTo(PgTimestampTz)
+
+Compares UTC instants and infinities without requiring an active backend.
+
+```csharp
+public int CompareTo(PgTimestampTz other)
+```
+
+Parameters:
+
+`other` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The instant to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for earlier, equal, or later instants.
 
 <a id="member-69f47d57105b8e5e"></a>
 
@@ -95,6 +175,26 @@ Exceptions:
 
 - [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The value contains sub-microsecond ticks.
 
+<a id="member-7e541ca03a67bb05"></a>
+
+### FromUnixTimeSeconds(double)
+
+Converts fractional Unix epoch seconds with PostgreSQL's to_timestamp rules.
+
+```csharp
+public static PgTimestampTz FromUnixTimeSeconds(double seconds)
+```
+
+Parameters:
+
+`seconds` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Seconds relative to 1970-01-01 UTC.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
 <a id="member-986a359fd2803c14"></a>
 
 ### GetHashCode()
@@ -104,6 +204,100 @@ public override int GetHashCode()
 ```
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-cebf80e5be083502"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a floating-point field in the session timezone with PostgreSQL date_part semantics.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field, or null for an undefined field of an infinite value.
+
+<a id="member-c185f38c7969048b"></a>
+
+### Parse(string)
+
+Parses PostgreSQL timestamp syntax, resolving omitted zones with the session timezone.
+
+```csharp
+public static PgTimestampTz Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The timestamp text.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
+<a id="member-9c596d7149d76946"></a>
+
+### Subtract(PgInterval)
+
+Subtracts a calendar interval in the session timezone.
+
+```csharp
+public PgTimestampTz Subtract(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The resulting UTC instant.
+
+<a id="member-cd3fd16f328c6c86"></a>
+
+### Subtract(PgTimestampTz)
+
+Computes the elapsed difference using PostgreSQL interval normalization.
+
+```csharp
+public PgInterval Subtract(PgTimestampTz other)
+```
+
+Parameters:
+
+`other` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The instant to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The signed interval.
+
+<a id="member-8cd2ad6126dea1c0"></a>
+
+### ToDate()
+
+Extracts the calendar date in the session timezone.
+
+```csharp
+public PgDate ToDate()
+```
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The date.
 
 <a id="member-5d049b76a6f2981a"></a>
 
@@ -123,6 +317,34 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The instant is infinite or outside the DateTimeOffset range.
 
+<a id="member-2bfce2121dcab08f"></a>
+
+### ToIsoString()
+
+Formats the instant in the session timezone using PostgreSQL's ISO JSON representation.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO timestamp with offset, or PostgreSQL's infinity spelling.
+
+<a id="member-0449bf0e9f5af0cf"></a>
+
+### ToPostgresString()
+
+Formats the instant using the session timezone and DateStyle.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL text.
+
 <a id="member-c56924147b902542"></a>
 
 ### ToString()
@@ -133,8 +355,116 @@ public override string ToString()
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-5662c6443c923194"></a>
+
+### ToTime()
+
+Extracts the wall-clock time in the session timezone, or null for infinity.
+
+```csharp
+public PgTime? ToTime()
+```
+
+Returns: <code>PgTime?</code>
+
+The local time, or null when no finite time exists.
+
+<a id="member-2fac885d3f27cfff"></a>
+
+### ToTimestamp()
+
+Converts the instant to a wall-clock timestamp in the session timezone.
+
+```csharp
+public PgTimestamp ToTimestamp()
+```
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The local timestamp.
+
+<a id="member-7aaadd9803b76166"></a>
+
+### Truncate(PgDateTimePart)
+
+Truncates to a calendar field in the session timezone.
+
+```csharp
+public PgTimestampTz Truncate(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The truncation field.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The truncated instant.
+
+<a id="member-6427516455cead0f"></a>
+
+### Truncate(PgDateTimePart, string)
+
+Truncates to a calendar field in an explicit timezone without changing session configuration.
+
+```csharp
+public PgTimestampTz Truncate(PgDateTimePart part, string zone)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The truncation field.
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The truncated instant.
+
+<a id="member-c2b84afd790718ea"></a>
+
+### TryParse(string?, out PgTimestampTz)
+
+Tries to parse PostgreSQL timestamp syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgTimestampTz value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The timestamp text.
+
+`value` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The parsed instant, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
+
 
 ## Properties
+
+<a id="member-6d6e656c3011b34d"></a>
+
+### ClockTimestamp
+
+Gets PostgreSQL's current wall-clock timestamp, which can change during a statement.
+
+```csharp
+public static PgTimestampTz ClockTimestamp { get; }
+```
+
+Value: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 <a id="member-cce754ad68f86490"></a>
 
@@ -184,6 +514,30 @@ public static PgTimestampTz PositiveInfinity { get; }
 
 Value: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
+<a id="member-af9540f02328f68b"></a>
+
+### StatementTimestamp
+
+Gets the start of the current PostgreSQL statement.
+
+```csharp
+public static PgTimestampTz StatementTimestamp { get; }
+```
+
+Value: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+<a id="member-2b4a196ee73a6206"></a>
+
+### TransactionTimestamp
+
+Gets the start of the current PostgreSQL transaction.
+
+```csharp
+public static PgTimestampTz TransactionTimestamp { get; }
+```
+
+Value: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
 
 ## Operators
 
@@ -203,12 +557,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-88895b26f4e9c087"></a>
+
+### operator &gt;(PgTimestampTz, PgTimestampTz)
+
+Tests whether the left instant follows the right instant.
+
+```csharp
+public static bool operator >(PgTimestampTz left, PgTimestampTz right)
+```
+
+Parameters:
+
+`left` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-fd68a344e40a358c"></a>
+
+### operator &gt;=(PgTimestampTz, PgTimestampTz)
+
+Tests whether the left instant follows or equals the right instant.
+
+```csharp
+public static bool operator >=(PgTimestampTz left, PgTimestampTz right)
+```
+
+Parameters:
+
+`left` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-f4a4b271f5941923"></a>
 
 ### operator !=(PgTimestampTz, PgTimestampTz)
 
 ```csharp
 public static bool operator !=(PgTimestampTz left, PgTimestampTz right)
+```
+
+Parameters:
+
+`left` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-998e451478841a1b"></a>
+
+### operator &lt;(PgTimestampTz, PgTimestampTz)
+
+Tests whether the left instant precedes the right instant.
+
+```csharp
+public static bool operator <(PgTimestampTz left, PgTimestampTz right)
+```
+
+Parameters:
+
+`left` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-24effcb52f62089f"></a>
+
+### operator &lt;=(PgTimestampTz, PgTimestampTz)
+
+Tests whether the left instant precedes or equals the right instant.
+
+```csharp
+public static bool operator <=(PgTimestampTz left, PgTimestampTz right)
 ```
 
 Parameters:

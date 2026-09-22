@@ -13,10 +13,10 @@ Represents PostgreSQL timestamp without time zone, including BC values and infin
 The default value is 2000-01-01 00:00:00.
 
 ```csharp
-public readonly struct PgTimestamp : IEquatable<PgTimestamp>
+public readonly struct PgTimestamp : IComparable<PgTimestamp>, IEquatable<PgTimestamp>
 ```
 
-Implements: [IEquatable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
+Implements: [IComparable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.icomparable-1), [IEquatable&lt;PgTimestamp&gt;](https://learn.microsoft.com/dotnet/api/system.iequatable-1)
 
 ## Constructors
 
@@ -42,6 +42,86 @@ Exceptions:
 
 
 ## Methods
+
+<a id="member-7f2711000c72d449"></a>
+
+### Add(PgInterval)
+
+Adds an interval using PostgreSQL's calendar and month-end rules.
+
+```csharp
+public PgTimestamp Add(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The resulting timestamp.
+
+<a id="member-494a039f98a292db"></a>
+
+### Age(PgTimestamp)
+
+Computes a symbolic difference retaining calendar years and months.
+
+```csharp
+public PgInterval Age(PgTimestamp other)
+```
+
+Parameters:
+
+`other` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The calendar interval returned by PostgreSQL age.
+
+<a id="member-7b21925ee3240797"></a>
+
+### AtTimeZone(string)
+
+Interprets this wall-clock time in a named timezone using PostgreSQL's DST gap and overlap rules.
+
+```csharp
+public PgTimestampTz AtTimeZone(string zone)
+```
+
+Parameters:
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The corresponding UTC instant.
+
+<a id="member-c25060c64191685a"></a>
+
+### CompareTo(PgTimestamp)
+
+Compares wall-clock timestamps and infinities without requiring an active backend.
+
+```csharp
+public int CompareTo(PgTimestamp other)
+```
+
+Parameters:
+
+`other` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp to compare.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A negative value, zero, or a positive value for earlier, equal, or later timestamps.
 
 <a id="member-fe420802735e002f"></a>
 
@@ -105,6 +185,100 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-2217a4852e3578ea"></a>
+
+### GetPart(PgDateTimePart)
+
+Reads a floating-point field using PostgreSQL date_part semantics.
+
+```csharp
+public double? GetPart(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field.
+
+Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
+
+The field, or null for an undefined field of an infinite value.
+
+<a id="member-61dc8eefe6e8231f"></a>
+
+### Parse(string)
+
+Parses PostgreSQL wall-clock timestamp syntax using the backend's DateStyle.
+
+```csharp
+public static PgTimestamp Parse(string text)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The timestamp text.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp.
+
+<a id="member-a7031d0b24fedef3"></a>
+
+### Subtract(PgInterval)
+
+Subtracts an interval using PostgreSQL's calendar and month-end rules.
+
+```csharp
+public PgTimestamp Subtract(PgInterval interval)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The resulting timestamp.
+
+<a id="member-1ce646e2f746ae62"></a>
+
+### Subtract(PgTimestamp)
+
+Computes the elapsed difference with PostgreSQL's interval normalization.
+
+```csharp
+public PgInterval Subtract(PgTimestamp other)
+```
+
+Parameters:
+
+`other` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp to subtract.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The signed interval.
+
+<a id="member-6cbea4c295082cc8"></a>
+
+### ToDate()
+
+Extracts the calendar date using PostgreSQL's infinity rules.
+
+```csharp
+public PgDate ToDate()
+```
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The date.
+
 <a id="member-3b1381c3fc956740"></a>
 
 ### ToDateTime()
@@ -123,6 +297,34 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite or outside the DateTime range.
 
+<a id="member-5681a0111693ba64"></a>
+
+### ToIsoString()
+
+Formats the timestamp using PostgreSQL's ISO JSON representation independently of DateStyle.
+
+```csharp
+public string ToIsoString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO timestamp, or PostgreSQL's infinity spelling.
+
+<a id="member-2df3a0424bbe913a"></a>
+
+### ToPostgresString()
+
+Formats the timestamp using the backend's DateStyle.
+
+```csharp
+public string ToPostgresString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL text.
+
 <a id="member-3929e2313301ede4"></a>
 
 ### ToString()
@@ -132,6 +334,78 @@ public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-39c200b241f8700a"></a>
+
+### ToTime()
+
+Extracts the wall-clock time, or null for infinity.
+
+```csharp
+public PgTime? ToTime()
+```
+
+Returns: <code>PgTime?</code>
+
+The time, or null when no finite time exists.
+
+<a id="member-960ccccc2fcf1c9f"></a>
+
+### ToTimestampTz()
+
+Interprets this wall-clock time in the current session's timezone.
+
+```csharp
+public PgTimestampTz ToTimestampTz()
+```
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The corresponding UTC instant.
+
+<a id="member-ae5b0bd0b9c88707"></a>
+
+### Truncate(PgDateTimePart)
+
+Truncates to a PostgreSQL calendar field.
+
+```csharp
+public PgTimestamp Truncate(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The truncation field.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The truncated timestamp.
+
+<a id="member-1f3d1c9e5a6865e0"></a>
+
+### TryParse(string?, out PgTimestamp)
+
+Tries to parse PostgreSQL wall-clock timestamp syntax on the active backend thread.
+
+```csharp
+public static bool TryParse(string? text, out PgTimestamp value)
+```
+
+Parameters:
+
+`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The timestamp text.
+
+`value` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The parsed value, or the default value on invalid input.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the input is valid. Backend-access and operational errors still throw.
 
 
 ## Properties
@@ -203,12 +477,84 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-8b12e03eaec54246"></a>
+
+### operator &gt;(PgTimestamp, PgTimestamp)
+
+Tests whether the left timestamp follows the right timestamp.
+
+```csharp
+public static bool operator >(PgTimestamp left, PgTimestamp right)
+```
+
+Parameters:
+
+`left` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`right` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-9657c32c317e110c"></a>
+
+### operator &gt;=(PgTimestamp, PgTimestamp)
+
+Tests whether the left timestamp follows or equals the right timestamp.
+
+```csharp
+public static bool operator >=(PgTimestamp left, PgTimestamp right)
+```
+
+Parameters:
+
+`left` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`right` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-a790fb9ac003c0e1"></a>
 
 ### operator !=(PgTimestamp, PgTimestamp)
 
 ```csharp
 public static bool operator !=(PgTimestamp left, PgTimestamp right)
+```
+
+Parameters:
+
+`left` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`right` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-29af41a8b6c5de25"></a>
+
+### operator &lt;(PgTimestamp, PgTimestamp)
+
+Tests whether the left timestamp precedes the right timestamp.
+
+```csharp
+public static bool operator <(PgTimestamp left, PgTimestamp right)
+```
+
+Parameters:
+
+`left` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`right` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-00cd764c89beff30"></a>
+
+### operator &lt;=(PgTimestamp, PgTimestamp)
+
+Tests whether the left timestamp precedes or equals the right timestamp.
+
+```csharp
+public static bool operator <=(PgTimestamp left, PgTimestamp right)
 ```
 
 Parameters:

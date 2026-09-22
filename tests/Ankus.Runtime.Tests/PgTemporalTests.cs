@@ -6,6 +6,84 @@ namespace Ankus.Runtime.Tests;
 [TestClass]
 public sealed class PgTemporalTests
 {
+    /// <summary>Checks value ordering can be used outside PostgreSQL, including extreme ranges and equal instants.</summary>
+    [TestMethod]
+    public void TemporalOrderingWorksWithoutBackendAccess()
+    {
+        PgDate[] dates = [PgDate.PositiveInfinity, new(-2451545), PgDate.NegativeInfinity, new(2145031948)];
+        Array.Sort(dates);
+        Assert.AreSequenceEqual([PgDate.NegativeInfinity, new(-2451545), new(2145031948), PgDate.PositiveInfinity], dates);
+        Assert.IsTrue(PgDate.NegativeInfinity < new PgDate(-2451545));
+        Assert.IsTrue(PgDate.PositiveInfinity > new PgDate(2145031948));
+        Assert.IsTrue(default(PgDate) <= new PgDate(0));
+        Assert.IsTrue(default(PgDate) >= new PgDate(0));
+
+        Assert.IsGreaterThan(0, PgTime.EndOfDay.CompareTo(default));
+        Assert.IsTrue(new PgTime(0) < PgTime.EndOfDay);
+        Assert.IsTrue(PgTime.EndOfDay > new PgTime(0));
+        Assert.IsTrue(new PgTime(1) <= new PgTime(1));
+        Assert.IsTrue(new PgTime(1) >= new PgTime(1));
+
+        Assert.IsLessThan(0, PgTimestamp.NegativeInfinity.CompareTo(new PgTimestamp(-211813488000000000)));
+        Assert.IsTrue(new PgTimestamp(9223371331199999999) < PgTimestamp.PositiveInfinity);
+        Assert.IsTrue(new PgTimestamp(0) > new PgTimestamp(-1));
+        Assert.IsTrue(new PgTimestamp(1) <= new PgTimestamp(1));
+        Assert.IsTrue(new PgTimestamp(1) >= new PgTimestamp(1));
+
+        Assert.IsLessThan(0, PgTimestampTz.NegativeInfinity.CompareTo(new PgTimestampTz(-211813488000000000)));
+        Assert.IsTrue(new PgTimestampTz(9223371331199999999) < PgTimestampTz.PositiveInfinity);
+        Assert.IsTrue(new PgTimestampTz(0) > new PgTimestampTz(-1));
+        Assert.IsTrue(new PgTimestampTz(1) <= new PgTimestampTz(1));
+        Assert.IsTrue(new PgTimestampTz(1) >= new PgTimestampTz(1));
+    }
+
+    /// <summary>Checks timetz ordering retains the day boundary and breaks UTC-time ties by offset.</summary>
+    [TestMethod]
+    public void OffsetTimeOrderingMatchesPostgresTieBreaking()
+    {
+        var noonEast = new PgTimeTz(new PgTime(43_200_000_000), 7200);
+        var tenUtc = new PgTimeTz(new PgTime(36_000_000_000), 0);
+        Assert.IsLessThan(0, noonEast.CompareTo(tenUtc));
+        Assert.IsTrue(noonEast < tenUtc);
+        Assert.IsTrue(tenUtc > noonEast);
+        Assert.IsTrue(noonEast <= new PgTimeTz(new PgTime(43_200_000_000), 7200));
+        Assert.IsTrue(noonEast >= new PgTimeTz(new PgTime(43_200_000_000), 7200));
+        Assert.AreNotEqual(noonEast, tenUtc);
+        Assert.AreEqual(0, noonEast.CompareTo(new PgTimeTz(new PgTime(43_200_000_000), 7200)));
+        Assert.IsGreaterThan(0, new PgTimeTz(PgTime.EndOfDay, 0).CompareTo(default));
+        Assert.IsLessThan(0, new PgTimeTz(default, 57599).CompareTo(new PgTimeTz(PgTime.EndOfDay, -57599)));
+    }
+
+    /// <summary>Checks temporal input validation and ensures TryParse does not hide missing backend access.</summary>
+    [TestMethod]
+    public void TemporalParsingValidatesTextAndPreservesAccessErrors()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() => PgDate.Parse(null!));
+        Assert.ThrowsExactly<ArgumentException>(() => PgTime.Parse("12:00\0ignored"));
+        Assert.ThrowsExactly<ArgumentException>(() => default(PgTimestamp).AtTimeZone("UTC\0ignored"));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => default(PgInterval).GetPart((PgDateTimePart)(-1)));
+        Assert.IsFalse(PgDate.TryParse(null, out PgDate date));
+        Assert.AreEqual(default, date);
+        Assert.IsFalse(PgTime.TryParse("\0", out PgTime time));
+        Assert.AreEqual(default, time);
+        Assert.IsFalse(PgTimeTz.TryParse(null, out PgTimeTz timeTz));
+        Assert.AreEqual(default, timeTz);
+        Assert.IsFalse(PgTimestamp.TryParse(null, out PgTimestamp timestamp));
+        Assert.AreEqual(default, timestamp);
+        Assert.IsFalse(PgTimestampTz.TryParse(null, out PgTimestampTz instant));
+        Assert.AreEqual(default, instant);
+        Assert.IsFalse(PgInterval.TryParse(null, out PgInterval interval));
+        Assert.AreEqual(default, interval);
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgDate.TryParse("2024-01-01", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgTime.TryParse("12:00", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgTimeTz.TryParse("12:00+00", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgTimestamp.TryParse("2024-01-01", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgTimestampTz.TryParse("2024-01-01+00", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgInterval.TryParse("1 day", out _));
+        Assert.ThrowsExactly<InvalidOperationException>(() => default(PgDate).AddDays(1));
+        Assert.ThrowsExactly<InvalidOperationException>(() => default(PgTime).ToPostgresString());
+    }
+
     /// <summary>Checks date conversion independently at the epoch, leap day, and .NET boundaries.</summary>
     /// <param name="year">The year.</param>
     /// <param name="month">The month.</param>

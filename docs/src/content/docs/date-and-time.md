@@ -78,11 +78,87 @@ components are zero. Mixed component signs are preserved. Managed equality
 compares exact components; PostgreSQL's interval comparison instead treats a
 month as thirty days.
 
+Use `Add` and `Subtract` for PostgreSQL calendar arithmetic:
+
+```csharp
+[PgFunction]
+public static PgTimestamp NextMonth(PgTimestamp value)
+    => value.Add(new PgInterval(months: 1, days: 0, microseconds: 0));
+```
+
+January 31 becomes the last day of February. For `PgTimestampTz`, calendar months
+and days use the session's timezone. Adding elapsed hours can give a different
+result across a daylight-saving transition.
+
+Subtracting two timestamps returns an elapsed interval. `Age` returns a symbolic
+calendar difference with years and months. Intervals also support `Multiply`,
+`Divide`, `Negate`, `JustifyDays`, `JustifyHours`, and `Justify`. Use
+`CompareInPostgres` when you want PostgreSQL's interval ordering.
+
 `PgInterval.PositiveInfinity` and `NegativeInfinity` require PostgreSQL 17 or
 later. Their finite component properties are zero; check `IsFinite` first.
 On earlier servers, writing an infinite interval raises an unsupported-feature
 error. Finite components that match a newer server's reserved infinity sentinel
 raise a range error rather than changing meaning.
+
+## Parsing and formatting
+
+The six full-range types expose `Parse`, `TryParse`, and `ToPostgresString`:
+
+```csharp
+[PgFunction]
+public static PgDate? ReadDate(string text)
+    => PgDate.TryParse(text, out PgDate date) ? date : null;
+```
+
+Parsing accepts PostgreSQL input syntax, including special values. `DateStyle`
+controls ambiguous date input and date/timestamp output. `IntervalStyle` controls
+interval output. `TryParse` returns `false` and a default out value for invalid
+input; backend-access and operational errors still throw.
+
+Dates, times, and timestamps also expose `ToIsoString`, using PostgreSQL's ISO JSON
+representation independently of `DateStyle`. A `PgTimestampTz` is formatted in the
+session's timezone, with its offset. `ToPostgresString` and `ToIsoString` are
+explicit server-formatting methods; the record struct's `ToString()` remains a
+managed diagnostic representation.
+
+## Timezones and fields
+
+```csharp
+[PgFunction]
+public static PgTimestampTz NewYorkTime(PgTimestamp local)
+    => local.AtTimeZone("America/New_York");
+
+[PgFunction]
+public static PgTimestampTz NewYorkDay(PgTimestampTz instant)
+    => instant.Truncate(PgDateTimePart.Day, "America/New_York");
+```
+
+`PgTimestamp.AtTimeZone` interprets a wall-clock time in the named zone.
+`PgTimestampTz.AtTimeZone` returns the local wall-clock timestamp for an instant.
+Both follow PostgreSQL's rules for ambiguous and nonexistent times. Explicit-zone
+truncation leaves the session timezone unchanged. A `PgTimeTz` has no date, so its
+named-zone conversion uses PostgreSQL's current-date rules for daylight saving.
+
+`GetPart(PgDateTimePart)` follows `date_part` semantics and returns `double?`.
+Undefined fields of infinite values return null; unsupported fields raise
+`PgException`. Floating-point extraction can lose precision for large values.
+On PostgreSQL 13, date extraction uses the server's timestamp conversion and its
+narrower range. `Truncate` supports timestamps and intervals.
+
+`PgDate.Create` and `PgTime.Create` validate calendar fields in PostgreSQL. Negative
+years denote BC; year zero is invalid. `PgDate.AtTime` combines a date with a time
+or fixed-offset time. Timestamp `ToDate` and `ToTime` conversions follow server
+rules; `ToTime` returns null for infinity.
+
+`PgTimestampTz.TransactionTimestamp`, `StatementTimestamp`, and `ClockTimestamp`
+read the three PostgreSQL clocks. `FromUnixTimeSeconds` accepts fractional seconds.
+
+Server parsing, formatting, arithmetic, extraction, and timezone methods require
+the active backend thread inside an Ankus callback. Their native errors become
+catchable `PgException` instances. Stored-value access, exact .NET conversions,
+and date/time/timestamp comparisons also work outside PostgreSQL. `CompareTo` and
+relational operators preserve infinities and the distinct 24:00 time value.
 
 ## SPI
 

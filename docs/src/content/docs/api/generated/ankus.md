@@ -19,6 +19,11 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTimestampTz](/api/ankus.pgtimestamptz/)
 - [SpiParameter](/api/ankus.spiparameter/)
 
+## Enums
+
+- [PgDateTimePart](/api/ankus.pgdatetimepart/)
+- [PgLogLevel](/api/ankus.pgloglevel/)
+
 ## Classes
 
 - [PgDiagnostic](/api/ankus.pgdiagnostic/)
@@ -32,7 +37,3 @@ Assembly: `Ankus.Runtime.dll`
 - [SpiResult](/api/ankus.spiresult/)
 - [SpiRow](/api/ankus.spirow/)
 - [SpiSession](/api/ankus.spisession/)
-
-## Enums
-
-- [PgLogLevel](/api/ankus.pgloglevel/)

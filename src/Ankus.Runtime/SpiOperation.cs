@@ -94,4 +94,9 @@ internal enum SpiOperation : byte
     /// Queries PostgreSQL's reporting thresholds.
     /// </summary>
     IsLogEnabled,
+
+    /// <summary>
+    /// Calls an allowlisted temporal routine without opening an SPI connection.
+    /// </summary>
+    Temporal,
 }

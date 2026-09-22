@@ -77,4 +77,14 @@ internal unsafe struct NativeSpiRequest
     /// Contains the version-independent reporting level.
     /// </summary>
     internal PgLogLevel _logLevel;
+
+    /// <summary>
+    /// Selects an allowlisted temporal function family.
+    /// </summary>
+    internal TemporalOperation _temporalOperation;
+
+    /// <summary>
+    /// Contains the expected temporal operation result type, validated by the native dispatcher.
+    /// </summary>
+    internal uint _temporalResultOid;
 }
