@@ -85,6 +85,11 @@ internal static class SpiType
             return 3802;
         }
 
+        if (type == typeof(PgNumeric) || type == typeof(PgNumeric?) || type == typeof(decimal) || type == typeof(decimal?))
+        {
+            return 1700;
+        }
+
         if (type == typeof(PgDate) || type == typeof(PgDate?) || type == typeof(DateOnly) || type == typeof(DateOnly?))
         {
             return 1082;
@@ -140,6 +145,8 @@ internal static class SpiType
         Guid uuid => NativeValue.FromGuid(uuid),
         PgJson json => NativeValue.FromString(json.Text),
         PgJsonb json => NativeValue.FromString(json.Text),
+        PgNumeric number => NativeValue.FromString(number.Text),
+        decimal number => NativeValue.FromString(PgNumeric.FromDecimal(number).Text),
         PgDate date => NativeValue.FromDate(date),
         PgTime time => NativeValue.FromTime(time),
         PgTimeTz time => NativeValue.FromTimeTz(time),
@@ -182,6 +189,7 @@ internal static class SpiType
             2950 => value.ReadGuid(),
             114 => value.ReadJson(),
             3802 => value.ReadJsonb(),
+            1700 => value.ReadNumeric(),
             1082 => value.ReadDate(),
             1083 => value.ReadTime(),
             1266 => value.ReadTimeTz(),

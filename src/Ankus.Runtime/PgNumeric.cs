@@ -1,0 +1,303 @@
+using System.Globalization;
+using System.Numerics;
+
+namespace Ankus;
+
+/// <summary>
+/// Owns a full-range PostgreSQL numeric value, including display scale, NaN, and infinities.
+/// The default value is zero. Equality ignores trailing fractional zeroes and treats NaN as equal to NaN.
+/// </summary>
+public readonly record struct PgNumeric : IComparable<PgNumeric>
+{
+    private readonly string? _text;
+
+    private PgNumeric(string text) => _text = text;
+
+    /// <summary>Gets the owned, culture-independent PostgreSQL output text, retaining display scale.</summary>
+    public string Text => _text ?? "0";
+
+    /// <summary>Gets PostgreSQL's not-a-number value, which sorts above all other numeric values.</summary>
+    public static PgNumeric NaN => new("NaN");
+
+    /// <summary>Gets positive infinity. Native numeric infinities require PostgreSQL 14 or later.</summary>
+    public static PgNumeric PositiveInfinity => new("Infinity");
+
+    /// <summary>Gets negative infinity. Native numeric infinities require PostgreSQL 14 or later.</summary>
+    public static PgNumeric NegativeInfinity => new("-Infinity");
+
+    /// <summary>Gets whether the value is finite.</summary>
+    public bool IsFinite => Kind == 1;
+
+    /// <summary>Gets whether the value is PostgreSQL NaN.</summary>
+    public bool IsNaN => Kind == 3;
+
+    /// <summary>Gets the display scale, or null for NaN and infinities.</summary>
+    public int? Scale
+    {
+        get
+        {
+            if (!IsFinite)
+            {
+                return null;
+            }
+
+            int point = Text.IndexOf('.', StringComparison.Ordinal);
+            return point < 0 ? 0 : Text.Length - point - 1;
+        }
+    }
+
+    /// <summary>Gets -1, 0, or 1 for negative, zero, or positive values, or null for NaN.</summary>
+    public int? Sign => IsNaN ? null : NormalizedText.SequenceEqual("0") ? 0 : Text[0] == '-' ? -1 : 1;
+
+    private int Kind => Text switch { "-Infinity" => 0, "Infinity" => 2, "NaN" => 3, _ => 1 };
+
+    private ReadOnlySpan<char> NormalizedText
+    {
+        get
+        {
+            ReadOnlySpan<char> text = Text;
+            if (text.Contains('.'))
+            {
+                text = text.TrimEnd('0').TrimEnd('.');
+            }
+
+            return text.SequenceEqual("-0") ? "0" : text;
+        }
+    }
+
+    /// <summary>Copies canonical numeric_out text received through the guarded native boundary.</summary>
+    internal static PgNumeric FromCanonicalText(string text) => new(text);
+
+    /// <summary>Parses PostgreSQL numeric syntax on the active backend thread, including exponents and special values.</summary>
+    /// <param name="text">The PostgreSQL numeric input.</param>
+    /// <returns>The parsed value with PostgreSQL's display scale.</returns>
+    public static PgNumeric Parse(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return NativeBackend.Numeric<PgNumeric>(NumericOperation.Parse, [SpiParameter.Create(text)]);
+    }
+
+    /// <summary>Tries to parse numeric input on the active backend thread.</summary>
+    /// <param name="text">The candidate input.</param>
+    /// <param name="value">The parsed numeric, or zero on invalid input.</param>
+    /// <returns>Whether the input was valid. Backend-access and operational errors still throw.</returns>
+    public static bool TryParse(string? text, out PgNumeric value)
+    {
+        value = default;
+        if (text is null || text.Contains('\0', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            value = Parse(text);
+            return true;
+        }
+        catch (PgException error) when (error.SqlState is "22P02" or "22003")
+        {
+            return false;
+        }
+        catch (System.Text.EncoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Converts a decimal exactly without requiring an active backend.</summary>
+    /// <param name="value">The decimal, including its stored scale.</param>
+    /// <returns>The exact numeric value.</returns>
+    public static PgNumeric FromDecimal(decimal value) => new(value.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>Converts an arbitrary-precision integer within PostgreSQL's 131072-digit limit.</summary>
+    /// <param name="value">The integer.</param>
+    /// <returns>The numeric value without a fractional part.</returns>
+    public static PgNumeric FromBigInteger(BigInteger value)
+    {
+        string text = value.ToString(CultureInfo.InvariantCulture);
+        if (text.Length - (value.Sign < 0 ? 1 : 0) > 131072)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "The integer exceeds PostgreSQL's numeric range.");
+        }
+
+        return new(text);
+    }
+
+    /// <summary>Converts a floating-point value using PostgreSQL's float8-to-numeric conversion.</summary>
+    /// <param name="value">The floating-point value.</param>
+    /// <returns>The numeric value, with the server's conversion precision.</returns>
+    public static PgNumeric FromDouble(double value)
+        => NativeBackend.Numeric<PgNumeric>(NumericOperation.FromDouble, [SpiParameter.Create(value)]);
+
+    /// <summary>Converts exactly to decimal, rejecting overflow, nonfinite values, and any change in numeric value.</summary>
+    /// <returns>The decimal value.</returns>
+    /// <exception cref="OverflowException">The value cannot be represented exactly as a decimal.</exception>
+    public decimal ToDecimal()
+    {
+        if (!IsFinite || !decimal.TryParse(Text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture, out decimal value) || this != FromDecimal(value))
+        {
+            throw new OverflowException("The PostgreSQL numeric value cannot be represented exactly as a decimal.");
+        }
+
+        return value;
+    }
+
+    /// <summary>Converts a finite integer exactly, rejecting fractional values and nonfinite values.</summary>
+    /// <returns>The arbitrary-precision integer.</returns>
+    public BigInteger ToBigInteger()
+    {
+        if (!IsFinite || NormalizedText.Contains('.'))
+        {
+            throw new OverflowException("The numeric value is not a finite integer.");
+        }
+
+        return BigInteger.Parse(NormalizedText, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Converts to double using PostgreSQL's precision and range rules.</summary>
+    /// <returns>The floating-point approximation.</returns>
+    public double ToDouble() => NativeBackend.Numeric<double>(NumericOperation.ToDouble, [SpiParameter.Create(this)]);
+
+    /// <summary>Rounds to a declared precision and scale with PostgreSQL's numeric typmod rules.</summary>
+    /// <param name="precision">The maximum significant digits, one through 1000.</param>
+    /// <param name="scale">The declared scale. Negative scales and scales above precision require PostgreSQL 15 or later.</param>
+    /// <returns>The rescaled numeric; a range error is raised if it does not fit.</returns>
+    public PgNumeric Rescale(int precision, int scale)
+        => NativeBackend.Numeric<PgNumeric>(NumericOperation.Rescale,
+            [SpiParameter.Create(this), SpiParameter.Create(precision), SpiParameter.Create(scale)]);
+
+    /// <summary>Rounds to a fractional scale, breaking ties away from zero as PostgreSQL does.</summary>
+    /// <param name="scale">The fractional scale; negative values round to the left of the decimal point.</param>
+    /// <returns>The rounded numeric.</returns>
+    public PgNumeric Round(int scale = 0) => WithScale(NumericOperation.Round, scale);
+
+    /// <summary>Truncates toward zero to a fractional scale.</summary>
+    /// <param name="scale">The fractional scale; negative values truncate to the left of the decimal point.</param>
+    /// <returns>The truncated numeric.</returns>
+    public PgNumeric Truncate(int scale = 0) => WithScale(NumericOperation.Truncate, scale);
+
+    /// <summary>Gets the absolute value using PostgreSQL numeric semantics.</summary>
+    /// <returns>The absolute value.</returns>
+    public PgNumeric Abs() => Unary(NumericOperation.Abs);
+
+    /// <summary>Rounds toward positive infinity.</summary>
+    /// <returns>The least integer greater than or equal to this value.</returns>
+    public PgNumeric Ceiling() => Unary(NumericOperation.Ceiling);
+
+    /// <summary>Rounds toward negative infinity.</summary>
+    /// <returns>The greatest integer less than or equal to this value.</returns>
+    public PgNumeric Floor() => Unary(NumericOperation.Floor);
+
+    /// <summary>Computes the PostgreSQL numeric square root.</summary>
+    /// <returns>The square root.</returns>
+    public PgNumeric Sqrt() => Unary(NumericOperation.Sqrt);
+
+    /// <summary>Computes e raised to this value using PostgreSQL numeric precision.</summary>
+    /// <returns>The exponential.</returns>
+    public PgNumeric Exp() => Unary(NumericOperation.Exp);
+
+    /// <summary>Computes the natural logarithm.</summary>
+    /// <returns>The natural logarithm.</returns>
+    public PgNumeric Log() => Unary(NumericOperation.Log);
+
+    /// <summary>Computes the logarithm in the specified base.</summary>
+    /// <param name="base">The logarithm base.</param>
+    /// <returns>The logarithm.</returns>
+    public PgNumeric Log(PgNumeric @base) => Binary(NumericOperation.LogBase, @base, this);
+
+    /// <summary>Raises this value to a numeric power.</summary>
+    /// <param name="exponent">The exponent.</param>
+    /// <returns>The power.</returns>
+    public PgNumeric Pow(PgNumeric exponent) => Binary(NumericOperation.Power, this, exponent);
+
+    /// <summary>Computes the greatest common divisor with PostgreSQL numeric semantics.</summary>
+    /// <param name="other">The other value.</param>
+    /// <returns>The greatest common divisor.</returns>
+    public PgNumeric GreatestCommonDivisor(PgNumeric other) => Binary(NumericOperation.Gcd, this, other);
+
+    /// <summary>Computes the least common multiple with PostgreSQL numeric semantics.</summary>
+    /// <param name="other">The other value.</param>
+    /// <returns>The least common multiple.</returns>
+    public PgNumeric LeastCommonMultiple(PgNumeric other) => Binary(NumericOperation.Lcm, this, other);
+
+    /// <summary>Returns culture-independent text without insignificant fractional zeroes.</summary>
+    /// <returns>The normalized numeric text.</returns>
+    public string ToNormalizedString() => NormalizedText.ToString();
+
+    /// <summary>Returns the owned PostgreSQL text, retaining display scale.</summary>
+    /// <returns>The numeric text.</returns>
+    public override string ToString() => Text;
+
+    /// <summary>Compares numeric values independently of display scale and backend access.</summary>
+    /// <param name="other">The other value.</param>
+    /// <returns>Whether the values compare equal, including NaN compared with NaN.</returns>
+    public bool Equals(PgNumeric other) => NormalizedText.SequenceEqual(other.NormalizedText);
+
+    /// <summary>Gets a hash consistent with scale-independent numeric equality.</summary>
+    /// <returns>The numeric hash.</returns>
+    public override int GetHashCode() => string.GetHashCode(NormalizedText, StringComparison.Ordinal);
+
+    /// <summary>Compares with PostgreSQL's ordering: negative infinity, finite values, positive infinity, then NaN.</summary>
+    /// <param name="other">The other value.</param>
+    /// <returns>A negative value, zero, or a positive value for lesser, equal, or greater values.</returns>
+    public int CompareTo(PgNumeric other)
+    {
+        int order = Kind.CompareTo(other.Kind);
+        if (order != 0 || !IsFinite)
+        {
+            return order;
+        }
+
+        ReadOnlySpan<char> left = NormalizedText;
+        ReadOnlySpan<char> right = other.NormalizedText;
+        bool negative = left[0] == '-';
+        if (negative != (right[0] == '-'))
+        {
+            return negative ? -1 : 1;
+        }
+
+        if (negative)
+        {
+            left = left[1..];
+            right = right[1..];
+        }
+
+        int leftPoint = left.IndexOf('.');
+        int rightPoint = right.IndexOf('.');
+        order = (leftPoint < 0 ? left.Length : leftPoint).CompareTo(rightPoint < 0 ? right.Length : rightPoint);
+        if (order == 0)
+        {
+            order = left.SequenceCompareTo(right);
+        }
+
+        return negative ? -order : order;
+    }
+
+    /// <summary>Adds numeric values in PostgreSQL.</summary>
+    public static PgNumeric operator +(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Add, left, right);
+    /// <summary>Subtracts numeric values in PostgreSQL.</summary>
+    public static PgNumeric operator -(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Subtract, left, right);
+    /// <summary>Multiplies numeric values in PostgreSQL.</summary>
+    public static PgNumeric operator *(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Multiply, left, right);
+    /// <summary>Divides numeric values using PostgreSQL's result-scale rules.</summary>
+    public static PgNumeric operator /(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Divide, left, right);
+    /// <summary>Computes PostgreSQL's numeric remainder.</summary>
+    public static PgNumeric operator %(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Remainder, left, right);
+    /// <summary>Negates a numeric value in PostgreSQL.</summary>
+    public static PgNumeric operator -(PgNumeric value) => value.Unary(NumericOperation.Negate);
+    /// <summary>Tests whether the left numeric is less than the right numeric.</summary>
+    public static bool operator <(PgNumeric left, PgNumeric right) => left.CompareTo(right) < 0;
+    /// <summary>Tests whether the left numeric is greater than the right numeric.</summary>
+    public static bool operator >(PgNumeric left, PgNumeric right) => left.CompareTo(right) > 0;
+    /// <summary>Tests whether the left numeric is less than or equal to the right numeric.</summary>
+    public static bool operator <=(PgNumeric left, PgNumeric right) => left.CompareTo(right) <= 0;
+    /// <summary>Tests whether the left numeric is greater than or equal to the right numeric.</summary>
+    public static bool operator >=(PgNumeric left, PgNumeric right) => left.CompareTo(right) >= 0;
+
+    private PgNumeric Unary(NumericOperation operation) => NativeBackend.Numeric<PgNumeric>(operation, [SpiParameter.Create(this)]);
+    private PgNumeric WithScale(NumericOperation operation, int scale)
+        => NativeBackend.Numeric<PgNumeric>(operation, [SpiParameter.Create(this), SpiParameter.Create(scale)]);
+    private static PgNumeric Binary(NumericOperation operation, PgNumeric left, PgNumeric right)
+        => NativeBackend.Numeric<PgNumeric>(operation, [SpiParameter.Create(left), SpiParameter.Create(right)]);
+}

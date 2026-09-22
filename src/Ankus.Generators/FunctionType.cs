@@ -56,7 +56,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb";
+    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb" or "numeric";
 
     /// <summary>
     /// Gets whether the type uses the field-wise temporal transport.
@@ -108,6 +108,12 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name == "global::Ankus.PgNumeric" || type.SpecialType == SpecialType.System_Decimal)
+        {
+            return new(type.SpecialType == SpecialType.System_Decimal ? "decimal" : name,
+                "numeric", "numeric", "numeric", string.Empty, nullable, reference: false);
+        }
+
         string? temporal = name switch
         {
             "global::Ankus.PgDate" or "global::System.DateOnly" => "date",

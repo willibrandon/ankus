@@ -136,6 +136,16 @@ public sealed class SpiRow
             throw new InvalidOperationException("SQL NULL cannot be read as a non-nullable managed value.");
         }
 
+        if (value is PgNumeric numeric && (typeof(T) == typeof(decimal) || typeof(T) == typeof(decimal?)))
+        {
+            return (T)(object)numeric.ToDecimal();
+        }
+
+        if (value is decimal number && (typeof(T) == typeof(PgNumeric) || typeof(T) == typeof(PgNumeric?)))
+        {
+            return (T)(object)PgNumeric.FromDecimal(number);
+        }
+
         return (T)SpiTemporal.Convert(value, typeof(T));
     }
 }

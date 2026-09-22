@@ -31,6 +31,7 @@ Ankus generates the native entry point and SQL declaration during publishing.
 | `byte[]` | `bytea` |
 | `Guid` | `uuid` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
+| `decimal`, `PgNumeric` | `numeric` |
 | `DateOnly`, `PgDate` | `date` |
 | `TimeOnly`, `PgTime` | `time` |
 | `PgTimeTz` | `timetz` |

@@ -59,6 +59,8 @@ internal static class PgFunctionEmitter
                 "global::System.Guid" => slot + ".ReadGuid()",
                 "global::Ankus.PgJson" => slot + ".ReadJson()",
                 "global::Ankus.PgJsonb" => slot + ".ReadJsonb()",
+                "global::Ankus.PgNumeric" => slot + ".ReadNumeric()",
+                "decimal" => slot + ".ReadNumeric().ToDecimal()",
                 "bool" => slot + ".Integral != 0",
                 "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
                 "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
@@ -96,8 +98,9 @@ internal static class PgFunctionEmitter
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
-                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
+                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" or "global::Ankus.PgNumeric" =>
                     $"            *result = global::Ankus.NativeValue.FromString({value}.Text);",
+                "decimal" => $"            *result = global::Ankus.NativeValue.FromString(global::Ankus.PgNumeric.FromDecimal({value}).Text);",
                 "bool" => $"            result->Integral = {value} ? 1 : 0;",
                 "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
                 "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",

@@ -146,6 +146,11 @@ Undefined fields of infinite values return null; unsupported fields raise
 On PostgreSQL 13, date extraction uses the server's timestamp conversion and its
 narrower range. `Truncate` supports timestamps and intervals.
 
+Use `Extract(PgDateTimePart)` for a [`PgNumeric`](/numeric/) result. PostgreSQL 14+
+extracts directly to numeric, retaining exact fractional seconds even for
+timestamps near the server's range limit. PostgreSQL 13 converts its floating-point
+extraction result, matching that version's precision limits.
+
 `PgDate.Create` and `PgTime.Create` validate calendar fields in PostgreSQL. Negative
 years denote BC; year zero is invalid. `PgDate.AtTime` combines a date with a time
 or fixed-offset time. Timestamp `ToDate` and `ToTime` conversions follow server

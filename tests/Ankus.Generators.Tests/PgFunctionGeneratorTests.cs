@@ -47,6 +47,10 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJson? Echo(Ankus.PgJson? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb Echo(Ankus.PgJsonb value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb? Echo(Ankus.PgJsonb? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgNumeric Echo(Ankus.PgNumeric value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgNumeric? Echo(Ankus.PgNumeric? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static decimal Echo(decimal value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static decimal? Echo(decimal? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgDate Echo(Ankus.PgDate value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgTime Echo(Ankus.PgTime value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgTimeTz Echo(Ankus.PgTimeTz value) => value;", "echo")]
@@ -85,7 +89,7 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [TestMethod]
     [DataRow("public int Instance() => 1;")]
     [DataRow("private static int Hidden() => 1;")]
-    [DataRow("public static decimal WrongResult() => 1;")]
+    [DataRow("public static System.Uri WrongResult() => new(\"https://example.com\");")]
     [DataRow("public static int WrongArgument(System.Uri value) => 1;")]
     [DataRow("public static int ByReference(ref int value) => value;")]
     [DataRow("public static int Generic<T>() => 1;")]
@@ -156,7 +160,7 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
 
-    /// <summary>Verifies .NET temporal types cannot silently replace full-range overloads with the same SQL signature.</summary>
+    /// <summary>Verifies .NET aliases cannot silently replace full-range overloads with the same SQL signature.</summary>
     /// <param name="clrType">The ordinary .NET type.</param>
     /// <param name="pgType">The full-range PostgreSQL type.</param>
     [TestMethod]
@@ -165,7 +169,8 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("System.DateTime", "Ankus.PgTimestamp")]
     [DataRow("System.DateTimeOffset", "Ankus.PgTimestampTz")]
     [DataRow("System.TimeSpan", "Ankus.PgInterval")]
-    public void TemporalAliasesShareSqlSignatures(string clrType, string pgType)
+    [DataRow("decimal", "Ankus.PgNumeric")]
+    public void ClrAliasesShareSqlSignatures(string clrType, string pgType)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             public static class Functions

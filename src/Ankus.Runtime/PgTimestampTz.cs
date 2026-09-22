@@ -132,6 +132,12 @@ public readonly record struct PgTimestampTz : IComparable<PgTimestampTz>
     public double? GetPart(PgDateTimePart part)
         => PgTemporal.Call<double?>(TemporalOperation.Part, PgTemporal.Part(part), SpiParameter.Create(this));
 
+    /// <summary>Extracts a field in the session timezone, exactly on PostgreSQL 14+; PostgreSQL 13 converts its floating-point result.</summary>
+    /// <param name="part">The field to extract.</param>
+    /// <returns>The numeric field, or null for an undefined field of infinity.</returns>
+    public PgNumeric? Extract(PgDateTimePart part)
+        => PgTemporal.Call<PgNumeric?>(TemporalOperation.Extract, PgTemporal.Part(part), SpiParameter.Create(this));
+
     /// <summary>Converts the instant to a wall-clock timestamp in a named timezone.</summary>
     /// <param name="zone">The PostgreSQL timezone name or abbreviation.</param>
     /// <returns>The local wall-clock timestamp.</returns>

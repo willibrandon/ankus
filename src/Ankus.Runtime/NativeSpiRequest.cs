@@ -79,12 +79,12 @@ internal unsafe struct NativeSpiRequest
     internal PgLogLevel _logLevel;
 
     /// <summary>
-    /// Selects an allowlisted temporal function family.
+    /// Selects a function within the requested scalar operation family.
     /// </summary>
-    internal TemporalOperation _temporalOperation;
+    internal int _scalarOperation;
 
     /// <summary>
-    /// Contains the expected temporal operation result type, validated by the native dispatcher.
+    /// Contains the expected scalar result type, validated by the native dispatcher.
     /// </summary>
-    internal uint _temporalResultOid;
+    internal uint _scalarResultOid;
 }

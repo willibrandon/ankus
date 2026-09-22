@@ -41,7 +41,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_EXPLAIN,
             ANKUS_SPI_REPORT,
             ANKUS_SPI_IS_LOG_ENABLED,
-            ANKUS_SPI_TEMPORAL
+            ANKUS_SPI_TEMPORAL,
+            ANKUS_SPI_NUMERIC
         };
 
         typedef struct AnkusRequest
@@ -60,8 +61,8 @@ internal static class NativeSpiBridge
             uint8 forward;
             struct AnkusError *diagnostic;
             int log_level;
-            int temporal_operation;
-            Oid temporal_result_oid;
+            int scalar_operation;
+            Oid scalar_result_oid;
         } AnkusRequest;
 
         typedef struct AnkusColumn
@@ -171,6 +172,7 @@ internal static class NativeSpiBridge
                 case UUIDOID:
                 case JSONOID:
                 case JSONBOID:
+                case NUMERICOID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -318,6 +320,7 @@ internal static class NativeSpiBridge
                 case UUIDOID:
                 case JSONOID:
                 case JSONBOID:
+                case NUMERICOID:
                 {
                     AnkusValue input = {0};
                     AnkusInputBuffer owned = {0};

@@ -138,6 +138,26 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-43bfd703b91fcc25"></a>
+
+### Extract(PgDateTimePart)
+
+Extracts a numeric field exactly on PostgreSQL 14+; PostgreSQL 13 converts its floating-point result.
+
+```csharp
+public PgNumeric? Extract(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field to extract.
+
+Returns: <code>PgNumeric?</code>
+
+The numeric field.
+
 <a id="member-471765beeb148aec"></a>
 
 ### FromTimeOnly(TimeOnly)

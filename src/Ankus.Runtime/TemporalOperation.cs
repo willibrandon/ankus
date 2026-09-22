@@ -31,4 +31,5 @@ internal enum TemporalOperation
     ToTimestampTz,
     MakeDate,
     MakeTime,
+    Extract,
 }

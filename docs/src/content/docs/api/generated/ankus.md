@@ -13,6 +13,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgInterval](/api/ankus.pginterval/)
 - [PgJson](/api/ankus.pgjson/)
 - [PgJsonb](/api/ankus.pgjsonb/)
+- [PgNumeric](/api/ankus.pgnumeric/)
 - [PgTime](/api/ankus.pgtime/)
 - [PgTimeTz](/api/ankus.pgtimetz/)
 - [PgTimestamp](/api/ankus.pgtimestamp/)

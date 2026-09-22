@@ -159,6 +159,10 @@ public unsafe struct NativeValue
     /// <returns>The JSONB value.</returns>
     public readonly PgJsonb ReadJsonb() => new(ReadString());
 
+    /// <summary>Copies canonical PostgreSQL numeric output into an owned managed value.</summary>
+    /// <returns>The full-range numeric.</returns>
+    public readonly PgNumeric ReadNumeric() => PgNumeric.FromCanonicalText(ReadString());
+
     /// <summary>
     /// Copies a UUID into PostgreSQL's network-order sixteen-byte representation.
     /// </summary>

@@ -151,6 +151,26 @@ Parameters:
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-656479463c7fe58a"></a>
+
+### Extract(PgDateTimePart)
+
+Extracts a field in the session timezone, exactly on PostgreSQL 14+; PostgreSQL 13 converts its floating-point result.
+
+```csharp
+public PgNumeric? Extract(PgDateTimePart part)
+```
+
+Parameters:
+
+`part` — [PgDateTimePart](/api/ankus.pgdatetimepart/)
+
+The field to extract.
+
+Returns: <code>PgNumeric?</code>
+
+The numeric field, or null for an undefined field of infinity.
+
 <a id="member-0a8ea4935adf1428"></a>
 
 ### FromDateTimeOffset(DateTimeOffset)

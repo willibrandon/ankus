@@ -19,17 +19,9 @@ internal static class NativeTemporalOperations
             ANKUS_TEMP_ZONE, ANKUS_TEMP_PART, ANKUS_TEMP_JUSTIFY_DAYS, ANKUS_TEMP_JUSTIFY_HOURS,
             ANKUS_TEMP_JUSTIFY, ANKUS_TEMP_COMPARE, ANKUS_TEMP_TRANSACTION, ANKUS_TEMP_STATEMENT,
             ANKUS_TEMP_CLOCK, ANKUS_TEMP_FROM_UNIX, ANKUS_TEMP_TO_DATE, ANKUS_TEMP_TO_TIME,
-            ANKUS_TEMP_TO_TIMESTAMP, ANKUS_TEMP_TO_TIMESTAMPTZ, ANKUS_TEMP_MAKE_DATE, ANKUS_TEMP_MAKE_TIME
+            ANKUS_TEMP_TO_TIMESTAMP, ANKUS_TEMP_TO_TIMESTAMPTZ, ANKUS_TEMP_MAKE_DATE, ANKUS_TEMP_MAKE_TIME,
+            ANKUS_TEMP_EXTRACT
         };
-
-        typedef struct AnkusTemporalFunction
-        {
-            int operation;
-            PGFunction function;
-            Oid result_type;
-            int argument_count;
-            Oid argument_types[3];
-        } AnkusTemporalFunction;
 
         static Datum
         ankus_date_part(PG_FUNCTION_ARGS)
@@ -45,7 +37,7 @@ internal static class NativeTemporalOperations
         #endif
         }
 
-        static const AnkusTemporalFunction ankus_temporal_functions[] =
+        static const AnkusScalarFunction ankus_temporal_functions[] =
         {
             {ANKUS_TEMP_ADD, date_pli, DATEOID, 2, {DATEOID, INT4OID}},
             {ANKUS_TEMP_SUBTRACT, date_mii, DATEOID, 2, {DATEOID, INT4OID}},
@@ -85,6 +77,14 @@ internal static class NativeTemporalOperations
             {ANKUS_TEMP_PART, time_part, FLOAT8OID, 2, {TEXTOID, TIMEOID}},
             {ANKUS_TEMP_PART, timetz_part, FLOAT8OID, 2, {TEXTOID, TIMETZOID}},
             {ANKUS_TEMP_PART, interval_part, FLOAT8OID, 2, {TEXTOID, INTERVALOID}},
+        #if PG_VERSION_NUM >= 140000
+            {ANKUS_TEMP_EXTRACT, extract_date, NUMERICOID, 2, {TEXTOID, DATEOID}},
+            {ANKUS_TEMP_EXTRACT, extract_time, NUMERICOID, 2, {TEXTOID, TIMEOID}},
+            {ANKUS_TEMP_EXTRACT, extract_timetz, NUMERICOID, 2, {TEXTOID, TIMETZOID}},
+            {ANKUS_TEMP_EXTRACT, extract_timestamp, NUMERICOID, 2, {TEXTOID, TIMESTAMPOID}},
+            {ANKUS_TEMP_EXTRACT, extract_timestamptz, NUMERICOID, 2, {TEXTOID, TIMESTAMPTZOID}},
+            {ANKUS_TEMP_EXTRACT, extract_interval, NUMERICOID, 2, {TEXTOID, INTERVALOID}},
+        #endif
             {ANKUS_TEMP_JUSTIFY_DAYS, interval_justify_days, INTERVALOID, 1, {INTERVALOID}},
             {ANKUS_TEMP_JUSTIFY_HOURS, interval_justify_hours, INTERVALOID, 1, {INTERVALOID}},
             {ANKUS_TEMP_JUSTIFY, interval_justify_interval, INTERVALOID, 1, {INTERVALOID}},
@@ -116,8 +116,28 @@ internal static class NativeTemporalOperations
         static void
         ankus_temporal_operation(AnkusRequest *request, AnkusResult *result)
         {
-            int operation = request->temporal_operation;
-            Oid output = request->temporal_result_oid;
+            int operation = request->scalar_operation;
+            Oid output = request->scalar_result_oid;
+        #if PG_VERSION_NUM < 140000
+            if (operation == ANKUS_TEMP_EXTRACT && output == NUMERICOID)
+            {
+                AnkusResult floating = {0};
+                double value;
+                Datum numeric;
+                AnkusRequest part = *request;
+                part.scalar_operation = ANKUS_TEMP_PART;
+                part.scalar_result_oid = FLOAT8OID;
+                ankus_call_scalar(ankus_temporal_functions, lengthof(ankus_temporal_functions), &part, &floating);
+                result->text.is_null = floating.text.is_null;
+                if (floating.text.is_null)
+                    return;
+                memcpy(&value, &floating.text.integral, sizeof(value));
+                numeric = DirectFunctionCall3(numeric_in,
+                    DirectFunctionCall1(float8out, Float8GetDatum(value)), ObjectIdGetDatum(InvalidOid), Int32GetDatum(-1));
+                ankus_result_value(numeric, NUMERICOID, &result->text);
+                return;
+            }
+        #endif
             if (operation == ANKUS_TEMP_PARSE || operation == ANKUS_TEMP_FORMAT || operation == ANKUS_TEMP_ISO)
             {
                 Oid function;
@@ -156,40 +176,7 @@ internal static class NativeTemporalOperations
                 return;
             }
 
-            for (Size index = 0; index < lengthof(ankus_temporal_functions); index++)
-            {
-                const AnkusTemporalFunction *entry = &ankus_temporal_functions[index];
-                bool match = entry->operation == operation && entry->result_type == output &&
-                    entry->argument_count == request->parameter_count;
-                if (match)
-                {
-                    for (int argument = 0; argument < entry->argument_count; argument++)
-                        match = match && entry->argument_types[argument] == request->parameters[argument].type_oid &&
-                            !request->parameters[argument].value.is_null;
-                }
-                if (match)
-                {
-                    LOCAL_FCINFO(call, 3);
-                    FmgrInfo info;
-                    Datum datum;
-                    memset(&info, 0, sizeof(info));
-                    info.fn_addr = entry->function;
-                    info.fn_nargs = entry->argument_count;
-                    info.fn_mcxt = CurrentMemoryContext;
-                    InitFunctionCallInfoData(*call, &info, entry->argument_count, InvalidOid, NULL, NULL);
-                    for (int argument = 0; argument < entry->argument_count; argument++)
-                    {
-                        call->args[argument].value = ankus_parameter_datum(&request->parameters[argument]);
-                        call->args[argument].isnull = false;
-                    }
-                    datum = FunctionCallInvoke(call);
-                    result->text.is_null = call->isnull;
-                    if (!call->isnull)
-                        ankus_result_value(datum, output, &result->text);
-                    return;
-                }
-            }
-            ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("unsupported temporal operation signature")));
+            ankus_call_scalar(ankus_temporal_functions, lengthof(ankus_temporal_functions), request, result);
         }
         """;
 }
