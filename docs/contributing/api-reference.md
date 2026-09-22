@@ -29,3 +29,7 @@ Generation includes signatures, generic parameters, returns, exceptions, remarks
 examples, and cross-reference links. Overloads receive distinct, stable anchors.
 Intermediate metadata is written beneath `artifacts/api-metadata/` and removed
 after generation.
+
+C# token colors are configured in `docs/astro.config.mjs` for both site themes.
+After changing syntax highlighting, run `pnpm exec astro build --force` from
+`docs/` to invalidate Astro's cached Markdown rendering.

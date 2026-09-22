@@ -9,6 +9,26 @@ export default defineConfig({
       title: 'Ankus',
       description: 'PostgreSQL extensions in C# with .NET Native AOT.',
       customCss: ['./src/styles/custom.css'],
+      expressiveCode: {
+        customizeTheme(theme) {
+          // The bundled themes omit C# type and variable scopes, including attributes and generics.
+          theme.settings.push(
+            {
+              scope: ['source.cs entity.name.type', 'source.cs support.type', 'source.cs support.class'],
+              settings: { foreground: theme.type === 'dark' ? '#7FDBCA' : '#006B60' },
+            },
+            {
+              scope: [
+                'source.cs entity.name.variable',
+                'source.cs variable',
+                'variable.other.readwrite.cs',
+                'variable.other.object.cs',
+              ],
+              settings: { foreground: theme.type === 'dark' ? '#9CDCFE' : '#234A97' },
+            },
+          );
+        },
+      },
       sidebar: [
         {
           label: 'Getting started',

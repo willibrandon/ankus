@@ -35,7 +35,7 @@ packages. It works with ordinary NuGet configuration and Central Package Managem
 
 ## Add a function
 
-Edit `src/Hello/Functions.cs` and mark a synchronous static method with `[PgFunction]`:
+Edit `src/Hello/Functions.cs` and mark a synchronous static method with <code>[<span class="csharp-type">PgFunction</span>]</code>:
 
 ```csharp
 using Ankus;

@@ -35,6 +35,14 @@
   letter-spacing: -0.03em;
 }
 
+code .csharp-type {
+  color: #7fdbca;
+}
+
+[data-theme='light'] code .csharp-type {
+  color: #006b60;
+}
+
 .right-group {
   display: flex !important;
 }

@@ -811,3 +811,9 @@ The phases track implementation of the complete pgrx feature surface.
   All six packages and tool `--no-build` packing pass. Docs build, type check and API freshness pass; 36 public
   API pages and 563 members. Specialized templates, automatic pre-18 extension staging and the platform/version
   matrix remain pending.
+- 2026-09-22 — Moved the public testing package to `src/Ankus.Testing`, expanded single-line XML summaries,
+  and enforced CA1000 in repository and generated projects. Release build and all 995 tests pass.
+  Added C# type, attribute, generic-parameter and variable colors to both documentation themes. Playwright CLI
+  verified the home, SPI API, function guide and numeric guide in dark/light mode, including the reported
+  `Connect<TResult>` signature. Mobile layout has no horizontal overflow; docs build, type check and API
+  freshness pass. Theme changes require a forced Astro rebuild to invalidate cached Markdown.
