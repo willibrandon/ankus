@@ -33,11 +33,12 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone completes the inventoried temporal field/epoch accessors, raw-value factories,
-server timezone-offset helpers, interval timezone conversions and owned timeofday text. Full-range
-values, infinity handling, native endpoint behavior and cleanup are verified alongside the existing
-aggregate, event/row trigger, composite, set, operator, enum and package/tool features. Plain `dotnet test`
-passes 3172 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+The latest milestone adds `[PgInitialize]` backend library initialization with guarded errors,
+retry/reentrancy handling, startup snapshots, session preload and initialization-only native packages.
+Native postmaster rejection preserves the Native AOT fork boundary. These behaviors are verified
+alongside the existing temporal, aggregate, trigger, composite, set, operator, enum and package/tool
+features. Plain `dotnet test` passes 3242 cases. Evidence is mapped below; full GUC/preload parity,
+the remaining port inventory and the platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -51,7 +52,7 @@ passes 3172 cases. Evidence is mapped below; the full port and platform/version 
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3172 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3242 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -831,7 +832,55 @@ polymorphic/raw and custom base-type state/input/result transport, heterogeneous
 Customized `FUNC_MAX_ARGS`, backend invocation at the generated 99-argument boundary, and independent
 post-exit worker cleanup telemetry are not claimed verified. Passing this milestone is not full pgrx parity.
 
+### Backend initialization evidence
+
+`[PgInitialize]` selects one public/internal, synchronous, non-generic, parameterless static void
+callback. The generator emits `_PG_init`, its managed exception boundary, and a complete native
+manifest even without SQL functions. `ANKUS013` rejects invalid signatures/containers, duplicate
+initializers, conflicting SQL metadata, async partial implementations, static virtual interface
+methods, conditional call removal and unmanaged-only callbacks. Initialization never becomes a SQL function.
+
+The native loader guards reentrancy and records success only after the managed callback returns.
+Failures reset the state for retry. Owned diagnostics and managed finally blocks use the existing
+native boundary. Session preload has an initial transaction but no portal snapshot; `_PG_init`
+pushes a snapshot only when needed and releases only its own snapshot on success or failure.
+When no transaction exists, generated dispatch binds no transaction-dependent native entry point.
+The forking postmaster is rejected natively before Native AOT can initialize runtime threads.
+
+| Requirement | Concrete evidence |
+|---|---|
+| Init-only native publication and SQL/export separation | `InitializationOnlyExtensionCompilesWithNativeLoaderExports`, `InitializationOnlyExtensionLoadsWithoutSqlFunctions` |
+| Declaration validation and deterministic mixed artifacts | `InvalidInitializationDeclarationsAreRejected`, `MultipleInitializationCallbacksAreRejected`, `InitializationRejectsSqlFunctionAndResultMetadata`, `InitializationRejectsAttributesThatPreventManagedInvocation`, `InitializationMixedDeclarationsPreserveSqlAndDeterministicManifest`, `InitializationCallbackSymbolsAreAssemblyScoped`, `InitializationIsAbsentUnlessExplicitlyDeclared` |
+| Per-backend first-use/LOAD lifecycle | `InitializationRunsOncePerBackend` exercises two independent backends and repeated LOAD, both with explicit LOAD and first-function entry |
+| Exceptions, owned long/Unicode diagnostics, finally and retry | `InitializationFailureUnwindsAndCanRetry` runs 50 managed, structured PostgreSQL, or recursive failures, followed by a successful 51st attempt with exact counter/diagnostic assertions |
+| SQL rollback and managed state lifetime | `InitializationFailureRollsBackSqlAndPreservesCallerState` verifies savepoint rollback, earlier writes, successful retry, and initialized managed state after outer transaction rollback |
+| Native error recovery and nested initialization | `InitializationSpiErrorsPreserveCallerState` catches division/recursive-load errors while preserving a prepared statement and transaction writes; `InitializationCanLoadAnotherExtension` proves nested Native AOT initialization and continued SPI |
+| Startup snapshot and failure isolation | `SessionPreloadInitializesBeforeFirstFunction`, `SessionPreloadFailureUnwindsAndPreservesServer` verify preload before client SQL, finally logging before connection failure, a healthy existing backend, and a corrected new connection |
+| Postmaster rejection before managed callback | `SharedPreloadRejectsManagedInitialization` verifies actionable native failure and absence of the sample's managed notice |
+| No-transaction bindings, thread affinity and scope restoration | `NontransactionalInitializationBlocksBackendEntryPoints`, `NestedDisabledInitializationRestoresOuterBinding`, `InitializationBindingDoesNotFlowToWorkerThreads`, `InitializationRestoresTheOwningSpiSession`, `InitializationPreservesAbortCleanupRestrictions`, `EventQueriesHonorDisabledInitializationAndRecover` |
+
+Focused checks pass: 7 runtime cases, all 962 generator cases (including 50 new initialization cases),
+and 13 real backend cases on PostgreSQL 18.6/Linux x64. The non-incremental Release build has zero
+warnings/errors. Plain `dotnet test` passes 3242 cases with zero failures/skips in 2m50.126s.
+The XML scan found zero omissions in 683 internal declarations; 384 source/template files have no
+extra opening-brace blank lines or warning suppressions. The sample and public initialization guide describe backend loading, retry and preload
+limits; generated API documentation contains 90 pages/1034 members, and the site builds 118 pages.
+Existing duplicate-404/missing-site-URL site warnings remain visible; no warnings are disabled.
+
+Actual native loading without a transaction, standalone/EXEC_BACKEND behavior, and other PostgreSQL
+versions/platforms are not claimed executed. The no-transaction branch is verified by generated
+contract checks and direct runtime binding tests. Full GUC registration/hooks and managed postmaster
+initialization remain required work; this foundation is not complete initialization/GUC parity.
+
 ### Work in progress
+
+Initialization/GUC research identified a Native AOT hosting constraint: managed entry starts runtime
+threads, and the initialized runtime cannot safely survive the postmaster's fork into a backend.
+Reference evidence is in the read-only `runtime` v10.0.0 bootstrap/thread/finalizer sources and PostgreSQL
+`dfmgr.c`/GUC sources, cross-checked at supported release tags. Backend initialization now has the
+native postmaster guard and focused evidence above. Native-only declarative GUC registration can run before managed startup;
+arbitrary managed postmaster hooks require additional architecture and remain a full-parity requirement.
+No hook is silently skipped or represented as implemented by this initialization foundation.
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
@@ -1045,7 +1094,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom base-type families and matrix validation remain required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
-| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
+| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend `[PgInitialize]` with retry/recursion handling and session-preload snapshots; native-only preload/managed postmaster initialization remain required |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
@@ -1173,7 +1222,8 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Numeric function-boundary constraints, primitive casts, checked generic conversions and operator/sum conveniences
       - [x] Temporal field/epoch accessors, saturating/wrapping raw factories, named/interval timezone conveniences and timeofday
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
-   - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
+   - [x] Backend `_PG_init` bootstrap, guarded exceptions/retry, recursive-load rejection and session preload (PostgreSQL 18.6/Linux x64)
+   - [ ] Memory contexts; native-only preload and managed postmaster initialization; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
     - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads
@@ -1463,3 +1513,13 @@ The phases track implementation of the complete pgrx feature surface.
   distinctions; 89 API pages contain 1033 members and the site builds 116 pages. XML review found no
   omissions in 678 internal declarations. The remaining raw API, extension features, tooling and complete
   PostgreSQL/platform validation remain required full-port work.
+- 2026-09-22 — Added backend `[PgInitialize]` with init-only publication, ANKUS013 declaration diagnostics,
+  owned exceptions, managed finally, retry/reentrancy handling, session preload and a native postmaster
+  guard. Actual preload testing exposed an absent startup snapshot; the native wrapper now owns a
+  snapshot only when needed and releases it on success/error while preserving caller snapshots.
+  Added 7 runtime, 50 generator and 13 backend cases. Plain `dotnet test`: 3242 passed, zero failures/skips
+  on PostgreSQL 18.6/Linux x64; non-incremental Release build: zero warnings/errors. Documentation build
+  and type checks pass; 90 API pages contain 1034 members, with 118 site pages. XML scan: 683 internal
+  declarations, zero omissions. Warning suppression and opening-brace whitespace scans are clear.
+  Native-only preload, full GUCs/hooks, managed postmaster initialization, actual no-transaction native
+  loading and the remaining version/platform matrix remain explicit full-port requirements.

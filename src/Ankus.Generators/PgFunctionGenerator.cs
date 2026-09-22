@@ -50,10 +50,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgEventTriggerAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IMethodSymbol> initializers = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgInitializeAttribute",
+            static (_, _) => true,
+            static (attributeContext, _) => attributeContext.TargetSymbol)
+            .Where(static symbol => symbol is IMethodSymbol)
+            .Select(static (symbol, _) => (IMethodSymbol)symbol);
         IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
-            .Combine(triggers.Collect()).Combine(eventTriggers.Collect())
-            .Select(static (input, _) => input.Left.Left.Left.Left.AddRange(input.Left.Left.Left.Right).AddRange(input.Left.Left.Right)
-                .AddRange(input.Left.Right).AddRange(input.Right)
+            .Combine(triggers.Collect()).Combine(eventTriggers.Collect()).Combine(initializers.Collect())
+            .Select(static (input, _) => input.Left.Left.Left.Left.Left.AddRange(input.Left.Left.Left.Left.Right).AddRange(input.Left.Left.Left.Right)
+                .AddRange(input.Left.Left.Right).AddRange(input.Left.Right).AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -92,9 +98,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
-        bool hasFunctions = !methods.IsEmpty || !aggregateTypes.IsEmpty;
+        bool hasDispatchers = !methods.IsEmpty || !aggregateTypes.IsEmpty;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        if (hasFunctions)
+        if (hasDispatchers)
         {
             native.AppendLine(NativeBridge.ReadBuffers);
             native.AppendLine(NativeBridge.WriteBuffer);
@@ -182,7 +188,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             managed.AppendLine("    {");
         }
 
-        if (hasFunctions)
+        if (hasDispatchers)
         {
             native.AppendLine("static bool ankus_enum_supported(Oid type)");
             native.AppendLine("{");
@@ -216,13 +222,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             enumeration.EmitRegistration(managed);
-            if (hasFunctions)
+            if (hasDispatchers)
             {
                 enumeration.EmitNativeTypeCheck(native);
             }
         }
 
-        if (hasFunctions)
+        if (hasDispatchers)
         {
             native.AppendLine("    return false;");
             native.AppendLine("}");
@@ -235,9 +241,15 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             managed.AppendLine();
         }
 
+        IMethodSymbol? initializer = InitializeDeclaration.Select(methods, context);
+        if (initializer is not null)
+        {
+            PgInitializeEmitter.Emit(initializer, GetCallbackName(initializer, "initialize"), managed, native, exports);
+        }
+
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
-            if (aggregateMethods.Contains(method))
+            if (aggregateMethods.Contains(method) || InitializeDeclaration.IsInitializer(method))
             {
                 continue;
             }

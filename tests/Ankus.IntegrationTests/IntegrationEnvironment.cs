@@ -73,6 +73,7 @@ internal static class IntegrationEnvironment
         await PublishExtensionAsync("samples", "Ankus.Examples.Triggers", cancellationToken);
         await PublishExtensionAsync("samples", "Ankus.Examples.EventTriggers", cancellationToken);
         await PublishExtensionAsync("samples", "Ankus.Examples.Aggregates", cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Initialization", cancellationToken);
         return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);
     }
 

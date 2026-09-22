@@ -83,6 +83,34 @@ parameters retain the native NULL guard even in mixed nullable signatures.
 
 ## Call sequence
 
+### Library initialization
+
+`[PgInitialize]` generates a native `_PG_init` and a separate managed dispatcher.
+The native entry first rejects the forking postmaster before any reverse P/Invoke
+can initialize Native AOT's runtime threads. Backend and standalone process
+initialization are permitted. The wrapper supplies the guarded SPI callback only
+when `IsTransactionState()` is true; otherwise the managed scope has no backend
+entry point. Nested scopes restore the enclosing binding and callback depth.
+Session preload has a transaction before it has a portal or active snapshot.
+The initializer pushes a transaction snapshot only when none exists, and pops
+only its own snapshot after managed return or native failure. Existing caller
+snapshots remain untouched. This permits guarded startup SPI and leaves
+PostgreSQL's initial transaction with its original snapshot stack.
+
+PostgreSQL's loader records a library only after `_PG_init` returns successfully.
+A native three-state guard detects recursive loading before it can recurse
+through the same managed initializer. Failure resets the state so a later load
+can retry; success retains the initialized state for the process lifetime.
+Diagnostics use the ordinary owned error transport. Managed exceptions return to
+native code before error reporting, so `finally` runs normally. SQL mutations
+follow PostgreSQL rollback, while managed static mutations survive failed attempts.
+
+Initialization-only assemblies emit module magic, native dependencies, exports,
+and a manifest even when their installation SQL has no function declarations.
+The initialization callback itself never creates a SQL function.
+
+### SQL function dispatch
+
 1. PostgreSQL invokes the exported C wrapper. The wrapper checks argument count
    and required argument nullability before allocating or invoking managed code.
 2. Native argument conversion uses PostgreSQL macros, detoasting, and server-to-UTF-8

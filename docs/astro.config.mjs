@@ -42,6 +42,7 @@ export default defineConfig({
           label: 'Working with PostgreSQL',
           items: [
             { label: 'Function declarations', slug: 'function-declarations' },
+            { label: 'Extension initialization', slug: 'initialization' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Composite values', slug: 'composites' },
             { label: 'Triggers', slug: 'triggers' },

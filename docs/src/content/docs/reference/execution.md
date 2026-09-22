@@ -7,6 +7,12 @@ Your function runs synchronously inside the PostgreSQL backend that called it.
 SPI, quoting, and logging APIs must run on that thread. Calling them from
 `Task.Run` throws `InvalidOperationException`.
 
+`[PgInitialize]` runs when the library first loads in a backend, before its SQL
+functions. Successful initialization and managed static state belong to that
+backend process. Failed initialization can be retried; PostgreSQL rolls back SQL
+work with its transaction, while managed mutations remain. See
+[extension initialization](/initialization/) for preload and transaction rules.
+
 ## Values
 
 Strings, byte arrays, JSON values, and SPI result rows are managed copies. You
