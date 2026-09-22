@@ -1,0 +1,50 @@
+<Project>
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AnkusPostgresMajor Condition="'$(AnkusPostgresMajor)' == ''">18</AnkusPostgresMajor>
+    <_AnkusBuildTool>$(MSBuildThisFileDirectory)../Ankus.Build/bin/$(Configuration)/net10.0/Ankus.Build.dll</_AnkusBuildTool>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Ankus.Runtime/Ankus.Runtime.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Ankus.Generators/Ankus.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Ankus.Build/Ankus.Build.csproj"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />
+  </ItemGroup>
+
+  <Target Name="_PrepareAnkusNativeArtifacts" BeforeTargets="WriteIlcRspFileForCompilation" DependsOnTargets="Compile">
+    <PropertyGroup>
+      <_AnkusArtifacts>$(NativeIntermediateOutputPath)ankus/</_AnkusArtifacts>
+      <_AnkusCommand>dotnet &quot;$(_AnkusBuildTool)&quot; &quot;@(IntermediateAssembly)&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(_AnkusArtifacts)&quot; $(AnkusPostgresMajor)</_AnkusCommand>
+      <_AnkusLibraries>@(AdditionalNativeLibraryDirectories, ';')</_AnkusLibraries>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(CppLinker)&quot; &quot;$(_AnkusLibraries)&quot;</_AnkusCommand>
+    </PropertyGroup>
+    <Exec Command="$(_AnkusCommand)" />
+    <ReadLinesFromFile File="$(_AnkusArtifacts)exports.txt">
+      <Output TaskParameter="Lines" ItemName="_AnkusExport" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="$(_AnkusArtifacts)libraries.txt">
+      <Output TaskParameter="Lines" ItemName="_AnkusNativeLibrary" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <IlcArg Include="@(_AnkusExport->'--export-dynamic-symbol:%(Identity)')" />
+      <NativeLibrary Include="@(_AnkusNativeLibrary)" />
+      <LinkerArg Include="@(_AnkusNativeLibrary->'&quot;%(Identity)&quot;')" />
+      <LinkerArg Include="-Wl,-undefined,dynamic_lookup" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+      <FileWrites Include="$(_AnkusArtifacts)*" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_PublishAnkusSchema" AfterTargets="Publish" Condition="'$(PublishAot)' == 'true'">
+    <Copy SourceFiles="$(_AnkusArtifacts)schema.sql" DestinationFiles="$(PublishDir)$(TargetName).sql" />
+    <ItemGroup>
+      <FileWrites Include="$(PublishDir)$(TargetName).sql" />
+    </ItemGroup>
+  </Target>
+</Project>

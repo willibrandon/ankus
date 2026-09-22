@@ -24,7 +24,7 @@ internal static class PostgresFixture
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
         if (options.Installation.Version.Major != 18)
         {
-            throw new InvalidOperationException("The current hand-written sample ABI requires PostgreSQL 18.");
+            throw new InvalidOperationException("This integration suite publishes the sample for PostgreSQL 18.");
         }
 
         string library = await IntegrationEnvironment.PublishSampleAsync(context.CancellationToken);
@@ -33,15 +33,15 @@ internal static class PostgresFixture
         {
             await using NpgsqlConnection connection = await Cluster.OpenConnectionAsync(context.CancellationToken);
             string libraryLiteral = library.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
-            string sql = $$"""
+            string generatedSql = await File.ReadAllTextAsync(Path.ChangeExtension(library, ".sql"), context.CancellationToken);
+            generatedSql = generatedSql.Replace("MODULE_PATHNAME", libraryLiteral, StringComparison.Ordinal);
+            string sql = """
                 CREATE SCHEMA tests;
-                CREATE FUNCTION public.ankus_add(integer, integer) RETURNS integer
-                    AS '{{libraryLiteral}}', 'add_wrapper' LANGUAGE c IMMUTABLE STRICT;
                 CREATE TABLE tests.rollback_probe (value integer NOT NULL);
                 CREATE FUNCTION tests.insert_probe() RETURNS void LANGUAGE sql AS
                     'INSERT INTO tests.rollback_probe VALUES (42)';
                 CREATE FUNCTION tests.fail_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1 / 0';
-                """;
+                """ + generatedSql;
             await using var command = new NpgsqlCommand(sql, connection);
             await command.ExecuteNonQueryAsync(context.CancellationToken);
         }

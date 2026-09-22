@@ -18,7 +18,8 @@ Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that
   install required on the Postgres host), built with `PublishAot`.
 - **Multi-version**: one C# codebase targeting PostgreSQL 13–18 (+19 beta), matching
   pgrx's supported versions. Only PostgreSQL 18 on Linux x64 has been exercised so far.
-- **Developer experience** modeled on `cargo pgrx`: `ankus new / build / schema / test / run / package`.
+- **Developer experience**: ordinary .NET projects, source generators, `dotnet publish`, and `dotnet test`,
+  with development tooling corresponding to `cargo pgrx`.
 
 ## Environment
 
@@ -31,12 +32,23 @@ Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that
 
 ## Current verified milestone
 
-- `Ankus.slnx` contains the native sample, PostgreSQL discovery, test infrastructure,
-  ABI unit tests, discovery unit tests, and PostgreSQL integration tests.
-- **Plain `dotnet test`** is the canonical entry point: **30 passed, 0 failed, 0 skipped**
+- `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
+  PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
+- **Plain `dotnet test`** is the canonical entry point: **58 passed, 0 failed, 0 skipped**
   on Linux x64 with PostgreSQL 18.6. No environment variables or wrapper command are required.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
-  `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, and `tests/Ankus.PgConfig.Tests`.
+  `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
+  `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
+- The sample is now an ordinary `[PgFunction]`-attributed C# method. Ankus generates the
+  managed dispatcher, native entry point, module magic, finfo, integer conversion, and SQL.
+- Generated native code compiles against the discovered PostgreSQL server headers, then links
+  into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
+- Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
+  Both checked-overflow cases return SQLSTATE `38000`; rollback and subsequent queries succeed
+  on the same backend. No PostgreSQL error is raised through a managed frame on this path.
+- Generator tests cover compilable wrappers and diagnostics for unsupported signatures,
+  inaccessible/generic types, invalid SQL names, and duplicate names. Runtime tests verify
+  UTF-8 truncation, buffer guards, null termination, and a throwing exception-message accessor.
 - PostgreSQL discovery checks `~/.ankus/config.json`, Ankus-managed installations,
   PATH, and conventional Windows/Linux/macOS installation directories.
 - A local, assertion-enabled PostgreSQL 18.6 was built from the official source archive
@@ -52,11 +64,13 @@ Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that
 
 ### Work in progress
 
-The existing sample is a feasibility probe, not the intended developer experience.
-Replace its hand-written ABI/export code with a plain `[PgFunction]` method. Ankus must
-own module magic, exports, datum conversion, SQL generation, and guarded error handling.
-The generated API currently being implemented starts with synchronous integer functions.
-Full `[PgTest]` generation, extension packaging/installation, and the PG13–19 matrix remain pending.
+The generated API currently supports accessible, synchronous static methods with by-value
+`int` arguments and an `int` return value. SQL functions are strict. Generated SQL is published
+alongside the native library; the fixture currently executes it directly.
+Full `[PgTest]` generation, extension packaging/installation, more data types, guarded calls
+into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
+an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
+automatic, but prerequisite installation is currently manual.
 
 ### Local read-only reference repos (absolute paths)
 
@@ -152,9 +166,9 @@ These are requirements for the port, not claims that the full architecture exist
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | ☐ |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: strict `int` functions |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
-| `#[pg_guard]` | automatic at export boundary (always on) | ☐ |
+| `#[pg_guard]` | automatic at export boundary (always on) | Partial: managed exception → native ERROR |
 | SETOF (`SetOfIterator`) | return `IEnumerable<T>` ⇒ `RETURNS SETOF` | ☐ |
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
@@ -183,17 +197,18 @@ These are requirements for the port, not claims that the full architecture exist
 
 ## Phase plan
 
-- [ ] **P0 — Feasibility spike** *(current)*
-  - [ ] Minimal extension: `hello(text)→text`, `add(int,int)→int` hand-written `UnmanagedCallersOnly` exports
-   - [ ] Generated native magic, finfo, argument access, and guarded error reporting
+- [ ] **P0 — Feasibility spike** *(integer path verified; text remains)*
+   - [x] Minimal attributed `add(int,int)→int` extension
+   - [ ] `hello(text)→text`
+   - [x] Generated native magic, finfo, integer argument access, and managed-exception error reporting
    - [x] AOT publish and actual PostgreSQL 18 integer-function invocation
-  - [ ] Error path: C# exception ⇒ Postgres `ERROR`, transaction aborts cleanly, backend survives
+   - [x] Error path: C# exception ⇒ Postgres `ERROR`, transaction aborts cleanly, backend survives
 - [ ] **P1 — Runtime core**
   - [ ] `Ankus.Runtime`: `FunctionCallInfo` reader, `Datum`/`Value`, varlena/detoast, type conversion table
   - [ ] `Ankus.PgSys`: symbol resolution (`dlopen(NULL)`+`dlsym`), P/Invoke surface (SPI, elog via shim, memory, catalog)
   - [ ] `Spi` API; `PgError`; memory contexts; `_PG_init` bootstrap
-- [ ] **P2 — Source generator** (`Ankus.Analyzers`)
-  - [ ] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
+- [ ] **P2 — Source generator** (`Ankus.Generators`)
+   - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata (integer subset)
   - [ ] `[PgSchema]`, strictness, SETOF, `T?` NULL handling, arrays
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
@@ -258,3 +273,7 @@ These are requirements for the port, not claims that the full architecture exist
   Plain `dotnet test` passes all 30 cases, including 16 real PostgreSQL integration cases.
   Provisioned an assertion-enabled local PostgreSQL 18.6 with no system package changes.
   User clarified that minimal samples must contain user functions, with framework plumbing generated by Ankus.
+- 2026-09-22 — Committed the validated baseline to `main` as `c819160`.
+  Replaced the handwritten sample with `[PgFunction]`, a Roslyn incremental generator,
+  metadata-only artifact extraction, and a native error boundary linked into the AOT image.
+  Plain `dotnet test`: 58 passed, including 16 real PostgreSQL integration cases.

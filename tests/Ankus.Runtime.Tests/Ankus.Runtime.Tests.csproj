@@ -1,0 +1,10 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
+    <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Ankus.Runtime/Ankus.Runtime.csproj" />
+  </ItemGroup>
+</Project>

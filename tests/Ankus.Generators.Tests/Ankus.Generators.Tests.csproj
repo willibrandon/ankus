@@ -1,0 +1,11 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
+    <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <ProjectReference Include="../../src/Ankus.Generators/Ankus.Generators.csproj" />
+    <ProjectReference Include="../../src/Ankus.Runtime/Ankus.Runtime.csproj" />
+  </ItemGroup>
+</Project>

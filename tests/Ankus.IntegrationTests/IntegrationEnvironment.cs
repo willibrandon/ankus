@@ -29,7 +29,7 @@ internal static class IntegrationEnvironment
     }
 
     /// <summary>
-    /// Creates cluster settings using a configured local installation and optional relocated shared-data directory.
+    /// Creates cluster settings using an automatically discovered local installation.
     /// </summary>
     /// <param name="cancellationToken">Cancels PostgreSQL discovery.</param>
     /// <returns>The cluster settings for this environment.</returns>
