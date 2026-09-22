@@ -41,6 +41,12 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("[Ankus.PgFunction] public static string? Echo(string? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static byte[] Echo(byte[] value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static byte[]? Echo(byte[]? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.Guid Echo(System.Guid value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.Guid? Echo(System.Guid? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgJson Echo(Ankus.PgJson value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgJson? Echo(Ankus.PgJson? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb Echo(Ankus.PgJsonb value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb? Echo(Ankus.PgJsonb? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static void Nothing() { }", "nothing")]
     public void SupportedFunctionsCompile(string method, string sqlName)
     {
@@ -69,7 +75,7 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("public int Instance() => 1;")]
     [DataRow("private static int Hidden() => 1;")]
     [DataRow("public static decimal WrongResult() => 1;")]
-    [DataRow("public static int WrongArgument(System.Guid value) => 1;")]
+    [DataRow("public static int WrongArgument(System.Uri value) => 1;")]
     [DataRow("public static int ByReference(ref int value) => value;")]
     [DataRow("public static int Generic<T>() => 1;")]
     [DataRow("public static async void Unobserved() { await System.Threading.Tasks.Task.Yield(); }")]

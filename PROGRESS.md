@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **313 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **368 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 233 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 265 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -69,6 +69,12 @@ Linux, and macOS.
   typed NULLs, owned result rows, column names/OIDs, domains over supported base types, read-only execution,
   and row limits. Scalar materialization does not truncate command writes. Tests exercise conversion-error
   rollback, results surviving subsequent SPI calls, parameter binding, and empty/zero-column results.
+- `Guid`, `PgJson`, and `PgJsonb` map to `uuid`, `json`, and `jsonb` in generated function signatures
+  and all typed SPI paths. UUID transport uses explicit network byte order. JSON wrappers own exact or
+  server-normalized text, preserve numeric precision, distinguish SQL/JSON null, and expose disposable DOMs
+  plus `JsonTypeInfo<T>` serialization. Native AOT tests exercise source-generated contracts containing
+  nested wrappers, domain conversion, packed/compressed/external values, deep JSON, LATIN1 encoding,
+  and guarded recovery from invalid syntax, jsonb Unicode restrictions, and numeric overflow.
 - `Spi.Prepare` creates explicitly disposable `SpiPreparedStatement` instances using declared CLR parameter
   types and native `SPI_keepplan`. Tests verify reuse across callbacks and committed/rolled-back transactions,
   schema/search-path invalidation, argument validation, recursive execution, reentrant-disposal rejection,
@@ -132,10 +138,26 @@ Native lifecycle references are PostgreSQL `executor/spi.c` and `utils/cache/pla
 | Plan invalidation and cursor lifetime | Session-owned saved plans; independent portal ownership | `SpiSessionTests.SessionOperationsPreserveScopeAndResults` (`session_replan`, `session_cursor`) |
 | Failure, cancellation, and thread-affinity cleanup | Native scope cleanup and managed access guards | `SpiSessionTests.FailedCallbackClosesSessionAndPlans`, `CancellationClosesSessionAndPlans`, `WorkerThreadCannotAccessSession` |
 
+### UUID and JSON API evidence
+
+Reference surface: `pgrx/src/datum/{uuid,json}.rs` (`Uuid`, `Json`, `JsonB`, `JsonString`,
+`FromDatum`, `IntoDatum`, serialization), PostgreSQL `utils/uuid.h`, and native `json_in`,
+`jsonb_in`, `jsonb_out`. Verified on PostgreSQL 18.6 / Linux x64.
+
+| Source behavior | Ankus API/implementation | Concrete test evidence |
+|---|---|---|
+| UUID bytes and SQL representation | `Guid`, `NativeValue.ReadGuid/FromGuid`, native `pg_uuid_t` | `ExtendedDatumTests.UuidUsesNetworkByteOrder` verifies both directions independently |
+| JSON text and JSONB normalization, numeric precision, NULL | `PgJson`, `PgJsonb`, native input/output routines | `ExtendedDatumTests.ExtendedTypesSurviveEverySpiPath`, `JsonValuesPreserveTypeSemantics` |
+| Typed SPI parameters/results, domain base conversion, ownership | `SpiType`, shared typed buffer helpers | `ExtendedDatumTests.ExtendedTypesSurviveEverySpiPath`, `DomainResultsResolveBaseTypesAndOwnTheirValues` |
+| Managed parsing, equality, and validation | Owned text, independent DOM, ordinal equality/hash | `PgJsonTests.ValidTextPreservesSpellingAndOwnership`, `InvalidSyntaxIsRejected`, `NullAndInvalidUtf16AreRejected`, `DefaultNullAndTextEqualityHaveConsistentHashes` |
+| Serialization into application contracts | `Serialize/Deserialize` with `JsonTypeInfo<T>`, static wrapper converters | `ExtendedDatumTests.SourceGeneratedJsonContractsRunInsideNativeAot` |
+| Packed/TOAST/deep/encoded JSON | Native detoasting and encoding; managed depth configuration | `ExtendedDatumTests.PackedJsonValuesUseCorrectVarlenaLayout`, `ToastedJsonValuesRetainExactContent`, `DeepJsonSurvivesNativeAndManagedBoundaries`, `Latin1JsonConversionPreservesTextAndNativeErrors` |
+| Native conversion errors and recovery | Native output cleanup and guarded SPI parameter conversion | `ExtendedDatumTests.JsonFailuresPreserveTheBackend`, `JsonbParameterErrorsRecoverWithinSession` |
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
-`bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, and `byte[]`
+`bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, `byte[]`, `Guid`, `PgJson`, and `PgJsonb`
 parameters/results, their nullable forms, and `void` results. Strictness follows argument nullability.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
@@ -238,7 +260,7 @@ The target architecture consists of:
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea, nullability, overloads |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea/UUID/JSON, nullability, overloads |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | generated streaming and materialized set/table results | ☐ |
@@ -251,7 +273,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
 | `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
-| Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
+| Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea/UUID/JSON, nullable forms |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans and retention, typed results/parameters, owned/detachable cursors |
 | `PgError` | `PgException` + logging helpers | Partial: owned error diagnostics, context, objects, positions and location; logging pending |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -317,7 +339,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous scalar/text/bytea, names, overloads, inferred strictness |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous scalar/text/bytea/UUID/JSON, names, overloads, inferred strictness |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Pending |
@@ -341,13 +363,13 @@ custom-scan support remain required alongside the source-level macro inventory.
 
 | Source | Required behavior | Status |
 |---|---|---|
-| `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea transport |
+| `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Pending |
-| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB and metadata-based serialization; network, geometry and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
@@ -413,7 +435,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 313 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 368 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -520,3 +542,6 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-22 — Scoped SPI sessions, session-bound prepared plans with native invalidation registration,
   retained ownership transfer, nested-scope recovery, and connection/plan/tuple cleanup.
   `dotnet test`: 313 passed, 0 failed, 0 skipped (233 PostgreSQL integration cases).
+- 2026-09-22 — UUID and owned JSON/JSONB datum conversion across generated functions and all SPI paths,
+  source-generated JSON serialization in Native AOT, and native/managed conversion error recovery.
+  `dotnet test`: 368 passed, 0 failed, 0 skipped (265 PostgreSQL integration cases).

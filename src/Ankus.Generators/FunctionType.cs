@@ -56,7 +56,12 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Reference;
+    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb";
+
+    /// <summary>
+    /// Gets the native built-in OID macro for buffered datum conversion.
+    /// </summary>
+    internal string BufferOid => Reader.ToUpperInvariant() + "OID";
 
     /// <summary>
     /// Resolves a Roslyn type, including nullable value and reference annotations, to a SQL conversion contract.
@@ -75,6 +80,13 @@ internal sealed class FunctionType
         if (type is IArrayTypeSymbol { Rank: 1, IsSZArray: true, ElementType.SpecialType: SpecialType.System_Byte })
         {
             return new("byte[]", "bytea", "bytea", "bytea", string.Empty, nullable, reference: true);
+        }
+
+        string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name is "global::System.Guid" or "global::Ankus.PgJson" or "global::Ankus.PgJsonb")
+        {
+            string sql = name == "global::System.Guid" ? "uuid" : name == "global::Ankus.PgJson" ? "json" : "jsonb";
+            return new(name, sql, sql, sql, string.Empty, nullable, reference: false);
         }
 
         return type.SpecialType switch

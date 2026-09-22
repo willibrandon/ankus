@@ -23,9 +23,12 @@ SpiParameter optionalText = SpiParameter.Create<string?>(null);
 ```
 
 Parameters accept `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`,
-`double`, `string`, `byte[]`, and nullable forms. Text and binary parameter values
+`double`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, and nullable forms. Parameter values
 are sent separately from the SQL command. Parameterized commands contain a single
 SQL statement, as required by `SPI_execute_with_args`.
+
+See [JSON and UUID values](json-and-uuid.md) for the distinction between JSON null
+and SQL NULL and for source-generated JSON serialization.
 
 ## Scalar values
 

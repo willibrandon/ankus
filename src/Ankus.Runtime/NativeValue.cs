@@ -50,6 +50,36 @@ public unsafe struct NativeValue
     public readonly byte[] ReadBytes() => new ReadOnlySpan<byte>(_data, _length).ToArray();
 
     /// <summary>
+    /// Reads PostgreSQL's sixteen network-order UUID bytes without .NET's mixed-endian byte-array convention.
+    /// </summary>
+    /// <returns>The managed UUID.</returns>
+    public readonly Guid ReadGuid() => new(new ReadOnlySpan<byte>(_data, _length), bigEndian: true);
+
+    /// <summary>
+    /// Reads an owned JSON value from the UTF-8 transport.
+    /// </summary>
+    /// <returns>The JSON value.</returns>
+    public readonly PgJson ReadJson() => new(ReadString());
+
+    /// <summary>
+    /// Reads an owned JSONB text representation from the UTF-8 transport.
+    /// </summary>
+    /// <returns>The JSONB value.</returns>
+    public readonly PgJsonb ReadJsonb() => new(ReadString());
+
+    /// <summary>
+    /// Copies a UUID into PostgreSQL's network-order sixteen-byte representation.
+    /// </summary>
+    /// <param name="value">The managed UUID.</param>
+    /// <returns>The owned transport value.</returns>
+    public static NativeValue FromGuid(Guid value)
+    {
+        NativeValue result = Allocate(16);
+        value.TryWriteBytes(new Span<byte>(result._data, 16), bigEndian: true, out _);
+        return result;
+    }
+
+    /// <summary>
     /// Encodes a managed string into an owned UTF-8 output buffer. PostgreSQL text cannot contain a zero character.
     /// The native wrapper invokes the supplied release callback after copying or if PostgreSQL raises an error.
     /// </summary>

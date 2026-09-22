@@ -62,6 +62,8 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
 | `byte[]` | `bytea` |
+| `Guid` | `uuid` |
+| `PgJson`, `PgJsonb` | `json`, `jsonb` |
 | `void` result | `void` |
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
@@ -75,6 +77,9 @@ bytes. Native wrappers detoast compressed, external, and packed varlena inputs
 before invoking managed code. Managed exceptions return completely to native code
 before PostgreSQL raises ERROR. See [the native boundary design](docs/native-boundary.md)
 for buffer ownership and error cleanup.
+
+See [JSON and UUID values](docs/json-and-uuid.md) for JSON text ownership, document
+access, and source-generated serialization with Native AOT.
 
 ## Querying PostgreSQL
 

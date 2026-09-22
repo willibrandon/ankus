@@ -15,6 +15,8 @@ internal static class NativeBridge
         #include "varatt.h"
         #endif
         #include "utils/builtins.h"
+        #include "catalog/pg_type_d.h"
+        #include "utils/uuid.h"
         #include "mb/pg_wchar.h"
         PG_MODULE_MAGIC;
 
@@ -31,6 +33,7 @@ internal static class NativeBridge
         {
             struct varlena *detoasted;
             char *converted;
+            char *serialized;
         } AnkusInputBuffer;
 
         """;
@@ -73,6 +76,10 @@ internal static class NativeBridge
             if (owned->detoasted != NULL)
             {
                 pfree(owned->detoasted);
+            }
+            if (owned->serialized != NULL)
+            {
+                pfree(owned->serialized);
             }
         }
 

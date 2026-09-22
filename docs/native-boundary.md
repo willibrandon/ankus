@@ -15,8 +15,8 @@ native library. Extension authors write attributed C# methods.
 3. The wrapper invokes an assembly/method-specific Cdecl managed callback. The
    callback copies borrowed text and binary buffers into managed objects, invokes
    the user's method, and converts its result to the transport structure.
-4. The callback catches managed exceptions, writes a bounded diagnostic into the
-   caller-owned error buffer, and returns status. No exception crosses the ABI.
+4. The callback catches managed exceptions, fills the caller-owned error transport
+   with owned diagnostics and a bounded fallback, and returns status. No exception crosses the ABI.
 5. After managed dispatch returns, the wrapper frees temporary input buffers. If
    the callback failed, the wrapper raises PostgreSQL ERROR. `PgException` supplies
    SQLSTATE, message, detail, and hint; other exceptions use SQLSTATE `38000`.
@@ -59,6 +59,19 @@ all byte values. NULL and an empty buffer are distinct values.
 `pg_detoast_datum_packed`, `VARDATA_ANY`, and `VARSIZE_ANY_EXHDR` handle one-byte,
 four-byte, compressed, and external varlena forms. Managed code never assumes the
 input datum is aligned or has a particular header size.
+
+UUID buffers contain exactly sixteen network-order bytes. Managed `Guid` conversion
+uses the explicit `bigEndian` overloads in both directions. PostgreSQL allocates
+the final `pg_uuid_t` in its current memory context.
+
+JSON uses its original text; JSONB is detoasted with alignment preserved and
+serialized by native `jsonb_out`. Both travel as UTF-8 text in owned or borrowed
+buffers. JSONB serialization and encoding buffers are released alongside detoasted
+inputs. Managed wrappers validate and retain the text without numeric coercion.
+Native `json_in` / `jsonb_in` construct results and SPI parameter datums, enforcing
+the server's syntax, numeric, Unicode, and encoding restrictions. Result-conversion
+errors occur after managed dispatch has returned; parameter-conversion errors
+remain inside the SPI guard. Both paths release allocator-matched transport buffers.
 
 ## Managed-to-PostgreSQL calls
 

@@ -70,6 +70,21 @@ internal static class SpiType
             return 701;
         }
 
+        if (type == typeof(Guid) || type == typeof(Guid?))
+        {
+            return 2950;
+        }
+
+        if (type == typeof(PgJson) || type == typeof(PgJson?))
+        {
+            return 114;
+        }
+
+        if (type == typeof(PgJsonb) || type == typeof(PgJsonb?))
+        {
+            return 3802;
+        }
+
         throw new NotSupportedException($"SPI parameters of managed type '{type}' do not have a registered PostgreSQL conversion.");
     }
 
@@ -91,6 +106,9 @@ internal static class SpiType
         double number => new NativeValue { Integral = BitConverter.DoubleToInt64Bits(number) },
         string text => NativeValue.FromString(text),
         byte[] bytes => NativeValue.FromBytes(bytes),
+        Guid uuid => NativeValue.FromGuid(uuid),
+        PgJson json => NativeValue.FromString(json.Text),
+        PgJsonb json => NativeValue.FromString(json.Text),
         _ => throw new NotSupportedException("The SPI parameter does not have a registered PostgreSQL conversion."),
     };
 
@@ -119,6 +137,9 @@ internal static class SpiType
             26 => (uint)value.Integral,
             700 => BitConverter.Int32BitsToSingle((int)value.Integral),
             701 => BitConverter.Int64BitsToDouble(value.Integral),
+            2950 => value.ReadGuid(),
+            114 => value.ReadJson(),
+            3802 => value.ReadJsonb(),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };
     }

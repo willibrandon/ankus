@@ -144,8 +144,12 @@ internal static class NativeSpiBridge
                     memcpy(&floating, &value->integral, sizeof(floating));
                     return Float8GetDatum(floating);
                 }
-                case TEXTOID: return ankus_write_buffer(value, true);
-                case BYTEAOID: return ankus_write_buffer(value, false);
+                case TEXTOID:
+                case BYTEAOID:
+                case UUIDOID:
+                case JSONOID:
+                case JSONBOID:
+                    return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("SPI parameter type OID %u has no Ankus conversion", parameter->type_oid)));
@@ -277,10 +281,13 @@ internal static class NativeSpiBridge
                 case VARCHAROID:
                 case BPCHAROID:
                 case BYTEAOID:
+                case UUIDOID:
+                case JSONOID:
+                case JSONBOID:
                 {
                     AnkusValue input = {0};
                     AnkusInputBuffer owned = {0};
-                    ankus_read_buffer(datum, &input, &owned, type != BYTEAOID);
+                    ankus_read_typed_buffer(datum, &input, &owned, type);
                     ankus_copy_owned(value, input.data, input.length);
                     ankus_free_input(&owned);
                     break;

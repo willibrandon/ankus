@@ -56,6 +56,9 @@ internal static class PgFunctionEmitter
             {
                 "string" => slot + ".ReadString()",
                 "byte[]" => slot + ".ReadBytes()",
+                "global::System.Guid" => slot + ".ReadGuid()",
+                "global::Ankus.PgJson" => slot + ".ReadJson()",
+                "global::Ankus.PgJsonb" => slot + ".ReadJsonb()",
                 "bool" => slot + ".Integral != 0",
                 "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
                 "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
@@ -88,6 +91,9 @@ internal static class PgFunctionEmitter
             {
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
+                "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
+                "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
+                    $"            *result = global::Ankus.NativeValue.FromString({value}.Text);",
                 "bool" => $"            result->Integral = {value} ? 1 : 0;",
                 "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
                 "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",
@@ -152,9 +158,8 @@ internal static class PgFunctionEmitter
             source.AppendLine("    {");
             if (parameter.IsBuffer)
             {
-                string text = parameter.Sql == "text" ? "true" : "false";
-                source.AppendLine($"        ankus_read_buffer(PG_GETARG_DATUM({argument}),");
-                source.AppendLine($"            &arguments[{argument}], &owned[{argument}], {text});");
+                source.AppendLine($"        ankus_read_typed_buffer(PG_GETARG_DATUM({argument}),");
+                source.AppendLine($"            &arguments[{argument}], &owned[{argument}], {parameter.BufferOid});");
             }
             else if (parameter.Managed is "float" or "double")
             {
@@ -195,7 +200,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("    {");
         if (result.IsBuffer)
         {
-            source.AppendLine($"        datum = ankus_write_buffer(&result, {(result.Sql == "text" ? "true" : "false")});");
+            source.AppendLine($"        datum = ankus_write_typed_buffer(&result, {result.BufferOid});");
         }
         else if (result.Managed is "float" or "double")
         {
