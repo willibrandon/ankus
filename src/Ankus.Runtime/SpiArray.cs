@@ -110,7 +110,7 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
-        => Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
+        => PgEnumRegistry.FindArray(type)?.Convert(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
            Convert<PgRange<PgDate>>(array, type) ?? Convert<PgRange<DateOnly>>(array, type) ?? Convert<PgRange<PgTimestamp>>(array, type) ??
            Convert<PgRange<DateTime>>(array, type) ?? Convert<PgRange<PgTimestampTz>>(array, type) ?? Convert<PgRange<DateTimeOffset>>(array, type) ??
            Convert<PgPoint>(array, type) ?? Convert<PgPoint?>(array, type) ?? Convert<PgLineSegment>(array, type) ?? Convert<PgLineSegment?>(array, type) ??
@@ -138,7 +138,7 @@ internal static class SpiArray
     /// </summary>
     /// <param name="value">The vector; binary elements remain managed byte-array references.</param>
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
-    internal static IPgArray Wrap(Array value) => value switch
+    internal static IPgArray Wrap(Array value) => PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
         PgRange<int>[] items => new PgArray<PgRange<int>>(items), PgRange<long>[] items => new PgArray<PgRange<long>>(items),
         PgRange<PgNumeric>[] items => new PgArray<PgRange<PgNumeric>>(items), PgRange<decimal>[] items => new PgArray<PgRange<decimal>>(items),
@@ -196,9 +196,9 @@ internal static class SpiArray
             return typed;
         }
 
-        if (SpiType.GetOid<T>() != array.ElementOid)
+        if (PgEnumRegistry.FindArray(array.GetType()) is not null || SpiType.GetOid<T>() != array.ElementOid)
         {
-            throw new InvalidCastException($"Array element OID {array.ElementOid} cannot be read as '{typeof(T)}'.");
+            throw new InvalidCastException($"Array elements cannot be read as '{typeof(T)}'.");
         }
 
         var values = new T[array.Count];

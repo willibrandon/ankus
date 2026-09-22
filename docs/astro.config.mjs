@@ -51,6 +51,7 @@ export default defineConfig({
             { label: 'Network values', slug: 'network' },
             { label: 'Geometric values', slug: 'geometry' },
             { label: 'Ranges', slug: 'ranges' },
+            { label: 'Enumerated types', slug: 'enums' },
             { label: 'Logging and errors', slug: 'logging' },
           ],
         },

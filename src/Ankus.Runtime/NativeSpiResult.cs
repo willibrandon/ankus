@@ -67,12 +67,25 @@ internal unsafe struct NativeSpiResult
 
         IReadOnlyList<SpiColumn> metadata = Array.AsReadOnly(columns);
         var rows = new SpiRow[_rowCount];
+        EnumMapping?[]? enumMappings = null;
         for (int row = 0; row < rows.Length; row++)
         {
-            var cells = new object?[_columnCount];
+            object?[] cells = new object?[_columnCount];
             for (int column = 0; column < cells.Length; column++)
             {
-                cells[column] = SpiType.FromNative(_values[row * _columnCount + column], _columns[column]._baseTypeOid);
+                NativeValue value = _values[row * _columnCount + column];
+                uint oid = _columns[column]._baseTypeOid;
+                if (value.IsEnum && value.IsNull == 0)
+                {
+                    // Scope the lookup to this immutable result, never across queries or catalog changes.
+                    enumMappings ??= new EnumMapping?[_columnCount];
+                    EnumMapping mapping = enumMappings[column] ??= PgEnumRegistry.FindOid(oid);
+                    cells[column] = mapping.FromLabel(value.ReadString());
+                }
+                else
+                {
+                    cells[column] = SpiType.FromNative(value, oid);
+                }
             }
 
             rows[row] = new SpiRow(cells, metadata);

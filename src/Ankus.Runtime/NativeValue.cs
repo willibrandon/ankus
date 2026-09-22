@@ -15,6 +15,11 @@ public unsafe partial struct NativeValue
 {
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
+    /// <summary>
+    /// Gets whether the native value carries an enum label and its exact PostgreSQL type identity.
+    /// </summary>
+    internal readonly bool IsEnum => _auxiliary1 == -3 && _data != null;
+
     private long _integer;
     private int _auxiliary1;
     private int _auxiliary2;

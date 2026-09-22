@@ -64,6 +64,11 @@ internal sealed class FunctionType
     internal FunctionType? RangeSubtype { get; private set; }
 
     /// <summary>
+    /// Gets the generated enum contract when this is a user-defined enum scalar.
+    /// </summary>
+    internal EnumDeclaration? Enumeration { get; private set; }
+
+    /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
     /// </summary>
     internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
@@ -76,7 +81,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
+    internal bool IsBuffer => Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -178,6 +183,15 @@ internal sealed class FunctionType
             return new("global::Ankus.PgRange<" + subtype.Managed + ">", sql, sql, sql, string.Empty, nullable, reference: true)
             {
                 RangeSubtype = subtype,
+            };
+        }
+
+        if (type is INamedTypeSymbol { TypeKind: TypeKind.Enum } enumType)
+        {
+            EnumDeclaration? enumeration = EnumDeclaration.Create(enumType);
+            return enumeration is null ? null : new(enumeration.Managed, enumeration.Sql, "enum", "enum", string.Empty, nullable, reference: false)
+            {
+                Enumeration = enumeration,
             };
         }
 

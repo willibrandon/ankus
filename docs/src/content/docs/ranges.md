@@ -39,12 +39,12 @@ SELECT includes('[2024-01-01,2024-02-01)', '2024-01-15'); -- true
 Construction and inspection work without a backend:
 
 ```csharp
-var finite = PgRange.Create(1, 5);                 // [1,5)
-var closed = PgRange.Create(1, 5, upperInclusive: true);
+PgRange<int> finite = PgRange.Create(1, 5);                 // [1,5)
+PgRange<int> closed = PgRange.Create(1, 5, upperInclusive: true);
 var from = new PgRange<int>(1, null);              // [1,)
 var until = new PgRange<int>(null, 5);             // (,5)
-var all = PgRange.Unbounded<int>();               // (,)
-var empty = PgRange.Empty<int>();                 // empty
+PgRange<int> all = PgRange.Unbounded<int>();               // (,)
+PgRange<int> empty = PgRange.Empty<int>();                 // empty
 PgRange<int>? missing = null;                     // SQL NULL
 ```
 

@@ -66,6 +66,7 @@ internal static class IntegrationEnvironment
     internal static async Task<string> PublishSampleAsync(CancellationToken cancellationToken)
     {
         await PublishExtensionAsync("tests", "Ankus.TestExtension", cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Enums", cancellationToken);
         return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);
     }
 

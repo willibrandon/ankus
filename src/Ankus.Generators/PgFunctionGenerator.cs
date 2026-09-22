@@ -34,6 +34,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgFunctionAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgEnumAttribute",
+            static (node, _) => node is EnumDeclarationSyntax,
+            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<INamedTypeSymbol> schemas = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgSchemaAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
@@ -45,15 +49,15 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(functions.Collect().Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left, input.Left.Left.Left.Right,
-                input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(functions.Collect().Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
-        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory)
+        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory, ImmutableArray<INamedTypeSymbol> enumTypes)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty)
         {
             return;
         }
@@ -68,7 +72,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeGeometryTypes.Source);
             native.AppendLine(NativeExtendedTypes.Source);
             native.AppendLine(NativeTemporalTypes.Source);
+            native.AppendLine(NativeEnumBridge.Source);
             native.AppendLine(NativeSpiBridge.Source);
+            native.AppendLine(NativeEnumBridge.Operations);
             native.AppendLine(NativeRangeBridge.Source);
             native.AppendLine(NativeArrayBridge.Source);
             native.AppendLine(NativeScalarFunctions.Source);
@@ -116,6 +122,65 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         managed.AppendLine("internal static unsafe class ExtensionDispatchers");
         managed.AppendLine("{");
 
+        var enumEntities = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
+        var enumNames = new HashSet<string>(StringComparer.Ordinal);
+        if (!enumTypes.IsEmpty)
+        {
+            managed.AppendLine("    [global::System.Runtime.CompilerServices.ModuleInitializer]");
+            managed.AppendLine("    internal static void RegisterEnums()");
+            managed.AppendLine("    {");
+        }
+
+        if (!methods.IsEmpty)
+        {
+            native.AppendLine("static bool ankus_enum_supported(Oid type)");
+            native.AppendLine("{");
+            native.AppendLine("    (void) type;");
+        }
+        foreach (INamedTypeSymbol type in enumTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
+        {
+            EnumDeclaration? enumeration = EnumDeclaration.Create(type, context);
+            if (enumeration is null)
+            {
+                continue;
+            }
+
+            var entity = new SqlEntity("1:type:" + enumeration.Managed, enumeration.CreateSql(), type.Locations.FirstOrDefault());
+            graph.Configure(entity, enumeration.Attribute);
+            graph.Add(entity);
+            if (!enumNames.Add(enumeration.Sql))
+            {
+                graph.Error(entity.Location, "Duplicate PostgreSQL enum type name " + enumeration.Sql + ".");
+            }
+
+            enumEntities.Add(enumeration.Managed, entity);
+            if (enumeration.Schema is not null)
+            {
+                fixedSchema = true;
+                if (schemas.TryGetValue(enumeration.Schema, out SqlEntity? schema))
+                {
+                    entity.Dependencies.Add(schema);
+                }
+            }
+
+            enumeration.EmitRegistration(managed);
+            if (!methods.IsEmpty)
+            {
+                enumeration.EmitNativeTypeCheck(native);
+            }
+        }
+
+        if (!methods.IsEmpty)
+        {
+            native.AppendLine("    return false;");
+            native.AppendLine("}");
+        }
+
+        if (!enumTypes.IsEmpty)
+        {
+            managed.AppendLine("    }");
+        }
+
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
             if (!IsSupported(method))
@@ -150,6 +215,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
             graph.Configure(entity, method.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"));
             graph.Add(entity);
+            foreach (ITypeSymbol type in method.Parameters.Select(static parameter => parameter.Type).Concat([method.ReturnType]))
+            {
+                FunctionType contract = FunctionType.Create(type)!;
+                EnumDeclaration? enumeration = (contract.Element ?? contract).Enumeration;
+                if (enumeration is not null && enumEntities.TryGetValue(enumeration.Managed, out SqlEntity? enumEntity))
+                {
+                    entity.Dependencies.Add(enumEntity);
+                }
+            }
+
             if (declaration.Schema is not null)
             {
                 fixedSchema = true;

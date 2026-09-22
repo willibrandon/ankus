@@ -38,7 +38,7 @@ internal static class ExtensionPackage
             throw new ArgumentException("The native library must have a filename without directory components.", nameof(library));
         }
 
-        string control = $"default_version = '{version}'\nmodule_pathname = '{library}'\nrelocatable = {(relocatable ? "true" : "false")}\n";
+        string control = $"default_version = '{version}'\nmodule_pathname = '{library}'\nencoding = 'UTF8'\nrelocatable = {(relocatable ? "true" : "false")}\n";
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [name + ".control"] = control,

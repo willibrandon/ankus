@@ -132,7 +132,7 @@ public static unsafe class NativeBackend
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
-        var types = new uint[parameterTypes.Length];
+        uint[] types = new uint[parameterTypes.Length];
         var arguments = new NativeSpiParameter[parameterTypes.Length];
         for (int index = 0; index < types.Length; index++)
         {
@@ -421,6 +421,42 @@ public static unsafe class NativeBackend
     /// <returns>The detached result.</returns>
     internal static T Range<T>(RangeOperation operation, ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Range, (int)operation, parameters);
+
+    /// <summary>
+    /// Resolves an enum in a fixed or current extension schema inside the native guard.
+    /// </summary>
+    internal static uint ResolveEnum(string name, string? schema, bool missingOk)
+        => Scalar<uint>(SpiOperation.Enum, missingOk ? 1 : 0, [SpiParameter.Create(name), SpiParameter.Create(schema)]);
+
+    /// <summary>
+    /// Resolves the array OID of a live enum type inside the native guard.
+    /// </summary>
+    internal static uint EnumArrayOid(uint oid) => Scalar<uint>(SpiOperation.Enum, 2, [SpiParameter.Create(oid)]);
+
+    /// <summary>
+    /// Resolves a generated label to its pg_enum datum OID inside the native guard.
+    /// </summary>
+    internal static uint EnumValueOid(uint typeOid, string label)
+        => Scalar<uint>(SpiOperation.Enum, 3, [SpiParameter.Create(typeOid), SpiParameter.Create(label)]);
+
+    /// <summary>
+    /// Copies a pg_enum row into an owned catalog value inside the native guard.
+    /// </summary>
+    internal static PgEnumInfo EnumInfo(uint valueOid)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.Enum, _scalarOperation = 4 };
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, [SpiParameter.Create(valueOid)], &result);
+            return result._text.ReadEnumInfo(valueOid);
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
 
     private static T Scalar<T>(SpiOperation family, int operation, ReadOnlySpan<SpiParameter> parameters)
     {

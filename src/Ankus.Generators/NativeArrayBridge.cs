@@ -27,7 +27,7 @@ internal static class NativeArrayBridge
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return true;
                 default:
-                    return false;
+                    return get_typtype(type) == TYPTYPE_ENUM;
             }
         }
 
@@ -99,6 +99,7 @@ internal static class NativeArrayBridge
             value->data = (unsigned char *) buffer.data;
             value->length = buffer.len;
             value->auxiliary1 = -1;
+            value->auxiliary2 = get_typtype(base_type) == TYPTYPE_ENUM ? 1 : 0;
         }
 
         static Datum

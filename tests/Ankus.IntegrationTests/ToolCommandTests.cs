@@ -424,6 +424,38 @@ public sealed class ToolCommandTests(TestContext context)
     }
 
     /// <summary>
+    /// Enum-only package consumers publish and install both inhabited and empty enum declarations without functions.
+    /// </summary>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task EnumOnlyPackageCreatesOwnedType(bool empty)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "EnumOnly.csproj");
+        File.Copy(s_project, project);
+        await File.WriteAllTextAsync(Path.Combine(directory, "State.cs"),
+            "using Ankus; [PgEnum] public enum State { " + (empty ? string.Empty : "Ready, Complete") + " }", token);
+        string output = Path.Combine(directory, "published");
+        ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath], token);
+        result.EnsureSuccess("dotnet", ["publish"]);
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        await using var command = new NpgsqlCommand($"""
+            LOAD '{manifest.Library}';
+            CREATE EXTENSION ankus_tool_probe;
+            SELECT enum_range(NULL::state)::text[]
+            """, connection);
+        string[] expected = empty ? [] : ["Ready", "Complete"];
+        Assert.AreSequenceEqual(expected, Assert.IsInstanceOfType<string[]>(await command.ExecuteScalarAsync(token)));
+        command.CommandText = "DROP EXTENSION ankus_tool_probe; SELECT to_regtype('state') IS NULL";
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+    }
+
+    /// <summary>
     /// Publishes a package-backed extension containing only a schema declaration and verifies its ownership lifecycle.
     /// </summary>
     [TestMethod]
@@ -618,6 +650,32 @@ public sealed class ToolCommandTests(TestContext context)
         ProcessResult listing = await ProcessRunner.RunCheckedAsync("dotnet", ["sln", "Acme.HTTPProbe.slnx", "list"],
             s_environment, token, workingDirectory: output);
         Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
+
+        string styleProbe = Path.Combine(Path.GetDirectoryName(project)!, "TypeStyleProbe.cs");
+        await File.WriteAllTextAsync(styleProbe, """
+            internal static class TypeStyleProbe
+            {
+                internal static int Verify() { var number = 1; return number; }
+            }
+            """, token);
+        ProcessResult rejectedStyle = await ProcessRunner.RunAsync("dotnet", ["build", project], s_environment, token, workingDirectory: output);
+        Assert.AreNotEqual(0, rejectedStyle.ExitCode);
+        Assert.Contains("error IDE0008", rejectedStyle.StandardOutput);
+        await File.WriteAllTextAsync(styleProbe, """
+            internal static class TypeStyleProbe
+            {
+                internal static int Verify()
+                {
+                    int number = 1;
+                    var implicitApparent = new List<int>();
+                    List<int> explicitApparent = new();
+                    return number + implicitApparent.Count + explicitApparent.Count;
+                }
+            }
+            """, token);
+        ProcessResult acceptedStyle = await ProcessRunner.RunAsync("dotnet", ["build", project], s_environment, token, workingDirectory: output);
+        acceptedStyle.EnsureSuccess("dotnet", ["build"]);
+        File.Delete(styleProbe);
 
         ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-bl:generated-tests-{}.binlog"],
             s_environment, token, workingDirectory: output);

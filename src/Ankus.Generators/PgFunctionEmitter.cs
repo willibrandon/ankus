@@ -58,6 +58,7 @@ internal static class PgFunctionEmitter
                     (type.IsVector ? ".ToVector()" : string.Empty),
                 _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
                 _ when type.RangeSubtype is not null => slot + ".ReadRange<" + type.RangeSubtype.Managed + ">()",
+                _ when type.Enumeration is not null => "global::Ankus.PgEnums.Parse<" + type.Managed + ">(" + slot + ".ReadString())",
                 "string" => slot + ".ReadString()",
                 "byte[]" => slot + ".ReadBytes()",
                 "global::System.Guid" => slot + ".ReadGuid()",
@@ -87,7 +88,7 @@ internal static class PgFunctionEmitter
         }
         else
         {
-            source.AppendLine($"            var value = {invocation};");
+            source.AppendLine($"            {result.Managed}{(result.Nullable ? "?" : string.Empty)} value = {invocation};");
             bool canBeNull = result.Nullable || result.Reference;
             string value = result.Nullable && !result.Reference ? "value.Value" : "value";
             if (canBeNull)
@@ -109,6 +110,7 @@ internal static class PgFunctionEmitter
                     (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
                 _ when result.GeometryName.Length != 0 => $"            *result = global::Ankus.NativeValue.From{result.GeometryName}({value});",
                 _ when result.RangeSubtype is not null => $"            *result = global::Ankus.NativeValue.FromRange({value});",
+                _ when result.Enumeration is not null => $"            *result = global::Ankus.NativeValue.FromString(global::Ankus.PgEnums.GetLabel({value}));",
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
@@ -159,6 +161,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("    AnkusValue result = {0};");
         source.AppendLine("    AnkusError error = {0};");
         source.AppendLine("    int status;");
+        source.AppendLine("    Oid previous_function;");
         source.AppendLine("    volatile Datum datum = (Datum) 0;");
         source.AppendLine($"    if (PG_NARGS() != {count})");
         source.AppendLine("    {");
@@ -190,6 +193,10 @@ internal static class PgFunctionEmitter
             {
                 source.AppendLine($"        ankus_read_range(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
+            else if (parameter.Enumeration is not null)
+            {
+                source.AppendLine($"        ankus_read_enum(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+            }
             else if (parameter.IsTemporal)
             {
                 source.AppendLine(
@@ -218,7 +225,10 @@ internal static class PgFunctionEmitter
             source.AppendLine("    }");
         }
 
+        source.AppendLine("    previous_function = ankus_function_oid;");
+        source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
         source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute);");
+        source.AppendLine("    ankus_function_oid = previous_function;");
         if (hasBuffers)
         {
             for (int index = 0; index < parameters.Length; index++)
@@ -239,11 +249,15 @@ internal static class PgFunctionEmitter
         source.AppendLine("    {");
         if (result.Element is not null)
         {
-            source.AppendLine($"        datum = ankus_write_array(&result, {result.Element.ScalarOid});");
+            source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
         }
         else if (result.RangeSubtype is not null)
         {
             source.AppendLine($"        datum = ankus_write_range(&result, {result.BufferOid});");
+        }
+        else if (result.Enumeration is not null)
+        {
+            source.AppendLine("        datum = ankus_write_enum(&result, get_func_rettype(fcinfo->flinfo->fn_oid));");
         }
         else if (result.IsTemporal)
         {

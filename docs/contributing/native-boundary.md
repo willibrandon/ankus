@@ -354,3 +354,27 @@ as constants. `DetailLog` stays separate from client-visible `Detail`.
 - `tests/Ankus.IntegrationTests/SpiSessionTests.cs`: nested connections, scoped/retained plans, and failure cleanup.
 - `tests/Ankus.IntegrationTests/PgDiagnosticTests.cs`: native/managed diagnostics and encoding/rethrow tests.
 - `tests/Ankus.Runtime.Tests/NativeDiagnosticTests.cs`: optional values, emergency fallback, and transport cleanup.
+
+## Enum datums
+
+Generated enum module initializers register closed scalar/nullable/array
+conversions without reflecting over members. Managed values carry C# enum
+identity; native transport carries exact UTF-8 labels. PostgreSQL `enum_in` and
+`enum_out` perform label/OID conversion, including visibility checks on newly
+added labels. C# numeric values are never interpreted as stored enum OIDs.
+
+The native dispatcher saves and restores the current function OID around each
+managed callback. Guarded enum resolution finds fixed schema names or the owning
+extension's current catalog namespace, with a function-namespace fallback for
+functions installed outside an extension. Recursive calls restore the enclosing
+function identity. Lookups are not cached across queries or DDL; materializing
+one immutable SPI result may reuse its resolved mapping per column.
+
+Catalog inspection copies labels, type/value OIDs and sort positions before
+releasing native storage. SPI results, array elements and function results share
+the enum converters. Managed array conversion checks exact CLR enum identity
+before primitive-array patterns, because the CLR permits casts between some enum
+arrays and arrays of their underlying integer type.
+
+Generated installation SQL is UTF-8. Control files declare `encoding = 'UTF8'`
+so PostgreSQL transcodes labels, names and custom SQL for the target database.

@@ -102,3 +102,17 @@ It creates a version-matched solution with CPM and native MTP discovery. The
 package tests run the generated solution's `dotnet test` outside the checkout,
 then change an extension function and verify its backend test fails. The same
 tests check keyword namespaces, path handling, and preservation of existing files.
+
+## C# type style
+
+Ankus follows the `dotnet/runtime` and `dotnet/msbuild` convention: use explicit
+local types when the right-hand side does not name the type. Built-in values and
+non-apparent results are enforced as IDE0008 errors through `.editorconfig` and
+`EnforceCodeStyleInBuild`. A constructor or explicit cast that names its type
+permits either `var` or an explicit declaration; IDE0007 does not force `var`.
+Roslyn's own repository generally prefers `var`, so its type-style rules are not
+the convention used here.
+
+The same options are included in `ankus new` projects. The installed-tool tests
+verify that an implicit built-in declaration fails the build and that both forms
+of an apparent constructor declaration compile.

@@ -76,6 +76,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTime`, `PgTimestamp` | `timestamp` |
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
+| `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `void` result | `void` |
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
@@ -97,6 +98,11 @@ for buffer ownership and error cleanup.
 
 See [JSON and UUID values](docs/src/content/docs/json-and-uuid.md) for JSON text ownership, document
 access, and source-generated serialization with Native AOT.
+
+Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,
+including nullable values, arrays, typed SPI queries and schema dependencies.
+See [enumerated types](docs/src/content/docs/enums.md) and the
+[enum sample](samples/Ankus.Examples.Enums/DeliveryFunctions.cs).
 
 ## Querying PostgreSQL
 

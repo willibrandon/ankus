@@ -54,6 +54,8 @@ C# parameter names also use snake case in SQL, and optional arguments become
 SQL defaults. See [function declarations](/function-declarations/) for named
 calls, schema placement, and PostgreSQL execution options.
 
+See [enumerated types](/enums/) for custom C# enums, labels and type dependencies.
+
 ## Types
 
 | C# | PostgreSQL |
@@ -81,6 +83,7 @@ calls, schema placement, and PostgreSQL execution options.
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `T[]`, `PgArray<T>` | Array of the corresponding scalar SQL type |
+| `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `void` result | `void` |
 
 Text and binary inputs are managed copies. They remain valid after PostgreSQL

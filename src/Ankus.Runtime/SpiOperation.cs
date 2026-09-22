@@ -119,4 +119,8 @@ internal enum SpiOperation : byte
     /// Calls allowlisted range routines without opening an SPI connection.
     /// </summary>
     Range,
+    /// <summary>
+    /// Resolves live enum catalog identities without opening an SPI connection.
+    /// </summary>
+    Enum,
 }

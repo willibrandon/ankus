@@ -17,6 +17,12 @@ internal static class ParameterDefault
     internal static string? Create(IParameterSymbol parameter, FunctionType type)
     {
         object? value = parameter.ExplicitDefaultValue;
+        if (type.Enumeration is { } enumeration && value is not null)
+        {
+            (IFieldSymbol Field, string Label) member = enumeration.Labels.FirstOrDefault(item => Equals(item.Field.ConstantValue, value));
+            return member.Field is null ? null : SqlText.Literal(member.Label) + "::" + type.Sql;
+        }
+
         if (value is null)
         {
             if (type.Nullable || type.Reference)

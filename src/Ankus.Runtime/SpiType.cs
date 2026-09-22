@@ -166,6 +166,18 @@ internal static class SpiType
             return 1186;
         }
 
+        EnumMapping? enumeration = PgEnumRegistry.Find(type);
+        if (enumeration is not null)
+        {
+            return enumeration.GetOid();
+        }
+
+        enumeration = PgEnumRegistry.FindArray(type);
+        if (enumeration is not null)
+        {
+            return enumeration.GetArrayOid();
+        }
+
         uint rangeOid = SpiRange.GetOid(type);
         if (rangeOid != 0)
         {
@@ -193,6 +205,7 @@ internal static class SpiType
         float number => new NativeValue { Integral = BitConverter.SingleToInt32Bits(number) },
         double number => new NativeValue { Integral = BitConverter.DoubleToInt64Bits(number) },
         string text => NativeValue.FromString(text),
+        Array array when PgEnumRegistry.FindArray(array.GetType()) is { } mapping => NativeValue.FromArray(mapping.Wrap(array)),
         byte[] bytes => NativeValue.FromBytes(bytes),
         Guid uuid => NativeValue.FromGuid(uuid),
         PgInet address => NativeValue.FromInet(address),
@@ -221,6 +234,7 @@ internal static class SpiType
         DateTime timestamp => NativeValue.FromTimestamp(PgTimestamp.FromDateTime(timestamp)),
         DateTimeOffset timestamp => NativeValue.FromTimestampTz(PgTimestampTz.FromDateTimeOffset(timestamp)),
         TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
+        Enum enumeration => NativeValue.FromString(PgEnumRegistry.Require(enumeration.GetType()).ToLabel(enumeration)),
         IPgArray array => NativeValue.FromArray(array),
         IPgRange range => NativeValue.FromRange(range),
         Array array => NativeValue.FromArray(SpiArray.Wrap(array)),
@@ -278,6 +292,7 @@ internal static class SpiType
             1184 => value.ReadTimestampTz(),
             1186 => value.ReadInterval(),
             _ when value.IsArray => value.ReadArray(),
+            _ when value.IsEnum => PgEnumRegistry.FindOid(oid).FromLabel(value.ReadString()),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };
     }

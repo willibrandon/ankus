@@ -107,3 +107,11 @@ moving to a different installation schema:
 Every custom block must permit relocation, and fixed `PgSchema` or function
 schema declarations still make the extension non-relocatable. Ankus writes
 the resulting policy into the extension control file.
+
+## Enum type dependencies
+
+`[PgEnum(Id = "status-type")]` makes an enum available as a named dependency.
+Use `Requires = new[] { "status-type" }` on SQL that creates tables or other
+objects using it. Function signatures automatically depend on their enum types,
+including array parameters and results. Enums can also declare `Requires` for
+SQL or schema prerequisites. See [enumerated types](/enums/).

@@ -38,7 +38,7 @@ internal sealed class ExtensionManifest
     /// <returns>The extension manifest.</returns>
     internal static ExtensionManifest Read(string assemblyPath)
     {
-        using var stream = File.OpenRead(assemblyPath);
+        using FileStream stream = File.OpenRead(assemblyPath);
         using var pe = new PEReader(stream);
         MetadataReader reader = pe.GetMetadataReader();
         var manifest = new ExtensionManifest();

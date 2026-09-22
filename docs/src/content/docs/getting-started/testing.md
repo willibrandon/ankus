@@ -25,7 +25,7 @@ fail initialization; tests are never silently skipped.
 in the `Ankus.Testing` package:
 
 ```csharp
-await using var extension = await PostgresExtensionTest.StartAsync(
+await using PostgresExtensionTest extension = await PostgresExtensionTest.StartAsync(
     projectPath, cancellationToken: context.CancellationToken);
 
 await extension.Cluster.RunInTransactionAsync("addition", async (connection, transaction, token) =>

@@ -23,7 +23,7 @@ public unsafe partial struct NativeValue
             throw new InvalidCastException($"Array element OID {oid} cannot be read as '{typeof(T)}'.");
         }
 
-        return ReadArrayData<T>(oid);
+        return ReadArrayData<T>(oid, PgEnumRegistry.Find(typeof(T)));
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public unsafe partial struct NativeValue
         var buffer = new ArrayBufferWriter<byte>();
         WriteInt(buffer, value.Lengths.Length);
         WriteInt(buffer, value.Count);
-        WriteInt(buffer, checked((int)value.ElementOid));
+        WriteInt(buffer, unchecked((int)value.ElementOid));
         for (int index = 0; index < value.Lengths.Length; index++)
         {
             WriteInt(buffer, value.Lengths[index]);
@@ -80,6 +80,7 @@ public unsafe partial struct NativeValue
 
         NativeValue result = FromBytes(buffer.WrittenSpan);
         result._auxiliary1 = -1;
+        result._auxiliary2 = PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
         return result;
     }
 
@@ -92,11 +93,21 @@ public unsafe partial struct NativeValue
 
         uint oid = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(_data + 8, 4));
         oid = oid is 1042 or 1043 ? 25 : oid;
-        _ = SpiArray.ArrayOid(oid);
+        if (_auxiliary2 == 0)
+        {
+            _ = SpiArray.ArrayOid(oid);
+        }
+        else if (_auxiliary2 != 1)
+        {
+            throw new InvalidOperationException("Invalid array element conversion discriminator.");
+        }
         return oid;
     }
 
-    private readonly PgArray<T> ReadArrayData<T>(uint oid)
+    /// <summary>
+    /// Decodes validated array elements using one resolved enum mapping when applicable.
+    /// </summary>
+    internal readonly PgArray<T> ReadArrayData<T>(uint oid, EnumMapping? enumeration = null)
     {
         ReadOnlySpan<byte> data = new(_data, _length);
         int rank = BinaryPrimitives.ReadInt32BigEndian(data);
@@ -106,8 +117,8 @@ public unsafe partial struct NativeValue
             throw new InvalidOperationException("Invalid native array shape or element count.");
         }
 
-        var lengths = new int[rank];
-        var bounds = new int[rank];
+        int[] lengths = new int[rank];
+        int[] bounds = new int[rank];
         int offset = 12;
         for (int index = 0; index < rank; index++, offset += 8)
         {
@@ -147,7 +158,8 @@ public unsafe partial struct NativeValue
                 _length = length,
                 _data = _data + offset + 28,
             };
-            values[index] = SpiRow.Convert<T>(SpiType.FromNative(item, oid));
+            values[index] = SpiRow.Convert<T>(enumeration is null ? SpiType.FromNative(item, oid) :
+                item.IsNull != 0 ? null : enumeration.FromLabel(item.ReadString()));
             offset += 28 + length;
         }
 
@@ -182,7 +194,7 @@ public unsafe partial struct NativeValue
             3904 => ReadArrayData<PgRange<int>>(oid), 3926 => ReadArrayData<PgRange<long>>(oid),
             3906 => ReadArrayData<PgRange<PgNumeric>>(oid), 3912 => ReadArrayData<PgRange<PgDate>>(oid),
             3908 => ReadArrayData<PgRange<PgTimestamp>>(oid), 3910 => ReadArrayData<PgRange<PgTimestampTz>>(oid),
-            _ => throw new NotSupportedException($"Array element OID {oid} has no managed conversion."),
+            _ => PgEnumRegistry.FindOid(oid).ReadArray(this, oid),
         };
     }
 

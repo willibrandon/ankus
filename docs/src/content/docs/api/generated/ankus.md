@@ -11,6 +11,10 @@ Assembly: `Ankus.Runtime.dll`
 
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgDiagnostic](/api/ankus.pgdiagnostic/)
+- [PgEnumAttribute](/api/ankus.pgenumattribute/)
+- [PgEnumInfo](/api/ankus.pgenuminfo/)
+- [PgEnumLabelAttribute](/api/ankus.pgenumlabelattribute/)
+- [PgEnums](/api/ankus.pgenums/)
 - [PgException](/api/ankus.pgexception/)
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
 - [PgLog](/api/ankus.pglog/)

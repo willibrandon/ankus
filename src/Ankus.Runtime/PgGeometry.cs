@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text;
 
 namespace Ankus;
@@ -72,7 +72,7 @@ internal static class PgGeometry
     /// <returns>The PostgreSQL geometry text.</returns>
     internal static string FormatPoints(ReadOnlySpan<PgPoint> points, char open, char close)
     {
-        var text = new StringBuilder().Append(open);
+        StringBuilder text = new StringBuilder().Append(open);
         for (int index = 0; index < points.Length; index++)
         {
             if (index != 0)

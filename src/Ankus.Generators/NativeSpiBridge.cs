@@ -45,7 +45,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_NUMERIC,
             ANKUS_SPI_NETWORK,
             ANKUS_SPI_GEOMETRY,
-            ANKUS_SPI_RANGE
+            ANKUS_SPI_RANGE,
+            ANKUS_SPI_ENUM
         };
 
         typedef struct AnkusRequest
@@ -187,6 +188,8 @@ internal static class NativeSpiBridge
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
+                    if (get_typtype(parameter->type_oid) == TYPTYPE_ENUM)
+                        return ankus_write_enum(value, parameter->type_oid);
                     if (OidIsValid(get_element_type(parameter->type_oid)))
                     {
                         return ankus_write_array(value, get_element_type(parameter->type_oid));
@@ -346,6 +349,11 @@ internal static class NativeSpiBridge
                     ankus_read_typed_buffer(datum, value, owned, type);
                     break;
                 default:
+                    if (get_typtype(type) == TYPTYPE_ENUM)
+                    {
+                        ankus_read_enum(datum, value, owned);
+                        break;
+                    }
                     if (OidIsValid(get_element_type(type)))
                     {
                         ankus_read_array(datum, value, owned);
@@ -378,6 +386,7 @@ internal static class NativeSpiBridge
             Size count;
             uint64 rows;
             int columns;
+            bool *validated;
             if (SPI_tuptable == NULL)
             {
                 return;
@@ -392,6 +401,7 @@ internal static class NativeSpiBridge
             result->row_count = (int32) rows;
             result->column_count = columns;
             count = (Size) result->row_count * result->column_count;
+            validated = palloc0(sizeof(bool) * Max(result->column_count, 1));
             result->columns = calloc(Max(result->column_count, 1), sizeof(AnkusColumn));
             result->values = calloc(Max(count, 1), sizeof(AnkusValue));
             if (result->columns == NULL || result->values == NULL)
@@ -421,6 +431,11 @@ internal static class NativeSpiBridge
                     value->is_null = is_null;
                     if (!is_null)
                     {
+                        if (!validated[column])
+                        {
+                            ankus_check_result_enum(result->columns[column].base_type_oid);
+                            validated[column] = true;
+                        }
                         ankus_result_value(datum, result->columns[column].base_type_oid, value);
                     }
                 }

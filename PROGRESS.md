@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1422 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1552 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -54,6 +54,10 @@ Linux, and macOS.
   zero warnings/errors, and plain `dotnet test` still passes all 995 cases, including installed-package and generated-solution tests.
 - XML summary tags use separate opening, text, and closing lines. CA1000 is an error in the repository and generated
   extension projects; generic types do not expose static members.
+- Local type declarations follow the read-only `runtime`/`msbuild` references: IDE0008 errors require explicit
+  built-in and non-apparent types; constructors/casts that name their type permit either spelling. The same
+  `.editorconfig` rules ship in `ankus new`; an installed-tool consumer verifies rejection and acceptance by building.
+  `AGENTS.md` records repository conventions and read-only reference names without personal paths.
 - Internal declarations also carry XML documentation. A Roslyn scan across sources, tests, samples and bundled
   templates found 101 omissions; all are documented, including enum members and internal interface contracts.
   The follow-up scan reports zero omissions. Private declarations are outside that scan's scope.
@@ -79,6 +83,10 @@ Linux, and macOS.
   and unbounded ends. It supports full-range PostgreSQL values and checked .NET aliases, scalar/array function
   signatures and typed SPI. PostgreSQL performs canonicalization, parsing, formatting, containment, adjacency,
   overlap, union, intersection, difference and merge through guarded native calls.
+- `[PgEnum]`/`[PgEnumLabel]` generate ordered PostgreSQL types, exact label mappings, schema/type/function
+  dependencies and Native AOT conversions for scalars, nullable values, vectors and shaped arrays. `PgEnums`
+  resolves current type/value OIDs and returns owned catalog metadata without retaining identities across DDL.
+  The enum sample exercises extension relocation/reinstallation; installation scripts declare UTF-8 encoding.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -97,7 +105,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1047 integration cases include range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1087 integration cases include enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -343,7 +351,7 @@ inside the host integration case.
 References: `pgrx/src/datum/array.rs` (`Array`, `VariadicArray`, iteration and NULL handling),
 `pgrx/src/array/`, and PostgreSQL `utils/adt/{arrayfuncs,arrayutils}.c`. These cases run on PostgreSQL 18.6/Linux x64.
 The public owned-array API is implemented; raw borrowed array views, polymorphic arrays and arrays of future
-custom/composite/enum types remain part of the wider port.
+custom/composite types remain part of the wider port; generated enum elements are implemented below.
 
 | Requirement | Implementation | Concrete test evidence |
 |---|---|---|
@@ -493,11 +501,40 @@ Evidence: `artifacts/range-{runtime,generators,backend}-output.txt` records 18 d
 Documentation build, type checking and API freshness pass in
 `artifacts/range-{docs-build,docs-check,api-check}-output.txt`; 56 API pages document 772 members.
 
+### Enum value evidence
+
+References: `pgrx/src/enum_helper.rs`, the `PostgresEnum` derive and enum SQL entities,
+`pgrx-unit-tests/src/tests/enum_type_tests.rs`, and PostgreSQL `enum.c`/`pg_enum` catalogs.
+Generated module initialization registers closed generic mappings without reflection or backend access.
+SQL declaration order determines PostgreSQL ordering; C# numeric values remain independent.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Exact labels, integral widths, unknown values and detached ownership | `PgEnum`, `PgEnumLabel`, `PgEnums`, generated registration | `PgEnumTests` checks case/empty/escaped labels, signed/unsigned extrema, undefined values, copied registration, failure atomicity and worker-thread reads; `EnumModuleInitializerRegistersExactClosedConversions` executes the generated initializer |
+| Schema/type/function ordering and valid SQL contracts | `EnumDeclaration`, SQL graph edges, `ANKUS006` diagnostics | `PgEnumGenerationTests` compiles scalar/nullable/vector/shaped/variadic signatures, verifies defaults and all eight underlying types, byte-length/Unicode boundaries, flags/alias/access rejection, real dependency cycles and deterministic DDL |
+| SQL label order independent of numbers, defaults, variadics and ownership | Generated enum and function DDL | `EnumDeclarationOrderAndValuesAreIndependent` checks `pg_enum`, extension membership, numeric values, defaults and variadic execution |
+| Type identity, NULLs, dimensions, bounds and every SPI lifetime | Closed enum scalar/array mappings and owned label transport | `EnumOwnershipPathsPreserveIdentity` compares native binary sends across eight paths; detached tests reject foreign/underlying enum-array casts and distinguish byte-backed enums from bytea |
+| Domains and large toasted arrays | Native base-type resolution and detoast ownership | `EnumDomainsRetainBaseTypeAndShape`, `EnumToastedArraysRemainOwned` cover enum/array/element domains and 10,000-element EXTENDED/EXTERNAL arrays |
+| Fresh OIDs, relocation, search-path independence and non-extension functions | Active function identity, live extension/schema lookup, no process-global OID cache | `EnumTypeRecreationUsesFreshCatalogIdentities`, `EnumExtensionRelocationAndReinstallationFollowCatalogIdentity` verify new scalar/array OIDs, relocated and reinstalled samples, shadow types and function-namespace fallback |
+| Live enum catalog metadata and transaction visibility | Guarded type/value OID lookup and owned `PgEnumInfo` | `EnumCatalogHelpersMatchPostgresEntries` checks label/type/value/sort order, fractional sort positions, unmapped catalog enums, multiple columns/rows with leading NULLs, mixed interval/range values and recursive callbacks; `EnumUncommittedLabelsRetainPostgresSafetyChecks` verifies SQLSTATE 55P04 |
+| Missing schemas/types, wrong type kind, rename and native failures | Optional registry scans, native subtransactions and output cleanup | `EnumCatalogLookupRejectsMissingAndNonEnumTypes`, `EnumMissingFixedSchemaDoesNotPoisonOtherMappings`, `EnumNativeOutputAndCatalogErrorsRecover`, `EnumFailuresRecoverOnTheSameBackend` assert SQLSTATEs and same-session recovery; the existing unsupported-result test still proves command rollback |
+| Prior writes, retained plans, managed finally and native context cleanup | Shared guarded backend boundary | `EnumGuardedRecoveryPreservesStateAndCleansContexts` pins 40 successful probes, 20 finally executions, two retained writes and zero extra contexts |
+| Non-UTF8 databases, labels and identifiers | UTF-8 installation control metadata and native label/name transcoding | `EnumLatin1LabelsUseServerEncoding` installs into LATIN1 and verifies exact labels plus Unicode type/schema names |
+| Enum-only and empty extensions with package-only AOT builds | Standalone enum DDL and magic-only native emission | `ToolCommandTests.EnumOnlyPackageCreatesOwnedType` publishes, explicitly loads, installs, checks labels and verifies DROP ownership for inhabited/empty enum declarations |
+
+This milestone adds 18 runtime, 72 generator and 40 backend/package cases. The full suite passes
+1552 cases without failures/skips, and the Release build has zero warnings/errors. A Roslyn scan finds
+zero missing XML comments among 493 internal declarations. The enum guide, native-boundary notes and
+generated API reference pass site build/type/freshness checks; 60 API pages document 796 members.
+Evidence is retained under `.git/testagent/enums/`: `full-tests-final.log`, `release-build.log`,
+`internal-docs.log`, `docs-build.log`, `docs-check.log`, `api-check.log`, and the bounded review/status notes.
+Validation remains PostgreSQL 18.6/Linux x64; the full version/platform matrix is still required.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
-the .NET/full-range PostgreSQL temporal types, network/geometric values and typed ranges. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
+the .NET/full-range PostgreSQL temporal types, network/geometric values, typed ranges and generated enums. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
 Custom installation SQL strings/files and generated declarations share a dependency-ordered graph.
@@ -524,6 +561,8 @@ Prerequisite installation is currently manual.
   `src/include/utils/elog.h`.
 - **runtime** → `/home/brandon/src/runtime` — .NET runtime source (Native AOT: `src/coreclr/nativeaot/`, PAL: `src/coreclr/pal/src/`).
 - **roslyn** → `/home/brandon/src/roslyn` — compiler source (function-pointer grammar, source generators).
+- **msbuild** → `/home/brandon/src/msbuild` — build conventions and type-style rules, compared with `runtime`.
+- **sdk** → `/home/brandon/src/sdk` — .NET SDK and CLI conventions.
 
 ## Key research findings (verified)
 
@@ -615,7 +654,7 @@ The target architecture consists of:
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
 | `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
-| `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
+| `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea/UUID/JSON, nullable forms |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
@@ -705,7 +744,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Pending |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
-| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/function graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; type graph, translation hooks and standalone extraction pending |
+| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
 `merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event triggers and full
@@ -717,13 +756,13 @@ custom-scan support remain required alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar types, with shape/subscripts/NULL handling and C# params variadics. Raw borrowed views and future custom/composite/enum elements pending |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum types, with shape/subscripts/NULL handling and C# params variadics. Raw borrowed views and future custom/composite elements pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
-| `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
+| `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; future composite/custom containers and matrix validation remain part of those features |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
 | `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
@@ -770,7 +809,7 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The minimal `samples/Ankus.Examples.Hello` sample is validated. Full example parity is pending.
+The `samples/Ankus.Examples.Hello` and `samples/Ankus.Examples.Enums` samples are validated. Full example parity is pending.
 
 Required test-source inventory:
 
@@ -839,7 +878,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [ ] triggers, event triggers, aggregates, operators, casts, `ExtensionSql`
-  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites, enums
+  - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
+  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites
   - [ ] GUC options; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
@@ -1054,3 +1094,12 @@ The phases track implementation of the complete pgrx feature surface.
   The range guide, native-boundary notes and generated API pages pass site build/type/freshness checks;
   56 API pages document 772 members.
   Custom range subtypes, multiranges and the remaining full-port inventory are still pending.
+- 2026-09-22 — Added generated PostgreSQL enums, exact labels, schema/type/function dependencies, all scalar/array
+  SPI paths and guarded live catalog helpers. Validation covers enum identity, C# numeric boundaries, source label
+  order, SQL defaults/variadics, domains/TOAST, DDL recreation, extension relocation, missing/wrong-kind catalog entries,
+  label changes, transaction visibility and LATIN1 labels/identifiers. Installation scripts now declare UTF-8.
+  Added 18 runtime, 72 generator and 40 backend/package cases. Plain `dotnet test`: 1552 passed, zero failures/skips;
+  Release build: zero warnings/errors; internal XML scan: zero omissions. Site build/type/freshness checks pass;
+  60 API pages document 796 members. Added path-independent `AGENTS.md` conventions and enforced runtime/MSBuild
+  explicit-type rules in the repo and scaffold, including build-based consumer checks. The full-port inventory and
+  supported PostgreSQL/platform matrix remain active requirements.

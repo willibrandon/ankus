@@ -121,6 +121,17 @@ public sealed class SpiRow
     /// <returns>The typed value.</returns>
     internal static T Convert<T>(object? value)
     {
+        if (value is Array source && typeof(T).IsArray && source.GetType() != typeof(T) &&
+            (PgEnumRegistry.FindArray(source.GetType()) is not null || PgEnumRegistry.FindArray(typeof(T)) is not null))
+        {
+            if (source.GetType() == typeof(byte[]) || typeof(T) == typeof(byte[]))
+            {
+                throw new InvalidCastException("PostgreSQL enum arrays and binary values have distinct type identities.");
+            }
+
+            return (T)SpiArray.Convert(SpiArray.Wrap(source), typeof(T));
+        }
+
         if (value is T result)
         {
             return result;
@@ -176,7 +187,7 @@ public sealed class SpiRow
             return (T)(object)new PgCidr(ipNetwork);
         }
 
-        if (value is Array vector && value is not byte[])
+        if (value is Array vector && value.GetType() != typeof(byte[]))
         {
             return (T)SpiArray.Convert(SpiArray.Wrap(vector), typeof(T));
         }

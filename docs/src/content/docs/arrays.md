@@ -127,3 +127,7 @@ array declaration can also receive `VARIADIC NULL::integer[]`. A required array
 uses the ordinary strict/null rules for [function parameters](/getting-started/functions/#sql-null).
 `params byte[]` is rejected because `byte[]` maps to scalar `bytea`; use
 `params byte[][]` for variadic binary values.
+
+Enums declared with `[PgEnum]` also support vectors, shaped arrays, nullable
+elements and variadic functions. Enum identity is preserved even for byte-backed
+enums. See [enumerated types](/enums/).

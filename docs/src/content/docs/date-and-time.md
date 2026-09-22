@@ -69,7 +69,7 @@ duration, and a calendar day can be 23 or 25 hours across daylight-saving change
 
 ```csharp
 var calendarDay = new PgInterval(months: 0, days: 1, microseconds: 0);
-var elapsedDay = PgInterval.FromTimeSpan(TimeSpan.FromHours(24));
+PgInterval elapsedDay = PgInterval.FromTimeSpan(TimeSpan.FromHours(24));
 ```
 
 These can produce different timestamps when added to the same instant.
