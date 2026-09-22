@@ -175,6 +175,7 @@ public unsafe partial struct NativeValue
             114 => ReadArrayData<PgJson?>(oid), 3802 => ReadArrayData<PgJsonb?>(oid), 1700 => ReadArrayData<PgNumeric?>(oid),
             1082 => ReadArrayData<PgDate?>(oid), 1083 => ReadArrayData<PgTime?>(oid), 1266 => ReadArrayData<PgTimeTz?>(oid),
             1114 => ReadArrayData<PgTimestamp?>(oid), 1184 => ReadArrayData<PgTimestampTz?>(oid), 1186 => ReadArrayData<PgInterval?>(oid),
+            869 => ReadArrayData<PgInet?>(oid), 650 => ReadArrayData<PgCidr?>(oid),
             _ => throw new NotSupportedException($"Array element OID {oid} has no managed conversion."),
         };
     }

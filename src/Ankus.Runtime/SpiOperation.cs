@@ -104,4 +104,9 @@ internal enum SpiOperation : byte
     /// Calls an allowlisted numeric routine without opening an SPI connection.
     /// </summary>
     Numeric,
+
+    /// <summary>
+    /// Calls allowlisted network input functions without opening an SPI connection.
+    /// </summary>
+    Network,
 }

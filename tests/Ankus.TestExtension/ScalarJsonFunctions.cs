@@ -25,6 +25,8 @@ public static class ScalarJsonFunctions
         "timestamptz" => Exchange(json, ScalarJsonContext.Default.ScalarEnvelopePgTimestampTz),
         "interval" => Exchange(json, ScalarJsonContext.Default.ScalarEnvelopePgInterval),
         "numeric" => Exchange(json, ScalarJsonContext.Default.ScalarEnvelopePgNumeric),
+        "inet" => Exchange(json, ScalarJsonContext.Default.ScalarEnvelopePgInet),
+        "cidr" => Exchange(json, ScalarJsonContext.Default.ScalarEnvelopePgCidr),
         "nullable" => Exchange(json, ScalarJsonContext.Default.NullableScalars),
         _ => throw new ArgumentException("Unknown type.", nameof(type)),
     };
@@ -93,6 +95,8 @@ internal sealed record NullableScalars(PgDate? Date, PgTime? Time, PgTimeTz? Tim
 /// Supplies statically generated metadata for scalar JSON tests running under Native AOT.
 /// </summary>
 [JsonSerializable(typeof(ScalarEnvelope<PgDate>))]
+[JsonSerializable(typeof(ScalarEnvelope<PgInet>))]
+[JsonSerializable(typeof(ScalarEnvelope<PgCidr>))]
 [JsonSerializable(typeof(ScalarEnvelope<PgTime>))]
 [JsonSerializable(typeof(ScalarEnvelope<PgTimeTz>))]
 [JsonSerializable(typeof(ScalarEnvelope<PgTimestamp>))]

@@ -29,6 +29,7 @@ internal static class ParameterDefault
                 "global::System.Guid" => "00000000-0000-0000-0000-000000000000",
                 "global::Ankus.PgJson" or "global::Ankus.PgJsonb" => "null",
                 "global::Ankus.PgNumeric" => "0",
+                "global::Ankus.PgInet" or "global::Ankus.PgCidr" or "global::System.Net.IPNetwork" => "0.0.0.0/0",
                 "global::Ankus.PgDate" or "global::Ankus.PgTimestamp" => "2000-01-01",
                 "global::Ankus.PgTimestampTz" => "2000-01-01 00:00:00+00",
                 "global::Ankus.PgTime" => "00:00:00",

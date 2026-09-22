@@ -29,7 +29,7 @@ internal static class PgScalarJson
         }
         else
         {
-            throw new JsonException(allowNumber ? "Expected a numeric string or JSON number." : "Expected a PostgreSQL temporal string.");
+            throw new JsonException(allowNumber ? "Expected a numeric string or JSON number." : "Expected a PostgreSQL value string.");
         }
 
         if (text.Contains('\0', StringComparison.Ordinal))

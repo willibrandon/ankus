@@ -79,6 +79,9 @@ each element. For example, `decimal[]` rejects values requiring rounding, and
 `DateOnly[]` rejects PostgreSQL infinity. Use `PgNumeric` and the full-range
 temporal types to retain those values.
 
+[Network](/network/) arrays preserve address families and prefixes.
+`IPAddress[]` rejects subnet prefixes; use `PgInet[]` to retain them.
+
 ## SPI
 
 Arrays work with queries, prepared statements, sessions, cursors, and local row edits:

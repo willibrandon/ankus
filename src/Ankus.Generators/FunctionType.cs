@@ -71,7 +71,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb" or "numeric";
+    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
 
     /// <summary>
     /// Gets whether the type uses the field-wise temporal transport.
@@ -148,6 +148,12 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name is "global::Ankus.PgInet" or "global::System.Net.IPAddress" or "global::Ankus.PgCidr" or "global::System.Net.IPNetwork")
+        {
+            string sql = name is "global::Ankus.PgInet" or "global::System.Net.IPAddress" ? "inet" : "cidr";
+            return new(name, sql, sql, sql, string.Empty, nullable, reference: name == "global::System.Net.IPAddress");
+        }
+
         if (name == "global::Ankus.PgNumeric" || type.SpecialType == SpecialType.System_Decimal)
         {
             return new(type.SpecialType == SpecialType.System_Decimal ? "decimal" : name,

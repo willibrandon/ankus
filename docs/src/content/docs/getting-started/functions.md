@@ -66,6 +66,8 @@ calls, schema placement, and PostgreSQL execution options.
 | `string` | `text` |
 | `byte[]` | `bytea` |
 | `Guid` | `uuid` |
+| `PgInet`, `IPAddress` | `inet` |
+| `PgCidr`, `IPNetwork` | `cidr` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
 | `decimal`, `PgNumeric` | `numeric` |
 | `DateOnly`, `PgDate` | `date` |
@@ -82,6 +84,9 @@ releases the original storage.
 
 See [date and time values](/date-and-time/) for precision, time zones, and
 full-range PostgreSQL values.
+
+See [network values](/network/) for IPv4/IPv6 prefixes and checked `System.Net`
+conversions. `IPAddress` requires a full-width host prefix.
 
 See [arrays](/arrays/) for dimensions, lower bounds, nullable elements, and
 variadic functions. `byte[]` is scalar `bytea`; `byte[][]` is `bytea[]`.

@@ -20,6 +20,16 @@ internal static class SpiType
     internal static uint GetOid(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (type == typeof(PgInet) || type == typeof(PgInet?) || type == typeof(System.Net.IPAddress))
+        {
+            return 869;
+        }
+
+        if (type == typeof(PgCidr) || type == typeof(PgCidr?) || type == typeof(System.Net.IPNetwork) || type == typeof(System.Net.IPNetwork?))
+        {
+            return 650;
+        }
+
         if (type == typeof(bool) || type == typeof(bool?))
         {
             return 16;
@@ -144,6 +154,10 @@ internal static class SpiType
         string text => NativeValue.FromString(text),
         byte[] bytes => NativeValue.FromBytes(bytes),
         Guid uuid => NativeValue.FromGuid(uuid),
+        PgInet address => NativeValue.FromInet(address),
+        PgCidr network => NativeValue.FromCidr(network),
+        System.Net.IPAddress address => NativeValue.FromInet(new PgInet(address)),
+        System.Net.IPNetwork network => NativeValue.FromCidr(new PgCidr(network)),
         PgJson json => NativeValue.FromString(json.Text),
         PgJsonb json => NativeValue.FromString(json.Text),
         PgNumeric number => NativeValue.FromString(number.Text),
@@ -190,6 +204,8 @@ internal static class SpiType
             700 => BitConverter.Int32BitsToSingle((int)value.Integral),
             701 => BitConverter.Int64BitsToDouble(value.Integral),
             2950 => value.ReadGuid(),
+            869 => value.ReadInet(),
+            650 => value.ReadCidr(),
             114 => value.ReadJson(),
             3802 => value.ReadJsonb(),
             1700 => value.ReadNumeric(),

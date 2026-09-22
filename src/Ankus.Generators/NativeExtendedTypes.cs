@@ -1,7 +1,7 @@
 namespace Ankus.Generators;
 
 /// <summary>
-/// Converts UUID, JSON/JSONB, and numeric buffers while keeping PostgreSQL parsing, detoasting, and allocation in native frames.
+/// Converts UUID, JSON/JSONB, numeric and network buffers while keeping PostgreSQL parsing, detoasting, and allocation in native frames.
 /// </summary>
 internal static class NativeExtendedTypes
 {
@@ -10,6 +10,9 @@ internal static class NativeExtendedTypes
     /// </summary>
     internal const string Source = """
         #include "utils/fmgrprotos.h"
+        #include "libpq/pqcomm.h"
+        #include "utils/inet.h"
+        #include "libpq/pqformat.h"
 
         static void
         ankus_read_typed_buffer(Datum datum, AnkusValue *value, AnkusInputBuffer *owned, Oid type)
@@ -18,6 +21,14 @@ internal static class NativeExtendedTypes
             {
                 value->data = DatumGetUUIDP(datum)->data;
                 value->length = UUID_LEN;
+            }
+            else if (type == INETOID || type == CIDROID)
+            {
+                bytea *wire = DatumGetByteaP(DirectFunctionCall1(type == INETOID ? inet_send : cidr_send, datum));
+                owned->serialized = (char *) wire;
+                value->data = (unsigned char *) VARDATA(wire);
+                value->length = VARSIZE(wire) - VARHDRSZ;
+                value->data[0] = value->data[0] == PGSQL_AF_INET ? 4 : 6;
             }
             else if (type == JSONBOID || type == NUMERICOID)
             {
@@ -57,6 +68,25 @@ internal static class NativeExtendedTypes
                 uuid = palloc(sizeof(pg_uuid_t));
                 memcpy(uuid->data, value->data, UUID_LEN);
                 return UUIDPGetDatum(uuid);
+            }
+            if (type == INETOID || type == CIDROID)
+            {
+                char bytes[20];
+                StringInfoData buffer;
+                Datum result;
+                if ((value->length != 8 && value->length != 20) || value->data == NULL ||
+                    value->data[0] != (value->length == 8 ? 4 : 6) ||
+                    value->data[2] != (type == CIDROID ? 1 : 0) || value->data[3] != value->length - 4)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid network transport header")));
+                memcpy(bytes, value->data, value->length);
+                bytes[0] = bytes[0] == 4 ? PGSQL_AF_INET : PGSQL_AF_INET6;
+                buffer.data = bytes;
+                buffer.len = value->length;
+                buffer.maxlen = sizeof(bytes);
+                buffer.cursor = 0;
+                result = DirectFunctionCall1(type == INETOID ? inet_recv : cidr_recv, PointerGetDatum(&buffer));
+                pq_getmsgend(&buffer);
+                return result;
             }
             if (type == JSONOID || type == JSONBOID || type == NUMERICOID)
             {

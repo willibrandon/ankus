@@ -52,6 +52,7 @@ internal static class SpiArray
         16 => 1000, 17 => 1001, 18 => 1002, 20 => 1016, 21 => 1005, 23 => 1007, 25 => 1009, 26 => 1028,
         700 => 1021, 701 => 1022, 2950 => 2951, 114 => 199, 3802 => 3807, 1700 => 1231,
         1082 => 1182, 1083 => 1183, 1266 => 1270, 1114 => 1115, 1184 => 1185, 1186 => 1187,
+        869 => 1041, 650 => 651,
         _ => throw new NotSupportedException($"PostgreSQL type OID {element} is not a supported array element."),
     };
 
@@ -63,6 +64,8 @@ internal static class SpiArray
     internal static uint GetOid(Type type)
     {
         uint element =
+            Matches<PgInet>(type) || Matches<PgInet?>(type) || Matches<System.Net.IPAddress>(type) ? 869u :
+            Matches<PgCidr>(type) || Matches<PgCidr?>(type) || Matches<System.Net.IPNetwork>(type) || Matches<System.Net.IPNetwork?>(type) ? 650u :
             Matches<bool>(type) || Matches<bool?>(type) ? 16u :
             Matches<byte[]>(type) ? 17u :
             Matches<sbyte>(type) || Matches<sbyte?>(type) ? 18u :
@@ -93,7 +96,9 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
-        => Convert<bool>(array, type) ?? Convert<bool?>(array, type) ?? Convert<byte[]>(array, type) ??
+        => Convert<PgInet>(array, type) ?? Convert<PgInet?>(array, type) ?? Convert<System.Net.IPAddress>(array, type) ??
+           Convert<PgCidr>(array, type) ?? Convert<PgCidr?>(array, type) ?? Convert<System.Net.IPNetwork>(array, type) ?? Convert<System.Net.IPNetwork?>(array, type) ??
+           Convert<bool>(array, type) ?? Convert<bool?>(array, type) ?? Convert<byte[]>(array, type) ??
            Convert<sbyte>(array, type) ?? Convert<sbyte?>(array, type) ?? Convert<short>(array, type) ?? Convert<short?>(array, type) ??
            Convert<int>(array, type) ?? Convert<int?>(array, type) ?? Convert<long>(array, type) ?? Convert<long?>(array, type) ??
            Convert<uint>(array, type) ?? Convert<uint?>(array, type) ?? Convert<float>(array, type) ?? Convert<float?>(array, type) ??
@@ -115,6 +120,10 @@ internal static class SpiArray
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
     internal static IPgArray Wrap(Array value) => value switch
     {
+        PgInet[] items => new PgArray<PgInet>(items), PgInet?[] items => new PgArray<PgInet?>(items),
+        PgCidr[] items => new PgArray<PgCidr>(items), PgCidr?[] items => new PgArray<PgCidr?>(items),
+        System.Net.IPAddress[] items => new PgArray<System.Net.IPAddress>(items),
+        System.Net.IPNetwork[] items => new PgArray<System.Net.IPNetwork>(items), System.Net.IPNetwork?[] items => new PgArray<System.Net.IPNetwork?>(items),
         bool[] items => new PgArray<bool>(items), bool?[] items => new PgArray<bool?>(items),
         byte[][] items => new PgArray<byte[]>(items), string[] items => new PgArray<string>(items),
         sbyte[] items => new PgArray<sbyte>(items), sbyte?[] items => new PgArray<sbyte?>(items),

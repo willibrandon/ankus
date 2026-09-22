@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1152 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1225 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -67,6 +67,10 @@ Linux, and macOS.
   bootstrap/final positioning and per-block relocation promises. `Id`/`Requires` connect generated functions
   and schemas to the same deterministic SQL graph. `ANKUS005` rejects missing/duplicate IDs, cycles and invalid
   file inputs. SQL files are tracked Roslyn AdditionalFiles; file-only changes invalidate generation.
+- `PgInet`/`PgCidr` retain IPv4/IPv6 identity and prefixes with immutable address-bit storage. `IPAddress`
+  and `IPNetwork` mappings use checked conversions; scoped IPv6 and lossy host-prefix casts are rejected.
+  Native binary conversion supports scalar/array function signatures and every typed SPI ownership path.
+  Parsing uses guarded PostgreSQL routines; masks, network derivation, comparison and formatting work detached.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -85,7 +89,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 864 integration cases include custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 904 integration cases include network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -398,6 +402,32 @@ Evidence: `artifacts/sql-graph-all-output.txt` records 1152 passing tests with z
 the zero-warning Release build. Site build/type check, API freshness and internal XML scans are retained in
 `artifacts/sql-graph-{docs-build,docs-check,api-check}-output.txt` and `artifacts/sql-graph-internal-docs.txt`.
 
+### Network value evidence
+
+References: `pgrx/src/datum/inet.rs`, PostgreSQL `src/backend/utils/adt/network.c` and `src/include/utils/inet.h`,
+and Microsoft Learn's `IPNetwork(IPAddress, Int32)` constructor contract. Managed storage owns numeric address
+bits; mutable `IPAddress` instances never back a `PgInet`. The native boundary normalizes PostgreSQL's socket-family
+byte to a portable 4/6 marker and uses the selected backend's binary send/receive and text input routines.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| IPv4/IPv6, prefixes, ownership and detached construction | `PgInet`, `PgCidr` | `PgNetworkTests.AddressesAreCopiedAndFamilyIsPreserved`, `NetworkMasksPreservePrefixAndFamily`, `ConstructionRejectsInformationLoss`; `NetworkDatumTests.NetworkConstructionHasCorrectWireBytes` checks independently constructed IPv4/IPv6 wire bytes and SQL defaults |
+| Exact .NET address/network mapping | `IPAddress` maps to full-prefix inet, `IPNetwork` to cidr; checked scalar and element conversions | `HostMappingsRejectPrefixLoss` verifies scalar/vector callback and SPI-result narrowing failures; `NetworkOwnershipPathsPreserveValues` executes .NET scalar/vector conversions under Native AOT |
+| Binary validation | Network transport header/length checks, native receive validation, zero-host-bit cidr constructors | `BinaryTransportRetainsNetworkBits`, `InvalidBinaryHeadersAreRejected`, `BinaryCidrRejectsHostBits` |
+| Generated declarations and arrays | `FunctionType`, buffered `NativeValue` conversion, statically closed SPI array registry | `NetworkSignaturesCompile` compiles 12 scalar/nullable/array contracts and checks the SQL argument/result types |
+| SPI lifetime paths and SQL NULLs | Owned network buffers through direct calls, queries, plans, sessions, cursors, retained plans and edited rows | `NetworkOwnershipPathsPreserveValues` verifies eight paths for each scalar/array input, including NULLs, zero-rank arrays, multidimensional arrays and negative/zero lower bounds |
+| Packed, domain and TOAST input | Native network send/receive in existing buffer ownership scopes | `PackedNetworkStorageAndDomains`, `NetworkArrayToastingAndDomains` verify packed scalar storage, domains and compressed 10,000-element network arrays |
+| PostgreSQL network semantics | Detached masks, prefix changes, subnet containment and network ordering | `NetworkOperationsMatchEveryPrefix` compares all legal IPv4/IPv6 prefixes with native SQL; `NetworkOrderingMatchesPostgres` compares 169 pairs including IPv4-mapped IPv6 |
+| Backend parsing and recovery | Allowlisted network input operations in guarded subtransactions | `NetworkParsersMatchPostgres` includes abbreviated IPv4/cidr input; `NetworkInputFailureRecovery` verifies 50 finally executions, retained writes/plan and zero context growth after repeated native errors; `ParsingRequiresBackendAccess` checks detached access failure |
+| AOT JSON | Static converter attributes and source-generated metadata | `NetworkJsonUsesAotMetadata` verifies prefix/family retention, canonical output and JSON error paths wrapping native SQLSTATE 22P02 |
+
+Evidence: `artifacts/network-{runtime,generators,backend}-output.txt` records 21 detached, 12 generator and
+40 backend cases. `artifacts/network-all-output.txt` records 1225 passing tests with no failures/skips; the
+Release build in `artifacts/network-build-output.txt` has zero warnings/errors. The internal XML scan in
+`artifacts/network-internal-docs.txt` reports zero omissions.
+The documentation build, type check and API freshness outputs are retained as
+`artifacts/network-{docs-build,docs-check,api-check}-output.txt`; 47 API pages document 665 members.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -626,7 +656,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
-| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB and metadata-based serialization; network, geometry and ranges pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings and AOT JSON implemented; geometry and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
@@ -934,3 +964,10 @@ The phases track implementation of the complete pgrx feature surface.
   Release build: zero warnings/errors. Internal documentation scan and documentation build/type/freshness checks
   pass; the API reference has 45 pages and 620 members. Function SQL overrides, declared type providers and the
   wider runtime/tooling/platform inventory remain pending.
+- 2026-09-22 — Added immutable inet/cidr values, checked IPAddress/IPNetwork mappings, PostgreSQL parsing,
+  detached masks/subnets/comparison, and source-generated JSON support. Binary transport uses PostgreSQL's
+  send/receive functions with portable family markers and existing allocator-matched ownership. Scalars and
+  arrays work through every SPI lifetime path, including packed/domain/TOAST inputs. Added 21 runtime,
+  12 generator and 40 backend cases. Plain `dotnet test`: 1225 passed, zero failures/skips. Release build:
+  zero warnings/errors; XML documentation and site build/type/freshness checks pass. The API reference has
+  47 pages and 665 members. Geometry, ranges, future type families and the broader port inventory remain pending.

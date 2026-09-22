@@ -29,7 +29,9 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Structs
 
+- [PgCidr](/api/ankus.pgcidr/)
 - [PgDate](/api/ankus.pgdate/)
+- [PgInet](/api/ankus.pginet/)
 - [PgInterval](/api/ankus.pginterval/)
 - [PgJson](/api/ankus.pgjson/)
 - [PgJsonb](/api/ankus.pgjsonb/)

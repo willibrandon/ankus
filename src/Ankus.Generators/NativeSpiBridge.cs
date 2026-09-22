@@ -42,7 +42,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_REPORT,
             ANKUS_SPI_IS_LOG_ENABLED,
             ANKUS_SPI_TEMPORAL,
-            ANKUS_SPI_NUMERIC
+            ANKUS_SPI_NUMERIC,
+            ANKUS_SPI_NETWORK
         };
 
         typedef struct AnkusRequest
@@ -175,6 +176,8 @@ internal static class NativeSpiBridge
                 case JSONOID:
                 case JSONBOID:
                 case NUMERICOID:
+                case INETOID:
+                case CIDROID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
                     if (OidIsValid(get_element_type(parameter->type_oid)))
@@ -327,6 +330,8 @@ internal static class NativeSpiBridge
                 case JSONOID:
                 case JSONBOID:
                 case NUMERICOID:
+                case INETOID:
+                case CIDROID:
                     ankus_read_typed_buffer(datum, value, owned, type);
                     break;
                 default:

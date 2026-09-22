@@ -394,6 +394,15 @@ public static unsafe class NativeBackend
     internal static T Numeric<T>(NumericOperation operation, ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Numeric, (int)operation, parameters);
 
+    /// <summary>
+    /// Parses a network value through PostgreSQL's guarded input functions.
+    /// </summary>
+    /// <typeparam name="T">The network result type.</typeparam>
+    /// <param name="parameters">The validated text input.</param>
+    /// <returns>The detached network value.</returns>
+    internal static T Network<T>(ReadOnlySpan<SpiParameter> parameters)
+        => Scalar<T>(SpiOperation.Network, 0, parameters);
+
     private static T Scalar<T>(SpiOperation family, int operation, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();

@@ -34,6 +34,21 @@ reads or runtime assembly execution are used. Custom SQL is emitted verbatim
 with a final newline to terminate trailing line comments. PostgreSQL validates
 and executes it transactionally during installation.
 
+Network values use PostgreSQL's binary send/receive functions behind the native
+guard. The wire family byte is normalized to 4/6; the native bridge maps it to
+the selected PostgreSQL headers' `PGSQL_AF_INET`/`PGSQL_AF_INET6` values. Remaining
+bytes carry the prefix, inet/cidr marker, address length and network-order address.
+No native structure layouts or platform socket-family constants enter managed
+storage. The receive path validates framing and lets PostgreSQL enforce prefix
+and cidr host-bit rules. Send buffers belong to the same per-call/per-operation
+ownership tracking as other buffered datums.
+
+`PgInet` owns numeric address bits rather than a mutable `IPAddress` reference.
+`PgCidr` enforces zero host bits, and both share the existing statically closed
+array and SPI conversions. Network parsing uses an allowlisted scalar family
+inside the subtransaction; mask, comparison and formatting operations run on
+detached managed values.
+
 Named, defaulted, variadic and security-definer calls use the same native ABI.
 PostgreSQL resolves defaults, assembles variadic arrays, applies function-local
 settings and privileges, and suppresses STRICT calls before dispatch. Required

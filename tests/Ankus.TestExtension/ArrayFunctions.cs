@@ -272,7 +272,14 @@ public static class ArrayFunctions
             return $"{failures}:{unwound}:{session.ExecuteScalar<long>("SELECT count(*) FROM array_writes")}:{retained[2]}:{growth}";
         });
 
-    private static T Exchange<T>(T value, int mode)
+    /// <summary>
+    /// Exchanges a scalar or array through each SPI ownership path for backend transport probes.
+    /// </summary>
+    /// <typeparam name="T">The supported value type.</typeparam>
+    /// <param name="value">The input.</param>
+    /// <param name="mode">The direct, query, plan, session, cursor, retained-plan or edited-row path.</param>
+    /// <returns>The detached round-tripped value.</returns>
+    internal static T Exchange<T>(T value, int mode)
     {
         const string sql = "SELECT $1";
         switch (mode)

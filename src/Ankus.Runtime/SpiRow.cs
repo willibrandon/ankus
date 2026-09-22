@@ -151,6 +151,26 @@ public sealed class SpiRow
             return (T)SpiArray.Convert(array, typeof(T));
         }
 
+        if (value is PgInet address && typeof(T) == typeof(System.Net.IPAddress))
+        {
+            return (T)(object)address.ToIPAddress();
+        }
+
+        if (value is System.Net.IPAddress ip && (typeof(T) == typeof(PgInet) || typeof(T) == typeof(PgInet?)))
+        {
+            return (T)(object)new PgInet(ip);
+        }
+
+        if (value is PgCidr network && (typeof(T) == typeof(System.Net.IPNetwork) || typeof(T) == typeof(System.Net.IPNetwork?)))
+        {
+            return (T)(object)network.ToIPNetwork();
+        }
+
+        if (value is System.Net.IPNetwork ipNetwork && (typeof(T) == typeof(PgCidr) || typeof(T) == typeof(PgCidr?)))
+        {
+            return (T)(object)new PgCidr(ipNetwork);
+        }
+
         if (value is Array vector && value is not byte[])
         {
             return (T)SpiArray.Convert(SpiArray.Wrap(vector), typeof(T));

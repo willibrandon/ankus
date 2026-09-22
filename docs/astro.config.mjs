@@ -48,6 +48,7 @@ export default defineConfig({
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },
             { label: 'Numeric values', slug: 'numeric' },
             { label: 'Date and time values', slug: 'date-and-time' },
+            { label: 'Network values', slug: 'network' },
             { label: 'Logging and errors', slug: 'logging' },
           ],
         },
