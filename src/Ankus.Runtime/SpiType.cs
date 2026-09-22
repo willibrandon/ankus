@@ -121,7 +121,8 @@ internal static class SpiType
             return 1186;
         }
 
-        throw new NotSupportedException($"SPI parameters of managed type '{type}' do not have a registered PostgreSQL conversion.");
+        uint arrayOid = SpiArray.GetOid(type);
+        return arrayOid != 0 ? arrayOid : throw new NotSupportedException($"SPI parameters of managed type '{type}' do not have a registered PostgreSQL conversion.");
     }
 
     /// <summary>
@@ -158,6 +159,8 @@ internal static class SpiType
         DateTime timestamp => NativeValue.FromTimestamp(PgTimestamp.FromDateTime(timestamp)),
         DateTimeOffset timestamp => NativeValue.FromTimestampTz(PgTimestampTz.FromDateTimeOffset(timestamp)),
         TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
+        IPgArray array => NativeValue.FromArray(array),
+        Array array => NativeValue.FromArray(SpiArray.Wrap(array)),
         _ => throw new NotSupportedException("The SPI parameter does not have a registered PostgreSQL conversion."),
     };
 
@@ -196,6 +199,7 @@ internal static class SpiType
             1114 => value.ReadTimestamp(),
             1184 => value.ReadTimestampTz(),
             1186 => value.ReadInterval(),
+            _ when value.IsArray => value.ReadArray(),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };
     }

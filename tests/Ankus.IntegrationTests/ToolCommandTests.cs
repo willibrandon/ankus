@@ -382,6 +382,13 @@ public sealed class ToolCommandTests(TestContext context)
             {
                 [PgFunction]
                 public static string PackageEcho(string value) => value + " from NuGet";
+
+                [PgFunction]
+                public static PgArray<int?> PackageArray(PgArray<int?> value)
+                    => Spi.ExecuteScalar<PgArray<int?>>("SELECT $1", SpiParameter.Create(value));
+
+                [PgFunction]
+                public static byte[]?[] PackageBinary(params byte[]?[] values) => values;
             }
             """, context.CancellationToken);
         string output = Path.Combine(projectDirectory, "published");
@@ -397,6 +404,10 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("直接 from NuGet", await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT extversion FROM pg_extension WHERE extname = 'ankus_tool_probe'";
         Assert.AreEqual("2.3.4", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT package_array('[-1:0][2:3]={{1,NULL},{-2,3}}'::int[])::text";
+        Assert.AreEqual("[-1:0][2:3]={{1,NULL},{-2,3}}", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT encode((package_binary(decode('0001ff','hex'), NULL))[1], 'hex')";
+        Assert.AreEqual("0001ff", await command.ExecuteScalarAsync(context.CancellationToken));
     }
 
     /// <summary>

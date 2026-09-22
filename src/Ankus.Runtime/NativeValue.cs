@@ -11,7 +11,7 @@ namespace Ankus;
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 [StructLayout(LayoutKind.Sequential)]
-public unsafe struct NativeValue
+public unsafe partial struct NativeValue
 {
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 

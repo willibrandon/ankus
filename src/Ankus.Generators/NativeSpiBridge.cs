@@ -89,6 +89,8 @@ internal static class NativeSpiBridge
         static int ankus_cursor_operation(AnkusRequest *request, AnkusResult *result);
         static void ankus_register_session_plan(SPIPlanPtr plan);
         static void ankus_detach_session_plan(SPIPlanPtr plan);
+        static void ankus_read_array(Datum datum, AnkusValue *value, AnkusInputBuffer *owned);
+        static Datum ankus_write_array(const AnkusValue *value, Oid element_type);
 
         static void
         ankus_release_result(AnkusResult *result)
@@ -175,6 +177,10 @@ internal static class NativeSpiBridge
                 case NUMERICOID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
+                    if (OidIsValid(get_element_type(parameter->type_oid)))
+                    {
+                        return ankus_write_array(value, get_element_type(parameter->type_oid));
+                    }
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("SPI parameter type OID %u has no Ankus conversion", parameter->type_oid)));
             }
@@ -281,7 +287,7 @@ internal static class NativeSpiBridge
         }
 
         static void
-        ankus_result_value(Datum datum, Oid type, AnkusValue *value)
+        ankus_read_value(Datum datum, Oid type, AnkusValue *value, AnkusInputBuffer *owned)
         {
             switch (type)
             {
@@ -321,18 +327,32 @@ internal static class NativeSpiBridge
                 case JSONOID:
                 case JSONBOID:
                 case NUMERICOID:
-                {
-                    AnkusValue input = {0};
-                    AnkusInputBuffer owned = {0};
-                    ankus_read_typed_buffer(datum, &input, &owned, type);
-                    ankus_copy_owned(value, input.data, input.length);
-                    ankus_free_input(&owned);
+                    ankus_read_typed_buffer(datum, value, owned, type);
                     break;
-                }
                 default:
+                    if (OidIsValid(get_element_type(type)))
+                    {
+                        ankus_read_array(datum, value, owned);
+                        break;
+                    }
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("SPI result type OID %u has no Ankus conversion", type)));
             }
+        }
+
+        static void
+        ankus_result_value(Datum datum, Oid type, AnkusValue *value)
+        {
+            AnkusValue input = {0};
+            AnkusInputBuffer owned = {0};
+            ankus_read_value(datum, type, &input, &owned);
+            *value = input;
+            value->data = NULL;
+            if (input.data != NULL)
+            {
+                ankus_copy_owned(value, input.data, input.length);
+            }
+            ankus_free_input(&owned);
         }
 
         static void

@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **995 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1064 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -54,6 +54,9 @@ Linux, and macOS.
   zero warnings/errors, and plain `dotnet test` still passes all 995 cases, including installed-package and generated-solution tests.
 - XML summary tags use separate opening, text, and closing lines. CA1000 is an error in the repository and generated
   extension projects; generic types do not expose static members.
+- Internal declarations also carry XML documentation. A Roslyn scan across sources, tests, samples and bundled
+  templates found 101 omissions; all are documented, including enum members and internal interface contracts.
+  The follow-up scan reports zero omissions. Private declarations are outside that scan's scope.
 - The sample contains ordinary `[PgFunction]`-attributed `Add` and `Greet` methods. Ankus generates
   managed dispatchers, native entry points, module magic, finfo, datum conversions, and SQL.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
@@ -74,7 +77,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 804 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 834 integration cases include isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -90,6 +93,13 @@ Linux, and macOS.
   plus `JsonTypeInfo<T>` serialization. Native AOT tests exercise source-generated contracts containing
   nested wrappers, domain conversion, packed/compressed/external values, deep JSON, LATIN1 encoding,
   and guarded recovery from invalid syntax, jsonb Unicode restrictions, and numeric overflow.
+- Arrays use ordinary `T[]` vectors or `PgArray<T>` with row-major values, dimensions and lower bounds.
+  All supported scalar families work in attributed functions and typed SPI; `byte[]` remains scalar bytea,
+  while `byte[][]` is bytea[]. NULL elements require reference or nullable value types. Vectors reject
+  shape/lower-bound loss, and `ToArray()` explicitly flattens. C# `params T[]` generates SQL `VARIADIC`.
+  The native bridge uses one pointer-free transport buffer with scalar element conversion and allocator-matched
+  cleanup. Typed managed decoding avoids an intermediate object array. Backend cases verify PostgreSQL binary
+  output, six dimensions, lower bounds, domains, TOAST, LATIN1, native output failures and session recovery.
 - `PgNumeric` owns canonical numeric output with full precision and display scale. It supports PostgreSQL
   arithmetic, rescaling, transcendental routines, NaN/infinities, and backend-independent equality/order/hash.
   Generated decimal adapters and typed SPI conversions reject overflow, rounding, and underflow; finite integer
@@ -308,12 +318,31 @@ inside the host integration case.
 | Reusable publish/load fixture and initialization cleanup | `PostgresExtensionTest`, selected pg_config forwarding, native manifest check, per-cluster search paths and asynchronous disposal | `NewSolutionRunsManagedAndBackendTests` verifies five passing tests and cleanup after a SQL assertion failure; `NewSolutionReportsInitializationFailuresAndCleansUp` verifies Release-only compile errors and CREATE EXTENSION division-by-zero failures, zero leftover cluster/publish directories and retained binlogs |
 | NuGet cache paths with spaces | Ordered quoting of native file arguments before the Unix linker | Both publish tests use an isolated cache path containing spaces; this reproduced an unquoted .NET 10 Native AOT library-path failure before the fix |
 
+### Array API evidence
+
+References: `pgrx/src/datum/array.rs` (`Array`, `VariadicArray`, iteration and NULL handling),
+`pgrx/src/array/`, and PostgreSQL `utils/adt/{arrayfuncs,arrayutils}.c`. These cases run on PostgreSQL 18.6/Linux x64.
+The public owned-array API is implemented; raw borrowed array views, polymorphic arrays and arrays of future
+custom/composite/enum types remain part of the wider port.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Scalar element families, NULL arrays/elements, empty arrays, all SPI owners | Closed `SpiArray` type mappings, `NativeArray`, `NativeArrayBridge`, generated wrappers | `ArrayDatumTests.ArraysPreserveBinaryValuesAcrossOwners` compares `array_send` for 20 scalar families across eight ownership paths; `VectorsAndDotnetElementsUseExactConversions` covers ordinary .NET adapters |
+| Dimensions, lower bounds, six-dimensional limit, independent input/output | `PgArray<T>` constructors, `GetValue`, flat indexing, enumeration and explicit flattening | `PgArrayTests.ShapeOwnsInputsAndUsesPostgresSubscripts`, `VectorAndEmptySemanticsAreExplicit`, `ShapeValidationRejectsOnlyInvalidBoundsAndCounts`; `ArrayDatumTests.ShapeAndIndexingMatchPostgresSubscripts` |
+| Shape/NULL/precision loss rejection | `ToVector`, per-element scalar conversion | `PgArrayTests.TypedRowsRejectNullAndPrecisionLoss`; `ArrayDatumTests.LossyArrayConversionsRaiseManagedErrors` |
+| Binary elements, embedded zeroes, independent wire contract | Length-delimited bytea transport; big-endian field headers | `PgArrayTests.NativeTransportHasExpectedIndependentLayout`, `NativeReaderAcceptsIndependentWireValues`; `ArrayDatumTests.BinaryArrayOutputPreservesEmbeddedZeroBytes` |
+| Buffer ownership and malformed input | Typed materialization, shape/count/buffer checks, one owned native buffer | `PgArrayTests.BufferedElementsOutliveNativeTransport`, `MalformedArrayTransportIsRejected`, `MalformedArrayEnvelopesAreRejected` |
+| Domains, text aliases, compressed/external storage | Base-type resolution, server detoasting and metadata | `ArrayDatumTests.DomainAndTextAliasArraysRemainOwned`, `ToastedArrayPayloadsSurviveNativeCleanup` |
+| Encoding and native failure cleanup | Per-element scalar conversions in native frames; output release in `PG_FINALLY` | `ArrayDatumTests.Latin1ArraysConvertElementsAndRecoverFromOutputFailure`; `ArrayFailuresPreserveWritesPlansAndCleanup` verifies prior writes, prepared plan, 30 managed unwinds and zero retained operation contexts |
+| SQL variadics and declaration validation | C# `params T[]`; generator rejects scalar-byte and unsupported params signatures | `ArrayDatumTests.ParamsArraysDeclareSqlVariadicFunctions` verifies dispatch, explicit empty/NULL arrays, strictness and `provariadic`; `PgFunctionGeneratorTests.SupportedFunctionsCompile`, `UnsupportedSignaturesAreRejected`, `ClrAliasesShareSqlSignatures` |
+| Package consumption | Packed SDK/runtime/generator, CPM and cold package-only restore | `ToolCommandTests.SdkSupportsDirectPublishWithCentralPackages` publishes and executes shaped SPI arrays and variadic binary arrays outside the checkout |
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
-and the .NET/full-range PostgreSQL temporal types. Nullable forms and `void` results are supported.
-Strictness follows argument nullability.
+and the .NET/full-range PostgreSQL temporal types. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
+SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
 the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. `Ankus.Sdk` is now a
@@ -416,7 +445,7 @@ The target architecture consists of:
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea/UUID/JSON, nullability, overloads |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: built-in scalar, temporal, numeric and array types; nullability, overloads, variadics |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | generated streaming and materialized set/table results | ☐ |
@@ -504,7 +533,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous scalar/text/bytea/UUID/JSON, names, overloads, inferred strictness |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous built-in scalar/temporal/numeric/array types, names, overloads, inferred strictness, variadics |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Pending |
@@ -530,7 +559,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar types, with shape/subscripts/NULL handling and C# params variadics. Raw borrowed views and future custom/composite/enum elements pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
@@ -600,7 +629,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 542 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The passing Ankus tests verify the implemented milestones, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -647,7 +676,8 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
     - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads
-   - [ ] `[PgSchema]`, explicit function options, SETOF, arrays, remaining datum mappings
+     - [x] Scalar arrays, vectors, dimensions/lower bounds, NULL elements and SQL variadics
+    - [ ] `[PgSchema]`, explicit function options, SETOF, remaining datum mappings
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [ ] triggers, event triggers, aggregates, operators, casts, `ExtensionSql`
@@ -817,3 +847,10 @@ The phases track implementation of the complete pgrx feature surface.
   verified the home, SPI API, function guide and numeric guide in dark/light mode, including the reported
   `Connect<TResult>` signature. Mobile layout has no horizontal overflow; docs build, type check and API
   freshness pass. Theme changes require a forced Astro rebuild to invalidate cached Markdown.
+- 2026-09-22 — Added scalar arrays across generated functions and all SPI owners, with `T[]` vectors,
+  `PgArray<T>` dimensions/lower bounds, exact element adapters and C# `params` SQL variadics. The single-buffer
+  transport preserves native ownership boundaries and embedded binary zeroes. Added 30 backend cases,
+  20 generator cases and 19 runtime cases; isolated package consumers also execute shaped and variadic arrays.
+  Plain `dotnet test`: 1064 passed, 0 failed, 0 skipped. Release build passes with zero warnings/errors.
+  Documented 101 previously undocumented internal declarations; a follow-up Roslyn scan reports zero omissions.
+  Docs build, type check and API freshness pass; the reference contains 37 pages and 574 members.

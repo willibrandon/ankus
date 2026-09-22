@@ -28,7 +28,8 @@ internal static class PgFunctionEmitter
         EmitManaged(method, callback, parameters, result, managed);
         EmitNative(nativeName, callback, parameters, result, native);
         string strict = parameters.All(static parameter => !parameter.Nullable) ? " STRICT" : string.Empty;
-        sql.AppendLine($"CREATE FUNCTION \"{name}\"({string.Join(", ", parameters.Select(static parameter => parameter.Sql))})");
+        sql.AppendLine($"CREATE FUNCTION \"{name}\"({string.Join(", ", parameters.Select((parameter, index) =>
+            (method.Parameters[index].IsParams ? "VARIADIC " : string.Empty) + parameter.Sql))})");
         sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c{strict};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
@@ -55,6 +56,8 @@ internal static class PgFunctionEmitter
             string numeric = slot + ".ReadNumeric()" + NumericConstraint.Rescale(method.Parameters[index].GetAttributes());
             string value = type.Managed switch
             {
+                _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
+                    (type.IsVector ? ".ToVector()" : string.Empty),
                 "string" => slot + ".ReadString()",
                 "byte[]" => slot + ".ReadBytes()",
                 "global::System.Guid" => slot + ".ReadGuid()",
@@ -98,6 +101,8 @@ internal static class PgFunctionEmitter
                 + NumericConstraint.Rescale(method.GetReturnTypeAttributes());
             source.AppendLine(result.Managed switch
             {
+                _ when result.Element is not null => "            *result = global::Ankus.NativeValue.FromArray(" +
+                    (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
@@ -167,7 +172,11 @@ internal static class PgFunctionEmitter
             source.AppendLine($"    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
             source.AppendLine($"    if (!arguments[{argument}].is_null)");
             source.AppendLine("    {");
-            if (parameter.IsTemporal)
+            if (parameter.Element is not null)
+            {
+                source.AppendLine($"        ankus_read_array(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+            }
+            else if (parameter.IsTemporal)
             {
                 source.AppendLine(
                     $"        ankus_read_temporal(PG_GETARG_DATUM({argument}), &arguments[{argument}], {parameter.BufferOid});");
@@ -214,7 +223,11 @@ internal static class PgFunctionEmitter
         source.AppendLine("    }");
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
-        if (result.IsTemporal)
+        if (result.Element is not null)
+        {
+            source.AppendLine($"        datum = ankus_write_array(&result, {result.Element.ScalarOid});");
+        }
+        else if (result.IsTemporal)
         {
             source.AppendLine($"        datum = ankus_write_temporal(&result, {result.BufferOid});");
         }

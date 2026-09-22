@@ -7,6 +7,22 @@ slug: api/ankus
 
 Assembly: `Ankus.Runtime.dll`
 
+## Classes
+
+- [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
+- [PgDiagnostic](/api/ankus.pgdiagnostic/)
+- [PgException](/api/ankus.pgexception/)
+- [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
+- [PgLog](/api/ankus.pglog/)
+- [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
+- [Spi](/api/ankus.spi/)
+- [SpiColumn](/api/ankus.spicolumn/)
+- [SpiCursor](/api/ankus.spicursor/)
+- [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
+- [SpiResult](/api/ankus.spiresult/)
+- [SpiRow](/api/ankus.spirow/)
+- [SpiSession](/api/ankus.spisession/)
+
 ## Structs
 
 - [PgDate](/api/ankus.pgdate/)
@@ -24,18 +40,3 @@ Assembly: `Ankus.Runtime.dll`
 
 - [PgDateTimePart](/api/ankus.pgdatetimepart/)
 - [PgLogLevel](/api/ankus.pgloglevel/)
-
-## Classes
-
-- [PgDiagnostic](/api/ankus.pgdiagnostic/)
-- [PgException](/api/ankus.pgexception/)
-- [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
-- [PgLog](/api/ankus.pglog/)
-- [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
-- [Spi](/api/ankus.spi/)
-- [SpiColumn](/api/ankus.spicolumn/)
-- [SpiCursor](/api/ankus.spicursor/)
-- [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
-- [SpiResult](/api/ankus.spiresult/)
-- [SpiRow](/api/ankus.spirow/)
-- [SpiSession](/api/ankus.spisession/)

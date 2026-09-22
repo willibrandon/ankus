@@ -42,6 +42,7 @@ export default defineConfig({
           label: 'Working with PostgreSQL',
           items: [
             { label: 'SPI queries', slug: 'spi' },
+            { label: 'Arrays', slug: 'arrays' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },
             { label: 'Numeric values', slug: 'numeric' },
             { label: 'Date and time values', slug: 'date-and-time' },

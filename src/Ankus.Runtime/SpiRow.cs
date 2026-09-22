@@ -146,6 +146,16 @@ public sealed class SpiRow
             return (T)(object)PgNumeric.FromDecimal(number);
         }
 
+        if (value is IPgArray array)
+        {
+            return (T)SpiArray.Convert(array, typeof(T));
+        }
+
+        if (value is Array vector && value is not byte[])
+        {
+            return (T)SpiArray.Convert(SpiArray.Wrap(vector), typeof(T));
+        }
+
         return (T)SpiTemporal.Convert(value, typeof(T));
     }
 }

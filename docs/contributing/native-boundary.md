@@ -46,7 +46,8 @@ and release in the same runtime also avoids crossing C runtime heaps on Windows.
 ## Representation and encoding
 
 `NativeValue` and generated `AnkusValue` use matching sequential fields: 64-bit
-integral payload, data pointer, 32-bit length, one-byte null flag, and release
+integral payload, two 32-bit auxiliary fields, a 32-bit interval-infinity
+discriminator, data pointer, 32-bit length, one-byte null flag, and release
 function pointer. The integral payload carries integers, booleans, OIDs, or exact
 IEEE-754 bits. A `float` is not widened to a `double`, preserving NaN payloads and
 signed zero.
@@ -72,6 +73,37 @@ Native `json_in` / `jsonb_in` construct results and SPI parameter datums, enforc
 the server's syntax, numeric, Unicode, and encoding restrictions. Result-conversion
 errors occur after managed dispatch has returned; parameter-conversion errors
 remain inside the SPI guard. Both paths release allocator-matched transport buffers.
+
+### Arrays
+
+The outer transport marks an array with `auxiliary1 = -1`. Its single contiguous
+buffer contains no pointers: big-endian 32-bit rank, count, and scalar element OID;
+one length/lower-bound pair per dimension; then an element header and payload for
+each row-major value. Each 28-byte element header contains the integral bits,
+auxiliary fields, infinity discriminator, NULL flag, and payload length.
+
+`DatumGetArrayTypeP` handles array detoasting, and `deconstruct_array` uses the
+server's element length, alignment, and by-value metadata. Domain elements resolve
+to their base type for scalar conversion. Each element reuses the scalar reader,
+then releases its PostgreSQL-owned temporary buffers. SPI copies the complete
+array transport into one malloc-owned cell buffer, preserving existing result
+cleanup even if a later cell fails.
+
+Managed decoding validates shape, bounds, count, lengths, and NULL flags before
+creating the requested typed storage. No object-array intermediate or runtime
+generic construction is needed. Native output validates the envelope and uses
+`construct_md_array` after scalar conversion. Text/binary payloads stay
+length-delimited; only JSON/JSONB/numeric input routines receive a terminated
+copy. Using a C-string copy for binary elements would truncate embedded zero bytes.
+
+All PostgreSQL allocation and element conversion stays in native frames. SPI
+operation contexts reclaim partial arrays on failure. Generated return wrappers
+release the one managed transport buffer in `PG_FINALLY`, including failures in
+later elements. No per-element malloc pointers need to be recovered across longjmp.
+
+C# vectors accept only empty or one-dimensional, lower-bound-one input. `PgArray<T>`
+preserves all dimensions. `params T[]` changes the SQL declaration to `VARIADIC`;
+PostgreSQL still supplies one array datum to the same generated wrapper.
 
 ## Managed-to-PostgreSQL calls
 
@@ -226,6 +258,8 @@ as constants. `DetailLog` stays separate from client-visible `Detail`.
 - `src/Ankus.Generators/NativeBridge.cs`: native transport and varlena conversion.
 - `src/Ankus.Generators/GuardedBackend.cs`: native SPI and error-recovery guards.
 - `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
+- `src/Ankus.Generators/NativeArrayBridge.cs`: detoasting, shape validation, and contiguous array transport.
+- `src/Ankus.Runtime/NativeArray.cs`: managed array encoding and typed materialization.
 - `src/Ankus.Generators/NativeCursorBridge.cs`: portal identities and memory-context invalidation.
 - `src/Ankus.Generators/NativeSessionBridge.cs`: scoped connections and session-owned plan cleanup.
 - `src/Ankus.Generators/NativeErrorBridge.cs`: diagnostic ownership, capture, and native error reconstruction.

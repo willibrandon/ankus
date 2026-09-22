@@ -70,6 +70,7 @@ Ankus generates the native entry point and SQL declaration during publishing.
 | `DateTime`, `PgTimestamp` | `timestamp` |
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
+| `T[]`, `PgArray<T>` | Array of the corresponding scalar SQL type |
 | `void` result | `void` |
 
 Text and binary inputs are managed copies. They remain valid after PostgreSQL
@@ -77,6 +78,9 @@ releases the original storage.
 
 See [date and time values](/date-and-time/) for precision, time zones, and
 full-range PostgreSQL values.
+
+See [arrays](/arrays/) for dimensions, lower bounds, nullable elements, and
+variadic functions. `byte[]` is scalar `bytea`; `byte[][]` is `bytea[]`.
 
 ## SQL NULL
 

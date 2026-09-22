@@ -54,6 +54,21 @@ internal sealed class FunctionType
     internal bool Reference { get; }
 
     /// <summary>
+    /// Gets the scalar element contract for a vector or shape-preserving array.
+    /// </summary>
+    internal FunctionType? Element { get; private set; }
+
+    /// <summary>
+    /// Gets the nullable-aware element spelling used by generated generic adapters.
+    /// </summary>
+    internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
+
+    /// <summary>
+    /// Gets whether this array is represented by an ordinary managed vector.
+    /// </summary>
+    internal bool IsVector { get; private set; }
+
+    /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
     internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb" or "numeric";
@@ -107,6 +122,31 @@ internal sealed class FunctionType
             return new("byte[]", "bytea", "bytea", "bytea", string.Empty, nullable, reference: true);
         }
 
+        ITypeSymbol? elementType = type switch
+        {
+            IArrayTypeSymbol { Rank: 1, IsSZArray: true } array => array.ElementType,
+            INamedTypeSymbol { Name: "PgArray", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
+                => array.TypeArguments[0],
+            _ => null,
+        };
+        if (elementType is not null)
+        {
+            FunctionType? element = Create(elementType);
+            if (element is null || element.Element is not null || element.Managed == "void")
+            {
+                return null;
+            }
+
+            bool vector = type is IArrayTypeSymbol;
+            string elementName = element.Managed + (element.Nullable ? "?" : string.Empty);
+            string managed = vector ? elementName + "[]" : "global::Ankus.PgArray<" + elementName + ">";
+            return new(managed, element.Sql + "[]", "array", "array", string.Empty, nullable, reference: true)
+            {
+                Element = element,
+                IsVector = vector,
+            };
+        }
+
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         if (name == "global::Ankus.PgNumeric" || type.SpecialType == SpecialType.System_Decimal)
         {
@@ -150,4 +190,16 @@ internal sealed class FunctionType
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Gets the built-in scalar OID macro, including the scalar types passed by value.
+    /// </summary>
+    internal string ScalarOid => Reader switch
+    {
+        "INT16" => "INT2OID",
+        "INT32" => "INT4OID",
+        "INT64" => "INT8OID",
+        "OID" => "OIDOID",
+        _ => BufferOid,
+    };
 }

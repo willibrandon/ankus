@@ -27,7 +27,7 @@ SpiParameter optionalText = SpiParameter.Create<string?>(null);
 
 Parameters accept `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`,
 `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`, the
-[temporal types](/date-and-time/), and nullable forms. Parameter values
+[temporal types](/date-and-time/), nullable forms, and [arrays](/arrays/). Parameter values
 are sent separately from the SQL command. Each command call uses one internal
 subtransaction and reports results from its final statement.
 

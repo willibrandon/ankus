@@ -1,0 +1,140 @@
+using System.Collections;
+
+namespace Ankus;
+
+/// <summary>
+/// Owns a row-major PostgreSQL array, preserving up to six dimensions and their lower bounds.
+/// Use nullable value types for SQL NULL elements and nullable annotations for reference elements.
+/// A null array reference represents SQL NULL.
+/// </summary>
+/// <typeparam name="T">A supported scalar element type, such as int?, string, or PgNumeric.</typeparam>
+public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
+{
+    private readonly T[] _values;
+    private readonly int[] _lengths;
+    private readonly int[] _lowerBounds;
+
+    /// <summary>
+    /// Takes ownership of validated materialized elements and shape without copying them again.
+    /// </summary>
+    /// <param name="ownedValues">The converted elements, no longer mutated by the caller.</param>
+    /// <param name="shape">The validated lengths and lower bounds, also transferred to this instance.</param>
+    internal PgArray(T[] ownedValues, (int[] Lengths, int[] LowerBounds) shape)
+    {
+        _values = ownedValues;
+        _lengths = shape.Lengths;
+        _lowerBounds = shape.LowerBounds;
+    }
+
+    /// <summary>
+    /// Copies a vector. Nonempty vectors have one dimension with lower bound one.
+    /// </summary>
+    /// <param name="values">The elements in order.</param>
+    public PgArray(IEnumerable<T> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
+        _values = [.. values];
+        _lengths = _values.Length == 0 ? [] : [_values.Length];
+        _lowerBounds = _values.Length == 0 ? [] : [1];
+    }
+
+    /// <summary>
+    /// Copies elements and dimensions. Empty arrays normalize to PostgreSQL's zero-dimensional empty array.
+    /// </summary>
+    /// <param name="values">The row-major elements; the last subscript varies fastest.</param>
+    /// <param name="lengths">Zero through six dimension lengths whose product equals the element count.</param>
+    /// <param name="lowerBounds">One lower bound per dimension, or an empty span to use one for every dimension.</param>
+    public PgArray(ReadOnlySpan<T> values, ReadOnlySpan<int> lengths, ReadOnlySpan<int> lowerBounds = default)
+    {
+        _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
+        SpiArray.ValidateShape(values.Length, lengths, lowerBounds);
+        _values = [.. values];
+        _lengths = values.IsEmpty ? [] : [.. lengths];
+        _lowerBounds = values.IsEmpty ? [] : lowerBounds.IsEmpty ? [.. Enumerable.Repeat(1, lengths.Length)] : [.. lowerBounds];
+    }
+
+    /// <summary>
+    /// Gets the total element count, including SQL NULL elements.
+    /// </summary>
+    public int Count => _values.Length;
+
+    /// <summary>
+    /// Gets the number of dimensions. PostgreSQL empty arrays have rank zero.
+    /// </summary>
+    public int Rank => _lengths.Length;
+
+    /// <summary>
+    /// Gets the dimension lengths without exposing mutable storage.
+    /// </summary>
+    public ReadOnlySpan<int> Lengths => _lengths;
+
+    /// <summary>
+    /// Gets the PostgreSQL lower bounds without exposing mutable storage.
+    /// </summary>
+    public ReadOnlySpan<int> LowerBounds => _lowerBounds;
+
+    /// <summary>
+    /// Gets an element by its zero-based flat index, independently of PostgreSQL lower bounds.
+    /// </summary>
+    /// <param name="index">The row-major index.</param>
+    /// <returns>The element.</returns>
+    public T this[int index] => _values[index];
+
+    /// <summary>
+    /// Gets an element by PostgreSQL subscripts, including negative and non-one lower bounds.
+    /// </summary>
+    /// <param name="subscripts">Exactly one subscript per dimension.</param>
+    /// <returns>The element.</returns>
+    public T GetValue(params ReadOnlySpan<int> subscripts)
+    {
+        if (subscripts.Length != Rank || Rank == 0)
+        {
+            throw new ArgumentException("Supply one subscript per dimension of a nonempty array.", nameof(subscripts));
+        }
+
+        int index = 0;
+        for (int dimension = 0; dimension < Rank; dimension++)
+        {
+            long offset = (long)subscripts[dimension] - _lowerBounds[dimension];
+            if (offset < 0 || offset >= _lengths[dimension])
+            {
+                throw new ArgumentOutOfRangeException(nameof(subscripts), "The subscript is outside its dimension's bounds.");
+            }
+
+            index = checked(index * _lengths[dimension] + (int)offset);
+        }
+
+        return _values[index];
+    }
+
+    /// <summary>
+    /// Copies all elements in row-major order, explicitly discarding shape and lower bounds.
+    /// </summary>
+    /// <returns>A flat managed array.</returns>
+    public T[] ToArray() => [.. _values];
+
+    /// <summary>
+    /// Copies a zero- or one-dimensional array with lower bound one, rejecting shape loss.
+    /// </summary>
+    /// <returns>The managed vector.</returns>
+    public T[] ToVector()
+    {
+        if (Rank > 1 || (Rank == 1 && _lowerBounds[0] != 1))
+        {
+            throw new InvalidOperationException("Use PgArray<T> to preserve dimensions and lower bounds, or ToArray() to explicitly flatten them.");
+        }
+
+        return ToArray();
+    }
+
+    /// <summary>
+    /// Enumerates elements in row-major order.
+    /// </summary>
+    /// <returns>The enumerator.</returns>
+    public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)_values).GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    uint IPgArray.ElementOid => SpiType.GetOid<T>();
+    object? IPgArray.GetElement(int index) => _values[index];
+}

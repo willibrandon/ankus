@@ -52,6 +52,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         native.AppendLine(NativeExtendedTypes.Source);
         native.AppendLine(NativeTemporalTypes.Source);
         native.AppendLine(NativeSpiBridge.Source);
+        native.AppendLine(NativeArrayBridge.Source);
         native.AppendLine(NativeScalarFunctions.Source);
         native.AppendLine(NativeTemporalOperations.Source);
         native.AppendLine(NativeNumericOperations.Source);
@@ -114,7 +115,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             FunctionType.Create(method.ReturnType) is null || method.Parameters.Length > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
             method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
-                FunctionType.Create(parameter.Type) is null))
+                FunctionType.Create(parameter.Type) is null ||
+                (parameter.IsParams && FunctionType.Create(parameter.Type)?.IsVector != true)))
         {
             return false;
         }
