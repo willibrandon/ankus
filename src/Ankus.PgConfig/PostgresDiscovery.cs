@@ -1,0 +1,66 @@
+using System.Globalization;
+using System.Text.Json;
+
+namespace Ankus.PgConfig;
+
+/// <summary>
+/// Enumerates configured, Ankus-managed, and conventional platform installation locations without environment setup.
+/// </summary>
+internal static class PostgresDiscovery
+{
+    /// <summary>
+    /// Enumerates candidate pg_config executables for a PostgreSQL major version, in discovery order.
+    /// </summary>
+    /// <param name="major">The required PostgreSQL major version.</param>
+    /// <returns>Configured and conventional executable paths.</returns>
+    internal static IEnumerable<string> GetCandidates(int major)
+    {
+        string home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ankus");
+        string version = major.ToString(CultureInfo.InvariantCulture);
+        string fileName = OperatingSystem.IsWindows() ? "pg_config.exe" : "pg_config";
+        string configuration = Path.Combine(home, "config.json");
+        if (File.Exists(configuration))
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(configuration));
+            if (document.RootElement.TryGetProperty($"pg{version}", out JsonElement value))
+            {
+                string path = value.GetString() ?? throw new FormatException($"Missing pg{version} path in {configuration}.");
+                yield return Path.IsPathRooted(path) ? path : Path.Combine(home, path);
+            }
+        }
+
+        string managed = Path.Combine(home, "postgres");
+        if (Directory.Exists(managed))
+        {
+            foreach (string directory in Directory.EnumerateDirectories(managed).OrderDescending(StringComparer.Ordinal))
+            {
+                yield return Path.Combine(directory, "bin", fileName);
+            }
+        }
+
+        string? onPath = ExecutableLocator.Find("pg_config");
+        if (onPath is not null)
+        {
+            yield return onPath;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "PostgreSQL", version, "bin", fileName);
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            yield return $"/opt/homebrew/opt/postgresql@{version}/bin/pg_config";
+            yield return $"/usr/local/opt/postgresql@{version}/bin/pg_config";
+            yield return $"/Applications/Postgres.app/Contents/Versions/{version}/bin/pg_config";
+            yield return $"/Library/PostgreSQL/{version}/bin/pg_config";
+        }
+        else
+        {
+            yield return $"/usr/lib/postgresql/{version}/bin/pg_config";
+            yield return $"/usr/pgsql-{version}/bin/pg_config";
+            yield return "/usr/local/pgsql/bin/pg_config";
+        }
+    }
+}

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ankus.Testing</RootNamespace>
+    <Description>Cross-platform PostgreSQL extension test harness for Ankus.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../../src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
+  </ItemGroup>
+
+</Project>

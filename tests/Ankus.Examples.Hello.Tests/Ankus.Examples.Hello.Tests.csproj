@@ -1,0 +1,13 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ankus.Examples.Hello.Tests</RootNamespace>
+    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
+    <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
+  </ItemGroup>
+
+</Project>

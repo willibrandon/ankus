@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Ankus.Examples.Hello</AssemblyName>
+    <RootNamespace>Ankus.Examples.Hello</RootNamespace>
+    <Description>A minimal PostgreSQL extension compiled as a .NET Native AOT shared library.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

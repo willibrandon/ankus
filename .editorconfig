@@ -29,14 +29,15 @@ csharp_new_line_before_finally = true
 csharp_indent_case_contents = true
 csharp_indent_case_contents_when_block = false
 
-# One type per file: multiple type declarations in a file are an error.
+# IDE0044 enforces readonly fields. One type per file is a repository rule;
+# a first-party analyzer will enforce it once Ankus.Analyzers is available.
 dotnet_diagnostic.IDE0044.severity = error
 dotnet_diagnostic.IDE0005.severity = warning
 
-# Modern C#: var everywhere the type is apparent, no redundant qualifications.
-csharp_style_var_for_built_in_types = true:error
-csharp_style_var_when_type_is_apparent = true:error
-csharp_style_var_elsewhere = true:error
+# Match dotnet/runtime: prefer explicit types and avoid redundant qualifications.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = false:none
+csharp_style_var_elsewhere = false:suggestion
 dotnet_style_qualification_for_field = false:error
 dotnet_style_qualification_for_property = false:error
 dotnet_style_qualification_for_method = false:error
@@ -46,9 +47,6 @@ dotnet_style_qualification_for_event = false:error
 csharp_prefer_braces = true:warning
 csharp_preserve_single_line_blocks = false:none
 csharp_preserve_single_line_statements = false:none
-
-# Modifiers (runtime order)
-csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async
 
 # Expressions
 dotnet_style_predefined_type_for_locals_parameters_members = true:error
@@ -153,8 +151,6 @@ dotnet_diagnostic.CA2016.severity = warning
 dotnet_diagnostic.CA2249.severity = warning
 dotnet_diagnostic.IDE0071.severity = silent
 dotnet_diagnostic.IDE0031.severity = silent
-
-file_header_template = Copyright (c) 2026 The Ankus Project authors.\nLicensed under the MIT License. See LICENSE for details.
 
 # C files (Postgres extension shim): Allman braces, 4 spaces (runtime C style)
 [*.{c,h}]

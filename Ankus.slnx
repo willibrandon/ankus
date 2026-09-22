@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ankus.Examples.Hello.Tests/Ankus.Examples.Hello.Tests.csproj" />
+    <Project Path="tests/Ankus.IntegrationTests/Ankus.IntegrationTests.csproj" />
+    <Project Path="tests/Ankus.PgConfig.Tests/Ankus.PgConfig.Tests.csproj" />
+    <Project Path="tests/Ankus.Testing/Ankus.Testing.csproj" />
+  </Folder>
+</Solution>

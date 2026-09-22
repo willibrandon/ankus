@@ -1,0 +1,15 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Ankus.IntegrationTests</RootNamespace>
+    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
+    <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../Ankus.Testing/Ankus.Testing.csproj" />
+    <ProjectReference Include="../../samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
