@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>ankus</ToolCommandName>
+    <AssemblyName>ankus</AssemblyName>
+    <PackageId>Ankus.Tool</PackageId>
+    <Description>Development tools for .NET Native AOT PostgreSQL extensions.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -28,6 +28,7 @@
       <_AnkusCommand>$(_AnkusCommand) &quot;$(CppLinker)&quot; &quot;$(_AnkusLibraries)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionName)&quot; &quot;$(AnkusExtensionVersion)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(RuntimeIdentifier)&quot; &quot;$(AnkusPgConfigPath)&quot;</_AnkusCommand>
     </PropertyGroup>
     <Exec Command="$(_AnkusCommand)" />
     <ReadLinesFromFile File="$(_AnkusArtifacts)exports.txt">
@@ -52,8 +53,10 @@
     </ItemGroup>
     <Copy SourceFiles="$(_AnkusArtifacts)schema.sql" DestinationFiles="$(PublishDir)$(TargetName).sql" />
     <Copy SourceFiles="@(_AnkusPackageFile)" DestinationFolder="$(PublishDir)extension/" />
+    <Copy SourceFiles="$(_AnkusArtifacts)ankus.extension.json" DestinationFolder="$(PublishDir)" />
     <ItemGroup>
       <FileWrites Include="$(PublishDir)$(TargetName).sql" />
+      <FileWrites Include="$(PublishDir)ankus.extension.json" />
       <FileWrites Include="@(_AnkusPackageFile->'$(PublishDir)extension/%(Filename)%(Extension)')" />
     </ItemGroup>
   </Target>

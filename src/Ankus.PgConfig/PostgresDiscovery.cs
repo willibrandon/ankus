@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 
 namespace Ankus.PgConfig;
 
@@ -15,20 +14,9 @@ internal static class PostgresDiscovery
     /// <returns>Configured and conventional executable paths.</returns>
     internal static IEnumerable<string> GetCandidates(int major)
     {
-        string home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ankus");
+        string home = new PostgresRegistry().HomeDirectory;
         string version = major.ToString(CultureInfo.InvariantCulture);
         string fileName = OperatingSystem.IsWindows() ? "pg_config.exe" : "pg_config";
-        string configuration = Path.Combine(home, "config.json");
-        if (File.Exists(configuration))
-        {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(configuration));
-            if (document.RootElement.TryGetProperty($"pg{version}", out JsonElement value))
-            {
-                string path = value.GetString() ?? throw new FormatException($"Missing pg{version} path in {configuration}.");
-                yield return Path.IsPathRooted(path) ? path : Path.Combine(home, path);
-            }
-        }
-
         string managed = Path.Combine(home, "postgres");
         if (Directory.Exists(managed))
         {

@@ -102,6 +102,12 @@ public sealed class PostgresInstallation
     public static async Task<PostgresInstallation> DiscoverAsync(int major, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
+        var registry = new PostgresRegistry();
+        if (registry.GetPath(major) is not null)
+        {
+            return await registry.GetAsync(major, cancellationToken).ConfigureAwait(false);
+        }
+
         foreach (string candidate in PostgresDiscovery.GetCandidates(major).Distinct(StringComparer.Ordinal))
         {
             if (File.Exists(candidate))
@@ -115,7 +121,7 @@ public sealed class PostgresInstallation
         }
 
         throw new FileNotFoundException(
-            $"PostgreSQL {major} was not found. Install it in a standard location or register pg{major} in ~/.ankus/config.json.");
+            $"PostgreSQL {major} was not found. Run 'ankus init --pg{major} /path/to/pg_config'.");
     }
 
     /// <summary>

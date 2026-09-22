@@ -7,6 +7,7 @@
     <Project Path="src/Ankus.Generators/Ankus.Generators.csproj" />
     <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <Project Path="src/Ankus.Runtime/Ankus.Runtime.csproj" />
+    <Project Path="src/Ankus.Tool/Ankus.Tool.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Ankus.Examples.Hello.Tests/Ankus.Examples.Hello.Tests.csproj" />

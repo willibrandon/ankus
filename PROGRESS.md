@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **434 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **457 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 325 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 348 integration cases include installed-tool workflows, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -460,7 +460,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 434 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 457 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -508,22 +508,29 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites, enums
   - [ ] GUC options; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
-   - [ ] `new`, `build`, `schema`, `test`, `run`, and `package` commands
+   - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
+   - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
+   - [ ] Provisioning/downloads, `new`, `schema`, `test`, `run`, server lifecycle and `package` commands
    - [x] Publish native library, `.control`, and versioned `.sql` artifacts
-    - [ ] Installation and distribution packaging commands, extension upgrades
+    - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
+    - [ ] Distribution packaging and extension upgrades
     - [ ] NuGet entry package with automatic runtime, generator, and build integration dependencies
-    - [ ] .NET tool and reusable backend-testing packages
+    - [x] Local tool package installation and invocation tests
+    - [ ] Reusable backend-testing packages
     - [ ] Isolated consumer tests using packed NuGet artifacts
     - [ ] Public NuGet release after full parity and platform/version validation
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
-    - [ ] Astro documentation site, using `/home/brandon/src/ilrepl/docs` as a read-only design reference
-    - [ ] Concise guides, short explanations, and restrained formatting; review prose for stock phrasing and unnecessary repetition
-    - [ ] Verify site build, navigation, links, search, and desktop/mobile layouts
+    - [x] Astro/Starlight documentation site, using `/home/brandon/src/ilrepl/docs` as a read-only design reference
+    - [x] User-facing guides for extension authors; repository workflows and design notes live in `docs/contributing/`
+    - [x] Concise guides, short explanations, and restrained formatting for the implemented APIs
+    - [x] Verify site build, navigation, links, search, and desktop/mobile layouts
+    - [ ] Public hosting, canonical site URL/sitemap, and package-based setup guide after NuGet consumer validation
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
-    - [x] README and verified datum-boundary design notes (`docs/native-boundary.md`)
+    - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation
+    - [ ] Generated public API reference from XML comments, following `/home/brandon/src/dotsider/src/Dotsider.DocGenerator`
 - [ ] **P7 — Custom scan + nodes**
    - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
    - [ ] PostgreSQL node representations and pgrx node support APIs
@@ -581,3 +588,15 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-22 — PostgreSQL logging, structured reports, native routing and severity mapping,
   managed ERROR handling, FATAL connection termination and isolated PANIC crash-recovery tests.
   `dotnet test`: 434 passed, 0 failed, 0 skipped (325 PostgreSQL integration cases).
+- 2026-09-22 — Astro/Starlight site with eight author-facing pages, search, theme selection, and responsive navigation.
+  Contributor setup, backend tests, and native design notes moved to `docs/contributing/`.
+  `pnpm install --frozen-lockfile`, `pnpm check` and `pnpm build` passed. Local Playwright checks passed at
+  1440px and 390px, including navigation, mobile menu, search, theme switching and all 44 internal links/anchors.
+  Screenshots are in `artifacts/docs-check/`. Astro emits a duplicate 404 route warning; the generated 404 page works.
+  Sitemap generation awaits the public site URL. These checks cover the current pages, not complete feature documentation.
+- 2026-09-22 — Packable `ankus` tool with registered PostgreSQL selection, atomic configuration updates,
+  Native AOT build/publish, manifest-based install and DESTDIR staging. `ToolCommandTests` installs a freshly
+  packed tool, publishes an author project, stages its files, and executes it through an isolated PG18 backend.
+  Invalid registrations, artifact targets, incomplete output and failed builds fail without silent fallback.
+  System.CommandLine 2.0.12 is centrally pinned; IDE0305 now fails builds. `dotnet test`: 457 passed,
+  0 failed, 0 skipped, including 23 installed-tool cases. Full CLI provisioning/lifecycle parity remains pending.
