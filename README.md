@@ -89,7 +89,9 @@ when their PostgreSQL argument types differ.
 Temporal conversions preserve microseconds. `DateTime` requires `Kind.Unspecified`;
 `DateTimeOffset` represents a UTC instant. Full-range `Pg*` types support PostgreSQL
 infinities, BC dates, 24:00, second-resolution offsets, and separate calendar months
-and days. See [date and time values](docs/src/content/docs/date-and-time.md).
+and days. They expose exact calendar fields and raw-value factories;
+`PgTimeZone` resolves server timezone offsets at transaction start or a supplied instant.
+See [date and time values](docs/src/content/docs/date-and-time.md).
 
 Text supports server-encoding conversion and Unicode; binary data preserves zero
 bytes. Native wrappers detoast compressed, external, and packed varlena inputs

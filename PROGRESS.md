@@ -33,11 +33,11 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds PostgreSQL aggregates with typed callbacks, owned managed state,
-parallel serialization, moving windows, and native ordered/hypothetical comparisons. The public
-average and discrete-percentile examples are validated alongside existing event/row triggers,
-composite, set, operator, enum and package/tool features. Plain `dotnet test` passes
-2909 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+The latest milestone completes the inventoried temporal field/epoch accessors, raw-value factories,
+server timezone-offset helpers, interval timezone conversions and owned timeofday text. Full-range
+values, infinity handling, native endpoint behavior and cleanup are verified alongside the existing
+aggregate, event/row trigger, composite, set, operator, enum and package/tool features. Plain `dotnet test`
+passes 3172 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -51,7 +51,7 @@ composite, set, operator, enum and package/tool features. Plain `dotnet test` pa
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **2909 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3172 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -286,8 +286,8 @@ Reference surface: `pgrx/src/datum/{uuid,json}.rs` (`Uuid`, `Json`, `JsonB`, `Js
 
 Reference surface: `pgrx/src/datetime/`; PostgreSQL `datatype/timestamp.h`, `utils/date.h`, and
 `utils/timestamp.h`; .NET `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `TimeSpan` contracts.
-Verified on PostgreSQL 18.6 / Linux x64. Remaining temporal parity includes field/epoch accessor conveniences,
-named-zone timetz construction/offset lookup, modular/saturating raw factories, and the time_of_day text helper.
+Verified on PostgreSQL 18.6 / Linux x64. Field/epoch accessors, named-zone timetz construction and offset lookup,
+modular/saturating raw factories, interval zone conversion and the timeofday text helper are implemented below.
 Other server versions/platforms remain unvalidated. PG13 date extraction uses its narrower timestamp cast;
 PG14+ uses native date extraction. Managed interval equality remains component-based; Sign uses PostgreSQL's
 comparison approximation and Abs takes the checked absolute value of each component.
@@ -316,6 +316,52 @@ comparison approximation and Abs takes the checked absolute value of each compon
 | Exact interval units, comparison duration/sign and component absolute value | `FromMicroseconds`, `ToComparisonMicroseconds`, `Sign`, `Abs` | `IntervalSignMatchesPostgresComparison`; `PgTemporalConvenienceTests.IntervalComponentConveniencesPreserveExactStorage` checks cancellation, signed limits, overflow, and Int128 range |
 | New constructor/round/format failures and cleanup | Guarded operations and explicit rounded-timestamp finite-range check | `TemporalConvenienceErrorsPreserveState` checks SQLSTATE, 50 finally executions, zero context growth, active plan and prior-write survival; `TemporalPrecisionRejectsInvalidDigits` checks invalid managed precision |
 | Native AOT temporal JSON contracts | Six statically registered `JsonConverter<T>` implementations and source-generated metadata | `ScalarJsonTests.ScalarJsonPreservesFullRangeAndScale`, `IntervalJsonHonorsStyleAndRetainsComponents` compare text and binary values; `ScalarJsonFailuresPreservePathsAndBackend` checks paths, inner SQLSTATE, finally and cleanup; `ScalarConvertersPreserveBackendAccessErrors` checks detached access |
+
+### Temporal field, raw-value and timezone parity
+
+Completed the remaining safe temporal conveniences against the local read-only pgrx datetime
+surface and PostgreSQL's native calendar/timezone routines:
+
+- Detached full-range date/time/timestamp fields and named tuples, including BC years without year zero,
+  fractional-only microseconds, signed offset components and finite epoch conversions. Timestamptz
+  fields use native session-zone extraction directly, preserving endpoint instants whose local timestamp
+  cast would overflow. Both infinity predicates and explicit finite-field rejection are available.
+- Saturating date/timestamp/timestamptz raw factories and Euclidean time/raw-timetz wrapping. Raw timetz
+  explicitly accepts PostgreSQL seconds west of UTC; ordinary checked constructors retain seconds east.
+- `PgTimeZone.GetOffset` resolves server names/abbreviations/POSIX zones at transaction start or an explicit
+  finite instant. Named timetz construction attaches the offset without shifting supplied clock fields.
+  Interval `AtTimeZone` overloads use native conversion, and detached `ToUtc` conveniences preserve exact values.
+- PostgreSQL `timeofday()` returns owned live clock text. Explicit record `ToString` implementations retain
+  detached diagnostic formatting without invoking new finite/local field accessors.
+
+The new scalar operations use the existing native guard and owned result/diagnostic transport. The timezone
+helper follows the PG13–15 versus PG16+ native decoder signatures; declarations were checked against local
+PG13–19 bindings, which is compatibility intent, not execution evidence. Offset lookup can resolve wider
+POSIX offsets than the existing checked timetz type; named construction and converted results reject offsets
+outside that type's strict ±16-hour bound. Fractional interval-zone offsets follow PostgreSQL's whole-second
+truncation. Existing GetPart/Extract(Microseconds) remains second-inclusive, unlike MicrosecondsWithinSecond.
+
+| Contract | Concrete evidence |
+|---|---|
+| Full-range Gregorian/epoch values and negative-epoch floor division | `PgTemporalFieldsTests.DateFieldsAndEpochsPreserveFullRange`, `TimestampFieldsUseFloorDivision`; backend `DateFieldsMatchPostgresAcrossFullRange`, `TimestampFieldsMatchPostgres` compare independent SQL extraction |
+| Local endpoint fields, BC, seasonal/DST and historical seconds | `TimestampFieldsFollowSessionZoneAtFiniteEndpoints`, including actual failing local timestamp casts beside successful native field reads |
+| Whole/fractional seconds, 24:00, offset fields and UTC wrapping | `TimeFieldsPreserveEndOfDayAndFractions`, `OffsetFieldsAndUtcPreserveSeconds`, `TimeFieldsMatchPostgresIncludingEndOfDay`, `UtcConveniencesMatchNativeValues` |
+| Saturation, raw Euclidean modulo and unchanged checked constructor bounds | `RawDateSaturationPreservesBoundaries`, `RawTimestampSaturationPreservesBoundaries`, `RawTimeWrappingUsesEuclideanRemainders`, `RawOffsetWrappingUsesPostgresWestConvention` use independent literals, adjacent boundaries and signed extremes; `RawTemporalFactoriesMatchNativeBinaryValues` compares native bytes |
+| Native timezone identity and clock preservation | `NamedZoneOffsetsUseSpecifiedInstant`, `NamedZoneOffsetsUseTransactionStart`, `NamedZoneOffsetsSupportFiniteEndpoints`, `NamedZoneTimeConstructionPreservesWallClock`, `IntervalZoneConversionsMatchPostgres` |
+| Owned live clock text and unchanged settings | `TimeOfDayReturnsOwnedServerClockText` brackets parsed server text with native clock samples after further native allocations and managed GC |
+| Errors and cleanup | `TemporalParityErrorsPreserveState` checks exact SQLSTATE/managed exception, 50 failures/finally/successes, zero context growth, prepared plan and prior-write survival; direct `PgTimeZoneTests` check detached validation/access |
+| Safe diagnostics and infinities | `DiagnosticStringsDoNotRequireBackendOrFiniteValues`, `InfiniteDateFieldsAndEpochsAreRejected`, `InfiniteTimestampFieldsAreRejected`, `ZonedTimestampFieldsRequireFiniteBackendContext` |
+
+Focused validation: 115 runtime cases and 148 PostgreSQL cases passed; the strengthened same-transaction
+clock check passed all three cases. The non-incremental Release build had zero warnings/errors. Site build/check
+passed (89 API pages/1033 members, 116 site pages); the XML scan found no omissions in 678 internal declarations.
+Plain `dotnet test` passed **3172 cases, zero failures/skips**, including the final repeated-clock oracle
+and isolated package consumers. API freshness checking passed. Existing site warnings for the duplicate 404 route
+and missing public site URL remain visible. No warnings were disabled or lowered. Backend evidence is
+PostgreSQL 18.6 / Linux x64. Updated the public temporal guide, README and generated API.
+Research/planning/static source pairing and final assertion/gap reviews are recorded in
+nonstageable `.git/testagent/temporal-parity/`; no empirical mutation or coverage percentage is claimed.
+Full raw bindings and the complete PostgreSQL/platform matrix remain required full-port work.
 
 ### Numeric API evidence
 
@@ -1016,7 +1062,7 @@ alongside the source-level macro inventory.
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite types, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views and custom base-type elements pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
-| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
+| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
@@ -1125,7 +1171,7 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Full-range numeric and checked decimal conversion, native arithmetic/rescaling and exact numeric temporal extraction
       - [x] Temporal operators, component/unit factories, precision clocks, explicit-zone ISO and temporal/numeric JSON
       - [x] Numeric function-boundary constraints, primitive casts, checked generic conversions and operator/sum conveniences
-      - [ ] Remaining temporal accessor/raw-factory/timezone conveniences and time_of_day
+      - [x] Temporal field/epoch accessors, saturating/wrapping raw factories, named/interval timezone conveniences and timeofday
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -1408,3 +1454,12 @@ The phases track implementation of the complete pgrx feature surface.
   81 API pages document 924 members and the site builds 107 pages. Site type/API freshness checks pass.
   Raw parse-tree/opaque-command bindings, the remaining full-port inventory and PostgreSQL/platform
   validation remain active requirements.
+- 2026-09-22 — Completed temporal field/epoch conveniences, raw saturation/wrapping, named-zone timetz
+  construction, server timezone-offset lookup, interval-zone overloads and owned live timeofday text.
+  Added 115 runtime and 148 backend cases, with exact full-range/BC/microsecond/offset/binary oracles,
+  finite-endpoint local-cast failure witnesses and 50-cycle error/finally/plan/write/context recovery.
+  Plain `dotnet test`: 3172 passed, zero failures/skips on PostgreSQL 18.6/Linux x64; Release build:
+  zero warnings/errors. The public guide, README and generated API now document the field/raw/timezone
+  distinctions; 89 API pages contain 1033 members and the site builds 116 pages. XML review found no
+  omissions in 678 internal declarations. The remaining raw API, extension features, tooling and complete
+  PostgreSQL/platform validation remain required full-port work.

@@ -6,7 +6,7 @@ namespace Ankus;
 /// Represents PostgreSQL time without time zone at microsecond precision, including 24:00:00.
 /// </summary>
 [JsonConverter(typeof(PgTimeConverter))]
-public readonly record struct PgTime : IComparable<PgTime>
+public readonly partial record struct PgTime : IComparable<PgTime>
 {
     /// <summary>
     /// Creates a time from microseconds since midnight, between zero and 86,400,000,000 inclusive.

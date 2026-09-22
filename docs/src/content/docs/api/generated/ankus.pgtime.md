@@ -159,6 +159,26 @@ Returns: <code>PgNumeric?</code>
 
 The numeric field.
 
+<a id="member-7535eb1bd0818b56"></a>
+
+### FromMicrosecondsWrapping(long)
+
+Creates a time by wrapping a signed microsecond count into one day using a nonnegative remainder.
+
+```csharp
+public static PgTime FromMicrosecondsWrapping(long microseconds)
+```
+
+Parameters:
+
+`microseconds` — [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The raw signed microseconds; whole days, including 24:00, wrap to midnight.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+A time from midnight through one microsecond before midnight, without requiring a backend.
+
 <a id="member-471765beeb148aec"></a>
 
 ### FromTimeOnly(TimeOnly)
@@ -232,6 +252,20 @@ The field.
 Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
 
 The field value.
+
+<a id="member-dab85252edcf09e7"></a>
+
+### GetTimeParts()
+
+Reads exact wall-clock fields without requiring a backend, preserving 24:00 and microseconds.
+
+```csharp
+public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
+```
+
+Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour, minute, whole second, and microseconds within that second.
 
 <a id="member-e8fb512a14696b1d"></a>
 
@@ -345,11 +379,15 @@ The time text.
 
 ### ToString()
 
+Formats stored diagnostic values without requiring a backend.
+
 ```csharp
 public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The managed record diagnostic representation.
 
 <a id="member-bf66dd8e09efb891"></a>
 
@@ -422,6 +460,30 @@ public static PgTime EndOfDay { get; }
 
 Value: [PgTime](/api/ankus.pgtime/)
 
+<a id="member-1caab553bc10a8a2"></a>
+
+### FractionalSecond
+
+Gets the seconds within the minute, including the microsecond fraction, as a floating-point value.
+
+```csharp
+public double FractionalSecond { get; }
+```
+
+Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+<a id="member-9b73380f83ea8a74"></a>
+
+### Hour
+
+Gets the hour from zero through twenty-four; twenty-four occurs only for the end-of-day value.
+
+```csharp
+public int Hour { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
 <a id="member-f64fab690592ee09"></a>
 
 ### Microseconds
@@ -433,6 +495,42 @@ public long Microseconds { get; }
 ```
 
 Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+<a id="member-87da4a11249f7a6c"></a>
+
+### MicrosecondsWithinSecond
+
+Gets the microseconds within the current second, from zero through 999999.
+
+```csharp
+public int MicrosecondsWithinSecond { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-25999572d785e37f"></a>
+
+### Minute
+
+Gets the minute within the hour.
+
+```csharp
+public int Minute { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-5acc050447613a49"></a>
+
+### Second
+
+Gets the whole second within the minute.
+
+```csharp
+public int Second { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 
 ## Operators

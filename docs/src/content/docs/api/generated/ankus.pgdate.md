@@ -240,6 +240,44 @@ Returns: [PgDate](/api/ankus.pgdate/)
 
 The PostgreSQL date.
 
+<a id="member-b4bad4d2fbcc39f3"></a>
+
+### FromRawSaturating(int)
+
+Creates a date from a raw PostgreSQL day offset, clamping values outside the finite range to infinity.
+
+```csharp
+public static PgDate FromRawSaturating(int daysSinceEpoch)
+```
+
+Parameters:
+
+`daysSinceEpoch` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of days since 2000-01-01, including infinity sentinels.
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The finite date, negative infinity below the finite minimum, or positive infinity above the finite maximum.
+
+<a id="member-2710bdae4ca16d87"></a>
+
+### GetDateParts()
+
+Reads the full-range Gregorian date without requiring a backend.
+
+```csharp
+public (int Year, int Month, int Day) GetDateParts()
+```
+
+Returns: [(int Year, int Month, int Day)](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The year, month, and day. Negative years denote BC; there is no year zero.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
+
 <a id="member-953d2ef58d65f579"></a>
 
 ### GetHashCode()
@@ -382,6 +420,24 @@ Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The ISO date, or PostgreSQL's infinity spelling.
 
+<a id="member-8f6336cef63fc77b"></a>
+
+### ToJulianDays()
+
+Converts this finite date to its Julian day number without requiring a backend.
+
+```csharp
+public int ToJulianDays()
+```
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The Julian day number, with zero denoting 4714-11-24 BC in the proleptic Gregorian calendar.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
+
 <a id="member-6c07dc7448477359"></a>
 
 ### ToPostgresString()
@@ -400,11 +456,15 @@ The PostgreSQL text.
 
 ### ToString()
 
+Formats stored diagnostic values without requiring a backend or reading finite calendar fields.
+
 ```csharp
 public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The managed record diagnostic representation.
 
 <a id="member-dd2528f8a6450159"></a>
 
@@ -433,6 +493,42 @@ public PgTimestampTz ToTimestampTz()
 Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 The UTC instant.
+
+<a id="member-ffa9bfb2bb4833bf"></a>
+
+### ToUnixEpochDays()
+
+Converts this finite date to the signed number of days since 1970-01-01 without requiring a backend.
+
+```csharp
+public int ToUnixEpochDays()
+```
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed Unix epoch day offset.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
+
+<a id="member-d8499cd359d0fc97"></a>
+
+### ToUnixTimeSeconds()
+
+Converts this finite date's midnight to Unix epoch seconds, treating every day as 86400 seconds.
+
+```csharp
+public long ToUnixTimeSeconds()
+```
+
+Returns: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The signed epoch seconds without any session timezone adjustment or backend access.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
 
 <a id="member-768e9656cf88a560"></a>
 
@@ -473,6 +569,22 @@ public static PgDate CurrentDate { get; }
 
 Value: [PgDate](/api/ankus.pgdate/)
 
+<a id="member-4a059637b5159046"></a>
+
+### Day
+
+Gets the day of the month without requiring a backend.
+
+```csharp
+public int Day { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
+
 <a id="member-46ab4b72c5bbe718"></a>
 
 ### DaysSinceEpoch
@@ -497,6 +609,46 @@ public bool IsFinite { get; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-315e56cd92b621fb"></a>
+
+### IsNegativeInfinity
+
+Gets whether this date is negative infinity.
+
+```csharp
+public bool IsNegativeInfinity { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-9241ddd6a37ea6f7"></a>
+
+### IsPositiveInfinity
+
+Gets whether this date is positive infinity.
+
+```csharp
+public bool IsPositiveInfinity { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-76c0de85fdcca29e"></a>
+
+### Month
+
+Gets the calendar month from one through twelve without requiring a backend.
+
+```csharp
+public int Month { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
+
 <a id="member-5f21576b784de9ff"></a>
 
 ### NegativeInfinity
@@ -520,6 +672,22 @@ public static PgDate PositiveInfinity { get; }
 ```
 
 Value: [PgDate](/api/ankus.pgdate/)
+
+<a id="member-269c0791f43ce061"></a>
+
+### Year
+
+Gets the calendar year without requiring a backend. Negative years denote BC; there is no year zero.
+
+```csharp
+public int Year { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The date is infinite.
 
 
 ## Operators

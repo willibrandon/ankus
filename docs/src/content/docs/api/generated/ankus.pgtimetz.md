@@ -67,6 +67,29 @@ Returns: [PgTimeTz](/api/ankus.pgtimetz/)
 
 The resulting time and offset.
 
+<a id="member-d41a23ab2d3ebbbc"></a>
+
+### AtTimeZone(PgInterval)
+
+Shifts this time to a fixed interval offset using PostgreSQL's timezone interval rules.
+
+```csharp
+public PgTimeTz AtTimeZone(PgInterval offset)
+```
+
+Parameters:
+
+`offset` — [PgInterval](/api/ankus.pginterval/)
+
+A finite interval without months or days; sub-second precision follows PostgreSQL.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The shifted wall-clock time and fixed offset.
+
+Positive intervals mean east of UTC. Conversion requires the active backend thread.
+An offset outside this type's supported range is rejected when the result is read.
+
 <a id="member-00d966b4d8180e98"></a>
 
 ### AtTimeZone(string)
@@ -167,6 +190,45 @@ Returns: [PgTimeTz](/api/ankus.pgtimetz/)
 
 The local time and offset.
 
+<a id="member-ea3d04bbe376099b"></a>
+
+### Create(int, int, double, string)
+
+Constructs a local time with a named zone's offset at the current transaction's start instant.
+
+```csharp
+public static PgTimeTz Create(int hour, int minute, double second, string zone)
+```
+
+Parameters:
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The local hour, including 24 only for the end-of-day value.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The local minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds, rounded by PostgreSQL.
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+A PostgreSQL timezone name, abbreviation, or POSIX specification.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The requested local clock with the resolved fixed offset.
+
+Exceptions:
+
+- [ArgumentOutOfRangeException](https://learn.microsoft.com/dotnet/api/system.argumentoutofrangeexception): The resolved offset is not strictly between -57600 and 57600 seconds.
+
+The supplied clock fields are retained. The zone supplies only the offset, which follows
+transaction-start daylight-saving rules because this type stores no date.
+
 <a id="member-08563660c18484f0"></a>
 
 ### Equals(PgTimeTz)
@@ -214,6 +276,31 @@ The field to extract.
 Returns: <code>PgNumeric?</code>
 
 The numeric field.
+
+<a id="member-71754731feed0321"></a>
+
+### FromRawWrapping(long, int)
+
+Creates a time from PostgreSQL's raw storage convention, wrapping the clock and offset into their valid ranges.
+
+```csharp
+public static PgTimeTz FromRawWrapping(long microseconds, int secondsWestOfUtc)
+```
+
+Parameters:
+
+`microseconds` — [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The signed raw time; its nonnegative remainder modulo one day becomes the local clock.
+
+`secondsWestOfUtc` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The raw PostgreSQL offset west of UTC. Its nonnegative remainder modulo 57600 is negated to obtain
+the public [OffsetSeconds](/api/ankus.pgtimetz/#member-ee4a8041f7955936) value east of UTC.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The wrapped clock and fixed offset without requiring a backend.
 
 <a id="member-d9b6c562868ca663"></a>
 
@@ -264,6 +351,20 @@ The field.
 Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
 
 The field value.
+
+<a id="member-f6415e9fc6b0db26"></a>
+
+### GetTimeParts()
+
+Reads exact local wall-clock fields without requiring a backend or adjusting for the offset.
+
+```csharp
+public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
+```
+
+Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The local hour, minute, whole second, and microseconds within that second.
 
 <a id="member-920e399c2474f847"></a>
 
@@ -377,11 +478,15 @@ The PostgreSQL text.
 
 ### ToString()
 
+Formats stored diagnostic values without requiring a backend.
+
 ```csharp
 public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The managed record diagnostic representation.
 
 <a id="member-55b16d4c358b63f7"></a>
 
@@ -396,6 +501,20 @@ public PgTime ToTime()
 Returns: [PgTime](/api/ankus.pgtime/)
 
 The wall-clock time.
+
+<a id="member-19f85bfc176024fc"></a>
+
+### ToUtc()
+
+Converts the fixed-offset local time to UTC, wrapping across midnight and normalizing 24:00 to midnight.
+
+```csharp
+public PgTime ToUtc()
+```
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The UTC time of day without requiring a backend.
 
 <a id="member-8c66bcc93406de59"></a>
 
@@ -424,6 +543,54 @@ Whether the input is valid. Backend-access and operational errors still throw.
 
 ## Properties
 
+<a id="member-12c815ad4a503e46"></a>
+
+### FractionalSecond
+
+Gets the local seconds within the minute, including the microsecond fraction.
+
+```csharp
+public double FractionalSecond { get; }
+```
+
+Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+<a id="member-74db91dd397ed474"></a>
+
+### Hour
+
+Gets the local hour from zero through twenty-four, without adjusting for the offset.
+
+```csharp
+public int Hour { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-fd938cc8f9c6284d"></a>
+
+### MicrosecondsWithinSecond
+
+Gets the microseconds within the current local second, from zero through 999999.
+
+```csharp
+public int MicrosecondsWithinSecond { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-13e1a6b031774ea3"></a>
+
+### Minute
+
+Gets the local minute within the hour.
+
+```csharp
+public int Minute { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
 <a id="member-401306ed87efd4f7"></a>
 
 ### Offset
@@ -436,6 +603,30 @@ public TimeSpan Offset { get; }
 
 Value: [TimeSpan](https://learn.microsoft.com/dotnet/api/system.timespan)
 
+<a id="member-6cc73a6e7ca2ad8a"></a>
+
+### OffsetHours
+
+Gets the signed whole-hour offset east of UTC, truncated toward zero like PostgreSQL's timezone_hour field.
+
+```csharp
+public int OffsetHours { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-c021cee43241b65b"></a>
+
+### OffsetMinutes
+
+Gets the signed remaining whole-minute offset east of UTC, like PostgreSQL's timezone_minute field.
+
+```csharp
+public int OffsetMinutes { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
 <a id="member-ee4a8041f7955936"></a>
 
 ### OffsetSeconds
@@ -444,6 +635,18 @@ Gets the offset east of UTC in seconds; positive values correspond to SQL offset
 
 ```csharp
 public int OffsetSeconds { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-2f59ea9fdce8e336"></a>
+
+### Second
+
+Gets the local whole second within the minute.
+
+```csharp
+public int Second { get; }
 ```
 
 Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)

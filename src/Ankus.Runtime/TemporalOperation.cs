@@ -194,4 +194,14 @@ internal enum TemporalOperation
     /// Formats an instant as ISO text in an explicit named timezone, resolving its historical offset.
     /// </summary>
     FormatIsoZone,
+
+    /// <summary>
+    /// Resolves a named timezone's offset at a supplied finite instant or at transaction start.
+    /// </summary>
+    TimeZoneOffset,
+
+    /// <summary>
+    /// Reads PostgreSQL's live wall-clock text in the session timezone.
+    /// </summary>
+    TimeOfDay,
 }

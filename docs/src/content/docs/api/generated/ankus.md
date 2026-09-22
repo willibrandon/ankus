@@ -41,6 +41,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
 - [PgTableRewrite](/api/ankus.pgtablerewrite/)
+- [PgTimeZone](/api/ankus.pgtimezone/)
 - [PgTriggerAttribute](/api/ankus.pgtriggerattribute/)
 - [PgTriggerContext](/api/ankus.pgtriggercontext/)
 - [PgTupleAttributeInfo](/api/ankus.pgtupleattributeinfo/)

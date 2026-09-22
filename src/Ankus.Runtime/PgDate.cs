@@ -7,7 +7,7 @@ namespace Ankus;
 /// The default value is 2000-01-01.
 /// </summary>
 [JsonConverter(typeof(PgDateConverter))]
-public readonly record struct PgDate : IComparable<PgDate>
+public readonly partial record struct PgDate : IComparable<PgDate>
 {
     /// <summary>
     /// Creates a date from days relative to 2000-01-01. Int32 extremes represent infinities.

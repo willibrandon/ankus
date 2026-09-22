@@ -13,6 +13,7 @@ internal static class NativeTemporalOperations
         #include "utils/json.h"
         #include "utils/datetime.h"
         #include "miscadmin.h"
+        #include "parser/scansup.h"
 
         enum AnkusTemporalOperation
         {
@@ -25,7 +26,7 @@ internal static class NativeTemporalOperations
             ANKUS_TEMP_EXTRACT, ANKUS_TEMP_MAKE_TIMESTAMP, ANKUS_TEMP_MAKE_TIMESTAMPTZ,
             ANKUS_TEMP_MAKE_INTERVAL, ANKUS_TEMP_TO_TIMETZ, ANKUS_TEMP_ROUND, ANKUS_TEMP_CURRENT_DATE,
             ANKUS_TEMP_CURRENT_TIME, ANKUS_TEMP_LOCAL_TIME, ANKUS_TEMP_CURRENT_TIMESTAMP,
-            ANKUS_TEMP_LOCAL_TIMESTAMP, ANKUS_TEMP_ISO_ZONE
+            ANKUS_TEMP_LOCAL_TIMESTAMP, ANKUS_TEMP_ISO_ZONE, ANKUS_TEMP_ZONE_OFFSET, ANKUS_TEMP_TIME_OF_DAY
         };
 
         static Datum
@@ -78,6 +79,50 @@ internal static class NativeTemporalOperations
             return CStringGetTextDatum(buffer);
         }
 
+        static Datum
+        ankus_timezone_offset(PG_FUNCTION_ARGS)
+        {
+            char *name = TextDatumGetCString(PG_GETARG_DATUM(0));
+            TimestampTz instant = PG_NARGS() == 2 ? PG_GETARG_TIMESTAMPTZ(1) : GetCurrentTransactionStartTimestamp();
+            int type;
+            int value;
+            int west;
+            pg_tz *zone;
+            if (TIMESTAMP_NOT_FINITE(instant))
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("a timezone offset requires a finite instant")));
+        #if PG_VERSION_NUM >= 160000
+            type = DecodeTimezoneName(name, &value, &zone);
+            if (type == TZNAME_FIXED_OFFSET)
+                PG_RETURN_INT32(value);
+            if (type == TZNAME_DYNTZ)
+        #else
+            char *lower = downcase_truncate_identifier(name, strlen(name), false);
+            type = DecodeTimezoneAbbrev(0, lower, &value, &zone);
+            pfree(lower);
+            if (type == TZ || type == DTZ)
+                PG_RETURN_INT32(value);
+            if (type == DYNTZ)
+        #endif
+            {
+                int daylight;
+                west = DetermineTimeZoneAbbrevOffsetTS(instant, name, zone, &daylight);
+            }
+            else
+            {
+                struct pg_tm parts;
+                fsec_t fraction;
+        #if PG_VERSION_NUM < 160000
+                zone = pg_tzset(name);
+                if (zone == NULL)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("time zone \"%s\" not recognized", name)));
+        #endif
+                if (timestamp2tm(instant, &west, &parts, &fraction, NULL, zone) != 0)
+                    ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("timestamp out of range")));
+            }
+
+            PG_RETURN_INT32(-west);
+        }
+
         static const AnkusScalarFunction ankus_temporal_functions[] =
         {
             {ANKUS_TEMP_ADD, date_pli, DATEOID, 2, {DATEOID, INT4OID}},
@@ -112,6 +157,9 @@ internal static class NativeTemporalOperations
             {ANKUS_TEMP_ZONE, timestamp_zone, TIMESTAMPTZOID, 2, {TEXTOID, TIMESTAMPOID}},
             {ANKUS_TEMP_ZONE, timestamptz_zone, TIMESTAMPOID, 2, {TEXTOID, TIMESTAMPTZOID}},
             {ANKUS_TEMP_ZONE, timetz_zone, TIMETZOID, 2, {TEXTOID, TIMETZOID}},
+            {ANKUS_TEMP_ZONE, timestamp_izone, TIMESTAMPTZOID, 2, {INTERVALOID, TIMESTAMPOID}},
+            {ANKUS_TEMP_ZONE, timestamptz_izone, TIMESTAMPOID, 2, {INTERVALOID, TIMESTAMPTZOID}},
+            {ANKUS_TEMP_ZONE, timetz_izone, TIMETZOID, 2, {INTERVALOID, TIMETZOID}},
             {ANKUS_TEMP_PART, timestamp_part, FLOAT8OID, 2, {TEXTOID, TIMESTAMPOID}},
             {ANKUS_TEMP_PART, ankus_date_part, FLOAT8OID, 2, {TEXTOID, DATEOID}},
             {ANKUS_TEMP_PART, timestamptz_part, FLOAT8OID, 2, {TEXTOID, TIMESTAMPTZOID}},
@@ -160,7 +208,10 @@ internal static class NativeTemporalOperations
             {ANKUS_TEMP_LOCAL_TIME, ankus_local_time, TIMEOID, 1, {INT4OID}},
             {ANKUS_TEMP_CURRENT_TIMESTAMP, ankus_current_timestamp, TIMESTAMPTZOID, 1, {INT4OID}},
             {ANKUS_TEMP_LOCAL_TIMESTAMP, ankus_local_timestamp, TIMESTAMPOID, 1, {INT4OID}},
-            {ANKUS_TEMP_ISO_ZONE, ankus_timestamp_iso_zone, TEXTOID, 2, {TIMESTAMPTZOID, TEXTOID}}
+            {ANKUS_TEMP_ISO_ZONE, ankus_timestamp_iso_zone, TEXTOID, 2, {TIMESTAMPTZOID, TEXTOID}},
+            {ANKUS_TEMP_ZONE_OFFSET, ankus_timezone_offset, INT4OID, 1, {TEXTOID}},
+            {ANKUS_TEMP_ZONE_OFFSET, ankus_timezone_offset, INT4OID, 2, {TEXTOID, TIMESTAMPTZOID}},
+            {ANKUS_TEMP_TIME_OF_DAY, timeofday, TEXTOID, 0, {0}}
         };
 
         static bool

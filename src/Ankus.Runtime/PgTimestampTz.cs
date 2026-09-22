@@ -7,7 +7,7 @@ namespace Ankus;
 /// PostgreSQL does not retain the original offset or zone name.
 /// </summary>
 [JsonConverter(typeof(PgTimestampTzConverter))]
-public readonly record struct PgTimestampTz : IComparable<PgTimestampTz>
+public readonly partial record struct PgTimestampTz : IComparable<PgTimestampTz>
 {
     /// <summary>
     /// Creates an instant from microseconds relative to 2000-01-01 UTC. Int64 extremes represent infinities.

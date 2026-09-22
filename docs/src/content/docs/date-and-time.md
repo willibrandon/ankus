@@ -62,6 +62,57 @@ Use `FromDateOnly`, `ToDateOnly`, and the corresponding conversion methods on
 the other types for explicit .NET conversions. Their range, precision, and
 timezone checks are the same as the generated function conversions.
 
+### Raw values and calendar fields
+
+The raw constructors validate PostgreSQL's finite range and preserve its infinity
+sentinels. Use `PgDate.FromRawSaturating`, `PgTimestamp.FromRawSaturating`, or
+`PgTimestampTz.FromRawSaturating` when an out-of-range encoding should instead
+become the corresponding infinity. `IsPositiveInfinity` and `IsNegativeInfinity`
+distinguish the two sentinels.
+
+`PgTime.FromMicrosecondsWrapping` reduces a signed microsecond count modulo one
+day. It accepts the complete `long` range; minus one becomes 23:59:59.999999, and
+24 hours becomes midnight. This differs from the checked constructor, which
+retains the distinct 24:00 value.
+
+`PgTimeTz.FromRawWrapping` accepts PostgreSQL's raw pair: microseconds and seconds
+**west** of UTC. It applies pgrx's Euclidean modulo rules to both fields, including
+the offset modulo 57,600. For example, a raw west offset of -1 wraps to 57,599
+seconds west, so the result's `OffsetSeconds` is -57,599. Use the ordinary
+constructor with seconds **east** of UTC when constructing a meaningful signed
+offset; it validates the offset without wrapping it.
+
+Dates and timestamps expose `Year`, `Month`, `Day`, and `GetDateParts()`.
+Negative years denote BC and there is no year zero. Times and timestamps expose
+`Hour`, `Minute`, `Second`, `MicrosecondsWithinSecond`, `FractionalSecond`, and
+`GetTimeParts()`:
+
+```csharp
+var time = new PgTime(45_296_123_456); // 12:34:56.123456
+int second = time.Second; // 56
+int fraction = time.MicrosecondsWithinSecond; // 123456
+double seconds = time.FractionalSecond; // 56.123456
+(int hour, int minute, int wholeSecond, int microseconds) = time.GetTimeParts();
+```
+
+The tuple's microseconds are within the second. PostgreSQL's
+`EXTRACT(MICROSECONDS)` includes whole seconds: the same time yields 56,123,456
+through `GetPart(PgDateTimePart.Microseconds)` or `Extract`. The explicitly named
+fractional property avoids that ambiguity.
+
+`PgDate.ToJulianDays`, `ToUnixEpochDays`, and `ToUnixTimeSeconds` return exact
+finite epoch values across PostgreSQL's full date range. These methods and finite
+calendar/clock accessors throw `InvalidOperationException` for infinity. Raw
+storage properties still expose the sentinel, and `GetPart`/`Extract` retain SQL's
+infinity and NULL behavior.
+
+Date, time, fixed-offset time, and timezone-free timestamp fields work outside
+PostgreSQL. `PgTimestampTz` fields require the backend because they follow the
+session timezone at that instant. They use native extraction, including at
+endpoints where conversion to a local `timestamp` would overflow. Diagnostic
+`ToString()` remains usable outside the backend for every value, including
+infinities.
+
 ## Calendar intervals
 
 PostgreSQL keeps months, days, and elapsed time separate. A month has no fixed
@@ -159,6 +210,33 @@ Both follow PostgreSQL's rules for ambiguous and nonexistent times. Explicit-zon
 truncation leaves the session timezone unchanged. A `PgTimeTz` has no date, so its
 named-zone conversion uses PostgreSQL's current-date rules for daylight saving.
 
+The three `AtTimeZone` methods also accept `PgInterval` for a fixed offset.
+PostgreSQL rejects month/day components and infinite offsets for finite inputs;
+it truncates offset fractions to whole seconds. Positive offsets mean east of
+UTC. For a timestamp without a zone, the offset interprets the local clock; for
+an instant or fixed-offset time, it shifts the local clock. A `timetz` result
+outside `PgTimeTz`'s supported offset range is rejected during managed conversion.
+
+`PgTimestampTz.ToUtc()` returns its timezone-free UTC timestamp, preserving
+infinities. `PgTimeTz.ToUtc()` returns a time after offset adjustment and wrapping
+at midnight; 24:00+00 becomes 00:00. Both work outside the backend.
+
+[`PgTimeZone.GetOffset`](/api/ankus.pgtimezone/) resolves names, abbreviations,
+and PostgreSQL POSIX timezone specifications using the server's timezone data:
+
+```csharp
+TimeSpan currentOffset = PgTimeZone.GetOffset("America/New_York");
+TimeSpan historicalOffset = PgTimeZone.GetOffset("America/New_York", instant);
+```
+
+The first overload resolves at transaction start, matching pgrx's timezone-offset
+helper. The second resolves at the supplied finite instant, including historical
+second offsets and daylight-saving changes. Fixed abbreviations keep their fixed
+offset; dynamic abbreviations use PostgreSQL's abbreviation table. Neither changes
+the session timezone. Offset lookup can resolve a POSIX offset beyond `PgTimeTz`'s
+range, such as `UTC+20`; constructing a `PgTimeTz` with that zone rejects the
+unrepresentable offset.
+
 `GetPart(PgDateTimePart)` follows `date_part` semantics and returns `double?`.
 Undefined fields of infinite values return null; unsupported fields raise
 `PgException`. Floating-point extraction can lose precision for large values.
@@ -176,12 +254,23 @@ is invalid. `PgTimestampTz.Create` accepts an optional explicit zone; otherwise
 it uses the session timezone. `PgTimeTz.Create` accepts an explicit offset in
 seconds or uses the session's current-date offset.
 
+`PgTimeTz.Create(hour, minute, second, zone)` attaches the named zone's offset at
+transaction start while retaining the supplied clock fields, including 24:00.
+To shift a session-local clock to an interval offset, use
+`PgTimeTz.Create(hour, minute, second).AtTimeZone(offset)`.
+`OffsetHours` and `OffsetMinutes` expose signed components; `OffsetSeconds`
+retains the complete offset, including seconds.
+
 `PgDate.AtTime` combines a date with a time or fixed-offset time. Timestamp `ToDate`,
 `ToTime`, and `PgTimestampTz.ToTimeTz` conversions follow server rules; the time
 conversions return null for infinity.
 
 `PgTimestampTz.TransactionTimestamp`, `StatementTimestamp`, and `ClockTimestamp`
 read the three PostgreSQL clocks. `FromUnixTimeSeconds` accepts fractional seconds.
+
+`PgTimestampTz.TimeOfDay` returns PostgreSQL's owned `timeofday()` text, including
+six fractional-second digits and the session timezone abbreviation. It reads the
+live wall clock, so it can change within a statement or transaction.
 
 `PgDate.CurrentDate`, `PgTime.GetLocalTime`, `PgTimeTz.GetCurrentTime`,
 `PgTimestamp.GetLocalTimestamp`, and `PgTimestampTz.GetCurrentTimestamp` match

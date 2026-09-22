@@ -6,7 +6,7 @@ namespace Ankus;
 /// Represents PostgreSQL time with time zone as a local time and a fixed offset, without a date or zone name.
 /// </summary>
 [JsonConverter(typeof(PgTimeTzConverter))]
-public readonly record struct PgTimeTz : IComparable<PgTimeTz>
+public readonly partial record struct PgTimeTz : IComparable<PgTimeTz>
 {
     /// <summary>
     /// Creates a time with a signed offset east of UTC, retaining second-resolution historical offsets.

@@ -7,7 +7,7 @@ namespace Ankus;
 /// The default value is 2000-01-01 00:00:00.
 /// </summary>
 [JsonConverter(typeof(PgTimestampConverter))]
-public readonly record struct PgTimestamp : IComparable<PgTimestamp>
+public readonly partial record struct PgTimestamp : IComparable<PgTimestamp>
 {
     /// <summary>
     /// Creates a timestamp from microseconds relative to 2000-01-01. Int64 extremes represent infinities.

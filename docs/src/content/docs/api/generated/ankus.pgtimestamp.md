@@ -84,6 +84,29 @@ Returns: [PgInterval](/api/ankus.pginterval/)
 
 The calendar interval returned by PostgreSQL age.
 
+<a id="member-849e26e15a4b409c"></a>
+
+### AtTimeZone(PgInterval)
+
+Interprets this local timestamp at a fixed interval offset from UTC.
+
+```csharp
+public PgTimestampTz AtTimeZone(PgInterval offset)
+```
+
+Parameters:
+
+`offset` — [PgInterval](/api/ankus.pginterval/)
+
+A finite interval without months or days; positive values mean east of UTC.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The resulting UTC instant, preserving infinities according to PostgreSQL's rules.
+
+Requires the active backend thread. Offset precision and invalid-interval handling follow
+PostgreSQL's interval form of AT TIME ZONE.
+
 <a id="member-7b21925ee3240797"></a>
 
 ### AtTimeZone(string)
@@ -236,6 +259,44 @@ Exceptions:
 
 - [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The kind is not Unspecified or the value contains sub-microsecond ticks.
 
+<a id="member-6b9900497e561101"></a>
+
+### FromRawSaturating(long)
+
+Creates a timestamp from raw PostgreSQL microseconds, clamping values outside the finite range to infinity.
+
+```csharp
+public static PgTimestamp FromRawSaturating(long microsecondsSinceEpoch)
+```
+
+Parameters:
+
+`microsecondsSinceEpoch` — [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The signed offset from 2000-01-01, including infinity sentinels.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The finite timestamp, negative infinity below the finite minimum, or positive infinity above the finite maximum.
+
+<a id="member-d6f707b6398ba67a"></a>
+
+### GetDateParts()
+
+Reads the full-range Gregorian date without a backend, using the containing day for negative epoch offsets.
+
+```csharp
+public (int Year, int Month, int Day) GetDateParts()
+```
+
+Returns: [(int Year, int Month, int Day)](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The year, month, and day. Negative years denote BC; there is no year zero.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
 <a id="member-f9dce8496222cd65"></a>
 
 ### GetHashCode()
@@ -285,6 +346,24 @@ The field.
 Returns: [double?](https://learn.microsoft.com/dotnet/api/system.double)
 
 The field, or null for an undefined field of an infinite value.
+
+<a id="member-cbc4f484fdaca020"></a>
+
+### GetTimeParts()
+
+Reads exact wall-clock fields without a backend, using a nonnegative time of day before the epoch.
+
+```csharp
+public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
+```
+
+Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour, minute, whole second, and microseconds within that second.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
 
 <a id="member-61dc8eefe6e8231f"></a>
 
@@ -430,11 +509,15 @@ The PostgreSQL text.
 
 ### ToString()
 
+Formats stored diagnostic values without requiring a backend or reading finite calendar fields.
+
 ```csharp
 public override string ToString()
 ```
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The managed record diagnostic representation.
 
 <a id="member-39c200b241f8700a"></a>
 
@@ -511,6 +594,54 @@ Whether the input is valid. Backend-access and operational errors still throw.
 
 ## Properties
 
+<a id="member-26f503a90fe4f7bc"></a>
+
+### Day
+
+Gets the calendar day of the month without a backend.
+
+```csharp
+public int Day { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
+<a id="member-c0f0ca2b0d07af1f"></a>
+
+### FractionalSecond
+
+Gets the seconds within the minute, including the microsecond fraction, without a backend.
+
+```csharp
+public double FractionalSecond { get; }
+```
+
+Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
+<a id="member-135ea56dec8db623"></a>
+
+### Hour
+
+Gets the hour from zero through twenty-three without a backend.
+
+```csharp
+public int Hour { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
 <a id="member-9d91e991e9417773"></a>
 
 ### IsFinite
@@ -519,6 +650,30 @@ Gets whether this timestamp is finite.
 
 ```csharp
 public bool IsFinite { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-14ff4f10be585eb3"></a>
+
+### IsNegativeInfinity
+
+Gets whether this timestamp is negative infinity.
+
+```csharp
+public bool IsNegativeInfinity { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-032055fa19ffce9f"></a>
+
+### IsPositiveInfinity
+
+Gets whether this timestamp is positive infinity.
+
+```csharp
+public bool IsPositiveInfinity { get; }
 ```
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
@@ -534,6 +689,54 @@ public long MicrosecondsSinceEpoch { get; }
 ```
 
 Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+<a id="member-d95db29ae376df2b"></a>
+
+### MicrosecondsWithinSecond
+
+Gets the microseconds within the current second, from zero through 999999, without a backend.
+
+```csharp
+public int MicrosecondsWithinSecond { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
+<a id="member-b67f2662f4eb693d"></a>
+
+### Minute
+
+Gets the minute within the hour without a backend.
+
+```csharp
+public int Minute { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
+<a id="member-cc793af766f99c4a"></a>
+
+### Month
+
+Gets the calendar month from one through twelve without a backend.
+
+```csharp
+public int Month { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
 
 <a id="member-7066d2c3d18fe236"></a>
 
@@ -558,6 +761,38 @@ public static PgTimestamp PositiveInfinity { get; }
 ```
 
 Value: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-3193549d7380cdf5"></a>
+
+### Second
+
+Gets the whole second within the minute without a backend.
+
+```csharp
+public int Second { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
+
+<a id="member-9d7dd361801bea52"></a>
+
+### Year
+
+Gets the calendar year without a backend. Negative years denote BC; there is no year zero.
+
+```csharp
+public int Year { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The timestamp is infinite.
 
 
 ## Operators
