@@ -10,6 +10,8 @@ internal static class NativeErrorBridge
     /// </summary>
     internal const string Source = """
         #include "utils/memutils.h"
+        #include "miscadmin.h"
+        #include "tcop/dest.h"
 
         enum AnkusDiagnosticField
         {
@@ -35,7 +37,45 @@ internal static class NativeErrorBridge
             int line;
             int flags;
             AnkusValue fields[ANKUS_ERROR_FIELD_COUNT];
+            int report_level;
         } AnkusError;
+
+        static int
+        ankus_log_level(int level)
+        {
+            switch (level)
+            {
+                case 0: return DEBUG5;
+                case 1: return DEBUG4;
+                case 2: return DEBUG3;
+                case 3: return DEBUG2;
+                case 4: return DEBUG1;
+                case 5: return LOG;
+                case 6: return LOG_SERVER_ONLY;
+                case 7: return INFO;
+                case 8: return NOTICE;
+                case 9: return WARNING;
+                case 11: return FATAL;
+                case 12: return PANIC;
+                default: return ERROR;
+            }
+        }
+
+        static bool
+        ankus_log_enabled(int level)
+        {
+        #if PG_VERSION_NUM >= 140000
+            return message_level_is_interesting(level);
+        #else
+            /* PostgreSQL 13 predates message_level_is_interesting. Mirror errstart's routing rules. */
+            bool server = (level == LOG || level == LOG_SERVER_ONLY)
+                ? (log_min_messages == LOG || log_min_messages <= ERROR)
+                : (log_min_messages == LOG ? level >= FATAL : level >= log_min_messages);
+            bool client = whereToSendOutput == DestRemote && level != LOG_SERVER_ONLY &&
+                (ClientAuthInProgress ? level >= ERROR : level >= client_min_messages || level == INFO);
+            return level >= ERROR || server || client;
+        #endif
+        }
 
         static void
         ankus_release_error(AnkusError *error)
@@ -132,13 +172,13 @@ internal static class NativeErrorBridge
         }
 
         static void
-        ankus_raise_error(AnkusError *error)
+        ankus_report(AnkusError *error, int level)
         {
             ErrorData data = {0};
-            bool rethrow = (error->flags & ANKUS_ERROR_RETHROW) != 0;
+            bool rethrow = level == ERROR && (error->flags & ANKUS_ERROR_RETHROW) != 0;
             PG_TRY();
             {
-                data.elevel = ERROR;
+                data.elevel = level;
                 data.sqlerrcode = error->sqlstate;
                 data.cursorpos = error->position;
                 data.internalpos = error->internal_position;
@@ -169,8 +209,10 @@ internal static class NativeErrorBridge
                 data.detail_log = ankus_error_field(error, ANKUS_ERROR_DETAIL_LOG);
                 data.backtrace = ankus_error_field(error, ANKUS_ERROR_BACKTRACE);
                 /* ErrorData treats source locations as constant: make them survive caller-context cleanup. */
-                data.filename = data.filename == NULL ? __FILE__ : MemoryContextStrdup(ErrorContext, data.filename);
-                data.funcname = data.funcname == NULL ? "ankus_raise_error" : MemoryContextStrdup(ErrorContext, data.funcname);
+                data.filename = data.filename == NULL ? __FILE__ :
+                    (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.filename) : data.filename);
+                data.funcname = data.funcname == NULL ? "ankus_report" :
+                    (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.funcname) : data.funcname);
                 data.assoc_context = CurrentMemoryContext;
             }
             PG_FINALLY();
@@ -184,6 +226,12 @@ internal static class NativeErrorBridge
                 ReThrowError(&data);
             }
             ThrowErrorData(&data);
+        }
+
+        static void
+        ankus_raise_error(AnkusError *error)
+        {
+            ankus_report(error, error->report_level == 0 ? ERROR : ankus_log_level(error->report_level - 1));
         }
 
         """;

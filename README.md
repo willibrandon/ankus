@@ -90,6 +90,7 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 ```
 
 See [SPI queries](docs/spi.md) for typed parameters, result rows, and error handling.
+Use [logging and errors](docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 ## Publishing and installation
 

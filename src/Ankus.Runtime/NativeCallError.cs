@@ -47,6 +47,11 @@ public unsafe struct NativeCallError
     internal NativeErrorFields _fields;
 
     /// <summary>
+    /// Contains an explicit PgLogLevel plus one, or zero for an ordinary ERROR.
+    /// </summary>
+    internal int _reportLevel;
+
+    /// <summary>
     /// Copies native diagnostics into a managed exception before the native buffer expires.
     /// </summary>
     /// <returns>A managed PostgreSQL exception.</returns>

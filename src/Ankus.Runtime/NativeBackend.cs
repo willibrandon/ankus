@@ -382,6 +382,37 @@ public static unsafe class NativeBackend
         }
     }
 
+    internal static bool IsLogEnabled(PgLogLevel level)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.IsLogEnabled, _logLevel = level };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+        return result._rowsAffected != 0;
+    }
+
+    internal static void Report(PgLogLevel level, PgDiagnostic diagnostic)
+    {
+        CheckAccess();
+        if (!IsLogEnabled(level))
+        {
+            return;
+        }
+
+        NativeCallError message = default;
+        try
+        {
+            NativeError.WriteDiagnostic(diagnostic, &message);
+            var request = new NativeSpiRequest { _operation = SpiOperation.Report, _logLevel = level, _diagnostic = &message };
+            NativeSpiResult result = default;
+            Invoke(&request, &result);
+        }
+        finally
+        {
+            message.Release();
+        }
+    }
+
     private static SpiCursor CreateCursor(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();

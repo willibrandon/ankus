@@ -84,4 +84,14 @@ internal enum SpiOperation : byte
     /// Explains exactly one parsed SQL statement, returning its JSON plan.
     /// </summary>
     Explain,
+
+    /// <summary>
+    /// Reports a nonterminal PostgreSQL diagnostic.
+    /// </summary>
+    Report,
+
+    /// <summary>
+    /// Queries PostgreSQL's reporting thresholds.
+    /// </summary>
+    IsLogEnabled,
 }

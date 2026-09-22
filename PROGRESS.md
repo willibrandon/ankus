@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **409 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **434 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 300 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 325 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -119,7 +119,7 @@ Linux, and macOS.
 
 Reference surface: `pgrx-pg-sys/src/submodules/{panic,ffi,pg_try,elog}.rs` and PostgreSQL
 `src/include/utils/elog.h` / `src/backend/utils/error/elog.c`. The error-level behavior below is
-verified on PostgreSQL 18.6 / Linux x64; other severities and platform/version validation remain required.
+verified on PostgreSQL 18.6 / Linux x64; remaining platform/version validation is required.
 
 | Source behavior | Ankus API/implementation | Concrete test evidence |
 |---|---|---|
@@ -129,6 +129,12 @@ verified on PostgreSQL 18.6 / Linux x64; other severities and platform/version v
 | Server-only detail and backtrace | `DetailLog`, `Backtrace` | `PgDiagnosticTests.ServerOnlyDiagnosticsRemainSeparateFromClientDetail` |
 | Long/optional text ownership | Allocator-specific diagnostic buffers | `PgDiagnosticTests.LongNativeDiagnosticsAreNotTruncated`, `ManagedDiagnosticsReachClientWithoutTruncation`, `EmptyNativeDiagnosticsRemainPresent` |
 | Encoding, secondary failures, and recovery | Server encoding conversion, `DiagnosticsIncomplete`, emergency message, temporary error context | `PgDiagnosticTests.Latin1DiagnosticsAndEncodingFailurePreserveBackend`, `RepeatedFailuresReleaseDiagnosticContexts`; `NativeDiagnosticTests.InvalidSecondaryDiagnosticUsesPartialFallback`, `BrokenMessageProducesEmergencyDiagnostic` |
+| DEBUG5–DEBUG1, LOG, LOG_SERVER_ONLY, INFO, NOTICE, WARNING | `PgLog.Write`, `PgLogLevel`, native severity mapping | `PgLogTests.NonterminalLevelsUsePostgresRouting` |
+| Message filtering and LOG/INFO ordering | `PgLog.IsEnabled`, server and client thresholds | `PgLogTests.FilteringMatchesClientAndServerRules` |
+| Structured nonterminal reporting and server-only detail | `PgDiagnostic`, shared diagnostic transport | `PgLogTests.StructuredNoticePreservesFieldsAndLongUnicode` |
+| ERROR catch and managed unwinding | `PgException`, generated native reporting boundary | `PgLogTests.ErrorUnwindsAndRemainsCatchable` |
+| FATAL and PANIC | Internal terminal report exception, native termination after managed unwind | `PgLogTests.TerminalLevelsUnwindBeforeNativeTermination` (isolated clusters; peer survival for FATAL, crash recovery for PANIC) |
+| Reporting validation, encoding and temporary memory | Backend-thread checks, guarded `ThrowErrorData`, disposable native context | `PgLogTests.InvalidReportsPreserveBackend`, `Latin1ReportingRecoversFromUnrepresentableText`, `ReportingReclaimsOperationContexts` |
 
 ### Scoped SPI API evidence
 
@@ -294,7 +300,7 @@ The target architecture consists of:
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea/UUID/JSON, nullable forms |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
-| `PgError` | `PgException` + logging helpers | Partial: owned error diagnostics, context, objects, positions and location; logging pending |
+| `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
 | `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
@@ -302,7 +308,7 @@ The target architecture consists of:
 | `iter`, `pg_sys` tuple-store APIs | managed tuple-store integration | ☐ |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
 | `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | ☐ |
-| `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | Partial: ERROR conversion only |
+| `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | ☐ |
 | `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | ☐ |
 | `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
@@ -416,7 +422,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
-| `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: ERROR, owned full diagnostics, managed catch/filter/rethrow; other log levels and named SQLSTATE catalog pending |
+| `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; named SQLSTATE catalog pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | Partial: selected scalar OID mappings |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
@@ -454,7 +460,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 409 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 434 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -488,7 +494,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Owned cursors, batched fetch, detach/find, prepared-plan cursors, and portal lifetime invalidation
     - [x] Owned error diagnostics, context/object/query/source fields, native rethrow and diagnostic cleanup
     - [x] Scoped SPI sessions, session-bound plans, retention and stack/lifetime enforcement
-    - [x] Local SPI tuple mutation, native quotation, JSON EXPLAIN and temporary-operation cleanup
+     - [x] Local SPI tuple mutation, native quotation, JSON EXPLAIN and temporary-operation cleanup
+     - [x] All pgrx logging severities, native filtering and terminal reporting after managed unwinding
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -511,6 +518,9 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
+    - [ ] Astro documentation site, using `/home/brandon/src/ilrepl/docs` as a read-only design reference
+    - [ ] Concise guides, short explanations, and restrained formatting; review prose for stock phrasing and unnecessary repetition
+    - [ ] Verify site build, navigation, links, search, and desktop/mobile layouts
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
     - [x] README and verified datum-boundary design notes (`docs/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation
@@ -568,3 +578,6 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-22 — Local SPI row edits and cell type metadata, native SQL quotation, JSON EXPLAIN,
   and per-operation memory contexts preventing temporary buffer retention until transaction end.
   `dotnet test`: 409 passed, 0 failed, 0 skipped (300 PostgreSQL integration cases).
+- 2026-09-22 — PostgreSQL logging, structured reports, native routing and severity mapping,
+  managed ERROR handling, FATAL connection termination and isolated PANIC crash-recovery tests.
+  `dotnet test`: 434 passed, 0 failed, 0 skipped (325 PostgreSQL integration cases).

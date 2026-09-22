@@ -38,7 +38,9 @@ internal static class NativeSpiBridge
             ANKUS_SPI_QUOTE_IDENTIFIER,
             ANKUS_SPI_QUOTE_QUALIFIED_IDENTIFIER,
             ANKUS_SPI_QUOTE_LITERAL,
-            ANKUS_SPI_EXPLAIN
+            ANKUS_SPI_EXPLAIN,
+            ANKUS_SPI_REPORT,
+            ANKUS_SPI_IS_LOG_ENABLED
         };
 
         typedef struct AnkusRequest
@@ -55,6 +57,8 @@ internal static class NativeSpiBridge
             uint8 result_mode;
             uint8 read_only;
             uint8 forward;
+            struct AnkusError *diagnostic;
+            int log_level;
         } AnkusRequest;
 
         typedef struct AnkusColumn

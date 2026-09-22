@@ -156,6 +156,18 @@ Managed `SpiRow` edits replace local values and lazily allocated per-cell type O
 The original query's shared column metadata remains available separately. Row
 access and mutation use owned managed data and require no PostgreSQL calls.
 
+Nonterminal `PgLog` reports use the same native guard and disposable operation
+context. `ThrowErrorData` applies PostgreSQL's routing and context callbacks;
+encoding failures or interrupts return to managed code as `PgException`.
+`IsEnabled` uses `message_level_is_interesting` on PostgreSQL 14 and newer, with
+the corresponding routing checks for PostgreSQL 13. Managed severity values map
+to header constants rather than relying on version-specific numbers.
+
+ERROR is a managed `PgException`. FATAL and PANIC use an internal exception that
+carries severity and diagnostics to the generated dispatcher. After managed
+unwinding, the native wrapper reports the requested terminal level. Tests use
+dedicated clusters to verify connection termination and crash recovery.
+
 Cursor operations share the native guard and result-copy path. Opening uses
 `SPI_cursor_open_with_args` or `SPI_cursor_open` for prepared plans. Managed cursor
 objects carry monotonically assigned identities and copied names rather than

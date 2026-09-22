@@ -22,7 +22,13 @@ public static class NativeError
         Write(exception, error->Message, 2048);
         try
         {
-            if (exception is PgException postgres)
+            if (exception is PgTerminalException terminal)
+            {
+                error->_reportLevel = (int)terminal.Level + 1;
+                WriteDiagnostic(terminal.Diagnostic, error);
+                error->SqlState = PackSqlState(terminal.Diagnostic.SqlState ?? "XX000");
+            }
+            else if (exception is PgException postgres)
             {
                 error->SqlState = PackSqlState(postgres.SqlState);
                 error->_position = postgres.Position;
@@ -96,6 +102,27 @@ public static class NativeError
         }
 
         return code;
+    }
+
+    internal static unsafe void WriteDiagnostic(PgDiagnostic diagnostic, NativeCallError* error)
+    {
+        error->SqlState = diagnostic.SqlState is null ? 0 : PackSqlState(diagnostic.SqlState);
+        error->_position = diagnostic.Position;
+        error->_internalPosition = diagnostic.InternalPosition;
+        error->_line = diagnostic.Line;
+        WriteField(error, NativeDiagnosticField.Message, diagnostic.Message);
+        WriteField(error, NativeDiagnosticField.Detail, diagnostic.Detail);
+        WriteField(error, NativeDiagnosticField.Hint, diagnostic.Hint);
+        WriteField(error, NativeDiagnosticField.Context, diagnostic.Context);
+        WriteField(error, NativeDiagnosticField.Schema, diagnostic.SchemaName);
+        WriteField(error, NativeDiagnosticField.Table, diagnostic.TableName);
+        WriteField(error, NativeDiagnosticField.Column, diagnostic.ColumnName);
+        WriteField(error, NativeDiagnosticField.DataType, diagnostic.DataTypeName);
+        WriteField(error, NativeDiagnosticField.Constraint, diagnostic.ConstraintName);
+        WriteField(error, NativeDiagnosticField.InternalQuery, diagnostic.InternalQuery);
+        WriteField(error, NativeDiagnosticField.File, diagnostic.File);
+        WriteField(error, NativeDiagnosticField.Routine, diagnostic.Routine);
+        WriteField(error, NativeDiagnosticField.DetailLog, diagnostic.DetailLog);
     }
 
     private static unsafe void WriteField(NativeCallError* error, NativeDiagnosticField field, string? text)

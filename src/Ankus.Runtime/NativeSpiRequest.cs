@@ -67,4 +67,14 @@ internal unsafe struct NativeSpiRequest
     /// Selects forward cursor movement using a one-byte C flag.
     /// </summary>
     internal byte _forward;
+
+    /// <summary>
+    /// Points to borrowed managed diagnostic transport during a reporting operation.
+    /// </summary>
+    internal NativeCallError* _diagnostic;
+
+    /// <summary>
+    /// Contains the version-independent reporting level.
+    /// </summary>
+    internal PgLogLevel _logLevel;
 }
