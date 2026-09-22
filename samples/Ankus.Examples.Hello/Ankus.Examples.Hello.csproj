@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <Description>A minimal PostgreSQL extension compiled as a .NET Native AOT shared library.</Description>
+    <AnkusExtensionName>ankus_hello</AnkusExtensionName>
   </PropertyGroup>
 
   <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />

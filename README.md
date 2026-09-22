@@ -31,7 +31,7 @@ dotnet test
 
 All tests are ordinary MSTest cases, discovered through Microsoft.Testing.Platform.
 The integration fixture publishes the native sample, creates an isolated local
-PostgreSQL cluster, executes SQL tests, rolls back test transactions, and shuts
+PostgreSQL cluster, installs with `CREATE EXTENSION`, executes SQL tests, rolls back test transactions, and shuts
 down the cluster. Logs remain in `artifacts/test-logs`. Integration setup failures
 are reported as failures.
 
@@ -56,10 +56,37 @@ return value, strict SQL NULL handling, and managed exceptions reported as
 PostgreSQL errors. The exception dispatcher returns completely to native code
 before PostgreSQL raises ERROR; PostgreSQL must never longjmp across managed frames.
 
-The build integration is currently a repository-local MSBuild import. It publishes
-generated SQL alongside the native library. NuGet distribution, extension control
-files, additional PostgreSQL types and APIs, and generated backend test methods
-are still being developed.
+The build integration is currently a repository-local MSBuild import. Publishing
+the sample produces a native library and these PostgreSQL installation files:
+
+```text
+Ankus.Examples.Hello.so                   # .dll on Windows, .dylib on macOS
+Ankus.Examples.Hello.sql
+extension/
+    ankus_hello.control
+    ankus_hello--1.0.0.sql
+```
+
+`AnkusExtensionName` selects the extension name; its default is the assembly name
+lowercased with periods replaced by underscores. `AnkusExtensionVersion` defaults
+to the project's `Version`. The control file resolves the native library through
+PostgreSQL's `dynamic_library_path`, whose default is `$libdir`.
+
+For a standard server installation, the native library belongs in
+`pg_config --pkglibdir`, and the control and versioned SQL files belong in the
+`extension` subdirectory of `pg_config --sharedir`. Then PostgreSQL can run:
+
+```sql
+CREATE EXTENSION ankus_hello;
+SELECT public.add(40, 2); -- 42
+```
+
+Tests configure PG18's extension and library search paths on their isolated
+cluster to load the published files directly. They verify extension ownership,
+schema relocation, removal, and reinstallation.
+
+NuGet distribution, installation/package commands, extension upgrades, additional
+PostgreSQL types and APIs, and generated backend test methods are still being developed.
 
 Windows, Linux, and macOS are required targets. Validation so far is on Linux x64
 with PostgreSQL 18.6. The full target matrix is PostgreSQL 13–18 plus 19 beta.

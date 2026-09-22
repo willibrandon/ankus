@@ -16,7 +16,7 @@ internal static class PostgresFixture
     internal static PostgresTestCluster Cluster => s_cluster ?? throw new InvalidOperationException("Cluster is not initialized.");
 
     /// <summary>
-    /// Builds the extension, starts PostgreSQL, and registers the SQL functions used by the tests.
+    /// Builds the extension, starts PostgreSQL, and installs the published package with CREATE EXTENSION.
     /// </summary>
     /// <param name="context">The assembly test context.</param>
     internal static async Task InitializeAsync(TestContext context)
@@ -27,21 +27,19 @@ internal static class PostgresFixture
             throw new InvalidOperationException("This integration suite publishes the sample for PostgreSQL 18.");
         }
 
-        string library = await IntegrationEnvironment.PublishSampleAsync(context.CancellationToken);
+        await IntegrationEnvironment.PublishSampleAsync(context.CancellationToken);
         s_cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         try
         {
             await using NpgsqlConnection connection = await Cluster.OpenConnectionAsync(context.CancellationToken);
-            string libraryLiteral = library.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
-            string generatedSql = await File.ReadAllTextAsync(Path.ChangeExtension(library, ".sql"), context.CancellationToken);
-            generatedSql = generatedSql.Replace("MODULE_PATHNAME", libraryLiteral, StringComparison.Ordinal);
             string sql = """
+                CREATE EXTENSION ankus_hello;
                 CREATE SCHEMA tests;
                 CREATE TABLE tests.rollback_probe (value integer NOT NULL);
                 CREATE FUNCTION tests.insert_probe() RETURNS void LANGUAGE sql AS
                     'INSERT INTO tests.rollback_probe VALUES (42)';
                 CREATE FUNCTION tests.fail_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1 / 0';
-                """ + generatedSql;
+                """;
             await using var command = new NpgsqlCommand(sql, connection);
             await command.ExecuteNonQueryAsync(context.CancellationToken);
         }

@@ -14,9 +14,11 @@ internal static class Program
     {
         try
         {
-            if (arguments.Length != 5)
+            if (arguments.Length != 8)
             {
-                throw new ArgumentException("Expected assembly, artifact directory, PostgreSQL major, linker, and toolchain libraries.");
+                throw new ArgumentException(
+                    "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
+                    "extension name, version, and library.");
             }
 
             string assembly = Path.GetFullPath(arguments[0]);
@@ -24,7 +26,15 @@ internal static class Program
             int major = int.Parse(arguments[2], CultureInfo.InvariantCulture);
             PostgresInstallation installation = await PostgresInstallation.DiscoverAsync(major);
             ExtensionManifest manifest = ExtensionManifest.Read(assembly);
+            IReadOnlyDictionary<string, string> package = ExtensionPackage.Create(arguments[5], arguments[6], arguments[7], manifest.Sql);
             Directory.CreateDirectory(output);
+            string extensionDirectory = Path.Combine(output, "extension");
+            Directory.CreateDirectory(extensionDirectory);
+            foreach ((string name, string content) in package)
+            {
+                WriteIfDifferent(Path.Combine(extensionDirectory, name), content);
+            }
+
             string source = Path.Combine(output, "bridge.c");
             string nativeObject = Path.Combine(output, OperatingSystem.IsWindows() ? "bridge.obj" : "bridge.o");
             WriteIfDifferent(source, manifest.NativeSource);

@@ -29,6 +29,12 @@ internal static class IntegrationEnvironment
     }
 
     /// <summary>
+    /// Gets the host-native publish directory containing the sample library and its extension installation files.
+    /// </summary>
+    internal static string NativeOutputDirectory
+        => Path.Combine(RepositoryRoot, "artifacts", "native", RuntimeInformation.RuntimeIdentifier);
+
+    /// <summary>
     /// Creates cluster settings using an automatically discovered local installation.
     /// </summary>
     /// <param name="cancellationToken">Cancels PostgreSQL discovery.</param>
@@ -36,12 +42,19 @@ internal static class IntegrationEnvironment
     internal static async Task<PostgresTestClusterOptions> CreateOptionsAsync(CancellationToken cancellationToken)
     {
         PostgresInstallation installation = await PostgresInstallation.DiscoverAsync(cancellationToken);
+        string nativePath = NativeOutputDirectory.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
+        char pathSeparator = OperatingSystem.IsWindows() ? ';' : ':';
         return new PostgresTestClusterOptions
         {
             Installation = installation,
             DataDirectoryBase = Path.Combine(RepositoryRoot, "artifacts", "test-pgdata"),
             LogDirectory = Path.Combine(RepositoryRoot, "artifacts", "test-logs"),
             StartupTimeout = TimeSpan.FromSeconds(60),
+            PostgreSqlConfiguration =
+            [
+                $"extension_control_path = '{nativePath}'",
+                $"dynamic_library_path = '{nativePath}{pathSeparator}$libdir'",
+            ],
         };
     }
 
@@ -53,7 +66,7 @@ internal static class IntegrationEnvironment
     internal static async Task<string> PublishSampleAsync(CancellationToken cancellationToken)
     {
         string project = Path.Combine(RepositoryRoot, "samples", "Ankus.Examples.Hello", "Ankus.Examples.Hello.csproj");
-        string output = Path.Combine(RepositoryRoot, "artifacts", "native", RuntimeInformation.RuntimeIdentifier);
+        string output = NativeOutputDirectory;
         await ProcessRunner.RunCheckedAsync(
             "dotnet",
             ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,

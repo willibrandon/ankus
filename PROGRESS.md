@@ -40,7 +40,7 @@ been implemented and validated across the required PostgreSQL and operating-syst
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **Plain `dotnet test`** is the canonical entry point: **58 passed, 0 failed, 0 skipped**
+- **Plain `dotnet test`** is the canonical entry point: **61 passed, 0 failed, 0 skipped**
   on Linux x64 with PostgreSQL 18.6. No environment variables or wrapper command are required.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
@@ -61,7 +61,12 @@ been implemented and validated across the required PostgreSQL and operating-syst
   into `~/.ankus/postgres/18.6`. The read-only reference clones were not modified.
   Bison and Flex were extracted into temporary storage for provisioning, without a system install.
 - Integration setup publishes the native sample for the host RID, reserves a dynamic port,
-  initializes fresh PGDATA, starts `pg_ctl`, creates a test database, and registers sample functions.
+  initializes fresh PGDATA, starts `pg_ctl`, creates a test database, and runs `CREATE EXTENSION ankus_hello`.
+- Publishing emits the native library, generated SQL, and `extension/` control and versioned SQL files.
+  PG18 fixtures use per-cluster `extension_control_path` and `dynamic_library_path` settings to
+  load the actual published files without copying into the shared PostgreSQL installation.
+- Integration tests verify extension-owned function catalog entries, schema relocation,
+  DROP EXTENSION removing the function, and reinstallation into a requested schema.
 - Backend test functions run in individual rollback-only transactions. Tests prove rollback
   after success, failure, and cancellation; expected-error matching; retained session logs;
   independent concurrent clusters; failed-start cleanup; and idempotent shutdown.
@@ -71,10 +76,10 @@ been implemented and validated across the required PostgreSQL and operating-syst
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
-`int` arguments and an `int` return value. SQL functions are strict. Generated SQL is published
-alongside the native library; the fixture currently executes it directly.
-Full `[PgTest]` generation, extension packaging/installation, more data types, guarded calls
-into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
+`int` arguments and an `int` return value. SQL functions are strict. The native library,
+control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
+Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
+guarded calls into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
 an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
 automatic, but prerequisite installation is currently manual.
 
@@ -226,8 +231,9 @@ pgrx reference defines the required surface, including capabilities not yet item
   - [ ] composites (`[PostgresType]`), enums (`[PostgresEnum]`)
   - [ ] GUC options; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
-  - [ ] `new`, `build`, `schema`, `test`, `run`, and `package` commands
-  - [ ] Package `.so`, `.control`, and versioned `.sql` artifacts
+   - [ ] `new`, `build`, `schema`, `test`, `run`, and `package` commands
+   - [x] Publish native library, `.control`, and versioned `.sql` artifacts
+   - [ ] Installation and distribution packaging commands, extension upgrades
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
@@ -294,3 +300,6 @@ pgrx reference defines the required surface, including capabilities not yet item
 - 2026-09-22 — Corrected unauthorized scope-reduction language. All pgrx features,
   including custom scans and nodes, are required for completion. Milestones record
   incremental implementation and validation; they do not narrow the full-port objective.
+- 2026-09-22 — Committed generated functions as `82ca5e6` and the full-scope correction as `8c7659d`.
+  Published extension control and versioned SQL files; integration setup now uses `CREATE EXTENSION`.
+  Plain `dotnet test`: 61 passed, 0 failed, 0 skipped, including 19 real PostgreSQL integration cases.
