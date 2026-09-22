@@ -24,11 +24,24 @@ Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that
 
 | Item | Value |
 |---|---|
-| .NET SDK | 10.0.400 (Native AOT mature) |
+| .NET SDK | 10.0.400 (Native AOT mature); `global.json` uses `rollForward: latestMajor` (no pinning) |
 | Docker | 29.7.2 — test images: `postgres:18` (primary), `postgres:16` (fetched); pull per version when testing a matrix leg |
 | C toolchain | clang 21 + lld (AOT uses its own bundled clang anyway); gcc 14 fallback |
-| References | `~/src/pgrx` (read-only), `~/src/postgres` (read-only, tags `REL_13_23`…`REL_18_6`, `REL_19_BETA3`), `~/src/runtime`, `~/src/roslyn` |
 | Primary test target | **PostgreSQL 18** (19 imminent; pgrx supports 13–18 + 19 beta) |
+
+### Local read-only reference repos (absolute paths)
+
+- **pgrx** → `/home/brandon/src/pgrx` — the port's reference implementation. Key paths:
+  - `/home/brandon/src/pgrx/pgrx/src/` — runtime modules (`spi.rs`, `datum/`, `guc.rs`, `memcx.rs`, `trigger_support/`, `iter.rs`, `bgworkers.rs`, …)
+  - `/home/brandon/src/pgrx/pgrx-macros/src/lib.rs` — the proc macros (`pg_extern`, `pg_trigger`, `pg_aggregate`, …)
+  - `/home/brandon/src/pgrx/cargo-pgrx/` — CLI model to mirror (`new/init/build/schema/test/run/package`)
+  - `/home/brandon/src/pgrx/pgrx-examples/` — example set to mirror in `samples/`
+  - `/home/brandon/src/pgrx/pgrx-tests/`, `/home/brandon/src/pgrx/pgrx-unit-tests/` — test strategy reference
+  - `/home/brandon/src/pgrx/v18-ONE-COMPILE-CHANGELOG.md` — one-compile `.pgrxsc` schema model (our `.ankusc` analogue)
+- **postgres** → `/home/brandon/src/postgres` — ABI source of truth. Tags: `REL_13_23`…`REL_18_6`, `REL_19_BETA3`. Key: `src/include/fmgr.h` (magic/finfo/FunctionCallInfo), `src/backend/utils/fmgr/dfmgr.c` (load + magic validation), `src/backend/utils/fmgr/fmgr.c` (finfo lookup), `src/include/utils/elog.h` (levels).
+- **runtime** → `/home/brandon/src/runtime` — .NET runtime source (Native AOT: `src/coreclr/nativeaot/`, PAL: `src/coreclr/pal/src/`).
+- **roslyn** → `/home/brandon/src/roslyn` — compiler source (function-pointer grammar, source generators).
+- **ilrepl** → `/home/brandon/src/ilrepl` — `.editorconfig` style reference (merged into `/home/brandon/src/ankus/.editorconfig`).
 
 ## Key research findings (verified)
 
