@@ -113,6 +113,14 @@ permits either `var` or an explicit declaration; IDE0007 does not force `var`.
 Roslyn's own repository generally prefers `var`, so its type-style rules are not
 the convention used here.
 
-The same options are included in `ankus new` projects. The installed-tool tests
-verify that an implicit built-in declaration fails the build and that both forms
-of an apparent constructor declaration compile.
+Use primary constructors wherever supported by IDE0290. The repository enforces
+`csharp_style_prefer_primary_constructors` and IDE0290 as errors.
+Constructor validation, visibility and native layouts must remain
+unchanged when applying the conversion.
+
+Fix warnings at their source. Do not add warning pragmas, suppression attributes,
+`NoWarn`, or lower an enforced diagnostic's severity.
+
+These conventions apply to Ankus development. Consumer projects created by
+`ankus new` choose their own style; the scaffold does not include an `.editorconfig`
+or enable code-style enforcement in their builds.

@@ -45,7 +45,7 @@ internal sealed class FunctionDeclaration
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
     internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context)
     {
-        AttributeData attribute = method.GetAttributes().First(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
+        AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
         int volatility = Value(attribute, "Volatility", 0);
         int parallel = Value(attribute, "ParallelSafety", 0);
@@ -113,7 +113,7 @@ internal sealed class FunctionDeclaration
             options.Add("SUPPORT " + string.Join(".", parts.Select(SqlText.Identifier)));
         }
 
-        foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+        foreach (KeyValuePair<string, TypedConstant> argument in attribute?.NamedArguments ?? [])
         {
             if (argument.Key != "SearchPath" || argument.Value.IsNull)
             {

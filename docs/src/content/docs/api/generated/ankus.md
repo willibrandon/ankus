@@ -10,6 +10,7 @@ Assembly: `Ankus.Runtime.dll`
 ## Classes
 
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
+- [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgDiagnostic](/api/ankus.pgdiagnostic/)
 - [PgEnumAttribute](/api/ankus.pgenumattribute/)
 - [PgEnumInfo](/api/ankus.pgenuminfo/)
@@ -19,6 +20,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
 - [PgLog](/api/ankus.pglog/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
+- [PgOperatorAttribute](/api/ankus.pgoperatorattribute/)
 - [PgParameterAttribute](/api/ankus.pgparameterattribute/)
 - [PgPath](/api/ankus.pgpath/)
 - [PgPolygon](/api/ankus.pgpolygon/)
@@ -57,6 +59,7 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Enums
 
+- [PgCastContext](/api/ankus.pgcastcontext/)
 - [PgDateTimePart](/api/ankus.pgdatetimepart/)
 - [PgLogLevel](/api/ankus.pgloglevel/)
 - [PgNullInput](/api/ankus.pgnullinput/)

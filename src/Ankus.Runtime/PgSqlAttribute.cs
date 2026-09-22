@@ -3,29 +3,23 @@ namespace Ankus;
 /// <summary>
 /// Includes trusted SQL text in the extension installation script with explicit dependency ordering.
 /// </summary>
+/// <remarks>
+/// Declares a named SQL block.
+/// </remarks>
+/// <param name="name">The unique, case-sensitive dependency identifier.</param>
+/// <param name="sql">The complete SQL statements, including their terminators.</param>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-public sealed class PgSqlAttribute : Attribute
+public sealed class PgSqlAttribute(string name, string sql) : Attribute
 {
-    /// <summary>
-    /// Declares a named SQL block.
-    /// </summary>
-    /// <param name="name">The unique, case-sensitive dependency identifier.</param>
-    /// <param name="sql">The complete SQL statements, including their terminators.</param>
-    public PgSqlAttribute(string name, string sql)
-    {
-        Name = name;
-        Sql = sql;
-    }
-
     /// <summary>
     /// Gets the block's dependency identifier.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <summary>
     /// Gets the SQL text, which PostgreSQL validates and executes during installation.
     /// </summary>
-    public string Sql { get; }
+    public string Sql { get; } = sql;
 
     /// <summary>
     /// Gets or sets identifiers of declarations that must run before this block.

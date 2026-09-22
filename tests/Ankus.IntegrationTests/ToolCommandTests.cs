@@ -393,6 +393,15 @@ public sealed class ToolCommandTests(TestContext context)
                 [PgSchema("package_contract")]
                 public static class Fixed
                 {
+                    [PgEnum]
+                    public enum PackageCode { First = 17, Last = 25 }
+
+                    [PgOperator("@+")]
+                    public static int AddCode(PackageCode left, int right) => checked((int)left + right);
+
+                    [PgCast]
+                    public static int CodeValue(PackageCode value) => (int)value;
+
                     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, Cost = 2.5)]
                     public static int PackageDefault(int inputValue = 41) => inputValue + 1;
                 }
@@ -419,6 +428,10 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT package_contract.package_default(input_value => 9)";
         Assert.AreEqual(10, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT 'First'::package_contract.package_code OPERATOR(package_contract.@+) 25";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT 'Last'::package_contract.package_code::integer";
+        Assert.AreEqual(25, await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT extrelocatable FROM pg_extension WHERE extname = 'ankus_tool_probe'";
         Assert.IsFalse(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(context.CancellationToken)));
     }
@@ -645,37 +658,11 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("acme_http_probe", XDocument.Load(project).Descendants("AnkusExtensionName").Single().Value);
         XDocument packages = XDocument.Load(Path.Combine(output, "Directory.Packages.props"));
         Assert.AreEqual(s_version, packages.Descendants("PackageVersion").Single(element => (string?)element.Attribute("Include") == "Ankus.Testing").Attribute("Version")!.Value);
-        Assert.IsTrue(File.Exists(Path.Combine(output, ".editorconfig")));
+        Assert.IsFalse(File.Exists(Path.Combine(output, ".editorconfig")));
         Assert.IsTrue(File.Exists(Path.Combine(output, ".gitignore")));
         ProcessResult listing = await ProcessRunner.RunCheckedAsync("dotnet", ["sln", "Acme.HTTPProbe.slnx", "list"],
             s_environment, token, workingDirectory: output);
         Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
-
-        string styleProbe = Path.Combine(Path.GetDirectoryName(project)!, "TypeStyleProbe.cs");
-        await File.WriteAllTextAsync(styleProbe, """
-            internal static class TypeStyleProbe
-            {
-                internal static int Verify() { var number = 1; return number; }
-            }
-            """, token);
-        ProcessResult rejectedStyle = await ProcessRunner.RunAsync("dotnet", ["build", project], s_environment, token, workingDirectory: output);
-        Assert.AreNotEqual(0, rejectedStyle.ExitCode);
-        Assert.Contains("error IDE0008", rejectedStyle.StandardOutput);
-        await File.WriteAllTextAsync(styleProbe, """
-            internal static class TypeStyleProbe
-            {
-                internal static int Verify()
-                {
-                    int number = 1;
-                    var implicitApparent = new List<int>();
-                    List<int> explicitApparent = new();
-                    return number + implicitApparent.Count + explicitApparent.Count;
-                }
-            }
-            """, token);
-        ProcessResult acceptedStyle = await ProcessRunner.RunAsync("dotnet", ["build", project], s_environment, token, workingDirectory: output);
-        acceptedStyle.EnsureSuccess("dotnet", ["build"]);
-        File.Delete(styleProbe);
 
         ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-bl:generated-tests-{}.binlog"],
             s_environment, token, workingDirectory: output);

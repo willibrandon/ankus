@@ -4,19 +4,17 @@ namespace Ankus;
 /// Places a class's generated functions in a fixed PostgreSQL schema, creating an extension-owned schema by default.
 /// Nested classes inherit the nearest declaration; a function's Schema option overrides it.
 /// </summary>
+/// <remarks>
+/// Declares the schema's exact identifier, quoted by the SQL generator.
+/// </remarks>
+/// <param name="name">The nonempty schema name, at most 63 UTF-8 bytes.</param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-public sealed class PgSchemaAttribute : Attribute
+public sealed class PgSchemaAttribute(string name) : Attribute
 {
-    /// <summary>
-    /// Declares the schema's exact identifier, quoted by the SQL generator.
-    /// </summary>
-    /// <param name="name">The nonempty schema name, at most 63 UTF-8 bytes.</param>
-    public PgSchemaAttribute(string name) => Name = name;
-
     /// <summary>
     /// Gets the SQL schema identifier.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <summary>
     /// Gets or sets a dependency identifier for this schema declaration.

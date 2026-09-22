@@ -139,3 +139,6 @@ public static long ReportCount()
 The owner's privileges and function-local search path end when the call
 returns or throws. Native error guards and managed exception unwinding apply
 to every execution mode.
+
+`PgOperator` and `PgCast` also expose static methods as functions. Add `PgFunction`
+alongside them to select the options described here. See [operators and casts](/operators-and-casts/).

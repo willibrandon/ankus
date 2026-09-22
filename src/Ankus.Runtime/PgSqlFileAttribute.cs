@@ -3,29 +3,23 @@ namespace Ankus;
 /// <summary>
 /// Includes a compiler AdditionalFiles SQL input in the installation script with explicit dependency ordering.
 /// </summary>
+/// <remarks>
+/// Declares a named SQL file without reading files from extension runtime code.
+/// </remarks>
+/// <param name="name">The unique, case-sensitive dependency identifier.</param>
+/// <param name="path">The project-relative or absolute path of an AdditionalFiles input.</param>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-public sealed class PgSqlFileAttribute : Attribute
+public sealed class PgSqlFileAttribute(string name, string path) : Attribute
 {
-    /// <summary>
-    /// Declares a named SQL file without reading files from extension runtime code.
-    /// </summary>
-    /// <param name="name">The unique, case-sensitive dependency identifier.</param>
-    /// <param name="path">The project-relative or absolute path of an AdditionalFiles input.</param>
-    public PgSqlFileAttribute(string name, string path)
-    {
-        Name = name;
-        Path = path;
-    }
-
     /// <summary>
     /// Gets the file block's dependency identifier.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <summary>
     /// Gets the path resolved relative to the extension project directory.
     /// </summary>
-    public string Path { get; }
+    public string Path { get; } = path;
 
     /// <summary>
     /// Gets or sets identifiers of declarations that must run before this file.

@@ -34,6 +34,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgFunctionAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IMethodSymbol> operators = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgOperatorAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IMethodSymbol> casts = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgCastAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
+            .Select(static (input, _) => input.Left.Left.AddRange(input.Left.Right).AddRange(input.Right)
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
             static (node, _) => node is EnumDeclarationSyntax,
@@ -49,7 +60,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(functions.Collect().Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()),
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
@@ -63,6 +74,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         var names = new HashSet<string>(StringComparer.Ordinal);
+        var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
         if (!methods.IsEmpty)
@@ -213,8 +225,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             var sql = new StringBuilder();
             PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
-            graph.Configure(entity, method.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"));
+            AttributeData? functionAttribute = method.GetAttributes().FirstOrDefault(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
+            if (functionAttribute is not null)
+            {
+                graph.Configure(entity, functionAttribute);
+            }
             graph.Add(entity);
+            OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
             foreach (ITypeSymbol type in method.Parameters.Select(static parameter => parameter.Type).Concat([method.ReturnType]))
             {
                 FunctionType contract = FunctionType.Create(type)!;
@@ -281,9 +298,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
     private static string GetSqlName(IMethodSymbol method)
     {
-        AttributeData attribute = method.GetAttributes().First(
+        AttributeData? attribute = method.GetAttributes().FirstOrDefault(
             static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-        foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+        foreach (KeyValuePair<string, TypedConstant> argument in attribute?.NamedArguments ?? [])
         {
             if (argument.Key == "Name" && argument.Value.Value is string value)
             {

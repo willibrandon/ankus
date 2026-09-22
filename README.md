@@ -104,6 +104,11 @@ including nullable values, arrays, typed SPI queries and schema dependencies.
 See [enumerated types](docs/src/content/docs/enums.md) and the
 [enum sample](samples/Ankus.Examples.Enums/DeliveryFunctions.cs).
 
+Use `[PgOperator]` for binary or prefix operators and `[PgCast]` for explicit,
+assignment, or implicit conversions. Both generate backing functions and
+dependency-ordered SQL. See [operators and casts](docs/src/content/docs/operators-and-casts.md)
+and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs).
+
 ## Querying PostgreSQL
 
 Use `Spi` inside an extension function to execute SQL in the calling backend:

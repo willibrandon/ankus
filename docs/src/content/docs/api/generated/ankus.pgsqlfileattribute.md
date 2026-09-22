@@ -16,6 +16,8 @@ Includes a compiler AdditionalFiles SQL input in the installation script with ex
 public sealed class PgSqlFileAttribute : Attribute
 ```
 
+Declares a named SQL file without reading files from extension runtime code.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
 ## Constructors
@@ -24,7 +26,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgSqlFileAttribute(string, string)
 
-Declares a named SQL file without reading files from extension runtime code.
+Includes a compiler AdditionalFiles SQL input in the installation script with explicit dependency ordering.
 
 ```csharp
 public PgSqlFileAttribute(string name, string path)
@@ -39,6 +41,8 @@ The unique, case-sensitive dependency identifier.
 `path` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The project-relative or absolute path of an AdditionalFiles input.
+
+Declares a named SQL file without reading files from extension runtime code.
 
 
 ## Properties

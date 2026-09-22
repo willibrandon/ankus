@@ -16,6 +16,8 @@ Assigns an exact, case-sensitive PostgreSQL label to a PgEnum member.
 public sealed class PgEnumLabelAttribute : Attribute
 ```
 
+Specifies a label of at most 63 UTF-8 bytes, including an empty label.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
 ## Constructors
@@ -24,7 +26,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgEnumLabelAttribute(string)
 
-Specifies a label of at most 63 UTF-8 bytes, including an empty label.
+Assigns an exact, case-sensitive PostgreSQL label to a PgEnum member.
 
 ```csharp
 public PgEnumLabelAttribute(string label)
@@ -35,6 +37,8 @@ Parameters:
 `label` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The label, without zero characters.
+
+Specifies a label of at most 63 UTF-8 bytes, including an empty label.
 
 
 ## Properties

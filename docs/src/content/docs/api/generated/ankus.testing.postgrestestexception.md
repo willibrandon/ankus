@@ -15,6 +15,8 @@ Reports a backend test failure together with its PostgreSQL session log and orig
 public sealed class PostgresTestException : Exception, ISerializable
 ```
 
+Initializes a failure for a named PostgreSQL test session.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Exception](https://learn.microsoft.com/dotnet/api/system.exception)
 
 Implements: [ISerializable](https://learn.microsoft.com/dotnet/api/system.runtime.serialization.iserializable)
@@ -25,7 +27,7 @@ Implements: [ISerializable](https://learn.microsoft.com/dotnet/api/system.runtim
 
 ### PostgresTestException(string, string, Exception)
 
-Initializes a failure for a named PostgreSQL test session.
+Reports a backend test failure together with its PostgreSQL session log and original exception.
 
 ```csharp
 public PostgresTestException(string testName, string serverLog, Exception innerException)
@@ -44,6 +46,8 @@ The log emitted by the test's backend session.
 `innerException` — [Exception](https://learn.microsoft.com/dotnet/api/system.exception)
 
 The original test or database exception.
+
+Initializes a failure for a named PostgreSQL test session.
 
 
 ## Properties

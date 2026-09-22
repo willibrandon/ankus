@@ -17,6 +17,8 @@ Nested classes inherit the nearest declaration; a function's Schema option overr
 public sealed class PgSchemaAttribute : Attribute
 ```
 
+Declares the schema's exact identifier, quoted by the SQL generator.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
 ## Constructors
@@ -25,7 +27,8 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgSchemaAttribute(string)
 
-Declares the schema's exact identifier, quoted by the SQL generator.
+Places a class's generated functions in a fixed PostgreSQL schema, creating an extension-owned schema by default.
+Nested classes inherit the nearest declaration; a function's Schema option overrides it.
 
 ```csharp
 public PgSchemaAttribute(string name)
@@ -36,6 +39,8 @@ Parameters:
 `name` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The nonempty schema name, at most 63 UTF-8 bytes.
+
+Declares the schema's exact identifier, quoted by the SQL generator.
 
 
 ## Properties

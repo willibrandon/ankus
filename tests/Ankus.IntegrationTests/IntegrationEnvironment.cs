@@ -67,6 +67,7 @@ internal static class IntegrationEnvironment
     {
         await PublishExtensionAsync("tests", "Ankus.TestExtension", cancellationToken);
         await PublishExtensionAsync("samples", "Ankus.Examples.Enums", cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Operators", cancellationToken);
         return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);
     }
 

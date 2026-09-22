@@ -16,6 +16,8 @@ Includes trusted SQL text in the extension installation script with explicit dep
 public sealed class PgSqlAttribute : Attribute
 ```
 
+Declares a named SQL block.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
 ## Constructors
@@ -24,7 +26,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgSqlAttribute(string, string)
 
-Declares a named SQL block.
+Includes trusted SQL text in the extension installation script with explicit dependency ordering.
 
 ```csharp
 public PgSqlAttribute(string name, string sql)
@@ -39,6 +41,8 @@ The unique, case-sensitive dependency identifier.
 `sql` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The complete SQL statements, including their terminators.
+
+Declares a named SQL block.
 
 
 ## Properties

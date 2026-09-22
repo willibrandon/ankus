@@ -15,6 +15,8 @@ Persists explicitly registered PostgreSQL installations in the Ankus home direct
 public sealed class PostgresRegistry
 ```
 
+Creates a registry at the specified home, or at the current user's ~/.ankus directory.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Constructors
@@ -23,7 +25,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ### PostgresRegistry(string?)
 
-Creates a registry at the specified home, or at the current user's ~/.ankus directory.
+Persists explicitly registered PostgreSQL installations in the Ankus home directory.
 
 ```csharp
 public PostgresRegistry(string? homeDirectory = null)
@@ -34,6 +36,8 @@ Parameters:
 `homeDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 An optional Ankus home directory.
+
+Creates a registry at the specified home, or at the current user's ~/.ankus directory.
 
 
 ## Properties

@@ -30,6 +30,14 @@ before changing an area.
   types when the right-hand side does not name the type. `var` is permitted, not
   required, for clear constructors and casts. `.editorconfig` enforces the
   built-in and non-apparent cases through IDE0008; do not enable IDE0007 globally.
+- Use primary constructors wherever IDE0290 applies. The repository enforces
+  this rule as an error; preserve constructor validation,
+  accessibility, and native struct layouts when converting existing declarations.
+- Never disable warnings. Fix the underlying issue without warning pragmas,
+  suppression attributes, `NoWarn`, or reducing an enforced diagnostic's severity.
+- Do not leave an extra blank line immediately after an opening brace.
+- Keep repository coding style out of consumer templates. `ankus new` must not
+  impose this repository's `.editorconfig` rules or code-style build enforcement.
 - Document public and internal declarations with XML comments. Put XML summary
   opening tags, text, and closing tags on separate lines. Follow the analyzers;
   generic types must not expose static members (CA1000).

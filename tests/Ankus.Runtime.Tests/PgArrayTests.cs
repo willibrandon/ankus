@@ -35,10 +35,7 @@ public sealed class PgArrayTests
         Assert.ThrowsExactly<ArgumentException>(() => array.GetValue(-2));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => array.GetValue(-3, 4));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => array.GetValue(-1, 7));
-#pragma warning disable IDE0305 // Exercise ToArray's copy contract directly, rather than collection-expression enumeration.
-        int?[] copy = array.ToArray();
-#pragma warning restore IDE0305
-        copy[0] = 42;
+        array.ToArray()[0] = 42;
         Assert.AreEqual(11, array[0]);
     }
 

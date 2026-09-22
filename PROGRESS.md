@@ -45,19 +45,22 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1552 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1759 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
 - The testing-package move preserves its assembly, namespace, NuGet identity, and author APIs. Solution references,
   documentation generation, and isolated package-consumer tests use the new path. The post-move Release build has
   zero warnings/errors, and plain `dotnet test` still passes all 995 cases, including installed-package and generated-solution tests.
-- XML summary tags use separate opening, text, and closing lines. CA1000 is an error in the repository and generated
-  extension projects; generic types do not expose static members.
+- XML summary tags use separate opening, text, and closing lines. CA1000 is an error in the repository;
+  generic types do not expose static members. Consumer projects choose their own coding conventions.
 - Local type declarations follow the read-only `runtime`/`msbuild` references: IDE0008 errors require explicit
   built-in and non-apparent types; constructors/casts that name their type permit either spelling. The same
-  `.editorconfig` rules ship in `ankus new`; an installed-tool consumer verifies rejection and acceptance by building.
+  rules apply only to this repository. `ankus new` does not ship a style `.editorconfig` or enable code-style builds.
   `AGENTS.md` records repository conventions and read-only reference names without personal paths.
+- IDE0290 enforces primary constructors in the repository; eligible public constructors retain their signatures
+  and initialization behavior. Warning suppressions are prohibited, and both prior test pragmas were removed
+  while preserving direct `ToArray()` copy-mutation assertions. Consumer templates contain no repository style rules.
 - Internal declarations also carry XML documentation. A Roslyn scan across sources, tests, samples and bundled
   templates found 101 omissions; all are documented, including enum members and internal interface contracts.
   The follow-up scan reports zero omissions. Private declarations are outside that scan's scope.
@@ -87,6 +90,9 @@ Linux, and macOS.
   dependencies and Native AOT conversions for scalars, nullable values, vectors and shaped arrays. `PgEnums`
   resolves current type/value OIDs and returns owned catalog metadata without retaining identities across DDL.
   The enum sample exercises extension relocation/reinstallation; installation scripts declare UTF-8 encoding.
+- `[PgOperator]` generates binary/prefix operators with commutator, negator, selectivity and hash/merge options.
+  `[PgCast]` generates explicit, assignment and implicit casts, including PostgreSQL typmod/explicitness arguments.
+  Both imply a backing function, accept optional `[PgFunction]` configuration, and expose separate SQL dependency IDs.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -105,7 +111,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1087 integration cases include enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1124 integration cases include operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -530,6 +536,38 @@ Evidence is retained under `.git/testagent/enums/`: `full-tests-final.log`, `rel
 `internal-docs.log`, `docs-build.log`, `docs-check.log`, `api-check.log`, and the bounded review/status notes.
 Validation remains PostgreSQL 18.6/Linux x64; the full version/platform matrix is still required.
 
+### Operator and cast evidence
+
+References: pgrx `pg_operator`/`pg_cast` macros, `pg_extern/entity`, `pg_operator_tests.rs`,
+`pg_cast_tests.rs`, the operators example, and PostgreSQL `pg_operator.c`, `operatorcmds.c`,
+`functioncmds.c` and CREATE OPERATOR/CAST reference sources. Ordinary static methods use the existing
+generated native function/error boundary. No new unguarded backend calls are introduced.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Standalone attributes, optional function settings, one native export per method | Semantic discovery merged by symbol identity; ordinary `FunctionDeclaration` defaults | `OperatorCastAttributesShareOneBackingFunction`, `OperatorOptionsPreserveQualifiedReferencesAndFunctionOptions`, `CastUsesQualifiedBackingFunctionAndExecutionOptions` compile generated sources and assert exact SQL |
+| Binary/prefix operands, type order, SQL NULLs and arrays | Shared function contracts and wrappers; unary RIGHTARG | `OperatorsExecuteTheirDeclaredSignatures` checks asymmetric/mixed-width operands, prefix syntax and nullable dispatch; `OperatorsPreserveEnumArrayIdentityAndBounds` compares shaped/null/empty enum arrays across eight SPI paths |
+| Names, planner constraints and diagnostic boundaries | `ANKUS007`, PostgreSQL punctuation/length/grammar checks, normalized !=, self-negator rejection | `ValidOperatorNamesPreserveEveryToken`, `OperatorNameLengthUsesPostgresBoundary`, `InvalidOperatorNamesAreDiagnosed`, `OperatorReferenceNamesRespectEncodedLengthLimits`, `InvalidOperatorSignaturesAndPlannerOptionsAreDiagnosed`, `OperatorSelfNegatorsAreDiagnosed` |
+| Commutators, negators, estimator functions, hashes/merges and shell filling | Quoted schema names and OPERATOR-qualified references; native PostgreSQL operator catalog semantics | `OperatorCatalogRetainsOptionsAndFillsShells` independently checks types, procedure OIDs, reciprocal links, estimator OIDs, planner flags and backing-function volatility/strictness/cost |
+| Actual planner execution | Hashes/Merges declarations plus test-supplied compatible operator classes | `DeclaredPlannerOptionsEnableCompatibleJoinPlans` verifies Hash Join and Merge Join plan nodes and every expected result pair |
+| Explicit, assignment and implicit conversion contexts | `PgCastContext`, generated CREATE CAST with exact function signature | `CastContextsGenerateExactSql`, `CastContextsControlAssignmentAndFunctionResolution`, `OperatorAndCastFailuresRecoverInTheSameSession` prove accepted and rejected SQL resolution contexts |
+| Nullable conversions, target typmods, explicit flag and direct array casts | One-to-three-parameter cast signatures with non-nullable int/bool metadata | `CastsExecuteTheDeclaredConversion` distinguishes NULL-input invocation from NULL output, checks packed numeric modifiers/explicitness, and verifies a declared shaped-array conversion instead of element-wise fallback; `CastCatalogRetainsFunctionAndContext` checks all six catalog contracts |
+| Schema/type/function dependencies, separate IDs, duplicates and cycles | Independent operator/cast SQL entities depend on backing functions and their transitive type/schema prerequisites | `OperatorCastEnumArraysPreserveIdentityAndTypeDependencies`, `OperatorCastGraphOrdersSeparateEntityDependencies`, `InvalidOperatorCastGraphsAreDiagnosed`, `DuplicateOperatorCastSqlIdentitiesAreDiagnosed`, `OperatorCastOutputIsDeterministicAcrossDeclarationOrder` |
+| Extension ownership, relocation, removal and fresh reinstallation | `Ankus.Examples.Operators`, PostgreSQL catalog dependencies | `OperatorCastSampleRelocatesAndReinstalls` verifies seven owned objects, qualified operations with a shadow search path, moved casts/operators, complete cleanup and fresh enum OID on reinstallation |
+| Native error unwinding, command rollback and retained state | Existing guarded SPI/managed unwind paths | `OperatorsAndCastsRecoverInsideGuardedSpi` verifies 40 errors after CTE writes, 20 finally executions, two surviving writes, usable kept plan and zero extra native contexts; direct failures assert SQLSTATEs and same-session success |
+| Package-only consumers and independent style choices | Packed SDK/generator/runtime and style-free `ankus new` scaffold | `SdkSupportsDirectPublishWithCentralPackages` publishes and executes an enum operator/cast outside the checkout; `NewSolutionRunsManagedAndBackendTests` checks no generated .editorconfig and runs the scaffold's managed/backend suite |
+
+This milestone adds 170 generator and 37 backend cases. Plain `dotnet test` passes all 1759 cases without
+failures or skips on Linux x64 with PostgreSQL 18.6; the Release build has zero warnings/errors. The internal
+XML scan checks 495 declarations with zero omissions. The generated API contains 63 pages and 813 members.
+Site build, type checks, API freshness and IDE0008/IDE0290 verification pass. Duplicate analyzer release-file
+entries were removed from the generator project; the analyzer package supplies each file once, and the
+formatter no longer reports a workspace warning. Sitemap generation still awaits the public site URL.
+
+The declarations cover supported input/output types. Composite/custom-type operands, automatic equality/order/hash
+operator-class generation, custom SQL translation hooks, and the full PostgreSQL/platform matrix remain active work
+in their respective inventory rows. Validation artifacts are under `.git/testagent/operators/`.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -537,7 +575,7 @@ The generated API currently supports accessible, synchronous static methods with
 the .NET/full-range PostgreSQL temporal types, network/geometric values, typed ranges and generated enums. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
-Custom installation SQL strings/files and generated declarations share a dependency-ordered graph.
+Custom installation SQL strings/files and generated declarations, including operators and casts, share a dependency-ordered graph.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
 the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. `Ankus.Sdk` is now a
@@ -649,8 +687,8 @@ The target architecture consists of:
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
-| `#[pg_operator]` | `[PgOperator]` (+ SQL DDL) | ☐ |
-| `#[pg_cast]` | `[PgCast]` (+ SQL DDL) | ☐ |
+| `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
+| `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
 | `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
@@ -739,12 +777,12 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Pending |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
-| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Pending |
+| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom/composite operand families and matrix validation remain required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
-| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Pending |
+| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom/composite type families and matrix validation remain required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
-| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
+| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
 `merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event triggers and full
@@ -809,7 +847,8 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The `samples/Ankus.Examples.Hello` and `samples/Ankus.Examples.Enums` samples are validated. Full example parity is pending.
+The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums` and `samples/Ankus.Examples.Operators`
+samples are validated. Full example parity is pending.
 
 Required test-source inventory:
 
@@ -877,7 +916,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [ ] `[PgSchema]`, explicit function options, SETOF, remaining datum mappings
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
-  - [ ] triggers, event triggers, aggregates, operators, casts, `ExtensionSql`
+  - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
+  - [ ] triggers, event triggers, aggregates, generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites
   - [ ] GUC options; background workers
@@ -1103,3 +1143,15 @@ The phases track implementation of the complete pgrx feature surface.
   60 API pages document 796 members. Added path-independent `AGENTS.md` conventions and enforced runtime/MSBuild
   explicit-type rules in the repo and scaffold, including build-based consumer checks. The full-port inventory and
   supported PostgreSQL/platform matrix remain active requirements.
+- 2026-09-22 — Added standalone operator/cast declarations with optional backing-function settings, PostgreSQL
+  name/signature validation, planner options, conversion contexts and independent SQL graph dependencies.
+  Added 170 generator and 37 backend cases, including actual hash/merge joins, nullable/typmod conversions,
+  enum-array ownership, guarded rollback/recovery, relocation/reinstallation and cold package consumers.
+  Plain `dotnet test`: 1759 passed, zero failures/skips on PostgreSQL 18.6/Linux x64; Release build: zero warnings/errors.
+  Internal XML scan: 495 declarations, zero omissions. Site build/type/API freshness checks pass; 63 API pages
+  document 813 members. IDE0290 now enforces eligible primary constructors alongside the existing explicit-type
+  rules. Removed both warning pragmas and extra blank lines after opening braces, preserving copy-ownership tests.
+  Corrected the previous scaffold policy: repository coding style is enforced only in the repository; `ankus new`
+  emits neither a style `.editorconfig` nor code-style build enforcement. Removed duplicate analyzer release-file
+  entries without disabling diagnostics. Automatic operator classes, further type families, and the full port/platform
+  inventory remain active requirements.

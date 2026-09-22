@@ -199,10 +199,7 @@ public sealed class PgEnumTests
         Assert.IsNull(array.GetValue(-3, 5));
         Assert.AreEqual(SignedState.Lowest, array.GetValue(-2, 5));
         Assert.AreSequenceEqual(new SignedState?[] { SignedState.Ready, null, SignedState.Highest, SignedState.Lowest }, array);
-#pragma warning disable IDE0305 // Exercise ToArray's copy contract directly, rather than collection-expression enumeration.
-        SignedState?[] copy = array.ToArray();
-#pragma warning restore IDE0305
-        copy[0] = SignedState.Zero;
+        array.ToArray()[0] = SignedState.Zero;
         Assert.AreEqual(SignedState.Ready, array[0]);
         Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
     }
