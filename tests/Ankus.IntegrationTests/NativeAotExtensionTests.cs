@@ -86,7 +86,7 @@ public sealed class NativeAotExtensionTests(TestContext context)
                 () => command.ExecuteScalarAsync(context.CancellationToken));
 
             Assert.AreEqual(PostgresErrorCodes.ExternalRoutineException, error.SqlState);
-            Assert.Contains("overflow", error.MessageText);
+            Assert.AreEqual(new OverflowException().Message, error.MessageText);
         }
 
         await using var succeeding = new NpgsqlCommand("SELECT public.add(40, 2)", connection);

@@ -8,10 +8,13 @@ Write ordinary C# functions and publish them as a native PostgreSQL extension li
 ```csharp
 [PgFunction]
 public static int Add(int left, int right) => checked(left + right);
+
+[PgFunction]
+public static string Greet(string name) => $"Hello, {name}!";
 ```
 
 The [minimal sample](samples/Ankus.Examples.Hello/Hello.cs) contains only the user
-function. Ankus generates PostgreSQL module magic, exports, argument conversion,
+functions. Ankus generates PostgreSQL module magic, exports, argument conversion,
 SQL declarations, and the managed-to-native error boundary.
 
 ## Develop and test
@@ -51,10 +54,30 @@ For a nonstandard installation, an optional configuration entry supplies its pat
 
 ## Implementation status
 
-The implementation currently supports static methods with `int` arguments and an `int`
-return value, strict SQL NULL handling, and managed exceptions reported as
-PostgreSQL errors. The exception dispatcher returns completely to native code
-before PostgreSQL raises ERROR; PostgreSQL must never longjmp across managed frames.
+The generator currently supports synchronous static methods with these type mappings:
+
+| C# | PostgreSQL |
+|---|---|
+| `bool` | `boolean` |
+| `sbyte` | `"char"` (PostgreSQL's internal signed byte) |
+| `short`, `int`, `long` | `smallint`, `integer`, `bigint` |
+| `uint` | `oid` |
+| `float`, `double` | `real`, `double precision` |
+| `string` | `text` |
+| `byte[]` | `bytea` |
+| `void` result | `void` |
+
+Nullable value types and nullable reference annotations accept SQL NULL. Methods
+with only required parameters are declared `STRICT`. For mixed signatures, a NULL
+required argument returns SQL NULL without invoking the method; nullable arguments
+reach managed code. Nullable results become SQL NULL. Methods can share a SQL name
+when their PostgreSQL argument types differ.
+
+Text supports server-encoding conversion and Unicode; binary data preserves zero
+bytes. Native wrappers detoast compressed, external, and packed varlena inputs
+before invoking managed code. Managed exceptions return completely to native code
+before PostgreSQL raises ERROR. See [the native boundary design](docs/native-boundary.md)
+for buffer ownership and error cleanup.
 
 The build integration is currently a repository-local MSBuild import. Publishing
 the sample produces a native library and these PostgreSQL installation files:
@@ -79,6 +102,7 @@ For a standard server installation, the native library belongs in
 ```sql
 CREATE EXTENSION ankus_hello;
 SELECT public.add(40, 2); -- 42
+SELECT public.greet('PostgreSQL'); -- Hello, PostgreSQL!
 ```
 
 Tests configure PG18's extension and library search paths on their isolated

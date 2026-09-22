@@ -13,4 +13,12 @@ public static class Hello
     /// <returns>The sum of the operands.</returns>
     [PgFunction]
     public static int Add(int left, int right) => checked(left + right);
+
+    /// <summary>
+    /// Greets the supplied name using PostgreSQL text conversion.
+    /// </summary>
+    /// <param name="name">The person to greet.</param>
+    /// <returns>The greeting.</returns>
+    [PgFunction]
+    public static string Greet(string name) => $"Hello, {name}!";
 }

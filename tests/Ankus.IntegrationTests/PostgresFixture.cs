@@ -34,6 +34,8 @@ internal static class PostgresFixture
             await using NpgsqlConnection connection = await Cluster.OpenConnectionAsync(context.CancellationToken);
             string sql = """
                 CREATE EXTENSION ankus_hello;
+                CREATE SCHEMA datatype;
+                CREATE EXTENSION ankus_test WITH SCHEMA datatype;
                 CREATE SCHEMA tests;
                 CREATE TABLE tests.rollback_probe (value integer NOT NULL);
                 CREATE FUNCTION tests.insert_probe() RETURNS void LANGUAGE sql AS

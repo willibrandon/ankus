@@ -22,6 +22,26 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("[Ankus.PgFunction] public static int Add(int a, int b) => a + b;", "add")]
     [DataRow("[Ankus.PgFunction] internal static int HTTPCode() => 200;", "http_code")]
     [DataRow("[Ankus.PgFunction(Name = \"answer\")] public static int @return() => 42;", "answer")]
+    [DataRow("[Ankus.PgFunction] public static bool Echo(bool value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static sbyte Echo(sbyte value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static short Echo(short value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static long Echo(long value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static uint Echo(uint value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static float Echo(float value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static double Echo(double value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static int? Echo(int? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static bool? Echo(bool? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static sbyte? Echo(sbyte? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static short? Echo(short? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static long? Echo(long? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static uint? Echo(uint? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static float? Echo(float? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static double? Echo(double? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static string Echo(string value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static string? Echo(string? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static byte[] Echo(byte[] value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static byte[]? Echo(byte[]? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static void Nothing() { }", "nothing")]
     public void SupportedFunctionsCompile(string method, string sqlName)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { " + method + " }");
@@ -48,10 +68,11 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [TestMethod]
     [DataRow("public int Instance() => 1;")]
     [DataRow("private static int Hidden() => 1;")]
-    [DataRow("public static long WrongResult() => 1;")]
-    [DataRow("public static int WrongArgument(string value) => 1;")]
+    [DataRow("public static decimal WrongResult() => 1;")]
+    [DataRow("public static int WrongArgument(System.Guid value) => 1;")]
     [DataRow("public static int ByReference(ref int value) => value;")]
     [DataRow("public static int Generic<T>() => 1;")]
+    [DataRow("public static async void Unobserved() { await System.Threading.Tasks.Task.Yield(); }")]
     public void UnsupportedSignaturesAreRejected(string method)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public class Functions { [Ankus.PgFunction] " + method + " }");
@@ -96,6 +117,29 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     }
 
     /// <summary>
+    /// Verifies SQL overloads have distinct native dispatchers while nullable and non-nullable identical SQL signatures collide.
+    /// </summary>
+    /// <param name="secondType">The second overload's parameter and result type.</param>
+    /// <param name="expectedDiagnosticCount">The number of duplicate SQL signature diagnostics.</param>
+    [TestMethod]
+    [DataRow("long", 0)]
+    [DataRow("int?", 1)]
+    public void SqlSignaturesDetermineOverloadUniqueness(string secondType, int expectedDiagnosticCount)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction] public static int Echo(int value) => value;
+                [Ankus.PgFunction] public static {{secondType}} Echo({{secondType}} value) => value;
+            }
+            """);
+
+        Assert.HasCount(expectedDiagnosticCount, diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken)
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>
     /// Verifies generics and inaccessible containing types do not produce invalid method references.
     /// </summary>
     /// <param name="source">A function inside an unsupported containing type.</param>
@@ -116,7 +160,8 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
             "GeneratorTest",
             [CSharpSyntaxTree.ParseText(source, cancellationToken: context.CancellationToken)],
             s_references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new PgFunctionGenerator().AsSourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(
             compilation, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);

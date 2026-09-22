@@ -40,20 +40,20 @@ been implemented and validated across the required PostgreSQL and operating-syst
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **Plain `dotnet test`** is the canonical entry point: **61 passed, 0 failed, 0 skipped**
+- **Plain `dotnet test`** is the canonical entry point: **149 passed, 0 failed, 0 skipped**
   on Linux x64 with PostgreSQL 18.6. No environment variables or wrapper command are required.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
-- The sample is now an ordinary `[PgFunction]`-attributed C# method. Ankus generates the
-  managed dispatcher, native entry point, module magic, finfo, integer conversion, and SQL.
+- The sample contains ordinary `[PgFunction]`-attributed `Add` and `Greet` methods. Ankus generates
+  managed dispatchers, native entry points, module magic, finfo, datum conversions, and SQL.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
   Both checked-overflow cases return SQLSTATE `38000`; rollback and subsequent queries succeed
   on the same backend. No PostgreSQL error is raised through a managed frame on this path.
 - Generator tests cover compilable wrappers and diagnostics for unsupported signatures,
-  inaccessible/generic types, invalid SQL names, and duplicate names. Runtime tests verify
+  inaccessible/generic types, async methods, invalid SQL names, and duplicate SQL signatures. Runtime tests verify
   UTF-8 truncation, buffer guards, null termination, and a throwing exception-message accessor.
 - PostgreSQL discovery checks `~/.ankus/config.json`, Ankus-managed installations,
   PATH, and conventional Windows/Linux/macOS installation directories.
@@ -67,6 +67,11 @@ been implemented and validated across the required PostgreSQL and operating-syst
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
+- The 84 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+  nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
+  LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
+- `tests/Ankus.TestExtension` supplies backend test functions. The fixture publishes and installs
+  this separate extension alongside the minimal sample, exercising multiple AOT libraries in one backend.
 - Backend test functions run in individual rollback-only transactions. Tests prove rollback
   after success, failure, and cancellation; expected-error matching; retained session logs;
   independent concurrent clusters; failed-start cleanup; and idempotent shutdown.
@@ -76,7 +81,9 @@ been implemented and validated across the required PostgreSQL and operating-syst
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
-`int` arguments and an `int` return value. SQL functions are strict. The native library,
+`bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, and `byte[]`
+parameters/results, their nullable forms, and `void` results. Strictness follows argument nullability.
+The native library,
 control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
 guarded calls into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
@@ -155,8 +162,10 @@ offset 30: short      nargs
 offset 32: NullableDatum args[n]   // { Datum value; bool isnull; } = 16 bytes each
 ```
 `Datum` = 64-bit: pass-by-value types are inline; pass-by-reference types are pointers
-(varlena uses tagged one-byte or four-byte headers, with compressed/external forms;
-its representation and detoasting are not yet implemented).
+(varlena uses tagged one-byte or four-byte headers, with compressed/external forms).
+Generated native wrappers use PostgreSQL's own access and detoasting APIs rather than
+reimplementing those layouts in managed code. Text/bytea conversions are implemented;
+the full pgrx datum and memory-context API remains required work.
 
 ## Architecture direction
 
@@ -177,7 +186,7 @@ These are requirements for the port, not claims that the full architecture exist
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: strict `int` functions |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea, nullability, overloads |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
 | `#[pg_guard]` | automatic at export boundary (always on) | Partial: managed exception → native ERROR |
 | SETOF (`SetOfIterator`) | return `IEnumerable<T>` ⇒ `RETURNS SETOF` | ☐ |
@@ -189,7 +198,7 @@ These are requirements for the port, not claims that the full architecture exist
 | `extension_sql!` | `[ExtensionSql]` attribute / `.sql` files | ☐ |
 | `#[derive(PostgresType)]` (composites) | `[PostgresType]` on records + generator | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
-| Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | ☐ |
+| Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
 | `Spi` | `Spi` (connect, select, execute, update/insert, get_one, function calls) | ☐ |
 | `PgError` | `PgError` exception + `Elog` helpers | ☐ |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -212,9 +221,9 @@ Every phase is required for the faithful port. Unchecked items are remaining wor
 not scope exclusions. The feature map is a tracking aid; the complete read-only
 pgrx reference defines the required surface, including capabilities not yet itemized here.
 
-- [ ] **P0 — Feasibility spike** *(integer path verified; text remains)*
+- [x] **P0 — Feasibility spike**
    - [x] Minimal attributed `add(int,int)→int` extension
-   - [ ] `hello(text)→text`
+    - [x] `Greet(string)→string` / `greet(text)→text`
    - [x] Generated native magic, finfo, integer argument access, and managed-exception error reporting
    - [x] AOT publish and actual PostgreSQL 18 integer-function invocation
    - [x] Error path: C# exception ⇒ Postgres `ERROR`, transaction aborts cleanly, backend survives
@@ -223,8 +232,9 @@ pgrx reference defines the required surface, including capabilities not yet item
   - [ ] `Ankus.PgSys`: symbol resolution (`dlopen(NULL)`+`dlsym`), P/Invoke surface (SPI, elog via shim, memory, catalog)
   - [ ] `Spi` API; `PgError`; memory contexts; `_PG_init` bootstrap
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
-   - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata (integer subset)
-  - [ ] `[PgSchema]`, strictness, SETOF, `T?` NULL handling, arrays
+    - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
+    - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads
+   - [ ] `[PgSchema]`, explicit function options, SETOF, arrays, remaining datum mappings
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [ ] triggers, event triggers, aggregates, operators, casts, `ExtensionSql`
@@ -238,7 +248,8 @@ pgrx reference defines the required surface, including capabilities not yet item
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
-   - [ ] README, getting started, and verified native-boundary design notes
+    - [x] README and verified datum-boundary design notes (`docs/native-boundary.md`)
+    - [ ] Complete getting-started, API, deployment, and ported-feature documentation
 - [ ] **P7 — Custom scan + nodes**
    - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
    - [ ] PostgreSQL node representations and pgrx node support APIs
@@ -303,3 +314,7 @@ pgrx reference defines the required surface, including capabilities not yet item
 - 2026-09-22 — Committed generated functions as `82ca5e6` and the full-scope correction as `8c7659d`.
   Published extension control and versioned SQL files; integration setup now uses `CREATE EXTENSION`.
   Plain `dotnet test`: 61 passed, 0 failed, 0 skipped, including 19 real PostgreSQL integration cases.
+- 2026-09-22 — Added scalar/text/bytea conversions, nullable signatures and results, SQL overloads,
+  strict UTF-8 conversion, server-encoding conversion, and native buffer cleanup across PostgreSQL errors.
+  The sample now includes `Greet`; backend-only datum probes live in `tests/Ankus.TestExtension`.
+  Plain `dotnet test`: 149 passed, 0 failed, 0 skipped (84 PostgreSQL integration cases).

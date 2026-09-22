@@ -65,7 +65,13 @@ internal static class IntegrationEnvironment
     /// <returns>The absolute path to the extension library.</returns>
     internal static async Task<string> PublishSampleAsync(CancellationToken cancellationToken)
     {
-        string project = Path.Combine(RepositoryRoot, "samples", "Ankus.Examples.Hello", "Ankus.Examples.Hello.csproj");
+        await PublishExtensionAsync("tests", "Ankus.TestExtension", cancellationToken);
+        return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);
+    }
+
+    private static async Task<string> PublishExtensionAsync(string directory, string name, CancellationToken cancellationToken)
+    {
+        string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
         string output = NativeOutputDirectory;
         await ProcessRunner.RunCheckedAsync(
             "dotnet",
@@ -75,7 +81,7 @@ internal static class IntegrationEnvironment
             cancellationToken);
 
         string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
-        return RequireFile(Path.Combine(output, $"Ankus.Examples.Hello{extension}"));
+        return RequireFile(Path.Combine(output, name + extension));
     }
 
     private static string RequireFile(string path)

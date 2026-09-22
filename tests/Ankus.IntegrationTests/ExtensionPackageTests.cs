@@ -14,8 +14,11 @@ public sealed class ExtensionPackageTests(TestContext context)
     /// <summary>
     /// Verifies CREATE EXTENSION records the version, ownership, and generated function execution properties.
     /// </summary>
+    /// <param name="signature">The installed SQL function signature.</param>
     [TestMethod]
-    public Task InstalledExtensionOwnsGeneratedFunction()
+    [DataRow("add(integer,integer)")]
+    [DataRow("greet(text)")]
+    public Task InstalledExtensionOwnsGeneratedFunction(string signature)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(InstalledExtensionOwnsGeneratedFunction),
             async (connection, transaction, token) =>
             {
@@ -26,15 +29,16 @@ public sealed class ExtensionPackageTests(TestContext context)
                     JOIN pg_depend d ON d.refobjid = e.oid AND d.refclassid = 'pg_extension'::regclass
                     JOIN pg_proc p ON p.oid = d.objid AND d.classid = 'pg_proc'::regclass
                     JOIN pg_language l ON l.oid = p.prolang
-                    WHERE e.extname = 'ankus_hello' AND d.deptype = 'e'
+                    WHERE e.extname = 'ankus_hello' AND d.deptype = 'e' AND p.oid = $1::regprocedure
                     """;
                 await using var command = new NpgsqlCommand(sql, connection, transaction);
+                command.Parameters.AddWithValue("public." + signature);
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
 
                 Assert.IsTrue(await reader.ReadAsync(token));
                 Assert.AreEqual("1.0.0", reader.GetString(0));
                 Assert.IsTrue(reader.GetBoolean(1));
-                Assert.AreEqual("add(integer,integer)", reader.GetString(2));
+                Assert.AreEqual(signature, reader.GetString(2));
                 Assert.IsTrue(reader.GetBoolean(3));
                 Assert.AreEqual("c", reader.GetString(4));
                 Assert.AreEqual("v", reader.GetString(5));

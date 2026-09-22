@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AnkusExtensionName>ankus_test</AnkusExtensionName>
+  </PropertyGroup>
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+</Project>

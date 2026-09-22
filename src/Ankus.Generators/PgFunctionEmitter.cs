@@ -1,0 +1,219 @@
+using System.Globalization;
+using System.Text;
+using Microsoft.CodeAnalysis;
+
+namespace Ankus.Generators;
+
+/// <summary>
+/// Emits managed dispatch, native conversion and cleanup, and SQL declarations for one supported function.
+/// </summary>
+internal static class PgFunctionEmitter
+{
+    /// <summary>
+    /// Appends a function's complete boundary and installation declarations to the extension artifacts.
+    /// </summary>
+    /// <param name="method">The attributed managed method.</param>
+    /// <param name="name">The SQL name.</param>
+    /// <param name="callback">The assembly-specific managed callback symbol.</param>
+    /// <param name="managed">The generated managed source.</param>
+    /// <param name="native">The generated native source.</param>
+    /// <param name="sql">The installation SQL.</param>
+    /// <param name="exports">The native linker export list.</param>
+    internal static void Emit(IMethodSymbol method, string name, string callback,
+        StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
+    {
+        FunctionType[] parameters = method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!).ToArray();
+        FunctionType result = FunctionType.Create(method.ReturnType)!;
+        string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
+        EmitManaged(method, callback, parameters, result, managed);
+        EmitNative(nativeName, callback, parameters, result, native);
+        string strict = parameters.All(static parameter => !parameter.Nullable) ? " STRICT" : string.Empty;
+        sql.AppendLine($"CREATE FUNCTION \"{name}\"({string.Join(", ", parameters.Select(static parameter => parameter.Sql))})");
+        sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c{strict};");
+        exports.AppendLine(nativeName);
+        exports.AppendLine("pg_finfo_" + nativeName);
+    }
+
+    private static void EmitManaged(
+        IMethodSymbol method, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
+    {
+        source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
+        source.AppendLine($"        EntryPoint = \"{callback}\",");
+        source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
+        source.AppendLine($"    private static int {callback}(");
+        source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result, byte* error, int capacity)");
+        source.AppendLine("    {");
+        source.AppendLine("        try");
+        source.AppendLine("        {");
+        var arguments = new List<string>();
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            FunctionType type = parameters[index];
+            string slot = "arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]";
+            string value = type.Managed switch
+            {
+                "string" => slot + ".ReadString()",
+                "byte[]" => slot + ".ReadBytes()",
+                "bool" => slot + ".Integral != 0",
+                "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
+                "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
+                _ => "(" + type.Managed + ")" + slot + "." + type.Field,
+            };
+            arguments.Add(type.Nullable ? $"({slot}.IsNull != 0 ? ({type.Managed}?)null : {value})" : value);
+        }
+
+        string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
+        if (result.Managed == "void")
+        {
+            source.AppendLine($"            {invocation};");
+        }
+        else
+        {
+            source.AppendLine($"            var value = {invocation};");
+            bool canBeNull = result.Nullable || result.Reference;
+            string value = result.Nullable && !result.Reference ? "value.Value" : "value";
+            if (canBeNull)
+            {
+                source.AppendLine("            if (value is null)");
+                source.AppendLine("            {");
+                source.AppendLine("                result->IsNull = 1;");
+                source.AppendLine("                return 0;");
+                source.AppendLine("            }");
+            }
+
+            source.AppendLine(result.Managed switch
+            {
+                "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
+                "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
+                "bool" => $"            result->Integral = {value} ? 1 : 0;",
+                "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
+                "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",
+                _ => $"            result->{result.Field} = {value};",
+            });
+        }
+
+        source.AppendLine("            return 0;");
+        source.AppendLine("        }");
+        source.AppendLine("        catch (global::System.Exception exception)");
+        source.AppendLine("        {");
+        source.AppendLine("            global::Ankus.NativeError.Write(exception, error, capacity);");
+        source.AppendLine("            return 1;");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+    }
+
+    private static void EmitNative(string name, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
+    {
+        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, char *, int);");
+        source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
+        source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
+        source.AppendLine("{");
+        string count = parameters.Length.ToString(CultureInfo.InvariantCulture);
+        string capacity = Math.Max(1, parameters.Length).ToString(CultureInfo.InvariantCulture);
+        bool hasBuffers = parameters.Any(static parameter => parameter.IsBuffer);
+        source.AppendLine($"    AnkusValue arguments[{capacity}] = {{0}};");
+        if (hasBuffers)
+        {
+            source.AppendLine($"    AnkusInputBuffer owned[{capacity}] = {{0}};");
+        }
+
+        source.AppendLine("    AnkusValue result = {0};");
+        source.AppendLine("    char error[2048] = {0};");
+        source.AppendLine("    int status;");
+        source.AppendLine("    volatile Datum datum = (Datum) 0;");
+        source.AppendLine($"    if (PG_NARGS() != {count})");
+        source.AppendLine("    {");
+        source.AppendLine("        ereport(ERROR, (errmsg(\"Incorrect argument count for generated Ankus function\")));");
+        source.AppendLine("    }");
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            if (!parameters[index].Nullable)
+            {
+                source.AppendLine($"    if (PG_ARGISNULL({index.ToString(CultureInfo.InvariantCulture)}))");
+                source.AppendLine("    {");
+                source.AppendLine("        PG_RETURN_NULL();");
+                source.AppendLine("    }");
+            }
+        }
+
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            FunctionType parameter = parameters[index];
+            string argument = index.ToString(CultureInfo.InvariantCulture);
+            source.AppendLine($"    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
+            source.AppendLine($"    if (!arguments[{argument}].is_null)");
+            source.AppendLine("    {");
+            if (parameter.IsBuffer)
+            {
+                string text = parameter.Sql == "text" ? "true" : "false";
+                source.AppendLine($"        ankus_read_buffer(PG_GETARG_DATUM({argument}),");
+                source.AppendLine($"            &arguments[{argument}], &owned[{argument}], {text});");
+            }
+            else if (parameter.Managed is "float" or "double")
+            {
+                string bits = parameter.Managed == "float" ? "int32" : "int64";
+                source.AppendLine($"        {parameter.Managed} floating = PG_GETARG_{parameter.Reader}({argument});");
+                source.AppendLine($"        {bits} bits;");
+                source.AppendLine("        memcpy(&bits, &floating, sizeof(bits));");
+                source.AppendLine($"        arguments[{argument}].integral = bits;");
+            }
+            else
+            {
+                string field = parameter.Field.ToLowerInvariant();
+                string cast = parameter.Managed == "sbyte" ? "(int8) " : string.Empty;
+                source.AppendLine($"        arguments[{argument}].{field} = {cast}PG_GETARG_{parameter.Reader}({argument});");
+            }
+
+            source.AppendLine("    }");
+        }
+
+        source.AppendLine($"    status = {callback}(arguments, &result, error, sizeof(error));");
+        if (hasBuffers)
+        {
+            for (int index = 0; index < parameters.Length; index++)
+            {
+                source.AppendLine($"    ankus_free_input(&owned[{index.ToString(CultureInfo.InvariantCulture)}]);");
+            }
+        }
+
+        source.AppendLine("    if (status != 0)");
+        source.AppendLine("    {");
+        source.AppendLine("        ereport(ERROR, (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION), errmsg_internal(\"%s\", error)));");
+        source.AppendLine("    }");
+        source.AppendLine("    if (result.is_null)");
+        source.AppendLine("    {");
+        source.AppendLine("        PG_RETURN_NULL();");
+        source.AppendLine("    }");
+        source.AppendLine("    PG_TRY();");
+        source.AppendLine("    {");
+        if (result.IsBuffer)
+        {
+            source.AppendLine($"        datum = ankus_write_buffer(&result, {(result.Sql == "text" ? "true" : "false")});");
+        }
+        else if (result.Managed is "float" or "double")
+        {
+            string bits = result.Managed == "float" ? "int32" : "int64";
+            source.AppendLine($"        {bits} bits = ({bits}) result.integral;");
+            source.AppendLine($"        {result.Managed} floating;");
+            source.AppendLine("        memcpy(&floating, &bits, sizeof(bits));");
+            source.AppendLine($"        datum = {result.Writer}GetDatum(floating);");
+        }
+        else if (result.Managed != "void")
+        {
+            source.AppendLine($"        datum = {result.Writer}GetDatum(result.{result.Field.ToLowerInvariant()});");
+        }
+
+        source.AppendLine("    }");
+        source.AppendLine("    PG_FINALLY();");
+        source.AppendLine("    {");
+        source.AppendLine("        if (result.release != NULL)");
+        source.AppendLine("        {");
+        source.AppendLine("            result.release(result.data);");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+        source.AppendLine("    PG_END_TRY();");
+        source.AppendLine("    return datum;");
+        source.AppendLine("}");
+    }
+}
