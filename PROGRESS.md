@@ -51,7 +51,7 @@ composite, set, operator, enum and package/tool features. Plain `dotnet test` pa
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **2163 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **2414 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1289,3 +1289,8 @@ The phases track implementation of the complete pgrx feature surface.
   duplicate 404 route and missing public site URL remain visible. IDE2003 enforces blank lines after closing blocks;
   repository sources and emitted dispatchers are corrected, without applying repository style to consumers.
   The wider runtime/tooling/type inventory and PostgreSQL/platform matrix remain active requirements.
+- 2026-09-22 — Converted `Ankus.Build/Program.cs` to top-level statements with static local helpers.
+  Argument handling, compiler flags, generated artifacts and exit codes are preserved. The build-tool Release
+  build has zero warnings/errors; the invalid-argument probe verifies the error text and exit code 1.
+  Plain `dotnet test`: 2414 passed, zero failures/skips on PostgreSQL 18.6/Linux x64, including Native AOT
+  publishing and isolated package consumers. This structural change does not alter the public API or guides.
