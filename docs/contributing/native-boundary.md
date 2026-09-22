@@ -63,6 +63,19 @@ bridge creates a zeroed header using `offsetof(PATH, p)` or `offsetof(POLYGON, p
 from the selected server headers. Empty polygon bounds remain zero. The bridge
 does not rely on a managed native-header layout.
 
+Range transport carries a built-in range OID and flags, followed by up to two
+scalar transport records. The outer `auxiliary1 = -2` marker distinguishes it
+from arrays. Bounds are length-delimited and pointer-free, including numeric text
+payloads; absent bounds and empty ranges have no bound records. Native readers
+detoast the range before `range_deserialize`, and native writers use the selected
+server's type cache and `make_range` for validation and canonicalization. Numeric
+bound payloads are explicitly terminated before calling scalar input routines.
+
+Range operations use the scalar dispatcher's initialized `FmgrInfo`, which
+PostgreSQL needs for its per-call type-cache pointer. Parsing and formatting use
+OID-based input/output invocation for the same reason. Neither path lets a
+PostgreSQL error unwind through a managed frame.
+
 Named, defaulted, variadic and security-definer calls use the same native ABI.
 PostgreSQL resolves defaults, assembles variadic arrays, applies function-local
 settings and privileges, and suppresses STRICT calls before dispatch. Required

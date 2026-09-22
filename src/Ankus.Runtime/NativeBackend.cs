@@ -412,6 +412,16 @@ public static unsafe class NativeBackend
     internal static T Geometry<T>(ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Geometry, 0, parameters);
 
+    /// <summary>
+    /// Calls an allowlisted range routine and copies its result across the native error boundary.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="operation">The range operation.</param>
+    /// <param name="parameters">The typed input operands.</param>
+    /// <returns>The detached result.</returns>
+    internal static T Range<T>(RangeOperation operation, ReadOnlySpan<SpiParameter> parameters)
+        => Scalar<T>(SpiOperation.Range, (int)operation, parameters);
+
     private static T Scalar<T>(SpiOperation family, int operation, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();

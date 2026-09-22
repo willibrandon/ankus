@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1294 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1422 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -75,6 +75,10 @@ Linux, and macOS.
   conversion preserves coordinate bits across functions, arrays and SPI. Box normalization and polygon bounds
   use PostgreSQL float ordering; parsing and binary validation remain inside native guards. Empty owned
   paths/polygons retain pgrx's representation, using header-derived native storage for zero vertices.
+- `PgRange<T>` represents six built-in range families with owned bounds, explicit inclusion flags, empty values
+  and unbounded ends. It supports full-range PostgreSQL values and checked .NET aliases, scalar/array function
+  signatures and typed SPI. PostgreSQL performs canonicalization, parsing, formatting, containment, adjacency,
+  overlap, union, intersection, difference and merge through guarded native calls.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -93,7 +97,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 951 integration cases include geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1047 integration cases include range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -460,11 +464,40 @@ and 47 backend cases. `artifacts/geometry-all-output.txt` records 1294 passing t
 site build/type checks and API freshness pass in `artifacts/geometry-{internal-docs,docs-build-output,
 docs-check-output,api-check-output}.txt`. The API reference contains 54 pages and 744 members.
 
+### Range value evidence
+
+References: `pgrx/src/datum/range.rs`, PostgreSQL `rangetypes.c`/`rangetypes.h`, and Microsoft Learn's
+`System.Range.GetOffsetAndLength` contract. `PgRange<T>` has no static members; inference, parsing and empty/
+unbounded factories live on the non-generic `PgRange` class. C# index-range conversion requires a collection
+length, explicitly rejects negative lengths, and resolves from-end indices before creating integer bounds.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Six built-in range families and idiomatic .NET aliases | `PgRange<int/long/PgNumeric/PgDate/PgTimestamp/PgTimestampTz>`, with decimal/DateOnly/DateTime/DateTimeOffset adapters | `RangeSignaturesCompile` compiles 40 scalar/nullable/vector/shaped-array contracts with exact SQL type assertions; `UnsupportedRangeSubtypesAreDiagnosed` rejects unsupported subtypes |
+| SQL NULL, empty, unbounded and included/excluded bounds | Nullable reference for SQL NULL; nullable bound values for unbounded ends; separate `IsEmpty` and inclusion flags | `RangeStatesRetainRequestedBounds`, `RangePropertiesExposeNativeState`, `RangeArrayTransportPreservesStates` independently inspect states and preserve NULL/empty/unbounded array elements |
+| Managed ownership and structural equality | Immutable owned bounds; equality/hash without native access or canonicalization | `RangeEqualityIsDetachedAndStructural`, `RangeTransportOwnsBoundsAndConvertsAliases` verify flags, values, hashes, numeric scale and values surviving native buffer release |
+| .NET index range conversion | `PgRange.FromRange(range, length)` with checked length/offset resolution | `IndexRangeConversionResolvesLength` covers from-end indices, entire and empty slices, reversed/out-of-bounds indices and negative length |
+| Pointer-free transport and validation | Built-in range OID/flags, length-delimited scalar bound records, outer range marker | `RangeReaderAcceptsIndependentFrame` decodes a hand-authored frame; `MalformedRangeTransportIsRejected` rejects truncated/missing markers, SQL NULL, contradictory flags, null bounds, lengths, trailing bytes and integer overflow |
+| Backend canonicalization and checked narrowing | Version-aware `make_range`, statically closed scalar bound adapters | `ManagedRangeConstructionCanonicalizes`, `ManagedCanonicalizationAndOffsetConstruction`, `InvalidRangeConversionsRaiseErrors`, `RangeAliasesRejectLossyBounds` verify discrete successors, equal ends, reversed bounds, overflow, UTC normalization, infinities, numeric precision and sub-microsecond/kind rejection |
+| Scalar and array SPI lifetimes | Range converters reused by every existing SPI ownership path and nested inside array transport | `RangeOwnershipPathsPreserveBinaryValues` checks all ten managed bound types, NULL/empty/unbounded states, full-range/special values, numeric display scale and shaped arrays through eight paths against PostgreSQL binary sends |
+| Parsing, output and subtype-aware operations | Guarded OID input/output calls and allowlisted scalar dispatch with initialized `FmgrInfo` | `RangeTextOperationsMatchPostgres`, `RangeSetOperationsMatchPostgres`, `RangeSubtypePredicatesMatchSql`, `RangePredicatesRespectBoundaries`, `RangeSetOperationBoundaryResults` compare SQL semantics across all six families, session timezone/DateStyle and boundary/empty/disjoint cases |
+| Domains, packed and toasted storage | Detoast ownership before range deserialization, owned numeric bounds | `RangeDomainsAndToastedStorage` checks domain reads and 10,000-element compressed/external arrays; `LargeNumericRangeBoundsOwnDetoastedStorage` checks individually toasted 32,001-digit numeric bounds and display scales |
+| Native error unwinding and cleanup | Existing guarded subtransactions and allocator-matched output ownership | `RangeFailureRecoveryPreservesSession` verifies repeated parse/union/canonicalization failures, 40 managed finally executions, two retained writes, a usable prepared plan and zero retained-context growth |
+
+User-defined range subtype registration, multiranges and range-specific JSON converters remain pending.
+
+Evidence: `artifacts/range-{runtime,generators,backend}-output.txt` records 18 detached, 14 generator and
+96 backend cases. `artifacts/range-all-output.txt` records 1422 passing tests with no failures/skips;
+`artifacts/range-build-output.txt` records the zero-warning Release build. The XML scan in
+`artifacts/range-internal-docs.txt` reports zero missing internal summaries.
+Documentation build, type checking and API freshness pass in
+`artifacts/range-{docs-build,docs-check,api-check}-output.txt`; 56 API pages document 772 members.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
-the .NET/full-range PostgreSQL temporal types, network values and geometric values. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
+the .NET/full-range PostgreSQL temporal types, network/geometric values and typed ranges. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
 Custom installation SQL strings/files and generated declarations share a dependency-ordered graph.
@@ -688,7 +721,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
-| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums and owned vertex collections implemented; dedicated geometric operation wrappers and ranges pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
@@ -1011,3 +1044,13 @@ The phases track implementation of the complete pgrx feature surface.
   backend cases. Plain `dotnet test`: 1294 passed, zero failures/skips; Release build: zero warnings/errors.
   XML documentation and site build/type/API freshness checks pass; 54 API pages document 744 members.
   Dedicated geometric operation wrappers, ranges and the remaining full-port inventory are still pending.
+- 2026-09-22 — Added `PgRange<T>` for the six built-in range families and ten managed bound types, with
+  explicit empty/unbounded/inclusion states, checked .NET aliases, scalar/array SPI transport and C# index-range
+  conversion. Guarded native calls handle canonicalization, parsing/output, containment, adjacency, overlap and
+  set operations. Added 18 runtime, 14 generator (40 supported signature contracts) and 96 backend cases,
+  covering eight ownership paths, invalid/disjoint/overflow boundaries, full-range/special bounds, session
+  DateStyle/TimeZone, toasted 32,001-digit numeric bounds and 10,000-element arrays. Plain `dotnet test`: 1422
+  passed, zero failures/skips; Release build: zero warnings/errors; internal XML scan: zero omissions.
+  The range guide, native-boundary notes and generated API pages pass site build/type/freshness checks;
+  56 API pages document 772 members.
+  Custom range subtypes, multiranges and the remaining full-port inventory are still pending.

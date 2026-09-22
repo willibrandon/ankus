@@ -114,4 +114,9 @@ internal enum SpiOperation : byte
     /// Calls allowlisted geometric input functions without opening an SPI connection.
     /// </summary>
     Geometry,
+
+    /// <summary>
+    /// Calls allowlisted range routines without opening an SPI connection.
+    /// </summary>
+    Range,
 }

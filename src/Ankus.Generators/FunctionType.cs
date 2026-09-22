@@ -59,6 +59,11 @@ internal sealed class FunctionType
     internal FunctionType? Element { get; private set; }
 
     /// <summary>
+    /// Gets the scalar subtype of a built-in range, independently of an array's element contract.
+    /// </summary>
+    internal FunctionType? RangeSubtype { get; private set; }
+
+    /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
     /// </summary>
     internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
@@ -153,6 +158,26 @@ internal sealed class FunctionType
             {
                 Element = element,
                 IsVector = vector,
+            };
+        }
+
+        if (type is INamedTypeSymbol { Name: "PgRange", Arity: 1 } range && range.ContainingNamespace.ToDisplayString() == "Ankus")
+        {
+            FunctionType? subtype = Create(range.TypeArguments[0]);
+            string? sql = subtype?.Sql switch
+            {
+                "integer" => "int4range", "bigint" => "int8range", "numeric" => "numrange",
+                "date" => "daterange", "timestamp without time zone" => "tsrange", "timestamp with time zone" => "tstzrange",
+                "timestamp" => "tsrange", "timestamptz" => "tstzrange", _ => null,
+            };
+            if (sql is null || subtype!.Nullable)
+            {
+                return null;
+            }
+
+            return new("global::Ankus.PgRange<" + subtype.Managed + ">", sql, sql, sql, string.Empty, nullable, reference: true)
+            {
+                RangeSubtype = subtype,
             };
         }
 

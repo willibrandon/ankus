@@ -71,6 +71,7 @@ calls, schema placement, and PostgreSQL execution options.
 | `PgPoint`, `PgLine`, `PgLineSegment` | `point`, `line`, `lseg` |
 | `PgBox`, `PgCircle` | `box`, `circle` |
 | `PgPath`, `PgPolygon` | `path`, `polygon` |
+| `PgRange<T>` | Built-in range selected by the bound type |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
 | `decimal`, `PgNumeric` | `numeric` |
 | `DateOnly`, `PgDate` | `date` |
@@ -93,6 +94,9 @@ conversions. `IPAddress` requires a full-width host prefix.
 
 See [geometric values](/geometry/) for coordinates, owned vertex collections,
 and PostgreSQL input validation.
+
+See [ranges](/ranges/) for empty values, bound inclusion, canonicalization, and
+checked .NET bound types.
 
 See [arrays](/arrays/) for dimensions, lower bounds, nullable elements, and
 variadic functions. `byte[]` is scalar `bytea`; `byte[][]` is `bytea[]`.

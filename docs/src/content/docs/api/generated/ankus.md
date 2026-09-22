@@ -18,6 +18,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgParameterAttribute](/api/ankus.pgparameterattribute/)
 - [PgPath](/api/ankus.pgpath/)
 - [PgPolygon](/api/ankus.pgpolygon/)
+- [PgRange](/api/ankus.pgrange/)
+- [PgRange&lt;T&gt;](/api/ankus.pgrange-1/)
 - [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)

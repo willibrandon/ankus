@@ -50,6 +50,7 @@ export default defineConfig({
             { label: 'Date and time values', slug: 'date-and-time' },
             { label: 'Network values', slug: 'network' },
             { label: 'Geometric values', slug: 'geometry' },
+            { label: 'Ranges', slug: 'ranges' },
             { label: 'Logging and errors', slug: 'logging' },
           ],
         },

@@ -151,6 +151,11 @@ public sealed class SpiRow
             return (T)SpiArray.Convert(array, typeof(T));
         }
 
+        if (value is IPgRange range)
+        {
+            return (T)SpiRange.Convert(range, typeof(T));
+        }
+
         if (value is PgInet address && typeof(T) == typeof(System.Net.IPAddress))
         {
             return (T)(object)address.ToIPAddress();

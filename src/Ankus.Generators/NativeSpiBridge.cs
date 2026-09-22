@@ -44,7 +44,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_TEMPORAL,
             ANKUS_SPI_NUMERIC,
             ANKUS_SPI_NETWORK,
-            ANKUS_SPI_GEOMETRY
+            ANKUS_SPI_GEOMETRY,
+            ANKUS_SPI_RANGE
         };
 
         typedef struct AnkusRequest
@@ -93,6 +94,8 @@ internal static class NativeSpiBridge
         static void ankus_detach_session_plan(SPIPlanPtr plan);
         static void ankus_read_array(Datum datum, AnkusValue *value, AnkusInputBuffer *owned);
         static Datum ankus_write_array(const AnkusValue *value, Oid element_type);
+        static void ankus_read_range(Datum datum, AnkusValue *value, AnkusInputBuffer *owned);
+        static Datum ankus_write_range(const AnkusValue *value, Oid type);
 
         static void
         ankus_release_result(AnkusResult *result)
@@ -145,6 +148,8 @@ internal static class NativeSpiBridge
             }
             switch (parameter->type_oid)
             {
+                case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
+                    return ankus_write_range(value, parameter->type_oid);
                 case BOOLOID: return BoolGetDatum(value->integral != 0);
                 case CHAROID: return CharGetDatum(value->integral);
                 case INT2OID: return Int16GetDatum(value->integral);
@@ -296,6 +301,9 @@ internal static class NativeSpiBridge
         {
             switch (type)
             {
+                case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
+                    ankus_read_range(datum, value, owned);
+                    break;
                 case BOOLOID: value->integral = DatumGetBool(datum); break;
                 case CHAROID: value->integral = (int8) DatumGetChar(datum); break;
                 case INT2OID: value->integral = DatumGetInt16(datum); break;

@@ -166,6 +166,12 @@ internal static class SpiType
             return 1186;
         }
 
+        uint rangeOid = SpiRange.GetOid(type);
+        if (rangeOid != 0)
+        {
+            return rangeOid;
+        }
+
         uint arrayOid = SpiArray.GetOid(type);
         return arrayOid != 0 ? arrayOid : throw new NotSupportedException($"SPI parameters of managed type '{type}' do not have a registered PostgreSQL conversion.");
     }
@@ -216,6 +222,7 @@ internal static class SpiType
         DateTimeOffset timestamp => NativeValue.FromTimestampTz(PgTimestampTz.FromDateTimeOffset(timestamp)),
         TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
         IPgArray array => NativeValue.FromArray(array),
+        IPgRange range => NativeValue.FromRange(range),
         Array array => NativeValue.FromArray(SpiArray.Wrap(array)),
         _ => throw new NotSupportedException("The SPI parameter does not have a registered PostgreSQL conversion."),
     };
@@ -254,6 +261,12 @@ internal static class SpiType
             604 => value.ReadPolygon(),
             628 => value.ReadLine(),
             718 => value.ReadCircle(),
+            3904 => value.ReadRange<int>(),
+            3926 => value.ReadRange<long>(),
+            3906 => value.ReadRange<PgNumeric>(),
+            3912 => value.ReadRange<PgDate>(),
+            3908 => value.ReadRange<PgTimestamp>(),
+            3910 => value.ReadRange<PgTimestampTz>(),
             650 => value.ReadCidr(),
             114 => value.ReadJson(),
             3802 => value.ReadJsonb(),

@@ -23,6 +23,7 @@ internal static class NativeArrayBridge
                 case UUIDOID: case JSONOID: case JSONBOID: case NUMERICOID: case DATEOID: case TIMEOID:
                 case TIMETZOID: case TIMESTAMPOID: case TIMESTAMPTZOID: case INTERVALOID:
                 case INETOID: case CIDROID:
+                case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return true;
                 default:

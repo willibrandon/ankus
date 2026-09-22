@@ -57,6 +57,7 @@ internal static class PgFunctionEmitter
                 _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
                     (type.IsVector ? ".ToVector()" : string.Empty),
                 _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
+                _ when type.RangeSubtype is not null => slot + ".ReadRange<" + type.RangeSubtype.Managed + ">()",
                 "string" => slot + ".ReadString()",
                 "byte[]" => slot + ".ReadBytes()",
                 "global::System.Guid" => slot + ".ReadGuid()",
@@ -107,6 +108,7 @@ internal static class PgFunctionEmitter
                 _ when result.Element is not null => "            *result = global::Ankus.NativeValue.FromArray(" +
                     (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
                 _ when result.GeometryName.Length != 0 => $"            *result = global::Ankus.NativeValue.From{result.GeometryName}({value});",
+                _ when result.RangeSubtype is not null => $"            *result = global::Ankus.NativeValue.FromRange({value});",
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",
@@ -184,6 +186,10 @@ internal static class PgFunctionEmitter
             {
                 source.AppendLine($"        ankus_read_array(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
+            else if (parameter.RangeSubtype is not null)
+            {
+                source.AppendLine($"        ankus_read_range(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+            }
             else if (parameter.IsTemporal)
             {
                 source.AppendLine(
@@ -234,6 +240,10 @@ internal static class PgFunctionEmitter
         if (result.Element is not null)
         {
             source.AppendLine($"        datum = ankus_write_array(&result, {result.Element.ScalarOid});");
+        }
+        else if (result.RangeSubtype is not null)
+        {
+            source.AppendLine($"        datum = ankus_write_range(&result, {result.BufferOid});");
         }
         else if (result.IsTemporal)
         {
