@@ -6,6 +6,16 @@ namespace Ankus;
 public static class Spi
 {
     /// <summary>
+    /// Prepares a reusable statement with explicitly declared managed parameter types.
+    /// The statement survives SPI calls and transaction boundaries until disposed on the owning backend thread.
+    /// </summary>
+    /// <param name="commandText">The SQL commands to prepare.</param>
+    /// <param name="parameterTypes">The declared CLR types of $1, $2, and subsequent parameters.</param>
+    /// <returns>A statement that must be disposed from an extension callback on its owning backend.</returns>
+    public static SpiPreparedStatement Prepare(string commandText, params ReadOnlySpan<Type> parameterTypes)
+        => NativeBackend.Prepare(commandText, parameterTypes);
+
+    /// <summary>
     /// Executes SQL and returns the rows processed by its final statement.
     /// The call uses an internal subtransaction: success retains changes in the enclosing transaction;
     /// failure rolls back this call's changes before throwing a managed PostgreSQL error.

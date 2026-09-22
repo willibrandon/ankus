@@ -22,7 +22,7 @@ internal static class GuardedBackend
             char hint[1024];
         } AnkusError;
 
-        typedef int (*AnkusExecute)(const char *, int, const AnkusParameter *, int, uint8, int, uint8, AnkusResult *, AnkusError *);
+        typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, AnkusError *);
 
         static void
         ankus_copy_diagnostic(const char *value, char *buffer, int capacity)
@@ -52,8 +52,7 @@ internal static class GuardedBackend
         }
 
         static int
-        ankus_spi_execute(const char *command, int length, const AnkusParameter *parameters, int parameter_count,
-            uint8 read_only, int limit, uint8 collect_result, AnkusResult *result, AnkusError *error)
+        ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
             MemoryContext caller_context = CurrentMemoryContext;
             ResourceOwner caller_owner = CurrentResourceOwner;
@@ -67,43 +66,28 @@ internal static class GuardedBackend
                 PG_TRY();
                 {
                     int code;
-                    char *sql;
                     BeginInternalSubTransaction(NULL);
                     code = SPI_connect();
                     if (code != SPI_OK_CONNECT)
                     {
                         ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                     }
-                    sql = pg_any_to_server(command, length, PG_UTF8);
-                    if (parameter_count == 0)
-                    {
-                        code = SPI_execute(sql, read_only != 0, limit);
-                    }
-                    else
-                    {
-                        Oid *types = palloc(sizeof(Oid) * (Size) parameter_count);
-                        Datum *values = palloc(sizeof(Datum) * (Size) parameter_count);
-                        char *nulls = palloc((Size) parameter_count);
-                        for (int index = 0; index < parameter_count; index++)
-                        {
-                            types[index] = parameters[index].type_oid;
-                            values[index] = ankus_parameter_datum(&parameters[index]);
-                            nulls[index] = parameters[index].value.is_null ? 'n' : ' ';
-                        }
-                        code = SPI_execute_with_args(sql, parameter_count, types, values, nulls, read_only != 0, limit);
-                    }
+                    code = ankus_run_spi_request(request);
                     if (code < 0)
                     {
-                        ereport(ERROR, (errmsg("SPI_execute failed: %s", SPI_result_code_string(code))));
+                        ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
                     }
-                    if (SPI_processed > PG_INT64_MAX)
+                    if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN)
                     {
-                        ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
-                    }
-                    result->processed = (int64) SPI_processed;
-                    if (collect_result)
-                    {
-                        ankus_collect_result(result, collect_result == 2);
+                        if (SPI_processed > PG_INT64_MAX)
+                        {
+                            ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
+                        }
+                        result->processed = (int64) SPI_processed;
+                        if (request->result_mode)
+                        {
+                            ankus_collect_result(result, request->result_mode == 2);
+                        }
                     }
                     code = SPI_finish();
                     if (code != SPI_OK_FINISH)
@@ -126,6 +110,11 @@ internal static class GuardedBackend
                     }
                     MemoryContextSwitchTo(caller_context);
                     CurrentResourceOwner = caller_owner;
+                    if (request->operation == ANKUS_SPI_PREPARE && request->plan != NULL)
+                    {
+                        SPI_freeplan(request->plan);
+                        request->plan = NULL;
+                    }
                     error->sqlstate = data->sqlerrcode;
                     ankus_copy_diagnostic(data->message, error->message, sizeof(error->message));
                     ankus_copy_diagnostic(data->detail, error->detail, sizeof(error->detail));

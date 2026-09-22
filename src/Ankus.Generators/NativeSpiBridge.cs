@@ -20,6 +20,27 @@ internal static class NativeSpiBridge
             Oid type_oid;
         } AnkusParameter;
 
+        enum AnkusSpiOperation
+        {
+            ANKUS_SPI_EXECUTE,
+            ANKUS_SPI_PREPARE,
+            ANKUS_SPI_EXECUTE_PLAN,
+            ANKUS_SPI_FREE_PLAN
+        };
+
+        typedef struct AnkusRequest
+        {
+            const char *command;
+            const AnkusParameter *parameters;
+            SPIPlanPtr plan;
+            int command_length;
+            int parameter_count;
+            int limit;
+            uint8 operation;
+            uint8 result_mode;
+            uint8 read_only;
+        } AnkusRequest;
+
         typedef struct AnkusColumn
         {
             Oid type_oid;
@@ -110,6 +131,73 @@ internal static class NativeSpiBridge
                         errmsg("SPI parameter type OID %u has no Ankus conversion", parameter->type_oid)));
             }
             return (Datum) 0;
+        }
+
+        static int
+        ankus_run_spi_request(AnkusRequest *request)
+        {
+            Oid *types = NULL;
+            Datum *values = NULL;
+            char *nulls = NULL;
+            char *sql;
+            if (request->operation == ANKUS_SPI_FREE_PLAN)
+            {
+                SPIPlanPtr plan = request->plan;
+                request->plan = NULL;
+                return SPI_freeplan(plan);
+            }
+            if (request->parameter_count > 0)
+            {
+                types = palloc(sizeof(Oid) * (Size) request->parameter_count);
+                values = palloc(sizeof(Datum) * (Size) request->parameter_count);
+                nulls = palloc((Size) request->parameter_count);
+                for (int index = 0; index < request->parameter_count; index++)
+                {
+                    types[index] = request->parameters[index].type_oid;
+                    if (request->operation != ANKUS_SPI_PREPARE)
+                    {
+                        values[index] = ankus_parameter_datum(&request->parameters[index]);
+                        nulls[index] = request->parameters[index].value.is_null ? 'n' : ' ';
+                    }
+                }
+            }
+            if (request->operation == ANKUS_SPI_EXECUTE_PLAN)
+            {
+                if (SPI_getargcount(request->plan) != request->parameter_count)
+                {
+                    return SPI_ERROR_PARAM;
+                }
+                for (int index = 0; index < request->parameter_count; index++)
+                {
+                    if (SPI_getargtypeid(request->plan, index) != types[index])
+                    {
+                        return SPI_ERROR_PARAM;
+                    }
+                }
+                return SPI_execute_plan(request->plan, values, nulls, request->read_only != 0, request->limit);
+            }
+            sql = pg_any_to_server(request->command, request->command_length, PG_UTF8);
+            if (request->operation == ANKUS_SPI_PREPARE)
+            {
+                SPIPlanPtr plan = SPI_prepare(sql, request->parameter_count, types);
+                int code;
+                if (plan == NULL)
+                {
+                    return SPI_result;
+                }
+                code = SPI_keepplan(plan);
+                if (code == 0)
+                {
+                    request->plan = plan;
+                }
+                return code;
+            }
+            if (request->parameter_count == 0)
+            {
+                return SPI_execute(sql, request->read_only != 0, request->limit);
+            }
+            return SPI_execute_with_args(sql, request->parameter_count, types, values, nulls,
+                request->read_only != 0, request->limit);
         }
 
         static void

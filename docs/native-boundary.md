@@ -85,6 +85,20 @@ Scalar execution copies only the first cell but lets PostgreSQL execute the full
 command. Explicit query row limits are passed to SPI separately, so reading a
 scalar does not truncate the effects of a command with `RETURNING`.
 
+The SPI entry point accepts a sequential request structure containing the operation,
+borrowed command/parameters, execution options, and any owned plan handle. Statement
+preparation uses `SPI_prepare` followed by `SPI_keepplan` under the same native guard.
+The managed owner is allocated before native preparation, and the kept plan is freed
+if the native operation subsequently fails. Execution uses `SPI_execute_plan` and
+shares the existing parameter conversion and result-copy path.
+
+`SpiPreparedStatement.Dispose` calls guarded `SPI_freeplan` on the backend thread.
+The request clears its handle when ownership is consumed, and the managed owner
+observes that update even if a later operation fails. An active-execution count
+prevents reentrant disposal while permitting recursive execution. No PostgreSQL
+cleanup runs on the finalizer thread. Saved plans have explicit managed disposal;
+PostgreSQL retains them in its cache memory context across transaction boundaries.
+
 On PostgreSQL ERROR, native `PG_CATCH` copies diagnostics outside the failing
 subtransaction, flushes the error state, rolls back to the caller's transaction
 nesting level, and restores the memory context and resource owner. It returns
@@ -108,6 +122,8 @@ UTF-8 characters. Native reporting converts these fields to the server encoding.
 - `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
 - `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
 - `src/Ankus.Runtime/NativeBackend.cs`: thread-local backend bindings.
+- `src/Ankus.Runtime/SpiPreparedStatement.cs`: retained-plan ownership and execution.
 - `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.
 - `tests/Ankus.IntegrationTests/SpiTests.cs`: transaction, reentrancy, and error-unwinding tests.
 - `tests/Ankus.IntegrationTests/SpiQueryTests.cs`: parameter, metadata, and result-lifetime tests.
+- `tests/Ankus.IntegrationTests/SpiPreparedTests.cs`: retained plans, invalidation, and native cleanup tests.

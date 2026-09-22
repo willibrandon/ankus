@@ -10,9 +10,16 @@ internal static class SpiType
     /// </summary>
     /// <typeparam name="T">The managed parameter type.</typeparam>
     /// <returns>The PostgreSQL OID.</returns>
-    internal static uint GetOid<T>()
+    internal static uint GetOid<T>() => GetOid(typeof(T));
+
+    /// <summary>
+    /// Resolves a managed type using known type identities without inspecting members or creating types dynamically.
+    /// </summary>
+    /// <param name="type">The declared managed type.</param>
+    /// <returns>The PostgreSQL OID.</returns>
+    internal static uint GetOid(Type type)
     {
-        Type type = typeof(T);
+        ArgumentNullException.ThrowIfNull(type);
         if (type == typeof(bool) || type == typeof(bool?))
         {
             return 16;

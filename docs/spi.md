@@ -79,6 +79,44 @@ SpiResult page = Spi.Query(
 A limit of zero means unlimited. Read-only mode uses PostgreSQL's read-only SPI
 snapshot and restrictions, including rejection of write commands.
 
+## Prepared statements
+
+Prepare a statement once and bind new values on each execution:
+
+```csharp
+using SpiPreparedStatement statement = Spi.Prepare(
+    "SELECT $1 + $2", typeof(int), typeof(int));
+
+int first = statement.ExecuteScalar<int>(SpiParameter.Create(40), SpiParameter.Create(2));
+int second = statement.ExecuteScalar<int>(SpiParameter.Create(10), SpiParameter.Create(5));
+```
+
+The declared CLR types determine the PostgreSQL parameter types without inspecting
+members or generating code at runtime. Nullable value types map to the same SQL
+type as their underlying type. Bind SQL NULL with a typed nullable parameter.
+An incorrect parameter count or SQL type throws `ArgumentException` before the
+plan executes.
+
+`SpiPreparedStatement` provides `Execute`, `Query`, and `ExecuteScalar<T>` with the
+same result semantics as `Spi`. `Query` also accepts `readOnly` and `limit` options.
+Preparation supports multiple SQL commands; each execution's internal subtransaction
+covers all commands, and results describe the final command.
+
+Plans survive the SPI connection, the extension callback, and transaction commit
+or rollback. They can be cached within a backend. PostgreSQL manages replanning
+after schema or search-path changes. Result rows are independent managed copies
+even when the same statement is executed again.
+
+Execution and disposal require an extension callback on the owning backend thread.
+Use `using` for local plans and explicitly dispose cached plans when replacing them.
+Disposal is idempotent, and subsequent execution throws `ObjectDisposedException`.
+Reentrant execution is supported; disposal during an active execution throws
+`InvalidOperationException` to preserve the native plan's lifetime.
+
+There is no finalizer that calls PostgreSQL: its APIs cannot run on the .NET
+finalizer thread. A plan that is never explicitly disposed remains allocated in
+the backend until the process exits.
+
 ## Errors and transactions
 
 Each call runs in an internal subtransaction. Success retains its changes in the
