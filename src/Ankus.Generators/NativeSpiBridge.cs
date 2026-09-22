@@ -30,7 +30,10 @@ internal static class NativeSpiBridge
             ANKUS_SPI_OPEN_PLAN_CURSOR,
             ANKUS_SPI_FETCH_CURSOR,
             ANKUS_SPI_CLOSE_CURSOR,
-            ANKUS_SPI_FIND_CURSOR
+            ANKUS_SPI_FIND_CURSOR,
+            ANKUS_SPI_OPEN_SESSION,
+            ANKUS_SPI_CLOSE_SESSION,
+            ANKUS_SPI_KEEP_PLAN
         };
 
         typedef struct AnkusRequest
@@ -39,6 +42,7 @@ internal static class NativeSpiBridge
             const AnkusParameter *parameters;
             SPIPlanPtr plan;
             int64 cursor_id;
+            int64 session_id;
             int command_length;
             int parameter_count;
             int limit;
@@ -69,6 +73,8 @@ internal static class NativeSpiBridge
 
         static int ankus_return_cursor(Portal portal, AnkusResult *result);
         static int ankus_cursor_operation(AnkusRequest *request, AnkusResult *result);
+        static void ankus_register_session_plan(SPIPlanPtr plan);
+        static void ankus_detach_session_plan(SPIPlanPtr plan);
 
         static void
         ankus_release_result(AnkusResult *result)
@@ -154,14 +160,23 @@ internal static class NativeSpiBridge
             Datum *values = NULL;
             char *nulls = NULL;
             char *sql;
-            if (request->operation >= ANKUS_SPI_FETCH_CURSOR)
+            if (request->operation >= ANKUS_SPI_FETCH_CURSOR && request->operation <= ANKUS_SPI_FIND_CURSOR)
             {
                 return ankus_cursor_operation(request, result);
+            }
+            if (request->operation == ANKUS_SPI_KEEP_PLAN)
+            {
+                ankus_detach_session_plan(request->plan);
+                return 0;
             }
             if (request->operation == ANKUS_SPI_FREE_PLAN)
             {
                 SPIPlanPtr plan = request->plan;
                 request->plan = NULL;
+                if (request->session_id != 0)
+                {
+                    ankus_detach_session_plan(plan);
+                }
                 return SPI_freeplan(plan);
             }
             if (request->parameter_count > 0)
@@ -218,6 +233,10 @@ internal static class NativeSpiBridge
                 if (code == 0)
                 {
                     request->plan = plan;
+                    if (request->session_id != 0)
+                    {
+                        ankus_register_session_plan(plan);
+                    }
                 }
                 return code;
             }

@@ -49,4 +49,19 @@ internal enum SpiOperation : byte
     /// Resolves a cursor by its PostgreSQL portal name.
     /// </summary>
     FindCursor,
+
+    /// <summary>
+    /// Opens a scoped native SPI connection.
+    /// </summary>
+    OpenSession,
+
+    /// <summary>
+    /// Closes the current scoped SPI connection.
+    /// </summary>
+    CloseSession,
+
+    /// <summary>
+    /// Retains a session-bound plan beyond its connection's lifetime.
+    /// </summary>
+    KeepPlan,
 }

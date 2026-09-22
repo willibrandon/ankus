@@ -29,6 +29,11 @@ internal unsafe struct NativeSpiRequest
     internal long _cursorId;
 
     /// <summary>
+    /// Contains the scoped SPI connection identity, or zero for an independent operation.
+    /// </summary>
+    internal long _sessionId;
+
+    /// <summary>
     /// Contains the UTF-8 command length, excluding its terminator.
     /// </summary>
     internal int _commandLength;

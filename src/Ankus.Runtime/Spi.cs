@@ -6,6 +6,28 @@ namespace Ankus;
 public static class Spi
 {
     /// <summary>
+    /// Runs a synchronous callback using one scoped SPI connection. Session-bound plans expire when the callback exits.
+    /// </summary>
+    /// <param name="action">The synchronous backend-thread callback.</param>
+    public static void Connect(Action<SpiSession> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        NativeBackend.Connect(session =>
+        {
+            action(session);
+            return 0;
+        });
+    }
+
+    /// <summary>
+    /// Runs a synchronous callback using one scoped SPI connection and returns its managed result.
+    /// </summary>
+    /// <typeparam name="TResult">The callback result type.</typeparam>
+    /// <param name="action">The synchronous backend-thread callback. It must not start asynchronous session operations.</param>
+    /// <returns>The callback result, whose owned rows and retained plans can outlive the session.</returns>
+    public static TResult Connect<TResult>(Func<SpiSession, TResult> action) => NativeBackend.Connect(action);
+
+    /// <summary>
     /// Opens a transaction-bound cursor with optional typed positional parameters.
     /// </summary>
     /// <param name="commandText">One SQL command that returns rows.</param>

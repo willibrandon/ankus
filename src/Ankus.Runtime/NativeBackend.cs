@@ -12,6 +12,12 @@ public static unsafe class NativeBackend
     [ThreadStatic]
     private static nint s_execute;
 
+    [ThreadStatic]
+    private static int s_callbackDepth;
+
+    [ThreadStatic]
+    private static SpiSession? s_session;
+
     /// <summary>
     /// Enters a native callback scope, preserving the previous binding for recursive SPI calls.
     /// </summary>
@@ -21,6 +27,7 @@ public static unsafe class NativeBackend
     {
         nint previous = s_execute;
         s_execute = execute;
+        s_callbackDepth++;
         return previous;
     }
 
@@ -28,7 +35,60 @@ public static unsafe class NativeBackend
     /// Restores the enclosing native callback scope.
     /// </summary>
     /// <param name="previous">The binding saved on entry.</param>
-    public static void Exit(nint previous) => s_execute = previous;
+    public static void Exit(nint previous)
+    {
+        s_execute = previous;
+        s_callbackDepth--;
+    }
+
+    /// <summary>
+    /// Runs a synchronous callback in one native SPI connection, closing it on every managed exit path.
+    /// </summary>
+    /// <typeparam name="TResult">The callback result type.</typeparam>
+    /// <param name="action">The synchronous session callback.</param>
+    /// <returns>The managed callback result.</returns>
+    internal static TResult Connect<TResult>(Func<SpiSession, TResult> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        CheckAccess();
+        var session = new SpiSession(s_execute, s_callbackDepth);
+        SpiSession? previous = s_session;
+        var request = new NativeSpiRequest { _operation = SpiOperation.OpenSession };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+        session.Identity = request._sessionId;
+        s_session = session;
+        try
+        {
+            return action(session);
+        }
+        finally
+        {
+            try
+            {
+                request._operation = SpiOperation.CloseSession;
+                Invoke(&request, &result);
+            }
+            finally
+            {
+                session.Identity = 0;
+                s_session = previous;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies native SPI stack ownership for session-bound operations.
+    /// </summary>
+    /// <param name="session">The owning session.</param>
+    /// <param name="callbackDepth">The session's original dispatcher depth.</param>
+    internal static void CheckSession(SpiSession session, int callbackDepth)
+    {
+        if (s_session != session || s_callbackDepth != callbackDepth)
+        {
+            throw new InvalidOperationException("SPI sessions require their owning callback and innermost active session scope.");
+        }
+    }
 
     /// <summary>
     /// Executes SQL through the native guard and copies requested result data before releasing native allocations.
@@ -38,9 +98,11 @@ public static unsafe class NativeBackend
     /// <param name="readOnly">Whether to use a read-only SPI snapshot.</param>
     /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
     /// <param name="resultMode">The result materialization mode.</param>
+    /// <param name="session">The scoped connection, or null for an independent operation.</param>
     /// <returns>The managed query result.</returns>
     internal static SpiResult Run(
-        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode)
+        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode,
+        SpiSession? session = null)
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
@@ -53,6 +115,7 @@ public static unsafe class NativeBackend
                 _readOnly = readOnly ? (byte)1 : (byte)0,
                 _limit = limit,
                 _resultMode = resultMode,
+                _sessionId = session?.Identity ?? 0,
             };
             return RunRequest(request, parameters);
         }
@@ -63,8 +126,9 @@ public static unsafe class NativeBackend
     /// </summary>
     /// <param name="commandText">The SQL text to prepare.</param>
     /// <param name="parameterTypes">The declared CLR parameter types.</param>
+    /// <param name="session">The owning session, or null to create an independently retained plan.</param>
     /// <returns>The owned prepared statement.</returns>
-    internal static SpiPreparedStatement Prepare(string commandText, ReadOnlySpan<Type> parameterTypes)
+    internal static SpiPreparedStatement Prepare(string commandText, ReadOnlySpan<Type> parameterTypes, SpiSession? session = null)
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
@@ -76,7 +140,7 @@ public static unsafe class NativeBackend
             arguments[index]._typeOid = types[index];
         }
 
-        var statement = new SpiPreparedStatement(commandText, types, s_execute);
+        var statement = new SpiPreparedStatement(commandText, types, s_execute, session);
         fixed (byte* text = sql)
         fixed (NativeSpiParameter* values = arguments)
         {
@@ -87,6 +151,7 @@ public static unsafe class NativeBackend
                 _commandLength = sql.Length - 1,
                 _parameters = values,
                 _parameterCount = arguments.Length,
+                _sessionId = session?.Identity ?? 0,
             };
             NativeSpiResult result = default;
             Invoke(&request, &result);
@@ -116,9 +181,10 @@ public static unsafe class NativeBackend
     /// <param name="readOnly">Whether to use read-only execution.</param>
     /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
     /// <param name="resultMode">The materialization mode.</param>
+    /// <param name="session">The plan's owning session, or null for a retained plan.</param>
     /// <returns>The managed result.</returns>
     internal static SpiResult RunPlan(
-        nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode)
+        nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode, SpiSession? session = null)
         => RunRequest(new NativeSpiRequest
         {
             _operation = SpiOperation.ExecutePlan,
@@ -126,15 +192,39 @@ public static unsafe class NativeBackend
             _readOnly = readOnly ? (byte)1 : (byte)0,
             _limit = limit,
             _resultMode = resultMode,
+            _sessionId = session?.Identity ?? 0,
         }, parameters);
 
     /// <summary>
     /// Frees a plan and clears the handle when the native operation consumes it, including on subsequent errors.
     /// </summary>
     /// <param name="plan">The owned handle, updated to reflect native ownership.</param>
-    internal static void FreePlan(ref nint plan)
+    /// <param name="session">The plan's owning session, or null for a retained plan.</param>
+    internal static void FreePlan(ref nint plan, SpiSession? session = null)
     {
-        var request = new NativeSpiRequest { _operation = SpiOperation.FreePlan, _plan = plan };
+        var request = new NativeSpiRequest
+        {
+            _operation = SpiOperation.FreePlan, _plan = plan, _sessionId = session?.Identity ?? 0,
+        };
+        NativeSpiResult result = default;
+        try
+        {
+            Invoke(&request, &result);
+        }
+        finally
+        {
+            plan = request._plan;
+        }
+    }
+
+    /// <summary>
+    /// Transfers a session-bound saved plan from native session cleanup to the managed statement owner.
+    /// </summary>
+    /// <param name="plan">The plan handle, cleared if native recovery frees a partially retained plan.</param>
+    /// <param name="session">The current owning session.</param>
+    internal static void KeepPlan(ref nint plan, SpiSession session)
+    {
+        var request = new NativeSpiRequest { _operation = SpiOperation.KeepPlan, _plan = plan, _sessionId = session.Identity };
         NativeSpiResult result = default;
         try
         {
@@ -152,8 +242,10 @@ public static unsafe class NativeBackend
     /// <param name="commandText">The SQL command.</param>
     /// <param name="parameters">The bound parameters.</param>
     /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <param name="session">The scoped SPI connection, or null for an independent operation.</param>
     /// <returns>The owned managed cursor.</returns>
-    internal static SpiCursor OpenCursor(string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly)
+    internal static SpiCursor OpenCursor(
+        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, SpiSession? session = null)
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
@@ -165,6 +257,7 @@ public static unsafe class NativeBackend
                 _command = text,
                 _commandLength = sql.Length - 1,
                 _readOnly = readOnly ? (byte)1 : (byte)0,
+                _sessionId = session?.Identity ?? 0,
             }, parameters);
         }
     }
@@ -175,13 +268,15 @@ public static unsafe class NativeBackend
     /// <param name="plan">The prepared plan handle.</param>
     /// <param name="parameters">The bound parameters.</param>
     /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <param name="session">The plan's owning session, or null for a retained plan.</param>
     /// <returns>The owned managed cursor.</returns>
-    internal static SpiCursor OpenPlanCursor(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly)
+    internal static SpiCursor OpenPlanCursor(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly, SpiSession? session = null)
         => CreateCursor(new NativeSpiRequest
         {
             _operation = SpiOperation.OpenPlanCursor,
             _plan = plan,
             _readOnly = readOnly ? (byte)1 : (byte)0,
+            _sessionId = session?.Identity ?? 0,
         }, parameters);
 
     /// <summary>

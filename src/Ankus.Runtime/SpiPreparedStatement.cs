@@ -3,12 +3,14 @@ namespace Ankus;
 /// <summary>
 /// Owns a reusable PostgreSQL SPI plan. Execution and disposal require the owning backend thread.
 /// Use a using declaration for local statements; explicitly dispose cached statements when replacing them.
+/// Statements created by SpiSession expire with that session unless Keep transfers ownership out of the scope.
 /// </summary>
 public sealed class SpiPreparedStatement : IDisposable
 {
     private readonly nint _backend;
     private readonly uint[] _parameterTypes;
     private int _activeExecutions;
+    private SpiSession? _session;
 
     /// <summary>
     /// Creates managed ownership before the native plan is allocated.
@@ -16,11 +18,13 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <param name="commandText">The prepared command text.</param>
     /// <param name="parameterTypes">The positional PostgreSQL type OIDs.</param>
     /// <param name="backend">The owning native backend binding.</param>
-    internal SpiPreparedStatement(string commandText, uint[] parameterTypes, nint backend)
+    /// <param name="session">The owning scoped session, or null for a retained plan.</param>
+    internal SpiPreparedStatement(string commandText, uint[] parameterTypes, nint backend, SpiSession? session = null)
     {
         CommandText = commandText;
         _parameterTypes = parameterTypes;
         _backend = backend;
+        _session = session;
     }
 
     /// <summary>
@@ -32,6 +36,32 @@ public sealed class SpiPreparedStatement : IDisposable
     /// Gets the number of positional parameters required by this statement.
     /// </summary>
     public int ParameterCount => _parameterTypes.Length;
+
+    /// <summary>
+    /// Retains this statement beyond its session's lifetime and returns the same explicitly disposable owner.
+    /// Calling Keep on an already retained statement is harmless.
+    /// </summary>
+    /// <returns>This statement, now independent of its original session.</returns>
+    public SpiPreparedStatement Keep()
+    {
+        CheckAccess();
+        CheckNotExecuting();
+        if (_session is not null)
+        {
+            nint plan = Handle;
+            try
+            {
+                NativeBackend.KeepPlan(ref plan, _session);
+                _session = null;
+            }
+            finally
+            {
+                Handle = plan;
+            }
+        }
+
+        return this;
+    }
 
     /// <summary>
     /// Gets or sets the native plan handle. Zero means no native plan is owned.
@@ -58,7 +88,7 @@ public sealed class SpiPreparedStatement : IDisposable
         _activeExecutions++;
         try
         {
-            return NativeBackend.OpenPlanCursor(Handle, parameters, readOnly);
+            return NativeBackend.OpenPlanCursor(Handle, parameters, readOnly, _session);
         }
         finally
         {
@@ -107,7 +137,8 @@ public sealed class SpiPreparedStatement : IDisposable
 
     /// <summary>
     /// Frees the native plan through a guarded backend call. Repeated disposal is harmless.
-    /// PostgreSQL APIs cannot run on the finalizer thread, so this type requires explicit disposal.
+    /// PostgreSQL APIs cannot run on the finalizer thread. Independent plans require explicit disposal;
+    /// session-owned plans are also released when their session ends.
     /// </summary>
     public void Dispose()
     {
@@ -116,16 +147,18 @@ public sealed class SpiPreparedStatement : IDisposable
             return;
         }
 
-        NativeBackend.CheckAccess(_backend);
-        if (_activeExecutions != 0)
+        if (_session is { Identity: 0 })
         {
-            throw new InvalidOperationException("A prepared statement cannot be disposed while it is executing.");
+            Handle = 0;
+            return;
         }
 
+        CheckAccess();
+        CheckNotExecuting();
         nint plan = Handle;
         try
         {
-            NativeBackend.FreePlan(ref plan);
+            NativeBackend.FreePlan(ref plan, _session);
         }
         finally
         {
@@ -139,7 +172,7 @@ public sealed class SpiPreparedStatement : IDisposable
         _activeExecutions++;
         try
         {
-            return NativeBackend.RunPlan(Handle, parameters, readOnly, limit, resultMode);
+            return NativeBackend.RunPlan(Handle, parameters, readOnly, limit, resultMode, _session);
         }
         finally
         {
@@ -149,8 +182,7 @@ public sealed class SpiPreparedStatement : IDisposable
 
     private void ValidateParameters(ReadOnlySpan<SpiParameter> parameters)
     {
-        ObjectDisposedException.ThrowIf(Handle == 0, this);
-        NativeBackend.CheckAccess(_backend);
+        CheckAccess();
         if (parameters.Length != _parameterTypes.Length)
         {
             throw new ArgumentException($"The statement requires {_parameterTypes.Length} parameters, but received {parameters.Length}.",
@@ -164,6 +196,21 @@ public sealed class SpiPreparedStatement : IDisposable
                 throw new ArgumentException($"Parameter {index + 1} must have PostgreSQL type OID {_parameterTypes[index]}.",
                     nameof(parameters));
             }
+        }
+    }
+
+    private void CheckAccess()
+    {
+        ObjectDisposedException.ThrowIf(Handle == 0 || _session is { Identity: 0 }, this);
+        NativeBackend.CheckAccess(_backend);
+        _session?.CheckAccess();
+    }
+
+    private void CheckNotExecuting()
+    {
+        if (_activeExecutions != 0)
+        {
+            throw new InvalidOperationException("A prepared statement cannot be disposed or retained while it is executing.");
         }
     }
 }

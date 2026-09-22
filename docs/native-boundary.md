@@ -99,6 +99,29 @@ prevents reentrant disposal while permitting recursive execution. No PostgreSQL
 cleanup runs on the finalizer thread. Saved plans have explicit managed disposal;
 PostgreSQL retains them in its cache memory context across transaction boundaries.
 
+`Spi.Connect` opens a scoped native SPI connection and closes it in a managed
+`finally` block. Native opening retains an internal subtransaction for the scope
+so even a partially completed `SPI_connect` can be recovered by rollback. Each
+operation within the connection gets a nested subtransaction. Closing releases
+the connection and scope subtransaction, restoring the original memory context,
+resource owner, and nesting level. Successful commands remain in the enclosing
+transaction when the callback exits.
+
+Native session identities are registered in the connection's procedure context;
+a memory-context callback removes the registration on cleanup. Managed ownership
+checks require the same dispatcher depth and innermost active session, preventing
+reentrant code from operating on the wrong native SPI stack frame. Native
+operations also validate the session identity before using a plan pointer.
+
+Session-bound plans use `SPI_keepplan` to participate in PostgreSQL's invalidation
+list. A native session-owned list frees these plans when its procedure context is
+deleted. This differs from unsaved SPI plans, which do not receive relation
+invalidation notifications. `Keep()` detaches a plan from session cleanup;
+explicit disposal removes a scoped plan from the list before freeing it. A
+partially prepared or retained plan is freed by native error recovery. Result
+tuple tables are released immediately after copying, so a long-lived session
+does not accumulate already materialized batches.
+
 Cursor operations share the native guard and result-copy path. Opening uses
 `SPI_cursor_open_with_args` or `SPI_cursor_open` for prepared plans. Managed cursor
 objects carry monotonically assigned identities and copied names rather than
@@ -158,16 +181,19 @@ as constants. `DetailLog` stays separate from client-visible `Detail`.
 - `src/Ankus.Generators/GuardedBackend.cs`: native SPI and error-recovery guards.
 - `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
 - `src/Ankus.Generators/NativeCursorBridge.cs`: portal identities and memory-context invalidation.
+- `src/Ankus.Generators/NativeSessionBridge.cs`: scoped connections and session-owned plan cleanup.
 - `src/Ankus.Generators/NativeErrorBridge.cs`: diagnostic ownership, capture, and native error reconstruction.
 - `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
 - `src/Ankus.Runtime/NativeBackend.cs`: thread-local backend bindings.
 - `src/Ankus.Runtime/SpiPreparedStatement.cs`: retained-plan ownership and execution.
 - `src/Ankus.Runtime/SpiCursor.cs`: batched fetching and cursor ownership.
+- `src/Ankus.Runtime/SpiSession.cs`: scoped query, preparation, and cursor APIs.
 - `src/Ankus.Runtime/PgException.cs`: managed PostgreSQL diagnostics.
 - `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.
 - `tests/Ankus.IntegrationTests/SpiTests.cs`: transaction, reentrancy, and error-unwinding tests.
 - `tests/Ankus.IntegrationTests/SpiQueryTests.cs`: parameter, metadata, and result-lifetime tests.
 - `tests/Ankus.IntegrationTests/SpiPreparedTests.cs`: retained plans, invalidation, and native cleanup tests.
 - `tests/Ankus.IntegrationTests/SpiCursorTests.cs`: cursor batching, portal lifetime, and error cleanup tests.
+- `tests/Ankus.IntegrationTests/SpiSessionTests.cs`: nested connections, scoped/retained plans, and failure cleanup.
 - `tests/Ankus.IntegrationTests/PgDiagnosticTests.cs`: native/managed diagnostics and encoding/rethrow tests.
 - `tests/Ankus.Runtime.Tests/NativeDiagnosticTests.cs`: optional values, emergency fallback, and transport cleanup.

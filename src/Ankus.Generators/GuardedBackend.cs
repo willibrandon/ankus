@@ -23,7 +23,17 @@ internal static class GuardedBackend
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
             volatile int status = 0;
+            volatile bool retained_plan = false;
+            bool standalone = request->session_id == 0;
             result->release = ankus_release_result;
+
+            if (request->operation == ANKUS_SPI_CLOSE_SESSION && ankus_session != NULL &&
+                ankus_session->identity == request->session_id)
+            {
+                caller_context = ankus_session->caller_context;
+                caller_owner = ankus_session->caller_owner;
+                caller_nest_level = ankus_session->caller_nest_level;
+            }
 
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
             PG_TRY();
@@ -31,38 +41,78 @@ internal static class GuardedBackend
                 PG_TRY();
                 {
                     int code;
-                    BeginInternalSubTransaction(NULL);
-                    code = SPI_connect();
-                    if (code != SPI_OK_CONNECT)
+                    if (request->operation == ANKUS_SPI_OPEN_SESSION)
                     {
-                        ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
-                    }
-                    code = ankus_run_spi_request(request, result);
-                    if (code < 0)
-                    {
-                        ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
-                    }
-                    if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
-                        request->operation == ANKUS_SPI_FETCH_CURSOR)
-                    {
-                        if (SPI_processed > PG_INT64_MAX)
+                        /* Keep this subtransaction until close so partial SPI_connect failures can be rolled back safely. */
+                        BeginInternalSubTransaction(NULL);
+                        code = SPI_connect();
+                        if (code != SPI_OK_CONNECT)
                         {
-                            ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
+                            ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                         }
-                        result->processed = (int64) SPI_processed;
-                        if (request->result_mode)
-                        {
-                            ankus_collect_result(result, request->result_mode == 2);
-                        }
+                        ankus_register_session(request, caller_context, caller_owner, caller_nest_level);
                     }
-                    code = SPI_finish();
-                    if (code != SPI_OK_FINISH)
+                    else
                     {
-                        ereport(ERROR, (errmsg("SPI_finish failed: %s", SPI_result_code_string(code))));
+                        BeginInternalSubTransaction(NULL);
+                        if (standalone)
+                        {
+                            code = SPI_connect();
+                            if (code != SPI_OK_CONNECT)
+                            {
+                                ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
+                            }
+                        }
+                        else
+                        {
+                            ankus_require_session(request->session_id);
+                        }
+                        if (request->operation != ANKUS_SPI_CLOSE_SESSION)
+                        {
+                            code = ankus_run_spi_request(request, result);
+                            if (code < 0)
+                            {
+                                ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
+                            }
+                            retained_plan = request->operation == ANKUS_SPI_KEEP_PLAN;
+                            if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
+                                request->operation == ANKUS_SPI_FETCH_CURSOR)
+                            {
+                                if (SPI_processed > PG_INT64_MAX)
+                                {
+                                    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
+                                }
+                                result->processed = (int64) SPI_processed;
+                                if (request->result_mode)
+                                {
+                                    ankus_collect_result(result, request->result_mode == 2);
+                                }
+                                SPI_freetuptable(SPI_tuptable);
+                            }
+                        }
+                        if (standalone || request->operation == ANKUS_SPI_CLOSE_SESSION)
+                        {
+                            code = SPI_finish();
+                            if (code != SPI_OK_FINISH)
+                            {
+                                ereport(ERROR, (errmsg("SPI_finish failed: %s", SPI_result_code_string(code))));
+                            }
+                            if (request->operation == ANKUS_SPI_CLOSE_SESSION)
+                            {
+                                request->session_id = 0;
+                            }
+                        }
+                        ReleaseCurrentSubTransaction();
+                        if (request->operation == ANKUS_SPI_CLOSE_SESSION)
+                        {
+                            ReleaseCurrentSubTransaction();
+                        }
                     }
-                    ReleaseCurrentSubTransaction();
                     MemoryContextSwitchTo(caller_context);
-                    CurrentResourceOwner = caller_owner;
+                    if (request->operation != ANKUS_SPI_OPEN_SESSION)
+                    {
+                        CurrentResourceOwner = caller_owner;
+                    }
                 }
                 PG_CATCH();
                 {
@@ -79,8 +129,12 @@ internal static class GuardedBackend
                     }
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
-                    if (request->operation == ANKUS_SPI_PREPARE && request->plan != NULL)
+                    if ((request->operation == ANKUS_SPI_PREPARE || retained_plan) && request->plan != NULL)
                     {
+                        if (request->session_id != 0)
+                        {
+                            ankus_detach_session_plan(request->plan);
+                        }
                         SPI_freeplan(request->plan);
                         request->plan = NULL;
                     }

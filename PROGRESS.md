@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **286 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **313 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 206 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 233 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -78,6 +78,11 @@ Linux, and macOS.
   portal identities on close/commit/rollback; tests reject stale objects even after portal-name reuse.
   Tests also cover external scrollable/holdable cursors, plan-independent cursor lifetime, savepoints,
   read-only execution, reentrant-disposal rejection, and cleanup after fetch errors/cancellation.
+- `Spi.Connect` provides synchronous scoped `SpiSession` callbacks with one native connection, nested scopes,
+  session-bound plans, and `SpiPreparedStatement.Keep()` ownership transfer. Native session cleanup frees
+  unretained plans and materialized tuple tables. Session plans are registered with the plan cache so schema
+  invalidation works before retention. Tests cover expired owners, worker/reentrant access, nested errors,
+  native/managed failures, cancellation, cursor/result survival, and kept plans across commit/rollback.
 - IDE1006 is an error during builds. A negative build verified field-prefix violations are rejected;
   the corrected runtime and the full solution pass with naming enforcement enabled.
 - `PgException` transports SQLSTATE, full message/detail/hint/context, object names, query positions/text,
@@ -111,6 +116,21 @@ verified on PostgreSQL 18.6 / Linux x64; other severities and platform/version v
 | Server-only detail and backtrace | `DetailLog`, `Backtrace` | `PgDiagnosticTests.ServerOnlyDiagnosticsRemainSeparateFromClientDetail` |
 | Long/optional text ownership | Allocator-specific diagnostic buffers | `PgDiagnosticTests.LongNativeDiagnosticsAreNotTruncated`, `ManagedDiagnosticsReachClientWithoutTruncation`, `EmptyNativeDiagnosticsRemainPresent` |
 | Encoding, secondary failures, and recovery | Server encoding conversion, `DiagnosticsIncomplete`, emergency message, temporary error context | `PgDiagnosticTests.Latin1DiagnosticsAndEncodingFailurePreserveBackend`, `RepeatedFailuresReleaseDiagnosticContexts`; `NativeDiagnosticTests.InvalidSecondaryDiagnosticUsesPartialFallback`, `BrokenMessageProducesEmergencyDiagnostic` |
+
+### Scoped SPI API evidence
+
+Reference surface: `pgrx/src/spi.rs` (`connect`, `connect_mut`), `spi/client.rs`
+(`prepare`, query/cursor operations), and `spi/query.rs` (`PreparedStatement`, `keep`).
+Native lifecycle references are PostgreSQL `executor/spi.c` and `utils/cache/plancache.c`.
+
+| Source behavior | Ankus API/implementation | Concrete test evidence |
+|---|---|---|
+| Scoped connection, queries, and owned output | `Spi.Connect`, `SpiSession.Execute/Query/ExecuteScalar` | `SpiSessionTests.SessionOperationsPreserveScopeAndResults` (`session_owned_result`, `session_writes`, `session_tuple_cleanup`) |
+| Nested connection lifetimes and error recovery | Native session identity, saved resource owner/nesting level, dispatcher-depth checks | `SpiSessionTests.SessionOperationsPreserveScopeAndResults` (`session_nested`, `session_nested_recovery`, `session_recursive`) |
+| Session-bound plans and escape rejection | `SpiSession.Prepare`, scope invalidation | `SpiSessionTests.ExpiredSessionOwnershipIsRejected` |
+| Plan ownership transfer and explicit cleanup | `SpiPreparedStatement.Keep/Dispose` | `SpiSessionTests.KeptSessionPlanSurvivesTransactionEnd` (commit and rollback) |
+| Plan invalidation and cursor lifetime | Session-owned saved plans; independent portal ownership | `SpiSessionTests.SessionOperationsPreserveScopeAndResults` (`session_replan`, `session_cursor`) |
+| Failure, cancellation, and thread-affinity cleanup | Native scope cleanup and managed access guards | `SpiSessionTests.FailedCallbackClosesSessionAndPlans`, `CancellationClosesSessionAndPlans`, `WorkerThreadCannotAccessSession` |
 
 ### Work in progress
 
@@ -232,7 +252,7 @@ The target architecture consists of:
 | `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
-| `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, typed results/parameters, kept plans, owned/detachable cursors |
+| `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans and retention, typed results/parameters, owned/detachable cursors |
 | `PgError` | `PgException` + logging helpers | Partial: owned error diagnostics, context, objects, positions and location; logging pending |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
@@ -342,7 +362,7 @@ complete implementations. AOT serialization must use statically generated metada
 
 | Source modules | Required behavior | Status |
 |---|---|---|
-| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, typed results/parameters, kept plans, cursor fetch/detach/find/close |
+| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans and retention, typed results/parameters, cursor fetch/detach/find/close; tuple mutation, extensible conversion and remaining helpers pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Pending |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
@@ -393,7 +413,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 286 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 313 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -426,7 +446,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Owned prepared statements with guarded keep/execute/free and backend-thread disposal
     - [x] Owned cursors, batched fetch, detach/find, prepared-plan cursors, and portal lifetime invalidation
     - [x] Owned error diagnostics, context/object/query/source fields, native rethrow and diagnostic cleanup
-    - [ ] Complete SPI sessions, extensible datum conversion, tuple mutation and session-bound plans
+    - [x] Scoped SPI sessions, session-bound plans, retention and stack/lifetime enforcement
+    - [ ] Complete extensible SPI datum conversion, tuple mutation and remaining helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
@@ -496,3 +517,6 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-22 — Full-length owned PostgreSQL error diagnostics, context/object/query/source fields,
   original-location rethrow without duplicated context, server-only diagnostics, and fallback/encoding cleanup.
   `dotnet test`: 286 passed, 0 failed, 0 skipped (206 PostgreSQL integration cases).
+- 2026-09-22 — Scoped SPI sessions, session-bound prepared plans with native invalidation registration,
+  retained ownership transfer, nested-scope recovery, and connection/plan/tuple cleanup.
+  `dotnet test`: 313 passed, 0 failed, 0 skipped (233 PostgreSQL integration cases).

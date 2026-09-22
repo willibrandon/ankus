@@ -102,7 +102,7 @@ same result semantics as `Spi`. `Query` also accepts `readOnly` and `limit` opti
 Preparation supports multiple SQL commands; each execution's internal subtransaction
 covers all commands, and results describe the final command.
 
-Plans survive the SPI connection, the extension callback, and transaction commit
+Plans created by `Spi.Prepare` survive the SPI connection, the extension callback, and transaction commit
 or rollback. They can be cached within a backend. PostgreSQL manages replanning
 after schema or search-path changes. Result rows are independent managed copies
 even when the same statement is executed again.
@@ -110,12 +110,66 @@ even when the same statement is executed again.
 Execution and disposal require an extension callback on the owning backend thread.
 Use `using` for local plans and explicitly dispose cached plans when replacing them.
 Disposal is idempotent, and subsequent execution throws `ObjectDisposedException`.
-Reentrant execution is supported; disposal during an active execution throws
+Reentrant execution of independently retained plans is supported; disposal or retention during an active execution throws
 `InvalidOperationException` to preserve the native plan's lifetime.
 
 There is no finalizer that calls PostgreSQL: its APIs cannot run on the .NET
-finalizer thread. A plan that is never explicitly disposed remains allocated in
+finalizer thread. An independently retained plan that is never explicitly disposed remains allocated in
 the backend until the process exits.
+
+## Scoped SPI sessions
+
+`Spi.Connect` runs a synchronous callback using one native SPI connection:
+
+```csharp
+SpiResult rows = Spi.Connect(session =>
+{
+    session.Execute("INSERT INTO messages (body) VALUES ($1)", SpiParameter.Create("hello"));
+
+    using SpiPreparedStatement statement = session.Prepare(
+        "SELECT id, body FROM messages WHERE id >= $1 ORDER BY id", typeof(int));
+    return statement.Query(SpiParameter.Create(100));
+});
+
+// The materialized rows remain valid after the native session closes.
+foreach (SpiRow row in rows)
+{
+    int id = row.Get<int>("id");
+}
+```
+
+The session offers `Execute`, `Query`, `ExecuteScalar<T>`, `Prepare`, and
+`OpenCursor`, with the same parameter and owned-result conversions as the
+standalone API. `Query` and `OpenCursor` accept explicit read-only execution mode.
+Session operations run in individual internal subtransactions: a failed command
+rolls back that command, and successful commands remain in the caller's
+transaction. The callback's exit closes the connection, including when a managed
+exception or PostgreSQL cancellation unwinds the callback.
+
+A statement created by `session.Prepare` belongs to that session and is freed
+automatically when the callback exits. Explicit disposal can release it earlier.
+Use `Keep()` while the session is active to transfer ownership out of the scope:
+
+```csharp
+using SpiPreparedStatement statement = Spi.Connect(session =>
+    session.Prepare("SELECT $1 + 2", typeof(int)).Keep());
+
+int answer = statement.ExecuteScalar<int>(SpiParameter.Create(40));
+```
+
+`Keep()` returns the same statement instance. The retained statement survives
+callback and transaction boundaries and requires explicit disposal. Both scoped
+and retained statements participate in PostgreSQL plan invalidation after schema
+changes. Cursors opened by a session or its plans have their normal portal
+lifetimes and can be fetched after the session closes.
+
+Sessions nest in stack order. While an inner session callback runs, operations on
+an outer session or its scoped plans throw `InvalidOperationException`; access
+resumes after the inner scope exits. A recursive extension callback must use an
+independent session or the standalone SPI API. Escaped sessions and unretained
+plans throw `ObjectDisposedException` when used after their scope ends. The
+callback must remain synchronous and on the backend thread; asynchronous session
+work is not supported.
 
 ## Cursors and batched results
 
