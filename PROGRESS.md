@@ -11,6 +11,12 @@
 Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that all
 .NET developers will expect:
 
+**Scope is the entire pgrx framework. Every feature, runtime facility, macro equivalent,
+tooling capability, example, and testing capability must be ported. Custom scans and
+nodes are required. Phase ordering describes implementation order only; it does not
+exclude or make any work optional. The port is complete only when full parity has
+been implemented and validated across the required PostgreSQL and operating-system matrix.**
+
 - **Faithful port**: mirror pgrx's feature surface and mental model (see [Feature map](#feature-map-pgrx--ankus)),
   translated into idiomatic C# (attributes + source generators instead of proc macros,
   `IEnumerable<T>` for SETOF, exceptions → `ereport(ERROR)`, etc.).
@@ -190,12 +196,16 @@ These are requirements for the port, not claims that the full architecture exist
 | `pgrx::catalog` (`Oid`, `PgType`) | `Oid`, `PgType`, catalog helpers | ☐ |
 | `pgrx::log` | PG log-level mapping for .NET logging | ☐ |
 | `pgrx::pg_sys` (raw FFI) | `Ankus.PgSys` (raw `LibraryImport` surface) | ☐ |
-| custom scan (`pgrx::customscan`, `pgrx::nodes`) | later phase (large surface) | ☐ |
+| custom scan (`pgrx::customscan`, `pgrx::nodes`) | Custom scan providers, node types, callbacks, and supporting APIs | ☐ Required |
 | `cargo pgrx` CLI | `ankus` dotnet tool: `new/init/build/schema/test/run/package` | ☐ |
 | `cargo pgrx schema` (one-compile, `.pgrxsc`) | `ankus schema` (reads `.ankusc` section from built `.so`) | ☐ |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
 
 ## Phase plan
+
+Every phase is required for the faithful port. Unchecked items are remaining work,
+not scope exclusions. The feature map is a tracking aid; the complete read-only
+pgrx reference defines the required surface, including capabilities not yet itemized here.
 
 - [ ] **P0 — Feasibility spike** *(integer path verified; text remains)*
    - [x] Minimal attributed `add(int,int)→int` extension
@@ -223,7 +233,10 @@ These are requirements for the port, not claims that the full architecture exist
 - [ ] **P6 — Examples + docs**
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
    - [ ] README, getting started, and verified native-boundary design notes
-- [ ] **P7 — Custom scan + nodes** (largest pgrx surface; deferred)
+- [ ] **P7 — Custom scan + nodes**
+   - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
+   - [ ] PostgreSQL node representations and pgrx node support APIs
+   - [ ] Corresponding examples and backend-executed tests
 
 ## Conventions (user directives)
 
@@ -243,6 +256,7 @@ These are requirements for the port, not claims that the full architecture exist
 - Automation uses C# file-based apps or proper .NET projects, never shell/PowerShell scripts.
 - Do not overwrite user work or touch `.gitignore`. Do not add copyright/license headers.
 - Use separate-line XML summaries, warnings as errors, and incremental validated commits to `main`.
+- Port all of pgrx. Do not reduce scope or classify any required feature as optional.
 
 ## Risk register
 
@@ -277,3 +291,6 @@ These are requirements for the port, not claims that the full architecture exist
   Replaced the handwritten sample with `[PgFunction]`, a Roslyn incremental generator,
   metadata-only artifact extraction, and a native error boundary linked into the AOT image.
   Plain `dotnet test`: 58 passed, including 16 real PostgreSQL integration cases.
+- 2026-09-22 — Corrected unauthorized scope-reduction language. All pgrx features,
+  including custom scans and nodes, are required for completion. Milestones record
+  incremental implementation and validation; they do not narrow the full-port objective.

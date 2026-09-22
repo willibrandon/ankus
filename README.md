@@ -1,8 +1,9 @@
 # Ankus
 
-Ankus is an in-progress port of [pgrx](https://github.com/pgcentralfoundation/pgrx)
-to .NET Native AOT. Write ordinary C# functions and publish them as a native
-PostgreSQL extension library.
+Ankus is an in-progress, full port of [pgrx](https://github.com/pgcentralfoundation/pgrx)
+to .NET Native AOT. All pgrx functionality is required, including custom scans,
+nodes, runtime APIs, source generation, tooling, examples, and backend testing.
+Write ordinary C# functions and publish them as a native PostgreSQL extension library.
 
 ```csharp
 [PgFunction]
@@ -48,9 +49,9 @@ For a nonstandard installation, an optional configuration entry supplies its pat
 }
 ```
 
-## Current scope
+## Implementation status
 
-The working subset supports static methods with `int` arguments and an `int`
+The implementation currently supports static methods with `int` arguments and an `int`
 return value, strict SQL NULL handling, and managed exceptions reported as
 PostgreSQL errors. The exception dispatcher returns completely to native code
 before PostgreSQL raises ERROR; PostgreSQL must never longjmp across managed frames.
