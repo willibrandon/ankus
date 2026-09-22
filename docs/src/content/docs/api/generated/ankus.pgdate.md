@@ -13,6 +13,7 @@ Represents PostgreSQL date, including BC dates, its full finite range, and both 
 The default value is 2000-01-01.
 
 ```csharp
+[JsonConverter(typeof(PgDateConverter))]
 public readonly struct PgDate : IComparable<PgDate>, IEquatable<PgDate>
 ```
 
@@ -329,6 +330,26 @@ Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
 
 The resulting timestamp.
 
+<a id="member-a9a3b0ba0d91ce6a"></a>
+
+### SubtractDays(int)
+
+Subtracts calendar days, including Int32.MinValue, with PostgreSQL range checks.
+
+```csharp
+public PgDate SubtractDays(int days)
+```
+
+Parameters:
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of days.
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+The resulting date.
+
 <a id="member-049e988b856bc705"></a>
 
 ### ToDateOnly()
@@ -440,6 +461,18 @@ Whether the input is valid. Backend-access and operational errors still throw.
 
 ## Properties
 
+<a id="member-3aaf74b53c682ddc"></a>
+
+### CurrentDate
+
+Gets the current transaction's date in the session timezone, like SQL CURRENT_DATE.
+
+```csharp
+public static PgDate CurrentDate { get; }
+```
+
+Value: [PgDate](/api/ankus.pgdate/)
+
 <a id="member-46ab4b72c5bbe718"></a>
 
 ### DaysSinceEpoch
@@ -490,6 +523,150 @@ Value: [PgDate](/api/ankus.pgdate/)
 
 
 ## Operators
+
+<a id="member-d542053a28c3d7ce"></a>
+
+### operator +(PgDate, PgInterval)
+
+Adds a calendar interval to a date.
+
+```csharp
+public static PgTimestamp operator +(PgDate date, PgInterval interval)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-ead016f330d7b95f"></a>
+
+### operator +(PgDate, PgTime)
+
+Combines a date and wall-clock time.
+
+```csharp
+public static PgTimestamp operator +(PgDate date, PgTime time)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-5365cc6bc89d18ab"></a>
+
+### operator +(PgDate, PgTimeTz)
+
+Combines a date and fixed-offset time.
+
+```csharp
+public static PgTimestampTz operator +(PgDate date, PgTimeTz time)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+<a id="member-57c3a450a4b6f16d"></a>
+
+### operator +(PgDate, int)
+
+Adds calendar days using PostgreSQL's rules.
+
+```csharp
+public static PgDate operator +(PgDate date, int days)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Returns: [PgDate](/api/ankus.pgdate/)
+
+<a id="member-366f0e0e14704336"></a>
+
+### operator +(PgInterval, PgDate)
+
+Adds a calendar interval to a date.
+
+```csharp
+public static PgTimestamp operator +(PgInterval interval, PgDate date)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-6997cbc9d790bcde"></a>
+
+### operator +(PgTime, PgDate)
+
+Combines a date and wall-clock time.
+
+```csharp
+public static PgTimestamp operator +(PgTime time, PgDate date)
+```
+
+Parameters:
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-906569ff43a5ee05"></a>
+
+### operator +(PgTimeTz, PgDate)
+
+Combines a date and fixed-offset time.
+
+```csharp
+public static PgTimestampTz operator +(PgTimeTz time, PgDate date)
+```
+
+Parameters:
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+<a id="member-9577ef763b335b90"></a>
+
+### operator +(int, PgDate)
+
+Adds calendar days using PostgreSQL's rules.
+
+```csharp
+public static PgDate operator +(int days, PgDate date)
+```
+
+Parameters:
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [PgDate](/api/ankus.pgdate/)
 
 <a id="member-b86e89c1cd6c31ac"></a>
 
@@ -594,3 +771,57 @@ Parameters:
 `right` — [PgDate](/api/ankus.pgdate/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-1723c16d6d72ff97"></a>
+
+### operator -(PgDate, PgDate)
+
+Computes the signed day difference.
+
+```csharp
+public static int operator -(PgDate left, PgDate right)
+```
+
+Parameters:
+
+`left` — [PgDate](/api/ankus.pgdate/)
+
+`right` — [PgDate](/api/ankus.pgdate/)
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-60518ef4187c4c49"></a>
+
+### operator -(PgDate, PgInterval)
+
+Subtracts a calendar interval from a date.
+
+```csharp
+public static PgTimestamp operator -(PgDate date, PgInterval interval)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-f08ba6a7ae1ab6c5"></a>
+
+### operator -(PgDate, int)
+
+Subtracts calendar days using PostgreSQL's rules.
+
+```csharp
+public static PgDate operator -(PgDate date, int days)
+```
+
+Parameters:
+
+`date` — [PgDate](/api/ankus.pgdate/)
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Returns: [PgDate](/api/ankus.pgdate/)

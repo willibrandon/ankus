@@ -13,6 +13,7 @@ Owns a full-range PostgreSQL numeric value, including display scale, NaN, and in
 The default value is zero. Equality ignores trailing fractional zeroes and treats NaN as equal to NaN.
 
 ```csharp
+[JsonConverter(typeof(PgNumericConverter))]
 public readonly struct PgNumeric : IComparable<PgNumeric>, IEquatable<PgNumeric>
 ```
 

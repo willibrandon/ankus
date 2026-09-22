@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Represents PostgreSQL date, including BC dates, its full finite range, and both infinities.
 /// The default value is 2000-01-01.
 /// </summary>
+[JsonConverter(typeof(PgDateConverter))]
 public readonly record struct PgDate : IComparable<PgDate>
 {
     /// <summary>
@@ -40,6 +43,9 @@ public readonly record struct PgDate : IComparable<PgDate>
     /// Gets whether this date is finite.
     /// </summary>
     public bool IsFinite => DaysSinceEpoch is not (int.MinValue or int.MaxValue);
+
+    /// <summary>Gets the current transaction's date in the session timezone, like SQL CURRENT_DATE.</summary>
+    public static PgDate CurrentDate => PgTemporal.Call<PgDate>(TemporalOperation.CurrentDate);
 
     /// <summary>Parses PostgreSQL date syntax using the current backend's DateStyle.</summary>
     /// <param name="text">The date text, including PostgreSQL special values.</param>
@@ -102,6 +108,34 @@ public readonly record struct PgDate : IComparable<PgDate>
     /// <param name="days">The signed number of days.</param>
     /// <returns>The resulting date.</returns>
     public PgDate AddDays(int days) => PgTemporal.Call<PgDate>(TemporalOperation.Add, SpiParameter.Create(this), SpiParameter.Create(days));
+
+    /// <summary>Subtracts calendar days, including Int32.MinValue, with PostgreSQL range checks.</summary>
+    /// <param name="days">The signed number of days.</param>
+    /// <returns>The resulting date.</returns>
+    public PgDate SubtractDays(int days) => PgTemporal.Call<PgDate>(TemporalOperation.Subtract, SpiParameter.Create(this), SpiParameter.Create(days));
+
+    /// <summary>Adds calendar days using PostgreSQL's rules.</summary>
+    public static PgDate operator +(PgDate date, int days) => date.AddDays(days);
+    /// <summary>Adds calendar days using PostgreSQL's rules.</summary>
+    public static PgDate operator +(int days, PgDate date) => date.AddDays(days);
+    /// <summary>Subtracts calendar days using PostgreSQL's rules.</summary>
+    public static PgDate operator -(PgDate date, int days) => date.SubtractDays(days);
+    /// <summary>Computes the signed day difference.</summary>
+    public static int operator -(PgDate left, PgDate right) => left.Subtract(right);
+    /// <summary>Adds a calendar interval to a date.</summary>
+    public static PgTimestamp operator +(PgDate date, PgInterval interval) => date.Add(interval);
+    /// <summary>Adds a calendar interval to a date.</summary>
+    public static PgTimestamp operator +(PgInterval interval, PgDate date) => date.Add(interval);
+    /// <summary>Subtracts a calendar interval from a date.</summary>
+    public static PgTimestamp operator -(PgDate date, PgInterval interval) => date.Subtract(interval);
+    /// <summary>Combines a date and wall-clock time.</summary>
+    public static PgTimestamp operator +(PgDate date, PgTime time) => date.AtTime(time);
+    /// <summary>Combines a date and wall-clock time.</summary>
+    public static PgTimestamp operator +(PgTime time, PgDate date) => date.AtTime(time);
+    /// <summary>Combines a date and fixed-offset time.</summary>
+    public static PgTimestampTz operator +(PgDate date, PgTimeTz time) => date.AtTime(time);
+    /// <summary>Combines a date and fixed-offset time.</summary>
+    public static PgTimestampTz operator +(PgTimeTz time, PgDate date) => date.AtTime(time);
 
     /// <summary>Adds a calendar interval, yielding a timestamp.</summary>
     /// <param name="interval">The interval.</param>

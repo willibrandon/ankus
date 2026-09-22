@@ -77,3 +77,18 @@ decimal price = Spi.ExecuteScalar<decimal>(
 
 Untyped numeric cells contain `PgNumeric`. Reading them with `row.Get<decimal>()`
 performs the same exact conversion as a generated function adapter.
+
+## JSON serialization
+
+`PgNumeric` serializes as a JSON string, retaining scale and full precision even
+when the consumer uses floating-point numbers. NaN and infinities use strings too.
+The converter accepts either a string or an unquoted JSON number on input; number
+tokens pass directly to PostgreSQL's parser without conversion through `double`
+or `decimal`.
+
+Use a source-generated `JsonSerializerContext` and explicit `JsonTypeInfo<T>`
+metadata, as in the [JSON guide](/json-and-uuid/). Writing an owned numeric value
+works outside PostgreSQL. Deserialization requires the active backend thread.
+Invalid input throws `JsonException` with its property path, retaining a native
+`PgException` as the inner exception when applicable. JSON null requires
+`PgNumeric?`.

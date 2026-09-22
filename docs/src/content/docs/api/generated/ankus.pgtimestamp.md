@@ -13,6 +13,7 @@ Represents PostgreSQL timestamp without time zone, including BC values and infin
 The default value is 2000-01-01 00:00:00.
 
 ```csharp
+[JsonConverter(typeof(PgTimestampConverter))]
 public readonly struct PgTimestamp : IComparable<PgTimestamp>, IEquatable<PgTimestamp>
 ```
 
@@ -123,6 +124,46 @@ Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value for earlier, equal, or later timestamps.
 
+<a id="member-ed415db42f8880d2"></a>
+
+### Create(int, int, int, int, int, double)
+
+Constructs a timestamp using PostgreSQL's calendar, field validation, and fractional-second rounding.
+
+```csharp
+public static PgTimestamp Create(int year, int month, int day, int hour, int minute, double second)
+```
+
+Parameters:
+
+`year` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed year; negative means BC and zero is invalid.
+
+`month` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The month.
+
+`day` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The day of month.
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The timestamp.
+
 <a id="member-fe420802735e002f"></a>
 
 ### Equals(PgTimestamp)
@@ -205,6 +246,26 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-f6ecd4cb656e2905"></a>
+
+### GetLocalTimestamp(int)
+
+Gets SQL LOCALTIMESTAMP at the requested precision in the session timezone.
+
+```csharp
+public static PgTimestamp GetLocalTimestamp(int precision = 6)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The current transaction's local timestamp.
+
 <a id="member-2217a4852e3578ea"></a>
 
 ### GetPart(PgDateTimePart)
@@ -244,6 +305,26 @@ The timestamp text.
 Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
 
 The timestamp.
+
+<a id="member-d9e30d9f68356e79"></a>
+
+### Round(int)
+
+Rounds fractional seconds using PostgreSQL's timestamp type modifier.
+
+```csharp
+public PgTimestamp Round(int precision)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+The rounded timestamp.
 
 <a id="member-a7031d0b24fedef3"></a>
 
@@ -481,6 +562,42 @@ Value: [PgTimestamp](/api/ankus.pgtimestamp/)
 
 ## Operators
 
+<a id="member-5a3be633e3d65ab4"></a>
+
+### operator +(PgInterval, PgTimestamp)
+
+Adds a calendar interval using PostgreSQL's rules.
+
+```csharp
+public static PgTimestamp operator +(PgInterval interval, PgTimestamp timestamp)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`timestamp` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-b10bdc4c4a00f6a3"></a>
+
+### operator +(PgTimestamp, PgInterval)
+
+Adds a calendar interval using PostgreSQL's rules.
+
+```csharp
+public static PgTimestamp operator +(PgTimestamp timestamp, PgInterval interval)
+```
+
+Parameters:
+
+`timestamp` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
 <a id="member-d5f842f79cb33a8c"></a>
 
 ### operator ==(PgTimestamp, PgTimestamp)
@@ -584,3 +701,39 @@ Parameters:
 `right` — [PgTimestamp](/api/ankus.pgtimestamp/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-8631cef15f6cdffc"></a>
+
+### operator -(PgTimestamp, PgInterval)
+
+Subtracts a calendar interval using PostgreSQL's rules.
+
+```csharp
+public static PgTimestamp operator -(PgTimestamp timestamp, PgInterval interval)
+```
+
+Parameters:
+
+`timestamp` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestamp](/api/ankus.pgtimestamp/)
+
+<a id="member-c6025c00c6666de2"></a>
+
+### operator -(PgTimestamp, PgTimestamp)
+
+Computes the elapsed difference.
+
+```csharp
+public static PgInterval operator -(PgTimestamp left, PgTimestamp right)
+```
+
+Parameters:
+
+`left` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+`right` — [PgTimestamp](/api/ankus.pgtimestamp/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)

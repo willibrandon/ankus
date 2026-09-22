@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Preserves PostgreSQL interval's independent month, day, and microsecond components, including mixed signs.
 /// Equality compares storage components, rather than PostgreSQL's thirty-day-month comparison convention.
 /// </summary>
+[JsonConverter(typeof(PgIntervalConverter))]
 public readonly record struct PgInterval
 {
     private readonly int _infinity;
@@ -56,6 +59,87 @@ public readonly record struct PgInterval
     public bool IsFinite => _infinity == 0;
 
     internal int Infinity => _infinity;
+
+    /// <summary>Constructs an interval with PostgreSQL's make_interval rules, allowing mixed component signs.</summary>
+    /// <param name="years">Calendar years.</param>
+    /// <param name="months">Additional calendar months.</param>
+    /// <param name="weeks">Calendar weeks.</param>
+    /// <param name="days">Additional calendar days.</param>
+    /// <param name="hours">Elapsed hours.</param>
+    /// <param name="minutes">Elapsed minutes.</param>
+    /// <param name="seconds">Elapsed fractional seconds, rounded by PostgreSQL.</param>
+    /// <returns>The interval, retaining calendar and elapsed-time components.</returns>
+    public static PgInterval Create(int years = 0, int months = 0, int weeks = 0, int days = 0,
+        int hours = 0, int minutes = 0, double seconds = 0)
+        => PgTemporal.Call<PgInterval>(TemporalOperation.MakeInterval, SpiParameter.Create(years), SpiParameter.Create(months),
+            SpiParameter.Create(weeks), SpiParameter.Create(days), SpiParameter.Create(hours), SpiParameter.Create(minutes), SpiParameter.Create(seconds));
+
+    /// <summary>Constructs calendar years with PostgreSQL overflow checks.</summary>
+    /// <param name="years">The signed number of years.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromYears(int years) => Create(years: years);
+    /// <summary>Constructs calendar months without requiring backend access.</summary>
+    /// <param name="months">The signed number of months.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromMonths(int months) => new(months, 0, 0);
+    /// <summary>Constructs calendar weeks with PostgreSQL overflow checks.</summary>
+    /// <param name="weeks">The signed number of weeks.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromWeeks(int weeks) => Create(weeks: weeks);
+    /// <summary>Constructs calendar days without requiring backend access.</summary>
+    /// <param name="days">The signed number of days.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromDays(int days) => new(0, days, 0);
+    /// <summary>Constructs elapsed hours using PostgreSQL's make_interval rules.</summary>
+    /// <param name="hours">The signed number of hours.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromHours(int hours) => Create(hours: hours);
+    /// <summary>Constructs elapsed minutes using PostgreSQL's make_interval rules.</summary>
+    /// <param name="minutes">The signed number of minutes.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromMinutes(int minutes) => Create(minutes: minutes);
+    /// <summary>Constructs elapsed seconds using PostgreSQL's fractional rounding and range rules.</summary>
+    /// <param name="seconds">The signed fractional seconds.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromSeconds(double seconds) => Create(seconds: seconds);
+    /// <summary>Constructs exact elapsed microseconds without a floating-point intermediary or backend access.</summary>
+    /// <param name="microseconds">The signed microseconds.</param>
+    /// <returns>The interval.</returns>
+    public static PgInterval FromMicroseconds(long microseconds) => new(0, 0, microseconds);
+
+    /// <summary>Converts finite components to PostgreSQL's comparison approximation of thirty days per month.</summary>
+    /// <returns>The comparison value, which is not a calendar-aware elapsed duration.</returns>
+    /// <exception cref="InvalidOperationException">The interval is infinite.</exception>
+    public Int128 ToComparisonMicroseconds()
+    {
+        if (!IsFinite)
+        {
+            throw new InvalidOperationException("An infinite interval has no finite comparison duration.");
+        }
+
+        return ((Int128)Months * 30 + Days) * PgTemporal.MicrosecondsPerDay + Microseconds;
+    }
+
+    /// <summary>Gets -1, 0, or 1 using PostgreSQL's thirty-day-month comparison, including infinities. No backend is required.</summary>
+    public int Sign => IsFinite ? ToComparisonMicroseconds().CompareTo(Int128.Zero) : _infinity;
+
+    /// <summary>Takes the absolute value of each stored component, preserving their separation. No backend is required.</summary>
+    /// <returns>The component-wise absolute interval, or positive infinity.</returns>
+    /// <exception cref="OverflowException">A finite component is its signed minimum value.</exception>
+    public PgInterval Abs() => IsFinite ? new(Math.Abs(Months), Math.Abs(Days), Math.Abs(Microseconds)) : PositiveInfinity;
+
+    /// <summary>Adds interval components using PostgreSQL's rules.</summary>
+    public static PgInterval operator +(PgInterval left, PgInterval right) => left.Add(right);
+    /// <summary>Subtracts interval components using PostgreSQL's rules.</summary>
+    public static PgInterval operator -(PgInterval left, PgInterval right) => left.Subtract(right);
+    /// <summary>Negates an interval using PostgreSQL's rules.</summary>
+    public static PgInterval operator -(PgInterval value) => value.Negate();
+    /// <summary>Scales an interval using PostgreSQL's fractional-month/day rules.</summary>
+    public static PgInterval operator *(PgInterval interval, double factor) => interval.Multiply(factor);
+    /// <summary>Scales an interval using PostgreSQL's fractional-month/day rules.</summary>
+    public static PgInterval operator *(double factor, PgInterval interval) => interval.Multiply(factor);
+    /// <summary>Divides an interval using PostgreSQL's fractional-month/day rules.</summary>
+    public static PgInterval operator /(PgInterval interval, double divisor) => interval.Divide(divisor);
 
     /// <summary>Parses PostgreSQL interval syntax on the active backend thread.</summary>
     /// <param name="text">The interval text.</param>

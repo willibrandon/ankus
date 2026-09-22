@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Represents PostgreSQL timestamp without time zone, including BC values and infinities.
 /// The default value is 2000-01-01 00:00:00.
 /// </summary>
+[JsonConverter(typeof(PgTimestampConverter))]
 public readonly record struct PgTimestamp : IComparable<PgTimestamp>
 {
     /// <summary>
@@ -36,6 +39,39 @@ public readonly record struct PgTimestamp : IComparable<PgTimestamp>
     /// Gets whether this timestamp is finite.
     /// </summary>
     public bool IsFinite => MicrosecondsSinceEpoch is not (long.MinValue or long.MaxValue);
+
+    /// <summary>Constructs a timestamp using PostgreSQL's calendar, field validation, and fractional-second rounding.</summary>
+    /// <param name="year">The signed year; negative means BC and zero is invalid.</param>
+    /// <param name="month">The month.</param>
+    /// <param name="day">The day of month.</param>
+    /// <param name="hour">The hour.</param>
+    /// <param name="minute">The minute.</param>
+    /// <param name="second">The fractional seconds.</param>
+    /// <returns>The timestamp.</returns>
+    public static PgTimestamp Create(int year, int month, int day, int hour, int minute, double second)
+        => PgTemporal.Call<PgTimestamp>(TemporalOperation.MakeTimestamp, SpiParameter.Create(year), SpiParameter.Create(month),
+            SpiParameter.Create(day), SpiParameter.Create(hour), SpiParameter.Create(minute), SpiParameter.Create(second));
+
+    /// <summary>Gets SQL LOCALTIMESTAMP at the requested precision in the session timezone.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The current transaction's local timestamp.</returns>
+    public static PgTimestamp GetLocalTimestamp(int precision = 6)
+        => PgTemporal.Call<PgTimestamp>(TemporalOperation.LocalTimestamp, PgTemporal.Precision(precision));
+
+    /// <summary>Rounds fractional seconds using PostgreSQL's timestamp type modifier.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The rounded timestamp.</returns>
+    public PgTimestamp Round(int precision)
+        => PgTemporal.Call<PgTimestamp>(TemporalOperation.Round, SpiParameter.Create(this), PgTemporal.Precision(precision));
+
+    /// <summary>Adds a calendar interval using PostgreSQL's rules.</summary>
+    public static PgTimestamp operator +(PgTimestamp timestamp, PgInterval interval) => timestamp.Add(interval);
+    /// <summary>Adds a calendar interval using PostgreSQL's rules.</summary>
+    public static PgTimestamp operator +(PgInterval interval, PgTimestamp timestamp) => timestamp.Add(interval);
+    /// <summary>Subtracts a calendar interval using PostgreSQL's rules.</summary>
+    public static PgTimestamp operator -(PgTimestamp timestamp, PgInterval interval) => timestamp.Subtract(interval);
+    /// <summary>Computes the elapsed difference.</summary>
+    public static PgInterval operator -(PgTimestamp left, PgTimestamp right) => left.Subtract(right);
 
     /// <summary>Parses PostgreSQL wall-clock timestamp syntax using the backend's DateStyle.</summary>
     /// <param name="text">The timestamp text.</param>

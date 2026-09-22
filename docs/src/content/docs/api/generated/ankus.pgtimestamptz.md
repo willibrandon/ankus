@@ -13,6 +13,7 @@ Represents a PostgreSQL timestamp with time zone as a UTC instant, including inf
 PostgreSQL does not retain the original offset or zone name.
 
 ```csharp
+[JsonConverter(typeof(PgTimestampTzConverter))]
 public readonly struct PgTimestampTz : IComparable<PgTimestampTz>, IEquatable<PgTimestampTz>
 ```
 
@@ -123,6 +124,90 @@ Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value for earlier, equal, or later instants.
 
+<a id="member-d5fd21ecc90bdbd5"></a>
+
+### Create(int, int, int, int, int, double)
+
+Constructs an instant from local fields in the session timezone using PostgreSQL's DST rules.
+
+```csharp
+public static PgTimestampTz Create(int year, int month, int day, int hour, int minute, double second)
+```
+
+Parameters:
+
+`year` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed year; negative means BC and zero is invalid.
+
+`month` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The month.
+
+`day` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The day.
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds, rounded by PostgreSQL.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
+<a id="member-b59283fc9d1fb24e"></a>
+
+### Create(int, int, int, int, int, double, string)
+
+Constructs an instant from local fields in a named timezone using PostgreSQL's DST rules.
+
+```csharp
+public static PgTimestampTz Create(int year, int month, int day, int hour, int minute, double second, string zone)
+```
+
+Parameters:
+
+`year` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed year; negative means BC and zero is invalid.
+
+`month` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The month.
+
+`day` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The day.
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds, rounded by PostgreSQL.
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The UTC instant.
+
 <a id="member-69f47d57105b8e5e"></a>
 
 ### Equals(PgTimestampTz)
@@ -215,6 +300,26 @@ Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 The UTC instant.
 
+<a id="member-ae9f0252014e5dc1"></a>
+
+### GetCurrentTimestamp(int)
+
+Gets SQL CURRENT_TIMESTAMP rounded to the requested precision.
+
+```csharp
+public static PgTimestampTz GetCurrentTimestamp(int precision = 6)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The current transaction's UTC instant.
+
 <a id="member-986a359fd2803c14"></a>
 
 ### GetHashCode()
@@ -264,6 +369,26 @@ The timestamp text.
 Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 The UTC instant.
+
+<a id="member-80602741c50efa89"></a>
+
+### Round(int)
+
+Rounds fractional seconds using PostgreSQL's timestamptz type modifier.
+
+```csharp
+public PgTimestampTz Round(int precision)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+The rounded instant.
 
 <a id="member-9c596d7149d76946"></a>
 
@@ -351,6 +476,26 @@ Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The ISO timestamp with offset, or PostgreSQL's infinity spelling.
 
+<a id="member-08738f9b22de9bc9"></a>
+
+### ToIsoString(string)
+
+Formats this instant in an explicit zone using the offset applicable at this instant, independently of session settings.
+
+```csharp
+public string ToIsoString(string zone)
+```
+
+Parameters:
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO timestamp and offset, or an infinity spelling.
+
 <a id="member-0449bf0e9f5af0cf"></a>
 
 ### ToPostgresString()
@@ -388,6 +533,20 @@ public PgTime? ToTime()
 Returns: <code>PgTime?</code>
 
 The local time, or null when no finite time exists.
+
+<a id="member-7f719cdee1b6314c"></a>
+
+### ToTimeTz()
+
+Extracts local time and offset in the session timezone, or null for infinity.
+
+```csharp
+public PgTimeTz? ToTimeTz()
+```
+
+Returns: <code>PgTimeTz?</code>
+
+The local time and offset.
 
 <a id="member-2fac885d3f27cfff"></a>
 
@@ -561,6 +720,42 @@ Value: [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 ## Operators
 
+<a id="member-fd40307f45333888"></a>
+
+### operator +(PgInterval, PgTimestampTz)
+
+Adds a calendar interval in the session timezone.
+
+```csharp
+public static PgTimestampTz operator +(PgInterval interval, PgTimestampTz timestamp)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`timestamp` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+<a id="member-4b217c4e81e2cb48"></a>
+
+### operator +(PgTimestampTz, PgInterval)
+
+Adds a calendar interval in the session timezone.
+
+```csharp
+public static PgTimestampTz operator +(PgTimestampTz timestamp, PgInterval interval)
+```
+
+Parameters:
+
+`timestamp` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
 <a id="member-e98113cf78c50d83"></a>
 
 ### operator ==(PgTimestampTz, PgTimestampTz)
@@ -664,3 +859,39 @@ Parameters:
 `right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-22ac0958e25f772c"></a>
+
+### operator -(PgTimestampTz, PgInterval)
+
+Subtracts a calendar interval in the session timezone.
+
+```csharp
+public static PgTimestampTz operator -(PgTimestampTz timestamp, PgInterval interval)
+```
+
+Parameters:
+
+`timestamp` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+<a id="member-2cd848157fa904d4"></a>
+
+### operator -(PgTimestampTz, PgTimestampTz)
+
+Computes the elapsed difference.
+
+```csharp
+public static PgInterval operator -(PgTimestampTz left, PgTimestampTz right)
+```
+
+Parameters:
+
+`left` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+`right` — [PgTimestampTz](/api/ankus.pgtimestamptz/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)

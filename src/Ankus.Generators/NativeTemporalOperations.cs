@@ -11,6 +11,8 @@ internal static class NativeTemporalOperations
     internal const string Source = """
         #include "utils/fmgrprotos.h"
         #include "utils/json.h"
+        #include "utils/datetime.h"
+        #include "miscadmin.h"
 
         enum AnkusTemporalOperation
         {
@@ -20,7 +22,10 @@ internal static class NativeTemporalOperations
             ANKUS_TEMP_JUSTIFY, ANKUS_TEMP_COMPARE, ANKUS_TEMP_TRANSACTION, ANKUS_TEMP_STATEMENT,
             ANKUS_TEMP_CLOCK, ANKUS_TEMP_FROM_UNIX, ANKUS_TEMP_TO_DATE, ANKUS_TEMP_TO_TIME,
             ANKUS_TEMP_TO_TIMESTAMP, ANKUS_TEMP_TO_TIMESTAMPTZ, ANKUS_TEMP_MAKE_DATE, ANKUS_TEMP_MAKE_TIME,
-            ANKUS_TEMP_EXTRACT
+            ANKUS_TEMP_EXTRACT, ANKUS_TEMP_MAKE_TIMESTAMP, ANKUS_TEMP_MAKE_TIMESTAMPTZ,
+            ANKUS_TEMP_MAKE_INTERVAL, ANKUS_TEMP_TO_TIMETZ, ANKUS_TEMP_ROUND, ANKUS_TEMP_CURRENT_DATE,
+            ANKUS_TEMP_CURRENT_TIME, ANKUS_TEMP_LOCAL_TIME, ANKUS_TEMP_CURRENT_TIMESTAMP,
+            ANKUS_TEMP_LOCAL_TIMESTAMP, ANKUS_TEMP_ISO_ZONE
         };
 
         static Datum
@@ -35,6 +40,42 @@ internal static class NativeTemporalOperations
             fcinfo->args[1].value = DirectFunctionCall1(date_timestamp, PG_GETARG_DATUM(1));
             return timestamp_part(fcinfo);
         #endif
+        }
+
+        static Datum ankus_current_date(PG_FUNCTION_ARGS) { (void) fcinfo; return DateADTGetDatum(GetSQLCurrentDate()); }
+        static Datum ankus_current_time(PG_FUNCTION_ARGS) { return TimeTzADTPGetDatum(GetSQLCurrentTime(PG_GETARG_INT32(0))); }
+        static Datum ankus_local_time(PG_FUNCTION_ARGS) { return TimeADTGetDatum(GetSQLLocalTime(PG_GETARG_INT32(0))); }
+        static Datum ankus_current_timestamp(PG_FUNCTION_ARGS) { return TimestampTzGetDatum(GetSQLCurrentTimestamp(PG_GETARG_INT32(0))); }
+        static Datum ankus_local_timestamp(PG_FUNCTION_ARGS) { return TimestampGetDatum(GetSQLLocalTimestamp(PG_GETARG_INT32(0))); }
+
+        static Datum
+        ankus_timestamp_round(PG_FUNCTION_ARGS)
+        {
+            Datum result = timestamp_scale(fcinfo);
+            Timestamp value = DatumGetTimestamp(result);
+            /* Some server versions do not recheck the finite range after rounding. */
+            if (!TIMESTAMP_NOT_FINITE(value) && !IS_VALID_TIMESTAMP(value))
+                ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("timestamp out of range after rounding")));
+            return result;
+        }
+
+        static Datum
+        ankus_timestamp_iso_zone(PG_FUNCTION_ARGS)
+        {
+            TimestampTz instant = PG_GETARG_TIMESTAMPTZ(0);
+            Datum local = DirectFunctionCall2(timestamptz_zone, PG_GETARG_DATUM(1), PG_GETARG_DATUM(0));
+            struct pg_tm tm;
+            fsec_t fraction;
+            int offset;
+            char buffer[MAXDATELEN + 1];
+            if (TIMESTAMP_NOT_FINITE(instant))
+                return CStringGetTextDatum(JsonEncodeDateTime(NULL, PG_GETARG_DATUM(0), TIMESTAMPTZOID, NULL));
+            offset = (int) ((instant - DatumGetTimestamp(local)) / USECS_PER_SEC);
+            if (timestamp2tm(DatumGetTimestamp(local), NULL, &tm, &fraction, NULL, NULL) != 0)
+                ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("timestamp out of range")));
+            tm.tm_isdst = 1;
+            EncodeDateTime(&tm, fraction, true, offset, NULL, USE_XSD_DATES, buffer);
+            return CStringGetTextDatum(buffer);
         }
 
         static const AnkusScalarFunction ankus_temporal_functions[] =
@@ -103,7 +144,23 @@ internal static class NativeTemporalOperations
             {ANKUS_TEMP_TO_TIMESTAMPTZ, date_timestamptz, TIMESTAMPTZOID, 1, {DATEOID}},
             {ANKUS_TEMP_TO_TIMESTAMPTZ, timestamp_timestamptz, TIMESTAMPTZOID, 1, {TIMESTAMPOID}},
             {ANKUS_TEMP_MAKE_DATE, make_date, DATEOID, 3, {INT4OID, INT4OID, INT4OID}},
-            {ANKUS_TEMP_MAKE_TIME, make_time, TIMEOID, 3, {INT4OID, INT4OID, FLOAT8OID}}
+            {ANKUS_TEMP_MAKE_TIME, make_time, TIMEOID, 3, {INT4OID, INT4OID, FLOAT8OID}},
+            {ANKUS_TEMP_MAKE_TIMESTAMP, make_timestamp, TIMESTAMPOID, 6, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
+            {ANKUS_TEMP_MAKE_TIMESTAMPTZ, make_timestamptz, TIMESTAMPTZOID, 6, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
+            {ANKUS_TEMP_MAKE_TIMESTAMPTZ, make_timestamptz_at_timezone, TIMESTAMPTZOID, 7, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID, TEXTOID}},
+            {ANKUS_TEMP_MAKE_INTERVAL, make_interval, INTERVALOID, 7, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
+            {ANKUS_TEMP_TO_TIMETZ, time_timetz, TIMETZOID, 1, {TIMEOID}},
+            {ANKUS_TEMP_TO_TIMETZ, timestamptz_timetz, TIMETZOID, 1, {TIMESTAMPTZOID}},
+            {ANKUS_TEMP_ROUND, time_scale, TIMEOID, 2, {TIMEOID, INT4OID}},
+            {ANKUS_TEMP_ROUND, timetz_scale, TIMETZOID, 2, {TIMETZOID, INT4OID}},
+            {ANKUS_TEMP_ROUND, ankus_timestamp_round, TIMESTAMPOID, 2, {TIMESTAMPOID, INT4OID}},
+            {ANKUS_TEMP_ROUND, ankus_timestamp_round, TIMESTAMPTZOID, 2, {TIMESTAMPTZOID, INT4OID}},
+            {ANKUS_TEMP_CURRENT_DATE, ankus_current_date, DATEOID, 0, {0}},
+            {ANKUS_TEMP_CURRENT_TIME, ankus_current_time, TIMETZOID, 1, {INT4OID}},
+            {ANKUS_TEMP_LOCAL_TIME, ankus_local_time, TIMEOID, 1, {INT4OID}},
+            {ANKUS_TEMP_CURRENT_TIMESTAMP, ankus_current_timestamp, TIMESTAMPTZOID, 1, {INT4OID}},
+            {ANKUS_TEMP_LOCAL_TIMESTAMP, ankus_local_timestamp, TIMESTAMPOID, 1, {INT4OID}},
+            {ANKUS_TEMP_ISO_ZONE, ankus_timestamp_iso_zone, TEXTOID, 2, {TIMESTAMPTZOID, TEXTOID}}
         };
 
         static bool

@@ -11,6 +11,14 @@ internal static class PgTemporal
     internal static T Call<T>(TemporalOperation operation, params ReadOnlySpan<SpiParameter> parameters)
         => NativeBackend.Temporal<T>(operation, parameters);
 
+    /// <summary>Validates a fractional-second precision before passing it as a native type modifier.</summary>
+    internal static SpiParameter Precision(int precision)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(precision);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(precision, 6);
+        return SpiParameter.Create(precision);
+    }
+
     /// <summary>
     /// Parses temporal text, catching input data errors while preserving backend-access and operational failures.
     /// </summary>

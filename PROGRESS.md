@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **754 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **894 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 580 integration cases include installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 716 integration cases include installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -91,6 +91,15 @@ Linux, and macOS.
   Date/time/timestamp comparisons are backend-independent; interval comparison explicitly uses server semantics.
   Tests verify session settings, DST transitions, native SQLSTATEs, write preservation, managed finally execution,
   and zero retained operation/diagnostic/transaction contexts after repeated successful and failed calls.
+- Temporal component factories, arithmetic operators, precision-rounded current/local clocks and explicit-zone
+  ISO formatting use the same guard. Explicit-zone output resolves the offset at the stored instant, including
+  historical seconds and DST overlaps. Timestamp rounding rejects results beyond the finite range before returning
+  to managed code. Interval unit factories, checked component-wise absolute value, and Int128 comparison-duration/sign
+  helpers retain the distinction between calendar components and elapsed time.
+- Full-range temporal and numeric JSON converters are statically registered and exercised through source-generated
+  contracts in Native AOT. Temporal strings preserve BC/infinity/24:00 and offsets; numeric strings preserve full
+  precision and scale and also accept exact unquoted numeric input. Invalid values include JSON property paths
+  and native exception causes; repeated failures preserve writes, execute finally and retain no native contexts.
 - `Spi.Prepare` creates explicitly disposable `SpiPreparedStatement` instances using declared CLR parameter
   types and native `SPI_keepplan`. Tests verify reuse across callbacks and committed/rolled-back transactions,
   schema/search-path invalidation, argument validation, recursive execution, reentrant-disposal rejection,
@@ -199,10 +208,11 @@ Reference surface: `pgrx/src/datum/{uuid,json}.rs` (`Uuid`, `Json`, `JsonB`, `Js
 
 Reference surface: `pgrx/src/datetime/`; PostgreSQL `datatype/timestamp.h`, `utils/date.h`, and
 `utils/timestamp.h`; .NET `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `TimeSpan` contracts.
-Verified on PostgreSQL 18.6 / Linux x64. Remaining temporal parity includes additional component factories,
-arithmetic operators and interval sign/absolute-value conveniences, precision-rounded
-clock helpers, explicit-zone ISO output, and temporal JSON serialization. Other server versions/platforms
-remain unvalidated. PG13 date extraction uses its narrower timestamp cast; PG14+ uses native date extraction.
+Verified on PostgreSQL 18.6 / Linux x64. Remaining temporal parity includes field/epoch accessor conveniences,
+named-zone timetz construction/offset lookup, modular/saturating raw factories, and the time_of_day text helper.
+Other server versions/platforms remain unvalidated. PG13 date extraction uses its narrower timestamp cast;
+PG14+ uses native date extraction. Managed interval equality remains component-based; Sign uses PostgreSQL's
+comparison approximation and Abs takes the checked absolute value of each component.
 
 | Source behavior | Ankus API/implementation | Concrete test evidence |
 |---|---|---|
@@ -221,6 +231,13 @@ remain unvalidated. PG13 date extraction uses its narrower timestamp cast; PG14+
 | Backend-independent ordering and interval comparison distinction | `IComparable<T>`, relational operators, `CompareInPostgres` | `PgTemporalTests.TemporalOrderingWorksWithoutBackendAccess`, `OffsetTimeOrderingMatchesPostgresTieBreaking`; SQL comparator cases in `TemporalMethodsMatchServerSemantics` |
 | Invalid input, unsupported units, range errors, preserved writes and cleanup | Native guarded subtransactions, managed TryParse filters, owned scalar transport | `TemporalErrorsPreserveWritesAndManagedUnwinding`, `ConstructorsClocksAndSessionsUseNativeSemantics` (100 success/failure cycles, zero additional contexts), `PgTemporalTests.TemporalParsingValidatesTextAndPreservesAccessErrors` |
 | Exact numeric field extraction on PostgreSQL 14+ | `Extract(PgDateTimePart)` on all six temporal types, native extract routines | `NumericTests.TemporalExtractionPreservesNumericPrecision` verifies high-range epoch/fractional fields, offsets, interval components, and infinity/NULL. PG13's floating-point fallback remains unexecuted |
+| Multi-field timestamp/offset/interval constructors and unit factories | `Create`, interval `FromYears` through `FromMicroseconds`; native scalar dispatcher supports seven typed arguments | `TemporalConvenienceTests.TemporalFactoriesMatchSql` covers BC leap day, timestamp maximum, 24:00, DST gaps/overlaps, mixed interval signs and exact Int64 microseconds |
+| Arithmetic operator families and commuted overloads | Operators delegate to guarded temporal routines | `TemporalOperatorsMatchSql` checks every operator route against independent SQL, including month-end and daylight-saving differences |
+| Precision modifiers and current/local clocks | `Round(0..6)`, `CurrentDate`, `GetCurrentTime/GetLocalTime/GetCurrentTimestamp/GetLocalTimestamp` | `PrecisionRoundingMatchesNativeModifiers` checks before/at/after positive and negative timestamp ties, rollover and infinities; `CurrentClocksMatchSqlWithinTransaction` checks SQL identity at precisions 0/3/6 |
+| Explicit-zone ISO without altering session state | Native zone conversion and ISO encoder, offset derived at the stored instant | `ExplicitZoneIsoUsesInstantOffset` checks seasonal and overlapping offsets, historical seconds, BC and infinities; `CurrentClocksMatchSqlWithinTransaction` verifies TimeZone and DateStyle |
+| Exact interval units, comparison duration/sign and component absolute value | `FromMicroseconds`, `ToComparisonMicroseconds`, `Sign`, `Abs` | `IntervalSignMatchesPostgresComparison`; `PgTemporalConvenienceTests.IntervalComponentConveniencesPreserveExactStorage` checks cancellation, signed limits, overflow, and Int128 range |
+| New constructor/round/format failures and cleanup | Guarded operations and explicit rounded-timestamp finite-range check | `TemporalConvenienceErrorsPreserveState` checks SQLSTATE, 50 finally executions, zero context growth, active plan and prior-write survival; `TemporalPrecisionRejectsInvalidDigits` checks invalid managed precision |
+| Native AOT temporal JSON contracts | Six statically registered `JsonConverter<T>` implementations and source-generated metadata | `ScalarJsonTests.ScalarJsonPreservesFullRangeAndScale`, `IntervalJsonHonorsStyleAndRetainsComponents` compare text and binary values; `ScalarJsonFailuresPreservePathsAndBackend` checks paths, inner SQLSTATE, finally and cleanup; `ScalarConvertersPreserveBackendAccessErrors` checks detached access |
 
 ### Numeric API evidence
 
@@ -229,7 +246,7 @@ Reference surface: `pgrx/src/datum/{numeric.rs,numeric_support/}` and PostgreSQL
 round-to-nearest behavior of `Decimal.Parse/TryParse` when an input exceeds decimal precision;
 a successful parse alone does not establish an exact conversion.
 Verified on PostgreSQL 18.6 / Linux x64. Remaining numeric parity includes declarative precision/scale
-constraints on function boundaries, JSON serialization, and additional primitive/generic numeric conveniences.
+constraints on function boundaries and additional primitive/generic numeric conveniences.
 Other server versions/platforms remain unvalidated.
 
 | Source behavior | Ankus API/implementation | Concrete test evidence |
@@ -242,6 +259,7 @@ Other server versions/platforms remain unvalidated.
 | Packed headers, compressed/external TOAST and owned domain cells | Native detoasting, allocated numeric output, copied managed text and base-OID conversion | `StoredNumericPayloadsSurviveDetoasting` verifies storage conditions and exact text; `NumericDomainsConversionsAndCleanupRemainOwned` |
 | Error recovery, prior-write preservation, managed finally and cleanup | Shared guarded scalar boundary, disposable operation/diagnostic contexts | `NumericErrorsPreserveSessionState`, `NumericDomainsConversionsAndCleanupRemainOwned` (100 successful/failing operations, zero extra contexts and live prepared plan) |
 | Compile-time alias handling and Native AOT dispatch | `FunctionType`, numeric buffers, shared scalar signature dispatcher | `PgFunctionGeneratorTests.SupportedFunctionsCompile`, `ClrAliasesShareSqlSignatures`; all numeric integration cases publish and load the actual Native AOT extension |
+| Lossless numeric JSON strings and exact unquoted input | Statically registered `PgNumericConverter`; raw number text passed to PostgreSQL | `ScalarJsonPreservesFullRangeAndScale`, `ScalarJsonNumbersAndNullsUseExactContracts`, `ScalarJsonFailuresPreservePathsAndBackend`; `ScalarConvertersPreserveBackendAccessErrors` checks detached numeric writes and backend-only reads |
 
 ### Work in progress
 
@@ -458,8 +476,8 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
-| `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Partial: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values and owned SPI conversion. Declarative signature constraints, JSON serialization and additional primitive/generic conveniences remain |
-| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction and comparisons. Remaining factories, conveniences, explicit-zone ISO and JSON serialization are listed above |
+| `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Partial: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion and lossless JSON. Declarative signature constraints and additional primitive/generic conveniences remain |
+| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB and metadata-based serialization; network, geometry and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
@@ -565,8 +583,9 @@ The phases track implementation of the complete pgrx feature surface.
      - [x] Full-range temporal datum transport and checked .NET conversions in generated functions and typed SPI
       - [x] Core temporal arithmetic, floating-point extraction, parsing/formatting, named-timezone operations and clocks
       - [x] Full-range numeric and checked decimal conversion, native arithmetic/rescaling and exact numeric temporal extraction
-      - [ ] Numeric function-boundary constraints, JSON serialization and remaining primitive/generic conveniences
-      - [ ] Remaining temporal factories/conveniences, explicit-zone ISO output and JSON serialization
+      - [x] Temporal operators, component/unit factories, precision clocks, explicit-zone ISO and temporal/numeric JSON
+      - [ ] Numeric function-boundary constraints and remaining primitive/generic conveniences
+      - [ ] Remaining temporal accessor/raw-factory/timezone conveniences and time_of_day
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -706,3 +725,13 @@ The phases track implementation of the complete pgrx feature surface.
   `dotnet test`: 754 passed, 0 failed, 0 skipped (580 integration cases, including 73 new numeric cases).
   `pnpm build`, `pnpm check` and API freshness verification pass; the reference has 34 pages and 461 members.
   Remaining numeric features and the platform/version matrix are tracked above.
+- 2026-09-22 — Added temporal operators, component/unit factories, current/local clocks and precision rounding,
+  interval comparison duration/sign and checked component absolute value, explicit-zone ISO and temporal/numeric
+  JSON converters. The native scalar table supports seven validated arguments. Instant formatting resolves the
+  target instant's offset without changing session settings. Rounding at the maximum finite timestamp revealed
+  that the server's scale routine can return an out-of-range value; the bridge now raises SQLSTATE 22008 inside
+  the native guard before materialization. Source-generated JSON contracts preserve scale/full ranges and wrap
+  invalid input with JSON property paths and native causes while leaving backend-access errors intact.
+  `dotnet test`: 894 passed, 0 failed, 0 skipped (716 integration cases, including 136 new temporal/JSON cases).
+  The four new runtime cases verify exact interval limits, checked precision and detached converter access.
+  `pnpm build`, `pnpm check` and API freshness verification pass; the reference has 34 pages and 524 members.

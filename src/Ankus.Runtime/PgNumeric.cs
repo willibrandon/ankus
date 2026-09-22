@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace Ankus;
 
@@ -7,6 +8,7 @@ namespace Ankus;
 /// Owns a full-range PostgreSQL numeric value, including display scale, NaN, and infinities.
 /// The default value is zero. Equality ignores trailing fractional zeroes and treats NaN as equal to NaN.
 /// </summary>
+[JsonConverter(typeof(PgNumericConverter))]
 public readonly record struct PgNumeric : IComparable<PgNumeric>
 {
     private readonly string? _text;

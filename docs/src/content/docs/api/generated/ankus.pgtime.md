@@ -12,6 +12,7 @@ Assembly: `Ankus.Runtime.dll`
 Represents PostgreSQL time without time zone at microsecond precision, including 24:00:00.
 
 ```csharp
+[JsonConverter(typeof(PgTimeConverter))]
 public readonly struct PgTime : IComparable<PgTime>, IEquatable<PgTime>
 ```
 
@@ -192,6 +193,26 @@ public override int GetHashCode()
 
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-bfd6bd5427c15e1b"></a>
+
+### GetLocalTime(int)
+
+Gets SQL LOCALTIME at the requested precision in the session timezone.
+
+```csharp
+public static PgTime GetLocalTime(int precision = 6)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The current transaction's local time.
+
 <a id="member-386ddb9659e8ff76"></a>
 
 ### GetPart(PgDateTimePart)
@@ -231,6 +252,26 @@ The time text.
 Returns: [PgTime](/api/ankus.pgtime/)
 
 The parsed time.
+
+<a id="member-abbff4abb0ffaf1a"></a>
+
+### Round(int)
+
+Rounds fractional seconds using PostgreSQL's time type modifier.
+
+```csharp
+public PgTime Round(int precision)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+The rounded time, possibly 24:00.
 
 <a id="member-494c9041dc1b642b"></a>
 
@@ -328,6 +369,20 @@ Exceptions:
 
 - [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The value is 24:00:00.
 
+<a id="member-41863691adea14ed"></a>
+
+### ToTimeTz()
+
+Attaches the session timezone's offset using PostgreSQL's current-date rules.
+
+```csharp
+public PgTimeTz ToTimeTz()
+```
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The local time and offset.
+
 <a id="member-ffe10073907d8e34"></a>
 
 ### TryParse(string?, out PgTime)
@@ -381,6 +436,42 @@ Value: [long](https://learn.microsoft.com/dotnet/api/system.int64)
 
 
 ## Operators
+
+<a id="member-0f470ee2de388178"></a>
+
+### operator +(PgInterval, PgTime)
+
+Adds an interval, wrapping at midnight.
+
+```csharp
+public static PgTime operator +(PgInterval interval, PgTime time)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+<a id="member-8b84dc097db56abb"></a>
+
+### operator +(PgTime, PgInterval)
+
+Adds an interval, wrapping at midnight.
+
+```csharp
+public static PgTime operator +(PgTime time, PgInterval interval)
+```
+
+Parameters:
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTime](/api/ankus.pgtime/)
 
 <a id="member-346ce1943d8e4c43"></a>
 
@@ -485,3 +576,39 @@ Parameters:
 `right` — [PgTime](/api/ankus.pgtime/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-264315a5b5def30b"></a>
+
+### operator -(PgTime, PgInterval)
+
+Subtracts an interval, wrapping at midnight.
+
+```csharp
+public static PgTime operator -(PgTime time, PgInterval interval)
+```
+
+Parameters:
+
+`time` — [PgTime](/api/ankus.pgtime/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTime](/api/ankus.pgtime/)
+
+<a id="member-2cbb5b089317771c"></a>
+
+### operator -(PgTime, PgTime)
+
+Computes the signed wall-clock difference.
+
+```csharp
+public static PgInterval operator -(PgTime left, PgTime right)
+```
+
+Parameters:
+
+`left` — [PgTime](/api/ankus.pgtime/)
+
+`right` — [PgTime](/api/ankus.pgtime/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)

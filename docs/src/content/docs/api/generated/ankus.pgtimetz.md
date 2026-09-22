@@ -12,6 +12,7 @@ Assembly: `Ankus.Runtime.dll`
 Represents PostgreSQL time with time zone as a local time and a fixed offset, without a date or zone name.
 
 ```csharp
+[JsonConverter(typeof(PgTimeTzConverter))]
 public readonly struct PgTimeTz : IComparable<PgTimeTz>, IEquatable<PgTimeTz>
 ```
 
@@ -106,6 +107,66 @@ Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value for lesser, equal, or greater values. No backend is required.
 
+<a id="member-fbd61171a0e2bb6b"></a>
+
+### Create(int, int, double)
+
+Constructs a local time with the session timezone's current-date offset.
+
+```csharp
+public static PgTimeTz Create(int hour, int minute, double second)
+```
+
+Parameters:
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds, rounded by PostgreSQL.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The local time and offset.
+
+<a id="member-596d980f516dc306"></a>
+
+### Create(int, int, double, int)
+
+Constructs a local time with an explicit second-resolution offset east of UTC.
+
+```csharp
+public static PgTimeTz Create(int hour, int minute, double second, int offsetSeconds)
+```
+
+Parameters:
+
+`hour` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The hour.
+
+`minute` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The minute.
+
+`second` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The fractional seconds, rounded by PostgreSQL.
+
+`offsetSeconds` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The offset east of UTC, strictly between -57600 and 57600.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The local time and offset.
+
 <a id="member-08563660c18484f0"></a>
 
 ### Equals(PgTimeTz)
@@ -153,6 +214,26 @@ The field to extract.
 Returns: <code>PgNumeric?</code>
 
 The numeric field.
+
+<a id="member-d9b6c562868ca663"></a>
+
+### GetCurrentTime(int)
+
+Gets SQL CURRENT_TIME at the requested precision in the session timezone.
+
+```csharp
+public static PgTimeTz GetCurrentTime(int precision = 6)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The current transaction's local time and offset.
 
 <a id="member-f78bf673b403008c"></a>
 
@@ -204,6 +285,26 @@ Returns: [PgTimeTz](/api/ankus.pgtimetz/)
 
 The parsed time and offset.
 
+<a id="member-d118adb2718c5c72"></a>
+
+### Round(int)
+
+Rounds fractional seconds, retaining the offset, with PostgreSQL's type modifier.
+
+```csharp
+public PgTimeTz Round(int precision)
+```
+
+Parameters:
+
+`precision` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Fractional-second digits, zero through six.
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+The rounded time and offset.
+
 <a id="member-0c492b1da76c046f"></a>
 
 ### Subtract(PgInterval)
@@ -233,6 +334,26 @@ Formats the time and offset using PostgreSQL's ISO JSON representation.
 ```csharp
 public string ToIsoString()
 ```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The ISO time and offset.
+
+<a id="member-178c03d6e7871c39"></a>
+
+### ToIsoString(string)
+
+Formats the shifted time and offset in a named zone using PostgreSQL's current-date DST rules.
+
+```csharp
+public string ToIsoString(string zone)
+```
+
+Parameters:
+
+`zone` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL timezone name or abbreviation.
 
 Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
@@ -342,6 +463,42 @@ Value: [PgTime](/api/ankus.pgtime/)
 
 ## Operators
 
+<a id="member-8f844b6e9d65b498"></a>
+
+### operator +(PgInterval, PgTimeTz)
+
+Adds an interval while retaining the fixed offset.
+
+```csharp
+public static PgTimeTz operator +(PgInterval interval, PgTimeTz time)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
+<a id="member-e153f5a5d177d674"></a>
+
+### operator +(PgTimeTz, PgInterval)
+
+Adds an interval while retaining the fixed offset.
+
+```csharp
+public static PgTimeTz operator +(PgTimeTz time, PgInterval interval)
+```
+
+Parameters:
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)
+
 <a id="member-f558fe23f32bfe49"></a>
 
 ### operator ==(PgTimeTz, PgTimeTz)
@@ -445,3 +602,21 @@ Parameters:
 `right` — [PgTimeTz](/api/ankus.pgtimetz/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-495058692b28070e"></a>
+
+### operator -(PgTimeTz, PgInterval)
+
+Subtracts an interval while retaining the fixed offset.
+
+```csharp
+public static PgTimeTz operator -(PgTimeTz time, PgInterval interval)
+```
+
+Parameters:
+
+`time` — [PgTimeTz](/api/ankus.pgtimetz/)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgTimeTz](/api/ankus.pgtimetz/)

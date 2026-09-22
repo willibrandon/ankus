@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Represents PostgreSQL time without time zone at microsecond precision, including 24:00:00.
 /// </summary>
+[JsonConverter(typeof(PgTimeConverter))]
 public readonly record struct PgTime : IComparable<PgTime>
 {
     /// <summary>
@@ -26,6 +29,31 @@ public readonly record struct PgTime : IComparable<PgTime>
     /// Gets PostgreSQL's 24:00:00 value.
     /// </summary>
     public static PgTime EndOfDay => new(PgTemporal.MicrosecondsPerDay);
+
+    /// <summary>Gets SQL LOCALTIME at the requested precision in the session timezone.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The current transaction's local time.</returns>
+    public static PgTime GetLocalTime(int precision = 6)
+        => PgTemporal.Call<PgTime>(TemporalOperation.LocalTime, PgTemporal.Precision(precision));
+
+    /// <summary>Rounds fractional seconds using PostgreSQL's time type modifier.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The rounded time, possibly 24:00.</returns>
+    public PgTime Round(int precision)
+        => PgTemporal.Call<PgTime>(TemporalOperation.Round, SpiParameter.Create(this), PgTemporal.Precision(precision));
+
+    /// <summary>Attaches the session timezone's offset using PostgreSQL's current-date rules.</summary>
+    /// <returns>The local time and offset.</returns>
+    public PgTimeTz ToTimeTz() => PgTemporal.Call<PgTimeTz>(TemporalOperation.ToTimeTz, SpiParameter.Create(this));
+
+    /// <summary>Adds an interval, wrapping at midnight.</summary>
+    public static PgTime operator +(PgTime time, PgInterval interval) => time.Add(interval);
+    /// <summary>Adds an interval, wrapping at midnight.</summary>
+    public static PgTime operator +(PgInterval interval, PgTime time) => time.Add(interval);
+    /// <summary>Subtracts an interval, wrapping at midnight.</summary>
+    public static PgTime operator -(PgTime time, PgInterval interval) => time.Subtract(interval);
+    /// <summary>Computes the signed wall-clock difference.</summary>
+    public static PgInterval operator -(PgTime left, PgTime right) => left.Subtract(right);
 
     /// <summary>Parses PostgreSQL time syntax on the active backend thread.</summary>
     /// <param name="text">The time text.</param>

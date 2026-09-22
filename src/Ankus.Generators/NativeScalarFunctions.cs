@@ -11,7 +11,7 @@ internal static class NativeScalarFunctions
             PGFunction function;
             Oid result_type;
             int argument_count;
-            Oid argument_types[3];
+            Oid argument_types[7];
         } AnkusScalarFunction;
 
         static void
@@ -30,7 +30,7 @@ internal static class NativeScalarFunctions
                 }
                 if (match)
                 {
-                    LOCAL_FCINFO(call, 3);
+                    LOCAL_FCINFO(call, 7);
                     FmgrInfo info;
                     Datum datum;
                     memset(&info, 0, sizeof(info));

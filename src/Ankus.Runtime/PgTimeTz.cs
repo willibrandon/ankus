@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Represents PostgreSQL time with time zone as a local time and a fixed offset, without a date or zone name.
 /// </summary>
+[JsonConverter(typeof(PgTimeTzConverter))]
 public readonly record struct PgTimeTz : IComparable<PgTimeTz>
 {
     /// <summary>
@@ -33,6 +36,46 @@ public readonly record struct PgTimeTz : IComparable<PgTimeTz>
     /// Gets the fixed UTC offset as a TimeSpan.
     /// </summary>
     public TimeSpan Offset => TimeSpan.FromSeconds(OffsetSeconds);
+
+    /// <summary>Constructs a local time with the session timezone's current-date offset.</summary>
+    /// <param name="hour">The hour.</param>
+    /// <param name="minute">The minute.</param>
+    /// <param name="second">The fractional seconds, rounded by PostgreSQL.</param>
+    /// <returns>The local time and offset.</returns>
+    public static PgTimeTz Create(int hour, int minute, double second) => PgTime.Create(hour, minute, second).ToTimeTz();
+
+    /// <summary>Constructs a local time with an explicit second-resolution offset east of UTC.</summary>
+    /// <param name="hour">The hour.</param>
+    /// <param name="minute">The minute.</param>
+    /// <param name="second">The fractional seconds, rounded by PostgreSQL.</param>
+    /// <param name="offsetSeconds">The offset east of UTC, strictly between -57600 and 57600.</param>
+    /// <returns>The local time and offset.</returns>
+    public static PgTimeTz Create(int hour, int minute, double second, int offsetSeconds)
+        => new(PgTime.Create(hour, minute, second), offsetSeconds);
+
+    /// <summary>Gets SQL CURRENT_TIME at the requested precision in the session timezone.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The current transaction's local time and offset.</returns>
+    public static PgTimeTz GetCurrentTime(int precision = 6)
+        => PgTemporal.Call<PgTimeTz>(TemporalOperation.CurrentTime, PgTemporal.Precision(precision));
+
+    /// <summary>Rounds fractional seconds, retaining the offset, with PostgreSQL's type modifier.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The rounded time and offset.</returns>
+    public PgTimeTz Round(int precision)
+        => PgTemporal.Call<PgTimeTz>(TemporalOperation.Round, SpiParameter.Create(this), PgTemporal.Precision(precision));
+
+    /// <summary>Formats the shifted time and offset in a named zone using PostgreSQL's current-date DST rules.</summary>
+    /// <param name="zone">The PostgreSQL timezone name or abbreviation.</param>
+    /// <returns>The ISO time and offset.</returns>
+    public string ToIsoString(string zone) => AtTimeZone(zone).ToIsoString();
+
+    /// <summary>Adds an interval while retaining the fixed offset.</summary>
+    public static PgTimeTz operator +(PgTimeTz time, PgInterval interval) => time.Add(interval);
+    /// <summary>Adds an interval while retaining the fixed offset.</summary>
+    public static PgTimeTz operator +(PgInterval interval, PgTimeTz time) => time.Add(interval);
+    /// <summary>Subtracts an interval while retaining the fixed offset.</summary>
+    public static PgTimeTz operator -(PgTimeTz time, PgInterval interval) => time.Subtract(interval);
 
     /// <summary>Parses PostgreSQL fixed-offset time syntax on the active backend thread.</summary>
     /// <param name="text">The time and timezone text.</param>

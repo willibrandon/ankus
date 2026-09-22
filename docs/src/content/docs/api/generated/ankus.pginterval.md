@@ -13,6 +13,7 @@ Preserves PostgreSQL interval's independent month, day, and microsecond componen
 Equality compares storage components, rather than PostgreSQL's thirty-day-month comparison convention.
 
 ```csharp
+[JsonConverter(typeof(PgIntervalConverter))]
 public readonly struct PgInterval : IEquatable<PgInterval>
 ```
 
@@ -46,6 +47,24 @@ The signed time component.
 
 
 ## Methods
+
+<a id="member-0818d73816eef589"></a>
+
+### Abs()
+
+Takes the absolute value of each stored component, preserving their separation. No backend is required.
+
+```csharp
+public PgInterval Abs()
+```
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The component-wise absolute interval, or positive infinity.
+
+Exceptions:
+
+- [OverflowException](https://learn.microsoft.com/dotnet/api/system.overflowexception): A finite component is its signed minimum value.
 
 <a id="member-ccb031ae8808ef39"></a>
 
@@ -86,6 +105,50 @@ The interval to compare.
 Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 A negative value, zero, or a positive value when this interval sorts before, equals, or sorts after the other.
+
+<a id="member-6f75a51230cbe540"></a>
+
+### Create(int, int, int, int, int, int, double)
+
+Constructs an interval with PostgreSQL's make_interval rules, allowing mixed component signs.
+
+```csharp
+public static PgInterval Create(int years = 0, int months = 0, int weeks = 0, int days = 0, int hours = 0, int minutes = 0, double seconds = 0)
+```
+
+Parameters:
+
+`years` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Calendar years.
+
+`months` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Additional calendar months.
+
+`weeks` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Calendar weeks.
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Additional calendar days.
+
+`hours` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Elapsed hours.
+
+`minutes` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+Elapsed minutes.
+
+`seconds` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Elapsed fractional seconds, rounded by PostgreSQL.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval, retaining calendar and elapsed-time components.
 
 <a id="member-d4dd5637ed6db864"></a>
 
@@ -155,6 +218,126 @@ Returns: <code>PgNumeric?</code>
 
 The numeric field, or null for an undefined field of infinity.
 
+<a id="member-a4678bb40207ff28"></a>
+
+### FromDays(int)
+
+Constructs calendar days without requiring backend access.
+
+```csharp
+public static PgInterval FromDays(int days)
+```
+
+Parameters:
+
+`days` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of days.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-8802602f032fefc1"></a>
+
+### FromHours(int)
+
+Constructs elapsed hours using PostgreSQL's make_interval rules.
+
+```csharp
+public static PgInterval FromHours(int hours)
+```
+
+Parameters:
+
+`hours` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of hours.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-132e1c0bcb08ce8e"></a>
+
+### FromMicroseconds(long)
+
+Constructs exact elapsed microseconds without a floating-point intermediary or backend access.
+
+```csharp
+public static PgInterval FromMicroseconds(long microseconds)
+```
+
+Parameters:
+
+`microseconds` — [long](https://learn.microsoft.com/dotnet/api/system.int64)
+
+The signed microseconds.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-46dfe490bf297ae9"></a>
+
+### FromMinutes(int)
+
+Constructs elapsed minutes using PostgreSQL's make_interval rules.
+
+```csharp
+public static PgInterval FromMinutes(int minutes)
+```
+
+Parameters:
+
+`minutes` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of minutes.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-661dc481fff7a0f5"></a>
+
+### FromMonths(int)
+
+Constructs calendar months without requiring backend access.
+
+```csharp
+public static PgInterval FromMonths(int months)
+```
+
+Parameters:
+
+`months` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of months.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-c09eed50148ad558"></a>
+
+### FromSeconds(double)
+
+Constructs elapsed seconds using PostgreSQL's fractional rounding and range rules.
+
+```csharp
+public static PgInterval FromSeconds(double seconds)
+```
+
+Parameters:
+
+`seconds` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+The signed fractional seconds.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
 <a id="member-02b6bf7d58a78d74"></a>
 
 ### FromTimeSpan(TimeSpan)
@@ -178,6 +361,46 @@ An interval with zero months and days.
 Exceptions:
 
 - [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): The duration contains sub-microsecond ticks.
+
+<a id="member-4d4bed9eb64ea302"></a>
+
+### FromWeeks(int)
+
+Constructs calendar weeks with PostgreSQL overflow checks.
+
+```csharp
+public static PgInterval FromWeeks(int weeks)
+```
+
+Parameters:
+
+`weeks` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of weeks.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
+
+<a id="member-e37c35da0892d24f"></a>
+
+### FromYears(int)
+
+Constructs calendar years with PostgreSQL overflow checks.
+
+```csharp
+public static PgInterval FromYears(int years)
+```
+
+Parameters:
+
+`years` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The signed number of years.
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+The interval.
 
 <a id="member-44d99e3e8c437a5f"></a>
 
@@ -324,6 +547,24 @@ The interval to subtract.
 Returns: [PgInterval](/api/ankus.pginterval/)
 
 The resulting interval.
+
+<a id="member-6a99e4e96e4c4bf8"></a>
+
+### ToComparisonMicroseconds()
+
+Converts finite components to PostgreSQL's comparison approximation of thirty days per month.
+
+```csharp
+public Int128 ToComparisonMicroseconds()
+```
+
+Returns: [Int128](https://learn.microsoft.com/dotnet/api/system.int128)
+
+The comparison value, which is not a calendar-aware elapsed duration.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The interval is infinite.
 
 <a id="member-64f1bf28cfe0da91"></a>
 
@@ -489,8 +730,56 @@ public static PgInterval PositiveInfinity { get; }
 
 Value: [PgInterval](/api/ankus.pginterval/)
 
+<a id="member-93142c57d63047ef"></a>
+
+### Sign
+
+Gets -1, 0, or 1 using PostgreSQL's thirty-day-month comparison, including infinities. No backend is required.
+
+```csharp
+public int Sign { get; }
+```
+
+Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
 
 ## Operators
+
+<a id="member-878e6b86c9e847f0"></a>
+
+### operator +(PgInterval, PgInterval)
+
+Adds interval components using PostgreSQL's rules.
+
+```csharp
+public static PgInterval operator +(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+<a id="member-7903637e504acc9c"></a>
+
+### operator /(PgInterval, double)
+
+Divides an interval using PostgreSQL's fractional-month/day rules.
+
+```csharp
+public static PgInterval operator /(PgInterval interval, double divisor)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`divisor` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Returns: [PgInterval](/api/ankus.pginterval/)
 
 <a id="member-0042c050697ff048"></a>
 
@@ -523,3 +812,73 @@ Parameters:
 `right` — [PgInterval](/api/ankus.pginterval/)
 
 Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-0cefc4af97b4297d"></a>
+
+### operator *(PgInterval, double)
+
+Scales an interval using PostgreSQL's fractional-month/day rules.
+
+```csharp
+public static PgInterval operator *(PgInterval interval, double factor)
+```
+
+Parameters:
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+`factor` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+<a id="member-4f43b3b9ea1ccfac"></a>
+
+### operator *(double, PgInterval)
+
+Scales an interval using PostgreSQL's fractional-month/day rules.
+
+```csharp
+public static PgInterval operator *(double factor, PgInterval interval)
+```
+
+Parameters:
+
+`factor` — [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+`interval` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+<a id="member-4436b209d7925149"></a>
+
+### operator -(PgInterval, PgInterval)
+
+Subtracts interval components using PostgreSQL's rules.
+
+```csharp
+public static PgInterval operator -(PgInterval left, PgInterval right)
+```
+
+Parameters:
+
+`left` — [PgInterval](/api/ankus.pginterval/)
+
+`right` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)
+
+<a id="member-5d89a999cecbb4c1"></a>
+
+### operator -(PgInterval)
+
+Negates an interval using PostgreSQL's rules.
+
+```csharp
+public static PgInterval operator -(PgInterval value)
+```
+
+Parameters:
+
+`value` — [PgInterval](/api/ankus.pginterval/)
+
+Returns: [PgInterval](/api/ankus.pginterval/)

@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace Ankus;
 
 /// <summary>
 /// Represents a PostgreSQL timestamp with time zone as a UTC instant, including infinities.
 /// PostgreSQL does not retain the original offset or zone name.
 /// </summary>
+[JsonConverter(typeof(PgTimestampTzConverter))]
 public readonly record struct PgTimestampTz : IComparable<PgTimestampTz>
 {
     /// <summary>
@@ -36,6 +39,62 @@ public readonly record struct PgTimestampTz : IComparable<PgTimestampTz>
     /// Gets whether this instant is finite.
     /// </summary>
     public bool IsFinite => MicrosecondsSinceEpoch is not (long.MinValue or long.MaxValue);
+
+    /// <summary>Constructs an instant from local fields in the session timezone using PostgreSQL's DST rules.</summary>
+    /// <param name="year">The signed year; negative means BC and zero is invalid.</param>
+    /// <param name="month">The month.</param>
+    /// <param name="day">The day.</param>
+    /// <param name="hour">The hour.</param>
+    /// <param name="minute">The minute.</param>
+    /// <param name="second">The fractional seconds, rounded by PostgreSQL.</param>
+    /// <returns>The UTC instant.</returns>
+    public static PgTimestampTz Create(int year, int month, int day, int hour, int minute, double second)
+        => PgTemporal.Call<PgTimestampTz>(TemporalOperation.MakeTimestampTz, SpiParameter.Create(year), SpiParameter.Create(month),
+            SpiParameter.Create(day), SpiParameter.Create(hour), SpiParameter.Create(minute), SpiParameter.Create(second));
+
+    /// <summary>Constructs an instant from local fields in a named timezone using PostgreSQL's DST rules.</summary>
+    /// <param name="year">The signed year; negative means BC and zero is invalid.</param>
+    /// <param name="month">The month.</param>
+    /// <param name="day">The day.</param>
+    /// <param name="hour">The hour.</param>
+    /// <param name="minute">The minute.</param>
+    /// <param name="second">The fractional seconds, rounded by PostgreSQL.</param>
+    /// <param name="zone">The PostgreSQL timezone name or abbreviation.</param>
+    /// <returns>The UTC instant.</returns>
+    public static PgTimestampTz Create(int year, int month, int day, int hour, int minute, double second, string zone)
+        => PgTemporal.Call<PgTimestampTz>(TemporalOperation.MakeTimestampTz, SpiParameter.Create(year), SpiParameter.Create(month),
+            SpiParameter.Create(day), SpiParameter.Create(hour), SpiParameter.Create(minute), SpiParameter.Create(second), PgTemporal.Text(zone));
+
+    /// <summary>Gets SQL CURRENT_TIMESTAMP rounded to the requested precision.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The current transaction's UTC instant.</returns>
+    public static PgTimestampTz GetCurrentTimestamp(int precision = 6)
+        => PgTemporal.Call<PgTimestampTz>(TemporalOperation.CurrentTimestamp, PgTemporal.Precision(precision));
+
+    /// <summary>Rounds fractional seconds using PostgreSQL's timestamptz type modifier.</summary>
+    /// <param name="precision">Fractional-second digits, zero through six.</param>
+    /// <returns>The rounded instant.</returns>
+    public PgTimestampTz Round(int precision)
+        => PgTemporal.Call<PgTimestampTz>(TemporalOperation.Round, SpiParameter.Create(this), PgTemporal.Precision(precision));
+
+    /// <summary>Formats this instant in an explicit zone using the offset applicable at this instant, independently of session settings.</summary>
+    /// <param name="zone">The PostgreSQL timezone name or abbreviation.</param>
+    /// <returns>The ISO timestamp and offset, or an infinity spelling.</returns>
+    public string ToIsoString(string zone)
+        => PgTemporal.Call<string>(TemporalOperation.FormatIsoZone, SpiParameter.Create(this), PgTemporal.Text(zone));
+
+    /// <summary>Extracts local time and offset in the session timezone, or null for infinity.</summary>
+    /// <returns>The local time and offset.</returns>
+    public PgTimeTz? ToTimeTz() => PgTemporal.Call<PgTimeTz?>(TemporalOperation.ToTimeTz, SpiParameter.Create(this));
+
+    /// <summary>Adds a calendar interval in the session timezone.</summary>
+    public static PgTimestampTz operator +(PgTimestampTz timestamp, PgInterval interval) => timestamp.Add(interval);
+    /// <summary>Adds a calendar interval in the session timezone.</summary>
+    public static PgTimestampTz operator +(PgInterval interval, PgTimestampTz timestamp) => timestamp.Add(interval);
+    /// <summary>Subtracts a calendar interval in the session timezone.</summary>
+    public static PgTimestampTz operator -(PgTimestampTz timestamp, PgInterval interval) => timestamp.Subtract(interval);
+    /// <summary>Computes the elapsed difference.</summary>
+    public static PgInterval operator -(PgTimestampTz left, PgTimestampTz right) => left.Subtract(right);
 
     /// <summary>Parses PostgreSQL timestamp syntax, resolving omitted zones with the session timezone.</summary>
     /// <param name="text">The timestamp text.</param>

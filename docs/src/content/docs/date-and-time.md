@@ -78,12 +78,12 @@ components are zero. Mixed component signs are preserved. Managed equality
 compares exact components; PostgreSQL's interval comparison instead treats a
 month as thirty days.
 
-Use `Add` and `Subtract` for PostgreSQL calendar arithmetic:
+Use `Add`, `Subtract`, or arithmetic operators for PostgreSQL calendar arithmetic:
 
 ```csharp
 [PgFunction]
 public static PgTimestamp NextMonth(PgTimestamp value)
-    => value.Add(new PgInterval(months: 1, days: 0, microseconds: 0));
+    => value + PgInterval.FromMonths(1);
 ```
 
 January 31 becomes the last day of February. For `PgTimestampTz`, calendar months
@@ -94,6 +94,20 @@ Subtracting two timestamps returns an elapsed interval. `Age` returns a symbolic
 calendar difference with years and months. Intervals also support `Multiply`,
 `Divide`, `Negate`, `JustifyDays`, `JustifyHours`, and `Justify`. Use
 `CompareInPostgres` when you want PostgreSQL's interval ordering.
+
+`PgInterval.Create` accepts years, months, weeks, days, hours, minutes, and fractional
+seconds. Named arguments make the calendar distinction explicit:
+
+```csharp
+PgInterval calendarDay = PgInterval.Create(days: 1);
+PgInterval elapsedDay = PgInterval.FromHours(24);
+```
+
+`FromYears` through `FromMicroseconds` provide individual unit factories.
+`FromMicroseconds` preserves the complete signed 64-bit value. `Abs` takes the
+absolute value of each stored component, throwing on signed minimum values.
+`Sign` and `ToComparisonMicroseconds` use PostgreSQL's thirty-day-month comparison
+convention; they do not calculate elapsed time across a calendar.
 
 `PgInterval.PositiveInfinity` and `NegativeInfinity` require PostgreSQL 17 or
 later. Their finite component properties are zero; check `IsFinite` first.
@@ -121,6 +135,11 @@ representation independently of `DateStyle`. A `PgTimestampTz` is formatted in t
 session's timezone, with its offset. `ToPostgresString` and `ToIsoString` are
 explicit server-formatting methods; the record struct's `ToString()` remains a
 managed diagnostic representation.
+
+`PgTimestampTz.ToIsoString(zone)` formats an instant in an explicit timezone. Its
+offset comes from that instant, including historical offsets and daylight-saving
+transitions. `PgTimeTz.ToIsoString(zone)` uses current-date rules because a time
+with offset has no stored date.
 
 ## Timezones and fields
 
@@ -151,19 +170,55 @@ extracts directly to numeric, retaining exact fractional seconds even for
 timestamps near the server's range limit. PostgreSQL 13 converts its floating-point
 extraction result, matching that version's precision limits.
 
-`PgDate.Create` and `PgTime.Create` validate calendar fields in PostgreSQL. Negative
-years denote BC; year zero is invalid. `PgDate.AtTime` combines a date with a time
-or fixed-offset time. Timestamp `ToDate` and `ToTime` conversions follow server
-rules; `ToTime` returns null for infinity.
+`Create` constructs dates, times, and timestamps from fields with PostgreSQL's
+validation and fractional-second rounding. Negative years denote BC; year zero
+is invalid. `PgTimestampTz.Create` accepts an optional explicit zone; otherwise
+it uses the session timezone. `PgTimeTz.Create` accepts an explicit offset in
+seconds or uses the session's current-date offset.
+
+`PgDate.AtTime` combines a date with a time or fixed-offset time. Timestamp `ToDate`,
+`ToTime`, and `PgTimestampTz.ToTimeTz` conversions follow server rules; the time
+conversions return null for infinity.
 
 `PgTimestampTz.TransactionTimestamp`, `StatementTimestamp`, and `ClockTimestamp`
 read the three PostgreSQL clocks. `FromUnixTimeSeconds` accepts fractional seconds.
+
+`PgDate.CurrentDate`, `PgTime.GetLocalTime`, `PgTimeTz.GetCurrentTime`,
+`PgTimestamp.GetLocalTimestamp`, and `PgTimestampTz.GetCurrentTimestamp` match
+SQL's current/local expressions. The methods accept a precision from zero through
+six fractional-second digits and use the current transaction's start time.
+
+Times and timestamps also expose `Round(precision)`, following PostgreSQL's type
+modifiers. Rounding can reach 24:00 or carry into the next day. A timestamp that
+rounds outside the finite range raises a `PgException` range error.
 
 Server parsing, formatting, arithmetic, extraction, and timezone methods require
 the active backend thread inside an Ankus callback. Their native errors become
 catchable `PgException` instances. Stored-value access, exact .NET conversions,
 and date/time/timestamp comparisons also work outside PostgreSQL. `CompareTo` and
 relational operators preserve infinities and the distinct 24:00 time value.
+
+## JSON serialization
+
+The six full-range types have `System.Text.Json` converters. Include your containing
+type in a source-generated context and pass its metadata:
+
+```csharp
+public sealed record Appointment(PgTimestampTz StartsAt, PgInterval Duration);
+
+[JsonSerializable(typeof(Appointment))]
+internal partial class AppointmentJsonContext : JsonSerializerContext;
+
+// Inside an extension callback:
+PgJson json = PgJson.Serialize(appointment, AppointmentJsonContext.Default.Appointment);
+```
+
+Dates, times, and timestamps serialize as PostgreSQL ISO strings; intervals use
+the session's `IntervalStyle`. BC dates, infinities, 24:00, and second-resolution
+offsets remain representable. Nullable types serialize as JSON null. Reading and
+writing temporal JSON requires the backend thread, and parsing follows the same
+rules as `Parse`. Invalid values throw `JsonException` with the property path and
+the underlying `PgException` when PostgreSQL rejected the input.
 
 ## SPI
 
