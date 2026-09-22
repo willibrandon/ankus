@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Description>Generates the Ankus public API reference from DocFX metadata.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Docfx.App" />
+    <ProjectReference Include="../Ankus.Runtime/Ankus.Runtime.csproj" />
+    <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <ProjectReference Include="../../tests/Ankus.Testing/Ankus.Testing.csproj" />
+    <None Include="filter.yml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

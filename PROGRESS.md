@@ -530,7 +530,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
     - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation
-    - [ ] Generated public API reference from XML comments, following `/home/brandon/src/dotsider/src/Dotsider.DocGenerator`
+    - [x] Generated public API reference from XML comments, following `/home/brandon/src/dotsider/src/Dotsider.DocGenerator`
 - [ ] **P7 — Custom scan + nodes**
    - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
    - [ ] PostgreSQL node representations and pgrx node support APIs
@@ -600,3 +600,10 @@ The phases track implementation of the complete pgrx feature surface.
   Invalid registrations, artifact targets, incomplete output and failed builds fail without silent fallback.
   System.CommandLine 2.0.12 is centrally pinned; IDE0305 now fails builds. `dotnet test`: 457 passed,
   0 failed, 0 skipped, including 23 installed-tool cases. Full CLI provisioning/lifecycle parity remains pending.
+- 2026-09-22 — `Ankus.DocGenerator` uses DocFX 2.80.1 to generate Starlight API reference pages from
+  `Ankus.Runtime`, `Ankus.PgConfig`, and `Ankus.Testing` assemblies and XML comments. Hidden interop
+  types are excluded. The current reference has 26 generated namespace/type pages and 207 members.
+  `--check` passed and detected an intentionally changed page; regeneration restored it and removed
+  a marked stale page. `pnpm build` regenerates the API pages. Build and `pnpm check` pass; browser checks
+  cover all 36 content pages at 1440px and 390px, API-member search, and 366 internal links/anchors.
+  Plain `dotnet test` remains 457 passed, 0 failed, 0 skipped after adding the generator to the solution.

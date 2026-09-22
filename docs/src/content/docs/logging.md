@@ -1,4 +1,7 @@
-# Logging and errors
+---
+title: Logging and errors
+description: Report PostgreSQL notices, structured diagnostics, and errors from C#.
+---
 
 `PgLog` sends messages through PostgreSQL's reporting system:
 

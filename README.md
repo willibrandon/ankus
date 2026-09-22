@@ -17,37 +17,14 @@ managed-to-native error boundary.
 
 ## Develop and test
 
-Prerequisites:
-
-- A stable .NET SDK compatible with `global.json`.
-- The platform's [.NET Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
-- PostgreSQL 18, including `pg_config`, server executables, and server development
-  headers. On Windows, the server import library is also needed.
-
-From the repository root, run:
+From the repository root:
 
 ```console
 dotnet test
 ```
 
-Tests use MSTest with Microsoft.Testing.Platform.
-The integration fixture publishes the native sample, creates an isolated local
-PostgreSQL cluster, installs with `CREATE EXTENSION`, executes SQL tests, rolls back
-test transactions, and shuts down the cluster. Logs are written to `artifacts/test-logs`.
-
-PostgreSQL discovery checks:
-
-1. `~/.ankus/config.json` (the current user's home directory on every platform).
-2. `~/.ankus/postgres/*/bin/pg_config` (`pg_config.exe` on Windows).
-3. `PATH` and conventional PostgreSQL installation directories for the host OS.
-
-For a nonstandard installation, an optional configuration entry supplies its path:
-
-```json
-{
-  "pg18": "/path/to/postgresql/bin/pg_config"
-}
-```
+See [development and testing](docs/contributing/development.md) for prerequisites,
+PostgreSQL discovery, and the integration harness.
 
 ## Function types
 
@@ -75,10 +52,10 @@ when their PostgreSQL argument types differ.
 Text supports server-encoding conversion and Unicode; binary data preserves zero
 bytes. Native wrappers detoast compressed, external, and packed varlena inputs
 before invoking managed code. Managed exceptions return completely to native code
-before PostgreSQL raises ERROR. See [the native boundary design](docs/native-boundary.md)
+before PostgreSQL raises ERROR. See [the native boundary design](docs/contributing/native-boundary.md)
 for buffer ownership and error cleanup.
 
-See [JSON and UUID values](docs/json-and-uuid.md) for JSON text ownership, document
+See [JSON and UUID values](docs/src/content/docs/json-and-uuid.md) for JSON text ownership, document
 access, and source-generated serialization with Native AOT.
 
 ## Querying PostgreSQL
@@ -89,16 +66,28 @@ Use `Spi` inside an extension function to execute SQL in the calling backend:
 int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), SpiParameter.Create(2));
 ```
 
-See [SPI queries](docs/spi.md) for typed parameters, result rows, and error handling.
-Use [logging and errors](docs/logging.md) to send PostgreSQL notices and structured diagnostics.
+See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
+Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 ## Publishing and installation
+
+Use the `ankus` tool to register PostgreSQL, publish an extension, and install its files:
+
+```console
+ankus init --pg18 /path/to/postgresql/bin/pg_config
+ankus publish --project samples/Ankus.Examples.Hello --output artifacts/hello
+ankus install --from artifacts/hello
+```
+
+See [tool setup](docs/contributing/development.md#build-the-tool) for local package installation
+and the [command reference](docs/src/content/docs/reference/cli.md) for options.
 
 Publishing the sample produces a native library and these PostgreSQL installation files:
 
 ```text
 Ankus.Examples.Hello.so                   # .dll on Windows, .dylib on macOS
 Ankus.Examples.Hello.sql
+ankus.extension.json
 extension/
     ankus_hello.control
     ankus_hello--1.0.0.sql
@@ -120,3 +109,11 @@ SELECT public.greet('PostgreSQL'); -- Hello, PostgreSQL!
 ```
 
 See [PROGRESS.md](PROGRESS.md) for implementation status and platform validation.
+
+## Documentation site
+
+The Astro/Starlight site lives in `docs/`. See [site maintenance](docs/contributing/site.md)
+for local preview and build commands.
+
+The [public API reference](docs/src/content/docs/api/index.md) is generated from C# XML
+documentation. See [API reference generation](docs/contributing/api-reference.md).

@@ -1,4 +1,7 @@
-# JSON and UUID values
+---
+title: JSON and UUID values
+description: Use Guid, PgJson, and PgJsonb in Native AOT extension functions and SPI.
+---
 
 ## UUIDs
 
@@ -87,7 +90,7 @@ serialization methods. When wrappers appear in an application's JSON contract,
 their statically known converters embed their JSON value directly. Serializer
 options and depth limits come from the supplied context.
 
-JSON and JSONB participate in the [typed SPI APIs](spi.md), including nullable
+JSON and JSONB participate in the [typed SPI APIs](/spi/), including nullable
 parameters, plans, cursors, domains over these base types, and owned result rows.
 PostgreSQL handles detoasting and database-encoding conversion. A native jsonb
-parameter-conversion error becomes a catchable `PgException` within the SPI guard.
+parameter-conversion error throws a catchable `PgException`.

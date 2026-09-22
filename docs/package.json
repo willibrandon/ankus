@@ -1,0 +1,21 @@
+{
+  "name": "ankus-docs",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "astro dev",
+    "api": "dotnet run --project ../src/Ankus.DocGenerator -c Release",
+    "build": "pnpm api && astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.2",
+    "astro": "7.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "6.0.3"
+  }
+}

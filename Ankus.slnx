@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Ankus.Build/Ankus.Build.csproj" />
+    <Project Path="src/Ankus.DocGenerator/Ankus.DocGenerator.csproj" />
     <Project Path="src/Ankus.Generators/Ankus.Generators.csproj" />
     <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <Project Path="src/Ankus.Runtime/Ankus.Runtime.csproj" />

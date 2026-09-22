@@ -1,4 +1,7 @@
-# SPI queries
+---
+title: SPI queries
+description: Query PostgreSQL from C# with typed parameters, sessions, plans, and cursors.
+---
 
 `Spi` executes SQL in the PostgreSQL backend running the extension function.
 Calls participate in the caller's transaction and use that connection's role,
@@ -27,7 +30,7 @@ Parameters accept `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`
 are sent separately from the SQL command. Each command call uses one internal
 subtransaction and reports results from its final statement.
 
-See [JSON and UUID values](json-and-uuid.md) for the distinction between JSON null
+See [JSON and UUID values](/json-and-uuid/) for the distinction between JSON null
 and SQL NULL and for source-generated JSON serialization.
 
 ## Scalar values
@@ -144,10 +147,8 @@ JsonElement root = document.RootElement[0].GetProperty("Plan");
 
 `Spi.Explain` and `SpiSession.Explain` run `EXPLAIN (FORMAT JSON)` and return an
 owned JSON value. The server plans the supplied statement with its typed
-parameters, using ordinary EXPLAIN rather than EXPLAIN ANALYZE. Native parsing
-requires exactly one statement before execution; semicolons inside literals and
-trailing statement terminators retain their normal SQL meaning. PostgreSQL parse
-and planning errors become `PgException` through the common guard.
+parameters, using ordinary EXPLAIN rather than EXPLAIN ANALYZE. The command
+accepts one SQL statement. Parse and planning errors throw `PgException`.
 
 ## Prepared statements
 
@@ -161,9 +162,9 @@ int first = statement.ExecuteScalar<int>(SpiParameter.Create(40), SpiParameter.C
 int second = statement.ExecuteScalar<int>(SpiParameter.Create(10), SpiParameter.Create(5));
 ```
 
-The declared CLR types determine the PostgreSQL parameter types without inspecting
-members or generating code at runtime. Nullable value types map to the same SQL
-type as their underlying type. Bind SQL NULL with a typed nullable parameter.
+The declared CLR types determine the PostgreSQL parameter types. Nullable value
+types map to the same SQL type as their underlying type. Bind SQL NULL with a
+typed nullable parameter.
 An incorrect parameter count or SQL type throws `ArgumentException` before the
 plan executes.
 
