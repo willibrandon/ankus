@@ -33,11 +33,11 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds row and statement triggers with owned OLD/NEW tuples,
-trigger metadata, correct replacement/skip semantics, transition-table SPI access and
-scoped cursor cleanup. The public trigger sample is validated alongside existing
+The latest milestone adds event triggers with owned DDL, dropped-object and table-rewrite
+metadata, login callbacks, and restored event, row and function scopes through nested calls
+and errors. The public event-trigger sample is validated alongside existing row triggers,
 composite, set, operator, enum and package/tool features. Plain `dotnet test` passes
-2414 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+2609 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -51,7 +51,7 @@ composite, set, operator, enum and package/tool features. Plain `dotnet test` pa
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **2414 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **2609 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -684,8 +684,48 @@ queries within subsequent callbacks bind fresh transition data. No SQLSTATE norm
 
 The runtime/generator/native/backend/sample reviews and exact logs are under `.git/testagent/triggers/`.
 This is PostgreSQL 18.6/Linux x64 evidence, including UTF8 and LATIN1; no other platform/version is claimed.
-Event triggers, full relation/raw heap APIs, unsupported datum families, other inventory rows and the
+Full relation/raw heap APIs, unsupported datum families, other inventory rows and the
 PostgreSQL/platform matrix remain active full-port work.
+
+### Event trigger evidence
+
+References: the read-only pgrx checkout exposes `EventTriggerData` through `pgrx-pg-sys`,
+with no safe `pg_event_trigger` macro. PostgreSQL's event trigger implementation, headers,
+metadata helpers and regression tests define this managed API's native behavior.
+`[PgEventTrigger]` exports a synchronous static `void` callback with one `PgEventTriggerContext`.
+Optional `[PgFunction]` supplies common SQL settings; custom SQL attaches database-wide event triggers.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Event kinds, tags and catalog timing | Header-derived `EventTriggerData`/`CommandTag`; owned event/tag strings, zero SQL arguments and `RETURNS event_trigger` | `EventsRetainExactKindAndCommandTag`, `EventsExposeExactKindsTagsAndCatalogTiming`, `EventTriggerMarkerEmitsOneCompilableZeroArgumentFunction` |
+| DDL metadata, NULL identities and extension origin | Explicit public-column projection; immutable `PgDdlCommand` snapshots preserve nullable identities and empty results | `DdlCommandsPreserveCatalogIdentityAndEmptyResults`, `PrivilegeSnapshotsKeepNullAddressFields`, `ExtensionCommandsMarkTheirOrigin`, `DdlCommandsPreserveNullableObjectAddresses` |
+| Dropped dependencies and object addresses | All twelve metadata fields, independent root/normal flags, owned address arrays and canonical temporary names | `DroppedObjectsPreserveDependencyAndAddressMetadata`, `DropSnapshotsKeepColumnsFunctionsAndTemporaryNames`, `DroppedObjectsDistinguishNullFromEmptyAddresses` |
+| Rewrite identity, reason bitmaps and exclusions | Owned relation OID and flags, preserving combinations and future nonnegative bits | `TableRewriteReportsRelationAndReasonBitmap`, `NonEventRewritesAndUnchangedPersistenceDoNotFire`, `RewriteReasonsPreserveKnownAndFutureBits` |
+| Detached snapshots and active helper scope | Copied immutable results; exact current context/phase/thread checks; parent references detached on exit | `HelpersReturnOwnedImmutableOrderedSnapshots`, `NestedScopesRestoreParentsAndReleaseTheirLinks`, `RetainedSnapshotsOwnValuesAndRejectFreshHelpers`, `MetadataQueriesWorkAcrossSessionPlanAndCursorOwners` |
+| Nested event, function and row scopes | Restored managed context, function schema and native transition environment on success/error | `NestedDdlRestoresParentContextAndSnapshot`, `NestedEventRestoresFunctionSchemaForEnumResolution`, `RowTransitionScopeIsIsolatedAndRestoredAroundEvents`, `EventContextSurvivesNestedRowTrigger` |
+| Protocol, errors, cancellation and recovery | Native 39P03 guard; owned diagnostics raised after managed return; callback state restored on every exit | `OrdinaryInvocationRejectsEventProtocolBeforeDispatch`, `ErrorsRollBackDdlAndRecoverOnSameConnection`, `FailedCommandsDoNotRunEndAndBackendRecovers` |
+| Login callbacks | PostgreSQL 17+ login support; no parse-tree or active-portal assumption | `LoginCallbacksCommitExactMetadataForEachPhysicalConnection`, `LoginFailuresRollBackAndAllowAdministrativeRecovery`, `LoginFiltersAndConnectionBypassFollowPostgresRules` |
+| Server-owned firing rules, encoding and lifecycle | Native filters/order/enable settings; UTF-8 transport and database-wide extension attachment | `EventOrderingFiltersAndEnableModesFollowPostgres`, `Latin1EventSnapshotsPreserveNamesArraysAndRecover`, `EventTriggerSampleRelocatesAndReinstalls` |
+| Declaration validation and dependencies | ANKUS011, shared function options/SQL graph, compiled nested dispatch and conditional native helpers | `InvalidEventTriggerSignaturesAreDiagnosed`, `ConflictingEventTriggerMetadataIsDiagnosed`, `EventTriggerSqlDependenciesOrderSchemaTableFunctionAndAttachment`, `EventTriggerMixedDeclarationsPreserveDiscoveryAndDeterministicOutput` |
+
+Focused checks pass 71 runtime cases, 80 event generator cases, and the complete 798-case generator suite.
+The final focused backend run passes 44 event/sample/login cases on PostgreSQL 18.6/Linux x64,
+including function-schema restoration through nested success and caught errors. Plain `dotnet test`
+passes all 2609 cases, including 1384 integration cases and the package/tool consumers, with zero failures
+or skips. The non-incremental Release build has zero warnings/errors. IDE0008/IDE0290/IDE2003 verification
+passes; the brace scan checks 318 C# files with zero extra opening-brace blank lines, and the XML scan
+checks 573 internal declarations with zero omissions.
+The independent C review found mutable automatic result/error headers read after `longjmp` in both
+event and row callbacks. These headers now live in callback memory contexts, reached through stable
+pointers assigned before `PG_TRY`; allocator-matched cleanup and row cursor lifetime ordering are preserved.
+The API reference has 81 pages and 924 members; the site builds 107 pages. Site type checking and API
+freshness verification pass. Existing duplicate `/404` and missing-public-site-URL warnings remain
+visible; no warnings are disabled.
+
+The native, runtime, generator and backend review evidence lives under `.git/testagent/event-triggers/`.
+This managed surface exposes owned descriptive metadata; raw parse trees and opaque `pg_ddl_command`
+objects remain part of the full raw-binding inventory. Other datum/runtime/tooling requirements and
+the PostgreSQL/platform matrix remain active full-port work.
 
 ### Work in progress
 
@@ -805,7 +845,7 @@ The target architecture consists of:
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
-| `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
+| Raw `EventTriggerData` and event-trigger helpers in `pgrx-pg-sys` | `[PgEventTrigger]` and owned context metadata | Implemented for descriptive DDL/drop/rewrite metadata and login; PostgreSQL 18.6/Linux x64 evidence above; raw bindings remain in the full inventory |
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
@@ -905,8 +945,9 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
-`merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event triggers and full
-custom-scan support remain required alongside the source-level macro inventory.
+`merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event callbacks and owned
+descriptive metadata are implemented as documented above. Full custom-scan support remains required
+alongside the source-level macro inventory.
 
 ### Datum conversions and user-defined types
 
@@ -1039,7 +1080,8 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
   - [x] row and statement triggers for supported tuple types
-  - [ ] event triggers, aggregates, generated equality/order/hash operator classes
+  - [x] event triggers with owned DDL/drop/rewrite metadata and login callbacks
+  - [ ] aggregates, generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
@@ -1294,3 +1336,15 @@ The phases track implementation of the complete pgrx feature surface.
   build has zero warnings/errors; the invalid-argument probe verifies the error text and exit code 1.
   Plain `dotnet test`: 2414 passed, zero failures/skips on PostgreSQL 18.6/Linux x64, including Native AOT
   publishing and isolated package consumers. This structural change does not alter the public API or guides.
+- 2026-09-22 — Added event-trigger callbacks, immutable DDL/drop/rewrite snapshots, login support, native
+  invocation guards and nested event/row/function scope restoration. Added 71 runtime, 80 generator and
+  44 backend/sample cases, including NULL catalog identities, address arrays, rewrite effects, ownership,
+  rollback, cancellation, LATIN1, connection recovery and relocation/reinstallation. Independent review
+  identified mutable automatic callback headers read after `longjmp`; event and row bridges now store
+  those headers in callback memory contexts through stable pointers, preserving cursor cleanup ordering.
+  Plain `dotnet test`: 2609 passed, zero failures/skips on PostgreSQL 18.6/Linux x64; non-incremental Release
+  build: zero warnings/errors. Style verification passes; 318 C# files have no extra opening-brace blank
+  lines and 573 internal declarations have no XML omissions. Added the public event-trigger guide/sample;
+  81 API pages document 924 members and the site builds 107 pages. Site type/API freshness checks pass.
+  Raw parse-tree/opaque-command bindings, the remaining full-port inventory and PostgreSQL/platform
+  validation remain active requirements.

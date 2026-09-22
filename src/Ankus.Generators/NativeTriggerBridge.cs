@@ -181,8 +181,8 @@ internal static class NativeTriggerBridge
             Oid previous_function = ankus_function_oid;
             MemoryContext caller = CurrentMemoryContext;
             AnkusValue arguments[12] = {0};
-            AnkusValue result = {0};
-            AnkusError error = {0};
+            AnkusValue *result;
+            AnkusError *error;
             volatile HeapTuple output = NULL;
             if (!CALLED_AS_TRIGGER(fcinfo))
                 ereport(ERROR, (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED), errmsg("Ankus trigger functions can only be called by a trigger")));
@@ -194,6 +194,9 @@ internal static class NativeTriggerBridge
             scope.data = trigger;
             scope.context = AllocSetContextCreate(caller, "Ankus trigger callback", ALLOCSET_SMALL_SIZES);
             scope.identity = ++ankus_next_trigger_id;
+            /* These mutable headers are read during cleanup after ERROR/longjmp. */
+            result = MemoryContextAllocZero(scope.context, sizeof(AnkusValue));
+            error = MemoryContextAllocZero(scope.context, sizeof(AnkusError));
             ankus_trigger_scope = &scope;
             ankus_function_oid = fcinfo->flinfo->fn_oid;
             PG_TRY();
@@ -228,10 +231,10 @@ internal static class NativeTriggerBridge
 
                 ankus_tuple_transport(RelationGetDescr(trigger->tg_relation), RelationGetDescr(trigger->tg_relation)->tdtypeid,
                     NULL, NULL, &arguments[11], &owned);
-                status = callback(arguments, &result, &error, ankus_spi_execute);
+                status = callback(arguments, result, error, ankus_spi_execute);
                 if (status != 0)
-                    ankus_raise_error(&error);
-                if (!TRIGGER_FIRED_AFTER(trigger->tg_event) && !result.is_null)
+                    ankus_raise_error(error);
+                if (!TRIGGER_FIRED_AFTER(trigger->tg_event) && !result->is_null)
                 {
                     if (TRIGGER_FIRED_FOR_STATEMENT(trigger->tg_event))
                         ereport(ERROR, (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED), errmsg("BEFORE STATEMENT trigger cannot return a value")));
@@ -239,7 +242,7 @@ internal static class NativeTriggerBridge
                         output = trigger->tg_trigtuple;
                     else
                     {
-                        HeapTuple tuple = ankus_trigger_result(&result, trigger);
+                        HeapTuple tuple = ankus_trigger_result(result, trigger);
                         MemoryContextSwitchTo(caller);
                         output = heap_copytuple(tuple);
                     }
@@ -248,9 +251,9 @@ internal static class NativeTriggerBridge
             PG_FINALLY();
             {
                 MemoryContextSwitchTo(caller);
-                if (result.release != NULL)
-                    result.release(result.data);
-                ankus_release_error(&error);
+                if (result->release != NULL)
+                    result->release(result->data);
+                ankus_release_error(error);
                 PG_TRY();
                 {
                     /* Iterator disposal can still query this invocation's transition tables.

@@ -31,6 +31,11 @@ resolve transition tables from the current invocation; they do not preserve
 previous transition rows. Owned `PgTriggerContext` metadata and fetched rows
 survive callback completion. See [triggers](/triggers/).
 
+Event trigger metadata and DDL/drop/rewrite snapshots also remain owned after
+callback completion. Query their helpers only through the current invocation's
+context and in the matching event phase. Nested callbacks restore their parent
+context before returning. See [event triggers](/event-triggers/).
+
 ## Errors
 
 An unhandled managed exception becomes PostgreSQL ERROR after `finally` blocks

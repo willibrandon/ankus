@@ -447,7 +447,34 @@ restores the enclosing scope and function identity on success or failure.
 If portal cleanup raises, the callback context remains owned by its caller until
 PostgreSQL abort cleanup has released the surviving portals. Deleting it
 unconditionally on that path would invalidate their borrowed query environments.
-Managed result/error buffers retain their allocator-matched cleanup. Retained
+Mutable result/error headers live in the callback memory context, so cleanup
+can read them safely after `longjmp`; their pointers are assigned before
+`PG_TRY`. Managed buffers retain their allocator-matched cleanup. Retained
 plans keep the plan, not a transition table: execution uses the current SPI
 query environment, and PostgreSQL's original error is transported when a required
 named tuplestore is absent.
+
+## Event trigger callbacks
+
+Event entry points validate `CALLED_AS_EVENT_TRIGGER` and zero SQL arguments
+before reading `EventTriggerData`. The native header owns the struct layout and
+`CommandTag` enum; `GetCommandTagName` supplies the command text. Two borrowed
+UTF-8 text slots carry the event name and command tag. The managed entry copies
+them into a validated context, invokes the void callback, then restores the
+enclosing managed event and backend scopes. Login events need no parse tree.
+
+Each callback owns a temporary native memory context, including the mutable
+result/error headers that cleanup reads after `longjmp`. The wrapper saves and
+clears the current row-trigger scope so event SPI cannot inherit an outer row
+trigger's transition query environment. Native `PG_FINALLY` restores that scope,
+the function OID, and the caller's memory context on every path, then releases
+managed result/error buffers and native temporary storage. The result is Datum
+zero with `fcinfo->isnull = false`. Protocol errors use PostgreSQL's `39P03`.
+
+Typed DDL/drop/rewrite helpers execute explicit projections of PostgreSQL's
+metadata functions through guarded SPI. They copy nullable identities and
+address arrays into immutable snapshots; the opaque `pg_ddl_command` column is
+never transported. Thread-local context identity and event-phase checks prevent
+old or suspended contexts from reading a newer native invocation. Snapshot
+property access needs no live backend. As with row triggers, PostgreSQL ERROR
+can be raised only after managed frames have returned to the native boundary.

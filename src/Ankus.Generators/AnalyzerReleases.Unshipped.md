@@ -12,3 +12,4 @@ ANKUS007 | Ankus | Error | Invalid PostgreSQL operator or cast
 ANKUS008 | Ankus | Error | Invalid PostgreSQL set result or table columns
 ANKUS009 | Ankus | Error | Invalid named composite type or TABLE column binding
 ANKUS010 | Ankus | Error | Invalid PostgreSQL trigger declaration
+ANKUS011 | Ankus | Error | Invalid PostgreSQL event trigger declaration

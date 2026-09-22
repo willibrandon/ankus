@@ -2,6 +2,7 @@
   <Folder Name="/samples/">
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
     <Project Path="samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" />
+    <Project Path="samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" />
     <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
     <Project Path="samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" />
     <Project Path="samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" />

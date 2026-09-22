@@ -46,8 +46,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgTriggerAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
-        IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect()).Combine(triggers.Collect())
-            .Select(static (input, _) => input.Left.Left.Left.AddRange(input.Left.Left.Right).AddRange(input.Left.Right).AddRange(input.Right)
+        IncrementalValuesProvider<IMethodSymbol> eventTriggers = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgEventTriggerAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
+            .Combine(triggers.Collect()).Combine(eventTriggers.Collect())
+            .Select(static (input, _) => input.Left.Left.Left.Left.AddRange(input.Left.Left.Left.Right).AddRange(input.Left.Left.Right)
+                .AddRange(input.Left.Right).AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -110,6 +116,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             if (methods.Any(TriggerDeclaration.IsTrigger))
             {
                 native.AppendLine(NativeTriggerBridge.Source);
+            }
+
+            if (methods.Any(EventTriggerDeclaration.IsEventTrigger))
+            {
+                native.AppendLine(NativeEventTriggerBridge.Source);
             }
 
             if (methods.Any(static method => SetResult.IsSequence(method.ReturnType)))
@@ -215,8 +226,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
             bool trigger = TriggerDeclaration.IsTrigger(method);
+            bool eventTrigger = EventTriggerDeclaration.IsEventTrigger(method);
+            bool contextParameter = trigger || eventTrigger;
             SetResult? set = null;
-            if (trigger)
+            if (eventTrigger)
+            {
+                if (!EventTriggerDeclaration.Validate(method, context))
+                {
+                    continue;
+                }
+            }
+            else if (trigger)
             {
                 if (!TriggerDeclaration.Validate(method, context))
                 {
@@ -239,18 +259,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             string name = GetSqlName(method);
-            if (!trigger && !NumericConstraint.Validate(method, context, set))
+            if (!contextParameter && !NumericConstraint.Validate(method, context, set))
             {
                 continue;
             }
 
-            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set, trigger);
+            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set, contextParameter);
             if (declaration is null)
             {
                 continue;
             }
 
-            string signature = declaration.QualifiedName + "(" + (trigger ? string.Empty : string.Join(",", method.Parameters.Select(
+            string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", method.Parameters.Select(
                 static parameter => FunctionType.Create(parameter)!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
@@ -260,7 +280,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             string callback = GetCallbackName(method, name);
             var sql = new StringBuilder();
-            if (trigger)
+            if (eventTrigger)
+            {
+                PgEventTriggerEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+            }
+            else if (trigger)
             {
                 PgTriggerEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
             }
@@ -281,12 +305,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             graph.Add(entity);
-            if (!trigger)
+            if (!contextParameter)
             {
                 OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
             }
 
-            IEnumerable<FunctionType> contracts = trigger ? [] : method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
+            IEnumerable<FunctionType> contracts = contextParameter ? [] : method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
                 .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
             foreach (FunctionType contract in contracts)
             {

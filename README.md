@@ -128,6 +128,11 @@ Owned OLD/NEW tuples, trigger arguments, and transition-table SPI queries preser
 PostgreSQL's before/after/instead-of semantics. See [triggers](docs/src/content/docs/triggers.md)
 and the [trigger sample](samples/Ankus.Examples.Triggers/PetTriggers.cs).
 
+Use `[PgEventTrigger]` with `PgEventTriggerContext` for DDL, dropped-object,
+table-rewrite and login callbacks. Metadata snapshots remain owned after callback
+return. See [event triggers](docs/src/content/docs/event-triggers.md) and the
+[event trigger sample](samples/Ankus.Examples.EventTriggers/DdlEvents.cs).
+
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 
 ```csharp
