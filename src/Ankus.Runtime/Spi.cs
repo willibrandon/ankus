@@ -6,6 +6,32 @@ namespace Ankus;
 public static class Spi
 {
     /// <summary>
+    /// Opens a transaction-bound cursor with optional typed positional parameters.
+    /// </summary>
+    /// <param name="commandText">One SQL command that returns rows.</param>
+    /// <param name="parameters">The positional parameter values.</param>
+    /// <returns>An owned cursor that should be disposed or detached.</returns>
+    public static SpiCursor OpenCursor(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => OpenCursor(commandText, readOnly: false, parameters);
+
+    /// <summary>
+    /// Opens a cursor with explicit read-only SPI execution mode.
+    /// </summary>
+    /// <param name="commandText">One SQL command that returns rows.</param>
+    /// <param name="readOnly">Whether PostgreSQL should use read-only execution.</param>
+    /// <param name="parameters">The positional parameter values.</param>
+    /// <returns>An owned transaction-bound cursor.</returns>
+    public static SpiCursor OpenCursor(string commandText, bool readOnly, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.OpenCursor(commandText, parameters, readOnly);
+
+    /// <summary>
+    /// Takes ownership of an existing PostgreSQL cursor by its exact portal name.
+    /// </summary>
+    /// <param name="name">The portal name, including names returned by SpiCursor.Detach.</param>
+    /// <returns>An owned cursor.</returns>
+    public static SpiCursor FindCursor(string name) => NativeBackend.FindCursor(name);
+
+    /// <summary>
     /// Prepares a reusable statement with explicitly declared managed parameter types.
     /// The statement survives SPI calls and transaction boundaries until disposed on the owning backend thread.
     /// </summary>

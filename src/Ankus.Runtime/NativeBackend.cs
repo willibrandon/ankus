@@ -146,12 +146,141 @@ public static unsafe class NativeBackend
         }
     }
 
+    /// <summary>
+    /// Opens a cursor from UTF-8 SQL and borrowed typed parameters.
+    /// </summary>
+    /// <param name="commandText">The SQL command.</param>
+    /// <param name="parameters">The bound parameters.</param>
+    /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <returns>The owned managed cursor.</returns>
+    internal static SpiCursor OpenCursor(string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly)
+    {
+        CheckAccess();
+        byte[] sql = EncodeCommand(commandText);
+        fixed (byte* text = sql)
+        {
+            return CreateCursor(new NativeSpiRequest
+            {
+                _operation = SpiOperation.OpenCursor,
+                _command = text,
+                _commandLength = sql.Length - 1,
+                _readOnly = readOnly ? (byte)1 : (byte)0,
+            }, parameters);
+        }
+    }
+
+    /// <summary>
+    /// Opens a cursor from a retained plan without transferring plan ownership.
+    /// </summary>
+    /// <param name="plan">The prepared plan handle.</param>
+    /// <param name="parameters">The bound parameters.</param>
+    /// <param name="readOnly">Whether to use read-only execution.</param>
+    /// <returns>The owned managed cursor.</returns>
+    internal static SpiCursor OpenPlanCursor(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly)
+        => CreateCursor(new NativeSpiRequest
+        {
+            _operation = SpiOperation.OpenPlanCursor,
+            _plan = plan,
+            _readOnly = readOnly ? (byte)1 : (byte)0,
+        }, parameters);
+
+    /// <summary>
+    /// Resolves an existing portal by its exact name and returns a managed owner.
+    /// </summary>
+    /// <param name="name">The PostgreSQL portal name.</param>
+    /// <returns>The owned cursor.</returns>
+    internal static SpiCursor FindCursor(string name)
+    {
+        CheckAccess();
+        ArgumentNullException.ThrowIfNull(name);
+        if (name.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("A cursor name cannot contain a zero character.", nameof(name));
+        }
+
+        byte[] encoded = EncodeUtf8(name);
+        fixed (byte* text = encoded)
+        {
+            return CreateCursor(new NativeSpiRequest
+            {
+                _operation = SpiOperation.FindCursor,
+                _command = text,
+                _commandLength = encoded.Length - 1,
+            }, []);
+        }
+    }
+
+    /// <summary>
+    /// Fetches and materializes the next cursor batch after native identity validation.
+    /// </summary>
+    /// <param name="identity">The native cursor identity.</param>
+    /// <param name="count">The requested row count.</param>
+    /// <param name="forward">Whether to fetch forward rather than backward.</param>
+    /// <returns>The managed result batch.</returns>
+    internal static SpiResult FetchCursor(long identity, int count, bool forward)
+        => RunRequest(new NativeSpiRequest
+        {
+            _operation = SpiOperation.FetchCursor,
+            _cursorId = identity,
+            _limit = count,
+            _resultMode = SpiResultMode.All,
+            _forward = forward ? (byte)1 : (byte)0,
+        }, []);
+
+    /// <summary>
+    /// Closes a portal if its native identity remains live.
+    /// </summary>
+    /// <param name="identity">The cursor identity.</param>
+    internal static void CloseCursor(long identity)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.CloseCursor, _cursorId = identity };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+    }
+
+    private static SpiCursor CreateCursor(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        var cursor = new SpiCursor(s_execute);
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, parameters, &result);
+            cursor.Identity = result._cursorId;
+            cursor.Name = result._cursorName.ReadString();
+            return cursor;
+        }
+        catch
+        {
+            cursor.Dispose();
+            throw;
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
     private static SpiResult RunRequest(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
         int limit = request._limit;
         ArgumentOutOfRangeException.ThrowIfNegative(limit);
         NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, parameters, &result);
+            return result.ToManaged();
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
+    private static void InvokeParameters(NativeSpiRequest* request, ReadOnlySpan<SpiParameter> parameters, NativeSpiResult* result)
+    {
         var arguments = new NativeSpiParameter[parameters.Length];
         try
         {
@@ -168,24 +297,25 @@ public static unsafe class NativeBackend
 
             fixed (NativeSpiParameter* values = arguments)
             {
-                request._parameters = values;
-                request._parameterCount = arguments.Length;
-                Invoke(&request, &result);
+                request->_parameters = values;
+                request->_parameterCount = arguments.Length;
+                Invoke(request, result);
             }
-
-            return result.ToManaged();
         }
         finally
         {
-            if (result._release != null)
-            {
-                result._release(&result);
-            }
-
             foreach (ref NativeSpiParameter parameter in arguments.AsSpan())
             {
                 parameter._value.Release();
             }
+        }
+    }
+
+    private static void ReleaseResult(NativeSpiResult* result)
+    {
+        if (result->_release != null)
+        {
+            result->_release(result);
         }
     }
 
@@ -207,9 +337,14 @@ public static unsafe class NativeBackend
             throw new ArgumentException("SQL command text cannot contain a zero character.", nameof(commandText));
         }
 
+        return EncodeUtf8(commandText);
+    }
+
+    private static byte[] EncodeUtf8(string text)
+    {
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-        byte[] sql = new byte[encoding.GetByteCount(commandText) + 1];
-        encoding.GetBytes(commandText, sql);
+        byte[] sql = new byte[encoding.GetByteCount(text) + 1];
+        encoding.GetBytes(text, sql);
         return sql;
     }
 }

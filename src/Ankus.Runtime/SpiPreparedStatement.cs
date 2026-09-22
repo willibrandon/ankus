@@ -39,6 +39,34 @@ public sealed class SpiPreparedStatement : IDisposable
     internal nint Handle { get; set; }
 
     /// <summary>
+    /// Opens a transaction-bound cursor from this plan. The cursor remains valid after the plan is disposed.
+    /// </summary>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned cursor.</returns>
+    public SpiCursor OpenCursor(params ReadOnlySpan<SpiParameter> parameters)
+        => OpenCursor(readOnly: false, parameters);
+
+    /// <summary>
+    /// Opens a cursor from this plan with explicit read-only execution mode.
+    /// </summary>
+    /// <param name="readOnly">Whether PostgreSQL should use read-only execution.</param>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned cursor independent of the prepared statement's lifetime.</returns>
+    public SpiCursor OpenCursor(bool readOnly, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        ValidateParameters(parameters);
+        _activeExecutions++;
+        try
+        {
+            return NativeBackend.OpenPlanCursor(Handle, parameters, readOnly);
+        }
+        finally
+        {
+            _activeExecutions--;
+        }
+    }
+
+    /// <summary>
     /// Executes the statement and returns the final command's processed-row count.
     /// </summary>
     /// <param name="parameters">Values whose PostgreSQL types must match the declared parameter types.</param>
@@ -107,6 +135,20 @@ public sealed class SpiPreparedStatement : IDisposable
 
     private SpiResult Run(ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode)
     {
+        ValidateParameters(parameters);
+        _activeExecutions++;
+        try
+        {
+            return NativeBackend.RunPlan(Handle, parameters, readOnly, limit, resultMode);
+        }
+        finally
+        {
+            _activeExecutions--;
+        }
+    }
+
+    private void ValidateParameters(ReadOnlySpan<SpiParameter> parameters)
+    {
         ObjectDisposedException.ThrowIf(Handle == 0, this);
         NativeBackend.CheckAccess(_backend);
         if (parameters.Length != _parameterTypes.Length)
@@ -122,16 +164,6 @@ public sealed class SpiPreparedStatement : IDisposable
                 throw new ArgumentException($"Parameter {index + 1} must have PostgreSQL type OID {_parameterTypes[index]}.",
                     nameof(parameters));
             }
-        }
-
-        _activeExecutions++;
-        try
-        {
-            return NativeBackend.RunPlan(Handle, parameters, readOnly, limit, resultMode);
-        }
-        finally
-        {
-            _activeExecutions--;
         }
     }
 }

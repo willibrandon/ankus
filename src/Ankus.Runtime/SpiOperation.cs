@@ -24,4 +24,29 @@ internal enum SpiOperation : byte
     /// Releases a retained plan on its owning backend thread.
     /// </summary>
     FreePlan,
+
+    /// <summary>
+    /// Opens a transaction-bound cursor from command text.
+    /// </summary>
+    OpenCursor,
+
+    /// <summary>
+    /// Opens a transaction-bound cursor from a retained plan.
+    /// </summary>
+    OpenPlanCursor,
+
+    /// <summary>
+    /// Fetches the next batch from a live cursor.
+    /// </summary>
+    FetchCursor,
+
+    /// <summary>
+    /// Closes a cursor if its portal is still alive.
+    /// </summary>
+    CloseCursor,
+
+    /// <summary>
+    /// Resolves a cursor by its PostgreSQL portal name.
+    /// </summary>
+    FindCursor,
 }

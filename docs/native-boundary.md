@@ -99,6 +99,22 @@ prevents reentrant disposal while permitting recursive execution. No PostgreSQL
 cleanup runs on the finalizer thread. Saved plans have explicit managed disposal;
 PostgreSQL retains them in its cache memory context across transaction boundaries.
 
+Cursor operations share the native guard and result-copy path. Opening uses
+`SPI_cursor_open_with_args` or `SPI_cursor_open` for prepared plans. Managed cursor
+objects carry monotonically assigned identities and copied names rather than
+native portal pointers. A native registry entry lives inside the portal's memory
+context. Its `MemoryContextRegisterResetCallback` callback unlinks the entry before
+the context is reclaimed, including on SQL CLOSE, transaction end, and rollback.
+Lookup validates the identity before accessing the portal. Recreating a portal with
+the same name or address cannot revive a stale identity.
+
+Fetch direction and count are passed to `SPI_cursor_fetch`; returned cells are copied
+before disconnecting SPI. Disposal uses `SPI_cursor_close` when the identity is live
+and is harmless when PostgreSQL has already removed the portal. Detach transfers
+ownership to the caller retaining the portal name. Managed reentrant operations on
+a currently fetching cursor are rejected before entering PostgreSQL. Registry cleanup
+is entirely native and does not retain managed objects or invoke managed callbacks.
+
 On PostgreSQL ERROR, native `PG_CATCH` copies diagnostics outside the failing
 subtransaction, flushes the error state, rolls back to the caller's transaction
 nesting level, and restores the memory context and resource owner. It returns
@@ -120,10 +136,13 @@ UTF-8 characters. Native reporting converts these fields to the server encoding.
 - `src/Ankus.Generators/NativeBridge.cs`: native transport and varlena conversion.
 - `src/Ankus.Generators/GuardedBackend.cs`: native SPI and error-recovery guards.
 - `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
+- `src/Ankus.Generators/NativeCursorBridge.cs`: portal identities and memory-context invalidation.
 - `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
 - `src/Ankus.Runtime/NativeBackend.cs`: thread-local backend bindings.
 - `src/Ankus.Runtime/SpiPreparedStatement.cs`: retained-plan ownership and execution.
+- `src/Ankus.Runtime/SpiCursor.cs`: batched fetching and cursor ownership.
 - `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.
 - `tests/Ankus.IntegrationTests/SpiTests.cs`: transaction, reentrancy, and error-unwinding tests.
 - `tests/Ankus.IntegrationTests/SpiQueryTests.cs`: parameter, metadata, and result-lifetime tests.
 - `tests/Ankus.IntegrationTests/SpiPreparedTests.cs`: retained plans, invalidation, and native cleanup tests.
+- `tests/Ankus.IntegrationTests/SpiCursorTests.cs`: cursor batching, portal lifetime, and error cleanup tests.

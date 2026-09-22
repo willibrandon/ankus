@@ -117,6 +117,70 @@ There is no finalizer that calls PostgreSQL: its APIs cannot run on the .NET
 finalizer thread. A plan that is never explicitly disposed remains allocated in
 the backend until the process exits.
 
+## Cursors and batched results
+
+Use a cursor to fetch a query incrementally:
+
+```csharp
+using SpiCursor cursor = Spi.OpenCursor(
+    "SELECT id, body FROM messages WHERE id >= $1 ORDER BY id",
+    readOnly: true,
+    SpiParameter.Create(100));
+
+while (true)
+{
+    SpiResult batch = cursor.Fetch(128);
+    if (batch.Count == 0)
+    {
+        break;
+    }
+
+    foreach (SpiRow row in batch)
+    {
+        int id = row.Get<int>("id");
+        string? body = row.Get<string?>("body");
+    }
+}
+```
+
+Each batch owns its managed rows and buffers and remains valid after later fetches
+or cursor disposal. Empty batches retain column metadata. `SpiPreparedStatement.OpenCursor`
+accepts the plan's typed parameters; the resulting cursor remains usable even after
+the prepared statement is disposed.
+
+`Fetch(count)` moves forward. `Fetch(count, forward: false)` moves backward when
+the underlying PostgreSQL cursor supports scrolling. Counts must be nonnegative;
+zero means fetch the current row, following PostgreSQL semantics, and can require
+a scrollable cursor. `Spi.FindCursor` can attach to cursors declared using SQL,
+including `SCROLL` and `WITH HOLD` cursors.
+
+To continue a cursor in another extension callback within the same transaction,
+detach its ownership and retain its portal name:
+
+```csharp
+string name;
+using (SpiCursor cursor = Spi.OpenCursor("SELECT id FROM messages ORDER BY id"))
+{
+    name = cursor.Detach();
+}
+
+using SpiCursor resumed = Spi.FindCursor(name);
+SpiResult nextBatch = resumed.Fetch(128);
+```
+
+`Detach` leaves the portal open and makes the original managed object unusable.
+Disposal closes an owned portal and is idempotent. If several objects refer to
+the same portal, closing one invalidates the others. Normal SPI-opened cursors
+end with their transaction; a savepoint rollback also closes cursors created
+inside that savepoint. Externally declared holdable cursors follow PostgreSQL's
+hold semantics. Stale objects produce a managed `PgException` with SQLSTATE `34000`;
+reusing a portal name never makes an old object refer to the replacement.
+
+Cursor operations require the owning backend thread. A failed fetch can leave
+the portal unusable; cursor position and recovery follow PostgreSQL's rules.
+Independent SPI commands remain available after the error is caught, and the
+cursor can still be disposed. No cursor cleanup is performed by a .NET finalizer.
+
 ## Errors and transactions
 
 Each call runs in an internal subtransaction. Success retains its changes in the

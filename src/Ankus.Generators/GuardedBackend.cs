@@ -72,12 +72,13 @@ internal static class GuardedBackend
                     {
                         ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                     }
-                    code = ankus_run_spi_request(request);
+                    code = ankus_run_spi_request(request, result);
                     if (code < 0)
                     {
                         ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
                     }
-                    if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN)
+                    if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
+                        request->operation == ANKUS_SPI_FETCH_CURSOR)
                     {
                         if (SPI_processed > PG_INT64_MAX)
                         {

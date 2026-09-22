@@ -24,6 +24,11 @@ internal unsafe struct NativeSpiRequest
     internal nint _plan;
 
     /// <summary>
+    /// Contains the cursor identity, which is never a dereferenceable PostgreSQL pointer.
+    /// </summary>
+    internal long _cursorId;
+
+    /// <summary>
     /// Contains the UTF-8 command length, excluding its terminator.
     /// </summary>
     internal int _commandLength;
@@ -52,4 +57,9 @@ internal unsafe struct NativeSpiRequest
     /// Selects read-only execution using a one-byte C flag.
     /// </summary>
     internal byte _readOnly;
+
+    /// <summary>
+    /// Selects forward cursor movement using a one-byte C flag.
+    /// </summary>
+    internal byte _forward;
 }

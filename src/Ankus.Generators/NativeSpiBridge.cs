@@ -25,7 +25,12 @@ internal static class NativeSpiBridge
             ANKUS_SPI_EXECUTE,
             ANKUS_SPI_PREPARE,
             ANKUS_SPI_EXECUTE_PLAN,
-            ANKUS_SPI_FREE_PLAN
+            ANKUS_SPI_FREE_PLAN,
+            ANKUS_SPI_OPEN_CURSOR,
+            ANKUS_SPI_OPEN_PLAN_CURSOR,
+            ANKUS_SPI_FETCH_CURSOR,
+            ANKUS_SPI_CLOSE_CURSOR,
+            ANKUS_SPI_FIND_CURSOR
         };
 
         typedef struct AnkusRequest
@@ -33,12 +38,14 @@ internal static class NativeSpiBridge
             const char *command;
             const AnkusParameter *parameters;
             SPIPlanPtr plan;
+            int64 cursor_id;
             int command_length;
             int parameter_count;
             int limit;
             uint8 operation;
             uint8 result_mode;
             uint8 read_only;
+            uint8 forward;
         } AnkusRequest;
 
         typedef struct AnkusColumn
@@ -56,11 +63,18 @@ internal static class NativeSpiBridge
             int32 row_count;
             int32 column_count;
             void (*release)(struct AnkusResult *);
+            int64 cursor_id;
+            AnkusValue cursor_name;
         } AnkusResult;
+
+        static int ankus_return_cursor(Portal portal, AnkusResult *result);
+        static int ankus_cursor_operation(AnkusRequest *request, AnkusResult *result);
 
         static void
         ankus_release_result(AnkusResult *result)
         {
+            free(result->cursor_name.data);
+            result->cursor_name.data = NULL;
             if (result->columns != NULL)
             {
                 for (int column = 0; column < result->column_count; column++)
@@ -134,12 +148,16 @@ internal static class NativeSpiBridge
         }
 
         static int
-        ankus_run_spi_request(AnkusRequest *request)
+        ankus_run_spi_request(AnkusRequest *request, AnkusResult *result)
         {
             Oid *types = NULL;
             Datum *values = NULL;
             char *nulls = NULL;
             char *sql;
+            if (request->operation >= ANKUS_SPI_FETCH_CURSOR)
+            {
+                return ankus_cursor_operation(request, result);
+            }
             if (request->operation == ANKUS_SPI_FREE_PLAN)
             {
                 SPIPlanPtr plan = request->plan;
@@ -161,7 +179,7 @@ internal static class NativeSpiBridge
                     }
                 }
             }
-            if (request->operation == ANKUS_SPI_EXECUTE_PLAN)
+            if (request->operation == ANKUS_SPI_EXECUTE_PLAN || request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR)
             {
                 if (SPI_getargcount(request->plan) != request->parameter_count)
                 {
@@ -174,9 +192,20 @@ internal static class NativeSpiBridge
                         return SPI_ERROR_PARAM;
                     }
                 }
+                if (request->operation == ANKUS_SPI_OPEN_PLAN_CURSOR)
+                {
+                    Portal portal = SPI_cursor_open(NULL, request->plan, values, nulls, request->read_only != 0);
+                    return ankus_return_cursor(portal, result);
+                }
                 return SPI_execute_plan(request->plan, values, nulls, request->read_only != 0, request->limit);
             }
             sql = pg_any_to_server(request->command, request->command_length, PG_UTF8);
+            if (request->operation == ANKUS_SPI_OPEN_CURSOR)
+            {
+                Portal portal = SPI_cursor_open_with_args(NULL, sql, request->parameter_count, types, values, nulls,
+                    request->read_only != 0, 0);
+                return ankus_return_cursor(portal, result);
+            }
             if (request->operation == ANKUS_SPI_PREPARE)
             {
                 SPIPlanPtr plan = SPI_prepare(sql, request->parameter_count, types);

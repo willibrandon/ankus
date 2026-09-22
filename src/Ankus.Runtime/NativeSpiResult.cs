@@ -39,6 +39,16 @@ internal unsafe struct NativeSpiResult
     internal delegate* unmanaged[Cdecl]<NativeSpiResult*, void> _release;
 
     /// <summary>
+    /// Contains the identity of an opened or resolved cursor.
+    /// </summary>
+    internal long _cursorId;
+
+    /// <summary>
+    /// Contains the owned UTF-8 portal name.
+    /// </summary>
+    internal NativeValue _cursorName;
+
+    /// <summary>
     /// Copies every cell and column into managed objects before native memory is released.
     /// </summary>
     /// <returns>The independent managed result.</returns>
