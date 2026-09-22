@@ -176,6 +176,9 @@ public unsafe partial struct NativeValue
             1082 => ReadArrayData<PgDate?>(oid), 1083 => ReadArrayData<PgTime?>(oid), 1266 => ReadArrayData<PgTimeTz?>(oid),
             1114 => ReadArrayData<PgTimestamp?>(oid), 1184 => ReadArrayData<PgTimestampTz?>(oid), 1186 => ReadArrayData<PgInterval?>(oid),
             869 => ReadArrayData<PgInet?>(oid), 650 => ReadArrayData<PgCidr?>(oid),
+            600 => ReadArrayData<PgPoint?>(oid), 601 => ReadArrayData<PgLineSegment?>(oid), 602 => ReadArrayData<PgPath>(oid),
+            603 => ReadArrayData<PgBox?>(oid), 604 => ReadArrayData<PgPolygon>(oid), 628 => ReadArrayData<PgLine?>(oid),
+            718 => ReadArrayData<PgCircle?>(oid),
             _ => throw new NotSupportedException($"Array element OID {oid} has no managed conversion."),
         };
     }

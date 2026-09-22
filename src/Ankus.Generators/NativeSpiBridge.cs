@@ -43,7 +43,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_IS_LOG_ENABLED,
             ANKUS_SPI_TEMPORAL,
             ANKUS_SPI_NUMERIC,
-            ANKUS_SPI_NETWORK
+            ANKUS_SPI_NETWORK,
+            ANKUS_SPI_GEOMETRY
         };
 
         typedef struct AnkusRequest
@@ -178,6 +179,7 @@ internal static class NativeSpiBridge
                 case NUMERICOID:
                 case INETOID:
                 case CIDROID:
+                case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
                     if (OidIsValid(get_element_type(parameter->type_oid)))
@@ -332,6 +334,7 @@ internal static class NativeSpiBridge
                 case NUMERICOID:
                 case INETOID:
                 case CIDROID:
+                case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     ankus_read_typed_buffer(datum, value, owned, type);
                     break;
                 default:

@@ -53,6 +53,7 @@ internal static class SpiArray
         700 => 1021, 701 => 1022, 2950 => 2951, 114 => 199, 3802 => 3807, 1700 => 1231,
         1082 => 1182, 1083 => 1183, 1266 => 1270, 1114 => 1115, 1184 => 1185, 1186 => 1187,
         869 => 1041, 650 => 651,
+        600 => 1017, 601 => 1018, 602 => 1019, 603 => 1020, 604 => 1027, 628 => 629, 718 => 719,
         _ => throw new NotSupportedException($"PostgreSQL type OID {element} is not a supported array element."),
     };
 
@@ -64,6 +65,13 @@ internal static class SpiArray
     internal static uint GetOid(Type type)
     {
         uint element =
+            Matches<PgPoint>(type) || Matches<PgPoint?>(type) ? 600u :
+            Matches<PgLineSegment>(type) || Matches<PgLineSegment?>(type) ? 601u :
+            Matches<PgPath>(type) ? 602u :
+            Matches<PgBox>(type) || Matches<PgBox?>(type) ? 603u :
+            Matches<PgPolygon>(type) ? 604u :
+            Matches<PgLine>(type) || Matches<PgLine?>(type) ? 628u :
+            Matches<PgCircle>(type) || Matches<PgCircle?>(type) ? 718u :
             Matches<PgInet>(type) || Matches<PgInet?>(type) || Matches<System.Net.IPAddress>(type) ? 869u :
             Matches<PgCidr>(type) || Matches<PgCidr?>(type) || Matches<System.Net.IPNetwork>(type) || Matches<System.Net.IPNetwork?>(type) ? 650u :
             Matches<bool>(type) || Matches<bool?>(type) ? 16u :
@@ -96,7 +104,10 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
-        => Convert<PgInet>(array, type) ?? Convert<PgInet?>(array, type) ?? Convert<System.Net.IPAddress>(array, type) ??
+        => Convert<PgPoint>(array, type) ?? Convert<PgPoint?>(array, type) ?? Convert<PgLineSegment>(array, type) ?? Convert<PgLineSegment?>(array, type) ??
+           Convert<PgPath>(array, type) ?? Convert<PgBox>(array, type) ?? Convert<PgBox?>(array, type) ?? Convert<PgPolygon>(array, type) ??
+           Convert<PgLine>(array, type) ?? Convert<PgLine?>(array, type) ?? Convert<PgCircle>(array, type) ?? Convert<PgCircle?>(array, type) ??
+           Convert<PgInet>(array, type) ?? Convert<PgInet?>(array, type) ?? Convert<System.Net.IPAddress>(array, type) ??
            Convert<PgCidr>(array, type) ?? Convert<PgCidr?>(array, type) ?? Convert<System.Net.IPNetwork>(array, type) ?? Convert<System.Net.IPNetwork?>(array, type) ??
            Convert<bool>(array, type) ?? Convert<bool?>(array, type) ?? Convert<byte[]>(array, type) ??
            Convert<sbyte>(array, type) ?? Convert<sbyte?>(array, type) ?? Convert<short>(array, type) ?? Convert<short?>(array, type) ??
@@ -120,6 +131,12 @@ internal static class SpiArray
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
     internal static IPgArray Wrap(Array value) => value switch
     {
+        PgPoint[] items => new PgArray<PgPoint>(items), PgPoint?[] items => new PgArray<PgPoint?>(items),
+        PgLineSegment[] items => new PgArray<PgLineSegment>(items), PgLineSegment?[] items => new PgArray<PgLineSegment?>(items),
+        PgPath[] items => new PgArray<PgPath>(items), PgPolygon[] items => new PgArray<PgPolygon>(items),
+        PgBox[] items => new PgArray<PgBox>(items), PgBox?[] items => new PgArray<PgBox?>(items),
+        PgLine[] items => new PgArray<PgLine>(items), PgLine?[] items => new PgArray<PgLine?>(items),
+        PgCircle[] items => new PgArray<PgCircle>(items), PgCircle?[] items => new PgArray<PgCircle?>(items),
         PgInet[] items => new PgArray<PgInet>(items), PgInet?[] items => new PgArray<PgInet?>(items),
         PgCidr[] items => new PgArray<PgCidr>(items), PgCidr?[] items => new PgArray<PgCidr?>(items),
         System.Net.IPAddress[] items => new PgArray<System.Net.IPAddress>(items),

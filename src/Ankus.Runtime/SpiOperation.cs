@@ -109,4 +109,9 @@ internal enum SpiOperation : byte
     /// Calls allowlisted network input functions without opening an SPI connection.
     /// </summary>
     Network,
+
+    /// <summary>
+    /// Calls allowlisted geometric input functions without opening an SPI connection.
+    /// </summary>
+    Geometry,
 }

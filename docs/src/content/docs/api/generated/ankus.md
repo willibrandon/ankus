@@ -16,6 +16,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgLog](/api/ankus.pglog/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [PgParameterAttribute](/api/ankus.pgparameterattribute/)
+- [PgPath](/api/ankus.pgpath/)
+- [PgPolygon](/api/ankus.pgpolygon/)
 - [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
@@ -29,13 +31,18 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Structs
 
+- [PgBox](/api/ankus.pgbox/)
 - [PgCidr](/api/ankus.pgcidr/)
+- [PgCircle](/api/ankus.pgcircle/)
 - [PgDate](/api/ankus.pgdate/)
 - [PgInet](/api/ankus.pginet/)
 - [PgInterval](/api/ankus.pginterval/)
 - [PgJson](/api/ankus.pgjson/)
 - [PgJsonb](/api/ankus.pgjsonb/)
+- [PgLine](/api/ankus.pgline/)
+- [PgLineSegment](/api/ankus.pglinesegment/)
 - [PgNumeric](/api/ankus.pgnumeric/)
+- [PgPoint](/api/ankus.pgpoint/)
 - [PgTime](/api/ankus.pgtime/)
 - [PgTimeTz](/api/ankus.pgtimetz/)
 - [PgTimestamp](/api/ankus.pgtimestamp/)

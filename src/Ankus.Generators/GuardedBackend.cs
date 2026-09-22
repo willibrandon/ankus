@@ -30,7 +30,8 @@ internal static class GuardedBackend
             bool temporal = request->operation == ANKUS_SPI_TEMPORAL;
             bool numeric = request->operation == ANKUS_SPI_NUMERIC;
             bool network = request->operation == ANKUS_SPI_NETWORK;
-            bool direct = quote || reporting || temporal || numeric || network;
+            bool geometry = request->operation == ANKUS_SPI_GEOMETRY;
+            bool direct = quote || reporting || temporal || numeric || network || geometry;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_IS_LOG_ENABLED)
@@ -105,6 +106,11 @@ internal static class GuardedBackend
                             else if (network)
                             {
                                 ankus_network_operation(request, result);
+                                code = 0;
+                            }
+                            else if (geometry)
+                            {
+                                ankus_geometry_operation(request, result);
                                 code = 0;
                             }
                             else

@@ -68,6 +68,9 @@ calls, schema placement, and PostgreSQL execution options.
 | `Guid` | `uuid` |
 | `PgInet`, `IPAddress` | `inet` |
 | `PgCidr`, `IPNetwork` | `cidr` |
+| `PgPoint`, `PgLine`, `PgLineSegment` | `point`, `line`, `lseg` |
+| `PgBox`, `PgCircle` | `box`, `circle` |
+| `PgPath`, `PgPolygon` | `path`, `polygon` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
 | `decimal`, `PgNumeric` | `numeric` |
 | `DateOnly`, `PgDate` | `date` |
@@ -87,6 +90,9 @@ full-range PostgreSQL values.
 
 See [network values](/network/) for IPv4/IPv6 prefixes and checked `System.Net`
 conversions. `IPAddress` requires a full-width host prefix.
+
+See [geometric values](/geometry/) for coordinates, owned vertex collections,
+and PostgreSQL input validation.
 
 See [arrays](/arrays/) for dimensions, lower bounds, nullable elements, and
 variadic functions. `byte[]` is scalar `bytea`; `byte[][]` is `bytea[]`.

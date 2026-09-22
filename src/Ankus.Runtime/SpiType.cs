@@ -20,6 +20,41 @@ internal static class SpiType
     internal static uint GetOid(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (type == typeof(PgPoint) || type == typeof(PgPoint?))
+        {
+            return 600;
+        }
+
+        if (type == typeof(PgLineSegment) || type == typeof(PgLineSegment?))
+        {
+            return 601;
+        }
+
+        if (type == typeof(PgPath))
+        {
+            return 602;
+        }
+
+        if (type == typeof(PgBox) || type == typeof(PgBox?))
+        {
+            return 603;
+        }
+
+        if (type == typeof(PgPolygon))
+        {
+            return 604;
+        }
+
+        if (type == typeof(PgLine) || type == typeof(PgLine?))
+        {
+            return 628;
+        }
+
+        if (type == typeof(PgCircle) || type == typeof(PgCircle?))
+        {
+            return 718;
+        }
+
         if (type == typeof(PgInet) || type == typeof(PgInet?) || type == typeof(System.Net.IPAddress))
         {
             return 869;
@@ -155,6 +190,13 @@ internal static class SpiType
         byte[] bytes => NativeValue.FromBytes(bytes),
         Guid uuid => NativeValue.FromGuid(uuid),
         PgInet address => NativeValue.FromInet(address),
+        PgPoint point => NativeValue.FromPoint(point),
+        PgLine line => NativeValue.FromLine(line),
+        PgLineSegment segment => NativeValue.FromLineSegment(segment),
+        PgBox box => NativeValue.FromBox(box),
+        PgCircle circle => NativeValue.FromCircle(circle),
+        PgPath path => NativeValue.FromPath(path),
+        PgPolygon polygon => NativeValue.FromPolygon(polygon),
         PgCidr network => NativeValue.FromCidr(network),
         System.Net.IPAddress address => NativeValue.FromInet(new PgInet(address)),
         System.Net.IPNetwork network => NativeValue.FromCidr(new PgCidr(network)),
@@ -205,6 +247,13 @@ internal static class SpiType
             701 => BitConverter.Int64BitsToDouble(value.Integral),
             2950 => value.ReadGuid(),
             869 => value.ReadInet(),
+            600 => value.ReadPoint(),
+            601 => value.ReadLineSegment(),
+            602 => value.ReadPath(),
+            603 => value.ReadBox(),
+            604 => value.ReadPolygon(),
+            628 => value.ReadLine(),
+            718 => value.ReadCircle(),
             650 => value.ReadCidr(),
             114 => value.ReadJson(),
             3802 => value.ReadJsonb(),

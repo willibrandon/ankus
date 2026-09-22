@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1225 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1294 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -71,6 +71,10 @@ Linux, and macOS.
   and `IPNetwork` mappings use checked conversions; scoped IPv6 and lossy host-prefix casts are rejected.
   Native binary conversion supports scalar/array function signatures and every typed SPI ownership path.
   Parsing uses guarded PostgreSQL routines; masks, network derivation, comparison and formatting work detached.
+- Seven geometric types now map to immutable fixed-size records and owned path/polygon collections. Binary
+  conversion preserves coordinate bits across functions, arrays and SPI. Box normalization and polygon bounds
+  use PostgreSQL float ordering; parsing and binary validation remain inside native guards. Empty owned
+  paths/polygons retain pgrx's representation, using header-derived native storage for zero vertices.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -89,7 +93,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 904 integration cases include network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 951 integration cases include geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -428,11 +432,39 @@ Release build in `artifacts/network-build-output.txt` has zero warnings/errors. 
 The documentation build, type check and API freshness outputs are retained as
 `artifacts/network-{docs-build,docs-check,api-check}-output.txt`; 47 API pages document 665 members.
 
+### Geometric value evidence
+
+References: `pgrx/src/datum/geo.rs`, PostgreSQL `geo_ops.c` and `geo_decls.h`, and Microsoft Learn's readonly
+record-struct/value-equality guidance. Fixed shapes fit in small immutable records; variable-length collections
+copy their vertices rather than relying on shallow record immutability. Binary I/O avoids native layout assumptions.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| All pgrx geometric datum families | `PgPoint`, `PgLine`, `PgLineSegment`, `PgBox`, `PgCircle`, `PgPath`, `PgPolygon` | `GeometrySignaturesCompile` compiles each type as required/nullable scalar, vector and shaped array (28 contracts) and checks exact SQL types |
+| Owned vertices, order and closure | Copied collections, read-only point spans, `WithClosed` | `GeometricCollectionsOwnTheirVertices`, `EmptyAndSingletonGeometry`, `CollectionBinaryLayouts` verify input mutation isolation, indexing, closure and validity after buffer release |
+| Exact coordinates and binary layout | Big-endian double protocol, fixed-length and point-count validation | `FixedGeometryBinaryLayouts`, `InvalidGeometryFramesAreRejected`; `GeometryConstructionUsesExactCoordinateBits` independently constructs NaN payload/signed-zero coordinates and checks server wire bytes for points, paths and polygons |
+| PostgreSQL box normalization and polygon bounds | Total float ordering (NaN highest) and stable equal-coordinate handling | `BoundsUsePostgresFloatOrdering`, `GeometryBoundsMatchPostgres` compare corners/bounds, infinities, NaN, singleton vertices and signed zero with backend results |
+| All SPI ownership paths, arrays and SQL NULL | Existing owned buffered datum/array channels extended for seven geometric OIDs | `GeometryOwnershipPathsPreserveBinaryValues` compares native binary sends through eight paths, including nullable scalars/elements, vector and multidimensional/lower-bound-preserving arrays |
+| Empty pgrx collections | Native zero-vertex headers built from selected server `offsetof` values, preserving path closure and zero polygon bounds | `EmptyGeometricCollectionsRemainRepresentable` exchanges both empty path forms and empty polygons through all eight paths and inside arrays |
+| Domain, compressed and external storage | Explicit detoast ownership before native binary send | `GeometryToastedStorageAndDomains` verifies 10,000-vertex compressed/external values, storage sizes, domain values and variable-element arrays |
+| Native parsing and detached text | Allowlisted native input routines, invariant round-trip double formatting | `GeometryParsingMatchesPostgres`, `GeometryFormattingAndEqualityAreDetached`, `GeometryParsingRequiresBackend` |
+| Input/output failure boundaries | PostgreSQL line/circle validation, native receive framing and guarded subtransactions | `InvalidGeometryOutputRaisesNativeError` checks SQLSTATE 22P03 after managed callbacks; `GeometryFailureRecoveryPreservesSession` verifies 50 finally runs, retained writes/plan and zero context growth after native text and binary failures |
+
+PostgreSQL geometric predicates remain available through SPI; dedicated wrappers for the broader geometric
+operation catalog are pending. Record equality follows exact .NET coordinate/coefficient semantics rather than
+PostgreSQL's tolerance- or area-based predicates.
+
+Evidence: `artifacts/geometry-{runtime,generators,backend}-output.txt` records 15 detached, seven generator
+and 47 backend cases. `artifacts/geometry-all-output.txt` records 1294 passing tests with no failures/skips;
+`artifacts/geometry-build-output.txt` records the zero-warning Release build. Internal XML documentation,
+site build/type checks and API freshness pass in `artifacts/geometry-{internal-docs,docs-build-output,
+docs-check-output,api-check-output}.txt`. The API reference contains 54 pages and 744 members.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
-and the .NET/full-range PostgreSQL temporal types. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
+the .NET/full-range PostgreSQL temporal types, network values and geometric values. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
 Custom installation SQL strings/files and generated declarations share a dependency-ordered graph.
@@ -656,7 +688,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
-| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings and AOT JSON implemented; geometry and ranges pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums and owned vertex collections implemented; dedicated geometric operation wrappers and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
@@ -971,3 +1003,11 @@ The phases track implementation of the complete pgrx feature surface.
   12 generator and 40 backend cases. Plain `dotnet test`: 1225 passed, zero failures/skips. Release build:
   zero warnings/errors; XML documentation and site build/type/freshness checks pass. The API reference has
   47 pages and 665 members. Geometry, ranges, future type families and the broader port inventory remain pending.
+- 2026-09-22 — Added all seven pgrx geometric datum families, owned path/polygon vertices, detached bounds
+  and formatting, guarded parsing, and scalar/array SPI conversions. Native binary I/O preserves exact IEEE
+  coordinates, and empty owned collections use PostgreSQL-header-derived storage. Tests verify all lifetime
+  paths, signed zero/NaN payloads, polygon bounds, 10,000-vertex compressed/external TOAST values, domains and
+  native input/output failure recovery. Added 15 runtime, seven generator (28 signature contracts), and 47
+  backend cases. Plain `dotnet test`: 1294 passed, zero failures/skips; Release build: zero warnings/errors.
+  XML documentation and site build/type/API freshness checks pass; 54 API pages document 744 members.
+  Dedicated geometric operation wrappers, ranges and the remaining full-port inventory are still pending.

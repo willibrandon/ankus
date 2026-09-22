@@ -71,7 +71,16 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
+    internal bool IsBuffer => Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
+
+    /// <summary>
+    /// Gets the statically supported geometric transport method suffix.
+    /// </summary>
+    internal string GeometryName => Reader switch
+    {
+        "point" => "Point", "lseg" => "LineSegment", "line" => "Line", "box" => "Box",
+        "circle" => "Circle", "path" => "Path", "polygon" => "Polygon", _ => string.Empty,
+    };
 
     /// <summary>
     /// Gets whether the type uses the field-wise temporal transport.
@@ -148,6 +157,17 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string? geometry = name switch
+        {
+            "global::Ankus.PgPoint" => "point", "global::Ankus.PgLineSegment" => "lseg", "global::Ankus.PgLine" => "line",
+            "global::Ankus.PgBox" => "box", "global::Ankus.PgCircle" => "circle", "global::Ankus.PgPath" => "path",
+            "global::Ankus.PgPolygon" => "polygon", _ => null,
+        };
+        if (geometry is not null)
+        {
+            return new(name, geometry, geometry, geometry, string.Empty, nullable, reference: geometry is "path" or "polygon");
+        }
+
         if (name is "global::Ankus.PgInet" or "global::System.Net.IPAddress" or "global::Ankus.PgCidr" or "global::System.Net.IPNetwork")
         {
             string sql = name is "global::Ankus.PgInet" or "global::System.Net.IPAddress" ? "inet" : "cidr";

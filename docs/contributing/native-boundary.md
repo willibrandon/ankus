@@ -49,6 +49,20 @@ array and SPI conversions. Network parsing uses an allowlisted scalar family
 inside the subtransaction; mask, comparison and formatting operations run on
 detached managed values.
 
+Geometric transport uses PostgreSQL's network-order binary protocols rather than
+managed copies of native structs. Fixed shapes carry doubles; path/polygon frames
+carry a vertex count and, for paths, a closure byte. Both sides validate framing
+before allocating point arrays. Variable-length inputs are explicitly detoasted
+and tracked before the send routine runs, so PostgreSQL send functions cannot
+leave hidden detoast copies alive for the rest of a large SPI operation.
+
+The native writer delegates nonempty shapes to the matching receive function,
+including line/circle validation. pgrx also permits empty owned paths/polygons,
+which PostgreSQL's receive functions reject. For exactly zero vertices, the
+bridge creates a zeroed header using `offsetof(PATH, p)` or `offsetof(POLYGON, p)`
+from the selected server headers. Empty polygon bounds remain zero. The bridge
+does not rely on a managed native-header layout.
+
 Named, defaulted, variadic and security-definer calls use the same native ABI.
 PostgreSQL resolves defaults, assembles variadic arrays, applies function-local
 settings and privileges, and suppresses STRICT calls before dispatch. Required

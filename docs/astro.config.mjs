@@ -49,6 +49,7 @@ export default defineConfig({
             { label: 'Numeric values', slug: 'numeric' },
             { label: 'Date and time values', slug: 'date-and-time' },
             { label: 'Network values', slug: 'network' },
+            { label: 'Geometric values', slug: 'geometry' },
             { label: 'Logging and errors', slug: 'logging' },
           ],
         },

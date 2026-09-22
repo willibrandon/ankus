@@ -403,6 +403,15 @@ public static unsafe class NativeBackend
     internal static T Network<T>(ReadOnlySpan<SpiParameter> parameters)
         => Scalar<T>(SpiOperation.Network, 0, parameters);
 
+    /// <summary>
+    /// Parses a geometry value using PostgreSQL's guarded input functions.
+    /// </summary>
+    /// <typeparam name="T">The geometric result type.</typeparam>
+    /// <param name="parameters">The validated text input.</param>
+    /// <returns>The detached geometric value.</returns>
+    internal static T Geometry<T>(ReadOnlySpan<SpiParameter> parameters)
+        => Scalar<T>(SpiOperation.Geometry, 0, parameters);
+
     private static T Scalar<T>(SpiOperation family, int operation, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();

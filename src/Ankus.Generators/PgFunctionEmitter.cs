@@ -56,6 +56,7 @@ internal static class PgFunctionEmitter
             {
                 _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
                     (type.IsVector ? ".ToVector()" : string.Empty),
+                _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
                 "string" => slot + ".ReadString()",
                 "byte[]" => slot + ".ReadBytes()",
                 "global::System.Guid" => slot + ".ReadGuid()",
@@ -105,6 +106,7 @@ internal static class PgFunctionEmitter
             {
                 _ when result.Element is not null => "            *result = global::Ankus.NativeValue.FromArray(" +
                     (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
+                _ when result.GeometryName.Length != 0 => $"            *result = global::Ankus.NativeValue.From{result.GeometryName}({value});",
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
                 "byte[]" => $"            *result = global::Ankus.NativeValue.FromBytes({value});",
                 "global::System.Guid" => $"            *result = global::Ankus.NativeValue.FromGuid({value});",

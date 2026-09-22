@@ -1,7 +1,7 @@
 namespace Ankus.Generators;
 
 /// <summary>
-/// Converts UUID, JSON/JSONB, numeric and network buffers while keeping PostgreSQL parsing, detoasting, and allocation in native frames.
+/// Converts buffered scalar datums while keeping PostgreSQL parsing, detoasting, and allocation in native frames.
 /// </summary>
 internal static class NativeExtendedTypes
 {
@@ -21,6 +21,10 @@ internal static class NativeExtendedTypes
             {
                 value->data = DatumGetUUIDP(datum)->data;
                 value->length = UUID_LEN;
+            }
+            else if (ankus_geometry_io(type, false) != NULL)
+            {
+                ankus_read_geometry(datum, value, owned, type);
             }
             else if (type == INETOID || type == CIDROID)
             {
@@ -68,6 +72,10 @@ internal static class NativeExtendedTypes
                 uuid = palloc(sizeof(pg_uuid_t));
                 memcpy(uuid->data, value->data, UUID_LEN);
                 return UUIDPGetDatum(uuid);
+            }
+            if (ankus_geometry_io(type, true) != NULL)
+            {
+                return ankus_write_geometry(value, type);
             }
             if (type == INETOID || type == CIDROID)
             {
