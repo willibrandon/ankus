@@ -92,7 +92,7 @@ internal sealed class SetResult
             result.Values = ["value"];
         }
 
-        FunctionType?[] columns = [.. result.Types.Select(FunctionType.Create)];
+        FunctionType?[] columns = [.. result.Types.Select(static type => FunctionType.Create(type))];
         if (columns.Length > 1664 || columns.Any(static column => column is null || column.Managed == "void"))
         {
             valid = false;

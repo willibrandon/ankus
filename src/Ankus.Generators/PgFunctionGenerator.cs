@@ -89,6 +89,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeEnumBridge.Operations);
             native.AppendLine(NativeRangeBridge.Source);
             native.AppendLine(NativeArrayBridge.Source);
+            native.AppendLine(NativeTupleBridge.Source);
+            native.AppendLine(NativeTupleBridge.Operations);
             native.AppendLine(NativeScalarFunctions.Source);
             native.AppendLine(NativeTemporalOperations.Source);
             native.AppendLine(NativeNumericOperations.Source);
@@ -208,6 +210,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 continue;
             }
 
+            if (!CompositeReference.Validate(method, set, context))
+            {
+                continue;
+            }
+
             if (!IsSupported(method, set))
             {
                 context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
@@ -227,7 +234,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             string signature = declaration.QualifiedName + "(" + string.Join(",", method.Parameters.Select(
-                static parameter => FunctionType.Create(parameter.Type)!.Sql)) + ")";
+                static parameter => FunctionType.Create(parameter)!.Sql)) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
                 context.ReportDiagnostic(Diagnostic.Create(s_invalidName, method.Locations.FirstOrDefault(), name));
@@ -254,13 +261,22 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             graph.Add(entity);
             OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
-            foreach (ITypeSymbol type in method.Parameters.Select(static parameter => parameter.Type).Concat(set?.Types ?? [method.ReturnType]))
+            foreach (FunctionType contract in method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
+                .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]))
             {
-                FunctionType contract = FunctionType.Create(type)!;
                 EnumDeclaration? enumeration = (contract.Element ?? contract).Enumeration;
                 if (enumeration is not null && enumEntities.TryGetValue(enumeration.Managed, out SqlEntity? enumEntity))
                 {
                     entity.Dependencies.Add(enumEntity);
+                }
+
+                if ((contract.Element ?? contract).Composite?.Schema is { } compositeSchema)
+                {
+                    fixedSchema = true;
+                    if (schemas.TryGetValue(compositeSchema, out SqlEntity? schema))
+                    {
+                        entity.Dependencies.Add(schema);
+                    }
                 }
             }
 
@@ -297,11 +313,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            (set is null && FunctionType.Create(method.ReturnType) is null) || method.Parameters.Length > 100 ||
+            (set is null && FunctionType.CreateResult(method) is null) || method.Parameters.Length > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
             method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
-                FunctionType.Create(parameter.Type) is null ||
-                (parameter.IsParams && FunctionType.Create(parameter.Type)?.IsVector != true)))
+                FunctionType.Create(parameter) is null ||
+                (parameter.IsParams && FunctionType.Create(parameter)?.IsVector != true)))
         {
             return false;
         }

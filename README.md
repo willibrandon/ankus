@@ -77,6 +77,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
+| `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `void` result | `void` |
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
@@ -115,6 +116,12 @@ Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elemen
 for `RETURNS TABLE`. Ordinary C# iterators support streaming, PostgreSQL-backed
 materialization, and cleanup when a query stops early. See [sets and tables](docs/src/content/docs/sets-and-tables.md)
 and the [sets sample](samples/Ankus.Examples.Sets/SetFunctions.cs).
+
+`PgHeapTuple` owns composite cells and immutable descriptor metadata, including
+physical dropped slots, type modifiers, and domain identity. Named bindings,
+anonymous records, nested arrays, and composite sets share the guarded native
+conversion. See [composite values](docs/src/content/docs/composites.md) and the
+[composite sample](samples/Ankus.Examples.Composites/CompositeFunctions.cs).
 
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 

@@ -46,7 +46,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_NETWORK,
             ANKUS_SPI_GEOMETRY,
             ANKUS_SPI_RANGE,
-            ANKUS_SPI_ENUM
+            ANKUS_SPI_ENUM,
+            ANKUS_SPI_TUPLE
         };
 
         typedef struct AnkusRequest
@@ -98,6 +99,10 @@ internal static class NativeSpiBridge
         static Datum ankus_write_array(const AnkusValue *value, Oid element_type);
         static void ankus_read_range(Datum datum, AnkusValue *value, AnkusInputBuffer *owned);
         static Datum ankus_write_range(const AnkusValue *value, Oid type);
+        static void ankus_read_tuple(Datum datum, AnkusValue *value, AnkusInputBuffer *owned);
+        static Datum ankus_write_tuple(const AnkusValue *value, Oid expected_type, TupleDesc expected_descriptor);
+        static Datum ankus_coerce_value(Datum value, bool *is_null, Oid source_type, Oid target_type,
+            int32 modifier, Oid collation);
 
         static void
         ankus_release_result(AnkusResult *result)
@@ -148,6 +153,20 @@ internal static class NativeSpiBridge
         ankus_parameter_datum(const AnkusParameter *parameter)
         {
             const AnkusValue *value = &parameter->value;
+            Oid base_type;
+            if (get_typtype(parameter->type_oid) == '\0')
+                ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Parameter type OID %u does not exist", parameter->type_oid)));
+            base_type = getBaseType(parameter->type_oid);
+            if (base_type != parameter->type_oid)
+            {
+                AnkusParameter base = *parameter;
+                bool is_null = value->is_null != 0;
+                Datum datum;
+                base.type_oid = base_type;
+                datum = ankus_parameter_datum(&base);
+                return ankus_coerce_value(datum, &is_null, base_type, parameter->type_oid, -1, InvalidOid);
+            }
+
             if (value->is_null)
             {
                 return (Datum) 0;
@@ -185,6 +204,9 @@ internal static class NativeSpiBridge
                     return Float8GetDatum(floating);
                 }
 
+                case VARCHAROID:
+                case BPCHAROID:
+                    return ankus_write_typed_buffer(value, TEXTOID);
                 case TEXTOID:
                 case BYTEAOID:
                 case UUIDOID:
@@ -196,6 +218,8 @@ internal static class NativeSpiBridge
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return ankus_write_typed_buffer(value, parameter->type_oid);
                 default:
+                    if (parameter->type_oid == RECORDOID || get_typtype(parameter->type_oid) == TYPTYPE_COMPOSITE)
+                        return ankus_write_tuple(value, parameter->type_oid, NULL);
                     if (get_typtype(parameter->type_oid) == TYPTYPE_ENUM)
                         return ankus_write_enum(value, parameter->type_oid);
                     if (OidIsValid(get_element_type(parameter->type_oid)))
@@ -327,6 +351,7 @@ internal static class NativeSpiBridge
         static void
         ankus_read_value(Datum datum, Oid type, AnkusValue *value, AnkusInputBuffer *owned)
         {
+            type = getBaseType(type);
             switch (type)
             {
                 case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
@@ -376,6 +401,12 @@ internal static class NativeSpiBridge
                     ankus_read_typed_buffer(datum, value, owned, type);
                     break;
                 default:
+                    if (type == RECORDOID || get_typtype(type) == TYPTYPE_COMPOSITE)
+                    {
+                        ankus_read_tuple(datum, value, owned);
+                        break;
+                    }
+
                     if (get_typtype(type) == TYPTYPE_ENUM)
                     {
                         ankus_read_enum(datum, value, owned);

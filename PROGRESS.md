@@ -33,6 +33,11 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The latest milestone adds owned named/anonymous composite tuples, immutable descriptors,
+checked field edits, nested composite arrays, domains/type modifiers, SETOF/TABLE and SPI
+bindings. The public composite sample and isolated NuGet consumer are validated alongside
+existing features. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
 - `dotnet pack` produces `Ankus.Sdk`, `Ankus.Runtime`, `Ankus.Generators`, `Ankus.PgConfig`,
@@ -45,7 +50,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1984 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **2163 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -118,7 +123,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1176 integration cases include SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1261 integration cases include composites/heap tuples, SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -605,11 +610,46 @@ style choices. The site build, type checks and API freshness check pass; the gen
 and 820 members. The site build still reports its existing duplicate `/404` route and missing public site URL
 warnings; neither warning is disabled. Validation artifacts are under `.git/testagent/sets/`.
 
+### Composite and heap-tuple evidence
+
+References: pgrx `heap_tuple.rs`, `tupdesc.rs`, `composite_type!`, and composite/heap-tuple
+unit tests; PostgreSQL tuple formation/deformation, record descriptors, array construction,
+assignment coercion, domains, and set execution. `PgHeapTuple` owns managed cells;
+`PgTupleDescriptor` and `PgTupleAttributeInfo` copy catalog metadata without retaining native pointers.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Names, physical slots, dropped attributes and strict edits | Zero-based ordinals, exact-name lookup, immutable metadata and atomic checked replacement | `NamesAndOrdinalsDistinguishDroppedSlotsAndNullValues`, `EditsPreserveMetadataAndRejectIncompatibleTypesAtomically`, `DescriptorMetadataMatchesCatalogs`, `DroppedAttributesRemainNullAndUnwritable` |
+| Independent ownership and transport | Copied cell slots, documented shallow clone, recursive pointer-free envelopes and allocator-matched datum reconstruction | `NativeReaderAcceptsIndependentTupleEncoding`, `NativeWriterMatchesTheIndependentTupleEncoding`, `NestedValuesRemainOwnedAfterNativeTransportRelease`, `StoredCompositeValuesSurviveSourceDeletion` |
+| Empty/NULL/all-null/first-null arrays and domain identity | Explicit descriptor arrays retain declared/base OIDs; ordinary vectors use record transport and validate each named output element | `CompositeDomainsRetainDeclaredAndUnderlyingIdentities`, `CompositeArraysKeepNullElementsDimensionsAndIdentity`, `OrdinaryCompositeArraysUseAnnotatedIdentityWithoutInferringFromElements` |
+| Scalar and nested value families across SPI owners | Shared tuple/array/scalar converters; static/session `PrepareWithTypeOids`; typed-null descriptor bindings | `NamedAndNestedTuplesPreserveExactValuesAcrossOwners`, `PrimitiveTupleCellsRetainTheirBinaryRepresentation`, `AnonymousRecordsKeepShapeAndValues`, `SpiRowEditsRetainConcreteTupleIdentity` |
+| Domains, type modifiers and stale catalog layouts | PostgreSQL assignment coercion, domain checks including NULL, live identity/name/type/typmod/collation validation | `TupleOutputAppliesAttributeTypeModifiers`, `DomainDescriptorsRetainBaseIdentityAndValidateConstructedValues`, `StaleTupleOutputFailsWithoutPoisoningBackend`, `DomainFieldsValidateAndRecoverAfterNativeErrors`, `NotNullCompositeDomainsRejectNullDatumsAndRecover` |
+| Named/anonymous SQL signatures and TABLE bindings | `[PgCompositeType]`, per-column annotations, explicit custom-SQL dependencies and ANKUS009 diagnostics | `CompositeSignaturesCompileWithNamedAndAnonymousTypes`, `CompositeTableBindingsSelectFinalColumnNames`, `InvalidCompositeBindingsAreDiagnosed`, `CompositeNullResultValidatesItsDeclaredDomain` |
+| Composite sets and caller descriptors | Separate transported-cell and result-row descriptors; PostgreSQL materialized NULL-row semantics | `StreamingCompositeSetDistinguishesNullRows`, `MaterializedCompositeSetUsesNamedTupleDescriptor`, `AnonymousRecordsRejectCallerDescriptorMismatch`, `TableColumnsCarryTheirIndividualCompositeTypes`, `MaterializedAnonymousSetRequiresCompatibleCallerContext` |
+| Encoding, nested enums, nominal identity and operators/casts | UTF-8 transport of server catalog names, guarded function identity during input conversion, existing declaration bindings | `Latin1CompositeNamesAndCellsPreserveEncodingAndRecover`, `AnonymousRecordsKeepShapeAndValues`, `CompositeOperatorsAndCastsPreserveFieldsAndNullBehavior` |
+| Malformed metadata and recursive values | Shape/count/flags/identity/UTF-8 checks, execution-stack checks and managed reference-cycle rejection | `MalformedTupleTransportsAreRejected`, `DescriptorAndNameCapacityBoundariesAreExact`, `DeepValidTuplesWorkAndCyclicValuesDoNotPoisonLaterConversions` |
+| Public sample and ordinary package consumption | `Ankus.Examples.Composites`, relocation/reinstallation, package-only typed plans and arrays | `CompositeSampleRelocatesAndReinstalls`, `SdkSupportsDirectPublishWithCentralPackages` |
+
+Focused validation passes 56 generator, 38 runtime, and 85 integration/sample cases on
+PostgreSQL 18.6/Linux x64. Native regressions found and fixed an interior tuple-pointer free,
+NULL composite-domain output bypass, and enum lookup before the function context was set.
+Domain array test oracles explicitly cast the whole array, because PostgreSQL's common-type
+inference can otherwise strip a domain from an array containing an untyped NULL.
+Plain `dotnet test` passes all 2163 cases, including 1261 integration cases and the
+isolated package consumer. The non-incremental Release build has zero warnings/errors.
+IDE0008/IDE0290/IDE2003 verification passes; the XML scan checks 548 internal declarations
+with zero omissions. The API reference contains 69 pages and 859 members; the site builds
+93 pages. `pnpm check` and API freshness verification pass. The existing duplicate `/404`
+route and missing public site URL warnings remain visible during the site build; no warnings
+are disabled. Artifacts and bounded test-gap/assertion reviews live under `.git/testagent/composites/`.
+Raw heap interfaces, custom base types, trigger callbacks and the required version/platform
+matrix remain in the full-port inventory; this milestone does not claim those capabilities.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
-the .NET/full-range PostgreSQL temporal types, network/geometric values, typed ranges and generated enums. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
+the .NET/full-range PostgreSQL temporal types, network/geometric values, typed ranges, generated enums and composite/record tuples. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
 SETOF and TABLE cover these supported value families through `IEnumerable<T>` and named tuple elements.
@@ -729,7 +769,7 @@ The target architecture consists of:
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
-| `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
+| `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea/UUID/JSON, nullable forms |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
@@ -811,13 +851,13 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
-| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults and TABLE field names implemented; aggregate fields and composite resolution pending |
+| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults and TABLE field names implemented; named composite resolution implemented; aggregate fields pending |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
-| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom/composite operand families and matrix validation remain required |
+| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom base-type operands and matrix validation remain required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
-| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom/composite type families and matrix validation remain required |
+| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom base-type families and matrix validation remain required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
@@ -832,13 +872,13 @@ custom-scan support remain required alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum types, with shape/subscripts/NULL handling and C# params variadics. Raw borrowed views and future custom/composite elements pending |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite types, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views and custom base-type elements pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON. Remaining accessor/raw factory/timezone conveniences are listed above |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
-| `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
-| `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; future composite/custom containers and matrix validation remain part of those features |
+| `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
+| `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
 | `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
@@ -885,7 +925,7 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators` and `samples/Ankus.Examples.Sets`
+The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators`, `samples/Ankus.Examples.Sets` and `samples/Ankus.Examples.Composites`
 samples are validated. Full example parity is pending.
 
 Required test-source inventory:
@@ -958,7 +998,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
   - [ ] triggers, event triggers, aggregates, generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
-  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites
+  - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
+  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
   - [ ] GUC options; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12

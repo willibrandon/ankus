@@ -244,6 +244,30 @@ Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
 
 A statement that must be disposed from an extension callback on its owning backend.
 
+<a id="member-e1912af1861360e2"></a>
+
+### PrepareWithTypeOids(string, params ReadOnlySpan&lt;uint&gt;)
+
+Prepares a reusable statement with explicit PostgreSQL parameter type identities, including named composites and domains.
+
+```csharp
+public static SpiPreparedStatement PrepareWithTypeOids(string commandText, params ReadOnlySpan<uint> parameterTypeOids)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL commands to prepare.
+
+`parameterTypeOids` — [ReadOnlySpan&lt;uint&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The nonzero catalog type OIDs for $1, $2, and subsequent parameters.
+
+Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
+
+A statement that must be disposed on its owning backend.
+
 <a id="member-c079e7d607415a5a"></a>
 
 ### Query(string, bool, int, params ReadOnlySpan&lt;SpiParameter&gt;)

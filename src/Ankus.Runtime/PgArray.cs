@@ -13,17 +13,23 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
     private readonly T[] _values;
     private readonly int[] _lengths;
     private readonly int[] _lowerBounds;
+    private readonly uint _elementOid;
+    private readonly uint _elementBaseOid;
 
     /// <summary>
     /// Takes ownership of validated materialized elements and shape without copying them again.
     /// </summary>
     /// <param name="ownedValues">The converted elements, no longer mutated by the caller.</param>
     /// <param name="shape">The validated lengths and lower bounds, also transferred to this instance.</param>
-    internal PgArray(T[] ownedValues, (int[] Lengths, int[] LowerBounds) shape)
+    /// <param name="elementOid">An explicit composite element identity, or zero for the static scalar mapping.</param>
+    /// <param name="elementBaseOid">The base composite type when the element type is a domain.</param>
+    internal PgArray(T[] ownedValues, (int[] Lengths, int[] LowerBounds) shape, uint elementOid = 0, uint elementBaseOid = 0)
     {
         _values = ownedValues;
         _lengths = shape.Lengths;
         _lowerBounds = shape.LowerBounds;
+        _elementOid = elementOid;
+        _elementBaseOid = elementBaseOid;
     }
 
     /// <summary>
@@ -71,6 +77,17 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
     /// Gets the number of dimensions. PostgreSQL empty arrays have rank zero.
     /// </summary>
     public int Rank => _lengths.Length;
+
+    /// <summary>
+    /// Gets the PostgreSQL element identity, including the named composite identity of an empty or all-null array.
+    /// Enum identities are resolved in the current backend when requested.
+    /// </summary>
+    public uint ElementTypeOid => _elementOid != 0 ? _elementOid : SpiType.GetOid<T>();
+
+    /// <summary>
+    /// Gets the heap tuple identity underlying a composite domain element, or the declared element type.
+    /// </summary>
+    internal uint ElementBaseTypeOid => _elementBaseOid != 0 ? _elementBaseOid : ElementTypeOid;
 
     /// <summary>
     /// Gets the dimension lengths without exposing mutable storage.
@@ -143,6 +160,6 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
     public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)_values).GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    uint IPgArray.ElementOid => SpiType.GetOid<T>();
+    uint IPgArray.ElementOid => ElementTypeOid;
     object? IPgArray.GetElement(int index) => _values[index];
 }

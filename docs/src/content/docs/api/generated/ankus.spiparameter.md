@@ -17,6 +17,56 @@ public readonly struct SpiParameter
 
 ## Methods
 
+<a id="member-b9921605138a1439"></a>
+
+### Create(PgHeapTuple?, PgTupleDescriptor)
+
+Binds a tuple or SQL NULL using an explicit composite descriptor.
+A base composite can bind to its domain; PostgreSQL validates the target domain when consuming the value.
+
+```csharp
+public static SpiParameter Create(PgHeapTuple? value, PgTupleDescriptor descriptor)
+```
+
+Parameters:
+
+`value` — [PgHeapTuple](/api/ankus.pgheaptuple/)
+
+The tuple, or null for SQL NULL.
+
+`descriptor` — [PgTupleDescriptor](/api/ankus.pgtupledescriptor/)
+
+The parameter's PostgreSQL composite identity.
+
+Returns: [SpiParameter](/api/ankus.spiparameter/)
+
+The typed parameter.
+
+<a id="member-77b8e7441997796f"></a>
+
+### CreateArray(PgArray&lt;PgHeapTuple?&gt;?, PgTupleDescriptor)
+
+Binds a shape-preserving composite array or SQL NULL using an explicit element descriptor.
+Base composite elements can bind to a domain array with the same underlying row type.
+
+```csharp
+public static SpiParameter CreateArray(PgArray<PgHeapTuple?>? value, PgTupleDescriptor descriptor)
+```
+
+Parameters:
+
+`value` — <code>PgArray&lt;PgHeapTuple&gt;</code>
+
+The tuple array, or null for SQL NULL.
+
+`descriptor` — [PgTupleDescriptor](/api/ankus.pgtupledescriptor/)
+
+The array element's PostgreSQL type identity.
+
+Returns: [SpiParameter](/api/ankus.spiparameter/)
+
+The typed array parameter.
+
 <a id="member-5df5f7c60ee052be"></a>
 
 ### Create&lt;T&gt;(T)

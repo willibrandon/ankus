@@ -107,6 +107,15 @@ public static class Spi
         => NativeBackend.Prepare(commandText, parameterTypes);
 
     /// <summary>
+    /// Prepares a reusable statement with explicit PostgreSQL parameter type identities, including named composites and domains.
+    /// </summary>
+    /// <param name="commandText">The SQL commands to prepare.</param>
+    /// <param name="parameterTypeOids">The nonzero catalog type OIDs for $1, $2, and subsequent parameters.</param>
+    /// <returns>A statement that must be disposed on its owning backend.</returns>
+    public static SpiPreparedStatement PrepareWithTypeOids(string commandText, params ReadOnlySpan<uint> parameterTypeOids)
+        => NativeBackend.PrepareWithTypeOids(commandText, parameterTypeOids);
+
+    /// <summary>
     /// Executes SQL and returns the rows processed by its final statement.
     /// The call uses an internal subtransaction: success retains changes in the enclosing transaction;
     /// failure rolls back this call's changes before throwing a managed PostgreSQL error.

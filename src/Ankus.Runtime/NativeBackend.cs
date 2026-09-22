@@ -145,12 +145,35 @@ public static unsafe class NativeBackend
     internal static SpiPreparedStatement Prepare(string commandText, ReadOnlySpan<Type> parameterTypes, SpiSession? session = null)
     {
         CheckAccess();
-        byte[] sql = EncodeCommand(commandText);
         uint[] types = new uint[parameterTypes.Length];
-        var arguments = new NativeSpiParameter[parameterTypes.Length];
         for (int index = 0; index < types.Length; index++)
         {
             types[index] = SpiType.GetOid(parameterTypes[index]);
+        }
+
+        return PrepareWithTypeOids(commandText, types, session);
+    }
+
+    /// <summary>
+    /// Prepares a retained or session-bound statement with explicit catalog parameter identities.
+    /// </summary>
+    /// <param name="commandText">The SQL text.</param>
+    /// <param name="parameterTypeOids">The nonzero PostgreSQL type OIDs.</param>
+    /// <param name="session">The owning session, or null for independent ownership.</param>
+    /// <returns>The owned prepared statement.</returns>
+    internal static SpiPreparedStatement PrepareWithTypeOids(string commandText, ReadOnlySpan<uint> parameterTypeOids, SpiSession? session = null)
+    {
+        CheckAccess();
+        byte[] sql = EncodeCommand(commandText);
+        uint[] types = [.. parameterTypeOids];
+        var arguments = new NativeSpiParameter[types.Length];
+        for (int index = 0; index < types.Length; index++)
+        {
+            if (types[index] == 0)
+            {
+                throw new ArgumentException("Prepared parameter type OIDs must be nonzero.", nameof(parameterTypeOids));
+            }
+
             arguments[index]._typeOid = types[index];
         }
 
@@ -459,6 +482,45 @@ public static unsafe class NativeBackend
     /// Resolves the array OID of a live enum type inside the native guard.
     /// </summary>
     internal static uint EnumArrayOid(uint oid) => Scalar<uint>(SpiOperation.Enum, 2, [SpiParameter.Create(oid)]);
+
+    /// <summary>
+    /// Resolves the array type for an explicit composite element identity.
+    /// </summary>
+    /// <param name="elementOid">The element type OID.</param>
+    /// <returns>The PostgreSQL array type OID.</returns>
+    internal static uint TupleArrayOid(uint elementOid) => Scalar<uint>(SpiOperation.Tuple, 2, [SpiParameter.Create(elementOid)]);
+
+    /// <summary>
+    /// Loads owned physical attribute metadata for a named composite type or its domain.
+    /// </summary>
+    /// <param name="name">The SQL type name, or null when resolving by OID.</param>
+    /// <param name="oid">The type identity used when name is null.</param>
+    /// <returns>The copied tuple descriptor.</returns>
+    internal static PgTupleDescriptor LoadTupleDescriptor(string? name, uint oid)
+        => ReadTupleOperation(0, [SpiParameter.Create(name), SpiParameter.Create(oid)]).Descriptor;
+
+    /// <summary>
+    /// Registers an anonymous tuple shape and returns the normalized, owned tuple.
+    /// </summary>
+    /// <param name="value">The candidate tuple and metadata.</param>
+    /// <returns>The canonical tuple.</returns>
+    internal static PgHeapTuple CreateTuple(PgHeapTuple value) => ReadTupleOperation(1, [SpiParameter.Create(value)]);
+
+    private static PgHeapTuple ReadTupleOperation(int operation, ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.Tuple, _scalarOperation = operation };
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, parameters, &result);
+            return result._text.ReadTuple();
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
 
     /// <summary>
     /// Resolves a generated label to its pg_enum datum OID inside the native guard.

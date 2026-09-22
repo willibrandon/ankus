@@ -34,6 +34,13 @@ subtransaction and reports results from its final statement.
 See [JSON and UUID values](/json-and-uuid/) for the distinction between JSON null
 and SQL NULL and for source-generated JSON serialization.
 
+[Composite tuples](/composites/) and their arrays retain owned field metadata.
+Use `SpiParameter.Create(tuple, descriptor)` or `CreateArray(array, descriptor)`
+for explicit named identities, including typed NULLs. `PrepareWithTypeOids`
+accepts catalog parameter OIDs for named composite plans; `Prepare` with
+`typeof(PgHeapTuple)` declares an anonymous `record` parameter. Both static and
+session APIs support these plans and their usual cursor/ownership operations.
+
 ## Scalar values
 
 ```csharp

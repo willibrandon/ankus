@@ -174,6 +174,30 @@ Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
 
 A session-bound prepared statement.
 
+<a id="member-0fabae9eefc79d08"></a>
+
+### PrepareWithTypeOids(string, params ReadOnlySpan&lt;uint&gt;)
+
+Prepares a session-owned statement with explicit PostgreSQL parameter identities, including named composites and domains.
+
+```csharp
+public SpiPreparedStatement PrepareWithTypeOids(string commandText, params ReadOnlySpan<uint> parameterTypeOids)
+```
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL command text.
+
+`parameterTypeOids` — [ReadOnlySpan&lt;uint&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The nonzero catalog type OIDs for positional parameters.
+
+Returns: [SpiPreparedStatement](/api/ankus.spipreparedstatement/)
+
+A session-bound statement; Keep transfers it to independent ownership.
+
 <a id="member-8c82aac863ee50a2"></a>
 
 ### Query(string, bool, int, params ReadOnlySpan&lt;SpiParameter&gt;)

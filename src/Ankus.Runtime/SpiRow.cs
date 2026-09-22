@@ -49,7 +49,7 @@ public sealed class SpiRow
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, Count);
-        uint typeOid = SpiType.GetOid<T>();
+        uint typeOid = SpiType.GetOid(value);
         _typeOids ??= [.. _columns.Select(static column => column.TypeOid)];
         _values[ordinal] = value;
         _typeOids[ordinal] = typeOid;

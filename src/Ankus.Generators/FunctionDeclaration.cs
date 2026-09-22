@@ -62,8 +62,8 @@ internal sealed class FunctionDeclaration
             return Invalid("Cost must be positive, finite, and representable as PostgreSQL's real planner cost.");
         }
 
-        bool allNullable = method.Parameters.All(static parameter => FunctionType.Create(parameter.Type)!.Nullable);
-        bool allRequired = method.Parameters.All(static parameter => !FunctionType.Create(parameter.Type)!.Nullable);
+        bool allNullable = method.Parameters.All(static parameter => FunctionType.Create(parameter)!.Nullable);
+        bool allRequired = method.Parameters.All(static parameter => !FunctionType.Create(parameter)!.Nullable);
         if (nullInput == 2 && !allNullable)
         {
             return Invalid("CalledOnNull requires nullable declarations for every parameter.");
@@ -157,7 +157,7 @@ internal sealed class FunctionDeclaration
         bool defaultSeen = false;
         foreach (IParameterSymbol parameter in method.Parameters)
         {
-            FunctionType type = FunctionType.Create(parameter.Type)!;
+            FunctionType type = FunctionType.Create(parameter)!;
             AttributeData? parameterAttribute = parameter.GetAttributes().FirstOrDefault(static value =>
                 value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute");
             string parameterName = Value<string?>(parameterAttribute, "Name", null) ?? SqlText.SnakeCase(parameter.Name);

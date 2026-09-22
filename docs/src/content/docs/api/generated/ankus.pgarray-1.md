@@ -84,6 +84,19 @@ public int Count { get; }
 
 Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
+<a id="member-f4cd2a0d28ea9706"></a>
+
+### ElementTypeOid
+
+Gets the PostgreSQL element identity, including the named composite identity of an empty or all-null array.
+Enum identities are resolved in the current backend when requested.
+
+```csharp
+public uint ElementTypeOid { get; }
+```
+
+Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
+
 <a id="member-4105d46b18f5de31"></a>
 
 ### this[int]

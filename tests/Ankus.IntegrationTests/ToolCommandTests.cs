@@ -378,6 +378,7 @@ public sealed class ToolCommandTests(TestContext context)
             context.CancellationToken);
         await File.WriteAllTextAsync(Path.Combine(projectDirectory, "Functions.cs"), """
             using Ankus;
+            [assembly: PgSql("package-pair", "CREATE TYPE package_pair AS (name text, amount integer);")]
             public static class Functions
             {
                 [PgFunction]
@@ -389,6 +390,22 @@ public sealed class ToolCommandTests(TestContext context)
 
                 [PgFunction]
                 public static byte[]?[] PackageBinary(params byte[]?[] values) => values;
+
+                [PgFunction(Requires = ["package-pair"])]
+                [return: PgCompositeType("package_pair")]
+                public static PgHeapTuple PackageComposite([PgCompositeType("package_pair")] PgHeapTuple value)
+                {
+                    SpiParameter parameter = SpiParameter.Create(value);
+                    using SpiPreparedStatement plan = Spi.PrepareWithTypeOids("SELECT $1", parameter.TypeOid);
+                    PgHeapTuple copy = plan.ExecuteScalar<PgHeapTuple>(parameter);
+                    copy.Set("amount", copy.Get<int>("amount") + 1);
+                    return copy;
+                }
+
+                [PgFunction(Requires = ["package-pair"])]
+                [return: PgCompositeType("package_pair")]
+                public static PgArray<PgHeapTuple?> PackageCompositeArray([PgCompositeType("package_pair")] PgArray<PgHeapTuple?> value)
+                    => Spi.ExecuteScalar<PgArray<PgHeapTuple?>>("SELECT $1", SpiParameter.Create(value));
 
                 [PgSchema("package_contract")]
                 public static class Fixed
@@ -428,6 +445,13 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("[-1:0][2:3]={{1,NULL},{-2,3}}", await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT encode((package_binary(decode('0001ff','hex'), NULL))[1], 'hex')";
         Assert.AreEqual("0001ff", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT name || ':' || amount FROM package_composite(ROW('owned',41)::package_pair)";
+        Assert.AreEqual("owned:42", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = """
+            SELECT array_send(package_composite_array(ARRAY[NULL,ROW('nested',3)::package_pair]))
+                = array_send(ARRAY[NULL,ROW('nested',3)::package_pair])
+            """;
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(context.CancellationToken)));
         command.CommandText = "SELECT package_contract.package_default()";
         Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT package_contract.package_default(input_value => 9)";

@@ -13,6 +13,19 @@ internal static class SpiType
     internal static uint GetOid<T>() => GetOid(typeof(T));
 
     /// <summary>
+    /// Preserves explicit composite identities supplied by owned tuples and shaped arrays.
+    /// </summary>
+    /// <typeparam name="T">The declared managed parameter type.</typeparam>
+    /// <param name="value">The parameter value, including a typed NULL.</param>
+    /// <returns>The concrete tuple or array identity, or the declared static type identity.</returns>
+    internal static uint GetOid<T>(T value) => value switch
+    {
+        PgHeapTuple tuple => tuple.Descriptor.TypeOid,
+        PgArray<PgHeapTuple> array when array.ElementTypeOid != 2249 => NativeBackend.TupleArrayOid(array.ElementTypeOid),
+        _ => GetOid<T>(),
+    };
+
+    /// <summary>
     /// Resolves a managed type using known type identities without inspecting members or creating types dynamically.
     /// </summary>
     /// <param name="type">The declared managed type.</param>
@@ -20,6 +33,11 @@ internal static class SpiType
     internal static uint GetOid(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (type == typeof(PgHeapTuple))
+        {
+            return 2249;
+        }
+
         if (type == typeof(PgPoint) || type == typeof(PgPoint?))
         {
             return 600;
@@ -235,6 +253,7 @@ internal static class SpiType
         DateTimeOffset timestamp => NativeValue.FromTimestampTz(PgTimestampTz.FromDateTimeOffset(timestamp)),
         TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
         Enum enumeration => NativeValue.FromString(PgEnumRegistry.Require(enumeration.GetType()).ToLabel(enumeration)),
+        PgHeapTuple tuple => NativeValue.FromTuple(tuple),
         IPgArray array => NativeValue.FromArray(array),
         IPgRange range => NativeValue.FromRange(range),
         Array array => NativeValue.FromArray(SpiArray.Wrap(array)),
@@ -292,6 +311,7 @@ internal static class SpiType
             1184 => value.ReadTimestampTz(),
             1186 => value.ReadInterval(),
             _ when value.IsArray => value.ReadArray(),
+            _ when value.IsTuple => value.ReadTuple(),
             _ when value.IsEnum => PgEnumRegistry.FindOid(oid).FromLabel(value.ReadString()),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };

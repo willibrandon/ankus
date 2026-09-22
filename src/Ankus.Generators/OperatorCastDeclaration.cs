@@ -87,13 +87,13 @@ internal static class OperatorCastDeclaration
             return Invalid("Only binary operators can declare a commutator, join estimator, Hashes, or Merges.");
         }
 
-        if (FunctionType.Create(method.ReturnType)!.Sql != "boolean" && (negator is not null || restrict is not null || join is not null || hashes || merges))
+        if (FunctionType.CreateResult(method)!.Sql != "boolean" && (negator is not null || restrict is not null || join is not null || hashes || merges))
         {
             return Invalid("Only boolean operators can declare a negator, selectivity estimators, Hashes, or Merges.");
         }
 
-        string right = FunctionType.Create(method.Parameters[method.Parameters.Length - 1].Type)!.Sql;
-        string? left = method.Parameters.Length == 2 ? FunctionType.Create(method.Parameters[0].Type)!.Sql : null;
+        string right = FunctionType.Create(method.Parameters[method.Parameters.Length - 1])!.Sql;
+        string? left = method.Parameters.Length == 2 ? FunctionType.Create(method.Parameters[0])!.Sql : null;
         var options = new List<string> { "FUNCTION = " + function.QualifiedName };
         if (left is not null)
         {
@@ -164,15 +164,20 @@ internal static class OperatorCastDeclaration
             return Invalid("A cast's optional second parameter must be non-nullable int (type modifier), and its third must be non-nullable bool (explicit conversion).");
         }
 
-        string source = FunctionType.Create(method.Parameters[0].Type)!.Sql;
-        string target = FunctionType.Create(method.ReturnType)!.Sql;
+        string source = FunctionType.Create(method.Parameters[0])!.Sql;
+        string target = FunctionType.CreateResult(method)!.Sql;
+        if (source == "record" || target == "record")
+        {
+            return Invalid("PostgreSQL casts cannot use the record pseudo-type; bind composite source and result values with PgCompositeType.");
+        }
+
         if (source == target && method.Parameters.Length == 1)
         {
             return Invalid("A one-parameter cast must convert between distinct PostgreSQL types; CLR aliases and nullability do not create distinct SQL types.");
         }
 
         string signature = source + " AS " + target;
-        string arguments = string.Join(", ", method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!.Sql));
+        string arguments = string.Join(", ", method.Parameters.Select(static parameter => FunctionType.Create(parameter)!.Sql));
         string suffix = castContext switch { 1 => " AS ASSIGNMENT", 2 => " AS IMPLICIT", _ => string.Empty };
         return ("CREATE CAST (" + signature + ") WITH FUNCTION " + function.QualifiedName + "(" + arguments + ")" + suffix + ";\n", signature);
 

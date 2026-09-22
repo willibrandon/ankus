@@ -69,6 +69,16 @@ internal sealed class FunctionType
     internal EnumDeclaration? Enumeration { get; private set; }
 
     /// <summary>
+    /// Gets the optional named binding for a composite scalar.
+    /// </summary>
+    internal CompositeReference? Composite { get; private set; }
+
+    /// <summary>
+    /// Gets whether this scalar carries an owned PostgreSQL composite or anonymous record.
+    /// </summary>
+    internal bool IsComposite => Reader == "tuple";
+
+    /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
     /// </summary>
     internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
@@ -126,8 +136,9 @@ internal sealed class FunctionType
     /// Resolves a Roslyn type, including nullable value and reference annotations, to a SQL conversion contract.
     /// </summary>
     /// <param name="type">The managed type symbol.</param>
+    /// <param name="composite">The optional named composite binding for this scalar or array element.</param>
     /// <returns>The conversion contract, or null when the type needs an additional converter.</returns>
-    internal static FunctionType? Create(ITypeSymbol type)
+    internal static FunctionType? Create(ITypeSymbol type, CompositeReference? composite = null)
     {
         bool nullable = type.NullableAnnotation == NullableAnnotation.Annotated;
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } optional)
@@ -150,7 +161,7 @@ internal sealed class FunctionType
         };
         if (elementType is not null)
         {
-            FunctionType? element = Create(elementType);
+            FunctionType? element = Create(elementType, composite);
             if (element is null || element.Element is not null || element.Managed == "void")
             {
                 return null;
@@ -196,6 +207,14 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name == "global::Ankus.PgHeapTuple")
+        {
+            return new(name, composite?.Sql ?? "record", "tuple", "tuple", string.Empty, nullable, reference: true)
+            {
+                Composite = composite,
+            };
+        }
+
         string? geometry = name switch
         {
             "global::Ankus.PgPoint" => "point", "global::Ankus.PgLineSegment" => "lseg", "global::Ankus.PgLine" => "line",
@@ -261,10 +280,23 @@ internal sealed class FunctionType
     /// </summary>
     internal string ScalarOid => Reader switch
     {
+        "tuple" => "RECORDOID",
         "INT16" => "INT2OID",
         "INT32" => "INT4OID",
         "INT64" => "INT8OID",
         "OID" => "OIDOID",
         _ => BufferOid,
     };
+
+    /// <summary>
+    /// Resolves a parameter with its context-specific composite type binding.
+    /// </summary>
+    internal static FunctionType? Create(IParameterSymbol parameter)
+        => Create(parameter.Type, CompositeReference.Read(parameter.GetAttributes()));
+
+    /// <summary>
+    /// Resolves a scalar return with its context-specific composite type binding.
+    /// </summary>
+    internal static FunctionType? CreateResult(IMethodSymbol method)
+        => Create(method.ReturnType, CompositeReference.Read(method.GetReturnTypeAttributes()));
 }

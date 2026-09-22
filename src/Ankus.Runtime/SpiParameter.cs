@@ -28,5 +28,42 @@ public readonly struct SpiParameter
     /// <typeparam name="T">The managed parameter type.</typeparam>
     /// <param name="value">The parameter value.</param>
     /// <returns>A typed parameter.</returns>
-    public static SpiParameter Create<T>(T value) => new(SpiType.GetOid<T>(), value);
+    public static SpiParameter Create<T>(T value) => new(SpiType.GetOid(value), value);
+
+    /// <summary>
+    /// Binds a tuple or SQL NULL using an explicit composite descriptor.
+    /// A base composite can bind to its domain; PostgreSQL validates the target domain when consuming the value.
+    /// </summary>
+    /// <param name="value">The tuple, or null for SQL NULL.</param>
+    /// <param name="descriptor">The parameter's PostgreSQL composite identity.</param>
+    /// <returns>The typed parameter.</returns>
+    public static SpiParameter Create(PgHeapTuple? value, PgTupleDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (value is not null && value.Descriptor.BaseTypeOid != descriptor.BaseTypeOid)
+        {
+            throw new InvalidCastException("The tuple does not have the supplied descriptor's type identity.");
+        }
+
+        return new SpiParameter(descriptor.TypeOid, value);
+    }
+
+    /// <summary>
+    /// Binds a shape-preserving composite array or SQL NULL using an explicit element descriptor.
+    /// Base composite elements can bind to a domain array with the same underlying row type.
+    /// </summary>
+    /// <param name="value">The tuple array, or null for SQL NULL.</param>
+    /// <param name="descriptor">The array element's PostgreSQL type identity.</param>
+    /// <returns>The typed array parameter.</returns>
+    public static SpiParameter CreateArray(PgArray<PgHeapTuple?>? value, PgTupleDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (value is not null && value.ElementBaseTypeOid != descriptor.BaseTypeOid)
+        {
+            throw new InvalidCastException("The array does not have the supplied descriptor's element identity.");
+        }
+
+        uint oid = descriptor.TypeOid == 2249 ? 2287 : NativeBackend.TupleArrayOid(descriptor.TypeOid);
+        return new SpiParameter(oid, value);
+    }
 }

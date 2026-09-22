@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 
 namespace Ankus;
 
@@ -18,7 +19,7 @@ public unsafe partial struct NativeValue
     public readonly PgArray<T> ReadArray<T>()
     {
         uint oid = ReadArrayElementOid();
-        if (SpiType.GetOid<T>() != oid)
+        if (typeof(T) == typeof(PgHeapTuple) ? _auxiliary2 != 2 : SpiType.GetOid<T>() != oid)
         {
             throw new InvalidCastException($"Array element OID {oid} cannot be read as '{typeof(T)}'.");
         }
@@ -42,6 +43,12 @@ public unsafe partial struct NativeValue
     internal static NativeValue FromArray(IPgArray value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        RuntimeHelpers.EnsureSufficientExecutionStack();
+        return FromArrayCore(value);
+    }
+
+    private static NativeValue FromArrayCore(IPgArray value)
+    {
         var buffer = new ArrayBufferWriter<byte>();
         WriteInt(buffer, value.Lengths.Length);
         WriteInt(buffer, value.Count);
@@ -80,7 +87,12 @@ public unsafe partial struct NativeValue
 
         NativeValue result = FromBytes(buffer.WrittenSpan);
         result._auxiliary1 = -1;
-        result._auxiliary2 = PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
+        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
+        if (value is PgArray<PgHeapTuple> tuples)
+        {
+            result._integer = tuples.ElementBaseTypeOid;
+        }
+
         return result;
     }
 
@@ -97,7 +109,7 @@ public unsafe partial struct NativeValue
         {
             _ = SpiArray.ArrayOid(oid);
         }
-        else if (_auxiliary2 != 1)
+        else if (_auxiliary2 is not 1 and not 2 || oid == 0 || (_auxiliary2 == 2 && _integer is < 0 or > uint.MaxValue))
         {
             throw new InvalidOperationException("Invalid array element conversion discriminator.");
         }
@@ -109,6 +121,12 @@ public unsafe partial struct NativeValue
     /// Decodes validated array elements using one resolved enum mapping when applicable.
     /// </summary>
     internal readonly PgArray<T> ReadArrayData<T>(uint oid, EnumMapping? enumeration = null)
+    {
+        RuntimeHelpers.EnsureSufficientExecutionStack();
+        return ReadArrayDataCore<T>(oid, enumeration);
+    }
+
+    private readonly PgArray<T> ReadArrayDataCore<T>(uint oid, EnumMapping? enumeration)
     {
         ReadOnlySpan<byte> data = new(_data, _length);
         int rank = BinaryPrimitives.ReadInt32BigEndian(data);
@@ -134,6 +152,7 @@ public unsafe partial struct NativeValue
         }
 
         var values = new T[count];
+        uint baseOid = _auxiliary2 == 2 && _integer != 0 ? (uint)_integer : oid;
         for (int index = 0; index < count; index++)
         {
             if (data.Length - offset < 28)
@@ -159,8 +178,14 @@ public unsafe partial struct NativeValue
                 _length = length,
                 _data = _data + offset + 28,
             };
-            values[index] = SpiRow.Convert<T>(enumeration is null ? SpiType.FromNative(item, oid) :
-                item.IsNull != 0 ? null : enumeration.FromLabel(item.ReadString()));
+            object? element = item.IsNull != 0 ? null : _auxiliary2 == 2 ? item.ReadTuple() :
+                enumeration is null ? SpiType.FromNative(item, oid) : enumeration.FromLabel(item.ReadString());
+            if (element is PgHeapTuple tuple && baseOid != 2249 && tuple.Descriptor.BaseTypeOid != baseOid)
+            {
+                throw new InvalidOperationException("Composite array element identity does not match its array type.");
+            }
+
+            values[index] = SpiRow.Convert<T>(element);
             offset += 28 + length;
         }
 
@@ -169,7 +194,7 @@ public unsafe partial struct NativeValue
             throw new InvalidOperationException("Unexpected trailing native array data.");
         }
 
-        return new PgArray<T>(values, (lengths, bounds));
+        return new PgArray<T>(values, (lengths, bounds), _auxiliary2 == 2 ? oid : 0, _auxiliary2 == 2 ? baseOid : 0);
     }
 
     /// <summary>
@@ -179,6 +204,11 @@ public unsafe partial struct NativeValue
     internal readonly IPgArray ReadArray()
     {
         uint oid = ReadArrayElementOid();
+        if (_auxiliary2 == 2)
+        {
+            return ReadArrayData<PgHeapTuple?>(oid);
+        }
+
         return oid switch
         {
             16 => ReadArrayData<bool?>(oid), 17 => ReadArrayData<byte[]?>(oid), 18 => ReadArrayData<sbyte?>(oid),

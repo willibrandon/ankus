@@ -55,6 +55,7 @@ internal static class SpiArray
         869 => 1041, 650 => 651,
         600 => 1017, 601 => 1018, 602 => 1019, 603 => 1020, 604 => 1027, 628 => 629, 718 => 719,
         3904 => 3905, 3926 => 3927, 3906 => 3907, 3912 => 3913, 3908 => 3909, 3910 => 3911,
+        2249 => 2287,
         _ => throw new NotSupportedException($"PostgreSQL type OID {element} is not a supported array element."),
     };
 
@@ -66,6 +67,7 @@ internal static class SpiArray
     internal static uint GetOid(Type type)
     {
         uint element =
+            Matches<PgHeapTuple>(type) ? 2249u :
             Matches<PgRange<int>>(type) ? 3904u : Matches<PgRange<long>>(type) ? 3926u :
             Matches<PgRange<PgNumeric>>(type) || Matches<PgRange<decimal>>(type) ? 3906u :
             Matches<PgRange<PgDate>>(type) || Matches<PgRange<DateOnly>>(type) ? 3912u :
@@ -110,7 +112,7 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
-        => PgEnumRegistry.FindArray(type)?.Convert(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
+        => PgEnumRegistry.FindArray(type)?.Convert(array, type) ?? Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
            Convert<PgRange<PgDate>>(array, type) ?? Convert<PgRange<DateOnly>>(array, type) ?? Convert<PgRange<PgTimestamp>>(array, type) ??
            Convert<PgRange<DateTime>>(array, type) ?? Convert<PgRange<PgTimestampTz>>(array, type) ?? Convert<PgRange<DateTimeOffset>>(array, type) ??
            Convert<PgPoint>(array, type) ?? Convert<PgPoint?>(array, type) ?? Convert<PgLineSegment>(array, type) ?? Convert<PgLineSegment?>(array, type) ??
@@ -140,6 +142,7 @@ internal static class SpiArray
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
     internal static IPgArray Wrap(Array value) => PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
+        PgHeapTuple[] items => new PgArray<PgHeapTuple>(items),
         PgRange<int>[] items => new PgArray<PgRange<int>>(items), PgRange<long>[] items => new PgArray<PgRange<long>>(items),
         PgRange<PgNumeric>[] items => new PgArray<PgRange<PgNumeric>>(items), PgRange<decimal>[] items => new PgArray<PgRange<decimal>>(items),
         PgRange<PgDate>[] items => new PgArray<PgRange<PgDate>>(items), PgRange<DateOnly>[] items => new PgArray<PgRange<DateOnly>>(items),

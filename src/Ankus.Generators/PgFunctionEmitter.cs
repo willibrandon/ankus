@@ -22,8 +22,8 @@ internal static class PgFunctionEmitter
     internal static void Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
-        FunctionType[] parameters = [.. method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!)];
-        FunctionType result = FunctionType.Create(method.ReturnType)!;
+        FunctionType[] parameters = [.. method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)];
+        FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameters, result, managed);
         EmitNative(nativeName, callback, parameters, result, native);
@@ -130,52 +130,76 @@ internal static class PgFunctionEmitter
             }
         }
 
+        bool compositeArguments = parameters.Any(static parameter => (parameter.Element ?? parameter).IsComposite);
+        string inputIndent = compositeArguments ? "    " : string.Empty;
+        if (compositeArguments)
+        {
+            source.AppendLine("    previous_function = ankus_function_oid;");
+            source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
+            source.AppendLine("    PG_TRY();");
+            source.AppendLine("    {");
+        }
+
         for (int index = 0; index < parameters.Length; index++)
         {
             FunctionType parameter = parameters[index];
             string argument = index.ToString(CultureInfo.InvariantCulture);
-            source.AppendLine($"    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
-            source.AppendLine($"    if (!arguments[{argument}].is_null)");
-            source.AppendLine("    {");
+            source.AppendLine($"{inputIndent}    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
+            source.AppendLine($"{inputIndent}    if (!arguments[{argument}].is_null)");
+            source.AppendLine(inputIndent + "    {");
             if (parameter.Element is not null)
             {
-                source.AppendLine($"        ankus_read_array(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+                source.AppendLine($"{inputIndent}        ankus_read_array(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
             else if (parameter.RangeSubtype is not null)
             {
-                source.AppendLine($"        ankus_read_range(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+                source.AppendLine($"{inputIndent}        ankus_read_range(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
             else if (parameter.Enumeration is not null)
             {
-                source.AppendLine($"        ankus_read_enum(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+                source.AppendLine($"{inputIndent}        ankus_read_enum(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+            }
+            else if (parameter.IsComposite)
+            {
+                source.AppendLine($"{inputIndent}        ankus_read_tuple(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
             else if (parameter.IsTemporal)
             {
                 source.AppendLine(
-                    $"        ankus_read_temporal(PG_GETARG_DATUM({argument}), &arguments[{argument}], {parameter.BufferOid});");
+                    $"{inputIndent}        ankus_read_temporal(PG_GETARG_DATUM({argument}), &arguments[{argument}], {parameter.BufferOid});");
             }
             else if (parameter.IsBuffer)
             {
-                source.AppendLine($"        ankus_read_typed_buffer(PG_GETARG_DATUM({argument}),");
-                source.AppendLine($"            &arguments[{argument}], &owned[{argument}], {parameter.BufferOid});");
+                source.AppendLine($"{inputIndent}        ankus_read_typed_buffer(PG_GETARG_DATUM({argument}),");
+                source.AppendLine($"{inputIndent}            &arguments[{argument}], &owned[{argument}], {parameter.BufferOid});");
             }
             else if (parameter.Managed is "float" or "double")
             {
                 string bits = parameter.Managed == "float" ? "int32" : "int64";
-                source.AppendLine($"        {parameter.Managed} floating = PG_GETARG_{parameter.Reader}({argument});");
-                source.AppendLine($"        {bits} bits;");
-                source.AppendLine("        memcpy(&bits, &floating, sizeof(bits));");
-                source.AppendLine($"        arguments[{argument}].integral = bits;");
+                source.AppendLine($"{inputIndent}        {parameter.Managed} floating = PG_GETARG_{parameter.Reader}({argument});");
+                source.AppendLine($"{inputIndent}        {bits} bits;");
+                source.AppendLine(inputIndent + "        memcpy(&bits, &floating, sizeof(bits));");
+                source.AppendLine($"{inputIndent}        arguments[{argument}].integral = bits;");
             }
             else
             {
                 string field = parameter.Field.ToLowerInvariant();
                 string cast = parameter.Managed == "sbyte" ? "(int8) " : string.Empty;
-                source.AppendLine($"        arguments[{argument}].{field} = {cast}PG_GETARG_{parameter.Reader}({argument});");
+                source.AppendLine($"{inputIndent}        arguments[{argument}].{field} = {cast}PG_GETARG_{parameter.Reader}({argument});");
             }
 
-            source.AppendLine("    }");
+            source.AppendLine(inputIndent + "    }");
             source.AppendLine();
+        }
+
+        if (compositeArguments)
+        {
+            source.AppendLine("    }");
+            source.AppendLine("    PG_FINALLY();");
+            source.AppendLine("    {");
+            source.AppendLine("        ankus_function_oid = previous_function;");
+            source.AppendLine("    }");
+            source.AppendLine("    PG_END_TRY();");
         }
 
         source.AppendLine("    previous_function = ankus_function_oid;");
@@ -197,6 +221,14 @@ internal static class PgFunctionEmitter
         source.AppendLine();
         source.AppendLine("    if (result.is_null)");
         source.AppendLine("    {");
+        if (result.IsComposite)
+        {
+            source.AppendLine("        AnkusParameter parameter = {0};");
+            source.AppendLine("        parameter.type_oid = get_func_rettype(fcinfo->flinfo->fn_oid);");
+            source.AppendLine("        parameter.value.is_null = true;");
+            source.AppendLine("        (void) ankus_parameter_datum(&parameter);");
+        }
+
         source.AppendLine("        PG_RETURN_NULL();");
         source.AppendLine("    }");
         source.AppendLine();
@@ -204,7 +236,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("    {");
         if (result.Element is not null)
         {
-            source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
+            source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null && !result.Element.IsComposite ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
         }
         else if (result.RangeSubtype is not null)
         {
@@ -213,6 +245,12 @@ internal static class PgFunctionEmitter
         else if (result.Enumeration is not null)
         {
             source.AppendLine("        datum = ankus_write_enum(&result, get_func_rettype(fcinfo->flinfo->fn_oid));");
+        }
+        else if (result.IsComposite)
+        {
+            source.AppendLine("        TupleDesc descriptor = NULL;");
+            source.AppendLine("        (void) get_call_result_type(fcinfo, NULL, &descriptor);");
+            source.AppendLine("        datum = ankus_write_tuple(&result, get_func_rettype(fcinfo->flinfo->fn_oid), descriptor);");
         }
         else if (result.IsTemporal)
         {

@@ -1,0 +1,393 @@
+namespace Ankus.Generators;
+
+/// <summary>
+/// Copies composite datums and tuple descriptors through a pointer-free, recursively typed transport.
+/// </summary>
+internal static class NativeTupleBridge
+{
+    /// <summary>
+    /// Gets composite readers, validated reconstruction, and descriptor serialization helpers.
+    /// </summary>
+    internal const string Source = """
+        #include "access/htup_details.h"
+        #include "funcapi.h"
+        #include "libpq/pqformat.h"
+        #include "utils/typcache.h"
+        #include "utils/builtins.h"
+        #include "executor/executor.h"
+        #include "nodes/makefuncs.h"
+        #include "parser/parse_coerce.h"
+        #include "utils/datum.h"
+
+        static Datum
+        ankus_coerce_value(Datum value, bool *is_null, Oid source_type, Oid target_type,
+            int32 modifier, Oid collation)
+        {
+            int16 length;
+            bool by_value;
+            Const *constant;
+            Node *expression;
+            EState *estate;
+            MemoryContext previous = CurrentMemoryContext;
+            Datum result = (Datum) 0;
+            get_typlenbyval(source_type, &length, &by_value);
+            constant = makeConst(source_type, -1, collation, length, value, *is_null, by_value);
+            expression = coerce_to_target_type(NULL, (Node *) constant, source_type, target_type, modifier,
+                COERCION_ASSIGNMENT, COERCE_IMPLICIT_CAST, -1);
+            if (expression == NULL)
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Tuple field cannot be assigned to its declared type")));
+            estate = CreateExecutorState();
+            PG_TRY();
+            {
+                ExprState *state = ExecPrepareExpr((Expr *) expression, estate);
+                result = ExecEvalExprSwitchContext(state, GetPerTupleExprContext(estate), is_null);
+                get_typlenbyval(target_type, &length, &by_value);
+                if (!*is_null)
+                    result = datumCopy(result, by_value, length);
+            }
+            PG_FINALLY();
+            {
+                MemoryContextSwitchTo(previous);
+                FreeExecutorState(estate);
+            }
+            PG_END_TRY();
+            return result;
+        }
+
+        typedef struct AnkusTupleField
+        {
+            Oid type;
+            Oid base_type;
+            int32 modifier;
+            Oid collation;
+            int flags;
+            const char *name;
+            int name_length;
+            AnkusValue value;
+        } AnkusTupleField;
+
+        static void
+        ankus_tuple_transport(TupleDesc descriptor, Oid declared_type, const Datum *values,
+            const bool *nulls, AnkusValue *value, AnkusInputBuffer *owned)
+        {
+            StringInfoData buffer;
+            check_stack_depth();
+            initStringInfo(&buffer);
+            pq_sendint32(&buffer, declared_type);
+            pq_sendint32(&buffer, descriptor->tdtypmod);
+            pq_sendint32(&buffer, descriptor->natts);
+            for (int index = 0; index < descriptor->natts; index++)
+            {
+                Form_pg_attribute attribute = TupleDescAttr(descriptor, index);
+                Oid base_type = attribute->attisdropped ? InvalidOid : getBaseType(attribute->atttypid);
+                const char *name = NameStr(attribute->attname);
+                char *utf8 = pg_server_to_any(name, strlen(name), PG_UTF8);
+                int flags = (attribute->attisdropped ? 1 : 0) | (attribute->attnotnull ? 2 : 0);
+                AnkusValue cell = {0};
+                AnkusInputBuffer cell_owned = {0};
+                CHECK_FOR_INTERRUPTS();
+                if (OidIsValid(base_type) && (base_type == RECORDOID || get_typtype(base_type) == TYPTYPE_COMPOSITE))
+                    flags |= 4;
+                pq_sendint32(&buffer, attribute->atttypid);
+                pq_sendint32(&buffer, base_type);
+                pq_sendint32(&buffer, attribute->atttypmod);
+                pq_sendint32(&buffer, attribute->attcollation);
+                pq_sendint32(&buffer, flags);
+                pq_sendint32(&buffer, strlen(utf8));
+                pq_sendbytes(&buffer, utf8, strlen(utf8));
+                if (utf8 != name)
+                    pfree(utf8);
+                cell.is_null = values == NULL || attribute->attisdropped || nulls[index];
+                if (!cell.is_null)
+                {
+                    ankus_check_result_enum(base_type);
+                    ankus_read_value(values[index], base_type, &cell, &cell_owned);
+                }
+
+                pq_sendint64(&buffer, cell.integral);
+                pq_sendint32(&buffer, cell.auxiliary1);
+                pq_sendint32(&buffer, cell.auxiliary2);
+                pq_sendint32(&buffer, cell.temporal_infinity);
+                pq_sendint32(&buffer, cell.is_null);
+                pq_sendint32(&buffer, cell.length);
+                if (cell.length != 0)
+                    pq_sendbytes(&buffer, (char *) cell.data, cell.length);
+                ankus_free_input(&cell_owned);
+            }
+
+            owned->serialized = buffer.data;
+            value->data = (unsigned char *) buffer.data;
+            value->length = buffer.len;
+            value->auxiliary1 = -4;
+            value->integral = getBaseType(declared_type);
+        }
+
+        static void
+        ankus_read_tuple(Datum datum, AnkusValue *value, AnkusInputBuffer *owned)
+        {
+            HeapTupleHeader header = DatumGetHeapTupleHeader(datum);
+            Oid type = HeapTupleHeaderGetTypeId(header);
+            int32 modifier = HeapTupleHeaderGetTypMod(header);
+            TupleDesc descriptor;
+            HeapTupleData tuple = {0};
+            Datum *values;
+            bool *nulls;
+            check_stack_depth();
+            if ((Pointer) header != DatumGetPointer(datum))
+                owned->detoasted = (struct varlena *) header;
+            descriptor = lookup_rowtype_tupdesc(type, modifier);
+            tuple.t_len = HeapTupleHeaderGetDatumLength(header);
+            tuple.t_data = header;
+            values = palloc(sizeof(Datum) * Max(descriptor->natts, 1));
+            nulls = palloc(sizeof(bool) * Max(descriptor->natts, 1));
+            PG_TRY();
+            {
+                heap_deform_tuple(&tuple, descriptor, values, nulls);
+                ankus_tuple_transport(descriptor, type, values, nulls, value, owned);
+            }
+            PG_FINALLY();
+            {
+                ReleaseTupleDesc(descriptor);
+            }
+            PG_END_TRY();
+            pfree(values);
+            pfree(nulls);
+        }
+
+        static AnkusTupleField *
+        ankus_tuple_fields(const AnkusValue *value, Oid *type, int32 *modifier, int *count)
+        {
+            StringInfoData buffer = {(char *) value->data, value->length, value->length, 0};
+            AnkusTupleField *fields;
+            if (value->auxiliary1 != -4 || value->data == NULL || value->length < 12)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple header")));
+            *type = pq_getmsgint(&buffer, 4);
+            *modifier = pq_getmsgint(&buffer, 4);
+            *count = pq_getmsgint(&buffer, 4);
+            if (!OidIsValid(*type) || *count < 0 || *count > MaxTupleAttributeNumber ||
+                (int64) 12 + (int64) *count * 52 > value->length)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple attribute count or identity")));
+            fields = palloc0(sizeof(AnkusTupleField) * Max(*count, 1));
+            for (int index = 0; index < *count; index++)
+            {
+                AnkusTupleField *field = &fields[index];
+                int is_null;
+                field->type = pq_getmsgint(&buffer, 4);
+                field->base_type = pq_getmsgint(&buffer, 4);
+                field->modifier = pq_getmsgint(&buffer, 4);
+                field->collation = pq_getmsgint(&buffer, 4);
+                field->flags = pq_getmsgint(&buffer, 4);
+                field->name_length = pq_getmsgint(&buffer, 4);
+                if (field->name_length < 0 || field->name_length > (NAMEDATALEN - 1) * 4 ||
+                    field->flags < 0 || field->flags > 7)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple attribute metadata")));
+                field->name = pq_getmsgbytes(&buffer, field->name_length);
+                if (memchr(field->name, '\0', field->name_length) != NULL)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Tuple attribute names cannot contain zero bytes")));
+                field->value.integral = pq_getmsgint64(&buffer);
+                field->value.auxiliary1 = pq_getmsgint(&buffer, 4);
+                field->value.auxiliary2 = pq_getmsgint(&buffer, 4);
+                field->value.temporal_infinity = pq_getmsgint(&buffer, 4);
+                is_null = pq_getmsgint(&buffer, 4);
+                field->value.length = pq_getmsgint(&buffer, 4);
+                if (is_null < 0 || is_null > 1 || field->value.length < 0 || (is_null && field->value.length != 0) ||
+                    ((field->flags & 1) && !is_null) || (!(field->flags & 1) && !OidIsValid(field->type)))
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple attribute value")));
+                field->value.is_null = is_null;
+                field->value.data = (unsigned char *) pq_getmsgbytes(&buffer, field->value.length);
+            }
+
+            pq_getmsgend(&buffer);
+            return fields;
+        }
+
+        static TupleDesc
+        ankus_tuple_descriptor(const AnkusTupleField *fields, int count)
+        {
+            TupleDesc descriptor = CreateTemplateTupleDesc(count);
+            for (int index = 0; index < count; index++)
+            {
+                const AnkusTupleField *field = &fields[index];
+                char *terminated = pnstrdup(field->name, field->name_length);
+                char *name = pg_any_to_server(terminated, field->name_length, PG_UTF8);
+                if (field->flags & 1)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("New anonymous tuple descriptors cannot contain dropped attributes")));
+                if (strlen(name) >= NAMEDATALEN || strlen(name) == 0)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_NAME), errmsg("Tuple attribute names must fit PostgreSQL identifiers")));
+                TupleDescInitEntry(descriptor, index + 1, name, field->type, field->modifier, 0);
+                if (OidIsValid(field->collation))
+                    TupleDescInitEntryCollation(descriptor, index + 1, field->collation);
+                if (name != terminated)
+                    pfree(name);
+                pfree(terminated);
+            }
+
+            return BlessTupleDesc(descriptor);
+        }
+
+        static Datum
+        ankus_write_tuple(const AnkusValue *value, Oid expected_type, TupleDesc expected_descriptor)
+        {
+            Oid type;
+            int32 modifier;
+            int count;
+            AnkusTupleField *fields;
+            TupleDesc descriptor;
+            Datum *values;
+            bool *nulls;
+            HeapTuple tuple;
+            Datum result;
+            bool anonymous;
+            check_stack_depth();
+            fields = ankus_tuple_fields(value, &type, &modifier, &count);
+            if (get_typtype(type) == '\0')
+                ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Composite type OID %u no longer exists", type)));
+            anonymous = type == RECORDOID && modifier < 0;
+            if (expected_type != RECORDOID && getBaseType(type) != getBaseType(expected_type))
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Composite type OID %u cannot be returned as type OID %u", type, expected_type)));
+            if (anonymous)
+                descriptor = ankus_tuple_descriptor(fields, count);
+            else
+                descriptor = lookup_rowtype_tupdesc_copy(getBaseType(type), modifier);
+            if (descriptor->natts != count)
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Composite tuple layout changed after the managed value was captured")));
+            values = palloc0(sizeof(Datum) * Max(count, 1));
+            nulls = palloc(sizeof(bool) * Max(count, 1));
+            for (int index = 0; index < count; index++)
+            {
+                Form_pg_attribute attribute = TupleDescAttr(descriptor, index);
+                AnkusTupleField *field = &fields[index];
+                AnkusParameter parameter = {0};
+                const char *name = NameStr(attribute->attname);
+                char *utf8 = pg_server_to_any(name, strlen(name), PG_UTF8);
+                bool same_name = strlen(utf8) == (Size) field->name_length && memcmp(utf8, field->name, field->name_length) == 0;
+                if (utf8 != name)
+                    pfree(utf8);
+                if (attribute->attisdropped != ((field->flags & 1) != 0) ||
+                    (!attribute->attisdropped && (attribute->atttypid != field->type ||
+                        attribute->atttypmod != field->modifier ||
+                        (!(anonymous && !OidIsValid(field->collation)) && attribute->attcollation != field->collation) || !same_name)))
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Composite attribute %d changed after the managed value was captured", index + 1)));
+                nulls[index] = field->value.is_null != 0 || attribute->attisdropped;
+                if (attribute->attisdropped)
+                    continue;
+                parameter.type_oid = attribute->atttypid;
+                parameter.value = field->value;
+                if (!nulls[index] && (getBaseType(parameter.type_oid) == JSONOID ||
+                    getBaseType(parameter.type_oid) == JSONBOID || getBaseType(parameter.type_oid) == NUMERICOID))
+                    parameter.value.data = (unsigned char *) pnstrdup((char *) parameter.value.data, parameter.value.length);
+                values[index] = ankus_parameter_datum(&parameter);
+                if (attribute->atttypmod >= 0)
+                    values[index] = ankus_coerce_value(values[index], &nulls[index], attribute->atttypid,
+                        attribute->atttypid, attribute->atttypmod, attribute->attcollation);
+            }
+
+            tuple = heap_form_tuple(descriptor, values, nulls);
+            if (expected_descriptor != NULL)
+            {
+                int source = 0;
+                Datum *output = palloc0(sizeof(Datum) * Max(expected_descriptor->natts, 1));
+                bool *output_nulls = palloc(sizeof(bool) * Max(expected_descriptor->natts, 1));
+                for (int target = 0; target < expected_descriptor->natts; target++)
+                {
+                    Form_pg_attribute attribute = TupleDescAttr(expected_descriptor, target);
+                    output_nulls[target] = true;
+                    if (attribute->attisdropped)
+                        continue;
+                    while (source < descriptor->natts && TupleDescAttr(descriptor, source)->attisdropped)
+                        source++;
+                    if (source >= descriptor->natts || TupleDescAttr(descriptor, source)->atttypid != attribute->atttypid ||
+                        (attribute->atttypmod >= 0 && TupleDescAttr(descriptor, source)->atttypmod != attribute->atttypmod))
+                        ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Composite result does not match the caller's tuple descriptor")));
+                    output[target] = values[source];
+                    output_nulls[target] = nulls[source++];
+                }
+
+                while (source < descriptor->natts && TupleDescAttr(descriptor, source)->attisdropped)
+                    source++;
+                if (source != descriptor->natts)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Composite result has more attributes than the caller's tuple descriptor")));
+                heap_freetuple(tuple);
+                tuple = heap_form_tuple(BlessTupleDesc(expected_descriptor), output, output_nulls);
+                pfree(output);
+                pfree(output_nulls);
+            }
+
+            pfree(values);
+            pfree(nulls);
+            pfree(fields);
+            result = heap_copy_tuple_as_datum(tuple, expected_descriptor != NULL ? expected_descriptor : descriptor);
+            heap_freetuple(tuple);
+            FreeTupleDesc(descriptor);
+            if (getBaseType(expected_type) != expected_type)
+            {
+                bool is_null = false;
+                Datum coerced = ankus_coerce_value(result, &is_null, getBaseType(expected_type), expected_type, -1, InvalidOid);
+                pfree(DatumGetPointer(result));
+                return coerced;
+            }
+
+            return result;
+        }
+
+        """;
+
+    /// <summary>
+    /// Gets guarded catalog lookup, anonymous tuple construction, and array type resolution.
+    /// </summary>
+    internal const string Operations = """
+        static void
+        ankus_tuple_operation(AnkusRequest *request, AnkusResult *result)
+        {
+            if (request->scalar_operation == 1)
+            {
+                Datum datum = ankus_write_tuple(&request->parameters[0].value, RECORDOID, NULL);
+                ankus_result_value(datum, RECORDOID, &result->text);
+            }
+            else if (request->scalar_operation == 2)
+            {
+                Oid type = get_array_type((Oid) request->parameters[0].value.integral);
+                if (!OidIsValid(type))
+                    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Composite array type does not exist")));
+                result->text.integral = type;
+            }
+            else
+            {
+                Oid type;
+                Oid base;
+                TupleDesc descriptor;
+                AnkusValue input = {0};
+                AnkusInputBuffer owned = {0};
+                if (request->parameters[0].value.is_null)
+                    type = (Oid) request->parameters[1].value.integral;
+                else
+                {
+                    const AnkusValue *name = &request->parameters[0].value;
+                    char *text = pg_any_to_server((char *) name->data, name->length, PG_UTF8);
+                    type = DatumGetObjectId(DirectFunctionCall1(regtypein, CStringGetDatum(text)));
+                }
+
+                if (get_typtype(type) == '\0')
+                    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Composite type OID %u does not exist", type)));
+                base = getBaseType(type);
+                if (get_typtype(base) != TYPTYPE_COMPOSITE)
+                    ereport(ERROR, (errcode(ERRCODE_WRONG_OBJECT_TYPE), errmsg("Type OID %u is not a named composite type", type)));
+                descriptor = lookup_rowtype_tupdesc(base, -1);
+                PG_TRY();
+                {
+                    ankus_tuple_transport(descriptor, type, NULL, NULL, &input, &owned);
+                    result->text = input;
+                    result->text.data = NULL;
+                    ankus_copy_owned(&result->text, input.data, input.length);
+                }
+                PG_FINALLY();
+                {
+                    ReleaseTupleDesc(descriptor);
+                    ankus_free_input(&owned);
+                }
+                PG_END_TRY();
+            }
+        }
+
+        """;
+}

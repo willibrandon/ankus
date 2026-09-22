@@ -123,4 +123,9 @@ internal enum SpiOperation : byte
     /// Resolves live enum catalog identities without opening an SPI connection.
     /// </summary>
     Enum,
+
+    /// <summary>
+    /// Copies tuple descriptors and constructs composite values through the native guard.
+    /// </summary>
+    Tuple,
 }

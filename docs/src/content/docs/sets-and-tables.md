@@ -28,6 +28,12 @@ their meaning: `int[]` returns a PostgreSQL integer array, while
 supported [function type](/function-declarations/), including generated enums,
 shaped arrays, ranges, numeric values, and full-range temporal values.
 
+For named or anonymous composite rows, use `IEnumerable<PgHeapTuple?>` and
+[composite bindings](/composites/). TABLE fields can also contain composites.
+PostgreSQL expands a single composite TABLE output into its underlying row
+attributes; multi-column TABLE results retain composite cells as individual
+columns. Materialized composite rows represent a NULL tuple as all-NULL fields.
+
 ## Named TABLE rows
 
 Return named C# tuples to generate `RETURNS TABLE`. Tuple element names become

@@ -99,6 +99,18 @@ public sealed class SpiSession
     }
 
     /// <summary>
+    /// Prepares a session-owned statement with explicit PostgreSQL parameter identities, including named composites and domains.
+    /// </summary>
+    /// <param name="commandText">The SQL command text.</param>
+    /// <param name="parameterTypeOids">The nonzero catalog type OIDs for positional parameters.</param>
+    /// <returns>A session-bound statement; Keep transfers it to independent ownership.</returns>
+    public SpiPreparedStatement PrepareWithTypeOids(string commandText, params ReadOnlySpan<uint> parameterTypeOids)
+    {
+        CheckAccess();
+        return NativeBackend.PrepareWithTypeOids(commandText, parameterTypeOids, this);
+    }
+
+    /// <summary>
     /// Opens a transaction-bound cursor whose portal remains valid after this session ends.
     /// </summary>
     /// <param name="commandText">The SQL query.</param>

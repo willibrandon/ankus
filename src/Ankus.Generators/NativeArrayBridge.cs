@@ -16,6 +16,7 @@ internal static class NativeArrayBridge
         static bool
         ankus_array_element_supported(Oid type)
         {
+            type = getBaseType(type);
             switch (type)
             {
                 case BOOLOID: case BYTEAOID: case CHAROID: case INT2OID: case INT4OID: case INT8OID:
@@ -27,7 +28,7 @@ internal static class NativeArrayBridge
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return true;
                 default:
-                    return get_typtype(type) == TYPTYPE_ENUM;
+                    return type == RECORDOID || get_typtype(type) == TYPTYPE_ENUM || get_typtype(type) == TYPTYPE_COMPOSITE;
             }
         }
 
@@ -37,6 +38,7 @@ internal static class NativeArrayBridge
             ArrayType *array = DatumGetArrayTypeP(datum);
             Oid type = ARR_ELEMTYPE(array);
             Oid base_type = getBaseType(type);
+            bool composite = base_type == RECORDOID || get_typtype(base_type) == TYPTYPE_COMPOSITE;
             int16 length;
             bool by_value;
             char alignment;
@@ -45,6 +47,7 @@ internal static class NativeArrayBridge
             int count;
             int rank = ARR_NDIM(array);
             StringInfoData buffer;
+            check_stack_depth();
             if (!ankus_array_element_supported(base_type))
             {
                 ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -61,7 +64,7 @@ internal static class NativeArrayBridge
             initStringInfo(&buffer);
             pq_sendint32(&buffer, rank);
             pq_sendint32(&buffer, count);
-            pq_sendint32(&buffer, base_type);
+            pq_sendint32(&buffer, composite ? type : base_type);
             for (int index = 0; index < rank; index++)
             {
                 pq_sendint32(&buffer, ARR_DIMS(array)[index]);
@@ -107,7 +110,8 @@ internal static class NativeArrayBridge
             value->data = (unsigned char *) buffer.data;
             value->length = buffer.len;
             value->auxiliary1 = -1;
-            value->auxiliary2 = get_typtype(base_type) == TYPTYPE_ENUM ? 1 : 0;
+            value->auxiliary2 = composite ? 2 : get_typtype(base_type) == TYPTYPE_ENUM ? 1 : 0;
+            value->integral = composite ? base_type : 0;
         }
 
         static Datum
@@ -124,6 +128,9 @@ internal static class NativeArrayBridge
             bool by_value;
             char alignment;
             ArrayType *array;
+            Oid transported_type;
+            Oid base_type = getBaseType(element_type);
+            check_stack_depth();
             if (value->auxiliary1 != -1 || value->length < 12 || value->data == NULL)
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus array header")));
@@ -131,8 +138,11 @@ internal static class NativeArrayBridge
 
             rank = pq_getmsgint(&buffer, 4);
             count = pq_getmsgint(&buffer, 4);
+            transported_type = pq_getmsgint(&buffer, 4);
             if (rank < 0 || rank > MAXDIM || count < 0 ||
-                (Oid) pq_getmsgint(&buffer, 4) != element_type || !ankus_array_element_supported(element_type) ||
+                (transported_type != element_type && !(get_typtype(base_type) == TYPTYPE_COMPOSITE &&
+                    (transported_type == RECORDOID || getBaseType(transported_type) == base_type))) ||
+                !ankus_array_element_supported(element_type) ||
                 (int64) 12 + rank * 8 + (int64) count * 28 > value->length)
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus array shape or element type")));
@@ -177,7 +187,7 @@ internal static class NativeArrayBridge
                 parameter.value.is_null = is_null;
                 data = pq_getmsgbytes(&buffer, parameter.value.length);
                 /* These scalar input routines consume C strings rather than length-delimited buffers. */
-                if (!is_null && (element_type == JSONOID || element_type == JSONBOID || element_type == NUMERICOID))
+                if (!is_null && (base_type == JSONOID || base_type == JSONBOID || base_type == NUMERICOID))
                 {
                     terminated = pnstrdup(data, parameter.value.length);
                     data = terminated;

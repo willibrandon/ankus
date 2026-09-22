@@ -24,12 +24,14 @@ internal static class NativeSetBridge
             Oid function;
             ExprContext *econtext;
             TupleDesc descriptor;
+            TupleDesc composite_descriptor;
             Oid *argument_types;
             int columns;
             AnkusValue *row;
             Datum *values;
             bool *nulls;
             bool materialize;
+            bool composite_result;
         } AnkusSetState;
 
         static int
@@ -111,7 +113,7 @@ internal static class NativeSetBridge
 
         static AnkusSetState *
         ankus_set_initialize(FunctionCallInfo fcinfo, FuncCallContext *context, AnkusSetCallback callback,
-            int columns, int arguments, const bool *required, int mode)
+            int columns, int arguments, const bool *required, int mode, bool composite_result)
         {
             ReturnSetInfo *info = (ReturnSetInfo *) fcinfo->resultinfo;
             MemoryContext previous = MemoryContextSwitchTo(context->multi_call_memory_ctx);
@@ -124,6 +126,7 @@ internal static class NativeSetBridge
             state->function = fcinfo->flinfo->fn_oid;
             state->callback = callback;
             state->columns = columns;
+            state->composite_result = composite_result;
             state->econtext = info->econtext;
             state->reset.func = ankus_set_abort_cleanup;
             state->reset.arg = state;
@@ -148,7 +151,16 @@ internal static class NativeSetBridge
             }
             else
             {
-                if (result_kind != TYPEFUNC_SCALAR)
+                if (composite_result)
+                {
+                    if (result_kind != TYPEFUNC_COMPOSITE && result_kind != TYPEFUNC_COMPOSITE_DOMAIN && result_kind != TYPEFUNC_RECORD)
+                        ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus composite SETOF result requires a row type")));
+                    if (descriptor != NULL)
+                        state->composite_descriptor = BlessTupleDesc(CreateTupleDescCopy(descriptor));
+                    else if (state->materialize)
+                        ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("Materialized record sets require a caller-supplied row descriptor")));
+                }
+                else if (result_kind != TYPEFUNC_SCALAR)
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus SETOF result requires a scalar column type")));
                 state->descriptor = CreateTemplateTupleDesc(1);
                 TupleDescInitEntry(state->descriptor, 1, "value", scalar_type, -1, 0);
@@ -169,6 +181,8 @@ internal static class NativeSetBridge
                 AnkusInputBuffer *owned = palloc0(sizeof(AnkusInputBuffer) * Max(arguments, 1));
                 AnkusError error = {0};
                 int status = 0;
+                Oid previous_function = ankus_function_oid;
+                ankus_function_oid = state->function;
                 PG_TRY();
                 {
                     for (int index = 0; index < arguments; index++)
@@ -182,6 +196,7 @@ internal static class NativeSetBridge
                 }
                 PG_FINALLY();
                 {
+                    ankus_function_oid = previous_function;
                     for (int index = 0; index < arguments; index++)
                         ankus_free_input(&owned[index]);
                     pfree(owned);
@@ -214,7 +229,10 @@ internal static class NativeSetBridge
                         cell.type_oid = TupleDescAttr(state->descriptor, index)->atttypid;
                         cell.value = state->row[index];
                         state->nulls[index] = cell.value.is_null != 0;
-                        state->values[index] = ankus_parameter_datum(&cell);
+                        if (state->composite_result && !state->nulls[index])
+                            state->values[index] = ankus_write_tuple(&cell.value, cell.type_oid, state->composite_descriptor);
+                        else
+                            state->values[index] = ankus_parameter_datum(&cell);
                     }
                 }
             }
@@ -241,7 +259,7 @@ internal static class NativeSetBridge
 
         static Datum
         ankus_set_execute(FunctionCallInfo fcinfo, AnkusSetCallback callback, int columns, int arguments,
-            const bool *required, int mode)
+            const bool *required, int mode, bool composite_result)
         {
             FuncCallContext *context;
             AnkusSetState *state;
@@ -249,7 +267,7 @@ internal static class NativeSetBridge
             if (SRF_IS_FIRSTCALL())
             {
                 context = SRF_FIRSTCALL_INIT();
-                state = ankus_set_initialize(fcinfo, context, callback, columns, arguments, required, mode);
+                state = ankus_set_initialize(fcinfo, context, callback, columns, arguments, required, mode, composite_result);
             }
             else
             {
@@ -262,12 +280,30 @@ internal static class NativeSetBridge
             {
                 MemoryContext previous = MemoryContextSwitchTo(info->econtext->ecxt_per_query_memory);
                 Tuplestorestate *store = tuplestore_begin_heap((info->allowedModes & SFRM_Materialize_Random) != 0, false, work_mem);
-                TupleDesc descriptor = CreateTupleDescCopy(state->descriptor);
+                TupleDesc descriptor = CreateTupleDescCopy(state->composite_result ? state->composite_descriptor : state->descriptor);
                 MemoryContext row_context = AllocSetContextCreate(context->multi_call_memory_ctx, "Ankus set row", ALLOCSET_SMALL_SIZES);
                 MemoryContextSwitchTo(row_context);
                 while (ankus_set_next(state))
                 {
-                    tuplestore_putvalues(store, descriptor, state->values, state->nulls);
+                    if (state->composite_result)
+                    {
+                        if (state->nulls[0])
+                        {
+                            Datum *values = palloc0(sizeof(Datum) * Max(descriptor->natts, 1));
+                            bool *nulls = palloc(sizeof(bool) * Max(descriptor->natts, 1));
+                            memset(nulls, true, sizeof(bool) * descriptor->natts);
+                            tuplestore_putvalues(store, descriptor, values, nulls);
+                        }
+                        else
+                        {
+                            HeapTupleData tuple = {0};
+                            tuple.t_data = DatumGetHeapTupleHeader(state->values[0]);
+                            tuple.t_len = HeapTupleHeaderGetDatumLength(tuple.t_data);
+                            tuplestore_puttuple(store, &tuple);
+                        }
+                    }
+                    else
+                        tuplestore_putvalues(store, descriptor, state->values, state->nulls);
                     MemoryContextReset(row_context);
                 }
 
