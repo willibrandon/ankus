@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>MSBuild project SDK for .NET Native AOT PostgreSQL extensions.</Description>
+    <PackageType>MSBuildSdk</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ankus.Build/Ankus.Build.csproj" ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+    <None Update="Sdk/**/*;targets/**/*;Ankus.props" Pack="true" PackagePath="%(Identity)" />
+  </ItemGroup>
+
+  <Target Name="_CollectAnkusSdkTools" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_AnkusPackTools>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'package-tools'))</_AnkusPackTools>
+      <_AnkusPackVersion>$(IntermediateOutputPath)Ankus.Version.props</_AnkusPackVersion>
+    </PropertyGroup>
+    <MSBuild Projects="../Ankus.Build/Ankus.Build.csproj" Targets="Publish"
+             Properties="Configuration=$(Configuration);PublishDir=$(_AnkusPackTools);UseAppHost=false"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishAot;TargetFramework;PackageOutputPath" />
+    <WriteLinesToFile File="$(_AnkusPackVersion)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="&lt;Project&gt;&lt;PropertyGroup&gt;&lt;AnkusVersion&gt;$(PackageVersion)&lt;/AnkusVersion&gt;&lt;/PropertyGroup&gt;&lt;/Project&gt;" />
+    <ItemGroup>
+      <_AnkusPackTool Include="$(_AnkusPackTools)**/*">
+        <PackagePath>tools/net10.0/%(RecursiveDir)</PackagePath>
+      </_AnkusPackTool>
+      <None Include="@(_AnkusPackTool)" Pack="true" />
+      <None Include="$(_AnkusPackVersion)" Pack="true" PackagePath="Sdk/Ankus.Version.props" />
+      <FileWrites Include="$(_AnkusPackTools)**/*;$(_AnkusPackVersion)" />
+    </ItemGroup>
+  </Target>
+</Project>

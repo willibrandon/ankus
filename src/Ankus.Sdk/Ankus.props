@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <NativeLib>Shared</NativeLib>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <AnkusPostgresMajor Condition="'$(AnkusPostgresMajor)' == ''">18</AnkusPostgresMajor>
+  </PropertyGroup>
+</Project>

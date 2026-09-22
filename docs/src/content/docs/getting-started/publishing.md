@@ -16,8 +16,11 @@ target server's operating system and architecture.
 Register the installation with the Ankus tool:
 
 ```console
+dotnet tool install --global Ankus.Tool --version 1.0.0
 ankus init --pg18 /path/to/postgresql/bin/pg_config
 ```
+
+Use the Ankus version available from your configured feed.
 
 ## Publish
 
@@ -29,6 +32,15 @@ ankus publish --output publish
 
 Ankus uses .NET Native AOT to build for the current platform. It passes the
 registered PostgreSQL installation to the build so the wrapper uses its headers.
+
+You can also use `dotnet publish` directly. For Linux x64:
+
+```console
+dotnet publish -c Release -r linux-x64 -o publish -p:AnkusPgConfigPath=/path/to/pg_config
+```
+
+The SDK supplies Native AOT settings and native build integration. No Ankus source
+checkout is needed, and the server does not need an installed .NET runtime.
 
 For a project named `Hello`, with extension name `hello` and version `1.0.0`, the
 output includes:

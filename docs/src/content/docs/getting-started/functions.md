@@ -3,7 +3,28 @@ title: Write a function
 description: Declare C# methods, map PostgreSQL types, and handle SQL NULL.
 ---
 
-Mark a synchronous static method with `[PgFunction]`:
+## Create a project
+
+Configure your NuGet feed, then create `Hello.csproj` with the available Ankus
+version. Packages are currently built locally; a public release is pending.
+
+```xml
+<Project Sdk="Ankus.Sdk/1.0.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnkusExtensionName>hello</AnkusExtensionName>
+  </PropertyGroup>
+</Project>
+```
+
+The SDK enables Native AOT and includes matching runtime and source-generator
+packages. It works with ordinary NuGet configuration and Central Package Management.
+
+## Add a function
+
+Create `Functions.cs` and mark a synchronous static method with `[PgFunction]`:
 
 ```csharp
 using Ankus;

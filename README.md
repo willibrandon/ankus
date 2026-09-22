@@ -17,6 +17,23 @@ managed-to-native error boundary.
 
 ## Develop and test
 
+Extension projects use the `Ankus.Sdk` NuGet project SDK:
+
+```xml
+<Project Sdk="Ankus.Sdk/1.0.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnkusExtensionName>hello</AnkusExtensionName>
+  </PropertyGroup>
+</Project>
+```
+
+The SDK includes matching runtime and source-generator packages plus the native
+build helper. See [package setup](docs/contributing/development.md#build-the-packages)
+for the local NuGet feed; public publication is pending.
+
 From the repository root:
 
 ```console

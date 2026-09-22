@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <_AnkusBuildTool>$(MSBuildThisFileDirectory)../tools/net10.0/Ankus.Build.dll</_AnkusBuildTool>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Ankus.Runtime" Version="[$(AnkusVersion)]" IsImplicitlyDefined="true" />
+    <PackageReference Include="Ankus.Generators" Version="[$(AnkusVersion)]" IsImplicitlyDefined="true" PrivateAssets="all" />
+  </ItemGroup>
+  <Import Project="../targets/Ankus.Native.targets" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

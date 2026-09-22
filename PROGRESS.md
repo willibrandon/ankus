@@ -35,7 +35,11 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **894 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- `dotnet pack` produces `Ankus.Sdk`, `Ankus.Runtime`, `Ankus.Generators`, `Ankus.PgConfig`,
+  `Ankus.Testing`, and `Ankus.Tool`. The NuGet SDK supports cold restore and native publishing
+  without repository imports; isolated consumers exercise the installed tool, direct publishing,
+  Central Package Management, and package-backed MSTest discovery.
+- **`dotnet test`**: **899 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +63,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 716 integration cases include installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 721 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -261,6 +265,23 @@ Other server versions/platforms remain unvalidated.
 | Compile-time alias handling and Native AOT dispatch | `FunctionType`, numeric buffers, shared scalar signature dispatcher | `PgFunctionGeneratorTests.SupportedFunctionsCompile`, `ClrAliasesShareSqlSignatures`; all numeric integration cases publish and load the actual Native AOT extension |
 | Lossless numeric JSON strings and exact unquoted input | Statically registered `PgNumericConverter`; raw number text passed to PostgreSQL | `ScalarJsonPreservesFullRangeAndScale`, `ScalarJsonNumbersAndNullsUseExactContracts`, `ScalarJsonFailuresPreservePathsAndBackend`; `ScalarConvertersPreserveBackendAccessErrors` checks detached numeric writes and backend-only reads |
 
+### NuGet consumer evidence
+
+Verified with .NET SDK 10.0.400, PostgreSQL 18.6 and Linux x64. `dotnet pack -c Release -o artifacts/packages`
+produces six independently consumable packages. Public publication and other platforms remain pending.
+All consumer tests live in `ToolCommandTests`; consumer projects and their initially empty NuGet cache are outside
+the repository, with spaces in their paths. The external MSTest project contributes one additional passing test
+inside the host integration case.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Extension-author SDK with automatic runtime, generator and native-build integration | `Ankus.Sdk` MSBuildSdk package, implicit version-matched references, embedded `Ankus.Build` tool | `SdkRestoresWithoutRepositoryReferences` checks package-only assets, zero project references, analyzer/helper paths and AOT settings; `PublishedAndInstalledExtensionExecutesInPostgres` loads the resulting native library |
+| Direct .NET publishing and central version management | `Sdk.props`/`Sdk.targets`, CPM-compatible implicit references, native artifact targets | `SdkSupportsDirectPublishWithCentralPackages` uses `global.json` SDK selection and `Directory.Packages.props`, then verifies the SQL result and extension version |
+| Native-only publish contract | SDK validation before publishing | `SdkRejectsNonExtensionPublishSettings` rejects disabled AOT and static-library output without an installable manifest |
+| Reusable testing package and normal discovery | Packed `Ankus.Testing` with PgConfig/Npgsql dependencies | `TestingPackageRunsInIndependentMSTestProject` runs ordinary `dotnet test`; its TRX proves the discovered `PackagedClusterLoadsNativeExtension` passed, including checked-overflow SQLSTATE and same-connection recovery |
+| Installed .NET tool, staging and artifact consistency | Packed `Ankus.Tool`, registry, publish driver and installer | Existing 23 tool cases now use the packaged SDK; installed payload bytes, SQL results, invalid-artifact rejection and failed-build manifest invalidation remain verified |
+| NuGet cache paths with spaces | Ordered quoting of native file arguments before the Unix linker | Both publish tests use an isolated cache path containing spaces; this reproduced an unquoted .NET 10 Native AOT library-path failure before the fix |
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -269,8 +290,8 @@ and the .NET/full-range PostgreSQL temporal types. Nullable forms and `void` res
 Strictness follows argument nullability.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
-the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
-an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
+the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. `Ankus.Sdk` is now a
+consumable NuGet project SDK; repository development uses project references with the same native targets. PostgreSQL discovery is
 available to non-CLI callers; the CLI uses registered installations or an explicit override.
 Prerequisite installation is currently manual.
 
@@ -419,15 +440,15 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | Source command | Required equivalent behavior | Evidence / status |
 |---|---|---|
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Pending |
-| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: discovery/configuration in `src/Ankus.PgConfig`; provisioning pending |
-| `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Partial: library discovery; CLI pending |
+| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: installed CLI registration with locked/atomic configuration updates; provisioning pending |
+| `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `tests/Ankus.Testing`; development CLI pending |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`; generated backend tests and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `src/Ankus.Build` reads managed metadata without loading extension code |
-| `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: PG18 test fixture installation; general installer pending |
+| `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: installed CLI validates manifests and copies/stages native libraries, control and versioned SQL files; upgrade scripts pending |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: publish output; distribution command pending |
 | `get` | Query extension control properties and derived extension metadata | Pending |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
@@ -438,9 +459,18 @@ Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command opt
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
 
-NuGet delivery remains pending: one extension-author package supplying runtime/generator/build integration,
-a .NET tool package, reusable backend-testing packages, and isolated consumer tests that use only packed
-artifacts. Public publication requires full feature and platform/version validation.
+NuGet packages now provide the extension-author project SDK, runtime, source generator, PostgreSQL configuration,
+testing harness, and .NET tool. The SDK embeds a framework-dependent .NET 10 native-build helper and references
+matching runtime/generator versions during the first restore. `Ankus.Generators` ships only its analyzer assembly;
+compiler dependencies do not flow into extension projects. `Ankus.Testing` exposes its PgConfig and Npgsql dependencies.
+
+`ToolCommandTests` packs unique versions and restores consumers outside the checkout with an empty package directory.
+Installed-tool publishing/staging and direct `dotnet publish` both execute SQL in PostgreSQL 18. A separate MSTest
+consumer uses the testing package and ordinary `dotnet test`, checks successful native calls, and recovers from a
+managed exception on the same connection. Direct publishing also exercises Central Package Management and SDK
+version selection from `global.json`. Paths contain spaces, including the NuGet cache; the SDK quotes native library
+arguments that .NET 10's Unix Native AOT targets otherwise pass unquoted. Public publication still requires full feature
+and platform/version validation.
 
 ### Source generation, schema, and extension declarations
 
@@ -555,7 +585,7 @@ source-case-level mapping to named .NET tests and any additional boundary cases 
 | Native AOT safety | Trim/AOT-clean consumers; deterministic cleanup on exceptions, native errors, cancellation and recursive callbacks | PG18 Linux x64 function/SPI cases pass; remaining APIs/targets pending |
 | PostgreSQL 13, 14, 15, 16, 17, 18, 19 beta | Per-major builds against that server's headers, version-specific APIs/gating and complete backend tests | 18.6 only |
 | Windows, Linux, macOS | Native builds, exports/loading, lifecycle, encoding, toolchain and installer tests for each supported RID | Linux x64 only |
-| Ordinary .NET usage | One NuGet reference, attributed methods, `dotnet publish`, discoverable plain `dotnet test` and working tool commands | Repository project references/imports; isolated NuGet consumer pending |
+| Ordinary .NET usage | One NuGet reference, attributed methods, `dotnet publish`, discoverable plain `dotnet test` and working tool commands | NuGet project SDK, cold isolated consumers, CPM/global.json, installed-tool and direct publishing, plus an external MSTest consumer verified on Linux/PG18; remaining CLI commands pending |
 | Installation and upgrades | Clean install, relocation, removal, versioned-library coexistence, upgrade scripts and data compatibility | Basic PG18 `CREATE/DROP EXTENSION` and schema relocation pass |
 | Examples and documentation | Every inventoried scenario runnable with tested usage/configuration/API documentation | Minimal sample, native boundary and SPI usage documented |
 
@@ -604,10 +634,10 @@ The phases track implementation of the complete pgrx feature surface.
    - [x] Publish native library, `.control`, and versioned `.sql` artifacts
     - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
     - [ ] Distribution packaging and extension upgrades
-    - [ ] NuGet entry package with automatic runtime, generator, and build integration dependencies
+     - [x] NuGet entry package with automatic runtime, generator, and build integration dependencies
     - [x] Local tool package installation and invocation tests
-    - [ ] Reusable backend-testing packages
-    - [ ] Isolated consumer tests using packed NuGet artifacts
+     - [x] Reusable backend-testing packages
+     - [x] Isolated consumer tests using packed NuGet artifacts
     - [ ] Public NuGet release after full parity and platform/version validation
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
@@ -616,7 +646,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] User-facing guides for extension authors; repository workflows and design notes live in `docs/contributing/`
     - [x] Concise guides, short explanations, and restrained formatting for the implemented APIs
     - [x] Verify site build, navigation, links, search, and desktop/mobile layouts
-    - [ ] Public hosting, canonical site URL/sitemap, and package-based setup guide after NuGet consumer validation
+     - [x] Package-based setup guide, validated with isolated NuGet consumers
+     - [ ] Public hosting and canonical site URL/sitemap
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
     - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation

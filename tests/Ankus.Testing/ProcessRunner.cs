@@ -17,13 +17,15 @@ internal static class ProcessRunner
     /// <param name="environment">Environment variables to add or replace.</param>
     /// <param name="cancellationToken">Cancels and terminates the process.</param>
     /// <param name="captureOutput">Whether to redirect output rather than inherit the host's handles.</param>
+    /// <param name="workingDirectory">The child process directory, or the current directory when omitted.</param>
     /// <returns>The captured process result.</returns>
     internal static async Task<ProcessResult> RunAsync(
         string fileName,
         IReadOnlyList<string> arguments,
         IReadOnlyDictionary<string, string?> environment,
         CancellationToken cancellationToken,
-        bool captureOutput = true)
+        bool captureOutput = true,
+        string? workingDirectory = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var process = new Process();
@@ -33,6 +35,7 @@ internal static class ProcessRunner
             RedirectStandardOutput = captureOutput,
             RedirectStandardError = captureOutput,
             UseShellExecute = false,
+            WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
         };
 
         foreach (string argument in arguments)
@@ -91,20 +94,23 @@ internal static class ProcessRunner
     /// <param name="environment">Environment variables to add or replace.</param>
     /// <param name="cancellationToken">Cancels and terminates the process.</param>
     /// <param name="captureOutput">Whether to redirect output rather than inherit the host's handles.</param>
+    /// <param name="workingDirectory">The child process directory, or the current directory when omitted.</param>
     /// <returns>The successful process result.</returns>
     internal static async Task<ProcessResult> RunCheckedAsync(
         string fileName,
         IReadOnlyList<string> arguments,
         IReadOnlyDictionary<string, string?> environment,
         CancellationToken cancellationToken,
-        bool captureOutput = true)
+        bool captureOutput = true,
+        string? workingDirectory = null)
     {
         ProcessResult result = await RunAsync(
             fileName,
             arguments,
             environment,
             cancellationToken,
-            captureOutput).ConfigureAwait(false);
+            captureOutput,
+            workingDirectory).ConfigureAwait(false);
         result.EnsureSuccess(fileName, arguments);
         return result;
     }

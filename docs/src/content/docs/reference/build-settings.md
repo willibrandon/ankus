@@ -19,7 +19,27 @@ Set extension properties in your project file:
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 
-## Installation paths
+## Project SDK
+
+An extension uses `Ankus.Sdk` as its project SDK. The SDK sets `PublishAot` and
+`IsAotCompatible` to `true`, `NativeLib` to `Shared`, and enables unsafe code for
+generated native entry points. The output type is `Library`.
+
+Pin the SDK version in the project (`Ankus.Sdk/1.0.0`) or centrally in `global.json`:
+
+```json
+{
+  "msbuild-sdks": {
+    "Ankus.Sdk": "1.0.0"
+  }
+}
+```
+
+With a central SDK version, use `<Project Sdk="Ankus.Sdk">`. Runtime and generator
+package versions follow the SDK, including in projects using
+`Directory.Packages.props`.
+
+## Installation directories
 
 | Artifact | Standard location |
 | --- | --- |

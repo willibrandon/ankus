@@ -56,6 +56,23 @@ The sample imports `src/Ankus.Sdk/Ankus.Sdk.targets`, which supplies the runtime
 generator, and build-tool references. Shared .NET settings come from
 `Directory.Build.props`.
 
+## Build the packages
+
+Pack the solution into a local feed:
+
+```console
+dotnet pack -c Release -o artifacts/packages
+```
+
+This produces `Ankus.Sdk`, `Ankus.Runtime`, `Ankus.Generators`, `Ankus.PgConfig`,
+`Ankus.Testing`, and `Ankus.Tool`. The SDK includes its native build helper and
+matching runtime/generator versions. It uses NuGet's MSBuild SDK resolver.
+
+Add the absolute feed path to a consumer's `NuGet.Config` and use
+`<Project Sdk="Ankus.Sdk/1.0.0">`. Both the SDK resolver and package restore read
+that configuration. The consumer needs its own `TargetFramework`, nullable, and
+implicit-using settings; it does not import repository build files.
+
 ## Build the tool
 
 Pack and install from the local feed:
@@ -72,6 +89,9 @@ Invoke `artifacts/tools/ankus` (`ankus.exe` on Windows), or put that directory o
 dotnet run --project src/Ankus.Tool -- --help
 ```
 
-The integration suite packs a uniquely versioned tool and installs it into a
-temporary directory. It verifies registration, publishing, installation, and SQL
-execution using that installed command.
+`ToolCommandTests` packs all six packages with a unique version, then creates
+consumer projects outside the repository with an empty NuGet package directory.
+It verifies installed-tool publishing and staging, direct `dotnet publish` with
+Central Package Management, and real SQL execution. A separate MSTest consumer
+references only the packed `Ankus.Testing`, runs ordinary `dotnet test`, and checks
+native error recovery as well as successful calls.

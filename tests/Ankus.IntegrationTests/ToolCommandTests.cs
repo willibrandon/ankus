@@ -21,6 +21,8 @@ public sealed class ToolCommandTests(TestContext context)
     private static string s_home = null!;
     private static string s_published = null!;
     private static string s_project = null!;
+    private static string s_version = null!;
+    private static Dictionary<string, string?> s_environment = null!;
     private static PostgresInstallation s_installation = null!;
 
     /// <summary>
@@ -32,23 +34,34 @@ public sealed class ToolCommandTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
-        s_root = Path.Combine(repository, "artifacts", "tool-tests", Guid.NewGuid().ToString("N"));
+        string temporary = Directory.Exists("/tmp/opencode") ? "/tmp/opencode" : Path.GetTempPath();
+        s_root = Path.Combine(temporary, "ankus package tests " + Guid.NewGuid().ToString("N"));
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
         s_installation = await PostgresInstallation.DiscoverAsync(token);
         string feed = Path.Combine(s_root, "feed");
         Directory.CreateDirectory(feed);
-        string version = "0.0.0-test." + Guid.NewGuid().ToString("N");
-        await ProcessRunner.RunCheckedAsync("dotnet",
-            ["pack", Path.Combine(repository, "src", "Ankus.Tool"), "-c", "Release", "-o", feed, "-p:Version=" + version],
-            new Dictionary<string, string?>(), token);
+        s_version = "0.0.0-test." + Guid.NewGuid().ToString("N");
+        foreach (string project in new[] { "src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
+                     "src/Ankus.Sdk", "src/Ankus.Tool", "tests/Ankus.Testing" })
+        {
+            await ProcessRunner.RunCheckedAsync("dotnet",
+                ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:Version=" + s_version,
+                    "-bl:" + Path.Combine(repository, "artifacts", "package-pack-{}.binlog")],
+                new Dictionary<string, string?>(), token);
+        }
+
+        s_environment = new Dictionary<string, string?> { ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages") };
+        File.Copy(Path.Combine(repository, "global.json"), Path.Combine(s_root, "global.json"));
         string config = Path.Combine(s_root, "NuGet.Config");
         new XDocument(new XElement("configuration", new XElement("packageSources", new XElement("clear"),
-            new XElement("add", new XAttribute("key", "test"), new XAttribute("value", feed))))).Save(config);
+            new XElement("add", new XAttribute("key", "test"), new XAttribute("value", feed)),
+            new XElement("add", new XAttribute("key", "nuget.org"), new XAttribute("value", "https://api.nuget.org/v3/index.json")))))
+            .Save(config);
         string toolDirectory = Path.Combine(s_root, "installed tool");
         await ProcessRunner.RunCheckedAsync("dotnet",
-            ["tool", "install", "Ankus.Tool", "--version", version, "--tool-path", toolDirectory, "--configfile", config],
-            new Dictionary<string, string?>(), token);
+            ["tool", "install", "Ankus.Tool", "--version", s_version, "--tool-path", toolDirectory, "--configfile", config],
+            s_environment, token, workingDirectory: s_root);
         s_tool = Path.Combine(toolDirectory, OperatingSystem.IsWindows() ? "ankus.exe" : "ankus");
         (await InvokeAsync(["init", "--home", s_home, "--pg18", s_installation.PgConfigPath], token))
             .EnsureSuccess(s_tool, ["init"]);
@@ -56,9 +69,10 @@ public sealed class ToolCommandTests(TestContext context)
         string projectDirectory = Path.Combine(s_root, "author project");
         Directory.CreateDirectory(projectDirectory);
         s_project = Path.Combine(projectDirectory, "ToolProbe.csproj");
-        new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
-            new XElement("PropertyGroup", new XElement("AnkusExtensionName", "ankus_tool_probe")),
-            new XElement("Import", new XAttribute("Project", Path.Combine(repository, "src", "Ankus.Sdk", "Ankus.Sdk.targets")))))
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "Ankus.Sdk/" + s_version),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
+                new XElement("Nullable", "enable"), new XElement("ImplicitUsings", "enable"),
+                new XElement("TreatWarningsAsErrors", "true"), new XElement("AnkusExtensionName", "ankus_tool_probe"))))
             .Save(s_project);
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Hello", "Hello.cs"), Path.Combine(projectDirectory, "Hello.cs"));
         (await InvokeAsync(["publish", "--home", s_home, "--project", s_project, "--output", s_published], token))
@@ -306,8 +320,178 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.IsFalse(File.Exists(Path.Combine(output, PublishedExtension.FileName)));
     }
 
+    /// <summary>
+    /// Verifies a cold SDK restore supplies only package dependencies, with Native AOT and the analyzer active.
+    /// </summary>
+    [TestMethod]
+    public async Task SdkRestoresWithoutRepositoryReferences()
+    {
+        Assert.IsFalse(s_project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
+        ProcessResult evaluated = await RunDotnetAsync(["msbuild", s_project, "-target:ResolveReferences", "-verbosity:quiet",
+            "-bl:" + Path.Combine(s_root, "references-{}.binlog"),
+            "-getProperty:PublishAot,IsAotCompatible,NativeLib,_AnkusBuildTool", "-getItem:ProjectReference,Analyzer"],
+            context.CancellationToken);
+        evaluated.EnsureSuccess("dotnet", ["msbuild"]);
+        using JsonDocument document = JsonDocument.Parse(evaluated.StandardOutput);
+        JsonElement properties = document.RootElement.GetProperty("Properties");
+        Assert.AreEqual("true", properties.GetProperty("PublishAot").GetString());
+        Assert.AreEqual("true", properties.GetProperty("IsAotCompatible").GetString());
+        Assert.AreEqual("Shared", properties.GetProperty("NativeLib").GetString());
+        string helper = Path.GetFullPath(properties.GetProperty("_AnkusBuildTool").GetString()!);
+        Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, helper);
+        Assert.IsTrue(File.Exists(helper));
+        Assert.AreEqual(0, document.RootElement.GetProperty("Items").GetProperty("ProjectReference").GetArrayLength());
+        JsonElement analyzer = document.RootElement.GetProperty("Items").GetProperty("Analyzer").EnumerateArray()
+            .Single(item => Path.GetFileName(item.GetProperty("Identity").GetString()) == "Ankus.Generators.dll");
+        Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, analyzer.GetProperty("FullPath").GetString());
+        using JsonDocument assets = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(Path.GetDirectoryName(s_project)!, "obj", "project.assets.json"), context.CancellationToken));
+        JsonElement libraries = assets.RootElement.GetProperty("libraries");
+        Assert.AreEqual("package", libraries.GetProperty("Ankus.Runtime/" + s_version).GetProperty("type").GetString());
+        Assert.AreEqual("package", libraries.GetProperty("Ankus.Generators/" + s_version).GetProperty("type").GetString());
+        foreach (JsonProperty library in libraries.EnumerateObject())
+        {
+            Assert.AreEqual("package", library.Value.GetProperty("type").GetString(), library.Name);
+        }
+
+        string[] deployedAssemblies = Directory.GetFiles(s_published, "Ankus.*.dll");
+        Assert.IsEmpty(deployedAssemblies, "Build-time assemblies must not ship alongside the Native AOT extension.");
+    }
+
+    /// <summary>
+    /// Verifies direct dotnet publish under central package management uses the SDK and requested extension version.
+    /// </summary>
+    [TestMethod]
+    public async Task SdkSupportsDirectPublishWithCentralPackages()
+    {
+        string projectDirectory = CreateDirectory();
+        string project = Path.Combine(projectDirectory, "DirectProbe.csproj");
+        XDocument projectFile = XDocument.Load(s_project);
+        projectFile.Root!.SetAttributeValue("Sdk", "Ankus.Sdk");
+        projectFile.Save(project);
+        JsonNode global = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(s_root, "global.json"), context.CancellationToken))!;
+        global["msbuild-sdks"]!["Ankus.Sdk"] = s_version;
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "global.json"), global.ToJsonString(), context.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "Directory.Packages.props"),
+            "<Project><PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup></Project>",
+            context.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "Functions.cs"), """
+            using Ankus;
+            public static class Functions
+            {
+                [PgFunction]
+                public static string PackageEcho(string value) => value + " from NuGet";
+            }
+            """, context.CancellationToken);
+        string output = Path.Combine(projectDirectory, "published");
+        ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+            "-p:AnkusExtensionVersion=2.3.4", "-bl:" + Path.Combine(projectDirectory, "publish-{}.binlog")], context.CancellationToken);
+        result.EnsureSuccess("dotnet", ["publish"]);
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        Assert.AreEqual("ankus_tool_probe--2.3.4.sql", manifest.Sql);
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, context.CancellationToken);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
+        await using var command = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe; SELECT package_echo('直接')", connection);
+        Assert.AreEqual("直接 from NuGet", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT extversion FROM pg_extension WHERE extname = 'ankus_tool_probe'";
+        Assert.AreEqual("2.3.4", await command.ExecuteScalarAsync(context.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies invalid output settings fail rather than producing an unloadable managed or static library.
+    /// </summary>
+    /// <param name="property">The invalid publish property.</param>
+    /// <param name="message">The SDK diagnostic.</param>
+    [TestMethod]
+    [DataRow("PublishAot=false", "Ankus extensions require PublishAot=true.")]
+    [DataRow("NativeLib=Static", "Ankus extensions require OutputType=Library and NativeLib=Shared.")]
+    public async Task SdkRejectsNonExtensionPublishSettings(string property, string message)
+    {
+        string output = CreateDirectory();
+        ProcessResult result = await RunDotnetAsync(["publish", s_project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+            "-o", output, "-p:" + property, "-bl:" + Path.Combine(output, "rejected-{}.binlog")], context.CancellationToken);
+        Assert.AreNotEqual(0, result.ExitCode);
+        Assert.Contains(message, result.StandardOutput);
+        Assert.IsFalse(File.Exists(Path.Combine(output, PublishedExtension.FileName)));
+    }
+
+    /// <summary>
+    /// Verifies the published testing package works in a separately restored MSTest project with ordinary discovery.
+    /// </summary>
+    [TestMethod]
+    public async Task TestingPackageRunsInIndependentMSTestProject()
+    {
+        string projectDirectory = CreateDirectory();
+        string project = Path.Combine(projectDirectory, "ConsumerTests.csproj");
+        new XDocument(new XElement("Project", new XAttribute("Sdk", "MSTest.Sdk"),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
+                new XElement("ImplicitUsings", "enable"), new XElement("Nullable", "enable")),
+            new XElement("ItemGroup", new XElement("PackageReference", new XAttribute("Include", "Ankus.Testing"),
+                new XAttribute("Version", s_version))))).Save(project);
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "PackageTests.cs"), $$"""
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            using Npgsql;
+            [TestClass]
+            public sealed class PackageTests
+            {
+                [TestMethod]
+                public async Task PackagedClusterLoadsNativeExtension()
+                {
+                    var installation = await PostgresInstallation.CreateAsync({{JsonSerializer.Serialize(s_installation.PgConfigPath)}});
+                    await using var cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+                    {
+                        Installation = installation,
+                        PostgreSqlConfiguration =
+                        [
+                            {{JsonSerializer.Serialize("extension_control_path = '" + EscapeSetting(s_published) + "'")}},
+                            {{JsonSerializer.Serialize("dynamic_library_path = '" + EscapeSetting(s_published) + "'")}},
+                        ],
+                    });
+                    await using var connection = await cluster.OpenConnectionAsync();
+                    await using var command = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe; SELECT public.add(19, 23)", connection);
+                    Assert.AreEqual(42, await command.ExecuteScalarAsync());
+                    command.CommandText = "SELECT public.add(2147483647, 1)";
+                    var error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync());
+                    Assert.AreEqual("38000", error.SqlState);
+                    command.CommandText = "SELECT public.greet('package')";
+                    Assert.AreEqual("Hello, package!", await command.ExecuteScalarAsync());
+                }
+            }
+            """, context.CancellationToken);
+        ProcessResult result = await ProcessRunner.RunAsync("dotnet", ["test", "-bl:tests-{}.binlog", "--report-trx"],
+            s_environment, context.CancellationToken, workingDirectory: projectDirectory);
+        result.EnsureSuccess("dotnet", ["test"]);
+        string trx = Directory.GetFiles(projectDirectory, "*.trx", SearchOption.AllDirectories).Single();
+        XDocument report = XDocument.Load(trx);
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        XElement counters = report.Descendants(ns + "Counters").Single();
+        Assert.AreEqual("1", counters.Attribute("total")!.Value);
+        Assert.AreEqual("1", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("0", counters.Attribute("failed")!.Value);
+        Assert.AreEqual("PackagedClusterLoadsNativeExtension", report.Descendants(ns + "UnitTestResult").Single().Attribute("testName")!.Value);
+    }
+
+    private static Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token)
+        => PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+        {
+            Installation = s_installation,
+            DataDirectoryBase = Path.Combine(s_root, "pgdata"),
+            LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
+            PostgreSqlConfiguration =
+            [
+                "extension_control_path = '" + EscapeSetting(output) + "'",
+                "dynamic_library_path = '" + EscapeSetting(output) + "'",
+            ],
+        }, token);
+
+    private static Task<ProcessResult> RunDotnetAsync(string[] arguments, CancellationToken token)
+        => ProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: s_root);
+
     private static Task<ProcessResult> InvokeAsync(string[] arguments, CancellationToken token)
-        => ProcessRunner.RunAsync(s_tool, arguments, new Dictionary<string, string?>(), token);
+        => ProcessRunner.RunAsync(s_tool, arguments, s_environment, token, workingDirectory: s_root);
 
     private static string CreateDirectory()
     {
