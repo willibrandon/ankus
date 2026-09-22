@@ -13,13 +13,13 @@ internal static class PgFunctionEmitter
     /// Appends a function's complete boundary and installation declarations to the extension artifacts.
     /// </summary>
     /// <param name="method">The attributed managed method.</param>
-    /// <param name="name">The SQL name.</param>
+    /// <param name="declaration">The validated SQL declaration.</param>
     /// <param name="callback">The assembly-specific managed callback symbol.</param>
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
     /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
-    internal static void Emit(IMethodSymbol method, string name, string callback,
+    internal static void Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
         FunctionType[] parameters = [.. method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!)];
@@ -27,10 +27,8 @@ internal static class PgFunctionEmitter
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameters, result, managed);
         EmitNative(nativeName, callback, parameters, result, native);
-        string strict = parameters.All(static parameter => !parameter.Nullable) ? " STRICT" : string.Empty;
-        sql.AppendLine($"CREATE FUNCTION \"{name}\"({string.Join(", ", parameters.Select((parameter, index) =>
-            (method.Parameters[index].IsParams ? "VARIADIC " : string.Empty) + parameter.Sql))})");
-        sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c{strict};");
+        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}({declaration.Arguments})");
+        sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
     }

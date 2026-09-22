@@ -50,6 +50,10 @@ public static class Functions
 The method is exposed as `greet(text)`. Names use snake case by default.
 Ankus generates the native entry point and SQL declaration during publishing.
 
+C# parameter names also use snake case in SQL, and optional arguments become
+SQL defaults. See [function declarations](/function-declarations/) for named
+calls, schema placement, and PostgreSQL execution options.
+
 ## Types
 
 | C# | PostgreSQL |

@@ -26,6 +26,12 @@ internal sealed class ExtensionManifest
     internal string Exports => _values["Ankus.Exports"];
 
     /// <summary>
+    /// Gets whether generated declarations permit moving the extension to another schema.
+    /// Older manifests without this metadata contain only relocatable declarations.
+    /// </summary>
+    internal bool Relocatable => !_values.TryGetValue("Ankus.Relocatable", out string? value) || bool.Parse(value);
+
+    /// <summary>
     /// Reads generated assembly metadata from a compiled extension.
     /// </summary>
     /// <param name="assemblyPath">The managed intermediate assembly path.</param>
@@ -74,7 +80,7 @@ internal sealed class ExtensionManifest
         if (!manifest._values.ContainsKey("Ankus.NativeSource") || !manifest._values.ContainsKey("Ankus.Sql") ||
             !manifest._values.ContainsKey("Ankus.Exports"))
         {
-            throw new InvalidOperationException("No generated Ankus manifest found. Declare at least one [PgFunction] method.");
+            throw new InvalidOperationException("No generated Ankus manifest found. Declare a [PgFunction] method or [PgSchema] class.");
         }
 
         return manifest;

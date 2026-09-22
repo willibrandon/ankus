@@ -4,6 +4,27 @@ Ankus generates both sides of the PostgreSQL/Native AOT boundary. The C wrapper
 is compiled against the selected server's headers and linked into the extension's
 native library. Extension authors write attributed C# methods.
 
+## Declaration metadata
+
+`FunctionDeclaration` resolves parameter names/defaults, the nearest containing
+`PgSchema`, function-level overrides, and PostgreSQL execution options from
+Roslyn symbols. It never loads or executes the extension assembly. Identifiers
+are quoted, UTF-8 length is checked, and generated string constants use escape
+literals independent of `standard_conforming_strings`. Negative numeric
+constants are parenthesized before casts so unary negation does not follow a
+narrowing conversion.
+
+Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
+false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
+`ExtensionPackage` writes the corresponding control-file flag. A schema-only
+extension still emits module magic and a manifest, without managed dispatchers
+or their native call dependencies.
+
+Named, defaulted, variadic and security-definer calls use the same native ABI.
+PostgreSQL resolves defaults, assembles variadic arrays, applies function-local
+settings and privileges, and suppresses STRICT calls before dispatch. Required
+parameters retain the native NULL guard even in mixed nullable signatures.
+
 ## Call sequence
 
 1. PostgreSQL invokes the exported C wrapper. The wrapper checks argument count

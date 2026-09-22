@@ -9,7 +9,7 @@ namespace Ankus.Generators.Tests;
 /// </summary>
 /// <param name="context">The per-test context.</param>
 [TestClass]
-public sealed class PgFunctionGeneratorTests(TestContext context)
+public sealed partial class PgFunctionGeneratorTests(TestContext context)
 {
     private static readonly ImmutableArray<MetadataReference> s_references = GetReferences();
 

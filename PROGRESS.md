@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1064 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1119 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,6 +59,10 @@ Linux, and macOS.
   The follow-up scan reports zero omissions. Private declarations are outside that scan's scope.
 - The sample contains ordinary `[PgFunction]`-attributed `Add` and `Greet` methods. Ankus generates
   managed dispatchers, native entry points, module magic, finfo, datum conversions, and SQL.
+- Function declarations support named arguments, C# optional constants, explicit SQL defaults, fixed schemas,
+  volatility, parallel safety, NULL policy, owner/caller security, leakproofness, cost, planner support, replacement,
+  and scoped search paths. `[PgSchema]` creates extension-owned schemas; `Create = false` targets an existing schema.
+  Fixed schemas generate non-relocatable control files. Schema-only extensions also publish as native libraries.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -77,7 +81,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 834 integration cases include isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 861 integration cases include declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -337,12 +341,39 @@ custom/composite/enum types remain part of the wider port.
 | SQL variadics and declaration validation | C# `params T[]`; generator rejects scalar-byte and unsupported params signatures | `ArrayDatumTests.ParamsArraysDeclareSqlVariadicFunctions` verifies dispatch, explicit empty/NULL arrays, strictness and `provariadic`; `PgFunctionGeneratorTests.SupportedFunctionsCompile`, `UnsupportedSignaturesAreRejected`, `ClrAliasesShareSqlSignatures` |
 | Package consumption | Packed SDK/runtime/generator, CPM and cold package-only restore | `ToolCommandTests.SdkSupportsDirectPublishWithCentralPackages` publishes and executes shaped SPI arrays and variadic binary arrays outside the checkout |
 
+### Function declaration evidence
+
+References: `pgrx-sql-entity-graph/src/{extern_args.rs,pg_extern/,schema/}`, `pgrx-macros/src/lib.rs`,
+and PostgreSQL `commands/{functioncmds,extension,schemacmds}.c`. Verified on PostgreSQL 18.6/Linux x64.
+This milestone adds 28 generator cases and 27 backend/package cases. Entity dependency ordering, custom/disabled
+SQL, polymorphic/raw signatures, and schema support for future type families remain pending.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Function volatility, parallel modes, strictness, security, cost, leakproofness, support | `PgFunctionAttribute`, typed enums, `FunctionDeclaration` SQL emission | `FunctionDeclarationTests.CatalogRetainsPlannerAndArgumentContracts` reads `pg_proc`; `SqlDispatchHonorsDeclarations` checks explicit STRICT and called-on-NULL dispatch and supported prefix execution |
+| Named arguments and exact C# optional constants | `PgParameterAttribute`, snake-case argument names, `ParameterDefault` | `SqlDispatchHonorsDeclarations` checks named/reordered/omitted arguments, decimal scale, NULL versus zero, signed minima, uint maximum, NaN and independent negative-zero/char binary output |
+| Server-evaluated defaults and variadic defaults | Explicit SQL expressions override C# constants; all following input arguments require defaults | `ServerDefaultsAndScopedSettingsUseTheCallingSession` checks `current_date` in a non-UTC zone and a named override; `SqlDispatchHonorsDeclarations` checks empty/default and expanded variadic calls |
+| Value-type defaults and encoding | Explicit epoch/default mappings and PostgreSQL E-string literals | `SqlDispatchHonorsDeclarations` checks Guid, PgDate/DateOnly, timestamp/timetz, PgNumeric, PgJson and interval defaults; `FixedSchemasParticipateInExtensionLifecycle` reinstalls under `standard_conforming_strings=off` and checks escaped Unicode text |
+| Fixed, inherited, overridden and standalone schemas | `PgSchema`, `Create=false`, per-function `Schema`, schema-first SQL | `PgFunctionGeneratorTests.SchemaInheritanceAndOverridesUseQualifiedSignatures`, `EmptySchemasHaveValidatedStandaloneMetadata`, `ExistingSchemasHaveNoCreationStatement`; backend nested/quoted/Unicode/public schema calls |
+| Schema ownership and relocation | `Ankus.Relocatable` metadata read without executing assemblies; control-file flag | `FixedSchemasParticipateInExtensionLifecycle` checks `pg_depend`, rejected relocation, rejected adoption of an unrelated schema, uninstall/reinstall and survival of shared public schema |
+| Scoped search paths and execution identity | Native PostgreSQL function configuration/security clauses; unchanged guarded callback ABI | `ServerDefaultsAndScopedSettingsUseTheCallingSession`, `EmptySearchPathUsesNativeSettingSemantics`, `SecurityModeControlsPrivilegesAndRestoresContext` check restored path/role and owner-only access versus permission failure |
+| CREATE OR REPLACE semantics | Generated replacement DDL | `GeneratedReplacementPreservesDependentObjects` reapplies actual published SQL and verifies retained function OID and working dependent view |
+| Compile-time diagnostics and identifier handling | `ANKUS004`, enum/cost/default-order/Unicode/UTF-8-length validation | `InvalidDeclarationOptionsAreRejected`, `EmptySchemasHaveValidatedStandaloneMetadata`, `FunctionDeclarationsPreserveOptionsAndConstants` check errors and compilable generated sources |
+| Package-only and schema-only Native AOT consumption | Packaged SDK/runtime/generator; magic-only native source for schema-only assemblies | `ToolCommandTests.SdkSupportsDirectPublishWithCentralPackages` checks fixed-schema/default/named calls and control metadata; `SchemaOnlyPackageCreatesOwnedNamespace` publishes, explicitly loads the native library, and checks schema creation/removal |
+
+Full-suite evidence: `artifacts/declarations-all-output.txt` (1119 passed, zero failures/skips).
+The internal XML documentation scan remains clean: `artifacts/declarations-internal-docs.txt`.
+`artifacts/declarations-schema-only-output.txt` verifies the added explicit native `LOAD` check.
+The Release build, site build/type check, and API freshness check pass; see the corresponding
+`artifacts/declarations-{build,docs-build,docs-check,api-check}-output.txt` files.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
 and the .NET/full-range PostgreSQL temporal types. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
-SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability.
+SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
+unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
 the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. `Ankus.Sdk` is now a
@@ -445,8 +476,8 @@ The target architecture consists of:
 
 | pgrx | Ankus | status |
 |---|---|---|
-| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: built-in scalar, temporal, numeric and array types; nullability, overloads, variadics |
-| `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
+| `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: built-in scalar, temporal, numeric and array types; nullability, overloads, variadics, named/defaulted arguments and execution options |
+| `#[pg_schema]` | `[PgSchema("name")]`, nested inheritance and per-function overrides | Owned/existing schemas and relocation metadata implemented; future type/dependency graph integration pending |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | generated streaming and materialized set/table results | ☐ |
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
@@ -533,12 +564,12 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous built-in scalar/temporal/numeric/array types, names, overloads, inferred strictness, variadics |
-| Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Pending |
-| `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Pending |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous built-in scalar/temporal/numeric/array types, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics; polymorphic/raw types pending |
+| Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options and existing planner support references; explicit entity dependencies remain pending |
+| `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, per-call search paths and non-relocatable metadata; future types/dependency graph pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Pending |
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
-| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | Pending |
+| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults implemented; table/aggregate fields and composite resolution pending |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Pending |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
@@ -854,3 +885,12 @@ The phases track implementation of the complete pgrx feature surface.
   Plain `dotnet test`: 1064 passed, 0 failed, 0 skipped. Release build passes with zero warnings/errors.
   Documented 101 previously undocumented internal declarations; a follow-up Roslyn scan reports zero omissions.
   Docs build, type check and API freshness pass; the reference contains 37 pages and 574 members.
+- 2026-09-22 — Added function execution options, named/defaulted arguments, and fixed schema declarations.
+  Defaults preserve signed minima, uint bounds, decimal scale, signed zero, Unicode and value-type epochs.
+  Schema ownership is explicit; fixed placement generates non-relocatable control metadata, and schema-only
+  packages publish and load as native libraries. Catalog, privilege, setting restoration, replacement-dependency,
+  uninstall/reinstall and isolated package tests verify the resulting behavior. Added 28 generator and 27 backend
+  cases. Plain `dotnet test`: 1119 passed, zero failures/skips; Release build: zero warnings/errors.
+  Internal documentation scan, site build/type check and API freshness pass. The API reference has 42 pages and
+  599 members. Complete entity dependencies, custom SQL, additional type families and the PG/platform matrix
+  remain part of the active port.

@@ -15,6 +15,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
 - [PgLog](/api/ankus.pglog/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
+- [PgParameterAttribute](/api/ankus.pgparameterattribute/)
+- [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [Spi](/api/ankus.spi/)
 - [SpiColumn](/api/ankus.spicolumn/)
 - [SpiCursor](/api/ankus.spicursor/)
@@ -40,3 +42,6 @@ Assembly: `Ankus.Runtime.dll`
 
 - [PgDateTimePart](/api/ankus.pgdatetimepart/)
 - [PgLogLevel](/api/ankus.pgloglevel/)
+- [PgNullInput](/api/ankus.pgnullinput/)
+- [PgParallelSafety](/api/ankus.pgparallelsafety/)
+- [PgVolatility](/api/ankus.pgvolatility/)

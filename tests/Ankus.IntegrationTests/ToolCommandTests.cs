@@ -389,6 +389,13 @@ public sealed class ToolCommandTests(TestContext context)
 
                 [PgFunction]
                 public static byte[]?[] PackageBinary(params byte[]?[] values) => values;
+
+                [PgSchema("package_contract")]
+                public static class Fixed
+                {
+                    [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, Cost = 2.5)]
+                    public static int PackageDefault(int inputValue = 41) => inputValue + 1;
+                }
             }
             """, context.CancellationToken);
         string output = Path.Combine(projectDirectory, "published");
@@ -408,6 +415,45 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("[-1:0][2:3]={{1,NULL},{-2,3}}", await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT encode((package_binary(decode('0001ff','hex'), NULL))[1], 'hex')";
         Assert.AreEqual("0001ff", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT package_contract.package_default()";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT package_contract.package_default(input_value => 9)";
+        Assert.AreEqual(10, await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT extrelocatable FROM pg_extension WHERE extname = 'ankus_tool_probe'";
+        Assert.IsFalse(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(context.CancellationToken)));
+    }
+
+    /// <summary>
+    /// Publishes a package-backed extension containing only a schema declaration and verifies its ownership lifecycle.
+    /// </summary>
+    [TestMethod]
+    public async Task SchemaOnlyPackageCreatesOwnedNamespace()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "SchemaOnly.csproj");
+        File.Copy(s_project, project);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Schema.cs"), """
+            using Ankus;
+            [PgSchema("package_schema_only")]
+            public static class SchemaOnly;
+            """, token);
+        string output = Path.Combine(directory, "published");
+        ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+            "-bl:" + Path.Combine(directory, "schema-only-{}.binlog")], token);
+        result.EnsureSuccess("dotnet", ["publish"]);
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        await using var command = new NpgsqlCommand($"""
+            LOAD '{manifest.Library}';
+            CREATE EXTENSION ankus_tool_probe;
+            SELECT to_regnamespace('package_schema_only') IS NOT NULL
+            """, connection);
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+        command.CommandText = "DROP EXTENSION ankus_tool_probe; SELECT to_regnamespace('package_schema_only') IS NULL";
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
     }
 
     /// <summary>

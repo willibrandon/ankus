@@ -31,6 +31,43 @@ public PgFunctionAttribute()
 
 ## Properties
 
+<a id="member-a05f7b638bab707c"></a>
+
+### Cost
+
+Gets or sets the positive finite planner cost in cpu_operator_cost units. The C-language default is one.
+
+```csharp
+public double Cost { get; set; }
+```
+
+Value: [double](https://learn.microsoft.com/dotnet/api/system.double)
+
+<a id="member-88b78a2ec2ca892e"></a>
+
+### CreateOrReplace
+
+Gets or sets whether installation uses CREATE OR REPLACE FUNCTION.
+
+```csharp
+public bool CreateOrReplace { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-0ddda8a94a1d9864"></a>
+
+### Leakproof
+
+Gets or sets the claim that the function reveals no argument information except through its result.
+PostgreSQL requires superuser privileges to install a leakproof function.
+
+```csharp
+public bool Leakproof { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-9a3a99b7196e4c8b"></a>
 
 ### Name
@@ -42,3 +79,91 @@ public string? Name { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-5821377356a5214f"></a>
+
+### NullInput
+
+Gets or sets SQL NULL dispatch behavior. The default infers strictness from parameter nullability.
+
+```csharp
+public PgNullInput NullInput { get; set; }
+```
+
+Value: [PgNullInput](/api/ankus.pgnullinput/)
+
+<a id="member-e08be5a63559b2ae"></a>
+
+### ParallelSafety
+
+Gets or sets whether PostgreSQL may execute this function in parallel queries. The default is Unsafe.
+
+```csharp
+public PgParallelSafety ParallelSafety { get; set; }
+```
+
+Value: [PgParallelSafety](/api/ankus.pgparallelsafety/)
+
+<a id="member-50d4f8c172a722e1"></a>
+
+### Schema
+
+Gets or sets an existing SQL schema, overriding the nearest PgSchema declaration.
+Declare PgSchema separately when the extension should create the schema.
+A fixed schema makes the extension non-relocatable.
+
+```csharp
+public string? Schema { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-4b7aa4ecfc8cee28"></a>
+
+### SearchPath
+
+Gets or sets an ordered schema search path scoped to this function. Null preserves the caller's search path.
+Each entry is a schema identifier, including the special $user and pg_temp entries.
+
+```csharp
+public string[]? SearchPath { get; set; }
+```
+
+Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-395d329433baa5be"></a>
+
+### SecurityDefiner
+
+Gets or sets whether the function executes with its owner's privileges instead of the caller's.
+
+```csharp
+public bool SecurityDefiner { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+<a id="member-1893f39c6c0b9383"></a>
+
+### SupportFunction
+
+Gets or sets the name of an existing planner support function, optionally qualified with one schema.
+PostgreSQL resolves and validates its internal-to-internal signature during installation.
+
+```csharp
+public string? SupportFunction { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-5c06fb8b38efb3d6"></a>
+
+### Volatility
+
+Gets or sets the planner's volatility contract. The default is Volatile.
+
+```csharp
+public PgVolatility Volatility { get; set; }
+```
+
+Value: [PgVolatility](/api/ankus.pgvolatility/)

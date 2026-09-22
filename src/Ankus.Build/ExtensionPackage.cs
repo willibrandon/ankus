@@ -12,8 +12,9 @@ internal static class ExtensionPackage
     /// <param name="version">The PostgreSQL extension version.</param>
     /// <param name="library">The native library filename, including its platform-specific suffix.</param>
     /// <param name="sql">The generated installation SQL containing MODULE_PATHNAME placeholders.</param>
+    /// <param name="relocatable">Whether all generated objects can move with the extension's installation schema.</param>
     /// <returns>The filenames and UTF-8 text to publish in the extension directory.</returns>
-    internal static IReadOnlyDictionary<string, string> Create(string name, string version, string library, string sql)
+    internal static IReadOnlyDictionary<string, string> Create(string name, string version, string library, string sql, bool relocatable)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
@@ -37,7 +38,7 @@ internal static class ExtensionPackage
             throw new ArgumentException("The native library must have a filename without directory components.", nameof(library));
         }
 
-        string control = $"default_version = '{version}'\nmodule_pathname = '{library}'\nrelocatable = true\n";
+        string control = $"default_version = '{version}'\nmodule_pathname = '{library}'\nrelocatable = {(relocatable ? "true" : "false")}\n";
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [name + ".control"] = control,
