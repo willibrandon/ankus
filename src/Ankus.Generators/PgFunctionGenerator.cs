@@ -53,6 +53,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         native.AppendLine(NativeSpiBridge.Source);
         native.AppendLine(NativeCursorBridge.Source);
         native.AppendLine(NativeSessionBridge.Source);
+        native.AppendLine(NativeSqlHelpers.Source);
         native.AppendLine(NativeErrorBridge.Source);
         native.AppendLine(GuardedBackend.Source);
 

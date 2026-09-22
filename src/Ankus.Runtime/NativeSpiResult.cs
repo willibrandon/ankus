@@ -49,6 +49,11 @@ internal unsafe struct NativeSpiResult
     internal NativeValue _cursorName;
 
     /// <summary>
+    /// Contains owned UTF-8 output from a native SQL text helper.
+    /// </summary>
+    internal NativeValue _text;
+
+    /// <summary>
     /// Copies every cell and column into managed objects before native memory is released.
     /// </summary>
     /// <returns>The independent managed result.</returns>

@@ -13,6 +13,7 @@ internal static class NativeSpiBridge
         #include "catalog/pg_type_d.h"
         #include "utils/lsyscache.h"
         #include "utils/memutils.h"
+        #include "tcop/tcopprot.h"
 
         typedef struct AnkusParameter
         {
@@ -33,7 +34,11 @@ internal static class NativeSpiBridge
             ANKUS_SPI_FIND_CURSOR,
             ANKUS_SPI_OPEN_SESSION,
             ANKUS_SPI_CLOSE_SESSION,
-            ANKUS_SPI_KEEP_PLAN
+            ANKUS_SPI_KEEP_PLAN,
+            ANKUS_SPI_QUOTE_IDENTIFIER,
+            ANKUS_SPI_QUOTE_QUALIFIED_IDENTIFIER,
+            ANKUS_SPI_QUOTE_LITERAL,
+            ANKUS_SPI_EXPLAIN
         };
 
         typedef struct AnkusRequest
@@ -69,6 +74,7 @@ internal static class NativeSpiBridge
             void (*release)(struct AnkusResult *);
             int64 cursor_id;
             AnkusValue cursor_name;
+            AnkusValue text;
         } AnkusResult;
 
         static int ankus_return_cursor(Portal portal, AnkusResult *result);
@@ -81,6 +87,8 @@ internal static class NativeSpiBridge
         {
             free(result->cursor_name.data);
             result->cursor_name.data = NULL;
+            free(result->text.data);
+            result->text.data = NULL;
             if (result->columns != NULL)
             {
                 for (int column = 0; column < result->column_count; column++)
@@ -219,6 +227,10 @@ internal static class NativeSpiBridge
                 return SPI_execute_plan(request->plan, values, nulls, request->read_only != 0, request->limit);
             }
             sql = pg_any_to_server(request->command, request->command_length, PG_UTF8);
+            if (request->operation == ANKUS_SPI_EXPLAIN && list_length(pg_parse_query(sql)) != 1)
+            {
+                ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), errmsg("EXPLAIN requires exactly one SQL statement")));
+            }
             if (request->operation == ANKUS_SPI_OPEN_CURSOR)
             {
                 Portal portal = SPI_cursor_open_with_args(NULL, sql, request->parameter_count, types, values, nulls,

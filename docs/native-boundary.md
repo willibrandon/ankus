@@ -135,6 +135,27 @@ partially prepared or retained plan is freed by native error recovery. Result
 tuple tables are released immediately after copying, so a long-lived session
 does not accumulate already materialized batches.
 
+Scoped operations allocate temporary parameters and conversion buffers in an
+`Ankus SPI operation` memory context. Success deletes that context before releasing
+the operation's subtransaction; failure reclaims it during rollback. This is
+necessary because PostgreSQL keeps nonempty `CurTransactionContext` children
+after subtransaction commit. Long-lived plans, portal state, and session cleanup
+registrations live in their respective owning contexts.
+
+Quoting helpers share the error guard but invoke `quote_identifier`,
+`quote_qualified_identifier`, or `quote_literal_cstr` directly, without opening a
+SPI connection. Their input conversion and quoted output use the disposable
+operation context; the returned UTF-8 fragment is copied into allocator-matched
+native result storage before the context is deleted.
+
+EXPLAIN uses the same typed parameter and result conversion as queries. Native
+`pg_parse_query` verifies that the prefixed `EXPLAIN (FORMAT JSON)` command has one
+statement before SPI executes it. The result is an independently owned `PgJson`.
+
+Managed `SpiRow` edits replace local values and lazily allocated per-cell type OIDs.
+The original query's shared column metadata remains available separately. Row
+access and mutation use owned managed data and require no PostgreSQL calls.
+
 Cursor operations share the native guard and result-copy path. Opening uses
 `SPI_cursor_open_with_args` or `SPI_cursor_open` for prepared plans. Managed cursor
 objects carry monotonically assigned identities and copied names rather than

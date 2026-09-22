@@ -6,6 +6,49 @@ namespace Ankus;
 public static class Spi
 {
     /// <summary>
+    /// Quotes a single SQL identifier using PostgreSQL's keyword rules and quote_all_identifiers setting.
+    /// </summary>
+    /// <param name="identifier">One identifier; dots are part of its name.</param>
+    /// <returns>The quoted identifier or the original spelling when quoting is unnecessary.</returns>
+    public static string QuoteIdentifier(string identifier)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+        return NativeBackend.Quote(SpiOperation.QuoteIdentifier, SpiParameter.Create(identifier));
+    }
+
+    /// <summary>
+    /// Quotes a schema or other qualifier and an identifier independently, joining them with a dot.
+    /// </summary>
+    /// <param name="qualifier">The qualifier, or null to omit it.</param>
+    /// <param name="identifier">The identifier.</param>
+    /// <returns>The qualified SQL name.</returns>
+    public static string QuoteQualifiedIdentifier(string? qualifier, string identifier)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+        return NativeBackend.Quote(SpiOperation.QuoteQualifiedIdentifier, SpiParameter.Create(qualifier), SpiParameter.Create(identifier));
+    }
+
+    /// <summary>
+    /// Quotes a text literal with escaping that is valid regardless of standard_conforming_strings.
+    /// </summary>
+    /// <param name="value">The literal text.</param>
+    /// <returns>The quoted SQL literal.</returns>
+    public static string QuoteLiteral(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return NativeBackend.Quote(SpiOperation.QuoteLiteral, SpiParameter.Create(value));
+    }
+
+    /// <summary>
+    /// Plans one SQL statement and returns PostgreSQL's JSON EXPLAIN output. The statement is not executed by EXPLAIN ANALYZE.
+    /// </summary>
+    /// <param name="commandText">The statement to explain.</param>
+    /// <param name="parameters">The typed positional parameters.</param>
+    /// <returns>The owned JSON query plan.</returns>
+    public static PgJson Explain(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.Explain(commandText, parameters);
+
+    /// <summary>
     /// Runs a synchronous callback using one scoped SPI connection. Session-bound plans expire when the callback exits.
     /// </summary>
     /// <param name="action">The synchronous backend-thread callback.</param>

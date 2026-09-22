@@ -64,4 +64,24 @@ internal enum SpiOperation : byte
     /// Retains a session-bound plan beyond its connection's lifetime.
     /// </summary>
     KeepPlan,
+
+    /// <summary>
+    /// Quotes one identifier using PostgreSQL's keyword and configuration rules.
+    /// </summary>
+    QuoteIdentifier,
+
+    /// <summary>
+    /// Quotes a qualifier and identifier as two separate SQL name components.
+    /// </summary>
+    QuoteQualifiedIdentifier,
+
+    /// <summary>
+    /// Quotes a string literal using PostgreSQL's escape rules.
+    /// </summary>
+    QuoteLiteral,
+
+    /// <summary>
+    /// Explains exactly one parsed SQL statement, returning its JSON plan.
+    /// </summary>
+    Explain,
 }

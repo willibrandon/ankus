@@ -25,6 +25,7 @@ internal static class GuardedBackend
             volatile int status = 0;
             volatile bool retained_plan = false;
             bool standalone = request->session_id == 0;
+            bool quote = ankus_is_quote_request(request->operation);
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_CLOSE_SESSION && ankus_session != NULL &&
@@ -41,6 +42,7 @@ internal static class GuardedBackend
                 PG_TRY();
                 {
                     int code;
+                    MemoryContext operation_context = NULL;
                     if (request->operation == ANKUS_SPI_OPEN_SESSION)
                     {
                         /* Keep this subtransaction until close so partial SPI_connect failures can be rolled back safely. */
@@ -55,7 +57,7 @@ internal static class GuardedBackend
                     else
                     {
                         BeginInternalSubTransaction(NULL);
-                        if (standalone)
+                        if (standalone && !quote)
                         {
                             code = SPI_connect();
                             if (code != SPI_OK_CONNECT)
@@ -63,20 +65,25 @@ internal static class GuardedBackend
                                 ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                             }
                         }
-                        else
+                        else if (!standalone)
                         {
                             ankus_require_session(request->session_id);
                         }
+                        if ((quote || !standalone) && request->operation != ANKUS_SPI_CLOSE_SESSION)
+                        {
+                            operation_context = AllocSetContextCreate(CurrentMemoryContext, "Ankus SPI operation", ALLOCSET_SMALL_SIZES);
+                            MemoryContextSwitchTo(operation_context);
+                        }
                         if (request->operation != ANKUS_SPI_CLOSE_SESSION)
                         {
-                            code = ankus_run_spi_request(request, result);
+                            code = quote ? ankus_quote(request, result) : ankus_run_spi_request(request, result);
                             if (code < 0)
                             {
                                 ereport(ERROR, (errmsg("SPI operation failed: %s", SPI_result_code_string(code))));
                             }
                             retained_plan = request->operation == ANKUS_SPI_KEEP_PLAN;
                             if (request->operation == ANKUS_SPI_EXECUTE || request->operation == ANKUS_SPI_EXECUTE_PLAN ||
-                                request->operation == ANKUS_SPI_FETCH_CURSOR)
+                                request->operation == ANKUS_SPI_FETCH_CURSOR || request->operation == ANKUS_SPI_EXPLAIN)
                             {
                                 if (SPI_processed > PG_INT64_MAX)
                                 {
@@ -90,7 +97,12 @@ internal static class GuardedBackend
                                 SPI_freetuptable(SPI_tuptable);
                             }
                         }
-                        if (standalone || request->operation == ANKUS_SPI_CLOSE_SESSION)
+                        if (operation_context != NULL)
+                        {
+                            MemoryContextSwitchTo(CurTransactionContext);
+                            MemoryContextDelete(operation_context);
+                        }
+                        if ((standalone && !quote) || request->operation == ANKUS_SPI_CLOSE_SESSION)
                         {
                             code = SPI_finish();
                             if (code != SPI_OK_FINISH)

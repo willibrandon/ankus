@@ -24,8 +24,8 @@ SpiParameter optionalText = SpiParameter.Create<string?>(null);
 
 Parameters accept `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`,
 `double`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, and nullable forms. Parameter values
-are sent separately from the SQL command. Parameterized commands contain a single
-SQL statement, as required by `SPI_execute_with_args`.
+are sent separately from the SQL command. Each command call uses one internal
+subtransaction and reports results from its final statement.
 
 See [JSON and UUID values](json-and-uuid.md) for the distinction between JSON null
 and SQL NULL and for source-generated JSON serialization.
@@ -70,6 +70,35 @@ underlying base type's value conversion.
 Results are managed copies. Rows, text, and binary buffers remain valid after
 another SPI command or after the original SPI connection is released.
 
+### Editing result rows
+
+`SpiRow.Set<T>` replaces a cell in the managed result, using either an ordinal or
+an exact column name:
+
+```csharp
+SpiRow row = result[0];
+row.Set("body", "edited locally");
+row.Set<int?>("id", null);
+
+int ordinal = row.GetOrdinal("body");
+string body = row.Get<string>(ordinal);
+uint cellType = row.GetTypeOid("id"); // int4 OID, even though the cell is NULL
+```
+
+Edits belong to that row's managed copy. Database changes use SQL commands.
+`Set<T>` accepts the supported datum types and permits replacing a cell with a
+different type. `GetTypeOid` tracks each cell's current type; `result.Columns`
+continues to describe the original query. A domain cell retains its domain OID
+until replaced. Typed NULL retains the replacement type's OID. Invalid types,
+names, or ordinals leave the row's value and type intact.
+
+`Count` gives the number of cells. Both numeric and named indexers return the
+managed object or null. Managed reference values, including byte arrays, follow
+ordinary .NET reference semantics when assigned to a row. The owned rows can be
+read or edited after returning from an extension callback, without a backend binding.
+
+### Query options
+
 For an explicit row limit or read-only SPI execution:
 
 ```csharp
@@ -81,6 +110,44 @@ SpiResult page = Spi.Query(
 
 A limit of zero means unlimited. Read-only mode uses PostgreSQL's read-only SPI
 snapshot and restrictions, including rejection of write commands.
+
+## Quoting SQL fragments
+
+Use PostgreSQL's identifier rules when assembling dynamic object names:
+
+```csharp
+string table = Spi.QuoteQualifiedIdentifier("my schema", "messages");
+string column = Spi.QuoteIdentifier("Message Body");
+Spi.Execute($"INSERT INTO {table} ({column}) VALUES ($1)", SpiParameter.Create("hello"));
+```
+
+`QuoteIdentifier` treats its input as one identifier, including any dots.
+`QuoteQualifiedIdentifier` quotes its two components independently; a null
+qualifier omits the prefix, while an empty qualifier represents an empty name.
+These functions use the server's keyword table and `quote_all_identifiers` setting.
+
+`Spi.QuoteLiteral(text)` produces a SQL text literal, escaping apostrophes and
+backslashes. Its output is valid with either `standard_conforming_strings`
+setting. Quoting uses server-encoding conversion and the active backend thread;
+embedded zero characters and malformed UTF-16 are rejected before native calls.
+
+## JSON query plans
+
+```csharp
+PgJson plan = Spi.Explain(
+    "SELECT * FROM messages WHERE id = $1",
+    SpiParameter.Create(42));
+
+using JsonDocument document = plan.Parse();
+JsonElement root = document.RootElement[0].GetProperty("Plan");
+```
+
+`Spi.Explain` and `SpiSession.Explain` run `EXPLAIN (FORMAT JSON)` and return an
+owned JSON value. The server plans the supplied statement with its typed
+parameters, using ordinary EXPLAIN rather than EXPLAIN ANALYZE. Native parsing
+requires exactly one statement before execution; semicolons inside literals and
+trailing statement terminators retain their normal SQL meaning. PostgreSQL parse
+and planning errors become `PgException` through the common guard.
 
 ## Prepared statements
 

@@ -26,6 +26,18 @@ public sealed class SpiSession
     internal long Identity { get; set; }
 
     /// <summary>
+    /// Plans one SQL statement within this session and returns its owned JSON EXPLAIN output.
+    /// </summary>
+    /// <param name="commandText">The SQL statement.</param>
+    /// <param name="parameters">The typed positional parameters.</param>
+    /// <returns>The JSON query plan.</returns>
+    public PgJson Explain(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        return NativeBackend.Explain(commandText, parameters, this);
+    }
+
+    /// <summary>
     /// Executes commands within this session and returns the final command's processed-row count.
     /// </summary>
     /// <param name="commandText">The SQL command text.</param>

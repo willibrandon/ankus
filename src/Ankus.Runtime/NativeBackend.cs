@@ -334,6 +334,54 @@ public static unsafe class NativeBackend
         Invoke(&request, &result);
     }
 
+    /// <summary>
+    /// Calls PostgreSQL's quoting functions under the native guard and copies the owned text result.
+    /// </summary>
+    /// <param name="operation">The quoting operation.</param>
+    /// <param name="parameters">The individual text arguments.</param>
+    /// <returns>The PostgreSQL-quoted SQL fragment.</returns>
+    internal static string Quote(SpiOperation operation, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = operation };
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, parameters, &result);
+            return result._text.ReadString();
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
+    /// <summary>
+    /// Explains a single statement after native parser validation, copying its JSON plan out of SPI storage.
+    /// </summary>
+    /// <param name="commandText">The statement to plan.</param>
+    /// <param name="parameters">The positional parameters.</param>
+    /// <param name="session">The scoped connection, or null for independent execution.</param>
+    /// <returns>The owned JSON plan.</returns>
+    internal static PgJson Explain(string commandText, ReadOnlySpan<SpiParameter> parameters, SpiSession? session = null)
+    {
+        CheckAccess();
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandText);
+        byte[] sql = EncodeCommand("EXPLAIN (FORMAT JSON) " + commandText);
+        fixed (byte* text = sql)
+        {
+            var request = new NativeSpiRequest
+            {
+                _operation = SpiOperation.Explain,
+                _command = text,
+                _commandLength = sql.Length - 1,
+                _sessionId = session?.Identity ?? 0,
+                _resultMode = SpiResultMode.Scalar,
+            };
+            return RunRequest(request, parameters)[0].Get<PgJson>(0);
+        }
+    }
+
     private static SpiCursor CreateCursor(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
