@@ -80,6 +80,7 @@ internal static class GuardedBackend
                             ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                         }
 
+                        ankus_register_trigger_data();
                         ankus_register_session(request, caller_context, caller_owner, caller_nest_level);
                     }
                     else
@@ -92,6 +93,8 @@ internal static class GuardedBackend
                             {
                                 ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                             }
+
+                            ankus_register_trigger_data();
                         }
                         else if (!standalone)
                         {

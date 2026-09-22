@@ -24,9 +24,9 @@ public sealed class PgHeapTuple
 
         for (int index = 0; index < values.Length; index++)
         {
-            if (descriptor.Attributes[index].IsDropped && values[index] is not null)
+            if ((descriptor.Attributes[index].IsDropped || descriptor.Attributes[index].IsUnavailable) && values[index] is not null)
             {
-                throw new ArgumentException("Dropped tuple attributes must contain SQL NULL.", nameof(values));
+                throw new ArgumentException("Dropped and unavailable tuple attributes cannot contain a value.", nameof(values));
             }
         }
 
@@ -45,11 +45,18 @@ public sealed class PgHeapTuple
     public int Count => _values.Length;
 
     /// <summary>
-    /// Gets an owned cell by zero-based physical ordinal. SQL NULL and dropped attributes return null.
+    /// Gets an owned cell by zero-based physical ordinal. SQL NULL and dropped attributes return null; unavailable fields throw.
     /// </summary>
     /// <param name="ordinal">The physical ordinal.</param>
     /// <returns>The managed cell.</returns>
-    public object? this[int ordinal] => _values[ValidateOrdinal(ordinal)];
+    public object? this[int ordinal]
+    {
+        get
+        {
+            ValidateAvailable(ValidateOrdinal(ordinal));
+            return _values[ordinal];
+        }
+    }
 
     /// <summary>
     /// Gets the first live cell with the exact case-sensitive name.
@@ -84,6 +91,7 @@ public sealed class PgHeapTuple
     public void Set<T>(int ordinal, T value)
     {
         PgTupleAttributeInfo attribute = Descriptor.Attributes[ValidateOrdinal(ordinal)];
+        ValidateAvailable(ordinal);
         if (attribute.IsDropped)
         {
             throw new InvalidOperationException("Dropped tuple attributes cannot be changed.");
@@ -156,6 +164,7 @@ public sealed class PgHeapTuple
     private void SetCore(int ordinal, uint oid, object? value)
     {
         PgTupleAttributeInfo attribute = Descriptor.Attributes[ValidateOrdinal(ordinal)];
+        ValidateAvailable(ordinal);
         if (attribute.IsDropped)
         {
             throw new InvalidOperationException("Dropped tuple attributes cannot be changed.");
@@ -175,5 +184,13 @@ public sealed class PgHeapTuple
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, Count);
         return ordinal;
+    }
+
+    private void ValidateAvailable(int ordinal)
+    {
+        if (Descriptor.Attributes[ordinal].IsUnavailable)
+        {
+            throw new InvalidOperationException("PostgreSQL has not defined this generated column's value in the current trigger row.");
+        }
     }
 }

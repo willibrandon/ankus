@@ -411,3 +411,43 @@ Value-per-call execution returns a single row and leaves the iterator rooted for
 the next call. Materialization writes to a PostgreSQL tuple store owned by the
 query context, resetting temporary conversion storage between rows and allowing
 `work_mem`-controlled spill. Interrupt checks occur before each iterator advance.
+
+## Trigger callbacks
+
+Trigger entry points validate `CALLED_AS_TRIGGER` and expose twelve `AnkusValue`
+slots: event bits, relation OID, trigger OID, trigger/table/schema names, optional
+OLD/NEW transition aliases, text arguments, optional OLD/NEW tuples, and the
+relation descriptor. The managed reader copies and validates every value.
+PostgreSQL's trigger structures remain native and are compiled against the
+selected server headers.
+
+The return ABI is a `HeapTuple` pointer with `fcinfo->isnull = false`, including
+a NULL pointer that skips a row. It is distinct from a composite datum's
+`HeapTupleHeader`. INSERT/UPDATE replacements validate the relation's physical
+layout and apply field conversions before `heap_modify_tuple` preserves tuple
+identification. The resulting tuple is copied into the caller's memory context.
+AFTER results and nonnull DELETE payloads are ignored before serialization;
+BEFORE statement triggers cannot return a tuple.
+
+Undefined generated fields carry tuple attribute flag 8 and a NULL transport
+payload. Managed access rejects these fields rather than exposing SQL NULL.
+Trigger reconstruction preserves PostgreSQL's generated slots, while ordinary
+composite reconstruction rejects unavailable attributes. Stored NEW generated
+columns are recomputed by PostgreSQL after BEFORE callbacks.
+
+A native trigger scope owns temporary input and transition query-environment
+storage. Each new SPI connection registers the active `TriggerData` once, with
+the callback context as the allocation context. This matters because SPI cursors
+retain the query environment after `SPI_finish`. Such portals receive the
+trigger scope's identity and close before that scope ends, including detached
+portals. The active trigger context remains bound during iterator disposal so
+its `finally` blocks can still query transition tables. A native `PG_FINALLY`
+restores the enclosing scope and function identity on success or failure.
+
+If portal cleanup raises, the callback context remains owned by its caller until
+PostgreSQL abort cleanup has released the surviving portals. Deleting it
+unconditionally on that path would invalidate their borrowed query environments.
+Managed result/error buffers retain their allocator-matched cleanup. Retained
+plans keep the plan, not a transition table: execution uses the current SPI
+query environment, and PostgreSQL's original error is transported when a required
+named tuplestore is absent.

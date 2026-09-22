@@ -60,10 +60,11 @@ public unsafe partial struct NativeValue
                 WriteInt(buffer, unchecked((int)attribute.BaseTypeOid));
                 WriteInt(buffer, attribute.TypeModifier);
                 WriteInt(buffer, unchecked((int)attribute.CollationOid));
-                WriteInt(buffer, (attribute.IsDropped ? 1 : 0) | (attribute.IsNotNull ? 2 : 0) | (attribute.IsComposite ? 4 : 0));
+                WriteInt(buffer, (attribute.IsDropped ? 1 : 0) | (attribute.IsNotNull ? 2 : 0) |
+                    (attribute.IsComposite ? 4 : 0) | (attribute.IsUnavailable ? 8 : 0));
                 WriteInt(buffer, name.Length);
                 buffer.Write(name);
-                NativeValue item = SpiType.ToNative(value[index]);
+                NativeValue item = SpiType.ToNative(attribute.IsUnavailable ? null : value[index]);
                 try
                 {
                     WriteContainerValue(buffer, item);
@@ -119,7 +120,7 @@ public unsafe partial struct NativeValue
             int flags = BinaryPrimitives.ReadInt32BigEndian(header[16..]);
             int nameLength = BinaryPrimitives.ReadInt32BigEndian(header[20..]);
             offset += 24;
-            if ((flags & ~7) != 0 || nameLength is < 0 or > 252 || nameLength > data.Length - offset)
+            if ((flags & ~15) != 0 || nameLength is < 0 or > 252 || nameLength > data.Length - offset)
             {
                 throw new InvalidOperationException("Invalid native tuple attribute metadata.");
             }
@@ -128,19 +129,20 @@ public unsafe partial struct NativeValue
             offset += nameLength;
             bool dropped = (flags & 1) != 0;
             bool composite = (flags & 4) != 0;
+            bool unavailable = (flags & 8) != 0;
             if (name.Contains('\0', StringComparison.Ordinal) || (!dropped && (name.Length == 0 || declaredOid == 0 || baseOid == 0)))
             {
                 throw new InvalidOperationException("Invalid native tuple attribute name or identity.");
             }
 
             NativeValue item = ReadContainerValue(data, ref offset);
-            if ((dropped && item.IsNull == 0) || (item.IsNull == 0 && composite != item.IsTuple))
+            if (((dropped || unavailable) && item.IsNull == 0) || (item.IsNull == 0 && composite != item.IsTuple))
             {
                 throw new InvalidOperationException("Tuple field transport does not match its descriptor.");
             }
 
             attributes[index] = new PgTupleAttributeInfo(name, declaredOid, baseOid, modifier, collation,
-                dropped, (flags & 2) != 0, composite);
+                dropped, (flags & 2) != 0, composite, unavailable);
             values[index] = SpiType.FromNative(item, baseOid);
             if (values[index] is PgHeapTuple nested && baseOid != 2249 && nested.Descriptor.BaseTypeOid != baseOid)
             {

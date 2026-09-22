@@ -44,6 +44,7 @@ export default defineConfig({
             { label: 'Function declarations', slug: 'function-declarations' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Composite values', slug: 'composites' },
+            { label: 'Triggers', slug: 'triggers' },
             { label: 'Operators and casts', slug: 'operators-and-casts' },
             { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },

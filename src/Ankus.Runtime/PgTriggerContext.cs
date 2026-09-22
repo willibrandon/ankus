@@ -1,0 +1,191 @@
+namespace Ankus;
+
+/// <summary>
+/// Owns trigger metadata and detached OLD and NEW row values independently of PostgreSQL memory contexts.
+/// Transition table names remain owned strings, but the tables can only be queried during the trigger invocation.
+/// </summary>
+public sealed class PgTriggerContext
+{
+    /// <summary>
+    /// Validates the event and takes ownership of converted rows while copying the trigger argument list.
+    /// </summary>
+    internal PgTriggerContext(uint eventBits, uint relationOid, uint triggerOid, string name, string tableName,
+        string tableSchema, string? oldTransitionTableName, string? newTransitionTableName,
+        string[] arguments, PgHeapTuple? oldRow, PgHeapTuple? newRow, PgTupleDescriptor descriptor)
+    {
+        if ((eventBits & ~127U) != 0 || (eventBits & 24U) == 24U ||
+            ((eventBits & 4U) != 0 && (eventBits & 3U) == 3U) ||
+            ((eventBits & 16U) != 0 && (eventBits & 4U) == 0))
+        {
+            throw new InvalidOperationException("The native trigger event has an invalid operation, timing, or level.");
+        }
+
+        if (relationOid == 0 || triggerOid == 0)
+        {
+            throw new InvalidOperationException("Trigger and relation identities must be valid PostgreSQL OIDs.");
+        }
+
+        ValidateName(name);
+        ValidateName(tableName);
+        ValidateName(tableSchema);
+        if (oldTransitionTableName is not null)
+        {
+            ValidateName(oldTransitionTableName);
+        }
+
+        if (newTransitionTableName is not null)
+        {
+            ValidateName(newTransitionTableName);
+        }
+
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (arguments.Any(static argument => argument is null || argument.Contains('\0', StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("Trigger arguments cannot contain SQL NULL or zero characters.");
+        }
+
+        Event = eventBits;
+        Operation = (PgTriggerOperation)(eventBits & 3U);
+        Timing = (eventBits & 24U) switch
+        {
+            8 => PgTriggerTiming.Before,
+            16 => PgTriggerTiming.InsteadOf,
+            _ => PgTriggerTiming.After,
+        };
+
+        Level = (eventBits & 4U) != 0 ? PgTriggerLevel.Row : PgTriggerLevel.Statement;
+        bool needsOld = Level == PgTriggerLevel.Row && Operation is PgTriggerOperation.Delete or PgTriggerOperation.Update;
+        bool needsNew = Level == PgTriggerLevel.Row && Operation is PgTriggerOperation.Insert or PgTriggerOperation.Update;
+        if ((oldRow is not null) != needsOld || (newRow is not null) != needsNew)
+        {
+            throw new InvalidOperationException("OLD and NEW row presence does not match the trigger operation and level.");
+        }
+
+        ValidateRow(oldRow, descriptor);
+        ValidateRow(newRow, descriptor);
+        RelationOid = relationOid;
+        TriggerOid = triggerOid;
+        Name = name;
+        TableName = tableName;
+        TableSchema = tableSchema;
+        OldTransitionTableName = oldTransitionTableName;
+        NewTransitionTableName = newTransitionTableName;
+        Arguments = Array.AsReadOnly<string>([.. arguments]);
+        Old = oldRow;
+        New = newRow;
+        Descriptor = descriptor;
+    }
+
+    /// <summary>
+    /// Gets the exact name of the trigger that fired.
+    /// </summary>
+    public string Name { get; }
+
+    /// <summary>
+    /// Gets the exact target table or view name.
+    /// </summary>
+    public string TableName { get; }
+
+    /// <summary>
+    /// Gets the exact target relation's schema name.
+    /// </summary>
+    public string TableSchema { get; }
+
+    /// <summary>
+    /// Gets the target relation's catalog OID, distinct from its row type OID.
+    /// </summary>
+    public uint RelationOid { get; }
+
+    /// <summary>
+    /// Gets the fired trigger's catalog OID.
+    /// </summary>
+    public uint TriggerOid { get; }
+
+    /// <summary>
+    /// Gets PostgreSQL's raw trigger event bits, retaining internal deferrability flags.
+    /// </summary>
+    public uint Event { get; }
+
+    /// <summary>
+    /// Gets the single operation that caused this invocation.
+    /// </summary>
+    public PgTriggerOperation Operation { get; }
+
+    /// <summary>
+    /// Gets whether this invocation runs before, after, or instead of the operation.
+    /// </summary>
+    public PgTriggerTiming Timing { get; }
+
+    /// <summary>
+    /// Gets whether this invocation operates on one row or the entire statement.
+    /// </summary>
+    public PgTriggerLevel Level { get; }
+
+    /// <summary>
+    /// Gets the owned original row for row-level UPDATE and DELETE invocations, otherwise null.
+    /// </summary>
+    public PgHeapTuple? Old { get; }
+
+    /// <summary>
+    /// Gets the owned proposed row for row-level INSERT and UPDATE invocations, otherwise null.
+    /// Undefined generated columns are marked unavailable instead of being exposed as SQL NULL.
+    /// </summary>
+    public PgHeapTuple? New { get; }
+
+    /// <summary>
+    /// Gets the immutable target relation descriptor, including physical dropped slots.
+    /// </summary>
+    public PgTupleDescriptor Descriptor { get; }
+
+    /// <summary>
+    /// Gets the immutable trigger arguments in declaration order, including empty strings.
+    /// </summary>
+    public IReadOnlyList<string> Arguments { get; }
+
+    /// <summary>
+    /// Gets the OLD transition relation name, or null when none was declared.
+    /// The relation itself is only available during the trigger callback.
+    /// </summary>
+    public string? OldTransitionTableName { get; }
+
+    /// <summary>
+    /// Gets the NEW transition relation name, or null when none was declared.
+    /// The relation itself is only available during the trigger callback.
+    /// </summary>
+    public string? NewTransitionTableName { get; }
+
+    private static void ValidateName(string name)
+    {
+        if (string.IsNullOrEmpty(name) || name.Contains('\0', StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Trigger metadata requires nonempty names without zero characters.");
+        }
+    }
+
+    private static void ValidateRow(PgHeapTuple? row, PgTupleDescriptor descriptor)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        if (row.Descriptor.BaseTypeOid != descriptor.BaseTypeOid ||
+            row.Descriptor.TypeModifier != descriptor.TypeModifier || row.Count != descriptor.Attributes.Count)
+        {
+            throw new InvalidOperationException("The trigger row has a different tuple descriptor from the target relation.");
+        }
+
+        for (int index = 0; index < row.Count; index++)
+        {
+            PgTupleAttributeInfo expected = descriptor.Attributes[index];
+            PgTupleAttributeInfo actual = row.Descriptor.Attributes[index];
+            if (actual.Name != expected.Name || actual.TypeOid != expected.TypeOid || actual.BaseTypeOid != expected.BaseTypeOid ||
+                actual.TypeModifier != expected.TypeModifier || actual.CollationOid != expected.CollationOid ||
+                actual.IsDropped != expected.IsDropped || actual.IsNotNull != expected.IsNotNull || actual.IsComposite != expected.IsComposite)
+            {
+                throw new InvalidOperationException("The trigger row's physical attributes do not match the target relation.");
+            }
+        }
+    }
+}

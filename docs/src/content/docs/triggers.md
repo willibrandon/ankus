@@ -1,0 +1,134 @@
+---
+title: Triggers
+description: Handle PostgreSQL row and statement triggers with owned OLD and NEW tuples.
+---
+
+Mark a synchronous static method with `[PgTrigger]`. Its single parameter is a
+nonnull `PgTriggerContext`. Return `PgHeapTuple?` when the callback can skip a row,
+or `PgHeapTuple` when it always returns a row.
+Ankus generates a zero-argument SQL function returning `trigger`.
+Use `[PgFunction]` alongside the marker for names, schemas, security, search paths,
+and dependency identifiers.
+
+```csharp
+[PgTrigger]
+[PgFunction(Id = "normalize-name")]
+public static PgHeapTuple? NormalizeName(PgTriggerContext context)
+{
+    PgHeapTuple row = context.New
+        ?? throw new InvalidOperationException("This trigger requires an INSERT or UPDATE row.");
+    string? name = row.Get<string?>("name")?.Trim();
+    if (string.IsNullOrEmpty(name))
+    {
+        return null;
+    }
+
+    row.Set("name", name);
+    return row;
+}
+```
+
+Attach the function to a table or view with ordinary SQL. Custom SQL can create
+the trigger during extension installation and order it after its table and function:
+
+```csharp
+[assembly: PgSql("pet-table", "CREATE TABLE pets (name text NOT NULL);", Relocatable = true)]
+[assembly: PgSql("pet-trigger", """
+    CREATE TRIGGER normalize_pet BEFORE INSERT OR UPDATE ON pets
+    FOR EACH ROW EXECUTE FUNCTION normalize_name();
+    """, Requires = ["pet-table", "normalize-name"], Relocatable = true)]
+```
+
+See [custom SQL](/custom-sql/) for dependencies and schema relocation.
+`Rows`, `SetMode`, and ordinary SQL parameter/result binding attributes do not
+apply to trigger callbacks. Trigger functions cannot be invoked with `SELECT`.
+
+## Context and row ownership
+
+`Operation` is `Insert`, `Update`, `Delete`, or `Truncate`; `Timing` is `Before`,
+`After`, or `InsteadOf`; `Level` is `Row` or `Statement`.
+`Event` preserves PostgreSQL's event bits, including deferred-constraint flags.
+
+| Trigger event | `Old` | `New` |
+|---|---|---|
+| Row INSERT | null | inserted row |
+| Row UPDATE | previous row | proposed row |
+| Row DELETE | deleted row | null |
+| Any statement trigger | null | null |
+
+`Name`, `TriggerOid`, `RelationOid`, `TableName`, and `TableSchema` identify the
+current trigger and relation. `Descriptor` describes the relation's physical
+columns. `Arguments` contains the exact strings from `EXECUTE FUNCTION f('arg', ...)`.
+Arguments are trigger configuration strings, not SQL function parameters.
+
+Rows, descriptors, strings, and arguments are managed copies. They remain valid
+after the callback and after further SPI calls. Use the [composite value APIs](/composites/)
+to read cells by name or zero-based physical ordinal, change values, and clone rows.
+`Clone()` copies cell slots and shares nested reference values.
+Row fields use Ankus's supported composite conversions; an unsupported field type
+raises an error during row conversion before the managed callback runs.
+
+## Return behavior
+
+| Timing and operation | Return a tuple | Return null |
+|---|---|---|
+| BEFORE or INSTEAD OF INSERT/UPDATE row | Use the returned row | Skip the row |
+| BEFORE or INSTEAD OF DELETE row | Continue deletion; tuple contents are ignored | Skip deletion |
+| BEFORE statement | PostgreSQL error `39P01` | Continue |
+| AFTER row or statement | Return value ignored | Return value ignored |
+
+Returning OLD from a BEFORE UPDATE still performs an update and fires applicable
+AFTER triggers. A nonnull tuple whose fields are all NULL remains a row;
+returning null skips it. For an INSTEAD OF trigger, perform the underlying table
+changes through SPI and return a tuple to report the handled row.
+
+A replacement INSERT/UPDATE row must match the triggering relation's row type
+and physical layout. PostgreSQL enforces field domains and type modifiers;
+table constraints are checked by the operation after BEFORE triggers finish.
+Exceptions thrown by the callback still abort the statement even when its return
+value would have been ignored.
+
+## Generated and dropped columns
+
+A stored generated column in NEW is unavailable during BEFORE triggers because
+PostgreSQL computes it afterward. Virtual generated columns, supported by
+PostgreSQL 18+, have no physical value in OLD or NEW trigger tuples.
+Their descriptor attributes have `IsUnavailable = true`; reading or assigning
+these cells throws `InvalidOperationException`. This differs from SQL NULL.
+
+Change ordinary source columns and return the row. PostgreSQL preserves or
+recomputes generated values at the appropriate stage. An unavailable trigger
+row cannot be sent as an ordinary composite through SPI or a scalar function.
+Dropped columns retain their physical slots and remain NULL.
+
+## Transition tables and SPI
+
+`OldTransitionTableName` and `NewTransitionTableName` expose the names requested
+by `REFERENCING OLD TABLE AS ... NEW TABLE AS ...`. PostgreSQL determines which
+trigger declarations allow transition tables.
+
+Every SPI connection opened during a trigger callback can query its transition
+tables. For example, an AFTER INSERT statement trigger can count its inserted rows:
+
+```csharp
+string name = context.NewTransitionTableName
+    ?? throw new InvalidOperationException("A NEW transition table is required.");
+long count = Spi.ExecuteScalar<long>($"SELECT count(*) FROM {Spi.QuoteIdentifier(name)}");
+```
+
+Stateless queries, `Spi.Connect` sessions, prepared statements, and cursors share
+this access. Nested triggers receive their own transition tables; the enclosing
+callback's tables remain available when the nested call returns.
+
+Transition tables belong to the current trigger invocation. Cursors opened in
+an SPI query environment containing transition tables close when that invocation
+ends, including detached cursors. Fetched managed rows remain valid. A retained
+plan resolves transition tables against the active invocation when executed; it
+does not retain their rows. See [execution and lifetime](/reference/execution/).
+
+Managed exceptions and native SPI errors use the same guarded error boundary as
+ordinary functions. Catching a `PgException` from SPI permits subsequent queries
+in the callback after the failed operation has rolled back.
+
+The public `samples/Ankus.Examples.Triggers` extension normalizes pet names,
+skips blank rows, and demonstrates trigger arguments and ordered installation SQL.

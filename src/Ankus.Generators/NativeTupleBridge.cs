@@ -67,8 +67,8 @@ internal static class NativeTupleBridge
         } AnkusTupleField;
 
         static void
-        ankus_tuple_transport(TupleDesc descriptor, Oid declared_type, const Datum *values,
-            const bool *nulls, AnkusValue *value, AnkusInputBuffer *owned)
+        ankus_tuple_transport_available(TupleDesc descriptor, Oid declared_type, const Datum *values,
+            const bool *nulls, const bool *unavailable, AnkusValue *value, AnkusInputBuffer *owned)
         {
             StringInfoData buffer;
             check_stack_depth();
@@ -88,6 +88,8 @@ internal static class NativeTupleBridge
                 CHECK_FOR_INTERRUPTS();
                 if (OidIsValid(base_type) && (base_type == RECORDOID || get_typtype(base_type) == TYPTYPE_COMPOSITE))
                     flags |= 4;
+                if (unavailable != NULL && unavailable[index])
+                    flags |= 8;
                 pq_sendint32(&buffer, attribute->atttypid);
                 pq_sendint32(&buffer, base_type);
                 pq_sendint32(&buffer, attribute->atttypmod);
@@ -97,7 +99,7 @@ internal static class NativeTupleBridge
                 pq_sendbytes(&buffer, utf8, strlen(utf8));
                 if (utf8 != name)
                     pfree(utf8);
-                cell.is_null = values == NULL || attribute->attisdropped || nulls[index];
+                cell.is_null = values == NULL || attribute->attisdropped || (flags & 8) != 0 || nulls[index];
                 if (!cell.is_null)
                 {
                     ankus_check_result_enum(base_type);
@@ -120,6 +122,13 @@ internal static class NativeTupleBridge
             value->length = buffer.len;
             value->auxiliary1 = -4;
             value->integral = getBaseType(declared_type);
+        }
+
+        static void
+        ankus_tuple_transport(TupleDesc descriptor, Oid declared_type, const Datum *values,
+            const bool *nulls, AnkusValue *value, AnkusInputBuffer *owned)
+        {
+            ankus_tuple_transport_available(descriptor, declared_type, values, nulls, NULL, value, owned);
         }
 
         static void
@@ -179,7 +188,7 @@ internal static class NativeTupleBridge
                 field->flags = pq_getmsgint(&buffer, 4);
                 field->name_length = pq_getmsgint(&buffer, 4);
                 if (field->name_length < 0 || field->name_length > (NAMEDATALEN - 1) * 4 ||
-                    field->flags < 0 || field->flags > 7)
+                    field->flags < 0 || field->flags > 15)
                     ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple attribute metadata")));
                 field->name = pq_getmsgbytes(&buffer, field->name_length);
                 if (memchr(field->name, '\0', field->name_length) != NULL)
@@ -191,7 +200,7 @@ internal static class NativeTupleBridge
                 is_null = pq_getmsgint(&buffer, 4);
                 field->value.length = pq_getmsgint(&buffer, 4);
                 if (is_null < 0 || is_null > 1 || field->value.length < 0 || (is_null && field->value.length != 0) ||
-                    ((field->flags & 1) && !is_null) || (!(field->flags & 1) && !OidIsValid(field->type)))
+                    ((field->flags & 9) && !is_null) || (!(field->flags & 1) && !OidIsValid(field->type)))
                     ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid Ankus tuple attribute value")));
                 field->value.is_null = is_null;
                 field->value.data = (unsigned char *) pq_getmsgbytes(&buffer, field->value.length);
@@ -240,6 +249,13 @@ internal static class NativeTupleBridge
             bool anonymous;
             check_stack_depth();
             fields = ankus_tuple_fields(value, &type, &modifier, &count);
+            for (int index = 0; index < count; index++)
+            {
+                if (fields[index].flags & 8)
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("Unavailable trigger attributes cannot be used as ordinary composite values")));
+            }
+
             if (get_typtype(type) == '\0')
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Composite type OID %u no longer exists", type)));
             anonymous = type == RECORDOID && modifier < 0;

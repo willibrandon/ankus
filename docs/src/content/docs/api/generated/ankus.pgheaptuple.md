@@ -232,7 +232,7 @@ Value: [PgTupleDescriptor](/api/ankus.pgtupledescriptor/)
 
 ### this[int]
 
-Gets an owned cell by zero-based physical ordinal. SQL NULL and dropped attributes return null.
+Gets an owned cell by zero-based physical ordinal. SQL NULL and dropped attributes return null; unavailable fields throw.
 
 ```csharp
 public object? this[int ordinal] { get; }

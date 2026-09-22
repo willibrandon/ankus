@@ -15,6 +15,7 @@ internal static class NativeCursorBridge
         {
             Portal portal;
             int64 identity;
+            int64 trigger_identity;
             bool close_pending;
             MemoryContextCallback cleanup;
             struct AnkusCursorEntry *next;
@@ -129,6 +130,8 @@ internal static class NativeCursorBridge
                 entry = MemoryContextAllocZero(portal->portalContext, sizeof(AnkusCursorEntry));
                 entry->portal = portal;
                 entry->identity = ++ankus_next_cursor_id;
+                if (ankus_trigger_scope != NULL && portal->queryEnv != NULL)
+                    entry->trigger_identity = ankus_trigger_scope->identity;
                 entry->cleanup.func = ankus_forget_cursor;
                 entry->cleanup.arg = entry;
                 MemoryContextRegisterResetCallback(portal->portalContext, &entry->cleanup);

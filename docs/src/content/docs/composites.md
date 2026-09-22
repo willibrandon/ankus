@@ -55,6 +55,10 @@ Descriptors loaded for a domain retain its declared `TypeOid` and expose the
 underlying composite as `BaseTypeOid`. A tuple read from a PostgreSQL datum
 carries its physical base composite OID; SPI column metadata retains the query's
 declared domain type. `TypeModifier` identifies registered anonymous records.
+
+Trigger rows mark undefined generated-column values with `IsUnavailable`.
+Reading or changing those cells throws; they are not SQL NULL. See [triggers](/triggers/)
+for availability by trigger timing and safe row returns.
 A table row's column `NOT NULL` metadata does not make an
 ordinary standalone composite subject to that table's insertion constraints.
 

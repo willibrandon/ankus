@@ -79,6 +79,19 @@ public bool IsNotNull { get; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-e1bbfc53ee3b528c"></a>
+
+### IsUnavailable
+
+Gets whether PostgreSQL has not defined this field's value in the current trigger row.
+Unavailable generated columns cannot be read or replaced and are distinct from SQL NULL.
+
+```csharp
+public bool IsUnavailable { get; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-97fc9f414e32271d"></a>
 
 ### Name

@@ -9,7 +9,7 @@ public sealed class PgTupleAttributeInfo
     /// Copies an attribute description from the guarded native transport.
     /// </summary>
     internal PgTupleAttributeInfo(string name, uint typeOid, uint baseTypeOid, int typeModifier,
-        uint collationOid, bool isDropped = false, bool isNotNull = false, bool isComposite = false)
+        uint collationOid, bool isDropped = false, bool isNotNull = false, bool isComposite = false, bool isUnavailable = false)
     {
         ArgumentNullException.ThrowIfNull(name);
         if (name.Contains('\0', StringComparison.Ordinal) || (!isDropped && (name.Length == 0 || typeOid == 0 || baseTypeOid == 0)))
@@ -25,6 +25,7 @@ public sealed class PgTupleAttributeInfo
         IsDropped = isDropped;
         IsNotNull = isNotNull;
         IsComposite = isComposite;
+        IsUnavailable = isUnavailable;
     }
 
     /// <summary>
@@ -66,4 +67,10 @@ public sealed class PgTupleAttributeInfo
     /// Gets whether the underlying datum is a composite tuple or anonymous record.
     /// </summary>
     public bool IsComposite { get; }
+
+    /// <summary>
+    /// Gets whether PostgreSQL has not defined this field's value in the current trigger row.
+    /// Unavailable generated columns cannot be read or replaced and are distinct from SQL NULL.
+    /// </summary>
+    public bool IsUnavailable { get; }
 }

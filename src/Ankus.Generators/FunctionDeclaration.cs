@@ -43,8 +43,9 @@ internal sealed class FunctionDeclaration
     /// <param name="name">The validated SQL function name.</param>
     /// <param name="context">The generator context receiving declaration diagnostics.</param>
     /// <param name="set">The validated set return, or null for a scalar function.</param>
+    /// <param name="trigger">Whether the managed parameter is a trigger context instead of a SQL argument.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
-    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null)
+    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null, bool trigger = false)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
@@ -62,8 +63,8 @@ internal sealed class FunctionDeclaration
             return Invalid("Cost must be positive, finite, and representable as PostgreSQL's real planner cost.");
         }
 
-        bool allNullable = method.Parameters.All(static parameter => FunctionType.Create(parameter)!.Nullable);
-        bool allRequired = method.Parameters.All(static parameter => !FunctionType.Create(parameter)!.Nullable);
+        bool allNullable = trigger || method.Parameters.All(static parameter => FunctionType.Create(parameter)!.Nullable);
+        bool allRequired = !trigger && method.Parameters.All(static parameter => !FunctionType.Create(parameter)!.Nullable);
         if (nullInput == 2 && !allNullable)
         {
             return Invalid("CalledOnNull requires nullable declarations for every parameter.");
@@ -152,6 +153,11 @@ internal sealed class FunctionDeclaration
         }
 
         declaration.Options = string.Join(" ", options);
+        if (trigger)
+        {
+            return declaration;
+        }
+
         var parameters = new List<string>();
         var parameterNames = new HashSet<string>(StringComparer.Ordinal);
         bool defaultSeen = false;

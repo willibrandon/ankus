@@ -123,6 +123,11 @@ anonymous records, nested arrays, and composite sets share the guarded native
 conversion. See [composite values](docs/src/content/docs/composites.md) and the
 [composite sample](samples/Ankus.Examples.Composites/CompositeFunctions.cs).
 
+Use `[PgTrigger]` with `PgTriggerContext` for row and statement triggers.
+Owned OLD/NEW tuples, trigger arguments, and transition-table SPI queries preserve
+PostgreSQL's before/after/instead-of semantics. See [triggers](docs/src/content/docs/triggers.md)
+and the [trigger sample](samples/Ankus.Examples.Triggers/PetTriggers.cs).
+
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 
 ```csharp

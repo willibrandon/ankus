@@ -42,8 +42,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgCastAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
-        IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
-            .Select(static (input, _) => input.Left.Left.AddRange(input.Left.Right).AddRange(input.Right)
+        IncrementalValuesProvider<IMethodSymbol> triggers = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgTriggerAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect()).Combine(triggers.Collect())
+            .Select(static (input, _) => input.Left.Left.Left.AddRange(input.Left.Left.Right).AddRange(input.Left.Right).AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -86,6 +90,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeTemporalTypes.Source);
             native.AppendLine(NativeEnumBridge.Source);
             native.AppendLine(NativeSpiBridge.Source);
+            native.AppendLine(NativeTriggerBridge.Declarations);
             native.AppendLine(NativeEnumBridge.Operations);
             native.AppendLine(NativeRangeBridge.Source);
             native.AppendLine(NativeArrayBridge.Source);
@@ -102,6 +107,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
             native.AppendLine(GuardedBackend.Source);
+            if (methods.Any(TriggerDeclaration.IsTrigger))
+            {
+                native.AppendLine(NativeTriggerBridge.Source);
+            }
+
             if (methods.Any(static method => SetResult.IsSequence(method.ReturnType)))
             {
                 native.AppendLine(NativeSetBridge.Source);
@@ -204,37 +214,44 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
-            SetResult? set = SetResult.Create(method, context, out bool validSet);
-            if (!validSet)
+            bool trigger = TriggerDeclaration.IsTrigger(method);
+            SetResult? set = null;
+            if (trigger)
             {
-                continue;
+                if (!TriggerDeclaration.Validate(method, context))
+                {
+                    continue;
+                }
             }
-
-            if (!CompositeReference.Validate(method, set, context))
+            else
             {
-                continue;
-            }
+                set = SetResult.Create(method, context, out bool validSet);
+                if (!validSet || !CompositeReference.Validate(method, set, context))
+                {
+                    continue;
+                }
 
-            if (!IsSupported(method, set))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
-                continue;
+                if (!IsSupported(method, set))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
+                    continue;
+                }
             }
 
             string name = GetSqlName(method);
-            if (!NumericConstraint.Validate(method, context, set))
+            if (!trigger && !NumericConstraint.Validate(method, context, set))
             {
                 continue;
             }
 
-            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set);
+            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set, trigger);
             if (declaration is null)
             {
                 continue;
             }
 
-            string signature = declaration.QualifiedName + "(" + string.Join(",", method.Parameters.Select(
-                static parameter => FunctionType.Create(parameter)!.Sql)) + ")";
+            string signature = declaration.QualifiedName + "(" + (trigger ? string.Empty : string.Join(",", method.Parameters.Select(
+                static parameter => FunctionType.Create(parameter)!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
                 context.ReportDiagnostic(Diagnostic.Create(s_invalidName, method.Locations.FirstOrDefault(), name));
@@ -243,7 +260,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             string callback = GetCallbackName(method, name);
             var sql = new StringBuilder();
-            if (set is null)
+            if (trigger)
+            {
+                PgTriggerEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+            }
+            else if (set is null)
             {
                 PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
             }
@@ -260,9 +281,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             graph.Add(entity);
-            OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
-            foreach (FunctionType contract in method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
-                .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]))
+            if (!trigger)
+            {
+                OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
+            }
+
+            IEnumerable<FunctionType> contracts = trigger ? [] : method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
+                .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
+            foreach (FunctionType contract in contracts)
             {
                 EnumDeclaration? enumeration = (contract.Element ?? contract).Enumeration;
                 if (enumeration is not null && enumEntities.TryGetValue(enumeration.Managed, out SqlEntity? enumEntity))

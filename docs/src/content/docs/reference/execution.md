@@ -25,6 +25,12 @@ no longer needed.
 Cursors normally end with their transaction. `Detach()` transfers responsibility
 for closing the cursor; it does not extend the PostgreSQL portal's lifetime.
 
+Cursors opened in an SPI environment containing trigger transition tables close
+when that trigger callback ends, including detached cursors. Retained plans
+resolve transition tables from the current invocation; they do not preserve
+previous transition rows. Owned `PgTriggerContext` metadata and fetched rows
+survive callback completion. See [triggers](/triggers/).
+
 ## Errors
 
 An unhandled managed exception becomes PostgreSQL ERROR after `finally` blocks

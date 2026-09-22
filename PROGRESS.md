@@ -33,10 +33,11 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds owned named/anonymous composite tuples, immutable descriptors,
-checked field edits, nested composite arrays, domains/type modifiers, SETOF/TABLE and SPI
-bindings. The public composite sample and isolated NuGet consumer are validated alongside
-existing features. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+The latest milestone adds row and statement triggers with owned OLD/NEW tuples,
+trigger metadata, correct replacement/skip semantics, transition-table SPI access and
+scoped cursor cleanup. The public trigger sample is validated alongside existing
+composite, set, operator, enum and package/tool features. Plain `dotnet test` passes
+2414 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -123,7 +124,7 @@ existing features. Evidence is mapped below; the full port and platform/version 
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1261 integration cases include composites/heap tuples, SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 1340 integration cases include triggers/transition tables, composites/heap tuples, SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -645,6 +646,47 @@ are disabled. Artifacts and bounded test-gap/assertion reviews live under `.git/
 Raw heap interfaces, custom base types, trigger callbacks and the required version/platform
 matrix remain in the full-port inventory; this milestone does not claim those capabilities.
 
+### Trigger evidence
+
+References: pgrx `trigger_support/`, `trigger_tests.rs`, and `pgrx-examples/triggers`;
+PostgreSQL trigger execution, SPI transition registration, portal ownership and generated-column rules.
+`[PgTrigger]` exports a synchronous static callback taking `PgTriggerContext` and returning
+`PgHeapTuple` or `PgHeapTuple?`. Optional `[PgFunction]` supplies ordinary declaration options;
+custom SQL attaches the trigger with explicit table/function dependencies.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Row/statement event decoding and exact metadata | Owned names, arguments, OIDs, relation descriptor and OLD/NEW rows; separate operation/timing/level enums | `EventsDecodeExactOperationTimingAndLevel`, `EventsExposeExactRowsMetadataAndCatalogIdentities`, `ContextOwnsMetadataAndRowsAfterTransportRelease`, `RelationSchemaComesFromTargetRatherThanFunction` |
+| Correct replacement, NULL skip, ignored results and INSTEAD OF behavior | HeapTuple pointer return with `fcinfo->isnull=false`; INSERT/UPDATE reconstruction preserves tuple identification; ignored AFTER/DELETE payloads bypass serialization | `BeforeRowsReplaceStoredAndReturnedValues`, `BeforeNullSkipsRowsAndLaterCallbacks`, `AllNullAndOldReturnsAreNotSkipSignals`, `IgnoredReturnPayloadsDoNotApplyForeignTupleValidation`, `InsteadOfViewWritesHonorReturnedRowAndSkip`, `ZeroColumnRowsKeepPhysicalTupleIdentity` |
+| Domain/typmod/table constraints and undefined generated values | PostgreSQL coercion; generated availability flag distinct from NULL; forbidden reads/writes and ordinary composite conversion | `ReplacementRowsEnforceActualRelationConstraints`, `GeneratedAndDroppedFieldsRespectAvailability`, `UnavailableColumnsCannotBeReadOrReplaced`, `UnavailableTransportUsesAnIndependentFlagAndNullEncoding` |
+| Transition tables across SPI owners and nested triggers | Registration once per SPI connection; callback-owned query environments outlive SPI_finish; portals close before borrowed transition storage expires | `TransitionInsertRowsMatchActualWritesAcrossOwners`, `TransitionOldAndNewSetsHaveExactImages`, `EscapedTransitionCursorsExpireAndBackendRecovers`, `RetainedTransitionPlanRebindsAndRejectsOutsideUse`, `NestedTriggersRestoreParentContextAndTransitionRelations`, `SuspendedCursorCleanupKeepsTransitionEnvironmentUntilAllOwnersEnd` |
+| SQLSTATEs, rollback, recovery and native invocation guard | Native-only PostgreSQL errors; restored trigger/function contexts and normal managed exception transport | `InvalidReturnsAndErrorsRollBackAndRecover`, `CaughtSpiErrorsLeaveTriggerAndBackendUsable`, `OrdinaryInvocationIsRejectedBeforeManagedDispatch`, `CancelledTriggerRollsBackAndRestoresBackendContext` |
+| Deferred/partition/filter/conflict behavior and server encoding | Actual PostgreSQL callback metadata and UTF-8 owned transport | `DeferredAndPartitionTriggersRetainActualRelationIdentity`, `DeferredTriggerCanUseSpiDuringCommit`, `NativeTriggerFilteringAndConflictOrderingArePreserved`, `Latin1TriggerNamesArgumentsAndTransitionsUseServerEncoding` |
+| Declaration diagnostics, nullable contracts and ordered SQL | ANKUS010, zero SQL arguments, shared schema/options graph; trigger-only helpers emit only when required | `InvalidTriggerSignaturesAreDiagnosed`, `ConflictingTriggerMetadataIsDiagnosed`, `TriggerSqlSignaturesCollideOnlyOnSchemaNameAndZeroArguments`, `TriggerSqlDependenciesOrderSchemaTableFunctionAndAttachment`, `NonTriggerExtensionsDoNotEmitUnusedTriggerEntryPoints` |
+| Public example and extension lifecycle | `Ankus.Examples.Triggers` normalizes names using trigger arguments and skips blank/NULL rows | `TriggerSampleRelocatesAndReinstalls` |
+
+Focused validation passes 70 new generator, 102 new runtime, and 79 new backend/sample cases.
+The complete generator suite passes 718 cases; plain `dotnet test` passes all 2414 cases,
+including 1340 integration cases and the package/tool consumers, with zero failures or skips.
+The non-incremental Release build has zero warnings/errors. IDE0008/IDE0290/IDE2003 verification
+passes, no extra opening-brace blank lines remain, and the XML scan checks 559 internal declarations
+with zero omissions. The API reference contains 74 pages and 885 members; the site builds 99 pages.
+`pnpm check` and API freshness verification pass. Existing duplicate `/404` and missing-public-site-URL
+warnings remain visible; no warnings are disabled.
+
+Native publication caught unconditional trigger helper emission in extensions without triggers;
+helpers now emit only when needed. Review caught optional-context validation and cursor cleanup
+ordering/lifetime gaps: suspended iterators retain the current trigger environment during disposal,
+and an early close error leaves borrowed storage alive for PostgreSQL abort cleanup. Backend tests
+verify both successful disposal and first-close failure with another suspended owner. An escaped
+retained transition plan preserves PostgreSQL's actual XX000 missing-tuplestore diagnostic, while
+queries within subsequent callbacks bind fresh transition data. No SQLSTATE normalization was added.
+
+The runtime/generator/native/backend/sample reviews and exact logs are under `.git/testagent/triggers/`.
+This is PostgreSQL 18.6/Linux x64 evidence, including UTF8 and LATIN1; no other platform/version is claimed.
+Event triggers, full relation/raw heap APIs, unsupported datum families, other inventory rows and the
+PostgreSQL/platform matrix remain active full-port work.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -762,7 +804,7 @@ The target architecture consists of:
 | `#[pg_schema]` | `[PgSchema("name")]`, nested inheritance and per-function overrides | Owned/existing schemas and relocation metadata implemented; future type/dependency graph integration pending |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
-| `#[pg_trigger]` | `[PgTrigger]` | ☐ |
+| `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
@@ -853,7 +895,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults and TABLE field names implemented; named composite resolution implemented; aggregate fields pending |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
-| `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
+| `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom base-type operands and matrix validation remain required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
@@ -996,7 +1038,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
-  - [ ] triggers, event triggers, aggregates, generated equality/order/hash operator classes
+  - [x] row and statement triggers for supported tuple types
+  - [ ] event triggers, aggregates, generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
