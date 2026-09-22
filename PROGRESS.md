@@ -33,11 +33,11 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds event triggers with owned DDL, dropped-object and table-rewrite
-metadata, login callbacks, and restored event, row and function scopes through nested calls
-and errors. The public event-trigger sample is validated alongside existing row triggers,
+The latest milestone adds PostgreSQL aggregates with typed callbacks, owned managed state,
+parallel serialization, moving windows, and native ordered/hypothetical comparisons. The public
+average and discrete-percentile examples are validated alongside existing event/row triggers,
 composite, set, operator, enum and package/tool features. Plain `dotnet test` passes
-2609 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
+2909 cases. Evidence is mapped below; the full port and platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -51,7 +51,7 @@ composite, set, operator, enum and package/tool features. Plain `dotnet test` pa
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **2609 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **2909 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -124,7 +124,7 @@ composite, set, operator, enum and package/tool features. Plain `dotnet test` pa
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 1340 integration cases include triggers/transition tables, composites/heap tuples, SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The integration cases include aggregates, triggers/transition tables, composites/heap tuples, SETOF/TABLE, operators/casts, enum/range/geometric/network/array/JSON conversions, custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -727,6 +727,64 @@ This managed surface exposes owned descriptive metadata; raw parse trees and opa
 objects remain part of the full raw-binding inventory. Other datum/runtime/tooling requirements and
 the PostgreSQL/platform matrix remain active full-port work.
 
+### PostgreSQL aggregates with owned managed state
+
+`[PgAggregate]` now declares typed static transition, final, combine, serialization and moving
+callbacks. Ordinary SQL state uses the existing exact converters; `PgAggregateState<T>` maps to
+`internal`, roots an owned payload and releases it once when PostgreSQL resets its memory owner.
+`PgAggregateContext` supplies owned metadata and guarded PostgreSQL comparison, including explicitly
+typed NULL composite/array operands. The public average and discrete-percentile examples are in
+`samples/Ankus.Examples.Aggregates`, with the author guide at `docs/src/content/docs/aggregates.md`.
+
+The implementation follows `/home/brandon/src/pgrx/pgrx/src/aggregate.rs`, pgrx's aggregate examples
+and SQL entity graph, and PostgreSQL's `nodeAgg.c`, `nodeWindowAgg.c`, `pg_aggregate.c`,
+`aggregatecmds.c`, and `orderedsetaggs.c`. PostgreSQL's actual `(bytea, internal) -> internal`
+deserializer contract takes precedence over the incompatible pgrx wrapper shape found during
+reference research. Local reference checkouts remained read only.
+
+| Boundary | Implementation and independent evidence |
+|---|---|
+| Declaration and SQL graph | Conventional/overridden callback names, shared helpers, exact SQL signatures, schema/type/dependency ordering, common function options and ANKUS012 validation; 114 generator cases require warning-free positive compilation |
+| NULL, strictness and seeding | Empty versus all-null inputs, skipped required inputs, strict first-value seeding, nullable-state recovery, zero arguments and variadics; exact values and callback counts, including binary-compatible integer→OID and CIDR→INET seeds |
+| SQL state values | No-final enum labels, shaped arrays, TOAST-sized named composites and composite domains retain values and identity; domain violations preserve SQLSTATE and same-session recovery |
+| Managed state ownership | A checked root-ID map plus native address registry validates before dereference; release removes roots and invalidates wrappers before disposal; GC, replacement, wrong payload types, foreign native pointers, worker access and stale handles have direct/backend witnesses |
+| Executor lifetimes | Grouping sets, actual hash spilling, sorted groups, rescans, suspended cursor CLOSE/LIMIT/COMMIT/ROLLBACK, cancellation and errors release every observed owner; throwing Dispose emits warnings while preserving the original error and releasing other owners |
+| Parallel transport | Actual launched workers, Partial/Finalize plans, foreign backend PIDs and transport counters prove combine/serialize/deserialize execution; temporary deserializer owners require copied destination state; ordinary array INITCOND is independently observed per partial/final state |
+| Moving windows | Separate ordinary/moving state types, inverse callbacks, deterministic NULL restart, singleton/nonoverlapping/excluded frames, volatile fallback, NULL/FILTER/partition behavior and stable prior text results match literal vectors and native aggregate results |
+| Final contracts | Typed NULL EXTRA inputs, READ_ONLY/SHAREABLE/READ_WRITE sharing, mutable-window rejection and read-only moving fallback are checked through catalog values, exact transition counts and results |
+| Native ordering | ASC/DESC, NULL placement, both sort-key metadata records, ICU case-insensitive versus C collation, hypothetical rank, percentile boundaries and custom B-tree operators use native or independent result oracles |
+| Guarded comparator ERROR | A PL/pgSQL B-tree comparator raises P7823 inside SortSupport; managed code catches its owned diagnostics and successfully reuses Compare and SPI in the same callback; uncaught propagation and later recovery also pass |
+| Extension lifecycle | The public sample preserves support OID bindings across relocation, drops owned aggregate/support entries and reinstalls with new OIDs and correct results |
+
+Review found and fixed nested payload nullability loss, invalid qualified SORTOP syntax, dependency
+self-edges, combined direct/input name collisions, and dropped explicit final flags. Strict ordered
+seeding validates both catalog and executor input requirements. Native comparison now restores the
+saved memory context after successful subtransaction commit; typed SPI operands preserve named SQL
+NULL identities. No warning pragma, suppression attribute, NoWarn setting or diagnostic downgrade
+was added. Consumer templates are unchanged.
+
+Validation on PostgreSQL 18.6/Linux x64, including a separate LATIN1 database and ICU collation:
+
+- Aggregate-specific evidence: 61 direct runtime, 114 generator and 125 Native AOT backend cases.
+- `dotnet build -c Release --no-incremental`: zero warnings/errors.
+- `dotnet test`: **2909 passed, 0 failed, 0 skipped**, including all 125 aggregate backend cases.
+- `pnpm build`: 88 generated API pages / 972 members and 115 site pages; `pnpm check`: zero errors,
+  warnings or hints. Existing duplicate `/404` and missing public site URL build warnings remain visible.
+- `dotnet run --project src/Ankus.DocGenerator -c Release -- --check`: current, zero warnings/errors.
+- XML scan: 666 internal declarations, zero omissions; opening-brace whitespace and diff checks clean.
+
+An extra ad hoc GCC compile still reports existing base-bridge longjmp/clobber warnings, and a Swift
+clang probe with ordinary rather than system header classification reports PostgreSQL's generated
+`gnu_printf` attributes. These are not claimed as successful additional compiler validation; the
+actual SDK Native AOT publishes use the unchanged repository compiler invocation. No warning flags
+or reference headers were changed to make the probes pass.
+
+This implements aggregates for the current concrete type surface. Full-port requirements remain:
+polymorphic/raw and custom base-type state/input/result transport, heterogeneous ordered-set
+`VARIADIC "any"`, other native extension APIs and all required PostgreSQL/platform combinations.
+Customized `FUNC_MAX_ARGS`, backend invocation at the generated 99-argument boundary, and independent
+post-exit worker cleanup telemetry are not claimed verified. Passing this milestone is not full pgrx parity.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -846,7 +904,7 @@ The target architecture consists of:
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
 | Raw `EventTriggerData` and event-trigger helpers in `pgrx-pg-sys` | `[PgEventTrigger]` and owned context metadata | Implemented for descriptive DDL/drop/rewrite metadata and login; PostgreSQL 18.6/Linux x64 evidence above; raw bindings remain in the full inventory |
-| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
+| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Implemented for current concrete types; polymorphic/raw and custom base types remain required; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
@@ -933,10 +991,10 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
-| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults and TABLE field names implemented; named composite resolution implemented; aggregate fields pending |
+| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
-| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
+| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Implemented for concrete supported types, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; polymorphic/raw/heterogeneous ANY and full matrix remain required |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom base-type operands and matrix validation remain required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom base-type families and matrix validation remain required |
@@ -1081,7 +1139,9 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
   - [x] row and statement triggers for supported tuple types
   - [x] event triggers with owned DDL/drop/rewrite metadata and login callbacks
-  - [ ] aggregates, generated equality/order/hash operator classes
+  - [x] aggregates for supported concrete types, owned managed states, worker transport, moving windows and native ordering
+  - [ ] polymorphic/raw and custom base-type aggregate signatures, heterogeneous ordered-set VARIADIC ANY
+  - [ ] generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)

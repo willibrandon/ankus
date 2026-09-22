@@ -3,7 +3,8 @@
 Install the stable .NET SDK selected by `global.json`, the platform's
 [Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/),
 and PostgreSQL 18 with server development headers. Windows also needs the server
-import library.
+import library. The repository's collation tests require PostgreSQL built with
+ICU support.
 
 ## PostgreSQL discovery
 

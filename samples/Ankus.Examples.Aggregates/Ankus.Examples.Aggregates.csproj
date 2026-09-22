@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>PostgreSQL aggregates with managed state, parallel transport, and moving windows.</Description>
+    <AnkusExtensionName>ankus_aggregates</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

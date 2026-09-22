@@ -37,6 +37,11 @@ internal sealed class FunctionDeclaration
     internal bool Replace { get; private set; }
 
     /// <summary>
+    /// Gets whether PostgreSQL skips this function when any SQL input is null.
+    /// </summary>
+    internal bool Strict { get; private set; }
+
+    /// <summary>
     /// Resolves schema inheritance, parameter contracts, and planner/execution options for one function.
     /// </summary>
     /// <param name="method">The attributed static method.</param>
@@ -44,8 +49,11 @@ internal sealed class FunctionDeclaration
     /// <param name="context">The generator context receiving declaration diagnostics.</param>
     /// <param name="set">The validated set return, or null for a scalar function.</param>
     /// <param name="contextParameter">Whether the managed parameter is a backend invocation context instead of a SQL argument.</param>
+    /// <param name="sqlNullability">Explicit SQL parameter nullability for a specialized callback, excluding synthetic arguments that cannot be null.</param>
+    /// <param name="schemaFallback">The specialized declaration's schema when the callback does not override it.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
-    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null, bool contextParameter = false)
+    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null,
+        bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
@@ -63,14 +71,16 @@ internal sealed class FunctionDeclaration
             return Invalid("Cost must be positive, finite, and representable as PostgreSQL's real planner cost.");
         }
 
-        bool allNullable = contextParameter || method.Parameters.All(static parameter => FunctionType.Create(parameter)!.Nullable);
-        bool allRequired = !contextParameter && method.Parameters.All(static parameter => !FunctionType.Create(parameter)!.Nullable);
+        bool allNullable = sqlNullability?.All(static nullable => nullable) ??
+            (contextParameter || method.Parameters.All(static parameter => FunctionType.Create(parameter)!.Nullable));
+        bool allRequired = sqlNullability?.All(static nullable => !nullable) ??
+            (!contextParameter && method.Parameters.All(static parameter => !FunctionType.Create(parameter)!.Nullable));
         if (nullInput == 2 && !allNullable)
         {
             return Invalid("CalledOnNull requires nullable declarations for every parameter.");
         }
 
-        string? schema = Value<string?>(attribute, "Schema", null);
+        string? schema = Value(attribute, "Schema", schemaFallback);
         for (INamedTypeSymbol? container = method.ContainingType; schema is null && container is not null; container = container.ContainingType)
         {
             AttributeData? schemaAttribute = container.GetAttributes().FirstOrDefault(static value =>
@@ -93,11 +103,12 @@ internal sealed class FunctionDeclaration
         declaration.Schema = schema;
         declaration.QualifiedName = (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + SqlText.Identifier(name);
         declaration.Replace = Value(attribute, "CreateOrReplace", false);
+        declaration.Strict = nullInput == 1 || (nullInput == 0 && allRequired);
         var options = new List<string>
         {
             volatility switch { 1 => "STABLE", 2 => "IMMUTABLE", _ => "VOLATILE" },
             "PARALLEL " + (parallel switch { 1 => "RESTRICTED", 2 => "SAFE", _ => "UNSAFE" }),
-            nullInput == 1 || (nullInput == 0 && allRequired) ? "STRICT" : "CALLED ON NULL INPUT",
+            declaration.Strict ? "STRICT" : "CALLED ON NULL INPUT",
             Value(attribute, "SecurityDefiner", false) ? "SECURITY DEFINER" : "SECURITY INVOKER",
             Value(attribute, "Leakproof", false) ? "LEAKPROOF" : "NOT LEAKPROOF",
             "COST " + cost.ToString("R", CultureInfo.InvariantCulture),

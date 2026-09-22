@@ -46,6 +46,7 @@ export default defineConfig({
             { label: 'Composite values', slug: 'composites' },
             { label: 'Triggers', slug: 'triggers' },
             { label: 'Event triggers', slug: 'event-triggers' },
+            { label: 'Aggregates', slug: 'aggregates' },
             { label: 'Operators and casts', slug: 'operators-and-casts' },
             { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },

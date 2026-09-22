@@ -63,6 +63,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgSchemaAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<INamedTypeSymbol> aggregates = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgAggregateAttribute",
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
                 "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute").ToImmutableArray());
@@ -70,15 +74,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Right,
-                input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
-        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory, ImmutableArray<INamedTypeSymbol> enumTypes)
+        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
+        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty)
         {
             return;
         }
@@ -87,7 +92,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
-        if (!methods.IsEmpty)
+        bool hasFunctions = !methods.IsEmpty || !aggregateTypes.IsEmpty;
+        var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
+        if (hasFunctions)
         {
             native.AppendLine(NativeBridge.ReadBuffers);
             native.AppendLine(NativeBridge.WriteBuffer);
@@ -113,6 +120,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
             native.AppendLine(GuardedBackend.Source);
+            if (!aggregateTypes.IsEmpty)
+            {
+                native.AppendLine(NativeAggregateBridge.Source);
+            }
+
             if (methods.Any(TriggerDeclaration.IsTrigger))
             {
                 native.AppendLine(NativeTriggerBridge.Source);
@@ -170,7 +182,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             managed.AppendLine("    {");
         }
 
-        if (!methods.IsEmpty)
+        if (hasFunctions)
         {
             native.AppendLine("static bool ankus_enum_supported(Oid type)");
             native.AppendLine("{");
@@ -204,13 +216,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             enumeration.EmitRegistration(managed);
-            if (!methods.IsEmpty)
+            if (hasFunctions)
             {
                 enumeration.EmitNativeTypeCheck(native);
             }
         }
 
-        if (!methods.IsEmpty)
+        if (hasFunctions)
         {
             native.AppendLine("    return false;");
             native.AppendLine("}");
@@ -225,6 +237,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
+            if (aggregateMethods.Contains(method))
+            {
+                continue;
+            }
+
             bool trigger = TriggerDeclaration.IsTrigger(method);
             bool eventTrigger = EventTriggerDeclaration.IsEventTrigger(method);
             bool contextParameter = trigger || eventTrigger;
@@ -340,6 +357,68 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
+        var supportFunctions = new Dictionary<string, (IMethodSymbol Method, SqlEntity Entity)>(StringComparer.Ordinal);
+        foreach (INamedTypeSymbol type in aggregateTypes.OrderBy(static value => value.ToDisplayString(), StringComparer.Ordinal))
+        {
+            AggregateDeclaration? aggregate = AggregateDeclaration.Create(type, context);
+            if (aggregate is null)
+            {
+                continue;
+            }
+
+            if (!names.Add(aggregate.Signature))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, type.Locations.FirstOrDefault(), aggregate.Name));
+                continue;
+            }
+
+            var entity = new SqlEntity("2:aggregate:" + type.ToDisplayString(), PgAggregateEmitter.EmitAggregate(aggregate), type.Locations.FirstOrDefault());
+            graph.Configure(entity, aggregate.Attribute);
+            graph.Add(entity);
+            AddSchemaDependency(entity, aggregate.Schema);
+            foreach (AggregateHelper helper in aggregate.Helpers.Values)
+            {
+                if (supportFunctions.TryGetValue(helper.Signature, out (IMethodSymbol Method, SqlEntity Entity) existing) &&
+                    SymbolEqualityComparer.Default.Equals(existing.Method, helper.Method))
+                {
+                    entity.Dependencies.Add(existing.Entity);
+                    continue;
+                }
+
+                if (!names.Add(helper.Signature))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(s_invalidName, helper.Method.Locations.FirstOrDefault(), helper.Declaration.QualifiedName));
+                    continue;
+                }
+
+                string callback = GetCallbackName(helper.Method, "aggregate_" + SqlText.SnakeCase(helper.Role));
+                string helperSql = PgAggregateEmitter.EmitHelper(helper, callback, managed, native, exports);
+                var support = new SqlEntity("1:aggregate-helper:" + type.ToDisplayString() + ":" + helper.Role, helperSql, helper.Method.Locations.FirstOrDefault());
+                AttributeData? function = helper.Method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
+                if (function is not null)
+                {
+                    graph.Configure(support, function);
+                }
+
+                support.Requires.UnionWith(entity.Requires.Where(required => !support.Names.Contains(required)));
+                graph.Add(support);
+                supportFunctions.Add(helper.Signature, (helper.Method, support));
+                entity.Dependencies.Add(support);
+                AddSchemaDependency(support, helper.Declaration.Schema);
+                foreach (AggregateType contract in helper.Types.Concat([helper.Result]))
+                {
+                    FunctionType? datum = contract.Datum;
+                    EnumDeclaration? enumeration = (datum?.Element ?? datum)?.Enumeration;
+                    if (enumeration is not null && enumEntities.TryGetValue(enumeration.Managed, out SqlEntity? enumEntity))
+                    {
+                        support.Dependencies.Add(enumEntity);
+                    }
+
+                    AddSchemaDependency(support, (datum?.Element ?? datum)?.Composite?.Schema);
+                }
+            }
+        }
+
         managed.AppendLine("}");
         string? installation = graph.Emit();
         if (installation is null)
@@ -354,6 +433,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             Metadata("Ankus.Relocatable", fixedSchema ? "false" : "true") +
             Metadata("Ankus.Exports", exports.ToString());
         context.AddSource("ExtensionManifest.g.cs", metadata);
+
+        void AddSchemaDependency(SqlEntity entity, string? schema)
+        {
+            if (schema is not null)
+            {
+                fixedSchema = true;
+                if (schemas.TryGetValue(schema, out SqlEntity? dependency))
+                {
+                    entity.Dependencies.Add(dependency);
+                }
+            }
+        }
     }
 
     private static string Metadata(string key, string value)

@@ -133,6 +133,12 @@ table-rewrite and login callbacks. Metadata snapshots remain owned after callbac
 return. See [event triggers](docs/src/content/docs/event-triggers.md) and the
 [event trigger sample](samples/Ankus.Examples.EventTriggers/DdlEvents.cs).
 
+Use `[PgAggregate]` with typed static support methods for grouped, parallel,
+moving-window, and ordered-set aggregation. `PgAggregateState<T>` owns managed
+state through PostgreSQL's group and query lifetimes. See
+[aggregates](docs/src/content/docs/aggregates.md) and the
+[average sample](samples/Ankus.Examples.Aggregates/IntegerAverage.cs).
+
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 
 ```csharp

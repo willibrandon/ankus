@@ -9,6 +9,10 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Classes
 
+- [PgAggregateAttribute](/api/ankus.pgaggregateattribute/)
+- [PgAggregateContext](/api/ankus.pgaggregatecontext/)
+- [PgAggregateSortKey](/api/ankus.pgaggregatesortkey/)
+- [PgAggregateState&lt;T&gt;](/api/ankus.pgaggregatestate-1/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)
@@ -49,6 +53,25 @@ Assembly: `Ankus.Runtime.dll`
 - [SpiRow](/api/ankus.spirow/)
 - [SpiSession](/api/ankus.spisession/)
 
+## Enums
+
+- [PgAggregateContextKind](/api/ankus.pgaggregatecontextkind/)
+- [PgAggregateFinalModify](/api/ankus.pgaggregatefinalmodify/)
+- [PgAggregateKind](/api/ankus.pgaggregatekind/)
+- [PgCastContext](/api/ankus.pgcastcontext/)
+- [PgDateTimePart](/api/ankus.pgdatetimepart/)
+- [PgEventTriggerKind](/api/ankus.pgeventtriggerkind/)
+- [PgLogLevel](/api/ankus.pgloglevel/)
+- [PgNullInput](/api/ankus.pgnullinput/)
+- [PgParallelSafety](/api/ankus.pgparallelsafety/)
+- [PgSetMode](/api/ankus.pgsetmode/)
+- [PgSqlOrder](/api/ankus.pgsqlorder/)
+- [PgTableRewriteReason](/api/ankus.pgtablerewritereason/)
+- [PgTriggerLevel](/api/ankus.pgtriggerlevel/)
+- [PgTriggerOperation](/api/ankus.pgtriggeroperation/)
+- [PgTriggerTiming](/api/ankus.pgtriggertiming/)
+- [PgVolatility](/api/ankus.pgvolatility/)
+
 ## Structs
 
 - [PgBox](/api/ankus.pgbox/)
@@ -68,19 +91,3 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTimestamp](/api/ankus.pgtimestamp/)
 - [PgTimestampTz](/api/ankus.pgtimestamptz/)
 - [SpiParameter](/api/ankus.spiparameter/)
-
-## Enums
-
-- [PgCastContext](/api/ankus.pgcastcontext/)
-- [PgDateTimePart](/api/ankus.pgdatetimepart/)
-- [PgEventTriggerKind](/api/ankus.pgeventtriggerkind/)
-- [PgLogLevel](/api/ankus.pgloglevel/)
-- [PgNullInput](/api/ankus.pgnullinput/)
-- [PgParallelSafety](/api/ankus.pgparallelsafety/)
-- [PgSetMode](/api/ankus.pgsetmode/)
-- [PgSqlOrder](/api/ankus.pgsqlorder/)
-- [PgTableRewriteReason](/api/ankus.pgtablerewritereason/)
-- [PgTriggerLevel](/api/ankus.pgtriggerlevel/)
-- [PgTriggerOperation](/api/ankus.pgtriggeroperation/)
-- [PgTriggerTiming](/api/ankus.pgtriggertiming/)
-- [PgVolatility](/api/ankus.pgvolatility/)

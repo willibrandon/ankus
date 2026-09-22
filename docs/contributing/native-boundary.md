@@ -478,3 +478,45 @@ never transported. Thread-local context identity and event-phase checks prevent
 old or suspended contexts from reading a newer native invocation. Snapshot
 property access needs no live backend. As with row triggers, PostgreSQL ERROR
 can be raised only after managed frames have returned to the native boundary.
+
+## Aggregate callbacks and state ownership
+
+Generated aggregate support functions use `AggCheckCallContext` before reading
+arguments. Each call resolves the current aggregate or window memory context;
+ownership is never cached under `fn_extra`, because grouping sets can interleave
+states at one call site. SQL datum states use the existing owned conversions and
+PostgreSQL's executor copies. Managed `PgAggregateState<T>` values use SQL
+`internal` and an opaque checked managed root ID.
+
+Native state headers live in their owner's context and register a
+`MemoryContextRegisterResetCallback`. A backend-local address registry validates
+headers before dereferencing them, so a foreign `internal` pointer cannot be
+interpreted as an Ankus header. Reset removes the registry entry, invalidates the
+managed root, and invokes optional payload disposal exactly once. Reset covers
+ordinary group teardown, rescans, moving-window restarts, and abort. Finalization
+does not own cleanup. Cleanup suspends the aggregate scope and permits only
+owned plan/cursor release through the existing restricted backend boundary;
+managed cleanup exceptions become warnings after the callback returns.
+
+Deserialize wrappers omit PostgreSQL's mandatory SQL `internal` dummy from
+managed arguments. PostgreSQL passes a zero pointer with SQL nullness set false
+for that dummy. Deserialized state is registered in the caller's temporary
+context; combine must copy its values into a fresh destination state when
+necessary. Both runtime and native return validation reject cross-owner reuse.
+
+Callback metadata copies aggregate/window kind, shared-state status, collation,
+an optional aggregate OID, and sort keys derived from `AggGetAggref`. Window
+contexts have no aggregate parse node. Native `SortSupport` performs comparisons
+using the actual ordering operator, collation and NULL placement. Comparison
+calls run in a guarded subtransaction so a custom operator error can be caught
+by managed code after native recovery. Successful subtransaction commit also
+changes PostgreSQL's current memory context, so comparison restores the saved
+caller context and resource owner before returning to managed code. State registration has its own native
+error guard and cannot unwind through a managed allocator call.
+
+Callback result/error headers and mutable conversion buffers are heap-backed
+before `PG_TRY`. The wrapper restores the prior function and aggregate scopes in
+`PG_FINALLY`, releases transport buffers and deletes only callback-temporary
+storage. SQL results are constructed in the caller's memory context before that
+temporary context is deleted. Registered managed states retain their separate
+aggregate or deserialize owner until its reset callback runs.
