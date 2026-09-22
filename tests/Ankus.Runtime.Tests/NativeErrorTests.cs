@@ -23,7 +23,7 @@ public sealed class NativeErrorTests
     [DataRow(9, "Aé🐘Z")]
     public unsafe void MessageIsBoundedAndNullTerminated(int capacity, string expected)
     {
-        byte[] buffer = Enumerable.Repeat((byte)0xCC, capacity + 2).ToArray();
+        byte[] buffer = [.. Enumerable.Repeat((byte)0xCC, capacity + 2)];
         fixed (byte* pointer = buffer)
         {
             NativeError.Write(new InvalidOperationException("Aé🐘Z"), pointer + 1, capacity);

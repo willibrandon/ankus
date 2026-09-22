@@ -146,7 +146,7 @@ public sealed class DatumConversionTests(TestContext context)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ByteaPreservesAllBytes),
             async (connection, transaction, token) =>
             {
-                byte[] bytes = Enumerable.Range(0, length).Select(static value => (byte)(value % 256)).ToArray();
+                byte[] bytes = [.. Enumerable.Range(0, length).Select(static value => (byte)(value % 256))];
                 await using var command = new NpgsqlCommand("SELECT datatype.echo_bytes($1)", connection, transaction);
                 command.Parameters.AddWithValue(bytes);
                 byte[] result = Assert.IsInstanceOfType<byte[]>(await command.ExecuteScalarAsync(token));
@@ -188,7 +188,7 @@ public sealed class DatumConversionTests(TestContext context)
             async (connection, transaction, token) =>
             {
                 string text = string.Concat(Enumerable.Repeat("PostgreSQL 🐘 café ", 4000));
-                byte[] bytes = Enumerable.Range(0, 65536).Select(static value => (byte)(value % 256)).ToArray();
+                byte[] bytes = [.. Enumerable.Range(0, 65536).Select(static value => (byte)(value % 256))];
                 string setup = $"""
                     CREATE TEMP TABLE toast_values (value text, bytes bytea);
                     ALTER TABLE toast_values ALTER COLUMN value SET STORAGE {storage};

@@ -32,6 +32,8 @@ csharp_indent_case_contents_when_block = false
 # IDE0044 enforces readonly fields. One type per file is a repository rule;
 # a first-party analyzer will enforce it once Ankus.Analyzers is available.
 dotnet_diagnostic.IDE0044.severity = error
+dotnet_diagnostic.IDE0305.severity = error
+csharp_style_prefer_collection_expression = when_types_loosely_match:error
 dotnet_diagnostic.IDE0005.severity = warning
 
 # Match dotnet/runtime: prefer explicit types and avoid redundant qualifications.

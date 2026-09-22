@@ -22,7 +22,7 @@ internal static class PgFunctionEmitter
     internal static void Emit(IMethodSymbol method, string name, string callback,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
-        FunctionType[] parameters = method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!).ToArray();
+        FunctionType[] parameters = [.. method.Parameters.Select(static parameter => FunctionType.Create(parameter.Type)!)];
         FunctionType result = FunctionType.Create(method.ReturnType)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameters, result, managed);

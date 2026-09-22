@@ -41,7 +41,7 @@ public sealed class PgLogTests(TestContext context)
                 command.Parameters.AddWithValue(level);
                 command.Parameters.AddWithValue(marker);
                 Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
-                PostgresNotice[] matching = notices.Where(notice => notice.MessageText == marker).ToArray();
+                PostgresNotice[] matching = [.. notices.Where(notice => notice.MessageText == marker)];
                 Assert.HasCount(level == 6 ? 0 : 1, matching);
                 if (level != 6)
                 {
