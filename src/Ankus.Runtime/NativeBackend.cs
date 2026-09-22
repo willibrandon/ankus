@@ -10,7 +10,7 @@ namespace Ankus;
 public static unsafe class NativeBackend
 {
     [ThreadStatic]
-    private static nint t_execute;
+    private static nint s_execute;
 
     /// <summary>
     /// Enters a native callback scope, preserving the previous binding for recursive SPI calls.
@@ -19,8 +19,8 @@ public static unsafe class NativeBackend
     /// <returns>The previous callback binding, restored by generated code in a finally block.</returns>
     public static nint Enter(nint execute)
     {
-        nint previous = t_execute;
-        t_execute = execute;
+        nint previous = s_execute;
+        s_execute = execute;
         return previous;
     }
 
@@ -28,21 +28,27 @@ public static unsafe class NativeBackend
     /// Restores the enclosing native callback scope.
     /// </summary>
     /// <param name="previous">The binding saved on entry.</param>
-    public static void Exit(nint previous) => t_execute = previous;
+    public static void Exit(nint previous) => s_execute = previous;
 
     /// <summary>
-    /// Executes SQL through a native guard that catches PostgreSQL errors and recovers its internal subtransaction.
+    /// Executes SQL through the native guard and copies requested result data before releasing native allocations.
     /// </summary>
     /// <param name="commandText">The SQL command text.</param>
-    /// <returns>The number of rows processed by the final statement.</returns>
-    internal static long Execute(string commandText)
+    /// <param name="parameters">The positional parameters.</param>
+    /// <param name="readOnly">Whether to use a read-only SPI snapshot.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="resultMode">The result materialization mode.</param>
+    /// <returns>The managed query result.</returns>
+    internal static SpiResult Run(
+        string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly, int limit, SpiResultMode resultMode)
     {
-        if (t_execute == 0)
+        if (s_execute == 0)
         {
             throw new InvalidOperationException("PostgreSQL APIs can only be used on the active PostgreSQL backend thread.");
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(commandText);
+        ArgumentOutOfRangeException.ThrowIfNegative(limit);
         if (commandText.Contains('\0', StringComparison.Ordinal))
         {
             throw new ArgumentException("SQL command text cannot contain a zero character.", nameof(commandText));
@@ -51,17 +57,47 @@ public static unsafe class NativeBackend
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         byte[] sql = new byte[encoding.GetByteCount(commandText) + 1];
         encoding.GetBytes(commandText, sql);
-        var execute = (delegate* unmanaged[Cdecl]<byte*, int, long*, NativeCallError*, int>)t_execute;
+        var execute = (delegate* unmanaged[Cdecl]<byte*, int, NativeSpiParameter*, int, byte, int, byte,
+            NativeSpiResult*, NativeCallError*, int>)s_execute;
         NativeCallError error = default;
-        long rows = 0;
-        fixed (byte* text = sql)
+        NativeSpiResult result = default;
+        var arguments = new NativeSpiParameter[parameters.Length];
+        try
         {
-            if (execute(text, sql.Length - 1, &rows, &error) != 0)
+            for (int index = 0; index < parameters.Length; index++)
             {
-                throw error.ToException();
+                if (parameters[index].TypeOid == 0)
+                {
+                    throw new ArgumentException("SPI parameters must be created with an explicit managed type.", nameof(parameters));
+                }
+
+                arguments[index]._typeOid = parameters[index].TypeOid;
+                arguments[index]._value = SpiType.ToNative(parameters[index].Value);
+            }
+
+            fixed (byte* text = sql)
+            fixed (NativeSpiParameter* values = arguments)
+            {
+                if (execute(text, sql.Length - 1, values, arguments.Length, readOnly ? (byte)1 : (byte)0,
+                    limit, (byte)resultMode, &result, &error) != 0)
+                {
+                    throw error.ToException();
+                }
+            }
+
+            return result.ToManaged();
+        }
+        finally
+        {
+            if (result._release != null)
+            {
+                result._release(&result);
+            }
+
+            foreach (ref NativeSpiParameter parameter in arguments.AsSpan())
+            {
+                parameter._value.Release();
             }
         }
-
-        return rows;
     }
 }

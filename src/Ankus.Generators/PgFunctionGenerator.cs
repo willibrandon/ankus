@@ -47,16 +47,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var names = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
+        native.AppendLine(NativeBridge.ReadBuffers);
+        native.AppendLine(NativeBridge.WriteBuffer);
+        native.AppendLine(NativeSpiBridge.Source);
         native.AppendLine(GuardedBackend.Source);
-        if (methods.Any(static method => method.Parameters.Any(static parameter => FunctionType.Create(parameter.Type)?.IsBuffer == true)))
-        {
-            native.AppendLine(NativeBridge.ReadBuffers);
-        }
-
-        if (methods.Any(static method => FunctionType.Create(method.ReturnType)?.IsBuffer == true))
-        {
-            native.AppendLine(NativeBridge.WriteBuffer);
-        }
 
         var sql = new StringBuilder();
         var exports = new StringBuilder("Pg_magic_func\n");

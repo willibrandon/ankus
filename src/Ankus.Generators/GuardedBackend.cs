@@ -22,7 +22,7 @@ internal static class GuardedBackend
             char hint[1024];
         } AnkusError;
 
-        typedef int (*AnkusExecute)(const char *, int, int64 *, AnkusError *);
+        typedef int (*AnkusExecute)(const char *, int, const AnkusParameter *, int, uint8, int, uint8, AnkusResult *, AnkusError *);
 
         static void
         ankus_copy_diagnostic(const char *value, char *buffer, int capacity)
@@ -52,12 +52,14 @@ internal static class GuardedBackend
         }
 
         static int
-        ankus_spi_execute(const char *command, int length, int64 *rows, AnkusError *error)
+        ankus_spi_execute(const char *command, int length, const AnkusParameter *parameters, int parameter_count,
+            uint8 read_only, int limit, uint8 collect_result, AnkusResult *result, AnkusError *error)
         {
             MemoryContext caller_context = CurrentMemoryContext;
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
             volatile int status = 0;
+            result->release = ankus_release_result;
 
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
             PG_TRY();
@@ -73,7 +75,23 @@ internal static class GuardedBackend
                         ereport(ERROR, (errmsg("SPI_connect failed: %s", SPI_result_code_string(code))));
                     }
                     sql = pg_any_to_server(command, length, PG_UTF8);
-                    code = SPI_execute(sql, false, 0);
+                    if (parameter_count == 0)
+                    {
+                        code = SPI_execute(sql, read_only != 0, limit);
+                    }
+                    else
+                    {
+                        Oid *types = palloc(sizeof(Oid) * (Size) parameter_count);
+                        Datum *values = palloc(sizeof(Datum) * (Size) parameter_count);
+                        char *nulls = palloc((Size) parameter_count);
+                        for (int index = 0; index < parameter_count; index++)
+                        {
+                            types[index] = parameters[index].type_oid;
+                            values[index] = ankus_parameter_datum(&parameters[index]);
+                            nulls[index] = parameters[index].value.is_null ? 'n' : ' ';
+                        }
+                        code = SPI_execute_with_args(sql, parameter_count, types, values, nulls, read_only != 0, limit);
+                    }
                     if (code < 0)
                     {
                         ereport(ERROR, (errmsg("SPI_execute failed: %s", SPI_result_code_string(code))));
@@ -82,7 +100,11 @@ internal static class GuardedBackend
                     {
                         ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE), errmsg("SPI row count exceeds Int64")));
                     }
-                    *rows = (int64) SPI_processed;
+                    result->processed = (int64) SPI_processed;
+                    if (collect_result)
+                    {
+                        ankus_collect_result(result, collect_result == 2);
+                    }
                     code = SPI_finish();
                     if (code != SPI_OK_FINISH)
                     {
@@ -109,6 +131,7 @@ internal static class GuardedBackend
                     ankus_copy_diagnostic(data->detail, error->detail, sizeof(error->detail));
                     ankus_copy_diagnostic(data->hint, error->hint, sizeof(error->hint));
                     FreeErrorData(data);
+                    ankus_release_result(result);
                     status = 1;
                 }
                 PG_END_TRY();

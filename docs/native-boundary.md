@@ -68,9 +68,22 @@ and restores the enclosing binding. Calls on worker threads or outside a backend
 callback fail in managed code before entering PostgreSQL.
 
 The native SPI guard starts an internal subtransaction and runs the command with
-`SPI_connect`, `SPI_execute`, and `SPI_finish`. On success, it releases the
-subtransaction and returns the final statement's processed-row count. Changes
-remain part of the calling transaction.
+`SPI_connect`, `SPI_execute` or `SPI_execute_with_args`, and `SPI_finish`. Typed
+parameters are converted under this guard. On success, it releases the
+subtransaction and returns the final statement's processed-row count and any
+requested results. Changes remain part of the calling transaction.
+
+Result metadata and cells are copied into native-owned buffers before SPI
+disconnects. The runtime materializes managed `SpiResult`, `SpiRow`, and `SpiColumn`
+objects, then releases all native result allocations in a managed `finally` block
+through their allocator-specific callback. The callback uses only native `free`;
+it does not enter PostgreSQL. A native conversion failure releases partially copied
+results and rolls back the command. Managed parameter buffers are also released
+in `finally` on success, native failure, or managed conversion failure.
+
+Scalar execution copies only the first cell but lets PostgreSQL execute the full
+command. Explicit query row limits are passed to SPI separately, so reading a
+scalar does not truncate the effects of a command with `RETURNING`.
 
 On PostgreSQL ERROR, native `PG_CATCH` copies diagnostics outside the failing
 subtransaction, flushes the error state, rolls back to the caller's transaction
@@ -92,7 +105,9 @@ UTF-8 characters. Native reporting converts these fields to the server encoding.
 - `src/Ankus.Generators/PgFunctionEmitter.cs`: generated managed and native entry points.
 - `src/Ankus.Generators/NativeBridge.cs`: native transport and varlena conversion.
 - `src/Ankus.Generators/GuardedBackend.cs`: native SPI and error-recovery guards.
+- `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
 - `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
 - `src/Ankus.Runtime/NativeBackend.cs`: thread-local backend bindings.
 - `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.
 - `tests/Ankus.IntegrationTests/SpiTests.cs`: transaction, reentrancy, and error-unwinding tests.
+- `tests/Ankus.IntegrationTests/SpiQueryTests.cs`: parameter, metadata, and result-lifetime tests.

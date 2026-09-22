@@ -76,6 +76,16 @@ before invoking managed code. Managed exceptions return completely to native cod
 before PostgreSQL raises ERROR. See [the native boundary design](docs/native-boundary.md)
 for buffer ownership and error cleanup.
 
+## Querying PostgreSQL
+
+Use `Spi` inside an extension function to execute SQL in the calling backend:
+
+```csharp
+int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), SpiParameter.Create(2));
+```
+
+See [SPI queries](docs/spi.md) for typed parameters, result rows, and error handling.
+
 ## Publishing and installation
 
 Publishing the sample produces a native library and these PostgreSQL installation files:

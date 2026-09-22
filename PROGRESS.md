@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **166 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **207 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,12 +59,18 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 93 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 134 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
   rollback after errors, recursive calls between AOT extensions, backend-thread enforcement,
-  and managed finally execution after native errors and statement cancellation.
+   and managed finally execution after native errors and statement cancellation.
+- `SpiParameter`, `Spi.Query`, and `Spi.ExecuteScalar<T>` support typed scalar/text/bytea parameters,
+  typed NULLs, owned result rows, column names/OIDs, domains over supported base types, read-only execution,
+  and row limits. Scalar materialization does not truncate command writes. Tests exercise conversion-error
+  rollback, results surviving subsequent SPI calls, parameter binding, and empty/zero-column results.
+- IDE1006 is an error during builds. A negative build verified field-prefix violations are rejected;
+  the corrected runtime and the full solution pass with naming enforcement enabled.
 - `PgException` transports SQLSTATE, message, detail, and hint in both directions, with UTF-8
   and server-encoding conversion. Error-report fields beyond these four remain to be implemented.
 - `tests/Ankus.TestExtension` supplies backend test functions. The fixture publishes and installs
@@ -184,31 +190,192 @@ The target architecture consists of:
 | `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea, nullability, overloads |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
 | `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
-| SETOF (`SetOfIterator`) | return `IEnumerable<T>` ⇒ `RETURNS SETOF` | ☐ |
+| SETOF / TABLE (`SetOfIterator`, `TableIterator`) | generated streaming and materialized set/table results | ☐ |
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
 | `#[pg_operator]` | `[PgOperator]` (+ SQL DDL) | ☐ |
 | `#[pg_cast]` | `[PgCast]` (+ SQL DDL) | ☐ |
 | `extension_sql!` | `[ExtensionSql]` attribute / `.sql` files | ☐ |
-| `#[derive(PostgresType)]` (composites) | `[PostgresType]` on records + generator | ☐ |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
+| `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
-| `Spi` | `Spi` (connect, select, execute, update/insert, get_one, function calls) | Partial: atomic `Execute` and row counts |
+| `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, parameters, materialized queries/scalars |
 | `PgError` | `PgException` + logging helpers | Partial: SQLSTATE, message, detail, hint |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
 | `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
-| `pgrx::tuplestore` | `TupleStore` | ☐ |
-| `pgrx::callback` (xact callbacks) | `TransactionCallback` | ☐ |
-| `pgrx::catalog` (`Oid`, `PgType`) | `Oid`, `PgType`, catalog helpers | ☐ |
-| `pgrx::log` | PG log-level mapping for .NET logging | ☐ |
-| `pgrx::pg_sys` (raw FFI) | `Ankus.PgSys` (raw `LibraryImport` surface) | ☐ |
-| custom scan (`pgrx::customscan`, `pgrx::nodes`) | Custom scan providers, node types, callbacks, and supporting APIs | ☐ Required |
-| `cargo pgrx` CLI | `ankus` dotnet tool: `new/init/build/schema/test/run/package` | ☐ |
-| `cargo pgrx schema` (one-compile, `.pgrxsc`) | `ankus schema` (reads `.ankusc` section from built `.so`) | ☐ |
+| `iter`, `pg_sys` tuple-store APIs | managed tuple-store integration | ☐ |
+| `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
+| `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | ☐ |
+| `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | Partial: ERROR conversion only |
+| `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | ☐ |
+| `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | ☐ |
+| `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
+| `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time assembly metadata extraction |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
+
+## Repository-derived parity inventory
+
+Reference: `/home/brandon/src/pgrx`, commit `70383e884582d1bcc7cd681d10886b995a2830cb`,
+workspace version `0.19.2`. Paths in this section are relative to that read-only repository.
+This inventory covers feature families discovered in the workspace, including features absent from its
+README. Each family's public APIs, options, error behavior, ownership rules, examples, and regression
+cases require implementation and evidence. Family coverage is not API-by-API completion evidence.
+
+**Partial** means specific implemented behavior is identified above or below; all other behavior in
+that row is pending. **Pending** means no validated equivalent is recorded. Proposed API names elsewhere
+in this tracker are design directions rather than completed contracts.
+
+### Development environment, commands, and distribution
+
+The dispatch enum in `cargo-pgrx/src/command/pgrx.rs` contains all 17 commands below. Standard .NET
+commands can supply the equivalent operation, with the Ankus tool providing PostgreSQL-specific behavior.
+
+| Source command | Required equivalent behavior | Evidence / status |
+|---|---|---|
+| `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Pending |
+| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: discovery/configuration in `src/Ankus.PgConfig`; provisioning pending |
+| `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Partial: library discovery; CLI pending |
+| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `tests/Ankus.Testing`; development CLI pending |
+| `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
+| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`; generated backend tests and matrix pending |
+| `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
+| `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
+| `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `src/Ankus.Build` reads managed metadata without loading extension code |
+| `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: PG18 test fixture installation; general installer pending |
+| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: publish output; distribution command pending |
+| `get` | Query extension control properties and derived extension metadata | Pending |
+| `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
+| `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
+
+Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command options in each command file,
+`pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
+The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
+control-file settings, dependency handling, and deterministic packaging.
+
+NuGet delivery remains pending: one extension-author package supplying runtime/generator/build integration,
+a .NET tool package, reusable backend-testing packages, and isolated consumer tests that use only packed
+artifacts. Public publication requires full feature and platform/version validation.
+
+### Source generation, schema, and extension declarations
+
+Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/src/{fcinfo,iter,aggregate}.rs`.
+
+| Feature family | Required behavior | Status |
+|---|---|---|
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous scalar/text/bytea, names, overloads, inferred strictness |
+| Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Pending |
+| `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Pending |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Pending |
+| `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
+| `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | Pending |
+| `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Pending |
+| `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Pending |
+| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Pending |
+| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Pending |
+| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
+| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Pending |
+| `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
+| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
+| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: basic generated DDL and managed assembly metadata; complete graph/extraction pending |
+
+The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
+`merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event triggers and full
+custom-scan support remain required alongside the source-level macro inventory.
+
+### Datum conversions and user-defined types
+
+| Source | Required behavior | Status |
+|---|---|---|
+| `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/text/bytea transport |
+| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
+| `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
+| `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Pending |
+| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Pending |
+| `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
+| `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
+| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
+| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
+| `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
+| `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Pending |
+
+Custom base types and PostgreSQL composite types have distinct storage and I/O contracts; both require
+complete implementations. AOT serialization must use statically generated metadata/converters.
+
+### Runtime and PostgreSQL internals
+
+| Source modules | Required behavior | Status |
+|---|---|---|
+| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, typed parameters, materialized rows/scalars and metadata |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Pending |
+| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
+| `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
+| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
+| `xid.rs`, `callbacks.rs` | Transaction identifiers, transaction/subtransaction callbacks, unregister and error cleanup | Pending |
+| `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Pending |
+| `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
+| `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Pending |
+| `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
+| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
+| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
+| `pgrx-pg-sys/src/submodules/{elog,errcodes}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: ERROR, SQLSTATE/message/detail/hint |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
+| `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | Partial: selected scalar OID mappings |
+| `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
+
+`pgrx-bindgen` and the per-major `pgrx-pg-sys/src/include/pg13.rs` through `pg19.rs` are required input
+to the versioned raw API inventory. The raw API includes direct unsafe access as well as safe wrappers;
+error-producing calls still need a native guard that prevents longjmp across managed frames.
+
+### Examples and test corpus
+
+All example directories in `pgrx-examples/` require a corresponding working .NET scenario and validation:
+
+- Types/data: `arrays`, `bytea`, `composite_type`, `custom_types`, `datetime`, `json`, `numeric`,
+  `postgres_type_variants`, `range`, `strings`.
+- SQL/functions: `aggregate`, `generic_agg`, `custom_sql`, `operators`, `schemas`, `spi`, `spi_srf`, `srf`, `triggers`.
+- Backend/runtime: `bgworker`, `errors`, `hooks`, `memory_contexts`, `notify`, `pglz_inspect`, `pgthread`,
+  `pgtrybuilder`, `rewrite_manip`, `shmem`, `subtrans_infos`, `wal_decoder`.
+- Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
+  `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
+
+The minimal `samples/Ankus.Examples.Hello` sample is validated. Full example parity is pending.
+
+Required test-source inventory:
+
+- `pgrx-unit-tests/src/tests/`: datum/array/borrow/NULL/zero-datum tests; numeric/date/network/JSON/UUID/geometric/range
+  tests; custom type/enum/composite/tuple tests; function/default/variadic/cast/operator/aggregate/schema/attribute tests;
+  SPI/SRF/call-context tests; memory/list/relation/shared-memory/GUC/worker/callback/XID tests; guard/log/error tests;
+  property/round-trip tests; lifetime/name/type-identity/signature/version/inline-binding and issue regressions.
+- `pgrx-unit-tests/tests/{compile-fail,nightly,todo}` and `ui.rs`: diagnostics and unsupported-signature/lifetime cases,
+  with each Rust-specific constraint translated to the relevant .NET compile-time or runtime guarantee.
+- `pgrx-tests/src/framework{.rs,/}`: local installation/cluster management, backend test setup, expected errors,
+  per-test transactions, diagnostics, cleanup, configuration and concurrent execution; `proptest.rs`: property testing.
+- `pgrx-bench/src/` and `cargo-pgrx/src/command/bench.rs`: benchmark discovery and in-backend execution.
+- `cargo-pgrx/tests/`: install/test regression fixture, CLI dependency upgrades and workspace fixtures.
+- Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
+  fixtures in the examples and regression-command paths.
+
+The 207 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
+
+### Release evidence requirements
+
+| Deliverable | Required evidence | Current evidence |
+|---|---|---|
+| Full runtime/macro/CLI parity | Source API/option inventory mapped to implemented APIs, behavior tests and examples | Family inventory above; most implementation pending |
+| Native AOT safety | Trim/AOT-clean consumers; deterministic cleanup on exceptions, native errors, cancellation and recursive callbacks | PG18 Linux x64 function/SPI cases pass; remaining APIs/targets pending |
+| PostgreSQL 13, 14, 15, 16, 17, 18, 19 beta | Per-major builds against that server's headers, version-specific APIs/gating and complete backend tests | 18.6 only |
+| Windows, Linux, macOS | Native builds, exports/loading, lifecycle, encoding, toolchain and installer tests for each supported RID | Linux x64 only |
+| Ordinary .NET usage | One NuGet reference, attributed methods, `dotnet publish`, discoverable plain `dotnet test` and working tool commands | Repository project references/imports; isolated NuGet consumer pending |
+| Installation and upgrades | Clean install, relocation, removal, versioned-library coexistence, upgrade scripts and data compatibility | Basic PG18 `CREATE/DROP EXTENSION` and schema relocation pass |
+| Examples and documentation | Every inventoried scenario runnable with tested usage/configuration/API documentation | Minimal sample, native boundary and SPI usage documented |
 
 ## Phase plan
 
@@ -224,7 +391,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `Ankus.Runtime`: `FunctionCallInfo` reader, `Datum`/`Value`, varlena/detoast, type conversion table
   - [ ] `Ankus.PgSys`: symbol resolution (`dlopen(NULL)`+`dlsym`), P/Invoke surface (SPI, elog via shim, memory, catalog)
    - [x] Guarded `Spi.Execute`, recoverable command errors, and basic `PgException` diagnostics
-   - [ ] Complete SPI sessions/results/parameters/cursors/prepared statements and PostgreSQL diagnostic fields
+    - [x] Typed built-in SPI parameters, materialized results/scalars, metadata, read-only mode and limits
+    - [ ] Complete SPI sessions, extensible datum conversion, tuple mutation, cursors, prepared statements and diagnostic fields
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
@@ -233,7 +401,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [ ] triggers, event triggers, aggregates, operators, casts, `ExtensionSql`
-  - [ ] composites (`[PostgresType]`), enums (`[PostgresEnum]`)
+  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive), composites, enums
   - [ ] GUC options; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [ ] `new`, `build`, `schema`, `test`, `run`, and `package` commands
@@ -281,4 +449,7 @@ The phases track implementation of the complete pgrx feature surface.
   `dotnet test`: 149 passed, 0 failed, 0 skipped (84 PostgreSQL integration cases).
 - 2026-09-22 — Guarded `Spi.Execute`, recoverable native errors, structured `PgException` reporting,
   recursive backend bindings, and cancellation-safe managed unwinding.
-  `dotnet test`: 166 passed, 0 failed, 0 skipped (93 PostgreSQL integration cases).
+   `dotnet test`: 166 passed, 0 failed, 0 skipped (93 PostgreSQL integration cases).
+- 2026-09-22 — Typed SPI parameters, owned query results and metadata, scalar reads, read-only mode,
+  limits, domain base conversion, and conversion-error rollback. IDE1006 naming rules enforced in builds.
+  `dotnet test`: 207 passed, 0 failed, 0 skipped (134 PostgreSQL integration cases).

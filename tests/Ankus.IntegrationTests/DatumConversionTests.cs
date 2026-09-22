@@ -272,7 +272,7 @@ public sealed class DatumConversionTests(TestContext context)
                 await install.ExecuteNonQueryAsync(context.CancellationToken);
             }
 
-            await using (var roundtrip = new NpgsqlCommand("SELECT echo_text($1)", connection))
+            await using (var roundtrip = new NpgsqlCommand("SELECT echo_text(spi_text($1))", connection))
             {
                 roundtrip.Parameters.AddWithValue("café");
                 Assert.AreEqual("café", await roundtrip.ExecuteScalarAsync(context.CancellationToken));

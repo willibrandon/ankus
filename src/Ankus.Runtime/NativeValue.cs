@@ -83,6 +83,19 @@ public unsafe struct NativeValue
         return result;
     }
 
+    /// <summary>
+    /// Releases an owned transport buffer through its matching allocator and clears this value.
+    /// </summary>
+    internal void Release()
+    {
+        if (_release != null)
+        {
+            _release(_data);
+        }
+
+        this = default;
+    }
+
     private static NativeValue Allocate(int length)
     {
         // A varlena includes a four-byte header and must fit PostgreSQL's MaxAllocSize.
