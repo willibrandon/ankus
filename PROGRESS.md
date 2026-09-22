@@ -39,7 +39,13 @@ Linux, and macOS.
   `Ankus.Testing`, and `Ankus.Tool`. The NuGet SDK supports cold restore and native publishing
   without repository imports; isolated consumers exercise the installed tool, direct publishing,
   Central Package Management, and package-backed MSTest discovery.
-- **`dotnet test`**: **979 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- `ankus new` creates a package-based extension solution with CPM, matching Ankus versions, and MSTest/MTP
+  discovery. The generated five-case suite verifies managed and native calls plus same-connection error recovery.
+  `PostgresExtensionTest` publishes against the selected headers and loads into an isolated PostgreSQL 18+ cluster.
+  Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
+  Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
+  and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
+- **`dotnet test`**: **995 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -63,7 +69,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 788 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 804 integration cases include isolated NuGet consumers, installed-tool workflows, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -292,6 +298,9 @@ inside the host integration case.
 | Native-only publish contract | SDK validation before publishing | `SdkRejectsNonExtensionPublishSettings` rejects disabled AOT and static-library output without an installable manifest |
 | Reusable testing package and normal discovery | Packed `Ankus.Testing` with PgConfig/Npgsql dependencies | `TestingPackageRunsInIndependentMSTestProject` runs ordinary `dotnet test`; its TRX proves the discovered `PackagedClusterLoadsNativeExtension` passed, including checked-overflow SQLSTATE and same-connection recovery |
 | Installed .NET tool, staging and artifact consistency | Packed `Ankus.Tool`, registry, publish driver and installer | Existing 23 tool cases now use the packaged SDK; installed payload bytes, SQL results, invalid-artifact rejection and failed-build manifest invalidation remain verified |
+| Package-based project creation and normal test discovery | `ankus new`, bundled solution/source templates, matching SDK/testing versions, CPM and MSTest/MTP global.json | `ToolCommandTests.NewSolutionRunsManagedAndBackendTests` creates an external solution, discovers five managed/native tests, publishes from the solution root, and proves a native function change fails its SQL assertion |
+| Portable project names and preservation of user files | One-pass template expansion, escaped keyword namespaces, validated SQL names, atomic directory move | `NewSolutionSupportsKeywordsAndExplicitNames`, `NewRejectsInvalidNamesWithoutFiles`, `NewPreservesExistingFiles`, `NewSolutionWithMultipleExtensionsRequiresSelection` |
+| Reusable publish/load fixture and initialization cleanup | `PostgresExtensionTest`, selected pg_config forwarding, native manifest check, per-cluster search paths and asynchronous disposal | `NewSolutionRunsManagedAndBackendTests` verifies five passing tests and cleanup after a SQL assertion failure; `NewSolutionReportsInitializationFailuresAndCleansUp` verifies Release-only compile errors and CREATE EXTENSION division-by-zero failures, zero leftover cluster/publish directories and retained binlogs |
 | NuGet cache paths with spaces | Ordered quoting of native file arguments before the Unix linker | Both publish tests use an isolated cache path containing spaces; this reproduced an unquoted .NET 10 Native AOT library-path failure before the fix |
 
 ### Work in progress
@@ -451,12 +460,12 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 
 | Source command | Required equivalent behavior | Evidence / status |
 |---|---|---|
-| `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Pending |
+| `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. Background-worker template awaits worker API |
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: installed CLI registration with locked/atomic configuration updates; provisioning pending |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `tests/Ankus.Testing`; development CLI pending |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
-| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`; generated backend tests and matrix pending |
+| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend tests, reusable publish/load fixture; attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `src/Ankus.Build` reads managed metadata without loading extension code |
@@ -642,7 +651,8 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
    - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
-   - [ ] Provisioning/downloads, `new`, `schema`, `test`, `run`, server lifecycle and `package` commands
+   - [x] `new` creates version-matched extension/MSTest solutions with CPM and discoverable native tests
+   - [ ] Provisioning/downloads, specialized templates, `schema`, `test`, `run`, server lifecycle and `package` commands
    - [x] Publish native library, `.control`, and versioned `.sql` artifacts
     - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
     - [ ] Distribution packaging and extension upgrades
@@ -787,3 +797,12 @@ The phases track implementation of the complete pgrx feature surface.
   operator interfaces and one-pass numeric summation. Added 67 backend cases, 10 generator cases and three runtime
   cases. `dotnet test`: 979 passed, 0 failed, 0 skipped (788 integration cases). The generated reference now contains
   35 pages and 560 members. Platform/version validation remains pending.
+- 2026-09-22 — Added `ankus new`, creating ordinary extension/MSTest solutions from bundled templates with CPM,
+  pinned matching package versions, source/test separation, and root-level `dotnet test` discovery. Added
+  `PostgresExtensionTest` to publish, start and load the native extension in PostgreSQL 18+ without modifying
+  the shared installation. Installed-tool tests cover path/name handling, keyword namespaces, one-pass token
+  replacement, file preservation, solution selection, five generated tests, deliberate native behavior changes,
+  and failed-build/failed-load cleanup. `dotnet test`: 995 passed, 0 failed, 0 skipped (804 integration cases).
+  All six packages and tool `--no-build` packing pass. Docs build, type check and API freshness pass; 36 public
+  API pages and 563 members. Specialized templates, automatic pre-18 extension staging and the platform/version
+  matrix remain pending.

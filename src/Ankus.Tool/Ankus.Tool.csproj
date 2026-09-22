@@ -13,6 +13,17 @@
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <None Update="Templates/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="_WriteAnkusToolVersion" BeforeTargets="AssignTargetPaths">
+    <WriteLinesToFile File="$(IntermediateOutputPath)ankus-tool.version" Lines="$(PackageVersion)"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <None Include="$(IntermediateOutputPath)ankus-tool.version" Link="ankus-tool.version"
+            CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+      <FileWrites Include="$(IntermediateOutputPath)ankus-tool.version" />
+    </ItemGroup>
+  </Target>
 
 </Project>

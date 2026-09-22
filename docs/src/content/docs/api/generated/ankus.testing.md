@@ -9,6 +9,7 @@ Assembly: `Ankus.Testing.dll`
 
 ## Classes
 
+- [PostgresExtensionTest](/api/ankus.testing.postgresextensiontest/)
 - [PostgresTestCluster](/api/ankus.testing.postgrestestcluster/)
 - [PostgresTestClusterOptions](/api/ankus.testing.postgrestestclusteroptions/)
 - [PostgresTestException](/api/ankus.testing.postgrestestexception/)

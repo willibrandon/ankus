@@ -24,7 +24,7 @@ Use the Ankus version available from your configured feed.
 
 ## Publish
 
-From your extension project directory:
+From your extension project or generated solution directory:
 
 ```console
 ankus publish --output publish
@@ -33,10 +33,10 @@ ankus publish --output publish
 Ankus uses .NET Native AOT to build for the current platform. It passes the
 registered PostgreSQL installation to the build so the wrapper uses its headers.
 
-You can also use `dotnet publish` directly. For Linux x64:
+You can also use `dotnet publish` directly. For a generated `Hello` solution on Linux x64:
 
 ```console
-dotnet publish -c Release -r linux-x64 -o publish -p:AnkusPgConfigPath=/path/to/pg_config
+dotnet publish src/Hello/Hello.csproj -c Release -r linux-x64 -o publish -p:AnkusPgConfigPath=/path/to/pg_config
 ```
 
 The SDK supplies Native AOT settings and native build integration. No Ankus source

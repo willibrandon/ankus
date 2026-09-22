@@ -1,7 +1,28 @@
 ---
 title: Command-line tool
-description: Register PostgreSQL and build, publish, or install an extension with ankus.
+description: Create an extension, register PostgreSQL, and build, publish, or install with ankus.
 ---
+
+## Create an extension
+
+```console
+ankus new Acme.Search
+cd Acme.Search
+dotnet test
+```
+
+`new` creates a solution with an extension under `src/` and an MSTest project
+under `tests/`. It pins matching Ankus packages, enables Central Package Management,
+and configures the .NET 10 test runner. The generated tests exercise both managed
+methods and a Native AOT library loaded into PostgreSQL.
+
+Project names use C# identifier segments such as `Acme.Search`. SQL extension names
+default to snake case (`acme_search`); use `--extension-name` to choose one explicitly.
+`--output` selects a new destination directory. Existing destinations are preserved.
+
+Creation needs no PostgreSQL installation. Running the generated backend tests
+requires PostgreSQL 18+ with development headers and the Native AOT toolchain.
+See [testing an extension](/getting-started/testing/).
 
 ## Register PostgreSQL
 
@@ -18,7 +39,7 @@ installation in `~/.ankus/config.json`. It preserves other registrations. Use
 
 ## Build and publish
 
-From an extension project directory:
+From an extension project directory, or a solution directory containing one Ankus SDK project:
 
 ```console
 ankus build

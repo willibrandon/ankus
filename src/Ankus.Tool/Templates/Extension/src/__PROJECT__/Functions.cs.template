@@ -1,0 +1,12 @@
+using Ankus;
+
+namespace __NAMESPACE__;
+
+public static class Functions
+{
+    [PgFunction]
+    public static int Add(int left, int right) => checked(left + right);
+
+    [PgFunction]
+    public static string Greet(string name) => $"Hello, {name}!";
+}

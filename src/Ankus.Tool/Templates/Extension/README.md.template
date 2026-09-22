@@ -1,0 +1,38 @@
+# __PROJECT__
+
+A PostgreSQL extension written in C# and published with .NET Native AOT.
+
+Requires .NET 10, a native C toolchain, and PostgreSQL 18 or later with server headers.
+Register PostgreSQL once:
+
+```sh
+ankus init --pg18 /path/to/pg_config
+```
+
+From this directory:
+
+```sh
+dotnet test
+ankus publish
+```
+
+The tests check ordinary C# calls and publish the extension into an isolated
+PostgreSQL cluster. Missing prerequisites fail the test run. Server logs remain
+under `src/__PROJECT__/bin/ankus-test-logs/`; the cluster and temporary published
+files are removed when the fixture is disposed.
+
+Install and call the extension:
+
+```sh
+ankus install
+```
+
+```sql
+CREATE EXTENSION __EXTENSION__;
+SELECT add(40, 2), greet('PostgreSQL');
+```
+
+Add attributed functions in `src/__PROJECT__/Functions.cs`. Ankus generates the
+native wrappers and SQL. Set `AnkusExtensionVersion` in the extension project
+before publishing a new extension version. Package versions live in `global.json`
+and `Directory.Packages.props`.

@@ -17,6 +17,17 @@ managed-to-native error boundary.
 
 ## Develop and test
 
+With the Ankus tool installed from your configured feed:
+
+```console
+ankus new Hello
+cd Hello
+dotnet test
+```
+
+This creates an extension and MSTest project. Tests call managed methods directly
+and load the published Native AOT library into an isolated PostgreSQL 18+ cluster.
+
 Extension projects use the `Ankus.Sdk` NuGet project SDK:
 
 ```xml

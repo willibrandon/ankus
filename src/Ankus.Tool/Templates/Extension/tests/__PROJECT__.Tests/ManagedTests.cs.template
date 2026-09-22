@@ -1,0 +1,19 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
+
+namespace __NAMESPACE__.Tests;
+
+[TestClass]
+public sealed class ManagedTests
+{
+    [TestMethod]
+    [DataRow(40, 2, 42)]
+    [DataRow(-20, 5, -15)]
+    public void AddReturnsSum(int left, int right, int expected)
+        => Assert.AreEqual(expected, Functions.Add(left, right));
+
+    [TestMethod]
+    public void AddRejectsOverflow()
+        => Assert.ThrowsExactly<OverflowException>(() => Functions.Add(int.MaxValue, 1));
+}

@@ -5,8 +5,19 @@ description: Declare C# methods, map PostgreSQL types, and handle SQL NULL.
 
 ## Create a project
 
-Configure your NuGet feed, then create `Hello.csproj` with the available Ankus
-version. Packages are currently built locally; a public release is pending.
+Install `Ankus.Tool` from your configured NuGet feed, then create a solution:
+
+```console
+dotnet tool install --global Ankus.Tool --version 1.0.0
+ankus new Hello
+cd Hello
+```
+
+Use the Ankus version available from your feed. Packages are currently built
+locally; a public release is pending. The solution includes an extension project,
+managed tests, and tests that load the native extension into PostgreSQL.
+
+For an existing project, use `Ankus.Sdk`:
 
 ```xml
 <Project Sdk="Ankus.Sdk/1.0.0">
@@ -24,7 +35,7 @@ packages. It works with ordinary NuGet configuration and Central Package Managem
 
 ## Add a function
 
-Create `Functions.cs` and mark a synchronous static method with `[PgFunction]`:
+Edit `src/Hello/Functions.cs` and mark a synchronous static method with `[PgFunction]`:
 
 ```csharp
 using Ankus;

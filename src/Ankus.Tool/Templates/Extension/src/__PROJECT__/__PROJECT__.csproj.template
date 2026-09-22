@@ -1,0 +1,6 @@
+<Project Sdk="Ankus.Sdk">
+  <PropertyGroup>
+    <AnkusExtensionName>__EXTENSION__</AnkusExtensionName>
+    <AnkusExtensionVersion>1.0.0</AnkusExtensionVersion>
+  </PropertyGroup>
+</Project>

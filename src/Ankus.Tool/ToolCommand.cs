@@ -24,6 +24,7 @@ internal static class ToolCommand
         var root = new RootCommand("Build and manage .NET PostgreSQL extensions.") { home };
         root.Subcommands.Add(CreateInit(home));
         root.Subcommands.Add(CreateInfo(home));
+        root.Subcommands.Add(CreateNew());
         root.Subcommands.Add(CreateBuild("build", "Build the native extension and SQL files.", home));
         root.Subcommands.Add(CreateBuild("publish", "Publish the native extension and SQL files to a directory.", home));
         root.Subcommands.Add(CreateInstall(home));
@@ -45,6 +46,25 @@ internal static class ToolCommand
             Console.Error.WriteLine($"Ankus: {error.Message}");
             return 1;
         }
+    }
+
+    private static Command CreateNew()
+    {
+        var command = new Command("new", "Create an extension solution with managed and PostgreSQL tests.");
+        var name = new Argument<string>("name") { Description = "C# project name, such as Acme.Search." };
+        var output = new Option<string?>("--output", "-o") { Description = "New directory (default: the project name)." };
+        var extension = new Option<string?>("--extension-name") { Description = "SQL extension name (default: snake_case project name)." };
+        command.Arguments.Add(name);
+        command.Options.Add(output);
+        command.Options.Add(extension);
+        command.SetAction(async (result, token) =>
+        {
+            string path = await ProjectScaffolder.CreateAsync(result.GetValue(name)!, result.GetValue(output), result.GetValue(extension), token);
+            Console.WriteLine($"Created extension solution at {path}");
+            Console.WriteLine("Run dotnet test from that directory to build and test the extension in PostgreSQL 18+.");
+            Console.WriteLine("Run ankus publish to publish using your registered PostgreSQL installation.");
+        });
+        return command;
     }
 
     private static Command CreateInit(Option<string?> home)

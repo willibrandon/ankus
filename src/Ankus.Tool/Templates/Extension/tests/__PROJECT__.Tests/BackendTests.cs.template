@@ -1,0 +1,52 @@
+using System.Runtime.CompilerServices;
+using Ankus.Testing;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Npgsql;
+
+namespace __NAMESPACE__.Tests;
+
+[TestClass]
+public sealed class BackendTests(TestContext context)
+{
+    private static PostgresExtensionTest? s_extension;
+
+    [ClassInitialize]
+    public static async Task InitializeAsync(TestContext context)
+        => s_extension = await PostgresExtensionTest.StartAsync(ProjectPath(), cancellationToken: context.CancellationToken);
+
+    [ClassCleanup]
+    public static async Task CleanupAsync()
+    {
+        if (s_extension is not null)
+        {
+            await s_extension.DisposeAsync();
+        }
+    }
+
+    [TestMethod]
+    public Task FunctionsExecuteInPostgres()
+        => s_extension!.Cluster.RunInTransactionAsync(nameof(FunctionsExecuteInPostgres), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand("SELECT public.add(40, 2), public.greet('PostgreSQL')", connection, transaction);
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+            Assert.IsTrue(await reader.ReadAsync(token));
+            Assert.AreEqual(42, reader.GetInt32(0));
+            Assert.AreEqual("Hello, PostgreSQL!", reader.GetString(1));
+        }, context.CancellationToken);
+
+    [TestMethod]
+    public Task ManagedErrorsLeaveBackendUsable()
+        => s_extension!.Cluster.RunInTransactionAsync(nameof(ManagedErrorsLeaveBackendUsable), async (connection, transaction, token) =>
+        {
+            await transaction.SaveAsync("before_error", token);
+            await using var command = new NpgsqlCommand("SELECT public.add(2147483647, 1)", connection, transaction);
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+            Assert.AreEqual("38000", error.SqlState);
+            await transaction.RollbackAsync("before_error", token);
+            command.CommandText = "SELECT public.add(19, 23)";
+            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        }, context.CancellationToken);
+
+    private static string ProjectPath([CallerFilePath] string source = "")
+        => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../src/__PROJECT__/__PROJECT__.csproj"));
+}

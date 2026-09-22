@@ -95,3 +95,9 @@ It verifies installed-tool publishing and staging, direct `dotnet publish` with
 Central Package Management, and real SQL execution. A separate MSTest consumer
 references only the packed `Ankus.Testing`, runs ordinary `dotnet test`, and checks
 native error recovery as well as successful calls.
+
+`ankus new` bundles source templates under `src/Ankus.Tool/Templates/Extension`.
+It creates a version-matched solution with CPM and native MTP discovery. The
+package tests run the generated solution's `dotnet test` outside the checkout,
+then change an extension function and verify its backend test fails. The same
+tests check keyword namespaces, path handling, and preservation of existing files.

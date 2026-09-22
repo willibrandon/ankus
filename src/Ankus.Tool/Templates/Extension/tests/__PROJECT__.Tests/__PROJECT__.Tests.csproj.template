@@ -1,0 +1,10 @@
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <RootNamespace>__NAMESPACE__.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Ankus.Testing" />
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../../src/__PROJECT__/__PROJECT__.csproj" />
+  </ItemGroup>
+</Project>

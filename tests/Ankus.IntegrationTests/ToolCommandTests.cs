@@ -100,6 +100,7 @@ public sealed class ToolCommandTests(TestContext context)
     [DataRow("", "init")]
     [DataRow("init", "--pg19")]
     [DataRow("info", "--pg-config")]
+    [DataRow("new", "--extension-name")]
     [DataRow("build", "--project")]
     [DataRow("publish", "--output")]
     [DataRow("install", "--destdir")]
@@ -472,6 +473,183 @@ public sealed class ToolCommandTests(TestContext context)
         Assert.AreEqual("1", counters.Attribute("passed")!.Value);
         Assert.AreEqual("0", counters.Attribute("failed")!.Value);
         Assert.AreEqual("PackagedClusterLoadsNativeExtension", report.Descendants(ns + "UnitTestResult").Single().Attribute("testName")!.Value);
+    }
+
+    /// <summary>Checks a generated package-only solution discovers and runs managed and native tests with plain dotnet test.</summary>
+    [TestMethod]
+    public async Task NewSolutionRunsManagedAndBackendTests()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = Path.Combine(CreateDirectory(), "new solution with spaces");
+        ProcessResult created = await InvokeAsync(["new", "Acme.HTTPProbe", "-o", output], token);
+        created.EnsureSuccess(s_tool, ["new"]);
+        using JsonDocument global = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, "global.json"), token));
+        Assert.AreEqual(s_version, global.RootElement.GetProperty("msbuild-sdks").GetProperty("Ankus.Sdk").GetString());
+        Assert.AreEqual("Microsoft.Testing.Platform", global.RootElement.GetProperty("test").GetProperty("runner").GetString());
+        string project = Path.Combine(output, "src", "Acme.HTTPProbe", "Acme.HTTPProbe.csproj");
+        Assert.AreEqual("acme_http_probe", XDocument.Load(project).Descendants("AnkusExtensionName").Single().Value);
+        XDocument packages = XDocument.Load(Path.Combine(output, "Directory.Packages.props"));
+        Assert.AreEqual(s_version, packages.Descendants("PackageVersion").Single(element => (string?)element.Attribute("Include") == "Ankus.Testing").Attribute("Version")!.Value);
+        Assert.IsTrue(File.Exists(Path.Combine(output, ".editorconfig")));
+        Assert.IsTrue(File.Exists(Path.Combine(output, ".gitignore")));
+        ProcessResult listing = await ProcessRunner.RunCheckedAsync("dotnet", ["sln", "Acme.HTTPProbe.slnx", "list"],
+            s_environment, token, workingDirectory: output);
+        Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
+
+        ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-bl:generated-tests-{}.binlog"],
+            s_environment, token, workingDirectory: output);
+        tests.EnsureSuccess("dotnet", ["test"]);
+        string trx = Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single();
+        XDocument report = XDocument.Load(trx);
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        XElement counters = report.Descendants(ns + "Counters").Single();
+        Assert.AreEqual("5", counters.Attribute("total")!.Value);
+        Assert.AreEqual("5", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("0", counters.Attribute("failed")!.Value);
+        Assert.Contains("FunctionsExecuteInPostgres", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        Assert.Contains("ManagedErrorsLeaveBackendUsable", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        string projectDirectory = Path.GetDirectoryName(project)!;
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.log"));
+
+        string published = Path.Combine(output, "published");
+        ProcessResult publish = await ProcessRunner.RunAsync(s_tool, ["publish", "--home", s_home, "-o", published],
+            s_environment, token, workingDirectory: output);
+        publish.EnsureSuccess(s_tool, ["publish"]);
+        Assert.AreEqual("acme_http_probe.control", PublishedExtension.Read(published).Control);
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(published, token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        await using var command = new NpgsqlCommand("CREATE EXTENSION acme_http_probe; SELECT add(17, 25)", connection);
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+
+        string functions = Path.Combine(projectDirectory, "Functions.cs");
+        string text = await File.ReadAllTextAsync(functions, token);
+        await File.WriteAllTextAsync(functions, text.Replace("checked(left + right)", "checked(left - right)", StringComparison.Ordinal), token);
+        ProcessResult changed = await ProcessRunner.RunAsync("dotnet",
+            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:changed-tests-{}.binlog"],
+            s_environment, token, workingDirectory: output);
+        Assert.AreNotEqual(0, changed.ExitCode);
+        Assert.Contains("expected: 42", changed.StandardOutput);
+        Assert.Contains("actual:   38", changed.StandardOutput);
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
+
+    }
+
+    /// <summary>Build and CREATE EXTENSION failures fail native test initialization and remove the owned publish/cluster directories.</summary>
+    /// <param name="failure">The initialization stage to fail.</param>
+    [TestMethod]
+    [DataRow("build")]
+    [DataRow("load")]
+    public async Task NewSolutionReportsInitializationFailuresAndCleansUp(string failure)
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = Path.Combine(CreateDirectory(), "failure solution");
+        (await InvokeAsync(["new", "FailureProbe", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);
+        string projectDirectory = Path.Combine(output, "src", "FailureProbe");
+        if (failure == "build")
+        {
+            await File.WriteAllTextAsync(Path.Combine(projectDirectory, "FailPublish.cs"),
+                "#if !DEBUG\n#error Intentional native publication failure\n#endif\n", token);
+        }
+        else
+        {
+            string project = Path.Combine(projectDirectory, "FailureProbe.csproj");
+            XDocument document = XDocument.Load(project);
+            document.Root!.Add(new XElement("Target", new XAttribute("Name", "FailExtensionLoad"),
+                new XAttribute("AfterTargets", "_PublishAnkusSchema"),
+                new XElement("WriteLinesToFile", new XAttribute("File", "$(PublishDir)extension/failure_probe--1.0.0.sql"),
+                    new XAttribute("Lines", "SELECT 1 / 0%3B"))));
+            document.Save(project);
+        }
+
+        ProcessResult result = await ProcessRunner.RunAsync("dotnet",
+            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:initialization-failure-{}.binlog"],
+            s_environment, token, workingDirectory: output);
+        Assert.AreNotEqual(0, result.ExitCode);
+        Assert.Contains(failure == "build" ? "Intentional native publication failure" : "division by zero", result.StandardOutput);
+        Assert.Contains("BackendTests.InitializeAsync", result.StandardOutput);
+        string pgdata = Path.Combine(projectDirectory, "bin", "ankus-test-pgdata");
+        Assert.IsTrue(!Directory.Exists(pgdata) || Directory.GetDirectories(pgdata).Length == 0);
+        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.binlog"));
+    }
+
+    /// <summary>Checks keyword namespaces, explicit SQL names, and token-like project names generate valid C# without recursive replacement.</summary>
+    /// <param name="name">The managed project name.</param>
+    /// <param name="extension">The explicit SQL extension name.</param>
+    [TestMethod]
+    [DataRow("class.event", "custom_extension")]
+    [DataRow("__VERSION__", "token_probe")]
+    public async Task NewSolutionSupportsKeywordsAndExplicitNames(string name, string extension)
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = Path.Combine(CreateDirectory(), "solution");
+        (await InvokeAsync(["new", name, "--output", output, "--extension-name", extension], token)).EnsureSuccess(s_tool, ["new"]);
+        string project = Path.Combine(output, "src", name, name + ".csproj");
+        Assert.AreEqual(extension, XDocument.Load(project).Descendants("AnkusExtensionName").Single().Value);
+        ProcessResult build = await ProcessRunner.RunAsync("dotnet", ["build", "-bl:names-{}.binlog"],
+            s_environment, token, workingDirectory: output);
+        build.EnsureSuccess("dotnet", ["build"]);
+    }
+
+    /// <summary>Checks invalid names fail before creating destination directories or files.</summary>
+    /// <param name="name">The candidate project name.</param>
+    /// <param name="extension">The SQL extension override, or null.</param>
+    [TestMethod]
+    [DataRow("../outside", null)]
+    [DataRow("1Project", null)]
+    [DataRow("Acme..Search", null)]
+    [DataRow("CON.Tools", null)]
+    [DataRow("Project", "BadName")]
+    [DataRow("Project", "1name")]
+    [DataRow("Project", "bad/name")]
+    [DataRow("Project", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public async Task NewRejectsInvalidNamesWithoutFiles(string name, string? extension)
+    {
+        string output = Path.Combine(CreateDirectory(), "rejected");
+        string[] arguments = extension is null ? ["new", name, "-o", output] : ["new", name, "-o", output, "--extension-name", extension];
+        ProcessResult result = await InvokeAsync(arguments, context.CancellationToken);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.IsNotEmpty(result.StandardError);
+        Assert.IsFalse(Path.Exists(output));
+        Assert.IsEmpty(Directory.GetFileSystemEntries(Path.GetDirectoryName(output)!));
+    }
+
+    /// <summary>Checks an existing destination remains byte-for-byte unchanged.</summary>
+    [TestMethod]
+    public async Task NewPreservesExistingFiles()
+    {
+        string output = CreateDirectory();
+        string file = Path.Combine(output, "user-data.txt");
+        await File.WriteAllTextAsync(file, "keep this exact text", context.CancellationToken);
+        ProcessResult result = await InvokeAsync(["new", "Existing", "-o", output], context.CancellationToken);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.Contains("already exists", result.StandardError);
+        Assert.AreEqual("keep this exact text", await File.ReadAllTextAsync(file, context.CancellationToken));
+        Assert.AreSequenceEqual([file], Directory.GetFileSystemEntries(output));
+    }
+
+    /// <summary>A solution with multiple extensions requires explicit selection rather than publishing an arbitrary project.</summary>
+    [TestMethod]
+    public async Task NewSolutionWithMultipleExtensionsRequiresSelection()
+    {
+        string output = Path.Combine(CreateDirectory(), "solution");
+        CancellationToken token = context.CancellationToken;
+        (await InvokeAsync(["new", "First", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);
+        string second = Path.Combine(output, "src", "Second");
+        Directory.CreateDirectory(second);
+        await File.WriteAllTextAsync(Path.Combine(second, "Second.csproj"), "<Project Sdk=\"Ankus.Sdk\" />", token);
+        string solution = Path.Combine(output, "First.slnx");
+        XDocument document = XDocument.Load(solution);
+        document.Root!.Add(new XElement("Project", new XAttribute("Path", "src/Second/Second.csproj")));
+        document.Save(solution);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["publish", "--home", s_home, "-o", "published"],
+            s_environment, token, workingDirectory: output);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.Contains("Specify --project", result.StandardError);
+        Assert.IsFalse(Directory.Exists(Path.Combine(output, "published")));
     }
 
     private static Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token)

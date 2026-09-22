@@ -14,6 +14,7 @@ export default defineConfig({
           label: 'Getting started',
           items: [
             { label: 'Write a function', slug: 'getting-started/functions' },
+            { label: 'Test an extension', slug: 'getting-started/testing' },
             { label: 'Publish and install', slug: 'getting-started/publishing' },
           ],
         },

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Xml.Linq;
 using Ankus.PgConfig;
 
 namespace Ankus.Tool;
@@ -20,6 +21,19 @@ internal static class ExtensionBuilder
         if (Directory.Exists(path))
         {
             string[] projects = Directory.GetFiles(path, "*.csproj");
+            if (projects.Length == 0)
+            {
+                string[] solutions = Directory.GetFiles(path, "*.slnx");
+                if (solutions.Length == 1)
+                {
+                    projects = [.. XDocument.Load(solutions[0]).Descendants("Project")
+                        .Select(element => Path.GetFullPath((string)element.Attribute("Path")!, path))
+                        .Where(static project => File.Exists(project) &&
+                            ((string?)XDocument.Load(project).Root?.Attribute("Sdk") is string sdk &&
+                             (sdk == "Ankus.Sdk" || sdk.StartsWith("Ankus.Sdk/", StringComparison.Ordinal))))];
+                }
+            }
+
             if (projects.Length != 1)
             {
                 throw new ArgumentException("Specify --project with one extension .csproj file.");

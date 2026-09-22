@@ -5,6 +5,17 @@ Ankus generates native entry points, SQL declarations, conversions, and error bo
 
 ## Extension projects
 
+Create an extension solution with managed and PostgreSQL tests:
+
+```console
+ankus new Hello
+cd Hello
+dotnet test
+```
+
+The generated solution uses Central Package Management and the same Ankus
+version as the installed tool. Backend tests use an isolated PostgreSQL 18+ cluster.
+
 Use `Ankus.Sdk` as the project SDK, with the version available from your NuGet feed:
 
 ```xml
@@ -50,7 +61,7 @@ Use the runtime identifier for the machine running PostgreSQL and set
 | `Ankus.Generators` | C# analyzer/source generator; included by the SDK |
 | `Ankus.PgConfig` | PostgreSQL installation discovery, registration, and artifact manifests |
 | `Ankus.Testing` | Isolated PostgreSQL clusters for ordinary .NET test projects |
-| `Ankus.Tool` | The `ankus` .NET tool: registration, publishing, and installation |
+| `Ankus.Tool` | The `ankus` .NET tool: project creation, registration, publishing, and installation |
 
 Install `Ankus.Tool` with `dotnet tool install --global Ankus.Tool`. Register PostgreSQL with
 `ankus init --pg18 /path/to/pg_config`, then run `ankus publish` and
