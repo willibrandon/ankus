@@ -38,13 +38,22 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgSchemaAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
-        context.RegisterSourceOutput(functions.Collect().Combine(schemas.Collect()),
-            static (output, declarations) => Generate(output, declarations.Left, declarations.Right));
+        IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
+            compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
+                "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute").ToImmutableArray());
+        IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
+            .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
+        IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+            options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
+        context.RegisterSourceOutput(functions.Collect().Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left, input.Left.Left.Left.Right,
+                input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
-    private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes)
+    private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
+        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty)
         {
             return;
         }
@@ -52,32 +61,49 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var names = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
-        native.AppendLine(NativeBridge.ReadBuffers);
-        native.AppendLine(NativeBridge.WriteBuffer);
-        native.AppendLine(NativeExtendedTypes.Source);
-        native.AppendLine(NativeTemporalTypes.Source);
-        native.AppendLine(NativeSpiBridge.Source);
-        native.AppendLine(NativeArrayBridge.Source);
-        native.AppendLine(NativeScalarFunctions.Source);
-        native.AppendLine(NativeTemporalOperations.Source);
-        native.AppendLine(NativeNumericOperations.Source);
-        native.AppendLine(NativeCursorBridge.Source);
-        native.AppendLine(NativeSessionBridge.Source);
-        native.AppendLine(NativeSqlHelpers.Source);
-        native.AppendLine(NativeErrorBridge.Source);
-        native.AppendLine(GuardedBackend.Source);
+        if (!methods.IsEmpty)
+        {
+            native.AppendLine(NativeBridge.ReadBuffers);
+            native.AppendLine(NativeBridge.WriteBuffer);
+            native.AppendLine(NativeExtendedTypes.Source);
+            native.AppendLine(NativeTemporalTypes.Source);
+            native.AppendLine(NativeSpiBridge.Source);
+            native.AppendLine(NativeArrayBridge.Source);
+            native.AppendLine(NativeScalarFunctions.Source);
+            native.AppendLine(NativeTemporalOperations.Source);
+            native.AppendLine(NativeNumericOperations.Source);
+            native.AppendLine(NativeCursorBridge.Source);
+            native.AppendLine(NativeSessionBridge.Source);
+            native.AppendLine(NativeSqlHelpers.Source);
+            native.AppendLine(NativeErrorBridge.Source);
+            native.AppendLine(GuardedBackend.Source);
+        }
 
-        var sql = new StringBuilder();
-        var schemas = new SortedSet<string>(StringComparer.Ordinal);
+        var graph = new SqlGraph(context);
+        var schemas = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool fixedSchema = !schemaTypes.IsEmpty;
-        foreach (INamedTypeSymbol type in schemaTypes)
+        foreach (INamedTypeSymbol type in schemaTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
         {
             (string Name, bool Create)? schema = FunctionDeclaration.ReadSchema(type, context);
-            if (schema is { Create: true } declared)
+            if (schema is { } declared)
             {
-                schemas.Add(declared.Name);
+                if (!schemas.TryGetValue(declared.Name, out SqlEntity? entity))
+                {
+                    entity = new SqlEntity("0:schema:" + declared.Name, string.Empty, type.Locations.FirstOrDefault());
+                    schemas.Add(declared.Name, entity);
+                    graph.Add(entity);
+                }
+
+                if (declared.Create)
+                {
+                    entity.Sql = "CREATE SCHEMA IF NOT EXISTS " + SqlText.Identifier(declared.Name) + ";\n";
+                }
+
+                graph.Configure(entity, type.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute"));
             }
         }
+
+        fixedSchema |= !CustomSql.Add(customSql, files, projectDirectory, graph);
         var exports = new StringBuilder("Pg_magic_func\n");
         managed.AppendLine("// <auto-generated />");
         managed.AppendLine("#nullable enable");
@@ -114,21 +140,29 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             string callback = GetCallbackName(method, name);
+            var sql = new StringBuilder();
             PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+            var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
+            graph.Configure(entity, method.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"));
+            graph.Add(entity);
             if (declaration.Schema is not null)
             {
                 fixedSchema = true;
+                if (schemas.TryGetValue(declaration.Schema, out SqlEntity? schema))
+                {
+                    entity.Dependencies.Add(schema);
+                }
             }
         }
 
         managed.AppendLine("}");
-        if (methods.IsEmpty)
+        string? installation = graph.Emit();
+        if (installation is null)
         {
-            native = new StringBuilder(NativeBridge.Source);
+            return;
         }
 
         context.AddSource("ExtensionDispatchers.g.cs", managed.ToString());
-        string installation = string.Concat(schemas.Select(static schema => "CREATE SCHEMA IF NOT EXISTS " + SqlText.Identifier(schema) + ";\n")) + sql;
         string metadata = "// <auto-generated />\n" +
             Metadata("Ankus.NativeSource", native.ToString()) +
             Metadata("Ankus.Sql", installation.Length == 0 ? "-- No installable objects declared.\n" : installation) +

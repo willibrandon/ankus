@@ -42,6 +42,7 @@ export default defineConfig({
           label: 'Working with PostgreSQL',
           items: [
             { label: 'Function declarations', slug: 'function-declarations' },
+            { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },
             { label: 'Arrays', slug: 'arrays' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },

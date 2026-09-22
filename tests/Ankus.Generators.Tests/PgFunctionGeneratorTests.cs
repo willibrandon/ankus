@@ -259,7 +259,8 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
         Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
     }
 
-    private (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string source)
+    private (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string source,
+        IEnumerable<AdditionalText>? files = null, Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptionsProvider? options = null)
     {
         CSharpCompilation compilation = CSharpCompilation.Create(
             "GeneratorTest",
@@ -267,7 +268,7 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
             s_references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable));
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new PgFunctionGenerator().AsSourceGenerator());
+        GeneratorDriver driver = CSharpGeneratorDriver.Create([new PgFunctionGenerator().AsSourceGenerator()], additionalTexts: files, optionsProvider: options);
         driver.RunGeneratorsAndUpdateCompilation(
             compilation, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
         return (output, diagnostics);

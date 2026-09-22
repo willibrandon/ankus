@@ -52,6 +52,19 @@ public bool Create { get; set; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-5319163c1a280d58"></a>
+
+### Id
+
+Gets or sets a dependency identifier for this schema declaration.
+Multiple classes describing the same schema may expose different identifiers for that single schema.
+
+```csharp
+public string? Id { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-d0480cc1f003361d"></a>
 
 ### Name
@@ -63,3 +76,15 @@ public string Name { get; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-e46adec9393b0576"></a>
+
+### Requires
+
+Gets or sets identifiers of SQL blocks or generated declarations that must precede this schema.
+
+```csharp
+public string[] Requires { get; set; }
+```
+
+Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)

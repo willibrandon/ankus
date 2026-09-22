@@ -20,6 +20,20 @@ false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
 extension still emits module magic and a manifest, without managed dispatchers
 or their native call dependencies.
 
+`SqlGraph` unifies generated schemas/functions and assembly `PgSql`/`PgSqlFile`
+blocks. Schema-to-function edges are automatic; explicit `Id`, `Requires`,
+and `Before` references resolve before deterministic topological sorting.
+Bootstrap/final nodes gain edges to every other node. Duplicate/missing IDs,
+contradictory ordering and cycles fail generation rather than emitting a partial
+script. Schema aliases share a single creation node.
+
+SQL files flow through Roslyn's `AdditionalTextsProvider`, including their
+content, so file-only edits invalidate incremental generation. Paths resolve
+against the SDK's compiler-visible `MSBuildProjectDirectory`; no untracked disk
+reads or runtime assembly execution are used. Custom SQL is emitted verbatim
+with a final newline to terminate trailing line comments. PostgreSQL validates
+and executes it transactionally during installation.
+
 Named, defaulted, variadic and security-definer calls use the same native ABI.
 PostgreSQL resolves defaults, assembles variadic arrays, applies function-local
 settings and privileges, and suppresses STRICT calls before dispatch. Required

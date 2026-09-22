@@ -45,7 +45,7 @@ Linux, and macOS.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **1119 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **1152 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -63,6 +63,10 @@ Linux, and macOS.
   volatility, parallel safety, NULL policy, owner/caller security, leakproofness, cost, planner support, replacement,
   and scoped search paths. `[PgSchema]` creates extension-owned schemas; `Create = false` targets an existing schema.
   Fixed schemas generate non-relocatable control files. Schema-only extensions also publish as native libraries.
+- `[assembly: PgSql]` and `PgSqlFile` add installation SQL with named dependencies, before constraints,
+  bootstrap/final positioning and per-block relocation promises. `Id`/`Requires` connect generated functions
+  and schemas to the same deterministic SQL graph. `ANKUS005` rejects missing/duplicate IDs, cycles and invalid
+  file inputs. SQL files are tracked Roslyn AdditionalFiles; file-only changes invalidate generation.
 - Generated native code compiles against the discovered PostgreSQL server headers, then links
   into the Native AOT library. Export inspection confirms magic, finfo, and the SQL entry point.
 - Managed exceptions return to the native wrapper before it raises PostgreSQL ERROR.
@@ -81,7 +85,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 861 integration cases include declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
+- The 864 integration cases include custom SQL/dependency checks, declaration/catalog/ownership checks, isolated NuGet consumers, installed-tool workflows, arrays and variadics, numeric/temporal storage and operations, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -367,6 +371,33 @@ The internal XML documentation scan remains clean: `artifacts/declarations-inter
 The Release build, site build/type check, and API freshness check pass; see the corresponding
 `artifacts/declarations-{build,docs-build,docs-check,api-check}-output.txt` files.
 
+### Custom installation SQL evidence
+
+References: `pgrx-sql-entity-graph/src/extension_sql/`, `pgrx-examples/custom_sql/`, and the pgrx SQL
+entity graph. `PgSql`/`PgSqlFile` use assembly attributes; generated functions and schemas expose dependency
+`Id`/`Requires` options. Microsoft Learn's `AdditionalTextsProvider` contract and the installed Roslyn APIs
+provide tracked non-code inputs without runtime reflection or direct generator filesystem reads.
+
+| Requirement | Implementation | Concrete test evidence |
+|---|---|---|
+| Inline SQL and ordering around generated declarations | `CustomSql`, shared `SqlEntity`/`SqlGraph`, automatic schema edges and explicit Requires/Before edges | `PgFunctionGeneratorTests.SqlGraphOrdersAllDeclarationKinds`; `CustomSqlTests.InstallationFollowsDeclaredDependencyOrder` records bootstrap/support/file/view/final order and executes a view calling a generated function with a SQL-created default routine |
+| Stable output and verbatim SQL | Stable graph keys, dependency ordering, newline separation without SQL rewriting | `CustomSqlIsDeterministicAndPreservesStatementText` compares reordered source attributes and exact output; backend view verifies dollar-quoted semicolons, quotes, backslash and Unicode |
+| Dependency aliases and shared schemas | One schema node with merged aliases/dependencies | `RepeatedSchemaDeclarationsShareOneGraphNode` requires both aliases and verifies exactly one schema creation |
+| Missing/duplicate IDs, cycles and invalid boundaries | `ANKUS005`, named edge resolution, bootstrap/final edges and topological cycle detection | `InvalidSqlDependenciesAreDiagnosed` covers missing Requires/Before, self/transitive/schema-function cycles, duplicate function/SQL IDs, repeated bootstrap/final blocks, contradictory boundary edges, case-sensitive names and invalid inputs |
+| File inputs and incremental invalidation | Roslyn AdditionalFiles, SDK CompilerVisibleProperty for MSBuildProjectDirectory, normalized registered paths | `SqlFilesUseTrackedProjectRelativeInputs`, `InvalidSqlFilesAreDiagnosed`, `SqlFileChangesInvalidateIncrementalOutput`; no source-code edits are made between the package consumer's successful republish cases |
+| Extension ownership | PostgreSQL installation transaction and pg_depend registration | `CustomSqlTests.CustomObjectsAreExtensionMembers` checks custom table/view/function plus generated function membership |
+| SQL-only Native AOT package and relocation | Magic-only native source, packed SDK/runtime/generator, per-block Relocatable opt-in | `ToolCommandTests.SqlFilePackageRebuildsAndRollsBackFailedInstallation` publishes outside the checkout, explicitly LOADs the library, checks changed SQL results, relocates table/view and verifies uninstall removal |
+| Failed SQL installation cleanup | PostgreSQL transactional extension installation | The same package test introduces division by zero after CREATE TABLE, checks SQLSTATE 22012, and independently verifies absence of both the partial table and pg_extension entry |
+
+Custom/disabled function SQL templates, declared custom-type providers, future type-family edges, and standalone
+schema extraction remain required work. These tests establish the implemented installation graph, not full parity
+with every pgrx SQL-entity feature.
+
+Evidence: `artifacts/sql-graph-all-output.txt` records 1152 passing tests with zero failures/skips.
+`sql-graph-{generator,backend,package}-output.txt` records the focused runs; `sql-graph-build-output.txt` records
+the zero-warning Release build. Site build/type check, API freshness and internal XML scans are retained in
+`artifacts/sql-graph-{docs-build,docs-check,api-check}-output.txt` and `artifacts/sql-graph-internal-docs.txt`.
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
@@ -374,6 +405,7 @@ The generated API currently supports accessible, synchronous static methods with
 and the .NET/full-range PostgreSQL temporal types. Arrays use `T[]` or `PgArray<T>`; `params T[]` declares
 SQL variadic parameters. Nullable forms and `void` results are supported. Strictness follows argument nullability
 unless overridden by `PgNullInput`. Named/defaulted arguments and PostgreSQL execution options are supported.
+Custom installation SQL strings/files and generated declarations share a dependency-ordered graph.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
 the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. `Ankus.Sdk` is now a
@@ -485,7 +517,7 @@ The target architecture consists of:
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]` + `IAggregate<TState>` (init/transition/combine/final, (de)serializable) | ☐ |
 | `#[pg_operator]` | `[PgOperator]` (+ SQL DDL) | ☐ |
 | `#[pg_cast]` | `[PgCast]` (+ SQL DDL) | ☐ |
-| `extension_sql!` | `[ExtensionSql]` attribute / `.sql` files | ☐ |
+| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | ☐ |
 | `composite_type!`, `PgHeapTuple` | named/anonymous composite tuples and generated managed mappings | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
@@ -565,9 +597,9 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | Feature family | Required behavior | Status |
 |---|---|---|
 | `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous built-in scalar/temporal/numeric/array types, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics; polymorphic/raw types pending |
-| Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options and existing planner support references; explicit entity dependencies remain pending |
-| `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, per-call search paths and non-relocatable metadata; future types/dependency graph pending |
-| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Pending |
+| Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
+| `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
 | `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults implemented; table/aggregate fields and composite resolution pending |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Pending |
@@ -578,7 +610,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Pending |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic |
-| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: basic generated DDL and managed assembly metadata; complete graph/extraction pending |
+| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/function graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; type graph, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
 `merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event triggers and full
@@ -894,3 +926,11 @@ The phases track implementation of the complete pgrx feature surface.
   Internal documentation scan, site build/type check and API freshness pass. The API reference has 42 pages and
   599 members. Complete entity dependencies, custom SQL, additional type families and the PG/platform matrix
   remain part of the active port.
+- 2026-09-22 — Added custom SQL strings/files and a deterministic dependency graph shared with generated
+  schemas/functions. Named dependencies, before constraints, bootstrap/final edges and cycle diagnostics run at
+  compile time. AdditionalFiles content is tracked incrementally; an isolated package consumer verifies file-only
+  edits, SQL-only Native AOT loading, relocation, uninstall and rollback after a SQL installation error.
+  Added 30 generator cases and three backend/package cases. Plain `dotnet test`: 1152 passed, zero failures/skips;
+  Release build: zero warnings/errors. Internal documentation scan and documentation build/type/freshness checks
+  pass; the API reference has 45 pages and 620 members. Function SQL overrides, declared type providers and the
+  wider runtime/tooling/platform inventory remain pending.

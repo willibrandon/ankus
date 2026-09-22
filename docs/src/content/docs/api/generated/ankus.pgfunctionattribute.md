@@ -55,6 +55,19 @@ public bool CreateOrReplace { get; set; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-9f3ee6b82d0cf29d"></a>
+
+### Id
+
+Gets or sets a unique, case-sensitive identifier used by installation SQL dependencies.
+It does not change the function's SQL name or signature.
+
+```csharp
+public string? Id { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-0ddda8a94a1d9864"></a>
 
 ### Leakproof
@@ -103,6 +116,18 @@ public PgParallelSafety ParallelSafety { get; set; }
 ```
 
 Value: [PgParallelSafety](/api/ankus.pgparallelsafety/)
+
+<a id="member-a296df80c90a3666"></a>
+
+### Requires
+
+Gets or sets identifiers of SQL blocks or generated declarations that must precede this function.
+
+```csharp
+public string[] Requires { get; set; }
+```
+
+Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)
 
 <a id="member-50d4f8c172a722e1"></a>
 

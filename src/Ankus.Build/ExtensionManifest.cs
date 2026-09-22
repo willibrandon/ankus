@@ -80,7 +80,7 @@ internal sealed class ExtensionManifest
         if (!manifest._values.ContainsKey("Ankus.NativeSource") || !manifest._values.ContainsKey("Ankus.Sql") ||
             !manifest._values.ContainsKey("Ankus.Exports"))
         {
-            throw new InvalidOperationException("No generated Ankus manifest found. Declare a [PgFunction] method or [PgSchema] class.");
+            throw new InvalidOperationException("No generated Ankus manifest found. Declare a [PgFunction] method, [PgSchema] class, or assembly [PgSql]/[PgSqlFile].");
         }
 
         return manifest;

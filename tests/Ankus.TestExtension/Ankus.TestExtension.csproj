@@ -2,5 +2,8 @@
   <PropertyGroup>
     <AnkusExtensionName>ankus_test</AnkusExtensionName>
   </PropertyGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="Sql/*.sql" />
+  </ItemGroup>
   <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
 </Project>

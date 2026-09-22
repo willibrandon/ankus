@@ -96,6 +96,10 @@ fit PostgreSQL's 63-byte UTF-8 limit.
 Any fixed schema makes the extension non-relocatable. Ankus records this in
 the generated control file, including when all fixed schemas already exist.
 
+Use `Id` and `Requires` to order schemas and functions alongside
+[custom installation SQL](/custom-sql/). A function default that calls a
+SQL-created routine should require the block that creates it.
+
 ## Execution options
 
 Declare PostgreSQL's planner and execution contracts on `PgFunction`:

@@ -457,6 +457,70 @@ public sealed class ToolCommandTests(TestContext context)
     }
 
     /// <summary>
+    /// SQL-only package consumers rebuild when tracked SQL files change, relocate their objects, and roll back failed installation.
+    /// </summary>
+    [TestMethod]
+    public async Task SqlFilePackageRebuildsAndRollsBackFailedInstallation()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "SqlOnly.csproj");
+        XDocument projectFile = XDocument.Load(s_project);
+        projectFile.Root!.Add(new XElement("ItemGroup", new XElement("AdditionalFiles", new XAttribute("Include", "sql setup/seed.sql"))));
+        projectFile.Save(project);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Installation.cs"), """
+            using Ankus;
+            [assembly: PgSql("view", "CREATE VIEW sql_view AS SELECT amount + 1 AS answer FROM sql_values;",
+                Requires = ["seed"], Relocatable = true)]
+            [assembly: PgSqlFile("seed", "sql setup/seed.sql", Relocatable = true)]
+            """, token);
+        string sqlDirectory = Path.Combine(directory, "sql setup");
+        Directory.CreateDirectory(sqlDirectory);
+        string sqlFile = Path.Combine(sqlDirectory, "seed.sql");
+        string output = Path.Combine(directory, "published");
+        foreach (int input in new[] { 41, 52 })
+        {
+            await File.WriteAllTextAsync(sqlFile, $"CREATE TABLE sql_values(amount int); INSERT INTO sql_values VALUES ({input});", token);
+            await PublishAsync();
+            PublishedExtension manifest = PublishedExtension.Read(output);
+            await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
+            await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+            await using var command = new NpgsqlCommand($"LOAD '{manifest.Library}'; CREATE EXTENSION ankus_tool_probe; SELECT answer FROM sql_view", connection);
+            Assert.AreEqual(input + 1, await command.ExecuteScalarAsync(token));
+            command.CommandText = "CREATE SCHEMA sql_relocated; ALTER EXTENSION ankus_tool_probe SET SCHEMA sql_relocated; SELECT answer FROM sql_relocated.sql_view";
+            Assert.AreEqual(input + 1, await command.ExecuteScalarAsync(token));
+            command.CommandText = "DROP EXTENSION ankus_tool_probe; SELECT to_regclass('sql_relocated.sql_values') IS NULL, to_regclass('sql_relocated.sql_view') IS NULL";
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+            Assert.IsTrue(await reader.ReadAsync(token));
+            Assert.IsTrue(reader.GetBoolean(0));
+            Assert.IsTrue(reader.GetBoolean(1));
+        }
+
+        await File.WriteAllTextAsync(sqlFile, "CREATE TABLE sql_values(amount int); INSERT INTO sql_values VALUES (1 / 0);", token);
+        await PublishAsync();
+        await using (PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token))
+        await using (NpgsqlConnection connection = await cluster.OpenConnectionAsync(token))
+        await using (var command = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe", connection))
+        {
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+            Assert.AreEqual(PostgresErrorCodes.DivisionByZero, error.SqlState);
+            command.CommandText = "SELECT to_regclass('sql_values') IS NULL, NOT EXISTS (SELECT FROM pg_extension WHERE extname = 'ankus_tool_probe')";
+            await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+            Assert.IsTrue(await reader.ReadAsync(token));
+            Assert.IsTrue(reader.GetBoolean(0));
+            Assert.IsTrue(reader.GetBoolean(1));
+        }
+
+        async Task PublishAsync()
+        {
+            ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
+                "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "-bl:" + Path.Combine(directory, "sql-only-{}.binlog")], token);
+            result.EnsureSuccess("dotnet", ["publish"]);
+        }
+    }
+
+    /// <summary>
     /// Verifies invalid output settings fail rather than producing an unloadable managed or static library.
     /// </summary>
     /// <param name="property">The invalid publish property.</param>

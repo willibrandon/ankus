@@ -12,6 +12,17 @@ public sealed class PgFunctionAttribute : Attribute
     public string? Name { get; set; }
 
     /// <summary>
+    /// Gets or sets a unique, case-sensitive identifier used by installation SQL dependencies.
+    /// It does not change the function's SQL name or signature.
+    /// </summary>
+    public string? Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets identifiers of SQL blocks or generated declarations that must precede this function.
+    /// </summary>
+    public string[] Requires { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets an existing SQL schema, overriding the nearest PgSchema declaration.
     /// Declare PgSchema separately when the extension should create the schema.
     /// A fixed schema makes the extension non-relocatable.
