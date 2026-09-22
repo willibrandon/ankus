@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **149 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **166 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,9 +59,14 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 84 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 93 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
+- `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
+  rollback after errors, recursive calls between AOT extensions, backend-thread enforcement,
+  and managed finally execution after native errors and statement cancellation.
+- `PgException` transports SQLSTATE, message, detail, and hint in both directions, with UTF-8
+  and server-encoding conversion. Error-report fields beyond these four remain to be implemented.
 - `tests/Ankus.TestExtension` supplies backend test functions. The fixture publishes and installs
   this separate extension alongside the minimal sample, exercising multiple AOT libraries in one backend.
 - Backend test functions run in individual rollback-only transactions. Tests prove rollback
@@ -77,7 +82,7 @@ The generated API currently supports accessible, synchronous static methods with
 parameters/results, their nullable forms, and `void` results. Strictness follows argument nullability.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
-guarded calls into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
+the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
 an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
 automatic, but prerequisite installation is currently manual.
 
@@ -163,8 +168,8 @@ The target architecture consists of:
 
 1. Source generators translate ordinary attributed C# methods into dispatchers and SQL.
 2. Native entry points use the selected PostgreSQL headers for magic, finfo, and argument access.
-3. Managed exceptions must be caught inside managed code. Native PostgreSQL ERROR is raised
-   only after returning out of all managed frames. **Never longjmp across Native AOT frames.**
+3. Managed exceptions are caught before returning across the ABI. PostgreSQL ERROR paths must
+   reach a native handler without crossing managed frames, including during recursive SPI dispatch.
 4. Calls from managed code into PostgreSQL need their own guarded native boundaries before
    SPI, memory allocation, or other error-producing server APIs are exposed.
 5. Build one native extension per PostgreSQL major and host architecture, as pgrx does.
@@ -178,7 +183,7 @@ The target architecture consists of:
 |---|---|---|
 | `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: scalar/text/bytea, nullability, overloads |
 | `#[pg_schema]` | `[PgSchema("name")]` | ☐ |
-| `#[pg_guard]` | automatic at export boundary (always on) | Partial: managed exception → native ERROR |
+| `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
 | SETOF (`SetOfIterator`) | return `IEnumerable<T>` ⇒ `RETURNS SETOF` | ☐ |
 | `#[pg_trigger]` | `[PgTrigger]` | ☐ |
 | `#[pg_event_trigger]` | `[PgEventTrigger]` | ☐ |
@@ -189,8 +194,8 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (composites) | `[PostgresType]` on records + generator | ☐ |
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
-| `Spi` | `Spi` (connect, select, execute, update/insert, get_one, function calls) | ☐ |
-| `PgError` | `PgError` exception + `Elog` helpers | ☐ |
+| `Spi` | `Spi` (connect, select, execute, update/insert, get_one, function calls) | Partial: atomic `Execute` and row counts |
+| `PgError` | `PgException` + logging helpers | Partial: SQLSTATE, message, detail, hint |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
 | `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
@@ -218,7 +223,9 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P1 — Runtime core**
   - [ ] `Ankus.Runtime`: `FunctionCallInfo` reader, `Datum`/`Value`, varlena/detoast, type conversion table
   - [ ] `Ankus.PgSys`: symbol resolution (`dlopen(NULL)`+`dlsym`), P/Invoke surface (SPI, elog via shim, memory, catalog)
-  - [ ] `Spi` API; `PgError`; memory contexts; `_PG_init` bootstrap
+   - [x] Guarded `Spi.Execute`, recoverable command errors, and basic `PgException` diagnostics
+   - [ ] Complete SPI sessions/results/parameters/cursors/prepared statements and PostgreSQL diagnostic fields
+   - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
     - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads
@@ -231,7 +238,11 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [ ] `new`, `build`, `schema`, `test`, `run`, and `package` commands
    - [x] Publish native library, `.control`, and versioned `.sql` artifacts
-   - [ ] Installation and distribution packaging commands, extension upgrades
+    - [ ] Installation and distribution packaging commands, extension upgrades
+    - [ ] NuGet entry package with automatic runtime, generator, and build integration dependencies
+    - [ ] .NET tool and reusable backend-testing packages
+    - [ ] Isolated consumer tests using packed NuGet artifacts
+    - [ ] Public NuGet release after full parity and platform/version validation
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
@@ -268,3 +279,6 @@ The phases track implementation of the complete pgrx feature surface.
   strict UTF-8 conversion, server-encoding conversion, and native buffer cleanup across PostgreSQL errors.
   The sample now includes `Greet`; backend-only datum probes live in `tests/Ankus.TestExtension`.
   `dotnet test`: 149 passed, 0 failed, 0 skipped (84 PostgreSQL integration cases).
+- 2026-09-22 — Guarded `Spi.Execute`, recoverable native errors, structured `PgException` reporting,
+  recursive backend bindings, and cancellation-safe managed unwinding.
+  `dotnet test`: 166 passed, 0 failed, 0 skipped (93 PostgreSQL integration cases).

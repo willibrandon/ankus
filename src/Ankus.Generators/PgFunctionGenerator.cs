@@ -47,6 +47,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var names = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
+        native.AppendLine(GuardedBackend.Source);
         if (methods.Any(static method => method.Parameters.Any(static parameter => FunctionType.Create(parameter.Type)?.IsBuffer == true)))
         {
             native.AppendLine(NativeBridge.ReadBuffers);

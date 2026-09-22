@@ -285,6 +285,16 @@ public sealed class DatumConversionTests(TestContext context)
                 Assert.AreEqual(PostgresErrorCodes.UntranslatableCharacter, error.SqlState);
             }
 
+            await using (var reported = new NpgsqlCommand("SELECT report_error('22023', 'café', 'détail', 'réessayer')", connection))
+            {
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(
+                    () => reported.ExecuteScalarAsync(context.CancellationToken));
+                Assert.AreEqual("22023", error.SqlState);
+                Assert.AreEqual("café", error.MessageText);
+                Assert.AreEqual("détail", error.Detail);
+                Assert.AreEqual("réessayer", error.Hint);
+            }
+
             await using var succeeding = new NpgsqlCommand("SELECT echo_text('recovered')", connection);
             Assert.AreEqual("recovered", await succeeding.ExecuteScalarAsync(context.CancellationToken));
             Assert.AreEqual(backend, connection.ProcessID);

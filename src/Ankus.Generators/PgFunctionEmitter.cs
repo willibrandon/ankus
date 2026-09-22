@@ -41,8 +41,10 @@ internal static class PgFunctionEmitter
         source.AppendLine($"        EntryPoint = \"{callback}\",");
         source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         source.AppendLine($"    private static int {callback}(");
-        source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result, byte* error, int capacity)");
+        source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
+        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute)");
         source.AppendLine("    {");
+        source.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
         source.AppendLine("        try");
         source.AppendLine("        {");
         var arguments = new List<string>();
@@ -97,15 +99,19 @@ internal static class PgFunctionEmitter
         source.AppendLine("        }");
         source.AppendLine("        catch (global::System.Exception exception)");
         source.AppendLine("        {");
-        source.AppendLine("            global::Ankus.NativeError.Write(exception, error, capacity);");
+        source.AppendLine("            global::Ankus.NativeError.Write(exception, error);");
         source.AppendLine("            return 1;");
+        source.AppendLine("        }");
+        source.AppendLine("        finally");
+        source.AppendLine("        {");
+        source.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
         source.AppendLine("        }");
         source.AppendLine("    }");
     }
 
     private static void EmitNative(string name, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
     {
-        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, char *, int);");
+        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);");
         source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
         source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
         source.AppendLine("{");
@@ -119,7 +125,7 @@ internal static class PgFunctionEmitter
         }
 
         source.AppendLine("    AnkusValue result = {0};");
-        source.AppendLine("    char error[2048] = {0};");
+        source.AppendLine("    AnkusError error = {0};");
         source.AppendLine("    int status;");
         source.AppendLine("    volatile Datum datum = (Datum) 0;");
         source.AppendLine($"    if (PG_NARGS() != {count})");
@@ -168,7 +174,7 @@ internal static class PgFunctionEmitter
             source.AppendLine("    }");
         }
 
-        source.AppendLine($"    status = {callback}(arguments, &result, error, sizeof(error));");
+        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute);");
         if (hasBuffers)
         {
             for (int index = 0; index < parameters.Length; index++)
@@ -179,7 +185,7 @@ internal static class PgFunctionEmitter
 
         source.AppendLine("    if (status != 0)");
         source.AppendLine("    {");
-        source.AppendLine("        ereport(ERROR, (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION), errmsg_internal(\"%s\", error)));");
+        source.AppendLine("        ankus_raise_error(&error);");
         source.AppendLine("    }");
         source.AppendLine("    if (result.is_null)");
         source.AppendLine("    {");

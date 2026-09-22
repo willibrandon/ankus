@@ -11,6 +11,31 @@ namespace Ankus;
 public static class NativeError
 {
     /// <summary>
+    /// Writes structured error diagnostics for generated callbacks, preserving explicit PostgreSQL SQLSTATE, detail, and hint.
+    /// </summary>
+    /// <param name="exception">The caught managed exception.</param>
+    /// <param name="error">The native caller-owned diagnostic buffer.</param>
+    public static unsafe void Write(Exception exception, NativeCallError* error)
+    {
+        *error = default;
+        error->SqlState = PackSqlState("38000");
+        Write(exception, error->Message, 2048);
+        try
+        {
+            if (exception is PgException postgres)
+            {
+                error->SqlState = PackSqlState(postgres.SqlState);
+                WriteText(postgres.Detail, error->Detail, 2048);
+                WriteText(postgres.Hint, error->Hint, 1024);
+            }
+        }
+        catch
+        {
+            // The primary diagnostic is already available if secondary formatting fails.
+        }
+    }
+
+    /// <summary>
     /// Writes a bounded, null-terminated UTF-8 message without allowing a secondary managed exception to escape.
     /// The native caller reports PostgreSQL ERROR only after the managed dispatcher has returned.
     /// </summary>
@@ -39,5 +64,23 @@ public static class NativeError
             fallback[..length].CopyTo(buffer);
             buffer[length] = 0;
         }
+    }
+
+    private static int PackSqlState(string state)
+    {
+        int code = 0;
+        for (int index = 0; index < state.Length; index++)
+        {
+            code |= ((state[index] - '0') & 0x3F) << (index * 6);
+        }
+
+        return code;
+    }
+
+    private static unsafe void WriteText(string? text, byte* destination, int capacity)
+    {
+        Span<byte> buffer = new(destination, capacity);
+        Encoding.UTF8.GetEncoder().Convert(text.AsSpan(), buffer[..^1], flush: true, out _, out int written, out _);
+        buffer[written] = 0;
     }
 }

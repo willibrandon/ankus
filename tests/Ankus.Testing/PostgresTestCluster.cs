@@ -291,6 +291,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             Database = database,
             Username = _options.UserName,
             Pooling = false,
+            IncludeErrorDetail = true,
             Enlist = false,
             ApplicationName = sessionName,
             Timeout = 10,
