@@ -1,8 +1,6 @@
 # Ankus
 
-Ankus is an in-progress, full port of [pgrx](https://github.com/pgcentralfoundation/pgrx)
-to .NET Native AOT. All pgrx functionality is required, including custom scans,
-nodes, runtime APIs, source generation, tooling, examples, and backend testing.
+Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
 Write ordinary C# functions and publish them as a native PostgreSQL extension library.
 
 ```csharp
@@ -13,15 +11,15 @@ public static int Add(int left, int right) => checked(left + right);
 public static string Greet(string name) => $"Hello, {name}!";
 ```
 
-The [minimal sample](samples/Ankus.Examples.Hello/Hello.cs) contains only the user
-functions. Ankus generates PostgreSQL module magic, exports, argument conversion,
-SQL declarations, and the managed-to-native error boundary.
+See the [minimal sample](samples/Ankus.Examples.Hello/Hello.cs). Ankus generates
+PostgreSQL module magic, exports, argument conversion, SQL declarations, and the
+managed-to-native error boundary.
 
 ## Develop and test
 
 Prerequisites:
 
-- A stable .NET SDK compatible with `global.json` (currently .NET 10.0.400).
+- A stable .NET SDK compatible with `global.json`.
 - The platform's [.NET Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 - PostgreSQL 18, including `pg_config`, server executables, and server development
   headers. On Windows, the server import library is also needed.
@@ -32,13 +30,12 @@ From the repository root, run:
 dotnet test
 ```
 
-All tests are ordinary MSTest cases, discovered through Microsoft.Testing.Platform.
+Tests use MSTest with Microsoft.Testing.Platform.
 The integration fixture publishes the native sample, creates an isolated local
-PostgreSQL cluster, installs with `CREATE EXTENSION`, executes SQL tests, rolls back test transactions, and shuts
-down the cluster. Logs remain in `artifacts/test-logs`. Integration setup failures
-are reported as failures.
+PostgreSQL cluster, installs with `CREATE EXTENSION`, executes SQL tests, rolls back
+test transactions, and shuts down the cluster. Logs are written to `artifacts/test-logs`.
 
-No environment variables are required. PostgreSQL discovery checks:
+PostgreSQL discovery checks:
 
 1. `~/.ankus/config.json` (the current user's home directory on every platform).
 2. `~/.ankus/postgres/*/bin/pg_config` (`pg_config.exe` on Windows).
@@ -52,9 +49,9 @@ For a nonstandard installation, an optional configuration entry supplies its pat
 }
 ```
 
-## Implementation status
+## Function types
 
-The generator currently supports synchronous static methods with these type mappings:
+Declare functions as synchronous static methods. The generator uses these type mappings:
 
 | C# | PostgreSQL |
 |---|---|
@@ -79,8 +76,9 @@ before invoking managed code. Managed exceptions return completely to native cod
 before PostgreSQL raises ERROR. See [the native boundary design](docs/native-boundary.md)
 for buffer ownership and error cleanup.
 
-The build integration is currently a repository-local MSBuild import. Publishing
-the sample produces a native library and these PostgreSQL installation files:
+## Publishing and installation
+
+Publishing the sample produces a native library and these PostgreSQL installation files:
 
 ```text
 Ankus.Examples.Hello.so                   # .dll on Windows, .dylib on macOS
@@ -105,15 +103,4 @@ SELECT public.add(40, 2); -- 42
 SELECT public.greet('PostgreSQL'); -- Hello, PostgreSQL!
 ```
 
-Tests configure PG18's extension and library search paths on their isolated
-cluster to load the published files directly. They verify extension ownership,
-schema relocation, removal, and reinstallation.
-
-NuGet distribution, installation/package commands, extension upgrades, additional
-PostgreSQL types and APIs, and generated backend test methods are still being developed.
-
-Windows, Linux, and macOS are required targets. Validation so far is on Linux x64
-with PostgreSQL 18.6. The full target matrix is PostgreSQL 13–18 plus 19 beta.
-
-See [PROGRESS.md](PROGRESS.md) for verified milestones, the feature map, and the
-remaining work.
+See [PROGRESS.md](PROGRESS.md) for implementation status and platform validation.

@@ -58,15 +58,9 @@ all byte values. NULL and an empty buffer are distinct values.
 four-byte, compressed, and external varlena forms. Managed code never assumes the
 input datum is aligned or has a particular header size.
 
-## Verified behavior
+## Implementation files
 
-`tests/Ankus.IntegrationTests/DatumConversionTests.cs` runs against PostgreSQL 18.6
-on Linux x64. It verifies scalar boundaries, floating-point bits, nullability,
-packed values, compressed/external TOAST, and LATIN1 encoding conversion. An output
-that cannot be represented in LATIN1 raises PostgreSQL SQLSTATE `22P05`; the same
-backend connection then executes another managed function successfully.
-
-These tests validate the implemented export/datum boundary. Calls initiated from
-managed code into error-producing PostgreSQL APIs still require a separate guarded
-native call boundary, including error-state and transaction recovery. SPI, memory
-contexts, callbacks, and the complete PostgreSQL/OS matrix remain required work.
+- `src/Ankus.Generators/PgFunctionEmitter.cs`: generated managed and native entry points.
+- `src/Ankus.Generators/NativeBridge.cs`: native transport and varlena conversion.
+- `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
+- `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.

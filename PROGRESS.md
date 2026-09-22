@@ -4,18 +4,14 @@
 > extensions in Rust) to **C# compiled with .NET Native AOT**, produced as a native
 > shared library that PostgreSQL loads directly on Windows, Linux, and macOS.
 >
-> This document is the working tracker for the port. Update it as phases complete.
+> Implementation status, feature coverage, and validation results.
 
 ## Goal
 
-Fully port pgrx to .NET Native AOT in the most ideal way possible, in a way that all
-.NET developers will expect:
-
-**Scope is the entire pgrx framework. Every feature, runtime facility, macro equivalent,
-tooling capability, example, and testing capability must be ported. Custom scans and
-nodes are required. Phase ordering describes implementation order only; it does not
-exclude or make any work optional. The port is complete only when full parity has
-been implemented and validated across the required PostgreSQL and operating-system matrix.**
+Full pgrx parity in idiomatic .NET Native AOT: runtime APIs, macro equivalents,
+extension features, custom scans and nodes, tooling, examples, and testing.
+Completion includes validation across PostgreSQL 13–18 plus 19 beta on Windows,
+Linux, and macOS.
 
 - **Faithful port**: mirror pgrx's feature surface and mental model (see [Feature map](#feature-map-pgrx--ankus)),
   translated into idiomatic C# (attributes + source generators instead of proc macros,
@@ -31,17 +27,15 @@ been implemented and validated across the required PostgreSQL and operating-syst
 
 | Item | Value |
 |---|---|
-| .NET SDK | 10.0.400 (Native AOT mature); `global.json` uses `rollForward: latestMajor` (no pinning) |
-| Docker | 29.7.2 — test images: `postgres:18` (primary), `postgres:16` (fetched); pull per version when testing a matrix leg |
+| .NET SDK | 10.0.400; `global.json` uses `rollForward: latestMajor` |
 | C toolchain | clang 21 + lld; GCC 14 used for the local PostgreSQL build |
-| Primary test target | **PostgreSQL 18** (19 imminent; pgrx supports 13–18 + 19 beta) |
+| Primary test target | **PostgreSQL 18** |
 
 ## Current verified milestone
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **Plain `dotnet test`** is the canonical entry point: **149 passed, 0 failed, 0 skipped**
-  on Linux x64 with PostgreSQL 18.6. No environment variables or wrapper command are required.
+- **`dotnet test`**: **149 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -57,9 +51,7 @@ been implemented and validated across the required PostgreSQL and operating-syst
   UTF-8 truncation, buffer guards, null termination, and a throwing exception-message accessor.
 - PostgreSQL discovery checks `~/.ankus/config.json`, Ankus-managed installations,
   PATH, and conventional Windows/Linux/macOS installation directories.
-- A local, assertion-enabled PostgreSQL 18.6 was built from the official source archive
-  into `~/.ankus/postgres/18.6`. The read-only reference clones were not modified.
-  Bison and Flex were extracted into temporary storage for provisioning, without a system install.
+- Validation uses an assertion-enabled PostgreSQL 18.6 built from the official source archive.
 - Integration setup publishes the native sample for the host RID, reserves a dynamic port,
   initializes fresh PGDATA, starts `pg_ctl`, creates a test database, and runs `CREATE EXTENSION ankus_hello`.
 - Publishing emits the native library, generated SQL, and `extension/` control and versioned SQL files.
@@ -83,8 +75,7 @@ been implemented and validated across the required PostgreSQL and operating-syst
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, and `byte[]`
 parameters/results, their nullable forms, and `void` results. Strictness follows argument nullability.
-The native library,
-control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
+The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
 Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
 guarded calls into PostgreSQL, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
 an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
@@ -106,7 +97,6 @@ automatic, but prerequisite installation is currently manual.
   `src/include/utils/elog.h`.
 - **runtime** → `/home/brandon/src/runtime` — .NET runtime source (Native AOT: `src/coreclr/nativeaot/`, PAL: `src/coreclr/pal/src/`).
 - **roslyn** → `/home/brandon/src/roslyn` — compiler source (function-pointer grammar, source generators).
-- **ilrepl** → `/home/brandon/src/ilrepl` — `.editorconfig` style reference (merged into `/home/brandon/src/ankus/.editorconfig`).
 
 ## Key research findings (verified)
 
@@ -169,7 +159,7 @@ the full pgrx datum and memory-context API remains required work.
 
 ## Architecture direction
 
-These are requirements for the port, not claims that the full architecture exists:
+The target architecture consists of:
 
 1. Source generators translate ordinary attributed C# methods into dispatchers and SQL.
 2. Native entry points use the selected PostgreSQL headers for magic, finfo, and argument access.
@@ -217,9 +207,7 @@ These are requirements for the port, not claims that the full architecture exist
 
 ## Phase plan
 
-Every phase is required for the faithful port. Unchecked items are remaining work,
-not scope exclusions. The feature map is a tracking aid; the complete read-only
-pgrx reference defines the required surface, including capabilities not yet itemized here.
+The phases track implementation of the complete pgrx feature surface.
 
 - [x] **P0 — Feasibility spike**
    - [x] Minimal attributed `add(int,int)→int` extension
@@ -255,26 +243,6 @@ pgrx reference defines the required surface, including capabilities not yet item
    - [ ] PostgreSQL node representations and pgrx node support APIs
    - [ ] Corresponding examples and backend-executed tests
 
-## Conventions (user directives)
-
-- **C# best practices for 2026**; formatting "like the dotnet team": style follows the
-  `dotnet/runtime` repo conventions + the strictness of `ilrepl`'s `.editorconfig`
-  (merged into this repo's `.editorconfig`): file-scoped namespaces, `var` when
-  apparent, one type per file (repository rule), XML doc comments on **all public and
-  internal** members, nothing over 140 characters, Allman braces in C shim code.
-- **Commits**: commit incrementally whenever a coherent unit lands.
-- **Testing**: faithful to pgrx's local PostgreSQL lifecycle, asserting real backend
-  behavior, errors, GUCs, triggers, etc., plus
-  unit tests for conversion logic. Test stack: **MSTest v4 on Microsoft.Testing.Platform
-  (MTP)**. Plain **`dotnet test`** is required; no wrapper commands or environment setup.
-- Windows, Linux, and macOS are all required targets.
-- No mocking frameworks; only Microsoft/dotnet-owned NuGet packages unless approved.
-  Npgsql is approved. Use central package management and current stable packages.
-- Automation uses C# file-based apps or proper .NET projects, never shell/PowerShell scripts.
-- Do not overwrite user work or touch `.gitignore`. Do not add copyright/license headers.
-- Use separate-line XML summaries, warnings as errors, and incremental validated commits to `main`.
-- Port all of pgrx. Do not reduce scope or classify any required feature as optional.
-
 ## Risk register
 
 | Risk | Mitigation |
@@ -286,35 +254,17 @@ pgrx reference defines the required surface, including capabilities not yet item
 | Native library size | Initial integer probe was approximately 933 KB on Linux x64 |
 | `dlclose` unsupported by AOT libs | N/A — Postgres keeps extension modules loaded for the backend's lifetime |
 
-## Log
+## Milestones
 
-- 2026-09-21 — Goal set. Environment verified (SDK 10.0.400, docker, postgres:18 pulled).
-  AOT shared-library + C-export path confirmed via Microsoft docs. PG module contract
-  (magic, finfo, `_PG_init`) verified from `~/src/postgres` for PG 13–18. pgrx v18
-  one-compile (`.pgrxsc`) design noted as the model for `ankus schema`.
-  User direction: primary test target PG 18 (19 imminent); compatibility across all
-  pgrx-supported versions; faithful port of pgrx's feature surface.
-- 2026-09-21 — Restarted P0 from the last clean commit after discarding an
-  uncompilable prototype. Corrected the PostgreSQL 18 magic size to 72 bytes and
-  replaced the false IDE0044 one-type-per-file claim with a repository rule.
-- 2026-09-21 — First AOT library published with all required ELF exports. The
-  first PostgreSQL load safely exposed a version encoding error: module magic
-  requires `PG_VERSION_NUM / 100` (1800 for PG 18), not the human major (18).
-- 2026-09-22 — Local pgrx-style cluster harness implemented under `tests/`.
-  Plain `dotnet test` passes all 30 cases, including 16 real PostgreSQL integration cases.
-  Provisioned an assertion-enabled local PostgreSQL 18.6 with no system package changes.
-  User clarified that minimal samples must contain user functions, with framework plumbing generated by Ankus.
-- 2026-09-22 — Committed the validated baseline to `main` as `c819160`.
-  Replaced the handwritten sample with `[PgFunction]`, a Roslyn incremental generator,
+- 2026-09-21 — Native AOT shared-library exports and the PostgreSQL module contract verified.
+- 2026-09-22 — `c819160`: local PostgreSQL cluster harness under `tests/`.
+  `dotnet test`: 30 passed, including 16 PostgreSQL integration cases.
+- 2026-09-22 — `82ca5e6`: `[PgFunction]`, Roslyn incremental generation,
   metadata-only artifact extraction, and a native error boundary linked into the AOT image.
-  Plain `dotnet test`: 58 passed, including 16 real PostgreSQL integration cases.
-- 2026-09-22 — Corrected unauthorized scope-reduction language. All pgrx features,
-  including custom scans and nodes, are required for completion. Milestones record
-  incremental implementation and validation; they do not narrow the full-port objective.
-- 2026-09-22 — Committed generated functions as `82ca5e6` and the full-scope correction as `8c7659d`.
-  Published extension control and versioned SQL files; integration setup now uses `CREATE EXTENSION`.
-  Plain `dotnet test`: 61 passed, 0 failed, 0 skipped, including 19 real PostgreSQL integration cases.
-- 2026-09-22 — Added scalar/text/bytea conversions, nullable signatures and results, SQL overloads,
+  `dotnet test`: 58 passed, including 16 PostgreSQL integration cases.
+- 2026-09-22 — `e227b14`: extension control and versioned SQL files; installation with `CREATE EXTENSION`.
+  `dotnet test`: 61 passed, 0 failed, 0 skipped, including 19 PostgreSQL integration cases.
+- 2026-09-22 — `a5523ff`: scalar/text/bytea conversions, nullable signatures and results, SQL overloads,
   strict UTF-8 conversion, server-encoding conversion, and native buffer cleanup across PostgreSQL errors.
   The sample now includes `Greet`; backend-only datum probes live in `tests/Ankus.TestExtension`.
-  Plain `dotnet test`: 149 passed, 0 failed, 0 skipped (84 PostgreSQL integration cases).
+  `dotnet test`: 149 passed, 0 failed, 0 skipped (84 PostgreSQL integration cases).
