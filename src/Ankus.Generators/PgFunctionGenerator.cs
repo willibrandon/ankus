@@ -50,6 +50,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         native.AppendLine(NativeBridge.ReadBuffers);
         native.AppendLine(NativeBridge.WriteBuffer);
         native.AppendLine(NativeExtendedTypes.Source);
+        native.AppendLine(NativeTemporalTypes.Source);
         native.AppendLine(NativeSpiBridge.Source);
         native.AppendLine(NativeCursorBridge.Source);
         native.AppendLine(NativeSessionBridge.Source);

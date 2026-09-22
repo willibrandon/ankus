@@ -85,6 +85,37 @@ internal static class SpiType
             return 3802;
         }
 
+        if (type == typeof(PgDate) || type == typeof(PgDate?) || type == typeof(DateOnly) || type == typeof(DateOnly?))
+        {
+            return 1082;
+        }
+
+        if (type == typeof(PgTime) || type == typeof(PgTime?) || type == typeof(TimeOnly) || type == typeof(TimeOnly?))
+        {
+            return 1083;
+        }
+
+        if (type == typeof(PgTimeTz) || type == typeof(PgTimeTz?))
+        {
+            return 1266;
+        }
+
+        if (type == typeof(PgTimestamp) || type == typeof(PgTimestamp?) || type == typeof(DateTime) || type == typeof(DateTime?))
+        {
+            return 1114;
+        }
+
+        if (type == typeof(PgTimestampTz) || type == typeof(PgTimestampTz?) ||
+            type == typeof(DateTimeOffset) || type == typeof(DateTimeOffset?))
+        {
+            return 1184;
+        }
+
+        if (type == typeof(PgInterval) || type == typeof(PgInterval?) || type == typeof(TimeSpan) || type == typeof(TimeSpan?))
+        {
+            return 1186;
+        }
+
         throw new NotSupportedException($"SPI parameters of managed type '{type}' do not have a registered PostgreSQL conversion.");
     }
 
@@ -109,6 +140,17 @@ internal static class SpiType
         Guid uuid => NativeValue.FromGuid(uuid),
         PgJson json => NativeValue.FromString(json.Text),
         PgJsonb json => NativeValue.FromString(json.Text),
+        PgDate date => NativeValue.FromDate(date),
+        PgTime time => NativeValue.FromTime(time),
+        PgTimeTz time => NativeValue.FromTimeTz(time),
+        PgTimestamp timestamp => NativeValue.FromTimestamp(timestamp),
+        PgTimestampTz timestamp => NativeValue.FromTimestampTz(timestamp),
+        PgInterval interval => NativeValue.FromInterval(interval),
+        DateOnly date => NativeValue.FromDate(PgDate.FromDateOnly(date)),
+        TimeOnly time => NativeValue.FromTime(PgTime.FromTimeOnly(time)),
+        DateTime timestamp => NativeValue.FromTimestamp(PgTimestamp.FromDateTime(timestamp)),
+        DateTimeOffset timestamp => NativeValue.FromTimestampTz(PgTimestampTz.FromDateTimeOffset(timestamp)),
+        TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
         _ => throw new NotSupportedException("The SPI parameter does not have a registered PostgreSQL conversion."),
     };
 
@@ -140,6 +182,12 @@ internal static class SpiType
             2950 => value.ReadGuid(),
             114 => value.ReadJson(),
             3802 => value.ReadJsonb(),
+            1082 => value.ReadDate(),
+            1083 => value.ReadTime(),
+            1266 => value.ReadTimeTz(),
+            1114 => value.ReadTimestamp(),
+            1184 => value.ReadTimestampTz(),
+            1186 => value.ReadInterval(),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };
     }

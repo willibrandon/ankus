@@ -47,6 +47,17 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJson? Echo(Ankus.PgJson? value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb Echo(Ankus.PgJsonb value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static Ankus.PgJsonb? Echo(Ankus.PgJsonb? value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgDate Echo(Ankus.PgDate value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgTime Echo(Ankus.PgTime value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgTimeTz Echo(Ankus.PgTimeTz value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgTimestamp Echo(Ankus.PgTimestamp value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgTimestampTz Echo(Ankus.PgTimestampTz value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static Ankus.PgInterval Echo(Ankus.PgInterval value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.DateOnly Echo(System.DateOnly value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.TimeOnly Echo(System.TimeOnly value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.DateTime Echo(System.DateTime value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.DateTimeOffset Echo(System.DateTimeOffset value) => value;", "echo")]
+    [DataRow("[Ankus.PgFunction] public static System.TimeSpan Echo(System.TimeSpan value) => value;", "echo")]
     [DataRow("[Ankus.PgFunction] public static void Nothing() { }", "nothing")]
     public void SupportedFunctionsCompile(string method, string sqlName)
     {
@@ -143,6 +154,27 @@ public sealed class PgFunctionGeneratorTests(TestContext context)
         Assert.HasCount(expectedDiagnosticCount, diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken)
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>Verifies .NET temporal types cannot silently replace full-range overloads with the same SQL signature.</summary>
+    /// <param name="clrType">The ordinary .NET type.</param>
+    /// <param name="pgType">The full-range PostgreSQL type.</param>
+    [TestMethod]
+    [DataRow("System.DateOnly", "Ankus.PgDate")]
+    [DataRow("System.TimeOnly", "Ankus.PgTime")]
+    [DataRow("System.DateTime", "Ankus.PgTimestamp")]
+    [DataRow("System.DateTimeOffset", "Ankus.PgTimestampTz")]
+    [DataRow("System.TimeSpan", "Ankus.PgInterval")]
+    public void TemporalAliasesShareSqlSignatures(string clrType, string pgType)
+    {
+        (_, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction] public static {{clrType}} Echo({{clrType}} value) => value;
+                [Ankus.PgFunction] public static {{pgType}} Echo({{pgType}} value) => value;
+            }
+            """);
+        Assert.AreEqual("ANKUS002", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

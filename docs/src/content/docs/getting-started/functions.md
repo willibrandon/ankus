@@ -31,10 +31,19 @@ Ankus generates the native entry point and SQL declaration during publishing.
 | `byte[]` | `bytea` |
 | `Guid` | `uuid` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
+| `DateOnly`, `PgDate` | `date` |
+| `TimeOnly`, `PgTime` | `time` |
+| `PgTimeTz` | `timetz` |
+| `DateTime`, `PgTimestamp` | `timestamp` |
+| `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
+| `TimeSpan`, `PgInterval` | `interval` |
 | `void` result | `void` |
 
 Text and binary inputs are managed copies. They remain valid after PostgreSQL
 releases the original storage.
+
+See [date and time values](/date-and-time/) for precision, time zones, and
+full-range PostgreSQL values.
 
 ## SQL NULL
 

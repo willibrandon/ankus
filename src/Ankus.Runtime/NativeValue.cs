@@ -16,6 +16,9 @@ public unsafe struct NativeValue
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private long _integer;
+    private int _auxiliary1;
+    private int _auxiliary2;
+    private int _temporalInfinity;
     private byte* _data;
     private int _length;
     private byte _isNull;
@@ -30,6 +33,95 @@ public unsafe struct NativeValue
     /// Gets or sets whether the value represents SQL NULL, using a one-byte C flag.
     /// </summary>
     public byte IsNull { readonly get => _isNull; set => _isNull = value; }
+
+    /// <summary>
+    /// Reads a validated PostgreSQL date from the scalar transport.
+    /// </summary>
+    /// <returns>The date.</returns>
+    public readonly PgDate ReadDate() => new(checked((int)_integer));
+
+    /// <summary>
+    /// Reads a validated PostgreSQL time from the scalar transport.
+    /// </summary>
+    /// <returns>The time.</returns>
+    public readonly PgTime ReadTime() => new(_integer);
+
+    /// <summary>
+    /// Reads a time and the transport's east-of-UTC offset without depending on native struct padding.
+    /// </summary>
+    /// <returns>The time with a fixed offset.</returns>
+    public readonly PgTimeTz ReadTimeTz() => new(new PgTime(_integer), _auxiliary1);
+
+    /// <summary>
+    /// Reads a timezone-free PostgreSQL timestamp.
+    /// </summary>
+    /// <returns>The timestamp.</returns>
+    public readonly PgTimestamp ReadTimestamp() => new(_integer);
+
+    /// <summary>
+    /// Reads a PostgreSQL UTC timestamp.
+    /// </summary>
+    /// <returns>The timestamp.</returns>
+    public readonly PgTimestampTz ReadTimestampTz() => new(_integer);
+
+    /// <summary>
+    /// Reads independent interval components without native padding or normalization.
+    /// </summary>
+    /// <returns>The interval.</returns>
+    public readonly PgInterval ReadInterval() => _temporalInfinity switch
+    {
+        -1 => PgInterval.NegativeInfinity,
+        0 => new(_auxiliary2, _auxiliary1, _integer),
+        1 => PgInterval.PositiveInfinity,
+        _ => throw new InvalidOperationException("Invalid interval infinity discriminator."),
+    };
+
+    /// <summary>
+    /// Writes a PostgreSQL date without allocating a buffer.
+    /// </summary>
+    /// <param name="value">The date.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromDate(PgDate value) => new() { _integer = value.DaysSinceEpoch };
+
+    /// <summary>
+    /// Writes a PostgreSQL time without allocating a buffer.
+    /// </summary>
+    /// <param name="value">The time.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromTime(PgTime value) => new() { _integer = value.Microseconds };
+
+    /// <summary>
+    /// Writes a time and east-of-UTC offset as independent transport fields.
+    /// </summary>
+    /// <param name="value">The time with an offset.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromTimeTz(PgTimeTz value)
+        => new() { _integer = value.Time.Microseconds, _auxiliary1 = value.OffsetSeconds };
+
+    /// <summary>
+    /// Writes a timezone-free timestamp without allocating a buffer.
+    /// </summary>
+    /// <param name="value">The timestamp.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromTimestamp(PgTimestamp value) => new() { _integer = value.MicrosecondsSinceEpoch };
+
+    /// <summary>
+    /// Writes a UTC timestamp without allocating a buffer.
+    /// </summary>
+    /// <param name="value">The timestamp.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromTimestampTz(PgTimestampTz value) => new() { _integer = value.MicrosecondsSinceEpoch };
+
+    /// <summary>
+    /// Writes an interval's exact components without copying a platform-specific struct.
+    /// </summary>
+    /// <param name="value">The interval.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromInterval(PgInterval value)
+        => new()
+        {
+            _integer = value.Microseconds, _auxiliary1 = value.Days, _auxiliary2 = value.Months, _temporalInfinity = value.Infinity,
+        };
 
     /// <summary>
     /// Copies a borrowed UTF-8 input buffer into a managed string, rejecting malformed UTF-8.

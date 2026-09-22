@@ -7,6 +7,18 @@ slug: api/ankus
 
 Assembly: `Ankus.Runtime.dll`
 
+## Structs
+
+- [PgDate](/api/ankus.pgdate/)
+- [PgInterval](/api/ankus.pginterval/)
+- [PgJson](/api/ankus.pgjson/)
+- [PgJsonb](/api/ankus.pgjsonb/)
+- [PgTime](/api/ankus.pgtime/)
+- [PgTimeTz](/api/ankus.pgtimetz/)
+- [PgTimestamp](/api/ankus.pgtimestamp/)
+- [PgTimestampTz](/api/ankus.pgtimestamptz/)
+- [SpiParameter](/api/ankus.spiparameter/)
+
 ## Classes
 
 - [PgDiagnostic](/api/ankus.pgdiagnostic/)
@@ -20,12 +32,6 @@ Assembly: `Ankus.Runtime.dll`
 - [SpiResult](/api/ankus.spiresult/)
 - [SpiRow](/api/ankus.spirow/)
 - [SpiSession](/api/ankus.spisession/)
-
-## Structs
-
-- [PgJson](/api/ankus.pgjson/)
-- [PgJsonb](/api/ankus.pgjsonb/)
-- [SpiParameter](/api/ankus.spiparameter/)
 
 ## Enums
 

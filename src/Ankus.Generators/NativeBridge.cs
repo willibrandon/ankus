@@ -17,12 +17,17 @@ internal static class NativeBridge
         #include "utils/builtins.h"
         #include "catalog/pg_type_d.h"
         #include "utils/uuid.h"
+        #include "utils/date.h"
+        #include "utils/timestamp.h"
         #include "mb/pg_wchar.h"
         PG_MODULE_MAGIC;
 
         typedef struct AnkusValue
         {
             int64 integral;
+            int32 auxiliary1;
+            int32 auxiliary2;
+            int32 temporal_infinity;
             unsigned char *data;
             int32 length;
             uint8 is_null;

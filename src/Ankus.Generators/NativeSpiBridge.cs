@@ -143,6 +143,13 @@ internal static class NativeSpiBridge
                 case INT4OID: return Int32GetDatum(value->integral);
                 case INT8OID: return Int64GetDatum(value->integral);
                 case OIDOID: return ObjectIdGetDatum(value->integral);
+                case DATEOID:
+                case TIMEOID:
+                case TIMETZOID:
+                case TIMESTAMPOID:
+                case TIMESTAMPTZOID:
+                case INTERVALOID:
+                    return ankus_write_temporal(value, parameter->type_oid);
                 case FLOAT4OID:
                 {
                     int32 bits = (int32) value->integral;
@@ -279,6 +286,14 @@ internal static class NativeSpiBridge
                 case INT4OID: value->integral = DatumGetInt32(datum); break;
                 case INT8OID: value->integral = DatumGetInt64(datum); break;
                 case OIDOID: value->integral = DatumGetObjectId(datum); break;
+                case DATEOID:
+                case TIMEOID:
+                case TIMETZOID:
+                case TIMESTAMPOID:
+                case TIMESTAMPTZOID:
+                case INTERVALOID:
+                    ankus_read_temporal(datum, value, type);
+                    break;
                 case FLOAT4OID:
                 {
                     float4 floating = DatumGetFloat4(datum);

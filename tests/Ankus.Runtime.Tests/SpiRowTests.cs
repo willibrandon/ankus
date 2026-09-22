@@ -88,7 +88,7 @@ public sealed class SpiRowTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => row.Set(1, 1));
         Assert.ThrowsExactly<ArgumentException>(() => row.Set("missing", 1));
         Assert.ThrowsExactly<ArgumentNullException>(() => row.Set(null!, 1));
-        Assert.ThrowsExactly<NotSupportedException>(() => row.Set(0, DateTime.MinValue));
+        Assert.ThrowsExactly<NotSupportedException>(() => row.Set(0, decimal.Zero));
         Assert.AreEqual(42, row.Get<int>(0));
         Assert.AreEqual(23U, row.GetTypeOid(0));
     }

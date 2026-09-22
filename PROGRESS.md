@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **457 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **542 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 348 integration cases include installed-tool workflows, scalar bounds, signed zero and NaN bit patterns,
+- The 394 integration cases include installed-tool workflows, temporal storage, scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -75,6 +75,11 @@ Linux, and macOS.
   plus `JsonTypeInfo<T>` serialization. Native AOT tests exercise source-generated contracts containing
   nested wrappers, domain conversion, packed/compressed/external values, deep JSON, LATIN1 encoding,
   and guarded recovery from invalid syntax, jsonb Unicode restrictions, and numeric overflow.
+- `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `TimeSpan` have checked temporal mappings.
+  `PgDate`, `PgTime`, `PgTimeTz`, `PgTimestamp`, `PgTimestampTz`, and `PgInterval` preserve PostgreSQL's
+  full finite range, infinities, 24:00, second-resolution offsets, and independent calendar components.
+  All generated function and SPI paths share field-wise native conversions. Tests compare PostgreSQL binary
+  storage, independently check epoch/offset fields, and verify daylight-saving semantics and error recovery.
 - `Spi.Prepare` creates explicitly disposable `SpiPreparedStatement` instances using declared CLR parameter
   types and native `SPI_keepplan`. Tests verify reuse across callbacks and committed/rolled-back transactions,
   schema/search-path invalidation, argument validation, recursive execution, reentrant-disposal rejection,
@@ -179,16 +184,36 @@ Reference surface: `pgrx/src/datum/{uuid,json}.rs` (`Uuid`, `Json`, `JsonB`, `Js
 | Packed/TOAST/deep/encoded JSON | Native detoasting and encoding; managed depth configuration | `ExtendedDatumTests.PackedJsonValuesUseCorrectVarlenaLayout`, `ToastedJsonValuesRetainExactContent`, `DeepJsonSurvivesNativeAndManagedBoundaries`, `Latin1JsonConversionPreservesTextAndNativeErrors` |
 | Native conversion errors and recovery | Native output cleanup and guarded SPI parameter conversion | `ExtendedDatumTests.JsonFailuresPreserveTheBackend`, `JsonbParameterErrorsRecoverWithinSession` |
 
+### Temporal API evidence
+
+Reference surface: `pgrx/src/datetime/`; PostgreSQL `datatype/timestamp.h`, `utils/date.h`, and
+`utils/timestamp.h`; .NET `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `TimeSpan` contracts.
+Verified on PostgreSQL 18.6 / Linux x64. Calendar arithmetic, extraction, parsing/formatting, and named-zone
+conversion APIs from pgrx remain pending, as do temporal checks on the other supported server versions/platforms.
+
+| Source behavior | Ankus API/implementation | Concrete test evidence |
+|---|---|---|
+| Full finite ranges, BC dates, infinities, end of day, SQL NULL | Six `Pg*` temporal structs; shared native datum helpers | `TemporalDatumTests.TemporalStorageSurvivesEveryPath` (eight function/SPI ownership paths, binary send comparison) |
+| Epoch, microseconds, offset sign and second resolution, interval field order | Field-wise `NativeValue` transport and PostgreSQL header macros | `NativeInputUsesPostgresEpochAndIndependentFields`, `ManagedConstructionMatchesNativeStorage` |
+| Idiomatic .NET inputs/results without lossy conversions | Generated adapters, `SpiTemporal`, exact precision/kind/range checks | `DotnetTemporalTypesWorkInsideNativeAot`, `UnrepresentableTemporalValuesUnwindSafely`; `PgTemporalTests` |
+| Timezone/display independence, calendar day versus elapsed hours | UTC instant transport and separate interval components | `SessionSettingsDoNotChangeStoredTemporalValues`, `CalendarDaysRemainDistinctFromElapsedHours` |
+| Interval infinity and version-gated native writes | Explicit discriminator separate from finite component combinations; PG17+ macros | `IntervalInfinityIsExplicitAndNativeErrorsRecover`; pre-PG17 guard is implemented but not yet executed |
+| Domain conversion and owned result storage | Base-OID resolution and copied scalar fields | `TemporalDomainsRemainOwnedAfterSpiCleanup` |
+| Conversion failures, prior-write preservation, native cleanup | Existing managed unwind/native subtransaction boundaries | `UnrepresentableTemporalValuesUnwindSafely`, `IntervalInfinityIsExplicitAndNativeErrorsRecover`, `SessionSettingsDoNotChangeStoredTemporalValues` |
+| Shared SQL signatures for .NET and full-range aliases | `FunctionType` and duplicate signature diagnostics | `PgFunctionGeneratorTests.TemporalAliasesShareSqlSignatures`, `SupportedFunctionsCompile` |
+
 ### Work in progress
 
 The generated API currently supports accessible, synchronous static methods with by-value
-`bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, `byte[]`, `Guid`, `PgJson`, and `PgJsonb`
-parameters/results, their nullable forms, and `void` results. Strictness follows argument nullability.
+`bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`,
+and the .NET/full-range PostgreSQL temporal types. Nullable forms and `void` results are supported.
+Strictness follows argument nullability.
 The native library, control file, and versioned SQL are published and installed through PostgreSQL's extension mechanism.
-Full `[PgTest]` generation, installation/package tooling, extension upgrade scripts, more data types,
+Full `[PgTest]` generation, provisioning/lifecycle/package tooling, extension upgrade scripts, more data types,
 the remaining SPI and PostgreSQL APIs, and the PG13–19 matrix remain pending. The MSBuild import is repository-local;
 an independently consumable NuGet SDK has not been packaged yet. PostgreSQL discovery is
-automatic, but prerequisite installation is currently manual.
+available to non-CLI callers; the CLI uses registered installations or an explicit override.
+Prerequisite installation is currently manual.
 
 ### Local read-only reference repos (absolute paths)
 
@@ -393,7 +418,7 @@ custom-scan support remain required alongside the source-level macro inventory.
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Pending |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Pending |
-| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Pending |
+| `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport; arithmetic, extraction, text and named-zone APIs pending |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB and metadata-based serialization; network, geometry and ranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Pending |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Pending |
@@ -460,7 +485,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 457 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 542 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -496,6 +521,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Scoped SPI sessions, session-bound plans, retention and stack/lifetime enforcement
      - [x] Local SPI tuple mutation, native quotation, JSON EXPLAIN and temporary-operation cleanup
      - [x] All pgrx logging severities, native filtering and terminal reporting after managed unwinding
+     - [x] Full-range temporal datum transport and checked .NET conversions in generated functions and typed SPI
+     - [ ] Temporal arithmetic, extraction, parsing/formatting, and named-timezone operations
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -607,3 +634,12 @@ The phases track implementation of the complete pgrx feature surface.
   a marked stale page. `pnpm build` regenerates the API pages. Build and `pnpm check` pass; browser checks
   cover all 36 content pages at 1440px and 390px, API-member search, and 366 internal links/anchors.
   Plain `dotnet test` remains 457 passed, 0 failed, 0 skipped after adding the generator to the solution.
+- 2026-09-22 — Temporal datum transport for date, time, timetz, timestamp, timestamptz, and interval, with
+  full-range value types and ordinary .NET adapters. Microseconds, BC values, infinities, mixed interval signs,
+  second-resolution offsets, and nullable contracts survive every SPI path. Interval infinity has a separate
+  discriminator and version-gated native support; finite sentinel collisions raise a native range error.
+  Tests independently verify numeric fields and binary storage, DST calendar-day differences, domain ownership,
+  output conversion failures, session recovery, and zero extra contexts after 100 parameterized native operations.
+  `dotnet test`: 542 passed, 0 failed, 0 skipped (394 integration cases). `pnpm build` passed and regenerated
+  32 public API pages with 282 members. `pnpm check` and API freshness verification passed.
+  Temporal arithmetic/text/timezone APIs and the platform/version matrix remain pending.

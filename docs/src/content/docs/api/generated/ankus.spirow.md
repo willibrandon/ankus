@@ -138,7 +138,7 @@ The cell's current type OID.
 
 ### Get&lt;T&gt;(int)
 
-Gets a typed cell without implicit numeric or textual conversion.
+Gets a typed cell without implicit numeric or textual conversion. Temporal cells also accept exact .NET conversions.
 SQL NULL is accepted for nullable value types and reference types.
 
 ```csharp

@@ -78,7 +78,7 @@ public sealed class SpiRow
     public uint GetTypeOid(string name) => GetTypeOid(GetOrdinal(name));
 
     /// <summary>
-    /// Gets a typed cell without implicit numeric or textual conversion.
+    /// Gets a typed cell without implicit numeric or textual conversion. Temporal cells also accept exact .NET conversions.
     /// SQL NULL is accepted for nullable value types and reference types.
     /// </summary>
     /// <typeparam name="T">The expected managed type.</typeparam>
@@ -136,6 +136,6 @@ public sealed class SpiRow
             throw new InvalidOperationException("SQL NULL cannot be read as a non-nullable managed value.");
         }
 
-        throw new InvalidCastException($"The SPI value cannot be read as '{typeof(T)}'.");
+        return (T)SpiTemporal.Convert(value, typeof(T));
     }
 }

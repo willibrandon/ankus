@@ -22,6 +22,7 @@ export default defineConfig({
           items: [
             { label: 'SPI queries', slug: 'spi' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },
+            { label: 'Date and time values', slug: 'date-and-time' },
             { label: 'Logging and errors', slug: 'logging' },
           ],
         },

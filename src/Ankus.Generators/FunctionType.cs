@@ -59,7 +59,32 @@ internal sealed class FunctionType
     internal bool IsBuffer => Reference || Reader is "uuid" or "json" or "jsonb";
 
     /// <summary>
-    /// Gets the native built-in OID macro for buffered datum conversion.
+    /// Gets whether the type uses the field-wise temporal transport.
+    /// </summary>
+    internal bool IsTemporal => Reader is "date" or "time" or "timetz" or "timestamp" or "timestamptz" or "interval";
+
+    /// <summary>
+    /// Gets the temporal reader/writer suffix on NativeValue.
+    /// </summary>
+    internal string TemporalName => Reader switch
+    {
+        "date" => "Date",
+        "time" => "Time",
+        "timetz" => "TimeTz",
+        "timestamp" => "Timestamp",
+        "timestamptz" => "TimestampTz",
+        "interval" => "Interval",
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// Gets the optional .NET conversion suffix for a built-in temporal type.
+    /// </summary>
+    internal string ClrTemporalName => Managed.StartsWith("global::System.", System.StringComparison.Ordinal)
+        ? Managed.Substring("global::System.".Length) : string.Empty;
+
+    /// <summary>
+    /// Gets the native built-in OID macro for typed datum conversion.
     /// </summary>
     internal string BufferOid => Reader.ToUpperInvariant() + "OID";
 
@@ -83,6 +108,21 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string? temporal = name switch
+        {
+            "global::Ankus.PgDate" or "global::System.DateOnly" => "date",
+            "global::Ankus.PgTime" or "global::System.TimeOnly" => "time",
+            "global::Ankus.PgTimeTz" => "timetz",
+            "global::Ankus.PgTimestamp" or "global::System.DateTime" => "timestamp",
+            "global::Ankus.PgTimestampTz" or "global::System.DateTimeOffset" => "timestamptz",
+            "global::Ankus.PgInterval" or "global::System.TimeSpan" => "interval",
+            _ => null,
+        };
+        if (temporal is not null)
+        {
+            return new(name, temporal, temporal, temporal, string.Empty, nullable, reference: false);
+        }
+
         if (name is "global::System.Guid" or "global::Ankus.PgJson" or "global::Ankus.PgJsonb")
         {
             string sql = name == "global::System.Guid" ? "uuid" : name == "global::Ankus.PgJson" ? "json" : "jsonb";

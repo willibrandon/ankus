@@ -62,6 +62,8 @@ internal static class PgFunctionEmitter
                 "bool" => slot + ".Integral != 0",
                 "float" => "global::System.BitConverter.Int32BitsToSingle((int)" + slot + ".Integral)",
                 "double" => "global::System.BitConverter.Int64BitsToDouble(" + slot + ".Integral)",
+                _ when type.IsTemporal => slot + ".Read" + type.TemporalName + "()" +
+                    (type.ClrTemporalName.Length == 0 ? string.Empty : ".To" + type.ClrTemporalName + "()"),
                 _ => "(" + type.Managed + ")" + slot + "." + type.Field,
             };
             arguments.Add(type.Nullable ? $"({slot}.IsNull != 0 ? ({type.Managed}?)null : {value})" : value);
@@ -87,6 +89,8 @@ internal static class PgFunctionEmitter
                 source.AppendLine("            }");
             }
 
+            string temporalValue = result.IsTemporal && result.ClrTemporalName.Length != 0
+                ? $"global::Ankus.Pg{result.TemporalName}.From{result.ClrTemporalName}({value})" : value;
             source.AppendLine(result.Managed switch
             {
                 "string" => $"            *result = global::Ankus.NativeValue.FromString({value});",
@@ -97,6 +101,7 @@ internal static class PgFunctionEmitter
                 "bool" => $"            result->Integral = {value} ? 1 : 0;",
                 "float" => $"            result->Integral = global::System.BitConverter.SingleToInt32Bits({value});",
                 "double" => $"            result->Integral = global::System.BitConverter.DoubleToInt64Bits({value});",
+                _ when result.IsTemporal => $"            *result = global::Ankus.NativeValue.From{result.TemporalName}({temporalValue});",
                 _ => $"            result->{result.Field} = {value};",
             });
         }
@@ -156,7 +161,12 @@ internal static class PgFunctionEmitter
             source.AppendLine($"    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
             source.AppendLine($"    if (!arguments[{argument}].is_null)");
             source.AppendLine("    {");
-            if (parameter.IsBuffer)
+            if (parameter.IsTemporal)
+            {
+                source.AppendLine(
+                    $"        ankus_read_temporal(PG_GETARG_DATUM({argument}), &arguments[{argument}], {parameter.BufferOid});");
+            }
+            else if (parameter.IsBuffer)
             {
                 source.AppendLine($"        ankus_read_typed_buffer(PG_GETARG_DATUM({argument}),");
                 source.AppendLine($"            &arguments[{argument}], &owned[{argument}], {parameter.BufferOid});");
@@ -198,7 +208,11 @@ internal static class PgFunctionEmitter
         source.AppendLine("    }");
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
-        if (result.IsBuffer)
+        if (result.IsTemporal)
+        {
+            source.AppendLine($"        datum = ankus_write_temporal(&result, {result.BufferOid});");
+        }
+        else if (result.IsBuffer)
         {
             source.AppendLine($"        datum = ankus_write_typed_buffer(&result, {result.BufferOid});");
         }
