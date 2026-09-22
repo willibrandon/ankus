@@ -118,7 +118,7 @@ is entirely native and does not retain managed objects or invoke managed callbac
 On PostgreSQL ERROR, native `PG_CATCH` copies diagnostics outside the failing
 subtransaction, flushes the error state, rolls back to the caller's transaction
 nesting level, and restores the memory context and resource owner. It returns
-bounded UTF-8 diagnostics to managed code, which throws `PgException`. Managed
+owned UTF-8 diagnostics to managed code, which throws `PgException`. Managed
 `catch` and `finally` blocks therefore execute normally. An extension can catch the
 exception and issue another SPI call, or let its generated dispatcher return the
 error to PostgreSQL.
@@ -126,9 +126,30 @@ error to PostgreSQL.
 Recovery itself has a native guard. An unrecoverable error during recovery
 terminates the backend with FATAL rather than jumping across managed frames.
 
-The diagnostic transport reserves 2048 bytes each for the message and detail,
-and 1024 bytes for the hint, including terminators. Truncation preserves complete
-UTF-8 characters. Native reporting converts these fields to the server encoding.
+The error transport contains SQLSTATE, query positions, source line, routing flags,
+and fourteen optional `NativeValue` string slots: message, detail, hint, context,
+schema, table, column, data type, constraint, internal query, file, routine,
+server-only detail, and backtrace. Absent and empty strings remain distinct.
+Native capture allocates buffers with `malloc`; managed reporting uses
+`NativeMemory.Alloc`. Every slot carries its originating allocator's release
+callback. Managed capture releases the transport in `finally`, including when
+exception construction fails. Native reporting copies all fields into PostgreSQL
+memory before releasing the transport, with a native `PG_FINALLY` handling
+server-encoding conversion failures.
+
+Diagnostic strings have no fixed transport truncation limit. A separate 2048-byte
+UTF-8 primary-message buffer is reserved for allocation/encoding failures;
+truncation of that fallback preserves complete characters. A managed exception's
+`DiagnosticsIncomplete` property identifies incomplete capture. Native copied
+`ErrorData` lives in a temporary context deleted after transport, so repeated
+caught errors do not accumulate source-location copies in the caller's context.
+
+New managed errors use `ThrowErrorData` after the dispatcher has returned. Errors
+originally captured from PostgreSQL retain their reporting flags and use
+`ReThrowError`: PostgreSQL's context callbacks already ran for these errors, so
+rerunning them would duplicate procedural and SQL frames. File/routine strings
+are copied into `ErrorContext` because PostgreSQL treats source-location pointers
+as constants. `DetailLog` stays separate from client-visible `Detail`.
 
 ## Implementation files
 
@@ -137,12 +158,16 @@ UTF-8 characters. Native reporting converts these fields to the server encoding.
 - `src/Ankus.Generators/GuardedBackend.cs`: native SPI and error-recovery guards.
 - `src/Ankus.Generators/NativeSpiBridge.cs`: typed SPI parameter and result conversion.
 - `src/Ankus.Generators/NativeCursorBridge.cs`: portal identities and memory-context invalidation.
+- `src/Ankus.Generators/NativeErrorBridge.cs`: diagnostic ownership, capture, and native error reconstruction.
 - `src/Ankus.Runtime/NativeValue.cs`: managed transport and output-buffer ownership.
 - `src/Ankus.Runtime/NativeBackend.cs`: thread-local backend bindings.
 - `src/Ankus.Runtime/SpiPreparedStatement.cs`: retained-plan ownership and execution.
 - `src/Ankus.Runtime/SpiCursor.cs`: batched fetching and cursor ownership.
+- `src/Ankus.Runtime/PgException.cs`: managed PostgreSQL diagnostics.
 - `tests/Ankus.IntegrationTests/DatumConversionTests.cs`: backend conversion tests.
 - `tests/Ankus.IntegrationTests/SpiTests.cs`: transaction, reentrancy, and error-unwinding tests.
 - `tests/Ankus.IntegrationTests/SpiQueryTests.cs`: parameter, metadata, and result-lifetime tests.
 - `tests/Ankus.IntegrationTests/SpiPreparedTests.cs`: retained plans, invalidation, and native cleanup tests.
 - `tests/Ankus.IntegrationTests/SpiCursorTests.cs`: cursor batching, portal lifetime, and error cleanup tests.
+- `tests/Ankus.IntegrationTests/PgDiagnosticTests.cs`: native/managed diagnostics and encoding/rethrow tests.
+- `tests/Ankus.Runtime.Tests/NativeDiagnosticTests.cs`: optional values, emergency fallback, and transport cleanup.

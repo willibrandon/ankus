@@ -35,7 +35,7 @@ Linux, and macOS.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
-- **`dotnet test`**: **267 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **286 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - Test infrastructure lives in `tests/Ankus.Testing`; executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -59,7 +59,7 @@ Linux, and macOS.
   load the actual published files without copying into the shared PostgreSQL installation.
 - Integration tests verify extension-owned function catalog entries, schema relocation,
   DROP EXTENSION removing the function, and reinstallation into a requested schema.
-- The 194 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
+- The 206 PostgreSQL integration cases include scalar bounds, signed zero and NaN bit patterns,
   nullable contracts, SQL overloads, Unicode, bytea, packed headers, compressed/external TOAST,
   LATIN1 conversion, and recovery from native output-encoding errors on the same backend.
 - `Spi.Execute` runs SQL inside a guarded native subtransaction. Tests verify writes, row counts,
@@ -80,8 +80,12 @@ Linux, and macOS.
   read-only execution, reentrant-disposal rejection, and cleanup after fetch errors/cancellation.
 - IDE1006 is an error during builds. A negative build verified field-prefix violations are rejected;
   the corrected runtime and the full solution pass with naming enforcement enabled.
-- `PgException` transports SQLSTATE, message, detail, and hint in both directions, with UTF-8
-  and server-encoding conversion. Error-report fields beyond these four remain to be implemented.
+- `PgException` transports SQLSTATE, full message/detail/hint/context, object names, query positions/text,
+  source file/line/routine, server-only detail, and backtrace. Owned UTF-8 buffers preserve long diagnostics
+  and null/empty distinctions. Native rethrow preserves context without replaying callbacks; tests verify
+  recursive propagation, retained exceptions across transactions, actual constraint errors, LATIN1 conversion,
+  conversion-failure cleanup, and repeated error-context cleanup. A bounded primary-message fallback remains
+  available if diagnostic allocation/encoding fails.
 - `tests/Ankus.TestExtension` supplies backend test functions. The fixture publishes and installs
   this separate extension alongside the minimal sample, exercising multiple AOT libraries in one backend.
 - Backend test functions run in individual rollback-only transactions. Tests prove rollback
@@ -92,6 +96,21 @@ Linux, and macOS.
 - One full-suite attempt failed during fixture publishing with MSB4166 (an MSBuild child exited prematurely).
   The reported diagnostic directory was unavailable. A subsequent plain `dotnet test` run passed all 267 cases;
   the build-worker failure's cause is undetermined.
+
+### Error diagnostic API evidence
+
+Reference surface: `pgrx-pg-sys/src/submodules/{panic,ffi,pg_try,elog}.rs` and PostgreSQL
+`src/include/utils/elog.h` / `src/backend/utils/error/elog.c`. The error-level behavior below is
+verified on PostgreSQL 18.6 / Linux x64; other severities and platform/version validation remain required.
+
+| Source behavior | Ankus API/implementation | Concrete test evidence |
+|---|---|---|
+| ErrorData message/detail/hint and object names | `PgException` primary diagnostics, `SchemaName`, `TableName`, `ColumnName`, `DataTypeName`, `ConstraintName` | `PgDiagnosticTests.NativeObjectDiagnosticsSurviveCatchAndRethrow`, `ConstraintViolationPreservesCatalogMetadata` |
+| ErrorData cursor/internal positions and query | `Position`, `InternalPosition`, `InternalQuery` | `PgDiagnosticTests.SyntaxPositionPreservesUnicodeQueryAndOriginalLocation` |
+| ErrorReport location and native context | `File`, `Line`, `Routine`, `Context`; `NativeErrorBridge` rethrow | `PgDiagnosticTests.RecursiveRethrowDoesNotDuplicateContextFrames`, `NativeObjectDiagnosticsSurviveCatchAndRethrow` |
+| Server-only detail and backtrace | `DetailLog`, `Backtrace` | `PgDiagnosticTests.ServerOnlyDiagnosticsRemainSeparateFromClientDetail` |
+| Long/optional text ownership | Allocator-specific diagnostic buffers | `PgDiagnosticTests.LongNativeDiagnosticsAreNotTruncated`, `ManagedDiagnosticsReachClientWithoutTruncation`, `EmptyNativeDiagnosticsRemainPresent` |
+| Encoding, secondary failures, and recovery | Server encoding conversion, `DiagnosticsIncomplete`, emergency message, temporary error context | `PgDiagnosticTests.Latin1DiagnosticsAndEncodingFailurePreserveBackend`, `RepeatedFailuresReleaseDiagnosticContexts`; `NativeDiagnosticTests.InvalidSecondaryDiagnosticUsesPartialFallback`, `BrokenMessageProducesEmergencyDiagnostic` |
 
 ### Work in progress
 
@@ -214,7 +233,7 @@ The target architecture consists of:
 | `#[derive(PostgresEnum)]` | `[PostgresEnum]` on C# enums + generator (CREATE TYPE) | ☐ |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, text/bytea, nullable forms |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, typed results/parameters, kept plans, owned/detachable cursors |
-| `PgError` | `PgException` + logging helpers | Partial: SQLSTATE, message, detail, hint |
+| `PgError` | `PgException` + logging helpers | Partial: owned error diagnostics, context, objects, positions and location; logging pending |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
 | `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
@@ -336,7 +355,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
-| `pgrx-pg-sys/src/submodules/{elog,errcodes}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: ERROR, SQLSTATE/message/detail/hint |
+| `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: ERROR, owned full diagnostics, managed catch/filter/rethrow; other log levels and named SQLSTATE catalog pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | Partial: selected scalar OID mappings |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
@@ -374,7 +393,7 @@ Required test-source inventory:
 - Inline unit tests in runtime, macro, SQL graph, binding-generation, and configuration crates; SQL and expected-output
   fixtures in the examples and regression-command paths.
 
-The 267 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
+The 286 passing Ankus tests verify the current milestone, not this entire corpus. Each family still needs
 source-case-level mapping to named .NET tests and any additional boundary cases introduced by AOT/native interop.
 
 ### Release evidence requirements
@@ -406,7 +425,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Typed built-in SPI parameters, materialized results/scalars, metadata, read-only mode and limits
     - [x] Owned prepared statements with guarded keep/execute/free and backend-thread disposal
     - [x] Owned cursors, batched fetch, detach/find, prepared-plan cursors, and portal lifetime invalidation
-    - [ ] Complete SPI sessions, extensible datum conversion, tuple mutation, session-bound plans and diagnostic fields
+    - [x] Owned error diagnostics, context/object/query/source fields, native rethrow and diagnostic cleanup
+    - [ ] Complete SPI sessions, extensible datum conversion, tuple mutation and session-bound plans
    - [ ] Memory contexts; `_PG_init` bootstrap; remaining guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
@@ -473,3 +493,6 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-22 — SPI cursor batching, plan-independent portals, detach/find, forward/backward fetch,
   native portal lifetime identities, rollback invalidation, and guarded disposal.
   `dotnet test`: 267 passed, 0 failed, 0 skipped (194 PostgreSQL integration cases).
+- 2026-09-22 — Full-length owned PostgreSQL error diagnostics, context/object/query/source fields,
+  original-location rethrow without duplicated context, server-only diagnostics, and fallback/encoding cleanup.
+  `dotnet test`: 286 passed, 0 failed, 0 skipped (206 PostgreSQL integration cases).

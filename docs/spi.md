@@ -201,3 +201,42 @@ catch (PgException exception) when (exception.SqlState == "23505")
 Managed `finally` blocks run normally for PostgreSQL errors and cancellation.
 SPI calls are confined to the active backend thread; worker-thread calls throw
 `InvalidOperationException` before accessing PostgreSQL state.
+
+### Error diagnostics
+
+`PgException` owns its diagnostic strings. They remain valid after recovery,
+subsequent SPI calls, and the transaction ending. Available fields include:
+
+| Properties | Meaning |
+|---|---|
+| `SqlState`, `Message`, `Detail`, `Hint` | SQLSTATE and primary/secondary diagnostics |
+| `Context` | PostgreSQL execution context, including procedural and SQL frames |
+| `SchemaName`, `TableName`, `ColumnName`, `DataTypeName`, `ConstraintName` | Server-supplied object names |
+| `Position` | One-based character position in the client query; zero when absent |
+| `InternalPosition`, `InternalQuery` | Character position and text of an internally executed query |
+| `File`, `Line`, `Routine` | Original reporting source location |
+| `DetailLog`, `Backtrace` | Server-only detail and native backtrace, when supplied |
+
+Optional strings are null when absent; an explicitly empty diagnostic remains an
+empty string. SPI typically reports parse positions through `InternalPosition`
+and `InternalQuery`. Positions count PostgreSQL characters, not UTF-8 bytes or
+UTF-16 code units.
+
+Extension-authored errors can supply structured object/context fields:
+
+```csharp
+throw new PgException("22023", "The supplied value is invalid.", hint: "Use a positive value.")
+{
+    SchemaName = "app",
+    TableName = "messages",
+    ColumnName = "priority",
+    Context = "Validating message priority",
+};
+```
+
+Rethrowing a caught `PgException` preserves its source location and existing
+context without duplicating PostgreSQL context callbacks. Diagnostic strings
+are transported in full; if allocation or encoding fails during capture,
+`DiagnosticsIncomplete` indicates a partial diagnostic and the primary message
+has a bounded emergency fallback. Diagnostics use the same server-encoding
+conversion rules as text values.

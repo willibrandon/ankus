@@ -67,4 +67,84 @@ public sealed class PgException : Exception
     /// Gets a suggested corrective action.
     /// </summary>
     public string? Hint { get; }
+
+    /// <summary>
+    /// Gets the PostgreSQL execution context, including SQL and procedural call frames when supplied by the server.
+    /// </summary>
+    public string? Context { get; init; }
+
+    /// <summary>
+    /// Gets the schema associated with the error.
+    /// </summary>
+    public string? SchemaName { get; init; }
+
+    /// <summary>
+    /// Gets the table associated with the error.
+    /// </summary>
+    public string? TableName { get; init; }
+
+    /// <summary>
+    /// Gets the column associated with the error.
+    /// </summary>
+    public string? ColumnName { get; init; }
+
+    /// <summary>
+    /// Gets the data type associated with the error.
+    /// </summary>
+    public string? DataTypeName { get; init; }
+
+    /// <summary>
+    /// Gets the constraint associated with the error.
+    /// </summary>
+    public string? ConstraintName { get; init; }
+
+    /// <summary>
+    /// Gets the one-based character position in the client query, or zero when no position is supplied.
+    /// </summary>
+    public int Position { get; init; }
+
+    /// <summary>
+    /// Gets the one-based character position in InternalQuery, or zero when no internal position is supplied.
+    /// </summary>
+    public int InternalPosition { get; init; }
+
+    /// <summary>
+    /// Gets the internally executed query associated with InternalPosition.
+    /// </summary>
+    public string? InternalQuery { get; init; }
+
+    /// <summary>
+    /// Gets the source file that reported the error.
+    /// </summary>
+    public string? File { get; init; }
+
+    /// <summary>
+    /// Gets the source line that reported the error, or zero when unavailable.
+    /// </summary>
+    public int Line { get; init; }
+
+    /// <summary>
+    /// Gets the source routine that reported the error.
+    /// </summary>
+    public string? Routine { get; init; }
+
+    /// <summary>
+    /// Gets additional detail intended for the PostgreSQL server log rather than the client error response.
+    /// </summary>
+    public string? DetailLog { get; init; }
+
+    /// <summary>
+    /// Gets the native backtrace when PostgreSQL collected one for this error.
+    /// </summary>
+    public string? Backtrace { get; init; }
+
+    /// <summary>
+    /// Gets whether allocating or encoding diagnostic transport failed, leaving only partially copied diagnostics.
+    /// </summary>
+    public bool DiagnosticsIncomplete => (NativeFlags & NativeErrorFlags.Incomplete) != 0;
+
+    /// <summary>
+    /// Gets the original server reporting flags for native rethrow without duplicating context callbacks.
+    /// </summary>
+    internal NativeErrorFlags NativeFlags { get; init; }
 }

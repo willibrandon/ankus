@@ -4,4 +4,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ankus.Runtime.Tests" />
+  </ItemGroup>
 </Project>

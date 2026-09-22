@@ -14,42 +14,7 @@ internal static class GuardedBackend
         #include "utils/memutils.h"
         #include "utils/resowner.h"
 
-        typedef struct AnkusError
-        {
-            int sqlstate;
-            char message[2048];
-            char detail[2048];
-            char hint[1024];
-        } AnkusError;
-
         typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, AnkusError *);
-
-        static void
-        ankus_copy_diagnostic(const char *value, char *buffer, int capacity)
-        {
-            if (value != NULL)
-            {
-                char *utf8 = pg_server_to_any(value, strlen(value), PG_UTF8);
-                int length = pg_encoding_mbcliplen(PG_UTF8, utf8, strlen(utf8), capacity - 1);
-                memcpy(buffer, utf8, length);
-                buffer[length] = '\0';
-                if (utf8 != value)
-                {
-                    pfree(utf8);
-                }
-            }
-        }
-
-        static void
-        ankus_raise_error(const AnkusError *error)
-        {
-            char *message = pg_any_to_server(error->message, strlen(error->message), PG_UTF8);
-            char *detail = pg_any_to_server(error->detail, strlen(error->detail), PG_UTF8);
-            char *hint = pg_any_to_server(error->hint, strlen(error->hint), PG_UTF8);
-            ereport(ERROR, (errcode(error->sqlstate), errmsg_internal("%s", message),
-                detail[0] == '\0' ? 0 : errdetail_internal("%s", detail),
-                hint[0] == '\0' ? 0 : errhint("%s", hint)));
-        }
 
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
@@ -102,25 +67,26 @@ internal static class GuardedBackend
                 PG_CATCH();
                 {
                     ErrorData *data;
+                    MemoryContext diagnostic_context;
                     MemoryContextSwitchTo(caller_context);
+                    diagnostic_context = AllocSetContextCreate(caller_context, "Ankus error diagnostics", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(diagnostic_context);
                     data = CopyErrorData();
                     FlushErrorState();
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
                         RollbackAndReleaseCurrentSubTransaction();
                     }
-                    MemoryContextSwitchTo(caller_context);
+                    MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
                     if (request->operation == ANKUS_SPI_PREPARE && request->plan != NULL)
                     {
                         SPI_freeplan(request->plan);
                         request->plan = NULL;
                     }
-                    error->sqlstate = data->sqlerrcode;
-                    ankus_copy_diagnostic(data->message, error->message, sizeof(error->message));
-                    ankus_copy_diagnostic(data->detail, error->detail, sizeof(error->detail));
-                    ankus_copy_diagnostic(data->hint, error->hint, sizeof(error->hint));
-                    FreeErrorData(data);
+                    ankus_capture_error(data, error);
+                    MemoryContextSwitchTo(caller_context);
+                    MemoryContextDelete(diagnostic_context);
                     ankus_release_result(result);
                     status = 1;
                 }

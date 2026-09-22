@@ -38,6 +38,12 @@ public unsafe struct NativeValue
     public readonly string ReadString() => s_utf8.GetString(new ReadOnlySpan<byte>(_data, _length));
 
     /// <summary>
+    /// Copies an optional UTF-8 buffer, preserving the distinction between absent and empty diagnostics.
+    /// </summary>
+    /// <returns>The decoded string, or null if no buffer was supplied.</returns>
+    internal readonly string? ReadOptionalString() => _data == null ? null : ReadString();
+
+    /// <summary>
     /// Copies a borrowed bytea input buffer into a managed byte array.
     /// </summary>
     /// <returns>The binary value.</returns>

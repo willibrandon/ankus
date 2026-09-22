@@ -5,7 +5,7 @@ using System.Text;
 namespace Ankus;
 
 /// <summary>
-/// Carries bounded UTF-8 diagnostics across a guarded native call without transferring ownership of error-context memory.
+/// Carries owned UTF-8 diagnostics and a bounded emergency message across the guarded native boundary.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 [StructLayout(LayoutKind.Sequential)]
@@ -17,19 +17,34 @@ public unsafe struct NativeCallError
     public int SqlState;
 
     /// <summary>
-    /// Contains the null-terminated primary error message.
+    /// Contains a bounded, null-terminated emergency message used if full diagnostic transport fails.
     /// </summary>
     public fixed byte Message[2048];
 
     /// <summary>
-    /// Contains null-terminated additional error detail.
+    /// Contains the client query's one-based character position.
     /// </summary>
-    public fixed byte Detail[2048];
+    internal int _position;
 
     /// <summary>
-    /// Contains a null-terminated corrective hint.
+    /// Contains the internal query's one-based character position.
     /// </summary>
-    public fixed byte Hint[1024];
+    internal int _internalPosition;
+
+    /// <summary>
+    /// Contains the original source line number.
+    /// </summary>
+    internal int _line;
+
+    /// <summary>
+    /// Contains routing and completeness flags for native errors.
+    /// </summary>
+    internal NativeErrorFlags _flags;
+
+    /// <summary>
+    /// Contains optional full diagnostic strings with allocator-specific release callbacks.
+    /// </summary>
+    internal NativeErrorFields _fields;
 
     /// <summary>
     /// Copies native diagnostics into a managed exception before the native buffer expires.
@@ -43,11 +58,42 @@ public unsafe struct NativeCallError
             state[index] = (char)(((SqlState >> (index * 6)) & 0x3F) + '0');
         }
 
-        fixed (byte* message = Message, detail = Detail, hint = Hint)
+        fixed (byte* message = Message)
         {
-            return new PgException(new string(state), Read(message, 2048), Read(detail, 2048), Read(hint, 1024));
+            return new PgException(new string(state), Read(NativeDiagnosticField.Message) ?? Read(message, 2048),
+                Read(NativeDiagnosticField.Detail), Read(NativeDiagnosticField.Hint))
+            {
+                Context = Read(NativeDiagnosticField.Context),
+                SchemaName = Read(NativeDiagnosticField.Schema),
+                TableName = Read(NativeDiagnosticField.Table),
+                ColumnName = Read(NativeDiagnosticField.Column),
+                DataTypeName = Read(NativeDiagnosticField.DataType),
+                ConstraintName = Read(NativeDiagnosticField.Constraint),
+                InternalQuery = Read(NativeDiagnosticField.InternalQuery),
+                File = Read(NativeDiagnosticField.File),
+                Routine = Read(NativeDiagnosticField.Routine),
+                DetailLog = Read(NativeDiagnosticField.DetailLog),
+                Backtrace = Read(NativeDiagnosticField.Backtrace),
+                Position = _position,
+                InternalPosition = _internalPosition,
+                Line = _line,
+                NativeFlags = _flags,
+            };
         }
     }
+
+    /// <summary>
+    /// Releases every owned diagnostic with its originating allocator, including partially populated errors.
+    /// </summary>
+    internal void Release()
+    {
+        for (int index = 0; index < NativeErrorFields.Length; index++)
+        {
+            _fields[index].Release();
+        }
+    }
+
+    private readonly string? Read(NativeDiagnosticField field) => _fields[(int)field].ReadOptionalString();
 
     private static string Read(byte* buffer, int capacity)
     {

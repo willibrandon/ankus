@@ -4,14 +4,14 @@ using System.Text;
 namespace Ankus;
 
 /// <summary>
-/// Copies managed exception diagnostics into a native caller-owned buffer before returning to PostgreSQL's error boundary.
+/// Copies managed exception diagnostics into owned transport buffers before returning to PostgreSQL's error boundary.
 /// This API is used by generated extension dispatchers.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class NativeError
 {
     /// <summary>
-    /// Writes structured error diagnostics for generated callbacks, preserving explicit PostgreSQL SQLSTATE, detail, and hint.
+    /// Writes complete structured diagnostics with owned buffers and a bounded fallback if allocation or encoding fails.
     /// </summary>
     /// <param name="exception">The caught managed exception.</param>
     /// <param name="error">The native caller-owned diagnostic buffer.</param>
@@ -25,13 +25,34 @@ public static class NativeError
             if (exception is PgException postgres)
             {
                 error->SqlState = PackSqlState(postgres.SqlState);
-                WriteText(postgres.Detail, error->Detail, 2048);
-                WriteText(postgres.Hint, error->Hint, 1024);
+                error->_position = postgres.Position;
+                error->_internalPosition = postgres.InternalPosition;
+                error->_line = postgres.Line;
+                error->_flags = postgres.NativeFlags;
+                WriteField(error, NativeDiagnosticField.Message, postgres.Message);
+                WriteField(error, NativeDiagnosticField.Detail, postgres.Detail);
+                WriteField(error, NativeDiagnosticField.Hint, postgres.Hint);
+                WriteField(error, NativeDiagnosticField.Context, postgres.Context);
+                WriteField(error, NativeDiagnosticField.Schema, postgres.SchemaName);
+                WriteField(error, NativeDiagnosticField.Table, postgres.TableName);
+                WriteField(error, NativeDiagnosticField.Column, postgres.ColumnName);
+                WriteField(error, NativeDiagnosticField.DataType, postgres.DataTypeName);
+                WriteField(error, NativeDiagnosticField.Constraint, postgres.ConstraintName);
+                WriteField(error, NativeDiagnosticField.InternalQuery, postgres.InternalQuery);
+                WriteField(error, NativeDiagnosticField.File, postgres.File);
+                WriteField(error, NativeDiagnosticField.Routine, postgres.Routine);
+                WriteField(error, NativeDiagnosticField.DetailLog, postgres.DetailLog);
+                WriteField(error, NativeDiagnosticField.Backtrace, postgres.Backtrace);
+            }
+            else
+            {
+                WriteField(error, NativeDiagnosticField.Message, exception.Message);
             }
         }
         catch
         {
             // The primary diagnostic is already available if secondary formatting fails.
+            error->_flags |= NativeErrorFlags.Incomplete;
         }
     }
 
@@ -77,10 +98,11 @@ public static class NativeError
         return code;
     }
 
-    private static unsafe void WriteText(string? text, byte* destination, int capacity)
+    private static unsafe void WriteField(NativeCallError* error, NativeDiagnosticField field, string? text)
     {
-        Span<byte> buffer = new(destination, capacity);
-        Encoding.UTF8.GetEncoder().Convert(text.AsSpan(), buffer[..^1], flush: true, out _, out int written, out _);
-        buffer[written] = 0;
+        if (text is not null)
+        {
+            error->_fields[(int)field] = NativeValue.FromString(text);
+        }
     }
 }

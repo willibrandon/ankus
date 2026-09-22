@@ -323,9 +323,16 @@ public static unsafe class NativeBackend
     {
         var execute = (delegate* unmanaged[Cdecl]<NativeSpiRequest*, NativeSpiResult*, NativeCallError*, int>)s_execute;
         NativeCallError error = default;
-        if (execute(request, result, &error) != 0)
+        try
         {
-            throw error.ToException();
+            if (execute(request, result, &error) != 0)
+            {
+                throw error.ToException();
+            }
+        }
+        finally
+        {
+            error.Release();
         }
     }
 
