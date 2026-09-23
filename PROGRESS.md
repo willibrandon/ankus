@@ -359,7 +359,7 @@ user caches and installed tools were preserved. Main commits `548228c` and `1455
 contain the verified header/CRT/preprocessor and deployment-target fixes. Public
 preload guides still describe the shipped implementation while runtime/server
 packaging and generator integration remain unfinished. Server GC, enabled EventPipe,
-registered waits, user-thread/lock behavior, worker attachment, the complete
+remaining wait/callback cases, user-thread/lock behavior, worker attachment, the complete
 platform/version matrix and all other full-port requirements remain open.
 The preload priority is still active.
 
@@ -390,6 +390,43 @@ runtime commit. Plain `dotnet test` passes 4,089 tests with zero failures/skips
 (3m50.171s); the Release build has zero warnings/errors (11.30s). Production
 packaging/integration and the other runtime/platform requirements above remain
 unfinished.
+
+Registered waits now participate in the owned runtime's fork checkpoint. Previously,
+any existing portable wait thread caused managed service preparation to fail, even
+when all registrations were idle. Wait threads now finish their normal wait/cleanup
+paths before fork. The original registrations, callback contexts, handles and timeout
+deadlines remain intact; fresh threads resume them in parent and child. Unregister
+requests made after a wait thread stops are completed under the existing registration
+lock, including registrations created while thread activation is closed.
+
+Runtime commit `0f7e1d164` includes two regression modes, `--retained-waits` and
+`--retained-wait-retirement`. The old SDK exits with status 198 on the first mode;
+the repaired SDK passes six repeated runs, 12 forks, 24 parent/child observations
+and 1,776 exact callbacks. Each setup spans two wait threads and checks safe/unsafe
+execution-context behavior, original identities, one-shot/repeating signals, a finite
+timeout without rearming, cancellation, unregister completion and independent state.
+The retirement mode observes both native wait threads exit before an active worker
+unregisters an existing wait and adds/removes another; both operations complete while
+activation remains closed. Existing retained timer/queue, recovered/pending descendant
+and active background-GC regressions pass on the same SDK.
+
+Two generated PostgreSQL extensions also create waits in their actual managed preload
+initializers. Both preload orders and six fresh sessions pass on release PostgreSQL
+18.6/Linux x64: twelve inherited registrations independently signal and unregister,
+with exact results, pristine state in every backend, opposite-image isolation and
+clean server shutdowns. The final CoreLib Release build has zero warnings/errors
+(21.95s). SDK: `artifacts/preload/runtime-waits-verified-sdk`; sources, before/after
+binaries, logs and hashes: `.git/testagent/preload/waits-proof/`.
+These additions are verified on Linux x64 only. Other wait-object kinds, callbacks
+already queued at the checkpoint, blocking unregister with queued callback dependencies,
+and finalizer-driven unregister still need direct evidence. The full runtime/platform
+and consumer integration requirements remain active.
+The first root `dotnet test` attempt stopped before test execution with MSB4166
+(an MSBuild child node exited). The reported diagnostic directory was absent and
+cgroup OOM counters remained zero; no cause is claimed. With the runtime build
+finished, plain `dotnet test` passed all 4,089 cases, zero failures/skips, in
+3m43.058s. The failed build log is retained with the successful run.
+The main Release build also passes with zero warnings/errors (12.63s).
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
