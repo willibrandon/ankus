@@ -33,18 +33,18 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone supports borrowed Slab, Generation and Bump contexts with their native
-allocation restrictions. Bump free/resize/adoption reject unsupported pointer operations before
-reading missing chunk headers; registry acquisition precedes native storage. Independent scratch
-contexts preserve encoded names and diagnostics, and checked caller recovery handles ErrorContext
-lifetime changes. It adds 68 backend cases, including six controlled native failure cases and four
-direct/SPI notice cases. The 95-case affected scope passes on both assertion-enabled and ordinary
-headerless PostgreSQL 18.6/Linux x64. Plain `dotnet test` passes 4072 cases without failures or skips.
-IDE0004 and IDE0300 remain enforced as errors. Actual huge-size allocation, datum/node APIs, full
-memory/GUC/preload parity, the remaining inventory, and the version/platform matrix are incomplete.
+The latest milestone verifies actual allocation above PostgreSQL's ordinary limit and growth
+that remains above the limit. Five real >1 GiB cases cover ordinary, no-OOM, aligned, aligned no-OOM,
+and zeroed storage on release PostgreSQL 18.6/Linux x64. All ten cases in the dedicated resource run
+pass, including five small controls. The default assertion-enabled suite passes all 4077 cases
+without failures/skips. Native/catalog accounting proves individual reclamation before context
+deletion; checked views and same-session recovery also pass. The largest observed backend RSS peak
+was 1,101,213,696 bytes, with original resource limits restored and no new cgroup OOM events.
+IDE0004 and IDE0300 remain enforced as errors. Datum/node APIs, full memory/GUC/preload parity,
+the remaining inventory, and the version/platform matrix are incomplete.
 
-The non-incremental Release build has zero warnings/errors. XML documentation, source style,
-documentation build/type checks, and generated API freshness checks pass.
+The non-incremental Release build has zero warnings/errors. Analyzer verification, XML documentation,
+source style, documentation build/type checks and generated API freshness checks all pass.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -58,7 +58,8 @@ documentation build/type checks, and generated API freshness checks pass.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **4004 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **4077 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+  The separately selected resource run additionally executes five >1 GiB cases; those are not part of the default total.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1240,14 +1241,16 @@ type checks and API freshness pass: 111 API pages, 1180 members, 141 site pages;
 reports zero errors/warnings/hints. Existing site duplicate-404 and missing-site-URL warnings
 remain visible. Reference repositories and consumer coding-style templates remain unchanged.
 
-Actual allocation above `MaxAllocSize` remains unverified. Small allocations with the huge flag
-prove routing and policy retention only; rejected large/padded sizes prove bounds and recovery.
+At this milestone, allocation above `MaxAllocSize` was still unverified. Small allocations with
+the huge flag prove routing and policy retention only; rejected large/padded sizes prove bounds and recovery.
 The installed PostgreSQL 18.6 build enables `RANDOMIZE_ALLOCATED_MEMORY`, which writes the entire
 payload, so a sparse-endpoint test cannot avoid more than 1 GiB of resident work. A dedicated
-resource-budgeted huge-allocation witness remains required, including a resize whose target stays
-above the ordinary limit. Native boxes, node allocation, virtual `MemCx` parameters, raw/custom
-datum contracts, broader allocator/phase witnesses, and the actual PostgreSQL/platform matrix
-also remain required alongside the full inventory below. The subsequent borrowed-allocator section
+resource-budgeted huge-allocation witness was therefore required, including a resize whose target
+stays above the ordinary limit. The later resource-budgeted lifecycle section records that actual
+release-server execution. Native boxes, virtual `MemCx` parameters and allocator variants were also
+still required at this stage; subsequent sections record those implementations. Node allocation,
+raw/custom datum contracts, broader resource witnesses and the actual PostgreSQL/platform matrix
+remain required alongside the full inventory below. The subsequent borrowed-allocator section
 records actual Slab/Generation/Bump cases and controlled native registry/allocator-boundary failure
 witnesses. Those controlled boundaries do not claim physical resource exhaustion or huge allocation.
 
@@ -1318,7 +1321,7 @@ Documentation build, `pnpm check` and API freshness pass with 114 API pages,
 duplicate-404 and missing-site-URL warnings remain visible. Reference repositories are unchanged.
 
 Memory-only unmanaged wrappers do not establish SQL type identity or PostgreSQL C layouts.
-Native box/datum conversion, node APIs, successful huge-size execution and the full version/platform
+Native box/datum conversion, node APIs and the full version/platform
 matrix remain required. Subsequent sections record virtual context parameters and borrowed native
 allocator/failure witnesses. Custom release policies and unsized/context-bound datum layouts are
 not claimed by these three sized ownership wrappers.
@@ -1453,10 +1456,78 @@ build/check and API freshness pass (114 API pages, 1210 members, 144 site pages)
 report zero errors/warnings/hints. Existing duplicate-404 and missing-site-URL site warnings remain
 visible and unsuppressed.
 
-Actual >MaxAllocSize allocation, broader allocator/resource boundaries, datum/node integration,
-custom release policies, unsized layouts and the complete remaining port inventory remain required.
+The next section records actual >MaxAllocSize allocation and resizing. Broader allocator/resource
+boundaries, datum/node integration, custom release policies, unsized layouts and the complete
+remaining port inventory still remain required.
 Only PostgreSQL 18.6/Linux x64 has execution evidence in this milestone; source review of PG13–19
 and version-aware fixtures do not establish the full PostgreSQL/Windows/Linux/macOS matrix.
+
+### Resource-budgeted huge allocation lifecycle
+
+The new allocation lifecycle probe observes six stages: baseline, allocation, growth, shrink,
+individual free, and context deletion. It preserves exact endpoint values, checked views and native
+ownership, and compares native byte counts with independent `pg_backend_memory_contexts` totals.
+Free must restore the live owner's baseline before any reset or deletion, and a new control
+allocation in that same owner must still read 42. Integration tests also require the original
+backend PID to execute `SELECT 42` after cleanup.
+
+`AllocationPoliciesPreserveBytesOwnershipAndReclamation` has five ordinary-size cases and five
+additional resource cases when `ANKUS_TEST_HUGE_ALLOCATIONS=1`: ordinary, no-OOM, 64-byte aligned,
+aligned no-OOM, and zeroed allocation/growth. The large cases request 1,073,741,841 bytes, grow to
+1,074,790,417 bytes (still above `MaxAllocSize`), shrink to 128 bytes, then free. The no-OOM and aligned
+paths exercise actual allocate-copy-free replacement. Only a 4096-byte managed stack buffer is used
+to scan the 1 MiB growth tail; the initial zeroed payload is sampled at three offsets.
+
+Execution is explicitly admitted only for a release PostgreSQL backend on 64-bit Linux with cgroup
+v2, more than 5 GiB host/finite-cgroup headroom, and an additional 3 GiB address-space allowance
+measured after warming the Native AOT library. The helper preserves the hard resource limit,
+restores the original soft limit, retains memory high-water/cgroup observations, and preserves both
+primary failures and cleanup failures. Small default cases do not establish huge-size execution.
+The affected small scope passes 5/5 cases on assertion-enabled PostgreSQL 18.6/Linux x64
+(1m18.162s). The dedicated release-server resource run passes 10/10 cases, including all five actual
+huge rows, with zero failures/skips in 53.581s. The external six-minute deadline did not expire.
+Plain `dotnet test` passes all 4077 default cases with zero failures/skips (3m34.235s), including
+the assertion-enabled backend and package-consumer suites. The non-incremental Release build
+passes with zero warnings/errors (4.66s). IDE0004/IDE0300 verification is clean; XML inspection covers
+911 internal declarations with zero omissions. All 478 C# source/template files have no extra
+opening-brace blank lines or warning suppressions, and AGENTS contains no personal paths.
+Documentation build/type checks and API freshness pass: 114 API pages, 1210 members and 144 site
+pages; type checking reports zero errors/warnings/hints. Existing duplicate-404 and missing-site-URL
+site build warnings remain visible. Public memory/development guides now describe replacement
+memory costs and the reproducible resource run; the stale virtual-context remaining-work entry was
+removed. No production diagnostic severity or consumer template changed.
+
+Every huge case returned a native/catalog baseline of 8192 bytes, restored that baseline after
+individual free, and reported zero context storage after deletion. Exact accounting and process
+high-water evidence from the release run:
+
+| Huge mode | Native/catalog bytes after growth | Backend peak resident bytes |
+|---|---:|---:|
+| Ordinary | 1,074,798,664 | 27,492,352 |
+| No-OOM | 1,074,798,664 | 1,100,185,600 |
+| Aligned 64 | 1,074,798,728 | 1,099,993,088 |
+| Aligned no-OOM | 1,074,798,728 | 1,100,189,696 |
+| Zeroed | 1,074,798,664 | 1,101,213,696 |
+
+Native AOT had already reserved 51,154,059,264 virtual bytes per warmed backend; the temporary
+soft limit was therefore 54,375,284,736 bytes. Initial host
+MemAvailable ranged from 11,283,439,616 to 11,412,434,944 bytes. The actual `/init.scope` cgroup had
+unlimited max/high values; max/oom/oom_kill counters stayed zero. All original soft/hard limits were
+restored. The selected release headers expose PG_VERSION_NUM=180006 and do not define assertion,
+memory-checking, randomization, clobbering or Valgrind macros. The native fixture and server use the
+same release installation.
+
+The five resource artifacts are under `artifacts/test-logs/huge-allocations/`, timestamped
+20260923T070613–070615 with backend PIDs 3775406, 3775413, 3775425, 3775440 and 3775447. Exact per-stage
+observations and ten passing rows are in
+`artifacts/test-results/huge-allocations/Ankus.IntegrationTests_net10.0_x64.trx`.
+
+These observations prove actual above-limit allocation and resize on the recorded target. They do
+not prove every initial zeroed byte, physical allocator exhaustion, all allocator variants at huge
+sizes, or the complete version/platform matrix. Initial zeroing samples three bytes; fresh libc
+mappings can already be zero, so existing assertion-build dirty/regrowth zeroing tests remain
+complementary. Datum/node integration, custom release policies, unsized layouts, remaining resource
+boundaries and the full port inventory remain active requirements.
 
 ## Key research findings (verified)
 
@@ -1554,7 +1625,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, and cancellable cleanup implemented; huge-size execution, datum/node APIs and full version/platform requirements listed above |
+| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, cancellable cleanup and actual huge-size allocation/resize implemented; datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1671,7 +1742,7 @@ complete implementations. AOT serialization must use statically generated metada
 | Source modules | Required behavior | Status |
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
-| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures and guarded recovery implemented; actual huge-size execution, datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
@@ -2214,3 +2285,20 @@ The phases track implementation of the complete pgrx feature surface.
   passes `cc -std=gnu17 -fsyntax-only -Wall -Wextra -Werror` against the selected PostgreSQL
   headers. Added repository-only `.vscode/settings.json` selecting GNU C17 for C/C++ IntelliSense,
   matching the native compiler mode without disabling any diagnostics.
+
+- 2026-09-23 — Added actual huge-allocation lifecycle evidence on release PostgreSQL 18.6/Linux x64.
+  Five resource cases allocate 1 GiB + 17, grow by 1 MiB while still above the ordinary limit,
+  shrink to 128 and free before deleting the owner. Ordinary, no-OOM, aligned, aligned no-OOM
+  and zeroed paths preserve values, checked views, metadata and native/catalog accounting.
+  The dedicated run passes 10/10 cases (five small plus five huge), zero failures/skips, 53.581s.
+  The assertion-enabled small baseline passes 5/5 (1m18.162s); plain `dotnet test` passes all
+  4077 default cases without failures/skips (3m34.235s). Resource admission checks the actual
+  cgroup hierarchy and host headroom, limits each warmed backend's additional address space to
+  3 GiB, records VmHWM, and restores original limits. Peak observed RSS is 1,101,213,696 bytes;
+  no cgroup max/oom/oom_kill events increased. The helper preserves lifecycle and cleanup failures
+  without warnings or suppression. Non-incremental Release has zero warnings/errors (4.66s);
+  IDE0004/IDE0300, XML (911 internal declarations), source style (478 files), documentation build,
+  type checks and API freshness all pass. Memory/development guides and remaining-scope entries
+  are updated. Actual physical exhaustion, datum/node APIs, custom release/unsized layouts,
+  broader allocator/resource boundaries, the remaining port inventory and the full matrix
+  remain required; the five huge rows are not included in default-suite totals.

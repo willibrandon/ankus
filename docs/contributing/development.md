@@ -53,6 +53,44 @@ in `src/Ankus.Testing` and owns cluster startup, transactions, diagnostics, and
 shutdown. Repository-specific fixtures stay under `tests/`. FATAL and PANIC tests
 use dedicated clusters.
 
+### Large memory allocation tests
+
+The allocation lifecycle tests always run five small cases for ordinary,
+no-OOM, over-aligned, aligned no-OOM, and zeroed allocation. To also execute the
+five cases above PostgreSQL's ordinary allocation limit, use a dedicated run:
+
+```sh
+timeout --signal=TERM --kill-after=20s 6m env \
+  ANKUS_TEST_PG_CONFIG=/path/to/release/postgresql/bin/pg_config \
+  ANKUS_TEST_HUGE_ALLOCATIONS=1 \
+  dotnet test --project tests/Ankus.IntegrationTests -c Release \
+  --filter 'FullyQualifiedName~AllocationLifecycleTests'
+```
+
+The additional cases allocate 1 GiB + 17 bytes, grow by 1 MiB while still above
+the ordinary limit, shrink to 128 bytes, and free the chunk before deleting its
+context. They check exact endpoint values, checked views, retained policy and
+alignment, and independent native/catalog accounting. No-OOM and over-aligned
+resize copy the retained payload; zeroed allocation writes the initial payload.
+
+This resource run currently requires 64-bit Linux with cgroup v2, readable
+process/resource accounting, `prlimit`, and `timeout`. Keep an external deadline
+for the run: SQL cancellation alone cannot bound a native allocation or copy.
+Run it separately from other builds and tests. It admits each large case only
+with more than 5 GiB of available host
+memory and the same headroom under any finite cgroup memory limits. Each fresh,
+warmed backend receives an additional 3 GiB address-space allowance. This bounds
+new address-space allocation; it does not reserve physical memory or constrain
+use of pages in mappings the backend already holds. Admission failures fail the
+requested test instead of counting it as passed or skipped.
+
+Use a matching release server/header installation for the economical run.
+PostgreSQL debug allocation randomization and freed-memory clobbering can touch
+the entire buffer. The test retains server, memory high-water, and cgroup
+observations in `artifacts/test-logs/huge-allocations/`. An ordinary `dotnet test`
+run without the opt-in variable supplies small-case evidence only; report the
+large resource run separately.
+
 ## Publish the sample
 
 On Linux x64:

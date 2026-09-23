@@ -164,6 +164,12 @@ null, preserving the old storage, length, and contents. Invalid sizes and other
 native failures still throw. `Options` and `Alignment` describe the original
 allocation policy; initial zeroing does not automatically zero future growth.
 
+`TryReallocate` and resizes with alignment above the server's native default
+allocate replacement storage, copy the retained prefix, and then free the old
+chunk. Budget for both chunks while resizing, especially with `Huge`.
+Zeroed allocation and zeroed growth also write the requested bytes; the huge
+size policy does not make those operations sparse.
+
 `GetAllocatedBytes()` includes descendant context storage and native allocator
 overhead. `IsEmpty` returns PostgreSQL's native emptiness result. Registering the
 invalidation callback marks an AllocSet context nonempty, including after an
@@ -273,8 +279,8 @@ the payload and its views remain live until cleanup proceeds.
 
 An unmanaged .NET type does not establish a PostgreSQL C layout or SQL type.
 These wrappers copy raw bytes; arbitrary boxed values are not automatically SQL
-arguments or results. Versioned native layouts, datum conversion, virtual context
-parameters and PostgreSQL node APIs remain separate required parts of the port.
+arguments or results. Versioned native layouts, datum conversion and PostgreSQL
+node APIs remain separate required parts of the port.
 
 ## Cleanup callbacks
 
