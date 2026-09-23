@@ -21,14 +21,14 @@ Implements: [IDisposable](https://learn.microsoft.com/dotnet/api/system.idisposa
 
 ## Methods
 
-<a id="member-185dc6d4862ad3ce"></a>
+<a id="member-892bb4819b1f8ac4"></a>
 
-### Allocate(nuint)
+### Allocate(nuint, PgAllocationOptions, nuint)
 
-Allocates uninitialized bytes owned by this context.
+Allocates bytes owned by this context and individually releasable through the returned handle.
 
 ```csharp
-public PgAllocation Allocate(nuint length)
+public PgAllocation Allocate(nuint length, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
 ```
 
 Parameters:
@@ -37,18 +37,48 @@ Parameters:
 
 The number of bytes.
 
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
 Returns: [PgAllocation](/api/ankus.pgallocation/)
 
-The context-owned allocation.
+The checked allocation.
 
-<a id="member-9a5836ee1d909e8d"></a>
+<a id="member-e440ead89d439e76"></a>
 
-### AllocateZeroed(nuint)
+### AllocateUtf8String(string)
+
+Copies strict UTF-8 text and one terminating zero into a distinct native allocation.
+
+```csharp
+public PgAllocation AllocateUtf8String(string value)
+```
+
+Parameters:
+
+`value` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Text without embedded zero characters or malformed UTF-16.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The allocation containing UTF-8 bytes and their terminating zero.
+
+This copies UTF-8 without conversion to PostgreSQL's database encoding.
+
+<a id="member-7f1f73f5ced20b11"></a>
+
+### AllocateZeroed(nuint, PgAllocationOptions, nuint)
 
 Allocates zeroed bytes owned by this context.
 
 ```csharp
-public PgAllocation AllocateZeroed(nuint length)
+public PgAllocation AllocateZeroed(nuint length, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
 ```
 
 Parameters:
@@ -57,18 +87,156 @@ Parameters:
 
 The number of bytes.
 
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+Additional native allocation policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
 Returns: [PgAllocation](/api/ankus.pgallocation/)
 
-The context-owned allocation.
+The checked zeroed allocation.
 
-<a id="member-d353c0e16507ec6a"></a>
+<a id="member-37671cf61d386cdd"></a>
 
-### Create(string, PgMemoryContext?)
+### AllocateZeroed&lt;T&gt;(nuint, PgAllocationOptions, nuint)
+
+Allocates zeroed native bytes for a checked number of unmanaged values.
+
+```csharp
+public PgAllocation AllocateZeroed<T>(nuint count = 1, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged value type.
+
+Parameters:
+
+`count` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The number of values.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+Additional native allocation policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The byte-addressed checked zeroed allocation.
+
+<a id="member-c9e104c8d262fd65"></a>
+
+### Allocate&lt;T&gt;(nuint, PgAllocationOptions, nuint)
+
+Allocates enough native bytes for a checked number of unmanaged values.
+
+```csharp
+public PgAllocation Allocate<T>(nuint count = 1, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged value type; no catalog or C struct layout is inferred.
+
+Parameters:
+
+`count` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The number of values.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The byte-addressed checked allocation.
+
+<a id="member-6ab564dbbad2a59c"></a>
+
+### CopyFrom(ReadOnlySpan&lt;byte&gt;, PgAllocationOptions, nuint)
+
+Copies managed bytes into a distinct native allocation.
+
+```csharp
+public PgAllocation CopyFrom(ReadOnlySpan<byte> source, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
+```
+
+Parameters:
+
+`source` — [ReadOnlySpan&lt;byte&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The bytes to copy.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The independently owned checked allocation.
+
+<a id="member-fed83d96553a5f2b"></a>
+
+### CopyFrom&lt;T&gt;(ReadOnlySpan&lt;T&gt;, PgAllocationOptions, nuint)
+
+Copies the exact unmanaged representation of managed values into distinct native storage.
+
+```csharp
+public PgAllocation CopyFrom<T>(ReadOnlySpan<T> source, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged value type; its bytes are copied without SQL conversion.
+
+Parameters:
+
+`source` — [ReadOnlySpan&lt;T&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The values to copy.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The independently owned byte-addressed allocation.
+
+<a id="member-b83b7e1639540d9d"></a>
+
+### Create(string, PgMemoryContext?, PgMemoryContextOptions?)
 
 Creates an owned AllocSet child of the current context.
 
 ```csharp
-public static PgMemoryContext Create(string name, PgMemoryContext? parent = null)
+public static PgMemoryContext Create(string name, PgMemoryContext? parent = null, PgMemoryContextOptions? options = null)
 ```
 
 Parameters:
@@ -80,6 +248,10 @@ The identifier shown by PostgreSQL memory statistics.
 `parent` — [PgMemoryContext](/api/ankus.pgmemorycontext/)
 
 The parent context, or null for the callback's current context.
+
+`options` — [PgMemoryContextOptions](/api/ankus.pgmemorycontextoptions/)
+
+The AllocSet block sizes, or null for PostgreSQL's default preset.
 
 Returns: [PgMemoryContext](/api/ankus.pgmemorycontext/)
 
@@ -201,6 +373,76 @@ Parameters:
 
 The callback that runs with this context current.
 
+<a id="member-069c1c42a0703b38"></a>
+
+### RunTransient(string, Action&lt;PgMemoryContext&gt;, PgMemoryContext?, PgMemoryContextOptions?)
+
+Runs synchronous work in a new child context and attempts its deletion on every exit path.
+
+```csharp
+public static void RunTransient(string name, Action<PgMemoryContext> action, PgMemoryContext? parent = null, PgMemoryContextOptions? options = null)
+```
+
+Parameters:
+
+`name` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The transient context's native identifier.
+
+`action` — [Action&lt;PgMemoryContext&gt;](https://learn.microsoft.com/dotnet/api/system.action-1)
+
+The work performed with the transient context current.
+
+`parent` — [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+The parent context, or null for the caller's current context.
+
+`options` — [PgMemoryContextOptions](/api/ankus.pgmemorycontextoptions/)
+
+The AllocSet block sizes, or null for PostgreSQL's default preset.
+
+<a id="member-9f51afb496294abc"></a>
+
+### RunTransient&lt;TResult&gt;(string, Func&lt;PgMemoryContext, TResult&gt;, PgMemoryContext?, PgMemoryContextOptions?)
+
+Runs synchronous work in a new child context and attempts its deletion after restoring the caller.
+
+```csharp
+public static TResult RunTransient<TResult>(string name, Func<PgMemoryContext, TResult> func, PgMemoryContext? parent = null, PgMemoryContextOptions? options = null)
+```
+
+Type parameters:
+
+`TResult`
+
+The managed result type.
+
+Parameters:
+
+`name` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The transient context's native identifier.
+
+`func` — [Func&lt;PgMemoryContext, TResult&gt;](https://learn.microsoft.com/dotnet/api/system.func-2)
+
+The work performed with the transient context current.
+
+`parent` — [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+The parent context, or null for the caller's current context.
+
+`options` — [PgMemoryContextOptions](/api/ankus.pgmemorycontextoptions/)
+
+The AllocSet block sizes, or null for PostgreSQL's default preset.
+
+Returns: <code>TResult</code>
+
+The callback's result.
+
+Return copied managed values rather than native pointers. Escaped checked handles become stale
+after successful deletion. Callback, restoration, and deletion failures are preserved together.
+If native cleanup fails, the context remains owned by its parent until cleanup is retried.
+
 <a id="member-df4e51886665ac13"></a>
 
 ### Run&lt;TResult&gt;(Func&lt;TResult&gt;)
@@ -227,6 +469,34 @@ Returns: <code>TResult</code>
 
 The callback result.
 
+<a id="member-da8ebbc185dfcfa3"></a>
+
+### TryAllocate(nuint, PgAllocationOptions, nuint)
+
+Attempts an allocation with explicit native policies without raising an out-of-memory error.
+
+```csharp
+public PgAllocation? TryAllocate(nuint length, PgAllocationOptions options, nuint alignment = 0)
+```
+
+Parameters:
+
+`length` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The number of bytes.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The allocation, or null for allocator exhaustion; other native errors still throw.
+
 <a id="member-5d0b6336b2b34be8"></a>
 
 ### TryAllocate(nuint, bool)
@@ -250,6 +520,40 @@ Whether to clear the allocated bytes.
 Returns: [PgAllocation](/api/ankus.pgallocation/)
 
 The allocation, or null when PostgreSQL reports out of memory.
+
+<a id="member-98dc6fbb0df9e510"></a>
+
+### TryAllocate&lt;T&gt;(nuint, PgAllocationOptions, nuint)
+
+Attempts native allocation for a checked number of unmanaged values.
+
+```csharp
+public PgAllocation? TryAllocate<T>(nuint count = 1, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged value type.
+
+Parameters:
+
+`count` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The number of values.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The initialization and native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
+
+Returns: [PgAllocation](/api/ankus.pgallocation/)
+
+The checked allocation, or null for allocator exhaustion.
 
 
 ## Properties

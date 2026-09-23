@@ -30,12 +30,18 @@ prohibits queries. Do not call them from a worker thread or after `await`.
 `TopTransaction`, and `CurTransaction`; it returns null when the selected context
 does not exist in the current phase. `Parent` returns a borrowed parent handle.
 
-`Create(name, parent)` creates an AllocSet child without changing the current
+`Create(name, parent, options)` creates an AllocSet child without changing the current
 context. Omit `parent` to use the current context. Dispose an owned context to
 delete it and its descendants. Disposing a borrowed handle leaves the native
 context intact. Contexts have no finalizers: the garbage collector must never
 call PostgreSQL from its finalizer thread. PostgreSQL still reclaims a context
 when its parent is deleted, even if a managed handle remains reachable.
+
+`PgMemoryContextOptions` supplies the minimum retained context size, initial block
+size, and maximum block size. Its `Default`, `Small`, and `StartSmall` presets match
+PostgreSQL's AllocSet presets. Sizes must satisfy the selected server's native
+alignment and range limits; they need not be powers of two. Invalid sizes throw
+before reaching PostgreSQL's allocator assertions.
 
 Use `Run` to select a context temporarily:
 
@@ -69,6 +75,22 @@ expires when its subtransaction is rolled back. `IsAlive` checks native context
 identity; transaction cleanup and reuse of a native address cannot revive an old
 handle. Borrowed contexts reset implicitly by PostgreSQL must be resolved again.
 
+`RunTransient` combines creation, selection, restoration, and deletion:
+
+```csharp
+int result = PgMemoryContext.RunTransient("temporary values", context =>
+{
+    using PgAllocation values = context.CopyFrom<int>([10, 20, 30]);
+    return values.Read<int>(sizeof(int));
+}, options: PgMemoryContextOptions.Small);
+```
+
+Return copied managed data. Checked handles that escape become stale after
+successful deletion. The helper attempts deletion after both normal return and
+exceptions, preserving callback, restoration, and deletion failures together.
+If a cleanup callback throws, older callbacks and the context can remain pending;
+the parent still owns that native context until cleanup is retried.
+
 ## Reset and allocation lifetime
 
 | Operation | Selected context | Descendant contexts |
@@ -90,11 +112,39 @@ errors still throw `PgException`. Allocation, resize, and free use PostgreSQL's
 matching allocator, and errors are caught in native code before managed execution
 resumes.
 
+`Allocate<T>(count)`, `AllocateZeroed<T>(count)`, and `TryAllocate<T>(count)`
+check multiplication by `sizeof(T)` before native access. `CopyFrom` copies a byte
+span or an unmanaged value span into independent native storage. These APIs copy
+unmanaged bytes: they do not infer SQL types or guarantee that an arbitrary .NET
+struct matches a PostgreSQL C layout. Allocation lengths and access offsets
+remain measured in bytes.
+
+Use `PgAllocationOptions.Zeroed` to clear initial storage and `Huge` to permit
+PostgreSQL's larger allocation size limit. Huge allocations still depend on
+available memory. The `alignment` argument accepts zero for native default
+alignment, or a power of two below 128 MiB. Alignment above the server's native
+default requires PostgreSQL 16 or later. Aligned `TryAllocate` and `TryReallocate`
+require PostgreSQL 16.15, 17.11, 18.6, or 19 beta 3 or later because earlier releases have
+unsafe native no-OOM handling. PostgreSQL 19 development snapshots are also
+rejected for these no-OOM requests because their version cannot establish the fix.
+Unsupported requests throw a feature error.
+
+`AllocateUtf8String` copies strict UTF-8 bytes followed by one zero byte. It rejects
+embedded NUL and malformed UTF-16. This is raw UTF-8 copying, including in a
+LATIN1 database; it does not convert to the database encoding.
+
 `Read` and `Write` copy spans or unmanaged values after checking the live chunk
 and its bounds. `Reallocate` preserves the existing prefix when it succeeds;
 an allocation error leaves the old chunk usable. `Clear` clears a selected range;
 omitting its length clears through the end. Zero-length allocations and empty
 copies are supported. `Context` queries the chunk's native owner.
+
+Resizing preserves the original huge policy and alignment. Pass
+`zeroNewMemory: true` to clear only the newly added tail; shrinking is still
+allowed. `TryReallocate` returns false only when the native allocator returns
+null, preserving the old storage, length, and contents. Invalid sizes and other
+native failures still throw. `Options` and `Alignment` describe the original
+allocation policy; initial zeroing does not automatically zero future growth.
 
 `GetAllocatedBytes()` includes descendant context storage and native allocator
 overhead. `IsEmpty` returns PostgreSQL's native emptiness result. Registering the
@@ -160,3 +210,17 @@ versions reset it during error recovery.
 Unsafe interop can use `DangerousGetPointer()`. The pointer is valid only until
 free, resize, or context cleanup. The caller must enforce its lifetime and
 alignment; checked managed operations do not make a retained raw pointer safe.
+
+`DangerousDetach()` consumes the checked owner and transfers its raw pointer
+without freeing the allocation. PostgreSQL still owns the storage through its
+context. A recipient can take exclusive individual ownership with
+`context.DangerousAdopt(pointer, length, huge, alignment)`. Adoption checks the
+native context and rejects a pointer that already has a checked owner. Failed
+adoption leaves ownership with the caller.
+
+These are unsafe interoperability operations: the caller must guarantee a live
+`palloc`-family pointer compatible with `pfree`, the accessible byte length,
+original alignment and size policy, and exclusive ownership. A context lookup
+cannot validate an arbitrary pointer. Do not free or resize a raw pointer while
+a checked owner remains live. Context-only allocators such as PostgreSQL's Bump
+context do not provide the individual-free contract required here.

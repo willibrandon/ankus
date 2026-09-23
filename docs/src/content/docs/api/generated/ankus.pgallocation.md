@@ -19,6 +19,57 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 Implements: [IDisposable](https://learn.microsoft.com/dotnet/api/system.idisposable)
 
+## Properties
+
+<a id="member-67608f8c1a9f536e"></a>
+
+### Alignment
+
+Gets the original explicit alignment, or zero for PostgreSQL's default alignment.
+
+```csharp
+public nuint Alignment { get; }
+```
+
+Value: [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+<a id="member-ddd8a25342c8319d"></a>
+
+### Context
+
+Gets the owning context while the allocation remains live.
+
+```csharp
+public PgMemoryContext Context { get; }
+```
+
+Value: [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+<a id="member-0e039818485874ff"></a>
+
+### Length
+
+Gets the allocation's byte length.
+
+```csharp
+public nuint Length { get; }
+```
+
+Value: [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+<a id="member-591422abe3bd67d1"></a>
+
+### Options
+
+Gets the original initialization and native size policies, retained through resizing.
+
+```csharp
+public PgAllocationOptions Options { get; }
+```
+
+Value: [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+
 ## Methods
 
 <a id="member-57786b1cb8d5fa70"></a>
@@ -97,14 +148,14 @@ Returns: <code>T</code>
 
 The copied value.
 
-<a id="member-d07b0f7b44152cbc"></a>
+<a id="member-d1ee2043bf9918d0"></a>
 
-### Reallocate(nuint)
+### Reallocate(nuint, bool)
 
 Resizes this allocation using PostgreSQL's matching context allocator.
 
 ```csharp
-public void Reallocate(nuint length)
+public void Reallocate(nuint length, bool zeroNewMemory = false)
 ```
 
 Parameters:
@@ -112,6 +163,37 @@ Parameters:
 `length` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
 
 The new byte length.
+
+`zeroNewMemory` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to clear only the newly added bytes when growing.
+
+The original huge size policy and alignment remain in effect. Shrinking is permitted even
+when zeroNewMemory is true; unlike PostgreSQL's repalloc0, this clears only positive growth.
+
+<a id="member-2199315cb40e85dd"></a>
+
+### TryReallocate(nuint, bool)
+
+Attempts resizing without raising an out-of-memory error, preserving the old allocation on failure.
+
+```csharp
+public bool TryReallocate(nuint length, bool zeroNewMemory = false)
+```
+
+Parameters:
+
+`length` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The new byte length.
+
+`zeroNewMemory` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to clear only the newly added bytes when growing.
+
+Returns: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+True after resizing, or false for allocator exhaustion; other native errors still throw.
 
 <a id="member-c701a043df9a583f"></a>
 
@@ -158,30 +240,3 @@ The value to copy.
 `offset` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
 
 The allocation byte offset.
-
-
-## Properties
-
-<a id="member-ddd8a25342c8319d"></a>
-
-### Context
-
-Gets the owning context while the allocation remains live.
-
-```csharp
-public PgMemoryContext Context { get; }
-```
-
-Value: [PgMemoryContext](/api/ankus.pgmemorycontext/)
-
-<a id="member-0e039818485874ff"></a>
-
-### Length
-
-Gets the allocation's byte length.
-
-```csharp
-public nuint Length { get; }
-```
-
-Value: [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)

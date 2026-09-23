@@ -75,7 +75,11 @@ internal sealed unsafe class MemoryContextTestFixture : IDisposable
             case NativeMemoryOperation.Allocate:
                 return new NativeMemoryResult { _pointer = 501, _length = request._length };
             case NativeMemoryOperation.Reallocate:
-                return new NativeMemoryResult { _context = 502, _length = request._length };
+                return new NativeMemoryResult { _context = 502, _pointer = 502, _length = request._length };
+            case NativeMemoryOperation.Detach:
+                return new NativeMemoryResult { _pointer = 701 };
+            case NativeMemoryOperation.Adopt:
+                return new NativeMemoryResult { _pointer = 601, _length = request._length };
             case NativeMemoryOperation.Switch:
                 nint previous = Current;
                 Current = request._context;

@@ -582,6 +582,23 @@ name remains outside its resettable storage and is released with its registry
 entry. Name transport converts between UTF-8 and server encoding and copies into
 a pinned managed destination before releasing conversion storage.
 
+Allocation records retain their exact requested byte length, huge size policy,
+and alignment. Aligned pointers use the selected PostgreSQL headers' redirect
+chunk allocator (PG16+), so native owner lookup and `pfree` remain compatible.
+Checked payload and padding arithmetic precedes the native call. Aligned no-OOM
+calls require the upstream fixes in 16.15, 17.11, 18.6, or 19 beta 3. Because
+PostgreSQL 19 prereleases share a numeric version, beta labels are checked too;
+ambiguous development snapshots are rejected for aligned no-OOM calls.
+Aligned or no-OOM resize allocates a replacement, copies only the known prefix,
+then frees the original after success. Ordinary throwing resize uses `repalloc`
+or `repalloc_huge`. Tail clearing starts at the old requested byte length.
+
+Detach removes only the allocation registry entry. Adoption requires caller-proven
+live native pointer provenance and exclusive ownership, checks the actual owner,
+and registers a new identity without freeing the pointer on failure. AllocSet
+creation validates supplied block sizes against target-header alignment and
+version-specific chunk-offset limits before entering assert-only native checks.
+
 Deletion checks current-context ancestry. A native protection stack retains
 explicit reset/delete roots and the actual iterator/aggregate state owners across
 managed callbacks. It prevents overlapping destructive operations, child creation

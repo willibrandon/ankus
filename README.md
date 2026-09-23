@@ -152,6 +152,9 @@ Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL no
 
 Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
 temporary current-context scopes, checked byte access, and deterministic cleanup.
+Typed factories and span copies preserve unmanaged bytes; allocation options support
+zeroing, explicit alignment, and PostgreSQL's huge size policy. `RunTransient` creates
+and selects a child context, restores the caller, and attempts deletion on every exit.
 Reset and transaction cleanup invalidate managed handles before they can access
 freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
 native context resets or is deleted; its disposable registration supports cancellation.

@@ -18,17 +18,31 @@ public sealed unsafe class PgAllocation : IDisposable
     /// <param name="provider">The native extension provider.</param>
     /// <param name="id">The allocation identity.</param>
     /// <param name="length">The allocation byte length.</param>
-    internal PgAllocation(nint provider, nint id, nuint length)
+    /// <param name="options">The allocation's original initialization and native size policies.</param>
+    /// <param name="alignment">The original explicit alignment, or zero for PostgreSQL's default.</param>
+    internal PgAllocation(nint provider, nint id, nuint length, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
     {
         _provider = provider;
         _id = id;
         _length = length;
+        Options = options;
+        Alignment = alignment;
     }
 
     /// <summary>
     /// Gets the allocation's byte length.
     /// </summary>
     public nuint Length => _length;
+
+    /// <summary>
+    /// Gets the original initialization and native size policies, retained through resizing.
+    /// </summary>
+    public PgAllocationOptions Options { get; }
+
+    /// <summary>
+    /// Gets the original explicit alignment, or zero for PostgreSQL's default alignment.
+    /// </summary>
+    public nuint Alignment { get; }
 
     /// <summary>
     /// Gets the owning context while the allocation remains live.
@@ -139,7 +153,12 @@ public sealed unsafe class PgAllocation : IDisposable
     /// Resizes this allocation using PostgreSQL's matching context allocator.
     /// </summary>
     /// <param name="length">The new byte length.</param>
-    public void Reallocate(nuint length)
+    /// <param name="zeroNewMemory">Whether to clear only the newly added bytes when growing.</param>
+    /// <remarks>
+    /// The original huge size policy and alignment remain in effect. Shrinking is permitted even
+    /// when zeroNewMemory is true; unlike PostgreSQL's repalloc0, this clears only positive growth.
+    /// </remarks>
+    public void Reallocate(nuint length, bool zeroNewMemory = false)
     {
         EnsureLive();
         NativeMemoryRequest request = new()
@@ -147,10 +166,57 @@ public sealed unsafe class PgAllocation : IDisposable
             _operation = NativeMemoryOperation.Reallocate,
             _context = _id,
             _length = length,
+            _flags = zeroNewMemory ? 1 : 0,
         };
         Invoke(ref request, out NativeMemoryResult result);
         _id = result._context;
         _length = result._length;
+    }
+
+    /// <summary>
+    /// Attempts resizing without raising an out-of-memory error, preserving the old allocation on failure.
+    /// </summary>
+    /// <param name="length">The new byte length.</param>
+    /// <param name="zeroNewMemory">Whether to clear only the newly added bytes when growing.</param>
+    /// <returns>True after resizing, or false for allocator exhaustion; other native errors still throw.</returns>
+    public bool TryReallocate(nuint length, bool zeroNewMemory = false)
+    {
+        EnsureLive();
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Reallocate,
+            _context = _id,
+            _length = length,
+            _flags = (zeroNewMemory ? 1 : 0) | 2,
+        };
+        Invoke(ref request, out NativeMemoryResult result);
+        if (result._pointer == 0)
+        {
+            return false;
+        }
+
+        _id = result._context;
+        _length = result._length;
+        return true;
+    }
+
+    /// <summary>
+    /// Transfers this allocation to raw native ownership without freeing its storage.
+    /// </summary>
+    /// <returns>The live palloc-compatible pointer now owned by the caller or its native context.</returns>
+    /// <remarks>
+    /// This consumes the checked handle. The caller is responsible for native lifetime and must not
+    /// use the raw pointer after context reset or deletion. Failed transfer leaves this handle owned.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void* DangerousDetach()
+    {
+        EnsureLive();
+        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Detach, _context = _id };
+        Invoke(ref request, out NativeMemoryResult result);
+        _id = 0;
+        _length = 0;
+        return (void*)result._pointer;
     }
 
     /// <summary>

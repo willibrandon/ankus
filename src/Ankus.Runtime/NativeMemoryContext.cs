@@ -193,6 +193,34 @@ internal enum NativeMemoryOperation
     /// Cancels a callback without unlinking PostgreSQL's pending native record.
     /// </summary>
     CancelCallback = 21,
+    /// <summary>
+    /// Transfers a tracked allocation back to raw native ownership without freeing it.
+    /// </summary>
+    Detach = 22,
+    /// <summary>
+    /// Adopts exclusive ownership of a live palloc-compatible pointer.
+    /// </summary>
+    Adopt = 23,
+}
+
+/// <summary>
+/// Borrows explicit AllocSet block sizes during native context creation.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMemoryContextSizes
+{
+    /// <summary>
+    /// Carries the retained first-block size or zero for the initial block size.
+    /// </summary>
+    internal nuint _minimumContextSize;
+    /// <summary>
+    /// Carries the first ordinary allocation block size.
+    /// </summary>
+    internal nuint _initialBlockSize;
+    /// <summary>
+    /// Carries the maximum ordinary allocation block size.
+    /// </summary>
+    internal nuint _maximumBlockSize;
 }
 
 /// <summary>
@@ -206,7 +234,7 @@ internal struct NativeMemoryRequest
     /// </summary>
     internal NativeMemoryOperation _operation;
     /// <summary>
-    /// Carries zero-fill and no-OOM allocation flags.
+    /// Carries zero-fill, no-OOM, and huge-size allocation flags.
     /// </summary>
     internal int _flags;
     /// <summary>
@@ -218,7 +246,7 @@ internal struct NativeMemoryRequest
     /// </summary>
     internal nint _other;
     /// <summary>
-    /// Reserves an explicitly borrowed native pointer.
+    /// Borrows an operation-specific native pointer or context sizing payload.
     /// </summary>
     internal nint _pointer;
     /// <summary>
@@ -230,7 +258,7 @@ internal struct NativeMemoryRequest
     /// </summary>
     internal nuint _length;
     /// <summary>
-    /// Reserves a native allocation alignment.
+    /// Carries the requested native allocation alignment, or zero for the server default.
     /// </summary>
     internal nuint _alignment;
     /// <summary>

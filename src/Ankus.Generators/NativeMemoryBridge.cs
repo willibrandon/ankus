@@ -23,6 +23,10 @@ internal static class NativeMemoryBridge
         #include "utils/memutils.h"
         #include "utils/palloc.h"
         #include "nodes/memnodes.h"
+        #if PG_VERSION_NUM >= 160000
+        #include "utils/memutils_internal.h"
+        #include "utils/memutils_memorychunk.h"
+        #endif
 
         typedef enum AnkusMemoryOperation
         {
@@ -46,7 +50,9 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_EMPTY = 18,
             ANKUS_MEMORY_STATISTICS = 19,
             ANKUS_MEMORY_REGISTER_CALLBACK = 20,
-            ANKUS_MEMORY_CANCEL_CALLBACK = 21
+            ANKUS_MEMORY_CANCEL_CALLBACK = 21,
+            ANKUS_MEMORY_DETACH = 22,
+            ANKUS_MEMORY_ADOPT = 23
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -70,6 +76,13 @@ internal static class NativeMemoryBridge
             uintptr_t length;
             intptr_t value;
         } AnkusMemoryResult;
+
+        typedef struct AnkusMemoryContextSizes
+        {
+            uintptr_t minimum;
+            uintptr_t initial;
+            uintptr_t maximum;
+        } AnkusMemoryContextSizes;
 
         typedef struct AnkusMemoryApi AnkusMemoryApi;
         typedef int (*AnkusMemoryInvoke)(AnkusMemoryApi *, AnkusMemoryRequest *, AnkusMemoryResult *, AnkusError *);
@@ -214,6 +227,8 @@ internal static class NativeMemoryBridge
             uint64 id;
             void *pointer;
             Size size;
+            Size alignment;
+            int flags;
             uint64 context_id;
             AnkusMemoryAllocation *next;
         };
@@ -395,13 +410,13 @@ internal static class NativeMemoryBridge
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory registering an Ankus memory context")));
             }
 
-            entry->id = ankus_memory_next_context++;
-            if (entry->id == 0)
+            if (ankus_memory_next_context == 0)
             {
                 free(entry);
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("Ankus memory context identity space is exhausted")));
             }
 
+            entry->id = ankus_memory_next_context++;
             entry->context = context;
             entry->generation = 1;
             entry->alive = true;
@@ -489,6 +504,130 @@ internal static class NativeMemoryBridge
         }
 
         static void
+        ankus_memory_validate_sizes(const AnkusMemoryContextSizes *sizes)
+        {
+            if (sizes->initial < 1024 || sizes->initial != MAXALIGN(sizes->initial) ||
+                sizes->maximum < sizes->initial || !AllocHugeSizeIsValid(sizes->maximum) ||
+                sizes->maximum != MAXALIGN(sizes->maximum) ||
+                (sizes->minimum != 0 && (sizes->minimum < 1024 ||
+                    sizes->minimum != MAXALIGN(sizes->minimum) || sizes->minimum > sizes->maximum)))
+            {
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid AllocSet context sizes")));
+            }
+
+        #if PG_VERSION_NUM >= 160000
+            if (sizes->maximum > MEMORYCHUNK_MAX_BLOCKOFFSET)
+            {
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("AllocSet maximum block size exceeds the native chunk offset limit")));
+            }
+        #endif
+        }
+
+        static int
+        ankus_memory_validate_allocation(Size size, Size alignment, int options)
+        {
+            if ((options & ~7) != 0 || (alignment != 0 &&
+                ((alignment & (alignment - 1)) != 0 || alignment >= ((Size) 128 * 1024 * 1024))))
+            {
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid allocation options or alignment")));
+            }
+
+            int flags = (options & 1) != 0 ? MCXT_ALLOC_ZERO : 0;
+            if ((options & 2) != 0)
+            {
+                flags |= MCXT_ALLOC_NO_OOM;
+            }
+
+            if ((options & 4) != 0)
+            {
+                flags |= MCXT_ALLOC_HUGE;
+            }
+
+            Size limit = (flags & MCXT_ALLOC_HUGE) != 0 ? MaxAllocHugeSize : MaxAllocSize;
+            if (size > limit)
+            {
+                elog(ERROR, "invalid memory alloc request size %zu", size);
+            }
+
+            if (alignment > MAXIMUM_ALIGNOF)
+            {
+        #if PG_VERSION_NUM >= 160000
+                Size overhead = PallocAlignedExtraBytes(alignment);
+        #ifdef MEMORY_CONTEXT_CHECKING
+                overhead++;
+        #endif
+                if (overhead > limit || size > limit - overhead)
+                {
+                    elog(ERROR, "invalid aligned memory alloc request size %zu", size);
+                }
+
+        #if PG_VERSION_NUM < 160015 || (PG_VERSION_NUM >= 170000 && PG_VERSION_NUM < 170011) || (PG_VERSION_NUM >= 180000 && PG_VERSION_NUM < 180006)
+                if ((flags & MCXT_ALLOC_NO_OOM) != 0)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                        errmsg("aligned no-OOM allocation requires PostgreSQL 16.15, 17.11, 18.6 or later")));
+                }
+        #endif
+        #if PG_VERSION_NUM >= 190000 && PG_VERSION_NUM < 190001
+                /* PostgreSQL prereleases share PG_VERSION_NUM, including the unfixed betas. */
+                if ((flags & MCXT_ALLOC_NO_OOM) != 0 &&
+                    (strstr(PG_VERSION, "devel") != NULL ||
+                        (strncmp(PG_VERSION, "19beta", 6) == 0 && atoi(PG_VERSION + 6) < 3)))
+                {
+                    ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                        errmsg("aligned no-OOM allocation requires PostgreSQL 19 beta 3 or later")));
+                }
+        #endif
+        #else
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("aligned allocation requires PostgreSQL 16 or later")));
+        #endif
+            }
+
+            return flags;
+        }
+
+        static void *
+        ankus_memory_allocate(MemoryContext context, Size size, Size alignment, int options)
+        {
+            int flags = ankus_memory_validate_allocation(size, alignment, options);
+        #if PG_VERSION_NUM >= 160000
+            if (alignment > MAXIMUM_ALIGNOF)
+            {
+                return MemoryContextAllocAligned(context, size, alignment, flags);
+            }
+        #endif
+
+            return MemoryContextAllocExtended(context, size, flags);
+        }
+
+        static AnkusMemoryAllocation *
+        ankus_memory_register_allocation(AnkusMemoryContext *context, void *pointer,
+            Size size, Size alignment, int options, bool release_on_failure)
+        {
+            AnkusMemoryAllocation *allocation = calloc(1, sizeof(*allocation));
+            if (allocation == NULL || ankus_memory_next_allocation == 0)
+            {
+                free(allocation);
+                if (release_on_failure)
+                {
+                    pfree(pointer);
+                }
+
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("unable to register an Ankus allocation")));
+            }
+
+            allocation->id = ankus_memory_next_allocation++;
+            allocation->pointer = pointer;
+            allocation->size = size;
+            allocation->alignment = alignment;
+            allocation->flags = options & 4;
+            allocation->context_id = context->id;
+            allocation->next = ankus_memory_allocations;
+            ankus_memory_allocations = allocation;
+            return allocation;
+        }
+
+        static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
         {
             memset(result, 0, sizeof(*result));
@@ -529,7 +668,13 @@ internal static class NativeMemoryBridge
                     MemoryContext parent = request->context == 0 ? CurrentMemoryContext :
                         ankus_memory_context_from_request(request)->context;
                     ankus_memory_check_protection(parent, true);
-                    MemoryContext context = AllocSetContextCreate(parent, "Ankus memory context", ALLOCSET_DEFAULT_SIZES);
+                    const AnkusMemoryContextSizes defaults = {ALLOCSET_DEFAULT_MINSIZE,
+                        ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE};
+                    const AnkusMemoryContextSizes *sizes = request->pointer == 0 ? &defaults :
+                        (const AnkusMemoryContextSizes *) request->pointer;
+                    ankus_memory_validate_sizes(sizes);
+                    MemoryContext context = AllocSetContextCreate(parent, "Ankus memory context",
+                        sizes->minimum, sizes->initial, sizes->maximum);
                     MemoryContext caller = CurrentMemoryContext;
                     PG_TRY();
                     {
@@ -727,43 +872,15 @@ internal static class NativeMemoryBridge
                 case ANKUS_MEMORY_ALLOCATE:
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
-                    int flags = (request->flags & 1) != 0 ? MCXT_ALLOC_ZERO : 0;
-                    if ((request->flags & 2) != 0)
-                    {
-                        flags |= MCXT_ALLOC_NO_OOM;
-                    }
-
-                    if ((uint64) request->length > (uint64) SIZE_MAX)
-                    {
-                        ereport(ERROR, (errmsg("PostgreSQL memory allocation size is too large")));
-                    }
-
-                    void *pointer = MemoryContextAllocExtended(entry->context, (Size) request->length, flags);
+                    void *pointer = ankus_memory_allocate(entry->context, (Size) request->length,
+                        (Size) request->alignment, request->flags);
                     if (pointer == NULL)
                     {
                         break;
                     }
 
-                    AnkusMemoryAllocation *allocation = (AnkusMemoryAllocation *) calloc(1, sizeof(AnkusMemoryAllocation));
-                    if (allocation == NULL)
-                    {
-                        pfree(pointer);
-                        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory registering an Ankus allocation")));
-                    }
-
-                    allocation->id = ankus_memory_next_allocation++;
-                    if (allocation->id == 0)
-                    {
-                        free(allocation);
-                        pfree(pointer);
-                        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("Ankus allocation identity space is exhausted")));
-                    }
-
-                    allocation->pointer = pointer;
-                    allocation->size = (Size) request->length;
-                    allocation->context_id = entry->id;
-                    allocation->next = ankus_memory_allocations;
-                    ankus_memory_allocations = allocation;
+                    AnkusMemoryAllocation *allocation = ankus_memory_register_allocation(entry, pointer,
+                        (Size) request->length, (Size) request->alignment, request->flags, true);
                     result->context = (intptr_t) entry->id;
                     result->pointer = (intptr_t) allocation->id;
                     result->length = request->length;
@@ -778,9 +895,89 @@ internal static class NativeMemoryBridge
                             errmsg("the PostgreSQL allocation handle is stale")));
                     }
 
-                    allocation->pointer = repalloc(allocation->pointer, (Size) request->length);
-                    allocation->size = (Size) request->length;
+                    if ((request->flags & ~3) != 0)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid allocation resize options")));
+                    }
+
+                    Size size = (Size) request->length;
+                    int options = allocation->flags | (request->flags & 2);
+                    int flags = ankus_memory_validate_allocation(size, allocation->alignment, options);
+                    void *pointer;
+                    if (allocation->alignment > MAXIMUM_ALIGNOF || (flags & MCXT_ALLOC_NO_OOM) != 0)
+                    {
+                        /* Keep the old chunk intact until replacement succeeds, including
+                         * older native aligned realloc implementations that lose flags. */
+                        MemoryContext owner = GetMemoryChunkContext(allocation->pointer);
+                        pointer = ankus_memory_allocate(owner, size, allocation->alignment, options);
+                        if (pointer == NULL)
+                        {
+                            break;
+                        }
+
+                        memcpy(pointer, allocation->pointer, Min(size, allocation->size));
+                        pfree(allocation->pointer);
+                    }
+                    else
+                    {
+                        pointer = (flags & MCXT_ALLOC_HUGE) != 0 ? repalloc_huge(allocation->pointer, size) :
+                            repalloc(allocation->pointer, size);
+                    }
+
+                    if ((request->flags & 1) != 0 && size > allocation->size)
+                    {
+                        memset((char *) pointer + allocation->size, 0, size - allocation->size);
+                    }
+
+                    allocation->pointer = pointer;
+                    allocation->size = size;
                     result->context = (intptr_t) allocation->id;
+                    result->pointer = (intptr_t) allocation->id;
+                    result->length = request->length;
+                    break;
+                }
+                case ANKUS_MEMORY_DETACH:
+                {
+                    AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) request->context);
+                    if (allocation == NULL)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                            errmsg("the PostgreSQL allocation handle is stale")));
+                    }
+
+                    result->pointer = (intptr_t) allocation->pointer;
+                    ankus_memory_free_allocation(allocation);
+                    break;
+                }
+                case ANKUS_MEMORY_ADOPT:
+                {
+                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    void *pointer = (void *) request->pointer;
+                    if (pointer == NULL || (request->flags & ~4) != 0)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid allocation adoption request")));
+                    }
+
+                    ankus_memory_validate_allocation((Size) request->length, (Size) request->alignment, request->flags);
+                    for (AnkusMemoryAllocation *existing = ankus_memory_allocations; existing != NULL; existing = existing->next)
+                    {
+                        if (existing->pointer == pointer)
+                        {
+                            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("the PostgreSQL allocation already has a checked owner")));
+                        }
+                    }
+
+                    /* The caller guarantees live palloc provenance and the exact accessible
+                     * length. Chunk headers cannot validate arbitrary pointers or lengths. */
+                    if (GetMemoryChunkContext(pointer) != entry->context)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("the PostgreSQL allocation belongs to a different memory context")));
+                    }
+
+                    AnkusMemoryAllocation *allocation = ankus_memory_register_allocation(entry, pointer,
+                        (Size) request->length, (Size) request->alignment, request->flags, false);
+                    result->context = (intptr_t) entry->id;
+                    result->pointer = (intptr_t) allocation->id;
                     result->length = request->length;
                     break;
                 }
