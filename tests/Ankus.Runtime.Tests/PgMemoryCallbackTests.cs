@@ -56,8 +56,8 @@ public sealed unsafe class PgMemoryCallbackTests
         Assert.HasCount(2, registrations);
         Assert.IsTrue(first.IsPending);
         Assert.IsTrue(second.IsPending);
-        Assert.AreEqual((nint)101, registrations[0]._context);
-        Assert.AreEqual((nint)101, registrations[1]._context);
+        Assert.AreEqual(101, registrations[0]._context);
+        Assert.AreEqual(101, registrations[1]._context);
         Assert.AreNotEqual(nint.Zero, registrations[0]._other);
         Assert.AreNotEqual(nint.Zero, registrations[1]._other);
         Assert.AreNotEqual(registrations[0]._other, registrations[1]._other);
@@ -186,7 +186,7 @@ public sealed unsafe class PgMemoryCallbackTests
         Assert.AreEqual("38000", stale.SqlState);
         Assert.AreEqual(1, calls);
         Assert.AreEqual("cleanup café 🐘", error.Message);
-        Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+        Assert.AreEqual(101, PgMemoryContext.Current.Id);
     }
 
     /// <summary>
@@ -213,7 +213,7 @@ public sealed unsafe class PgMemoryCallbackTests
                 Assert.ThrowsExactly<InvalidOperationException>(() => PgLog.IsEnabled(PgLogLevel.Notice));
                 Assert.ThrowsExactly<InvalidOperationException>(() => NativeGuc.ReadInt32("test.setting"));
                 Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Write(new PgAggregateState<int>(42)));
-                Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+                Assert.AreEqual(101, PgMemoryContext.Current.Id);
                 if (fail)
                 {
                     throw new InvalidOperationException("cleanup failed");
@@ -234,16 +234,16 @@ public sealed unsafe class PgMemoryCallbackTests
             Assert.IsFalse(registration.IsPending);
             NativeBackend.CheckAccess(71);
             NativeLog.CheckAccess();
-            Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+            Assert.AreEqual(101, PgMemoryContext.Current.Id);
             nint observedBackend = NativeBackend.Enter(0);
             NativeBackend.Exit(observedBackend);
             nint observedLog = NativeLog.Enter(0);
             NativeLog.Exit(observedLog);
             nint observedRead = NativeGuc.Enter(0);
             NativeGuc.Exit(observedRead);
-            Assert.AreEqual((nint)71, observedBackend);
-            Assert.AreEqual((nint)83, observedLog);
-            Assert.AreEqual((nint)97, observedRead);
+            Assert.AreEqual(71, observedBackend);
+            Assert.AreEqual(83, observedLog);
+            Assert.AreEqual(97, observedRead);
         }
         finally
         {
@@ -269,7 +269,7 @@ public sealed unsafe class PgMemoryCallbackTests
         try
         {
             Assert.IsNull(Dispatch(registered, scope.Address));
-            Assert.AreEqual((nint)17, observedProvider);
+            Assert.AreEqual(17, observedProvider);
             Assert.ThrowsExactly<InvalidOperationException>(() => PgMemoryContext.Current);
         }
         finally
@@ -277,7 +277,7 @@ public sealed unsafe class PgMemoryCallbackTests
             NativeMemoryContext.Exit(previous);
         }
 
-        Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+        Assert.AreEqual(101, PgMemoryContext.Current.Id);
     }
 
     /// <summary>

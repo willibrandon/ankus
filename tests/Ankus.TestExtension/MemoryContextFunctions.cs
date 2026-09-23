@@ -19,7 +19,7 @@ public static unsafe class MemoryContextFunctions
     {
         PgMemoryContext current = PgMemoryContext.Current;
         using PgMemoryContext child = PgMemoryContext.Create("Ankus memory test", current);
-        using PgAllocation allocation = child.AllocateZeroed((nuint)sizeof(int));
+        using PgAllocation allocation = child.AllocateZeroed(sizeof(int));
         child.Run(() => allocation.Write(value));
         int beforeReset = allocation.Read<int>();
         string name = child.Name;
@@ -34,7 +34,7 @@ public static unsafe class MemoryContextFunctions
             stale = true;
         }
 
-        using PgAllocation replacement = child.Allocate((nuint)sizeof(int));
+        using PgAllocation replacement = child.Allocate(sizeof(int));
         replacement.Write(value + 1);
         int afterReset = replacement.Read<int>();
         bool restored = PgMemoryContext.Current.Id == current.Id;

@@ -667,7 +667,7 @@ public sealed class PgEventTriggerTests
         values[ordinal] = null;
         Assert.ThrowsExactly<InvalidOperationException>(() => kind switch
         {
-            "ddl" => (object)new PgDdlCommand(DdlRow(values)),
+            "ddl" => new PgDdlCommand(DdlRow(values)),
             "dropped" => new PgDroppedObject(DroppedRow(values)),
             _ => new PgTableRewrite(new SpiRow(values, [new("table_oid", 26), new("reason", 23)])),
         });

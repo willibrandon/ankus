@@ -78,7 +78,7 @@ public sealed class PgArrayTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new PgArray<int>([], [int.MaxValue, 2]));
         Assert.ThrowsExactly<NotSupportedException>(() => new PgArray<byte>([1]));
         Assert.ThrowsExactly<NotSupportedException>(() => new PgArray<int[]>([[1]]));
-        Assert.ThrowsExactly<ArgumentNullException>(() => new PgArray<int>((IEnumerable<int>)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new PgArray<int>(null!));
     }
 
     /// <summary>

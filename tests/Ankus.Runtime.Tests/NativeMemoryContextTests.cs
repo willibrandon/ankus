@@ -41,7 +41,7 @@ public sealed class NativeMemoryContextTests
             {
                 using MemoryContextTestFixture.Scope nested = MemoryContextTestFixture.Enter(29);
                 Assert.ThrowsExactly<InvalidOperationException>(() => context.Name);
-                Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+                Assert.AreEqual(101, PgMemoryContext.Current.Id);
                 throw expected;
             }
             catch (InvalidOperationException exception)
@@ -74,12 +74,12 @@ public sealed class NativeMemoryContextTests
         {
             Assert.AreNotEqual(outer.Address, nested.Address);
             Assert.AreEqual("context café 🐘", context.Name);
-            Assert.AreEqual((nint)303, allocation.Context.Id);
+            Assert.AreEqual(303, allocation.Context.Id);
             Assert.AreEqual((nuint)8, allocation.Length);
         }
 
         Assert.IsTrue(context.IsAlive);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
+        Assert.AreEqual(303, allocation.Context.Id);
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ public sealed class NativeMemoryContextTests
         using (MemoryContextTestFixture.Enter())
         {
             Assert.AreEqual("context café 🐘", context.Name);
-            Assert.AreEqual((nint)303, allocation.Context.Id);
+            Assert.AreEqual(303, allocation.Context.Id);
             allocation.Dispose();
         }
 
@@ -150,7 +150,7 @@ public sealed class NativeMemoryContextTests
             Assert.ThrowsExactly<InvalidOperationException>(() => context.Name);
             using (MemoryContextTestFixture.Enter(29))
             {
-                Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+                Assert.AreEqual(101, PgMemoryContext.Current.Id);
                 Assert.ThrowsExactly<InvalidOperationException>(() => context.Name);
             }
 
@@ -177,7 +177,7 @@ public sealed class NativeMemoryContextTests
         Assert.AreEqual("hint", exception.Hint);
         Assert.AreEqual(3, fixture.ErrorReleases);
         fixture.Handler = null;
-        Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+        Assert.AreEqual(101, PgMemoryContext.Current.Id);
         Assert.AreEqual("native café", exception.Message);
     }
 
@@ -191,7 +191,7 @@ public sealed class NativeMemoryContextTests
         using var fixture = new MemoryContextTestFixture();
         using (MemoryContextTestFixture.Enter())
         {
-            Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+            Assert.AreEqual(101, PgMemoryContext.Current.Id);
         }
 
         Assert.ThrowsExactly<InvalidOperationException>(() => PgMemoryContext.Current);

@@ -73,7 +73,7 @@ public sealed class GucLifetimeTests(TestContext context)
             long[] witness = Assert.IsInstanceOfType<long[]>(await ScalarAsync(connection, "SELECT datatype.guc_lifetime_malloc_witness(4194304)"));
             Assert.HasCount(3, witness);
             Assert.IsGreaterThanOrEqualTo(4194304L, witness[1] - witness[0]);
-            Assert.IsLessThanOrEqualTo((long)PayloadLength, witness[2] - witness[0]);
+            Assert.IsLessThanOrEqualTo(PayloadLength, witness[2] - witness[0]);
 
             await RunCyclesAsync(connection, latin1, 16);
             await AssertCollectedAsync(connection);

@@ -16,10 +16,10 @@ public sealed class PgAllocationTests
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         using PgAllocation allocation = PgMemoryContext.Current.Allocate(8);
         fixture.Requests.Clear();
-        Assert.AreEqual((nint)303, allocation.Context.Id);
+        Assert.AreEqual(303, allocation.Context.Id);
         NativeMemoryRequest request = Assert.ContainsSingle(fixture.Requests);
         Assert.AreEqual(NativeMemoryOperation.Owner, request._operation);
-        Assert.AreEqual((nint)501, request._context);
+        Assert.AreEqual(501, request._context);
         fixture.Handler = nativeRequest => nativeRequest._operation == NativeMemoryOperation.Owner
             ? throw new PgException("55000", "allocation expired")
             : fixture.Respond(nativeRequest);
@@ -88,7 +88,7 @@ public sealed class PgAllocationTests
             fixture.Requests.Select(static request => request._operation));
         foreach (NativeMemoryRequest request in fixture.Requests)
         {
-            Assert.AreEqual((nint)length, request._value);
+            Assert.AreEqual(length, request._value);
             Assert.AreEqual((nuint)0, request._length);
         }
     }
@@ -171,13 +171,13 @@ public sealed class PgAllocationTests
         PgException exception = Assert.ThrowsExactly<PgException>(() => allocation.Reallocate(16));
         Assert.AreEqual("53200", exception.SqlState);
         Assert.AreEqual((nuint)8, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)501, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(501, fixture.Requests[^1]._context);
         fixture.Handler = null;
         allocation.Reallocate(16);
         Assert.AreEqual((nuint)16, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)502, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(502, fixture.Requests[^1]._context);
     }
 
     /// <summary>
@@ -202,7 +202,7 @@ public sealed class PgAllocationTests
         PgException exception = Assert.ThrowsExactly<PgException>(allocation.Dispose);
         Assert.AreEqual("XX000", exception.SqlState);
         Assert.AreEqual((nuint)8, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
+        Assert.AreEqual(303, allocation.Context.Id);
         allocation.Dispose();
         allocation.Dispose();
         Assert.AreEqual(2, frees);

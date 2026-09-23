@@ -121,7 +121,7 @@ public sealed class GucRuntimeTests
         Assert.AreSame(error, rejected.Error);
         Assert.ThrowsExactly<InvalidOperationException>(() => rejected.Value);
         Assert.ThrowsExactly<InvalidOperationException>(() => rejected.Extra);
-        Assert.ThrowsExactly<ArgumentNullException>(() => new PgGucCheckResult<int>((PgGucCheckError)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new PgGucCheckResult<int>(null!));
     }
 
     /// <summary>

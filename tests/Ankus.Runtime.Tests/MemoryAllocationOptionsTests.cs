@@ -27,7 +27,7 @@ public sealed unsafe class MemoryAllocationOptionsTests
         Assert.AreEqual((int)options, request._flags);
         Assert.AreEqual((nuint)64, request._alignment);
         Assert.AreEqual((nuint)17, request._length);
-        Assert.AreEqual((nint)101, request._context);
+        Assert.AreEqual(101, request._context);
         Assert.AreEqual(options, allocation.Options);
         Assert.AreEqual((nuint)64, allocation.Alignment);
         Assert.AreEqual((nuint)17, allocation.Length);
@@ -302,7 +302,7 @@ public sealed unsafe class MemoryAllocationOptionsTests
         }
 
         NativeMemoryRequest free = Find(fixture, NativeMemoryOperation.Free);
-        Assert.AreEqual((nint)501, free._context);
+        Assert.AreEqual(501, free._context);
         Assert.AreEqual(failCleanup ? 2 : 1, fixture.ErrorReleases);
     }
 
@@ -367,13 +367,13 @@ public sealed unsafe class MemoryAllocationOptionsTests
         allocation.Reallocate(19, zeroNewMemory);
         NativeMemoryRequest first = Find(fixture, NativeMemoryOperation.Reallocate);
         Assert.AreEqual(zeroNewMemory ? 1 : 0, first._flags);
-        Assert.AreEqual((nint)501, first._context);
+        Assert.AreEqual(501, first._context);
         Assert.AreEqual((nuint)19, allocation.Length);
         fixture.Requests.Clear();
         Assert.IsTrue(allocation.TryReallocate(3, zeroNewMemory));
         NativeMemoryRequest second = Find(fixture, NativeMemoryOperation.Reallocate);
         Assert.AreEqual(zeroNewMemory ? 3 : 2, second._flags);
-        Assert.AreEqual((nint)502, second._context);
+        Assert.AreEqual(502, second._context);
         Assert.AreEqual((nuint)3, allocation.Length);
         Assert.AreEqual(PgAllocationOptions.Huge, allocation.Options);
         Assert.AreEqual((nuint)4096, allocation.Alignment);
@@ -391,13 +391,13 @@ public sealed unsafe class MemoryAllocationOptionsTests
         fixture.Handler = request => request._operation == NativeMemoryOperation.Reallocate ? default : fixture.Respond(request);
         Assert.IsFalse(allocation.TryReallocate(17, true));
         Assert.AreEqual((nuint)8, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)501, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(501, fixture.Requests[^1]._context);
         fixture.Handler = null;
         Assert.IsTrue(allocation.TryReallocate(17, true));
         Assert.AreEqual((nuint)17, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)502, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(502, fixture.Requests[^1]._context);
         Assert.AreEqual(PgAllocationOptions.Huge, allocation.Options);
         Assert.AreEqual((nuint)64, allocation.Alignment);
     }
@@ -419,8 +419,8 @@ public sealed unsafe class MemoryAllocationOptionsTests
         Assert.AreEqual("invalid resize", error.Message);
         Assert.AreEqual(1, fixture.ErrorReleases);
         Assert.AreEqual((nuint)8, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)501, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(501, fixture.Requests[^1]._context);
     }
 
     /// <summary>
@@ -434,11 +434,11 @@ public sealed unsafe class MemoryAllocationOptionsTests
         PgAllocation allocation = PgMemoryContext.Current.Allocate(17);
         fixture.Requests.Clear();
         void* pointer = allocation.DangerousDetach();
-        Assert.AreEqual((nint)701, (nint)pointer);
+        Assert.AreEqual(701, (nint)pointer);
         Assert.AreEqual((nuint)0, allocation.Length);
         NativeMemoryRequest detached = Assert.ContainsSingle(fixture.Requests);
         Assert.AreEqual(NativeMemoryOperation.Detach, detached._operation);
-        Assert.AreEqual((nint)501, detached._context);
+        Assert.AreEqual(501, detached._context);
         fixture.Requests.Clear();
         allocation.Dispose();
         Assert.ThrowsExactly<ObjectDisposedException>(() =>
@@ -468,10 +468,10 @@ public sealed unsafe class MemoryAllocationOptionsTests
         });
         Assert.AreEqual("55006", error.SqlState);
         Assert.AreEqual((nuint)17, allocation.Length);
-        Assert.AreEqual((nint)303, allocation.Context.Id);
-        Assert.AreEqual((nint)501, fixture.Requests[^1]._context);
+        Assert.AreEqual(303, allocation.Context.Id);
+        Assert.AreEqual(501, fixture.Requests[^1]._context);
         fixture.Handler = null;
-        Assert.AreEqual((nint)701, (nint)allocation.DangerousDetach());
+        Assert.AreEqual(701, (nint)allocation.DangerousDetach());
         Assert.AreEqual((nuint)0, allocation.Length);
     }
 
@@ -488,8 +488,8 @@ public sealed unsafe class MemoryAllocationOptionsTests
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgAllocation allocation = PgMemoryContext.Current.DangerousAdopt((void*)701, 37, huge, 4096);
         NativeMemoryRequest request = Find(fixture, NativeMemoryOperation.Adopt);
-        Assert.AreEqual((nint)101, request._context);
-        Assert.AreEqual((nint)701, request._pointer);
+        Assert.AreEqual(101, request._context);
+        Assert.AreEqual(701, request._pointer);
         Assert.AreEqual((nuint)37, request._length);
         Assert.AreEqual(huge ? 4 : 0, request._flags);
         Assert.AreEqual((nuint)4096, request._alignment);
@@ -497,7 +497,7 @@ public sealed unsafe class MemoryAllocationOptionsTests
         Assert.AreEqual(huge ? PgAllocationOptions.Huge : PgAllocationOptions.None, allocation.Options);
         Assert.AreEqual((nuint)4096, allocation.Alignment);
         allocation.Dispose();
-        Assert.AreEqual((nint)601, Find(fixture, NativeMemoryOperation.Free)._context);
+        Assert.AreEqual(601, Find(fixture, NativeMemoryOperation.Free)._context);
     }
 
     /// <summary>

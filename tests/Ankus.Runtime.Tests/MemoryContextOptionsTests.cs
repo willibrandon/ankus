@@ -94,13 +94,13 @@ public sealed unsafe class MemoryContextOptionsTests
         Assert.AreEqual((nuint)initial, observed._initialBlockSize);
         Assert.AreEqual((nuint)maximum, observed._maximumBlockSize);
         Assert.AreEqual("sized café", observedName);
-        Assert.AreEqual((nint)101, observedParent);
-        Assert.AreEqual((nint)202, context.Id);
-        Assert.AreEqual((nint)101, fixture.Current);
+        Assert.AreEqual(101, observedParent);
+        Assert.AreEqual(202, context.Id);
+        Assert.AreEqual(101, fixture.Current);
         Assert.AreEqual(3 * sizeof(nuint), Marshal.SizeOf<NativeMemoryContextSizes>());
         Assert.AreEqual(nint.Zero, Marshal.OffsetOf<NativeMemoryContextSizes>(nameof(NativeMemoryContextSizes._minimumContextSize)));
-        Assert.AreEqual((nint)sizeof(nuint), Marshal.OffsetOf<NativeMemoryContextSizes>(nameof(NativeMemoryContextSizes._initialBlockSize)));
-        Assert.AreEqual((nint)(2 * sizeof(nuint)), Marshal.OffsetOf<NativeMemoryContextSizes>(nameof(NativeMemoryContextSizes._maximumBlockSize)));
+        Assert.AreEqual(sizeof(nuint), Marshal.OffsetOf<NativeMemoryContextSizes>(nameof(NativeMemoryContextSizes._initialBlockSize)));
+        Assert.AreEqual(2 * sizeof(nuint), Marshal.OffsetOf<NativeMemoryContextSizes>(nameof(NativeMemoryContextSizes._maximumBlockSize)));
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public sealed unsafe class MemoryContextOptionsTests
         Assert.AreEqual(1, fixture.ErrorReleases);
         NativeMemoryRequest request = Assert.ContainsSingle(fixture.Requests);
         Assert.AreEqual(NativeMemoryOperation.Create, request._operation);
-        Assert.AreEqual((nint)101, fixture.Current);
+        Assert.AreEqual(101, fixture.Current);
     }
 
     /// <summary>
@@ -146,7 +146,7 @@ public sealed unsafe class MemoryContextOptionsTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         ArgumentNullException func = Assert.ThrowsExactly<ArgumentNullException>(() => PgMemoryContext.RunTransient<int>("missing callback", null!));
-        ArgumentNullException action = Assert.ThrowsExactly<ArgumentNullException>(() => PgMemoryContext.RunTransient("missing callback", (Action<PgMemoryContext>)null!));
+        ArgumentNullException action = Assert.ThrowsExactly<ArgumentNullException>(() => PgMemoryContext.RunTransient("missing callback", null!));
         Assert.AreEqual("func", func.ParamName);
         Assert.AreEqual("action", action.ParamName);
         Assert.IsEmpty(fixture.Requests);
@@ -165,21 +165,21 @@ public sealed unsafe class MemoryContextOptionsTests
         int result = PgMemoryContext.RunTransient("temporary", context =>
         {
             escaped = context;
-            Assert.AreEqual((nint)202, context.Id);
+            Assert.AreEqual(202, context.Id);
             Assert.AreEqual(context.Id, PgMemoryContext.Current.Id);
             return 42;
         }, parent, PgMemoryContextOptions.Small);
         Assert.AreEqual(42, result);
         Assert.IsNotNull(escaped);
         Assert.IsFalse(escaped.IsAlive);
-        Assert.AreEqual((nint)101, fixture.Current);
+        Assert.AreEqual(101, fixture.Current);
         NativeMemoryRequest created = Find(fixture, NativeMemoryOperation.Create);
-        Assert.AreEqual((nint)101, created._context);
+        Assert.AreEqual(101, created._context);
         Assert.AreNotEqual(nint.Zero, created._pointer);
         NativeMemoryRequest[] switches = [.. fixture.Requests.Where(static request => request._operation == NativeMemoryOperation.Switch)];
-        Assert.AreSequenceEqual([(nint)202, (nint)101], switches.Select(static request => request._context));
+        Assert.AreSequenceEqual([202, 101], switches.Select(static request => request._context));
         NativeMemoryRequest deleted = Find(fixture, NativeMemoryOperation.Delete);
-        Assert.AreEqual((nint)202, deleted._context);
+        Assert.AreEqual(202, deleted._context);
         Assert.AreEqual(NativeMemoryOperation.Delete, fixture.Requests[^1]._operation);
     }
 
@@ -207,9 +207,9 @@ public sealed unsafe class MemoryContextOptionsTests
             observed.Add(PgMemoryContext.Current.Id);
         });
         observed.Add(PgMemoryContext.Current.Id);
-        Assert.AreSequenceEqual([(nint)202, (nint)203, (nint)202, (nint)101], observed);
+        Assert.AreSequenceEqual([202, 203, 202, 101], observed);
         NativeMemoryRequest[] deleted = [.. fixture.Requests.Where(static request => request._operation == NativeMemoryOperation.Delete)];
-        Assert.AreSequenceEqual([(nint)203, (nint)202], deleted.Select(static request => request._context));
+        Assert.AreSequenceEqual([203, 202], deleted.Select(static request => request._context));
     }
 
     /// <summary>
@@ -223,8 +223,8 @@ public sealed unsafe class MemoryContextOptionsTests
         var expected = new InvalidOperationException("primary managed failure");
         InvalidOperationException actual = Assert.ThrowsExactly<InvalidOperationException>(() => PgMemoryContext.RunTransient<int>("failure", _ => throw expected));
         Assert.AreSame(expected, actual);
-        Assert.AreEqual((nint)101, fixture.Current);
-        Assert.AreEqual((nint)202, Find(fixture, NativeMemoryOperation.Delete)._context);
+        Assert.AreEqual(101, fixture.Current);
+        Assert.AreEqual(202, Find(fixture, NativeMemoryOperation.Delete)._context);
     }
 
     /// <summary>
@@ -247,8 +247,8 @@ public sealed unsafe class MemoryContextOptionsTests
         Assert.AreEqual("native detail", error.Detail);
         Assert.AreEqual("native hint", error.Hint);
         Assert.AreEqual(3, fixture.ErrorReleases);
-        Assert.AreEqual((nint)101, fixture.Current);
-        Assert.AreEqual((nint)202, Find(fixture, NativeMemoryOperation.Delete)._context);
+        Assert.AreEqual(101, fixture.Current);
+        Assert.AreEqual(202, Find(fixture, NativeMemoryOperation.Delete)._context);
     }
 
     /// <summary>
@@ -300,7 +300,7 @@ public sealed unsafe class MemoryContextOptionsTests
         }));
         Assert.AreEqual("55006", error.SqlState);
         Assert.AreEqual("callback prevented deletion", error.Message);
-        Assert.AreEqual((nint)101, fixture.Current);
+        Assert.AreEqual(101, fixture.Current);
         Assert.IsNotNull(escaped);
         Assert.IsTrue(escaped.IsAlive);
         fixture.Handler = null;
@@ -341,9 +341,9 @@ public sealed unsafe class MemoryContextOptionsTests
         Assert.AreEqual("55006", error.SqlState);
         Assert.AreEqual("selection failed", error.Message);
         Assert.AreEqual(0, calls);
-        Assert.AreEqual((nint)101, fixture.Current);
-        Assert.AreEqual((nint)202, Find(fixture, NativeMemoryOperation.Switch)._context);
-        Assert.AreEqual((nint)202, Find(fixture, NativeMemoryOperation.Delete)._context);
+        Assert.AreEqual(101, fixture.Current);
+        Assert.AreEqual(202, Find(fixture, NativeMemoryOperation.Switch)._context);
+        Assert.AreEqual(202, Find(fixture, NativeMemoryOperation.Delete)._context);
         Assert.AreEqual(NativeMemoryOperation.Delete, fixture.Requests[^1]._operation);
     }
 

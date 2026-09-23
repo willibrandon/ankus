@@ -105,7 +105,7 @@ public static unsafe class NativeAggregate
         }
 
         _ = Current();
-        if (id <= 0 || id > (long)nint.MaxValue || s_roots is null || !s_roots.TryGetValue((nint)id, out IAggregateState? state))
+        if (id <= 0 || id > nint.MaxValue || s_roots is null || !s_roots.TryGetValue((nint)id, out IAggregateState? state))
         {
             throw new InvalidOperationException("The aggregate state ID is stale, unknown, or belongs to another backend thread.");
         }
@@ -232,7 +232,7 @@ public static unsafe class NativeAggregate
     internal static nint AllocateStateId(ref long counter)
     {
         long current = Volatile.Read(ref counter);
-        while (current >= 0 && current < (long)nint.MaxValue)
+        while (current >= 0 && current < nint.MaxValue)
         {
             long next = current + 1;
             long observed = Interlocked.CompareExchange(ref counter, next, current);

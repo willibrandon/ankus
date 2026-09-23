@@ -72,6 +72,8 @@ documentation build/type checks, and generated API freshness checks pass.
 - IDE0290 enforces primary constructors in the repository; eligible public constructors retain their signatures
   and initialization behavior. Warning suppressions are prohibited, and both prior test pragmas were removed
   while preserving direct `ToArray()` copy-mutation assertions. Consumer templates contain no repository style rules.
+- IDE0004 is enforced as an error throughout repository builds. Redundant casts are removed with
+  Roslyn's diagnostic-specific code fix; consumer templates remain free to choose their style.
 - IDE2003 enforces a blank line after closing blocks before the next statement. Existing C#, embedded native
   code and emitted dispatchers follow the rule. Connected clauses and enclosing closing braces remain together.
   A negative build probe fails on missing separation and passes after the blank line is inserted.

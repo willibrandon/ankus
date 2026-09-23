@@ -61,7 +61,7 @@ public sealed class InitializationScopeTests
                 {
                     Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 2"));
                     nint disabled = NativeBackend.Enter(0);
-                    Assert.AreEqual((nint)0, disabled);
+                    Assert.AreEqual(0, disabled);
                     try
                     {
                         Assert.ThrowsExactly<InvalidOperationException>(() => PgDate.CurrentDate);

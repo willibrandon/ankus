@@ -59,7 +59,7 @@ public sealed class PgRangeTests
         Assert.AreNotEqual(range, new PgRange<int>(2, 3));
         Assert.AreNotEqual(range, new PgRange<int>(1, 4));
         Assert.IsFalse(range.Equals(null));
-        Assert.IsFalse(range.Equals((object)PgRange.Create(1L, 3L)));
+        Assert.IsFalse(range.Equals(PgRange.Create(1L, 3L)));
         Assert.AreEqual(PgRange.Empty<int>(), new PgRange<int>());
         Assert.AreEqual(PgRange.Create(1.00m, 2.0m), PgRange.Create(1m, 2m));
     }

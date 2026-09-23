@@ -245,7 +245,7 @@ public sealed class PgTemporalFieldsTests
         PgTimeTz value = PgTimeTz.FromRawWrapping(-1, west);
         Assert.AreEqual(86_399_999_999L, value.Time.Microseconds);
         Assert.AreEqual(east, value.OffsetSeconds);
-        Assert.AreEqual((long)east * TimeSpan.TicksPerSecond, value.Offset.Ticks);
+        Assert.AreEqual(east * TimeSpan.TicksPerSecond, value.Offset.Ticks);
     }
 
     /// <summary>

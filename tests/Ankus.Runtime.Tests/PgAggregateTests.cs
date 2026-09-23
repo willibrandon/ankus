@@ -227,8 +227,8 @@ public sealed class PgAggregateTests
         NativeValue first = NativeAggregate.Write(state);
         Registration registration = fixture.Last!;
         Assert.AreEqual((byte)0, first.IsNull);
-        Assert.AreEqual((long)registration.Pointer, first.Integral);
-        Assert.AreNotEqual((long)registration.Id, first.Integral);
+        Assert.AreEqual(registration.Pointer, first.Integral);
+        Assert.AreNotEqual(registration.Id, first.Integral);
         Assert.AreSame(state, NativeAggregate.Read<Probe>(Scalar(registration.Id)));
         Assert.AreSame(payload, state.Value);
         NativeValue second = NativeAggregate.Write(state);
@@ -274,11 +274,11 @@ public sealed class PgAggregateTests
     {
         long counter = (long)nint.MaxValue - 1;
         Assert.AreEqual(nint.MaxValue, NativeAggregate.AllocateStateId(ref counter));
-        Assert.AreEqual((long)nint.MaxValue, counter);
+        Assert.AreEqual(nint.MaxValue, counter);
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.AllocateStateId(ref counter));
-        Assert.AreEqual((long)nint.MaxValue, counter);
+        Assert.AreEqual(nint.MaxValue, counter);
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.AllocateStateId(ref counter));
-        Assert.AreEqual((long)nint.MaxValue, counter);
+        Assert.AreEqual(nint.MaxValue, counter);
     }
 
     /// <summary>

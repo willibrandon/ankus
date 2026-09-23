@@ -96,7 +96,7 @@ public sealed class PgMemoryContextTests
         Assert.AreEqual("child é 🐘", observedName);
         Assert.AreEqual((nuint)Encoding.UTF8.GetByteCount("child é 🐘"), observedLength);
         Assert.AreEqual(parent.Id, observedParent);
-        Assert.AreEqual((nint)202, child.Id);
+        Assert.AreEqual(202, child.Id);
         Assert.AreEqual("context café 🐘", child.Name);
     }
 
@@ -203,7 +203,7 @@ public sealed class PgMemoryContextTests
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgMemoryContext context = PgMemoryContext.Current;
         fixture.Requests.Clear();
-        Assert.AreEqual("action", Assert.ThrowsExactly<ArgumentNullException>(() => context.Run((Action)null!)).ParamName);
+        Assert.AreEqual("action", Assert.ThrowsExactly<ArgumentNullException>(() => context.Run(null!)).ParamName);
         Assert.AreEqual("func", Assert.ThrowsExactly<ArgumentNullException>(() => context.Run((Func<int>)null!)).ParamName);
         Assert.IsEmpty(fixture.Requests);
     }
@@ -223,16 +223,16 @@ public sealed class PgMemoryContextTests
             return 37;
         });
         Assert.AreEqual(37, result);
-        Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
+        Assert.AreEqual(101, PgMemoryContext.Current.Id);
         var expected = new InvalidOperationException("callback failed");
-        InvalidOperationException actual = Assert.ThrowsExactly<InvalidOperationException>(() => context.Run((Action)(() =>
+        InvalidOperationException actual = Assert.ThrowsExactly<InvalidOperationException>(() => context.Run(() =>
         {
             Assert.AreEqual(context.Id, PgMemoryContext.Current.Id);
             throw expected;
-        })));
+        }));
         Assert.AreSame(expected, actual);
-        Assert.AreEqual((nint)101, PgMemoryContext.Current.Id);
-        Assert.AreSequenceEqual([(nint)202, (nint)101, (nint)202, (nint)101], fixture.Requests
+        Assert.AreEqual(101, PgMemoryContext.Current.Id);
+        Assert.AreSequenceEqual([202, 101, 202, 101], fixture.Requests
             .Where(static request => request._operation == NativeMemoryOperation.Switch)
             .Select(static request => request._context));
     }
@@ -250,7 +250,7 @@ public sealed class PgMemoryContextTests
             ? throw new PgException("55000", "previous context expired")
             : fixture.Respond(request);
         var expected = new InvalidOperationException("original failure");
-        AggregateException exception = Assert.ThrowsExactly<AggregateException>(() => context.Run((Action)(() => throw expected)));
+        AggregateException exception = Assert.ThrowsExactly<AggregateException>(() => context.Run(() => throw expected));
         Assert.HasCount(2, exception.InnerExceptions);
         Assert.AreSame(expected, exception.InnerExceptions[0]);
         PgException restore = Assert.IsInstanceOfType<PgException>(exception.InnerExceptions[1]);
@@ -332,7 +332,7 @@ public sealed class PgMemoryContextTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgMemoryContext context = PgMemoryContext.Current;
-        Assert.AreEqual((nint)303, context.Parent?.Id);
+        Assert.AreEqual(303, context.Parent?.Id);
         fixture.Handler = request => request._operation switch
         {
             NativeMemoryOperation.Parent => default,
