@@ -269,12 +269,17 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     }
 
     /// <summary>
-    /// Allocates bytes owned by this context and individually releasable through the returned handle.
+    /// Allocates bytes owned by this context with checked access through the returned handle.
     /// </summary>
     /// <param name="length">The number of bytes.</param>
     /// <param name="options">The initialization and native size policies.</param>
     /// <param name="alignment">A power of two below 128 MiB, or zero for PostgreSQL's default alignment.</param>
     /// <returns>The checked allocation.</returns>
+    /// <remarks>
+    /// Native allocator restrictions apply. Slab requires its configured chunk size. Bump permits
+    /// allocation but reclaims storage only through context reset or deletion, rejecting individual
+    /// disposal and resizing. Prefer context-owned values when individual release is unavailable.
+    /// </remarks>
     public PgAllocation Allocate(nuint length, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
     {
         NativeMemoryResult result = AllocateCore(length, options, alignment, noOutOfMemory: false);
@@ -418,6 +423,8 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     /// The caller must guarantee valid pointer provenance, size, alignment, and exclusive ownership.
     /// Do not free or resize the pointer externally while this handle owns it. Failed adoption leaves
     /// ownership with the caller. A null pointer is rejected before native access.
+    /// Bump contexts do not expose chunk ownership headers and reject adoption; use an explicitly
+    /// anchored raw borrow for existing Bump storage.
     /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public PgAllocation DangerousAdopt(void* address, nuint length, bool huge = false, nuint alignment = 0)
@@ -459,7 +466,9 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     /// Gets whether PostgreSQL reports this context as empty.
     /// </summary>
     /// <remarks>
-    /// PostgreSQL marks contexts with registered invalidation callbacks as nonempty, including after an explicit reset.
+    /// PostgreSQL marks AllocSet contexts with registered invalidation callbacks as nonempty,
+    /// including after an explicit reset. Slab, Generation, and Bump use allocator-specific
+    /// block or live-chunk accounting; this is not a portable count of user allocations.
     /// </remarks>
     public bool IsEmpty
     {

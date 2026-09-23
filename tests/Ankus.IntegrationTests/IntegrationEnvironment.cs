@@ -41,7 +41,10 @@ internal static class IntegrationEnvironment
     /// <returns>The cluster settings for this environment.</returns>
     internal static async Task<PostgresTestClusterOptions> CreateOptionsAsync(CancellationToken cancellationToken)
     {
-        PostgresInstallation installation = await PostgresInstallation.DiscoverAsync(cancellationToken);
+        string? pgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
+        PostgresInstallation installation = string.IsNullOrWhiteSpace(pgConfig)
+            ? await PostgresInstallation.DiscoverAsync(cancellationToken)
+            : await PostgresInstallation.CreateAsync(pgConfig, cancellationToken);
         string nativePath = NativeOutputDirectory.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
         char pathSeparator = OperatingSystem.IsWindows() ? ';' : ':';
         return new PostgresTestClusterOptions
@@ -88,10 +91,17 @@ internal static class IntegrationEnvironment
     {
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
         string output = NativeOutputDirectory;
+        List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
+            "--self-contained", "true", "--output", output];
+        string? pgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
+        if (!string.IsNullOrWhiteSpace(pgConfig))
+        {
+            arguments.Add("-p:AnkusPgConfigPath=" + pgConfig);
+        }
+
         await ProcessRunner.RunCheckedAsync(
             "dotnet",
-            ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
-                "--self-contained", "true", "--output", output],
+            arguments,
             new Dictionary<string, string?>(),
             cancellationToken);
 

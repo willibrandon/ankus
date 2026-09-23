@@ -33,14 +33,15 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds virtual `PgMemoryContext` parameters to ordinary functions,
-operators and casts without consuming SQL arguments. Set factories receive a checked multi-call
-owner, and live set owners remain protected between cursor fetches. It adds 59 generator and
-48 backend cases proving actual callback invocation, SQL signatures, retained payloads, scratch
-expiry, cleanup ordering and same-session recovery. Plain `dotnet test` passes 4004 cases on
-PostgreSQL 18.6/Linux x64. IDE0004 remains enforced as an error throughout repository builds.
-Actual huge-size allocation, datum/node APIs, full memory/GUC/preload parity, the remaining
-port inventory, and the platform/version matrix remain incomplete.
+The latest milestone supports borrowed Slab, Generation and Bump contexts with their native
+allocation restrictions. Bump free/resize/adoption reject unsupported pointer operations before
+reading missing chunk headers; registry acquisition precedes native storage. Independent scratch
+contexts preserve encoded names and diagnostics, and checked caller recovery handles ErrorContext
+lifetime changes. It adds 68 backend cases, including six controlled native failure cases and four
+direct/SPI notice cases. The 95-case affected scope passes on both assertion-enabled and ordinary
+headerless PostgreSQL 18.6/Linux x64. Plain `dotnet test` passes 4072 cases without failures or skips.
+IDE0004 and IDE0300 remain enforced as errors. Actual huge-size allocation, datum/node APIs, full
+memory/GUC/preload parity, the remaining inventory, and the version/platform matrix are incomplete.
 
 The non-incremental Release build has zero warnings/errors. XML documentation, source style,
 documentation build/type checks, and generated API freshness checks pass.
@@ -1246,9 +1247,9 @@ payload, so a sparse-endpoint test cannot avoid more than 1 GiB of resident work
 resource-budgeted huge-allocation witness remains required, including a resize whose target stays
 above the ordinary limit. Native boxes, node allocation, virtual `MemCx` parameters, raw/custom
 datum contracts, broader allocator/phase witnesses, and the actual PostgreSQL/platform matrix
-also remain required alongside the full inventory below. Native allocator exhaustion and registry
-allocation failure still need controlled failure witnesses; scripted NULL/error responses do not
-prove those native branches. Slab/Bump method restrictions also need actual context-specific cases.
+also remain required alongside the full inventory below. The subsequent borrowed-allocator section
+records actual Slab/Generation/Bump cases and controlled native registry/allocator-boundary failure
+witnesses. Those controlled boundaries do not claim physical resource exhaustion or huge allocation.
 
 ### Native boxes and borrowed typed references
 
@@ -1317,10 +1318,10 @@ Documentation build, `pnpm check` and API freshness pass with 114 API pages,
 duplicate-404 and missing-site-URL warnings remain visible. Reference repositories are unchanged.
 
 Memory-only unmanaged wrappers do not establish SQL type identity or PostgreSQL C layouts.
-Native box/datum conversion, virtual `MemCx` parameters, node APIs, successful huge-size execution,
-native allocation failure witnesses, Slab/Bump behavior and the full version/platform matrix
-remain required. Custom release policies and unsized/context-bound datum layouts are not claimed
-by these three sized ownership wrappers.
+Native box/datum conversion, node APIs, successful huge-size execution and the full version/platform
+matrix remain required. Subsequent sections record virtual context parameters and borrowed native
+allocator/failure witnesses. Custom release policies and unsized/context-bound datum layouts are
+not claimed by these three sized ownership wrappers.
 
 
 ### Virtual memory-context parameters
@@ -1392,6 +1393,70 @@ borrowed managed handles intentionally expose no native-delete operation. This p
 claim custom callback failures in every executor phase, native allocator exhaustion, or additional
 PostgreSQL/platform execution. All other memory requirements and the full port/version/platform
 inventory remain active.
+
+### Borrowed allocator kinds and native acquisition rollback
+
+Public context construction remains AllocSet, matching pgrx's safe factories. Borrowed Current,
+parent and injected handles can represent native Slab, Generation or Bump contexts. Native fixtures
+construct them against the selected server headers and capture them through a real generated scalar
+callback. Catalog lookup and function metadata initialization occur before switching Current into
+Slab; the callback returns a by-value integer. Transaction-owned fixture parents permit real native
+deletion independently of borrowed managed wrappers.
+
+Slab preserves exact-size allocation/reallocation and native errors for invalid sizes, including
+no-OOM calls. Generation preserves variable-size storage and native reclamation behavior. Bump
+permits allocation, typed context values, owner lookup from established registry provenance,
+checked/raw borrowing, detachment and context cleanup. Native owner checks reject individual free,
+all resize paths and header-based adoption before touching its headerless chunks. Failed operations
+retain the handle, pointer, length, bytes and owner. No fake successful disposal or leaking Bump
+replacement resize is introduced. Registration reserves C bookkeeping before native storage; native
+ERROR and NO_OOM NULL release the unpublished record.
+
+Name conversion uses independent AllocSet storage. Diagnostic reconstruction uses a TopMemoryContext
+child, preserves source-location pointers until error flush, and releases every transport buffer.
+After a throwing report begins, an ErrorContext reset callback owns scratch deletion; registering it
+after reporting avoids recursive error resets consuming the input fields. PostgreSQL 19 can reset
+ErrorContext on successful notices too. The reporter selects a live recovery context, and the outer
+SPI guard checks the original caller's registered identity before restoring it. This applies to SQL
+that emits a notice as well as direct managed logging. Actual PG19 execution remains unverified.
+
+| Observable contract | Backend evidence |
+|---|---|
+| Exact bytes, zeroing, native ownership and accounting | `BorrowedAllocatorsPreserveExactBuffersOwnersAndIndependentAccounting` |
+| Native Slab restrictions and retained control storage | `SlabWrongSizeErrorsPreserveControlPointerLengthBytesAndOwner`, `SlabResizeFailuresPreserveOwnershipAndNativeDiagnostic`, `SlabOverAlignmentReportsNativePaddedSizeAndPreservesControl` |
+| Free, resize and immediate replacement reclamation | `IndividualFreeKeepsControlContentsAndPermitsExactReplacement`, `ResizePreservesPrefixZeroGrowthCheckedViewsAndNativeOwner`, `GenerationNoOomResizeReclaimsReplacedExternalStorageBeforeReset` |
+| Headerless Bump rejection without lost ownership | `BumpUnsupportedOperationsRetainPointerLengthContentsAndCheckedOwner`, `RawTransferAdoptsSupportedKindsAndRejectsBumpWithoutLosingBytes` |
+| Typed values, one-byte no-OOM allocation, generations and native cleanup | `TypedContextValuesRetainValuesAndFailedBumpDisposalCanReleaseOwnership`, `RepeatedResetPreservesContextIdentityAndExpiresEachAllocationGeneration`, `NativeParentDeletionRunsCallbacksAndInvalidatesBorrowedContextAndAliases`, `TransactionCleanupRunsCallbacksBeforeExpiringBorrowedAllocations` |
+| Encoded names/diagnostics, notices and caller recovery | `SpecialCurrentContextPreservesEncodedNamesAndOwnedDiagnostics`, `ErrorContextChildNoticePreservesDiagnosticsAndRestoresLiveCaller` |
+| Registry failure, native allocator ERROR/NULL, adoption retry and record cleanup | `RegistryExhaustionPrecedesBumpStorageAndPreservesLivePayload`, `SlabAllocatorErrorReleasesUnpublishedReservationAndAllowsRetry`, `NoOomNullReleasesUnpublishedReservationAndAllowsRetry`, `FailedAdoptionRetainsRawOwnershipUntilSuccessfulRetry` |
+
+The fault module compiles the exact emitted bridge with translation-unit-local allocation controls.
+It counts real C record acquisition/release and payload-boundary calls, checks independent retained
+Bump/raw payloads, retries successfully, then verifies all records were released. These are controlled
+native failure witnesses, not actual machine exhaustion. Test-source extraction checks unique
+boundaries and fails if emission changes; expected outcomes are independent native observations.
+Independent review added an external 1 MiB -> 2 MiB -> 32 byte Generation resize witness that proves
+at least 2 MiB reclaimed before reset using both native and catalog counters. No production mutation
+was executed or claimed.
+
+All 95 affected cases pass on PostgreSQL 18.6/Linux x64 with assertions (1m16.808s) and without
+assertions or MEMORY_CONTEXT_CHECKING (51.405s). The separate release installation is
+`artifacts/postgres-release/18.6-install`, built from a read-only-reference archive of REL_18_6.
+Tests compare fixture header assertion flags to the actual server setting. Full plain `dotnet test`
+passes 4072 cases without failures/skips (3m22.788s), including package consumers. Release build has
+zero warnings/errors (4.76s); IDE0004/IDE0300 verification is clean. XML inspection covers 909
+internal declarations with no omissions; style inspection covers 475 C# source/template files.
+GCC longjmp diagnostics were resolved with smaller guard/cleanup functions, retaining the original
+compiler and warning flags. No warning suppression or consumer-template style changes were added.
+README, memory/native-boundary/development guides and generated API pages are updated. Documentation
+build/check and API freshness pass (114 API pages, 1210 members, 144 site pages); type checks
+report zero errors/warnings/hints. Existing duplicate-404 and missing-site-URL site warnings remain
+visible and unsuppressed.
+
+Actual >MaxAllocSize allocation, broader allocator/resource boundaries, datum/node integration,
+custom release policies, unsized layouts and the complete remaining port inventory remain required.
+Only PostgreSQL 18.6/Linux x64 has execution evidence in this milestone; source review of PG13–19
+and version-aware fixtures do not establish the full PostgreSQL/Windows/Linux/macOS matrix.
 
 ## Key research findings (verified)
 
@@ -1489,7 +1554,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing and cancellable cleanup implemented; huge-size execution, datum/node APIs and full version/platform requirements listed above |
+| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, and cancellable cleanup implemented; huge-size execution, datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1606,7 +1671,7 @@ complete implementations. AOT serialization must use statically generated metada
 | Source modules | Required behavior | Status |
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
-| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup and guarded recovery implemented; actual huge-size execution, datum/node integration, custom release policies, broader allocator witnesses and full matrix remain required |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures and guarded recovery implemented; actual huge-size execution, datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
@@ -2123,3 +2188,29 @@ The phases track implementation of the complete pgrx feature surface.
   formatter verification is clean. Documentation build, type checks and API freshness pass; the
   470-file source/style scan is clean and AGENTS contains no personal paths. Consumer templates
   retain their own style.
+
+- 2026-09-22 — Added borrowed allocator support and controlled native failure witnesses. Source review across PostgreSQL 13–19
+  confirmed Slab's fixed-size errors, Generation's version-dependent keeper behavior, and Bump's
+  missing chunk headers in ordinary builds. The bridge now guards unsupported Bump free/resize/
+  adoption before pointer dispatch, uses established registry ownership, and reserves bookkeeping
+  before requesting native bytes. Context-name conversion and error reconstruction use AllocSet
+  scratch storage. Full generator baseline (1172 cases), focused runtime (80 cases), and focused
+  backend (95 cases, 1m16.808s) checks pass on assertion-enabled PostgreSQL 18.6/Linux x64. Backend
+  witnesses include six controlled native registry/allocation-boundary failures, same-session
+  recovery, encoded diagnostics, reset generations, and actual external-block reclamation before
+  reset. GCC's longjmp-lifetime diagnostics were resolved by extracting guard and cleanup helpers;
+  no compiler flags or diagnostic severities were reduced. A separate PostgreSQL 18.6 release
+  installation is built under `artifacts/postgres-release/18.6-install`, with assertions and
+  MEMORY_CONTEXT_CHECKING disabled in its matching server and headers. All 95 cases pass on that
+  actual headerless backend too (51.405s). Plain `dotnet test` passes 4072 cases without failures or
+  skips (3m22.788s); Release build has zero warnings/errors and analyzer/XML/style checks pass.
+  Documentation build/check/API freshness pass (114 API pages, 1210 members, 144 site pages). PostgreSQL 19's
+  successful-notice ErrorContext reset behavior is source-reviewed and has version-aware tests,
+  but has not yet been executed on PostgreSQL 19. Actual huge allocations, remaining full-port
+  scope and the version/platform matrix remain active.
+
+- 2026-09-22 — Reproduced VS Code's `sigjmp_buf` error in the new native allocator fixture
+  using strict `-std=c17`: glibc hides the POSIX jump-buffer type in that mode. The same file
+  passes `cc -std=gnu17 -fsyntax-only -Wall -Wextra -Werror` against the selected PostgreSQL
+  headers. Added repository-only `.vscode/settings.json` selecting GNU C17 for C/C++ IntelliSense,
+  matching the native compiler mode without disabling any diagnostics.

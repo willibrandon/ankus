@@ -154,7 +154,8 @@ LATIN1 database; it does not convert to the database encoding.
 and its bounds. `Reallocate` preserves the existing prefix when it succeeds;
 an allocation error leaves the old chunk usable. `Clear` clears a selected range;
 omitting its length clears through the end. Zero-length allocations and empty
-copies are supported. `Context` queries the chunk's native owner.
+copies are supported when the native allocator accepts their size. `Context`
+returns the owner established when the allocation was created or adopted.
 
 Resizing preserves the original huge policy and alignment. Pass
 `zeroNewMemory: true` to clear only the newly added tail; shrinking is still
@@ -165,9 +166,41 @@ allocation policy; initial zeroing does not automatically zero future growth.
 
 `GetAllocatedBytes()` includes descendant context storage and native allocator
 overhead. `IsEmpty` returns PostgreSQL's native emptiness result. Registering the
-invalidation callback marks a context nonempty, including after an explicit reset,
-so this property does not establish whether all user allocations were freed.
+invalidation callback marks an AllocSet context nonempty, including after an
+explicit reset. Other native allocators determine emptiness from their own
+blocks or live chunks, so this property does not establish a portable count of
+user allocations.
 These statistics describe native contexts, not the managed heap.
+
+## Borrowed native allocators
+
+`Create` and `RunTransient` construct AllocSet contexts. Borrowed handles can also
+refer to PostgreSQL's Slab, Generation, or Bump contexts created by native code.
+Their operations retain the native allocator's restrictions:
+
+| Allocator | Allocation and resize | Reclamation |
+| --- | --- | --- |
+| Slab | Requests must match its configured chunk size; ordinary same-size resize preserves the pointer | Individual free or context cleanup; PostgreSQL 16+ may cache empty blocks |
+| Generation | Variable sizes and prefix-preserving resize | Individual free counts released chunks; whole blocks are reused or reclaimed; PostgreSQL 15+ retains a keeper block |
+| Bump, PostgreSQL 17+ | Variable-size allocation; every resize is rejected | Context reset or deletion only; individual `Dispose()` is rejected |
+
+`TryAllocate` and `TryReallocate` propagate unsupported-operation and invalid-size
+errors. They return null or false only for allocator exhaustion. Failed resize
+or disposal preserves the original handle, length, and bytes. Explicit alignment
+does not remove these restrictions: padding a Slab request can violate its fixed
+size, and an aligned Bump chunk still cannot be individually freed or resized.
+
+For Bump storage, prefer `CreateContextValue` or `TryCreateContextValue`. Checked
+access, `Context`, borrowing, and `DangerousDetach` remain available. Raw adoption
+is rejected because Bump does not provide a retrievable chunk owner. Use
+`DangerousBorrow` with a proven context lifetime for an existing native Bump
+address. This remains an unsafe provenance obligation; an anchor cannot establish
+which allocator created an arbitrary address.
+
+Ankus checks the recorded owner before requesting an unsupported Bump operation.
+Ordinary PostgreSQL builds omit Bump chunk headers, so attempting pointer-based
+free or resize first would be unsafe even inside an error guard. Reset and deletion
+still invalidate checked allocations and borrowed generations before later access.
 
 ## Native boxes and borrowed values
 

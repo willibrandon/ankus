@@ -15,6 +15,10 @@ Owns one PostgreSQL palloc-family allocation and validates it before each manage
 public sealed class PgAllocation : IDisposable
 ```
 
+Operations follow the native allocator's capabilities. Slab contexts require their fixed chunk
+size; Bump contexts support allocation and context cleanup but reject individual free and resize.
+Failed free or resize leaves the checked allocation live until its context reclaims it.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 Implements: [IDisposable](https://learn.microsoft.com/dotnet/api/system.idisposable)
@@ -131,6 +135,9 @@ Releases the allocation immediately. Context reset or deletion makes this operat
 public void Dispose()
 ```
 
+Bump contexts reject individual release. A failed release preserves this handle and its
+storage; the native context still reclaims that storage on reset or deletion.
+
 <a id="member-ca1ec99b4e75cabc"></a>
 
 ### Read(Span&lt;byte&gt;, nuint)
@@ -199,6 +206,7 @@ Whether to clear only the newly added bytes when growing.
 
 The original huge size policy and alignment remain in effect. Shrinking is permitted even
 when zeroNewMemory is true; unlike PostgreSQL's repalloc0, this clears only positive growth.
+Slab permits only its fixed size. Bump rejects resizing, preserving the original allocation.
 
 <a id="member-2199315cb40e85dd"></a>
 

@@ -236,12 +236,69 @@ internal static class NativeErrorBridge
         }
 
         static void
-        ankus_report(AnkusError *error, int level)
+        ankus_free_error_report(void *context)
+        {
+            MemoryContextDelete((MemoryContext) context);
+        }
+
+        static MemoryContext
+        ankus_error_recovery_context(MemoryContext caller)
+        {
+            for (MemoryContext ancestor = caller; ancestor != NULL; ancestor = MemoryContextGetParent(ancestor))
+            {
+                if (ancestor == ErrorContext)
+                {
+                    return ErrorContext;
+                }
+            }
+
+            return caller;
+        }
+
+        static void
+        ankus_finish_error_report(AnkusError *error, MemoryContext caller, MemoryContext recovery,
+            MemoryContext temporary, MemoryContextCallback *cleanup, bool reporting, bool completed)
+        {
+            /* PostgreSQL 19 also resets ErrorContext after an outermost nonthrowing
+             * report, so an original caller below it need not have survived. */
+            MemoryContextSwitchTo(!completed || PG_VERSION_NUM >= 190000 ? recovery : caller);
+            if (temporary != NULL)
+            {
+                if (reporting && !completed)
+                {
+                    /* ErrorData retains source-location pointers without copying. Attach
+                     * cleanup only after reporting: recursive errstart may reset ErrorContext
+                     * before it consumes our fields. The next error flush releases them. */
+                    MemoryContextRegisterResetCallback(ErrorContext, cleanup);
+                }
+                else
+                {
+                    MemoryContextDelete(temporary);
+                }
+            }
+
+            ankus_release_error(error);
+        }
+
+        static void
+        ankus_report_in_context(AnkusError *error, int level, MemoryContext caller, MemoryContext recovery)
         {
             ErrorData data = {0};
             bool rethrow = level == ERROR && (error->flags & ANKUS_ERROR_RETHROW) != 0;
+
+            MemoryContext volatile temporary = NULL;
+            MemoryContextCallback *volatile cleanup = NULL;
+            bool volatile reporting = false;
             PG_TRY();
             {
+                /* Encoding conversion and ErrorData own variable-sized, individually
+                 * releasable strings even when the caller uses Slab or Bump storage. */
+                temporary = AllocSetContextCreate(TopMemoryContext, "Ankus error report", ALLOCSET_SMALL_SIZES);
+                MemoryContextSwitchTo(temporary);
+                cleanup = palloc(sizeof(MemoryContextCallback));
+                cleanup->func = ankus_free_error_report;
+                cleanup->arg = temporary;
+                cleanup->next = NULL;
                 data.elevel = level;
                 data.sqlerrcode = error->sqlstate;
                 data.cursorpos = error->position;
@@ -273,25 +330,33 @@ internal static class NativeErrorBridge
                 data.funcname = ankus_error_field(error, ANKUS_ERROR_ROUTINE);
                 data.detail_log = ankus_error_field(error, ANKUS_ERROR_DETAIL_LOG);
                 data.backtrace = ankus_error_field(error, ANKUS_ERROR_BACKTRACE);
-                /* ErrorData treats source locations as constant: make them survive caller-context cleanup. */
-                data.filename = data.filename == NULL ? __FILE__ :
-                    (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.filename) : data.filename);
-                data.funcname = data.funcname == NULL ? "ankus_report" :
-                    (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.funcname) : data.funcname);
+                data.filename = data.filename == NULL ? __FILE__ : data.filename;
+                data.funcname = data.funcname == NULL ? "ankus_report" : data.funcname;
                 data.assoc_context = CurrentMemoryContext;
+                reporting = true;
+                if (rethrow)
+                {
+                    /* Context callbacks already ran for this error; replaying them would duplicate SQL frames. */
+                    ReThrowError(&data);
+                }
+
+                ThrowErrorData(&data);
             }
-            PG_FINALLY();
+            PG_CATCH();
             {
-                ankus_release_error(error);
+                ankus_finish_error_report(error, caller, recovery, temporary, cleanup, reporting, false);
+                PG_RE_THROW();
             }
             PG_END_TRY();
-            if (rethrow)
-            {
-                /* Context callbacks already ran for this error; replaying them would duplicate SQL frames. */
-                ReThrowError(&data);
-            }
+            ankus_finish_error_report(error, caller, recovery, temporary, cleanup, reporting, true);
+        }
 
-            ThrowErrorData(&data);
+        static void
+        ankus_report(AnkusError *error, int level)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext recovery = ankus_error_recovery_context(caller);
+            ankus_report_in_context(error, level, caller, recovery);
         }
 
         """;

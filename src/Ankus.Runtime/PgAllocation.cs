@@ -6,6 +6,11 @@ namespace Ankus;
 /// <summary>
 /// Owns one PostgreSQL palloc-family allocation and validates it before each managed access.
 /// </summary>
+/// <remarks>
+/// Operations follow the native allocator's capabilities. Slab contexts require their fixed chunk
+/// size; Bump contexts support allocation and context cleanup but reject individual free and resize.
+/// Failed free or resize leaves the checked allocation live until its context reclaims it.
+/// </remarks>
 public sealed unsafe class PgAllocation : IDisposable
 {
     private readonly nint _provider;
@@ -173,6 +178,7 @@ public sealed unsafe class PgAllocation : IDisposable
     /// <remarks>
     /// The original huge size policy and alignment remain in effect. Shrinking is permitted even
     /// when zeroNewMemory is true; unlike PostgreSQL's repalloc0, this clears only positive growth.
+    /// Slab permits only its fixed size. Bump rejects resizing, preserving the original allocation.
     /// </remarks>
     public void Reallocate(nuint length, bool zeroNewMemory = false)
     {
@@ -251,6 +257,10 @@ public sealed unsafe class PgAllocation : IDisposable
     /// <summary>
     /// Releases the allocation immediately. Context reset or deletion makes this operation a no-op.
     /// </summary>
+    /// <remarks>
+    /// Bump contexts reject individual release. A failed release preserves this handle and its
+    /// storage; the native context still reclaims that storage on reset or deletion.
+    /// </remarks>
     public void Dispose()
     {
         if (_id == 0)

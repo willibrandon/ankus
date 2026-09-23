@@ -340,8 +340,11 @@ Native capture allocates buffers with `malloc`; managed reporting uses
 `NativeMemory.Alloc`. Every slot carries its originating allocator's release
 callback. Managed capture releases the transport in `finally`, including when
 exception construction fails. Native reporting copies all fields into PostgreSQL
-memory before releasing the transport, with a native `PG_FINALLY` handling
-server-encoding conversion failures.
+memory in a temporary AllocSet before releasing the transport. Reconstruction and
+reporting run inside that owner, so encoding conversion never uses a Slab or Bump
+caller's incompatible allocation policy. Shared cleanup on normal return and
+`PG_CATCH` restores a live caller context and releases transport. Nonthrowing reports delete temporary storage
+immediately; thrown reports retain it until PostgreSQL flushes the error state.
 
 Diagnostic strings have no fixed transport truncation limit. A separate 2048-byte
 UTF-8 primary-message buffer is reserved for allocation/encoding failures;
@@ -354,8 +357,18 @@ New managed errors use `ThrowErrorData` after the dispatcher has returned. Error
 originally captured from PostgreSQL retain their reporting flags and use
 `ReThrowError`: PostgreSQL's context callbacks already ran for these errors, so
 rerunning them would duplicate procedural and SQL frames. File/routine strings
-are copied into `ErrorContext` because PostgreSQL treats source-location pointers
-as constants. `DetailLog` stays separate from client-visible `Detail`.
+remain in the report's independent AllocSet because PostgreSQL treats source-location
+pointers as constants. A reset callback attached to `ErrorContext` after reporting
+reclaims this owner at the next error flush. Attaching it after reporting preserves
+the input fields if a recursive error first resets `ErrorContext`. `DetailLog` stays
+separate from client-visible `Detail`.
+
+PostgreSQL 19 also resets `ErrorContext` after an outermost nonthrowing report.
+When a guarded operation starts in an `ErrorContext` descendant, the SPI guard
+records its checked context identity and restores that pointer only if the
+registry still considers it live. Otherwise it selects the surviving `ErrorContext`.
+This applies to notices emitted by SQL as well as direct managed logging; filtered
+reports retain a surviving caller.
 
 ## Implementation files
 
@@ -602,11 +615,15 @@ resets retain the selected registry entries and re-register one-shot invalidator
 Implicit native cleanup invalidates those entries. An explicitly owned context's
 name remains outside its resettable storage and is released with its registry
 entry. Name transport converts between UTF-8 and server encoding and copies into
-a pinned managed destination before releasing conversion storage.
+a pinned managed destination before releasing conversion storage. Reading a name
+uses temporary AllocSet storage independently of the currently selected allocator.
 
 Allocation records retain their exact requested byte length, huge size policy,
-and alignment. Aligned pointers use the selected PostgreSQL headers' redirect
-chunk allocator (PG16+), so native owner lookup and `pfree` remain compatible.
+and alignment. Bookkeeping is reserved before native allocation and published
+only after success; native errors and no-OOM null results free the unpublished
+record. A registration failure therefore cannot require freeing an untracked
+Bump chunk. Aligned pointers use the selected PostgreSQL headers' redirect chunk
+allocator (PG16+), retaining the underlying allocator's restrictions.
 Checked payload and padding arithmetic precedes the native call. Aligned no-OOM
 calls require the upstream fixes in 16.15, 17.11, 18.6, or 19 beta 3. Because
 PostgreSQL 19 prereleases share a numeric version, beta labels are checked too;
@@ -615,9 +632,18 @@ Aligned or no-OOM resize allocates a replacement, copies only the known prefix,
 then frees the original after success. Ordinary throwing resize uses `repalloc`
 or `repalloc_huge`. Tail clearing starts at the old requested byte length.
 
+Owner lookup returns the context established by allocation or checked adoption,
+after validating its registry lifetime. Before free or resize, the bridge checks
+that known context with the selected headers' `IsA(context, BumpContext)` macro
+(PG17+). Bump requests raise the native unsupported-operation diagnostic without
+reading a chunk header; ordinary builds omit that header. Allocation, context-owned
+values, checked access, detachment and reset remain available. Slab retains its
+native size checks, and Generation uses the public palloc-family operations.
+
 Detach removes only the allocation registry entry. Adoption requires caller-proven
 live native pointer provenance and exclusive ownership, checks the actual owner,
-and registers a new identity without freeing the pointer on failure. AllocSet
+and registers a new identity without freeing the pointer on failure. A known Bump
+target is rejected before header lookup. AllocSet
 creation validates supplied block sizes against target-header alignment and
 version-specific chunk-offset limits before entering assert-only native checks.
 

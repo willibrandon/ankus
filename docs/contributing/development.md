@@ -40,6 +40,13 @@ Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
 
+For a separate PostgreSQL 18 build, set `ANKUS_TEST_PG_CONFIG` to its `pg_config`
+path for the integration test process. The fixture uses that installation for
+both native publishing and cluster startup, preserving the user's registered
+installation. The allocator tests compile a test-only native module against the
+same headers. Run the Bump cases on both assertion-enabled and ordinary server
+builds: ordinary Bump allocations have no chunk header.
+
 `tests/Ankus.TestExtension` contains attributed backend probes. `tests/Ankus.IntegrationTests`
 invokes them and checks their SQL results. The public `Ankus.Testing` package lives
 in `src/Ankus.Testing` and owns cluster startup, transactions, diagnostics, and

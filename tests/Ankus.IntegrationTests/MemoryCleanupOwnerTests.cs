@@ -93,6 +93,77 @@ public sealed class MemoryCleanupOwnerTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
+    /// Notice reporting restores a live native caller when ErrorContext reclaims children; filtering preserves the selected child.
+    /// </summary>
+    /// <param name="filtered">Whether both client and server thresholds reject the notice.</param>
+    /// <param name="viaSpi">Whether PostgreSQL emits the notice while executing SQL through SPI.</param>
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public Task ErrorContextChildNoticePreservesDiagnosticsAndRestoresLiveCaller(bool filtered, bool viaSpi)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ErrorContextChildNoticePreservesDiagnosticsAndRestoresLiveCaller),
+            async (connection, transaction, token) =>
+            {
+                int backend = connection.ProcessID;
+                await using var command = new NpgsqlCommand("SELECT current_setting('server_version_num')::integer", connection, transaction);
+                int version = Assert.IsInstanceOfType<int>(await command.ExecuteScalarAsync(token));
+                command.CommandText = filtered
+                    ? "SET LOCAL client_min_messages = warning; SET LOCAL log_min_messages = warning"
+                    : "SET LOCAL client_min_messages = notice; SET LOCAL log_min_messages = warning";
+                await command.ExecuteNonQueryAsync(token);
+                var notices = new List<PostgresNotice>();
+                connection.Notice += (_, args) => notices.Add(args.Notice);
+                command.CommandText = $"SELECT datatype.memory_error_context_child_notice({viaSpi})";
+                bool reclaimed = !filtered && version >= 190000;
+                string expected = reclaimed
+                    ? "True|ErrorContext|False|True|91|False|0|1|True|42"
+                    : $"{!filtered}|error context notice child|True|True|91|True|73|0|True|42";
+                for (int invocation = 0; invocation < 2; invocation++)
+                {
+                    notices.Clear();
+                    Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+                    if (filtered)
+                    {
+                        Assert.IsEmpty(notices);
+                    }
+                    else
+                    {
+                        PostgresNotice notice = Assert.ContainsSingle(notices);
+                        Assert.AreEqual("NOTICE", notice.InvariantSeverity);
+                        Assert.AreEqual("01000", notice.SqlState);
+                        if (viaSpi)
+                        {
+                            Assert.AreEqual("error context SPI notice café 100%", notice.MessageText);
+                            Assert.AreEqual("SPI détail conservé", notice.Detail);
+                            Assert.AreEqual("SPI hint café", notice.Hint);
+                            Assert.Contains("inline_code_block line 1 at RAISE", Assert.IsInstanceOfType<string>(notice.Where));
+                            Assert.AreEqual("pl_exec.c", notice.File);
+                            Assert.AreEqual("exec_stmt_raise", notice.Routine);
+                            Assert.IsGreaterThan(0, int.Parse(Assert.IsInstanceOfType<string>(notice.Line), System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                        else
+                        {
+                            Assert.AreEqual("error context notice café 100%", notice.MessageText);
+                            Assert.AreEqual("détail conservé", notice.Detail);
+                            Assert.AreEqual("hint café", notice.Hint);
+                            Assert.AreEqual("ErrorContext child notice", notice.Where);
+                            Assert.AreEqual("error-notice.cs", notice.File);
+                            Assert.AreEqual("317", notice.Line);
+                            Assert.AreEqual("MemoryErrorContextChildNotice", notice.Routine);
+                        }
+                    }
+                }
+
+                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'error context notice child' OR name = 'Ankus error report'";
+                Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT 42";
+                Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+                Assert.AreEqual(backend, connection.ProcessID);
+            }, context.CancellationToken);
+
+    /// <summary>
     /// A PostgreSQL consumer error releases managed state without permitting recursive destruction of its native ancestor.
     /// </summary>
     /// <param name="aggregate">Whether cleanup owns aggregate state rather than an iterator.</param>

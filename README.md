@@ -159,6 +159,8 @@ zeroing, explicit alignment, and PostgreSQL's huge size policy. `RunTransient` c
 and selects a child context, restores the caller, and attempts deletion on every exit.
 `PgNativeBox<T>`, `PgContextValue<T>`, and `PgNativeReference<T>` distinguish
 individual ownership, context ownership, and borrowed access to unmanaged values.
+Borrowed Slab, Generation, and Bump contexts preserve their native allocation
+restrictions; Bump storage requires context cleanup instead of individual free.
 Reset and transaction cleanup invalidate managed handles before they can access
 freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
 native context resets or is deleted; its disposable registration supports cancellation.

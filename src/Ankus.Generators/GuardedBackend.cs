@@ -79,6 +79,10 @@ internal static class GuardedBackend
             {
                 PG_TRY();
                 {
+                    /* PostgreSQL may reset ErrorContext even after a nonthrowing report.
+                     * Retain an identity, not a pointer probe into a possibly deleted child. */
+                    uint64 caller_identity = recovery_context == ErrorContext
+                        ? ankus_memory_context_id(caller_context) : 0;
                     int code;
                     MemoryContext operation_context = NULL;
                     if (request->cleanup_only)
@@ -228,7 +232,8 @@ internal static class GuardedBackend
                         }
                     }
 
-                    MemoryContextSwitchTo(caller_context);
+                    MemoryContextSwitchTo(caller_identity != 0 && ankus_memory_context_by_id(caller_identity) == NULL
+                        ? recovery_context : caller_context);
                     if (request->operation != ANKUS_SPI_OPEN_SESSION)
                     {
                         CurrentResourceOwner = caller_owner;
@@ -238,7 +243,7 @@ internal static class GuardedBackend
                 {
                     ErrorData *data;
                     MemoryContext diagnostic_context;
-                    MemoryContextSwitchTo(caller_context);
+                    MemoryContextSwitchTo(recovery_context);
                     diagnostic_context = AllocSetContextCreate(TopMemoryContext, "Ankus error diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostic_context);
                     data = ankus_copy_error_data();

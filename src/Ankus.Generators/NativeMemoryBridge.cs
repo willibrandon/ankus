@@ -632,22 +632,23 @@ internal static class NativeMemoryBridge
         }
 
         static AnkusMemoryAllocation *
-        ankus_memory_register_allocation(AnkusMemoryContext *context, void *pointer,
-            Size size, Size alignment, int options, bool release_on_failure)
+        ankus_memory_reserve_allocation(void)
         {
             AnkusMemoryAllocation *allocation = calloc(1, sizeof(*allocation));
             if (allocation == NULL || ankus_memory_next_allocation == 0)
             {
                 free(allocation);
-                if (release_on_failure)
-                {
-                    pfree(pointer);
-                }
-
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("unable to register an Ankus allocation")));
             }
 
             allocation->id = ankus_memory_next_allocation++;
+            return allocation;
+        }
+
+        static void
+        ankus_memory_publish_allocation(AnkusMemoryAllocation *allocation, AnkusMemoryContext *context,
+            void *pointer, Size size, Size alignment, int options)
+        {
             allocation->pointer = pointer;
             allocation->size = size;
             allocation->alignment = alignment;
@@ -655,7 +656,247 @@ internal static class NativeMemoryBridge
             allocation->context_id = context->id;
             allocation->next = ankus_memory_allocations;
             ankus_memory_allocations = allocation;
-            return allocation;
+        }
+
+        static void
+        ankus_memory_check_chunk_operation(MemoryContext context, const char *operation)
+        {
+        #if PG_VERSION_NUM >= 170000
+            /* Production Bump allocations have no chunk header. Never dispatch through
+             * pfree, repalloc, or GetMemoryChunkContext before checking the known owner. */
+            if (IsA(context, BumpContext))
+            {
+                elog(ERROR, "%s is not supported by the bump memory allocator", operation);
+            }
+        #else
+            (void) context;
+            (void) operation;
+        #endif
+        }
+
+        static void
+        ankus_memory_create(AnkusMemoryRequest *request, AnkusMemoryResult *result)
+        {
+            MemoryContext parent = request->context == 0 ? CurrentMemoryContext :
+                ankus_memory_context_from_request(request)->context;
+            ankus_memory_check_protection(parent, true);
+            const AnkusMemoryContextSizes defaults = {ALLOCSET_DEFAULT_MINSIZE,
+                ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE};
+            const AnkusMemoryContextSizes *sizes = request->pointer == 0 ? &defaults :
+                (const AnkusMemoryContextSizes *) request->pointer;
+            ankus_memory_validate_sizes(sizes);
+            MemoryContext context = AllocSetContextCreate(parent, "Ankus memory context",
+                sizes->minimum, sizes->initial, sizes->maximum);
+            MemoryContext caller = CurrentMemoryContext;
+            PG_TRY();
+            {
+                MemoryContextSwitchTo(context);
+                AnkusMemoryContext *entry = ankus_memory_register_context(context);
+                ankus_memory_register_name(entry, (const char *) request->data, (Size) request->length);
+                result->context = (intptr_t) entry->id;
+                MemoryContextSwitchTo(caller);
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                MemoryContextDelete(context);
+                PG_RE_THROW();
+            }
+            PG_END_TRY();
+        }
+
+        static void
+        ankus_memory_name(AnkusMemoryContext *entry, AnkusMemoryRequest *request, AnkusMemoryResult *result)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext temporary = AllocSetContextCreate(caller, "Ankus context name", ALLOCSET_SMALL_SIZES);
+            PG_TRY();
+            {
+                MemoryContextSwitchTo(temporary);
+                const char *name = entry->context->ident == NULL ? entry->context->name : entry->context->ident;
+                char *utf8 = pg_server_to_any(name, strlen(name), PG_UTF8);
+                Size length = strlen(utf8);
+                if (request->data != 0)
+                {
+                    if (request->length < length)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_DATA_EXCEPTION), errmsg("the context identifier buffer is too small")));
+                    }
+
+                    memcpy((void *) request->data, utf8, length);
+                }
+
+                result->length = length;
+            }
+            PG_FINALLY();
+            {
+                MemoryContextSwitchTo(caller);
+                MemoryContextDelete(temporary);
+            }
+            PG_END_TRY();
+        }
+
+        static void
+        ankus_memory_reset(AnkusMemoryContext *entry, AnkusMemoryApi *api, AnkusMemoryRequest *request)
+        {
+            ankus_memory_check_infrastructure(entry->context);
+            ankus_memory_check_reserved(entry->context, request->operation);
+            ankus_memory_check_protection(entry->context, false);
+            for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
+            {
+                if (protected == entry->context)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("an active native callback memory context or its ancestor cannot be reset")));
+                }
+            }
+
+            if (request->operation == ANKUS_MEMORY_RESET && CurrentMemoryContext != entry->context)
+            {
+                ankus_memory_check_delete(entry);
+            }
+
+            AnkusMemoryProtection scope = {0};
+            ankus_memory_protect(&scope, entry->context, true);
+            entry->retain_reset = &scope;
+            PG_TRY();
+            {
+                if (request->operation == ANKUS_MEMORY_RESET)
+                {
+                    MemoryContextReset(entry->context);
+                }
+                else
+                {
+                    MemoryContextResetOnly(entry->context);
+                }
+            }
+            PG_FINALLY();
+            {
+                ankus_memory_protection = scope.previous;
+                entry->retain_reset = NULL;
+                if (!entry->callback_pending)
+                {
+                    MemoryContextRegisterResetCallback(entry->context, &entry->callback);
+                    entry->callback_pending = true;
+                }
+            }
+            PG_END_TRY();
+        }
+
+        static void
+        ankus_memory_reset_children(AnkusMemoryContext *entry, AnkusMemoryApi *api, AnkusMemoryRequest *request)
+        {
+            ankus_memory_check_infrastructure(entry->context);
+            ankus_memory_check_reserved(entry->context, request->operation);
+            ankus_memory_check_protection(entry->context, false);
+            for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
+            {
+                if (protected != api->current && protected == entry->context)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("children containing an active native callback memory context cannot be reset")));
+                }
+            }
+
+            AnkusMemoryProtection scope = {0};
+            ankus_memory_protect(&scope, entry->context, true);
+            for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
+            {
+                for (MemoryContext parent = MemoryContextGetParent(child->context); parent != NULL;
+                     parent = MemoryContextGetParent(parent))
+                {
+                    if (parent == entry->context)
+                    {
+                        child->retain_reset = &scope;
+                        break;
+                    }
+                }
+            }
+
+            PG_TRY();
+            {
+                MemoryContextResetChildren(entry->context);
+            }
+            PG_FINALLY();
+            {
+                ankus_memory_protection = scope.previous;
+                for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
+                {
+                    if (child->retain_reset == &scope)
+                    {
+                        child->retain_reset = NULL;
+                        if (!child->callback_pending)
+                        {
+                            MemoryContextRegisterResetCallback(child->context, &child->callback);
+                            child->callback_pending = true;
+                        }
+                    }
+                }
+            }
+            PG_END_TRY();
+        }
+
+        static void
+        ankus_memory_delete(AnkusMemoryContext *entry, AnkusMemoryApi *api, AnkusMemoryRequest *request)
+        {
+            if (entry != NULL)
+            {
+                ankus_memory_check_reserved(entry->context, request->operation);
+                ankus_memory_check_protection(entry->context, false);
+                ankus_memory_check_delete(entry);
+                for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
+                {
+                    if (protected == entry->context)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                            errmsg("an active native callback memory context or its ancestor cannot be deleted")));
+                    }
+                }
+
+                AnkusMemoryProtection scope = {0};
+                ankus_memory_protect(&scope, entry->context, true);
+                PG_TRY();
+                {
+                    MemoryContextDelete(entry->context);
+                }
+                PG_FINALLY();
+                {
+                    ankus_memory_protection = scope.previous;
+                }
+                PG_END_TRY();
+            }
+        }
+
+        static void
+        ankus_memory_allocate_request(AnkusMemoryContext *entry, AnkusMemoryRequest *request, AnkusMemoryResult *result)
+        {
+            /* Reserve bookkeeping before native storage. This also avoids trying
+             * to free a headerless Bump chunk if registration cannot succeed. */
+            AnkusMemoryAllocation *allocation = ankus_memory_reserve_allocation();
+            void *pointer;
+            PG_TRY();
+            {
+                pointer = ankus_memory_allocate(entry->context, (Size) request->length,
+                    (Size) request->alignment, request->flags);
+            }
+            PG_CATCH();
+            {
+                free(allocation);
+                PG_RE_THROW();
+            }
+            PG_END_TRY();
+
+            if (pointer == NULL)
+            {
+                free(allocation);
+                return;
+            }
+
+            ankus_memory_publish_allocation(allocation, entry, pointer,
+                (Size) request->length, (Size) request->alignment, request->flags);
+            result->context = (intptr_t) entry->id;
+            result->pointer = (intptr_t) allocation->id;
+            result->length = request->length;
         }
 
         static void
@@ -695,35 +936,8 @@ internal static class NativeMemoryBridge
                     break;
                 }
                 case ANKUS_MEMORY_CREATE:
-                {
-                    MemoryContext parent = request->context == 0 ? CurrentMemoryContext :
-                        ankus_memory_context_from_request(request)->context;
-                    ankus_memory_check_protection(parent, true);
-                    const AnkusMemoryContextSizes defaults = {ALLOCSET_DEFAULT_MINSIZE,
-                        ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE};
-                    const AnkusMemoryContextSizes *sizes = request->pointer == 0 ? &defaults :
-                        (const AnkusMemoryContextSizes *) request->pointer;
-                    ankus_memory_validate_sizes(sizes);
-                    MemoryContext context = AllocSetContextCreate(parent, "Ankus memory context",
-                        sizes->minimum, sizes->initial, sizes->maximum);
-                    MemoryContext caller = CurrentMemoryContext;
-                    PG_TRY();
-                    {
-                        MemoryContextSwitchTo(context);
-                        AnkusMemoryContext *entry = ankus_memory_register_context(context);
-                        ankus_memory_register_name(entry, (const char *) request->data, (Size) request->length);
-                        result->context = (intptr_t) entry->id;
-                        MemoryContextSwitchTo(caller);
-                    }
-                    PG_CATCH();
-                    {
-                        MemoryContextSwitchTo(caller);
-                        MemoryContextDelete(context);
-                        PG_RE_THROW();
-                    }
-                    PG_END_TRY();
+                    ankus_memory_create(request, result);
                     break;
-                }
                 case ANKUS_MEMORY_PARENT:
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
@@ -731,162 +945,18 @@ internal static class NativeMemoryBridge
                     break;
                 }
                 case ANKUS_MEMORY_NAME:
-                {
-                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
-                    const char *name = entry->context->ident == NULL ? entry->context->name : entry->context->ident;
-                    char *utf8 = pg_server_to_any(name, strlen(name), PG_UTF8);
-                    Size length = strlen(utf8);
-                    if (request->data != 0)
-                    {
-                        if (request->length < length)
-                        {
-                            ereport(ERROR, (errcode(ERRCODE_DATA_EXCEPTION), errmsg("the context identifier buffer is too small")));
-                        }
-
-                        memcpy((void *) request->data, utf8, length);
-                    }
-
-                    result->length = length;
-                    if (utf8 != name)
-                    {
-                        pfree(utf8);
-                    }
-
+                    ankus_memory_name(ankus_memory_context_from_request(request), request, result);
                     break;
-                }
                 case ANKUS_MEMORY_RESET:
                 case ANKUS_MEMORY_RESET_ONLY:
-                {
-                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
-                    ankus_memory_check_infrastructure(entry->context);
-                    ankus_memory_check_reserved(entry->context, request->operation);
-                    ankus_memory_check_protection(entry->context, false);
-                    for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
-                    {
-                        if (protected == entry->context)
-                        {
-                            ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                                errmsg("an active native callback memory context or its ancestor cannot be reset")));
-                        }
-                    }
-
-                    if (request->operation == ANKUS_MEMORY_RESET && CurrentMemoryContext != entry->context)
-                    {
-                        ankus_memory_check_delete(entry);
-                    }
-
-                    AnkusMemoryProtection scope = {0};
-                    ankus_memory_protect(&scope, entry->context, true);
-                    entry->retain_reset = &scope;
-                    PG_TRY();
-                    {
-                        if (request->operation == ANKUS_MEMORY_RESET)
-                        {
-                            MemoryContextReset(entry->context);
-                        }
-                        else
-                        {
-                            MemoryContextResetOnly(entry->context);
-                        }
-                    }
-                    PG_FINALLY();
-                    {
-                        ankus_memory_protection = scope.previous;
-                        entry->retain_reset = NULL;
-                        if (!entry->callback_pending)
-                        {
-                            MemoryContextRegisterResetCallback(entry->context, &entry->callback);
-                            entry->callback_pending = true;
-                        }
-                    }
-                    PG_END_TRY();
-
+                    ankus_memory_reset(ankus_memory_context_from_request(request), api, request);
                     break;
-                }
                 case ANKUS_MEMORY_RESET_CHILDREN:
-                {
-                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
-                    ankus_memory_check_infrastructure(entry->context);
-                    ankus_memory_check_reserved(entry->context, request->operation);
-                    ankus_memory_check_protection(entry->context, false);
-                    for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
-                    {
-                        if (protected != api->current && protected == entry->context)
-                        {
-                            ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                                errmsg("children containing an active native callback memory context cannot be reset")));
-                        }
-                    }
-
-                    AnkusMemoryProtection scope = {0};
-                    ankus_memory_protect(&scope, entry->context, true);
-                    for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
-                    {
-                        for (MemoryContext parent = MemoryContextGetParent(child->context); parent != NULL;
-                             parent = MemoryContextGetParent(parent))
-                        {
-                            if (parent == entry->context)
-                            {
-                                child->retain_reset = &scope;
-                                break;
-                            }
-                        }
-                    }
-
-                    PG_TRY();
-                    {
-                        MemoryContextResetChildren(entry->context);
-                    }
-                    PG_FINALLY();
-                    {
-                        ankus_memory_protection = scope.previous;
-                        for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
-                        {
-                            if (child->retain_reset == &scope)
-                            {
-                                child->retain_reset = NULL;
-                                if (!child->callback_pending)
-                                {
-                                    MemoryContextRegisterResetCallback(child->context, &child->callback);
-                                    child->callback_pending = true;
-                                }
-                            }
-                        }
-                    }
-                    PG_END_TRY();
+                    ankus_memory_reset_children(ankus_memory_context_from_request(request), api, request);
                     break;
-                }
                 case ANKUS_MEMORY_DELETE:
-                {
-                    AnkusMemoryContext *entry = ankus_memory_context_by_id((uint64) request->context);
-                    if (entry != NULL)
-                    {
-                        ankus_memory_check_reserved(entry->context, request->operation);
-                        ankus_memory_check_protection(entry->context, false);
-                        ankus_memory_check_delete(entry);
-                        for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
-                        {
-                            if (protected == entry->context)
-                            {
-                                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                                    errmsg("an active native callback memory context or its ancestor cannot be deleted")));
-                            }
-                        }
-
-                        AnkusMemoryProtection scope = {0};
-                        ankus_memory_protect(&scope, entry->context, true);
-                        PG_TRY();
-                        {
-                            MemoryContextDelete(entry->context);
-                        }
-                        PG_FINALLY();
-                        {
-                            ankus_memory_protection = scope.previous;
-                        }
-                        PG_END_TRY();
-                    }
+                    ankus_memory_delete(ankus_memory_context_by_id((uint64) request->context), api, request);
                     break;
-                }
                 case ANKUS_MEMORY_SWITCH:
                 {
                     AnkusMemoryContext *target = ankus_memory_context_from_request(request);
@@ -904,22 +974,8 @@ internal static class NativeMemoryBridge
                     break;
                 }
                 case ANKUS_MEMORY_ALLOCATE:
-                {
-                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
-                    void *pointer = ankus_memory_allocate(entry->context, (Size) request->length,
-                        (Size) request->alignment, request->flags);
-                    if (pointer == NULL)
-                    {
-                        break;
-                    }
-
-                    AnkusMemoryAllocation *allocation = ankus_memory_register_allocation(entry, pointer,
-                        (Size) request->length, (Size) request->alignment, request->flags, true);
-                    result->context = (intptr_t) entry->id;
-                    result->pointer = (intptr_t) allocation->id;
-                    result->length = request->length;
+                    ankus_memory_allocate_request(ankus_memory_context_from_request(request), request, result);
                     break;
-                }
                 case ANKUS_MEMORY_REALLOCATE:
                 {
                     AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) request->context);
@@ -937,12 +993,13 @@ internal static class NativeMemoryBridge
                     Size size = (Size) request->length;
                     int options = allocation->flags | (request->flags & 2);
                     int flags = ankus_memory_validate_allocation(size, allocation->alignment, options);
+                    MemoryContext owner = ankus_memory_context_by_id(allocation->context_id)->context;
+                    ankus_memory_check_chunk_operation(owner, "realloc");
                     void *pointer;
                     if (allocation->alignment > MAXIMUM_ALIGNOF || (flags & MCXT_ALLOC_NO_OOM) != 0)
                     {
                         /* Keep the old chunk intact until replacement succeeds, including
                          * older native aligned realloc implementations that lose flags. */
-                        MemoryContext owner = GetMemoryChunkContext(allocation->pointer);
                         pointer = ankus_memory_allocate(owner, size, allocation->alignment, options);
                         if (pointer == NULL)
                         {
@@ -1003,13 +1060,15 @@ internal static class NativeMemoryBridge
 
                     /* The caller guarantees live palloc provenance and the exact accessible
                      * length. Chunk headers cannot validate arbitrary pointers or lengths. */
+                    ankus_memory_check_chunk_operation(entry->context, "GetMemoryChunkContext");
                     if (GetMemoryChunkContext(pointer) != entry->context)
                     {
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("the PostgreSQL allocation belongs to a different memory context")));
                     }
 
-                    AnkusMemoryAllocation *allocation = ankus_memory_register_allocation(entry, pointer,
-                        (Size) request->length, (Size) request->alignment, request->flags, false);
+                    AnkusMemoryAllocation *allocation = ankus_memory_reserve_allocation();
+                    ankus_memory_publish_allocation(allocation, entry, pointer,
+                        (Size) request->length, (Size) request->alignment, request->flags);
                     result->context = (intptr_t) entry->id;
                     result->pointer = (intptr_t) allocation->id;
                     result->length = request->length;
@@ -1020,6 +1079,8 @@ internal static class NativeMemoryBridge
                     AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) request->context);
                     if (allocation != NULL)
                     {
+                        ankus_memory_check_chunk_operation(
+                            ankus_memory_context_by_id(allocation->context_id)->context, "pfree");
                         pfree(allocation->pointer);
                         allocation->pointer = NULL;
                         allocation->context_id = 0;
@@ -1138,7 +1199,9 @@ internal static class NativeMemoryBridge
                             errmsg("the PostgreSQL allocation handle is stale")));
                     }
 
-                    result->context = (intptr_t) ankus_memory_context_id(GetMemoryChunkContext(allocation->pointer));
+                    /* Allocation and adoption established this owner while it was live.
+                     * The registry validates its lifetime without reading a chunk header. */
+                    result->context = (intptr_t) allocation->context_id;
                     break;
                 }
                 case ANKUS_MEMORY_EMPTY:

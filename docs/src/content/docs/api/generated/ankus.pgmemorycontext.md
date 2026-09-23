@@ -31,7 +31,7 @@ Implements: [IDisposable](https://learn.microsoft.com/dotnet/api/system.idisposa
 
 ### Allocate(nuint, PgAllocationOptions, nuint)
 
-Allocates bytes owned by this context and individually releasable through the returned handle.
+Allocates bytes owned by this context with checked access through the returned handle.
 
 ```csharp
 public PgAllocation Allocate(nuint length, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0)
@@ -54,6 +54,10 @@ A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
 Returns: [PgAllocation](/api/ankus.pgallocation/)
 
 The checked allocation.
+
+Native allocator restrictions apply. Slab requires its configured chunk size. Bump permits
+allocation but reclaims storage only through context reset or deletion, rejecting individual
+disposal and resizing. Prefer context-owned values when individual release is unavailable.
 
 <a id="member-e440ead89d439e76"></a>
 
@@ -901,7 +905,9 @@ public bool IsEmpty { get; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
-PostgreSQL marks contexts with registered invalidation callbacks as nonempty, including after an explicit reset.
+PostgreSQL marks AllocSet contexts with registered invalidation callbacks as nonempty,
+including after an explicit reset. Slab, Generation, and Bump use allocator-specific
+block or live-chunk accounting; this is not a portable count of user allocations.
 
 <a id="member-02697e7ce871f9ad"></a>
 

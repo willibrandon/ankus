@@ -9,6 +9,8 @@ namespace Ankus;
 /// <remarks>
 /// Disposal frees the native allocation without invoking a constructor or destructor on its value.
 /// There is no finalizer. The unmanaged constraint does not establish a C ABI layout or SQL type.
+/// Native allocator restrictions apply: Bump storage rejects individual disposal and remains live
+/// until context cleanup. Use context-owned values when individual release is unavailable.
 /// </remarks>
 public sealed unsafe class PgNativeBox<T> : IDisposable where T : unmanaged
 {

@@ -129,6 +129,64 @@ public static class MemoryCleanupOwnerFunctions
     }
 
     /// <summary>
+    /// Reports a direct or SPI-emitted notice while an ErrorContext child is current and checks the live native caller immediately afterward.
+    /// </summary>
+    /// <param name="viaSpi">Whether an executed SQL block emits the notice instead of the managed reporting API.</param>
+    /// <returns>The filter decision, restored current context, retained child payload, and outer caller recovery.</returns>
+    [PgFunction]
+    public static string MemoryErrorContextChildNotice(bool viaSpi)
+    {
+        PgMemoryContext original = PgMemoryContext.Current;
+        PgMemoryContext error = PgMemoryContext.Get(PgMemoryContextKind.Error)
+            ?? throw new InvalidOperationException("No error context.");
+        using PgMemoryContext child = PgMemoryContext.Create("error context notice child", error);
+        nint childId = child.Id;
+        using PgAllocation retained = child.Allocate(sizeof(int));
+        retained.Write(73);
+        int resets = 0;
+        using PgMemoryCallback cleanup = child.RegisterResetCallback(() => resets++);
+        string state = child.Run(() =>
+        {
+            bool enabled = PgLog.IsEnabled(PgLogLevel.Notice);
+            if (viaSpi)
+            {
+                Spi.Execute("DO $notice$ BEGIN RAISE NOTICE USING ERRCODE = '01000', MESSAGE = 'error context SPI notice café 100%', DETAIL = 'SPI détail conservé', HINT = 'SPI hint café'; END; $notice$");
+            }
+            else
+            {
+                PgLog.Write(PgLogLevel.Notice, new PgDiagnostic("error context notice café 100%")
+                {
+                    SqlState = "01000",
+                    Detail = "détail conservé",
+                    Hint = "hint café",
+                    Context = "ErrorContext child notice",
+                    File = "error-notice.cs",
+                    Line = 317,
+                    Routine = "MemoryErrorContextChildNotice",
+                });
+            }
+
+            PgMemoryContext current = PgMemoryContext.Current;
+            string name = current.Name;
+            bool same = current.Id == childId;
+            bool live = current.IsAlive;
+            int copied;
+            using (PgAllocation probe = current.Allocate(sizeof(int)))
+            {
+                probe.Write(91);
+                copied = probe.Read<int>();
+            }
+
+            // Testing a stale child itself can flush ErrorContext. Observe and
+            // use the native current context before making that stale request.
+            bool alive = child.IsAlive;
+            int preserved = alive ? retained.Read<int>() : 0;
+            return $"{enabled}|{name}|{same}|{live}|{copied}|{alive}|{preserved}|{resets}";
+        });
+        return $"{state}|{PgMemoryContext.Current.Id == original.Id}|{Spi.ExecuteScalar<int>("SELECT 42")}";
+    }
+
+    /// <summary>
     /// Keeps error-handler cleanup from recursively consuming PostgreSQL's active error stack or memory owner.
     /// </summary>
     /// <param name="operation">Explicit child reset, guarded-error cleanup of ErrorContext, or its child.</param>
