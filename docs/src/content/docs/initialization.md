@@ -66,5 +66,6 @@ Managed `[PgInitialize]` callbacks cannot run through `shared_preload_libraries`
 in the forking postmaster. Native AOT starts runtime threads on its first managed
 call; those threads and their runtime state cannot safely be inherited by
 PostgreSQL's forked backends. The generated native entry point rejects this load
-before invoking managed code. This restriction applies to managed initialization;
-native-only preload and full GUC registration remain tracked work in `PROGRESS.md`.
+before invoking managed code. This restriction applies to managed initialization
+and managed configuration hooks. Native-only [configuration declarations](/configuration/)
+can preload before PostgreSQL forks its backends.

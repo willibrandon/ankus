@@ -93,7 +93,10 @@ public static class NativeError
         }
     }
 
-    private static int PackSqlState(string state)
+    /// <summary>
+    /// Packs an already validated five-character SQLSTATE using PostgreSQL's six-bit character representation.
+    /// </summary>
+    internal static int PackSqlState(string state)
     {
         int code = 0;
         for (int index = 0; index < state.Length; index++)

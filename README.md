@@ -156,6 +156,12 @@ owned error diagnostics, and retries after failure. See
 [extension initialization](docs/src/content/docs/initialization.md) for loading,
 transaction behavior, and the Native AOT restriction on shared preload.
 
+Declare PostgreSQL settings with `[PgGucBool]`, `[PgGucInt]`, `[PgGucReal]`,
+`[PgGucString]`, or `[PgGucEnum]` on static partial getters. PostgreSQL owns their
+storage, SET/RESET behavior, permissions, and transaction restoration. See
+[configuration settings](docs/src/content/docs/configuration.md) for typed hooks,
+units, owned extra data, and native-only shared preload.
+
 ## Publishing and installation
 
 Use the `ankus` tool to register PostgreSQL, publish an extension, and install its files:

@@ -43,6 +43,7 @@ export default defineConfig({
           items: [
             { label: 'Function declarations', slug: 'function-declarations' },
             { label: 'Extension initialization', slug: 'initialization' },
+            { label: 'Configuration settings', slug: 'configuration' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Composite values', slug: 'composites' },
             { label: 'Triggers', slug: 'triggers' },

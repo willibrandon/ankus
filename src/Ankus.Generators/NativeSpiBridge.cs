@@ -47,7 +47,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_GEOMETRY,
             ANKUS_SPI_RANGE,
             ANKUS_SPI_ENUM,
-            ANKUS_SPI_TUPLE
+            ANKUS_SPI_TUPLE,
+            ANKUS_SPI_GUC_READ
         };
 
         typedef struct AnkusRequest

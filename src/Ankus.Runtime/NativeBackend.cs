@@ -433,6 +433,40 @@ public static unsafe class NativeBackend
     }
 
     /// <summary>
+    /// Reads generated configuration backing storage without issuing SQL or opening a subtransaction.
+    /// The caller receives ownership of the scalar transport and must release it after copying.
+    /// </summary>
+    internal static NativeValue ReadGuc(string name, int kind)
+    {
+        CheckAccess();
+        byte[] bytes = NativeGuc.EncodeName(name);
+        NativeSpiResult result = default;
+        try
+        {
+            fixed (byte* text = bytes)
+            {
+                var request = new NativeSpiRequest
+                {
+                    _operation = SpiOperation.GucRead,
+                    _command = text,
+                    _commandLength = bytes.Length - 1,
+                    _scalarOperation = kind,
+                };
+                Invoke(&request, &result);
+            }
+
+            NativeValue value = result._text;
+            result._text = default;
+            return value;
+        }
+        finally
+        {
+            result._text.Release();
+            ReleaseResult(&result);
+        }
+    }
+
+    /// <summary>
     /// Calls a native temporal routine and copies its result before releasing per-operation storage.
     /// </summary>
     internal static T Temporal<T>(TemporalOperation operation, ReadOnlySpan<SpiParameter> parameters)

@@ -6,9 +6,9 @@ namespace Ankus.Generators;
 internal static class NativeErrorBridge
 {
     /// <summary>
-    /// Gets diagnostic capture, allocator-matched cleanup, and error reconstruction helpers.
+    /// Gets diagnostic declarations and allocator-matched cleanup shared with configuration hooks.
     /// </summary>
-    internal const string Source = """
+    internal const string Declarations = """
         #include "utils/memutils.h"
         #include "miscadmin.h"
         #include "tcop/dest.h"
@@ -39,6 +39,34 @@ internal static class NativeErrorBridge
             AnkusValue fields[ANKUS_ERROR_FIELD_COUNT];
             int report_level;
         } AnkusError;
+
+        static void
+        ankus_release_error(AnkusError *error)
+        {
+            for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
+            {
+                AnkusValue *value = &error->fields[index];
+                if (value->release != NULL)
+                {
+                    value->release(value->data);
+                }
+
+                memset(value, 0, sizeof(AnkusValue));
+            }
+        }
+
+        static void
+        ankus_free_error_buffer(void *data)
+        {
+            free(data);
+        }
+
+        """;
+
+    /// <summary>
+    /// Gets diagnostic capture, allocator-matched cleanup, and backend error reconstruction helpers.
+    /// </summary>
+    internal const string Source = Declarations + """
 
         static int
         ankus_log_level(int level)
@@ -75,27 +103,6 @@ internal static class NativeErrorBridge
                 (ClientAuthInProgress ? level >= ERROR : level >= client_min_messages || level == INFO);
             return level >= ERROR || server || client;
         #endif
-        }
-
-        static void
-        ankus_release_error(AnkusError *error)
-        {
-            for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
-            {
-                AnkusValue *value = &error->fields[index];
-                if (value->release != NULL)
-                {
-                    value->release(value->data);
-                }
-
-                memset(value, 0, sizeof(AnkusValue));
-            }
-        }
-
-        static void
-        ankus_free_error_buffer(void *data)
-        {
-            free(data);
         }
 
         static void
@@ -235,6 +242,12 @@ internal static class NativeErrorBridge
             ThrowErrorData(&data);
         }
 
+        """;
+
+    /// <summary>
+    /// Gets error raising used after managed SQL and initialization callbacks unwind.
+    /// </summary>
+    internal const string RaiseError = """
         static void
         ankus_raise_error(AnkusError *error)
         {

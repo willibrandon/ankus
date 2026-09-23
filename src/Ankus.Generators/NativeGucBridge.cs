@@ -1,0 +1,1055 @@
+namespace Ankus.Generators;
+
+/// <summary>
+/// Defines native configuration storage, PostgreSQL registration, and guarded managed hook transports.
+/// </summary>
+internal static class NativeGucBridge
+{
+    /// <summary>
+    /// Gets descriptors shared by native-only registration and managed configuration callbacks.
+    /// </summary>
+    internal const string Declarations = """
+        #include "utils/guc.h"
+        #include "utils/guc_tables.h"
+        #include "utils/memutils.h"
+        #include "miscadmin.h"
+        #include "access/xact.h"
+        #include "utils/snapmgr.h"
+        #include <limits.h>
+        #include <math.h>
+
+        struct AnkusError;
+        struct AnkusRequest;
+        struct AnkusResult;
+        typedef int (*AnkusGucRead)(const char *, int, AnkusValue *, struct AnkusError *);
+        typedef int (*AnkusGucHook)(int, AnkusValue *, AnkusValue *, int, struct AnkusError *, AnkusGucRead,
+            int (*)(struct AnkusRequest *, struct AnkusResult *, struct AnkusError *));
+
+        typedef union AnkusGucNumber
+        {
+            bool boolean;
+            int integer;
+            double real;
+            const char *string;
+        } AnkusGucNumber;
+
+        typedef union AnkusGucCheck
+        {
+            GucBoolCheckHook boolean;
+            GucIntCheckHook integer;
+            GucRealCheckHook real;
+            GucStringCheckHook string;
+            GucEnumCheckHook enumeration;
+        } AnkusGucCheck;
+
+        typedef union AnkusGucAssign
+        {
+            GucBoolAssignHook boolean;
+            GucIntAssignHook integer;
+            GucRealAssignHook real;
+            GucStringAssignHook string;
+            GucEnumAssignHook enumeration;
+        } AnkusGucAssign;
+
+        typedef struct AnkusGuc
+        {
+            const char *name_utf8;
+            const char *short_utf8;
+            const char *long_utf8;
+            int kind;
+            int context;
+            unsigned int flags;
+            int unit;
+            void *variable;
+            AnkusGucNumber boot;
+            AnkusGucNumber minimum;
+            AnkusGucNumber maximum;
+            const struct config_enum_entry *options_utf8;
+            AnkusGucCheck check;
+            AnkusGucAssign assign;
+            GucShowHook show;
+            AnkusGucHook hook;
+            bool has_check;
+            bool has_assign;
+            bool has_show;
+            bool prepared;
+            bool installed;
+            char *name;
+            char *short_desc;
+            char *long_desc;
+            char *boot_string;
+            struct config_enum_entry *options;
+            void *extra;
+            char *show_buffer;
+        } AnkusGuc;
+
+        """;
+
+    /// <summary>
+    /// Gets native registration helpers that never initialize the managed runtime.
+    /// </summary>
+    internal const string Registration = """
+        #if PG_VERSION_NUM < 160000
+        static bool
+        ankus_guc_name_equal(const char *left, const char *right)
+        {
+            while (*left != 0 && *right != 0)
+            {
+                unsigned char a = (unsigned char) *left++;
+                unsigned char b = (unsigned char) *right++;
+                if (a >= 'A' && a <= 'Z') a += 'a' - 'A';
+                if (b >= 'A' && b <= 'Z') b += 'a' - 'A';
+                if (a != b) return false;
+            }
+
+            return *left == *right;
+        }
+        #endif
+
+        static void *
+        ankus_guc_allocate(Size size)
+        {
+        #if PG_VERSION_NUM >= 160000
+            return guc_malloc(ERROR, size);
+        #else
+            void *result = malloc(size);
+            if (result == NULL)
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory")));
+            return result;
+        #endif
+        }
+
+        static bool
+        ankus_guc_ascii(const char *value)
+        {
+            if (value != NULL)
+            {
+                for (const unsigned char *current = (const unsigned char *) value; *current != 0; current++)
+                {
+                    if (*current >= 128)
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        static char *
+        ankus_guc_persistent_text(const char *utf8)
+        {
+            if (utf8 == NULL)
+                return NULL;
+            char *converted = pg_any_to_server(utf8, strlen(utf8), PG_UTF8);
+            Size length = strlen(converted) + 1;
+            char *copy = ankus_guc_allocate(length);
+            memcpy(copy, converted, length);
+            if (converted != utf8)
+                pfree(converted);
+            return copy;
+        }
+
+        static GucContext
+        ankus_guc_context(int context)
+        {
+            switch (context)
+            {
+                case 0: return PGC_INTERNAL;
+                case 1: return PGC_POSTMASTER;
+                case 2: return PGC_SIGHUP;
+                case 3: return PGC_SU_BACKEND;
+                case 4: return PGC_BACKEND;
+                case 5: return PGC_SUSET;
+                case 6: return PGC_USERSET;
+                default: elog(ERROR, "invalid Ankus configuration context"); return PGC_INTERNAL;
+            }
+        }
+
+        static int
+        ankus_guc_flags(unsigned int flags, int unit)
+        {
+            int result = 0;
+            if (flags & 1U) result |= GUC_NO_SHOW_ALL | GUC_NOT_IN_SAMPLE;
+            if (flags & 2U) result |= GUC_NO_RESET_ALL;
+            if (flags & 4U) result |= GUC_REPORT;
+            if (flags & 8U) result |= GUC_DISALLOW_IN_FILE;
+            if (flags & 16U) result |= GUC_SUPERUSER_ONLY;
+            if (flags & 32U) result |= GUC_IS_NAME;
+            if (flags & 64U) result |= GUC_NOT_WHILE_SEC_REST;
+            if (flags & 128U) result |= GUC_DISALLOW_IN_AUTO_FILE;
+            if (flags & 256U) result |= GUC_EXPLAIN;
+            if (flags & 512U)
+            {
+        #if PG_VERSION_NUM >= 150000
+                result |= GUC_RUNTIME_COMPUTED;
+        #else
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("RuntimeComputed configuration requires PostgreSQL 15 or later")));
+        #endif
+            }
+
+            switch (unit)
+            {
+                case 0: break;
+                case 1: result |= GUC_UNIT_BYTE; break;
+                case 2: result |= GUC_UNIT_KB; break;
+                case 3: result |= GUC_UNIT_BLOCKS; break;
+                case 4: result |= GUC_UNIT_XBLOCKS; break;
+                case 5: result |= GUC_UNIT_MB; break;
+                case 6: result |= GUC_UNIT_MS; break;
+                case 7: result |= GUC_UNIT_S; break;
+                case 8: result |= GUC_UNIT_MIN; break;
+                default: elog(ERROR, "invalid Ankus configuration unit");
+            }
+
+            return result;
+        }
+
+        static struct config_generic *
+        ankus_guc_find(const char *name)
+        {
+        #if PG_VERSION_NUM >= 160000
+            return find_option(name, false, true, DEBUG5);
+        #else
+            struct config_generic **variables = get_guc_variables();
+            int count = GetNumConfigOptions();
+            for (int index = 0; index < count; index++)
+            {
+                if (ankus_guc_name_equal(variables[index]->name, name))
+                    return variables[index];
+            }
+
+            return NULL;
+        #endif
+        }
+
+        static bool
+        ankus_guc_is_owned(AnkusGuc *definition, struct config_generic *existing)
+        {
+            if (existing == NULL || (existing->flags & GUC_CUSTOM_PLACEHOLDER) != 0)
+                return false;
+            switch (definition->kind)
+            {
+                case 0: return existing->vartype == PGC_BOOL && ((struct config_bool *) existing)->variable == definition->variable;
+                case 1: return existing->vartype == PGC_INT && ((struct config_int *) existing)->variable == definition->variable;
+                case 2: return existing->vartype == PGC_REAL && ((struct config_real *) existing)->variable == definition->variable;
+                case 3: return existing->vartype == PGC_STRING && ((struct config_string *) existing)->variable == definition->variable;
+                case 4: return existing->vartype == PGC_ENUM && ((struct config_enum *) existing)->variable == definition->variable;
+                default: return false;
+            }
+        }
+
+        static void
+        ankus_guc_prepare(AnkusGuc *definition)
+        {
+            if (definition->prepared)
+                return;
+            if (IsPostmasterEnvironment && !IsUnderPostmaster)
+            {
+                bool ascii = ankus_guc_ascii(definition->name_utf8) && ankus_guc_ascii(definition->short_utf8) &&
+                    ankus_guc_ascii(definition->long_utf8) && (definition->kind != 3 || ankus_guc_ascii(definition->boot.string));
+                if (definition->kind == 4)
+                {
+                    for (const struct config_enum_entry *option = definition->options_utf8; option->name != NULL; option++)
+                        ascii = ascii && ankus_guc_ascii(option->name);
+                }
+
+                if (!ascii)
+                    ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                        errmsg("Non-ASCII Ankus configuration metadata cannot be registered through shared_preload_libraries"),
+                        errdetail("Database encoding is unavailable in the postmaster; register this definition in a backend.")));
+            }
+
+            if (definition->name == NULL)
+                definition->name = ankus_guc_persistent_text(definition->name_utf8);
+            if (definition->short_desc == NULL)
+                definition->short_desc = ankus_guc_persistent_text(definition->short_utf8);
+            if (definition->long_desc == NULL)
+                definition->long_desc = ankus_guc_persistent_text(definition->long_utf8);
+            if (definition->kind == 3)
+            {
+                if (definition->boot_string == NULL)
+                    definition->boot_string = ankus_guc_persistent_text(definition->boot.string);
+                *((char **) definition->variable) = definition->boot_string;
+            }
+
+            if (definition->kind == 4)
+            {
+                int count = 0;
+                while (definition->options_utf8[count].name != NULL)
+                    count++;
+                if (definition->options == NULL)
+                {
+                    definition->options = ankus_guc_allocate(sizeof(struct config_enum_entry) * (Size) (count + 1));
+                    memset(definition->options, 0, sizeof(struct config_enum_entry) * (Size) (count + 1));
+                }
+
+                for (int index = 0; index < count; index++)
+                {
+                    if (definition->options[index].name == NULL)
+                        definition->options[index].name = ankus_guc_persistent_text(definition->options_utf8[index].name);
+                    definition->options[index].val = definition->options_utf8[index].val;
+                    definition->options[index].hidden = definition->options_utf8[index].hidden;
+                }
+            }
+
+            definition->prepared = true;
+        }
+
+        static void
+        ankus_guc_register(AnkusGuc *definition)
+        {
+            if (definition->installed)
+                return;
+            GucContext context = ankus_guc_context(definition->context);
+            if (context == PGC_POSTMASTER && !process_shared_preload_libraries_in_progress)
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("Postmaster configuration must be registered through shared_preload_libraries")));
+            int flags = ankus_guc_flags(definition->flags, definition->unit);
+            ankus_guc_prepare(definition);
+            struct config_generic *existing = ankus_guc_find(definition->name);
+            if (ankus_guc_is_owned(definition, existing))
+            {
+                definition->installed = true;
+                definition->extra = existing->extra;
+                return;
+            }
+
+            if (existing != NULL && (existing->flags & GUC_CUSTOM_PLACEHOLDER) == 0)
+                ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
+                    errmsg("configuration parameter \"%s\" is already defined by another owner", definition->name)));
+            switch (definition->kind)
+            {
+                case 0:
+                    DefineCustomBoolVariable(definition->name, definition->short_desc, definition->long_desc,
+                        definition->variable, definition->boot.boolean, context, flags,
+                        definition->check.boolean, definition->assign.boolean, definition->show);
+                    break;
+                case 1:
+                    DefineCustomIntVariable(definition->name, definition->short_desc, definition->long_desc,
+                        definition->variable, definition->boot.integer, definition->minimum.integer, definition->maximum.integer,
+                        context, flags, definition->check.integer, definition->assign.integer, definition->show);
+                    break;
+                case 2:
+                    DefineCustomRealVariable(definition->name, definition->short_desc, definition->long_desc,
+                        definition->variable, definition->boot.real, definition->minimum.real, definition->maximum.real,
+                        context, flags, definition->check.real, definition->assign.real, definition->show);
+                    break;
+                case 3:
+                    DefineCustomStringVariable(definition->name, definition->short_desc, definition->long_desc,
+                        definition->variable, definition->boot_string, context, flags,
+                        definition->check.string, definition->assign.string, definition->show);
+                    break;
+                case 4:
+                    DefineCustomEnumVariable(definition->name, definition->short_desc, definition->long_desc,
+                        definition->variable, definition->boot.integer, definition->options, context, flags,
+                        definition->check.enumeration, definition->assign.enumeration, definition->show);
+                    break;
+                default: elog(ERROR, "invalid Ankus configuration kind");
+            }
+
+            definition->installed = true;
+        }
+        """;
+
+    /// <summary>
+    /// Gets the optional fast read binding included in every full native backend bridge.
+    /// </summary>
+    internal const string ReadBinding = """
+        typedef int (*AnkusGucReadBinding)(const char *, int, AnkusValue *, AnkusError *);
+        static AnkusGucReadBinding ankus_read_guc = NULL;
+        """;
+
+    /// <summary>
+    /// Gets only the hook forward declarations needed by the generated wrappers, plus the native reader.
+    /// </summary>
+    /// <param name="hasCheck">Whether any declaration has a check hook.</param>
+    /// <param name="hasAssign">Whether generated assignment wrappers track configuration state.</param>
+    /// <param name="hasShow">Whether any declaration has a show hook.</param>
+    /// <returns>The required native callback prototypes.</returns>
+    internal static string GetManagedDeclarations(bool hasCheck, bool hasAssign, bool hasShow)
+        => "static int ankus_guc_read(const char *, int, AnkusValue *, AnkusError *);\n" +
+            (hasCheck ? "static bool ankus_guc_check(AnkusGuc *, void *, void **, GucSource);\n" : string.Empty) +
+            (hasAssign ? "static void ankus_guc_assign(AnkusGuc *, const void *, void *);\n" : string.Empty) +
+            (hasShow ? "static const char *ankus_guc_show(AnkusGuc *);\n" : string.Empty);
+
+    /// <summary>
+    /// Emits typed reads and exactly the native helper dependencies required by the declared hooks.
+    /// </summary>
+    /// <param name="hasCheck">Whether any declaration has a check hook.</param>
+    /// <param name="hasAssign">Whether generated assignment wrappers track configuration state.</param>
+    /// <param name="hasShow">Whether any declaration has a show hook.</param>
+    /// <returns>The selected native implementation fragments.</returns>
+    internal static string GetManagedSource(bool hasCheck, bool hasAssign, bool hasShow)
+        => ReadSource +
+            (hasCheck || hasAssign || hasShow ? "\n\n" + HookCommon : string.Empty) +
+            (hasCheck || hasShow ? "\n\n" + PersistentResult : string.Empty) +
+            (hasCheck ? "\n\n" + Check : string.Empty) +
+            (hasAssign ? "\n\n" + Assign : string.Empty) +
+            (hasShow ? "\n\n" + Show : string.Empty);
+
+    /// <summary>
+    /// Provides owned typed reads, cached conversion functions, and native error capture.
+    /// </summary>
+    private const string ReadSource = """
+        #if PG_VERSION_NUM >= 160000
+        static bool
+        ankus_guc_name_equal(const char *left, const char *right)
+        {
+            while (*left != 0 && *right != 0)
+            {
+                unsigned char a = (unsigned char) *left++;
+                unsigned char b = (unsigned char) *right++;
+                if (a >= 'A' && a <= 'Z') a += 'a' - 'A';
+                if (b >= 'A' && b <= 'Z') b += 'a' - 'A';
+                if (a != b) return false;
+            }
+
+            return *left == *right;
+        }
+        #endif
+
+        #include "catalog/namespace.h"
+
+        static int ankus_guc_encoding = -1;
+        static FmgrInfo ankus_guc_to_utf8;
+        static FmgrInfo ankus_guc_from_utf8;
+
+        static void
+        ankus_guc_prepare_encoding(void)
+        {
+            int encoding = GetDatabaseEncoding();
+            if (encoding == PG_UTF8 || encoding == PG_SQL_ASCII || ankus_guc_encoding == encoding)
+                return;
+            if (!IsTransactionState())
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("Ankus configuration encoding conversion was not initialized in a transaction")));
+            Oid to_utf8 = FindDefaultConversionProc(encoding, PG_UTF8);
+            Oid from_utf8 = FindDefaultConversionProc(PG_UTF8, encoding);
+            if (!OidIsValid(to_utf8) || !OidIsValid(from_utf8))
+                ereport(ERROR, (errcode(ERRCODE_UNDEFINED_FUNCTION),
+                    errmsg("Ankus configuration requires database encoding conversion to and from UTF8")));
+            fmgr_info_cxt(to_utf8, &ankus_guc_to_utf8, TopMemoryContext);
+            fmgr_info_cxt(from_utf8, &ankus_guc_from_utf8, TopMemoryContext);
+            ankus_guc_encoding = encoding;
+        }
+
+        static char *
+        ankus_guc_convert(const char *text, bool to_utf8)
+        {
+            int encoding = GetDatabaseEncoding();
+            if (ankus_guc_ascii(text))
+                return (char *) text;
+            if (encoding == PG_UTF8 || encoding == PG_SQL_ASCII)
+            {
+                pg_verify_mbstr(PG_UTF8, text, strlen(text), false);
+                return (char *) text;
+            }
+
+            ankus_guc_prepare_encoding();
+            Size length = strlen(text);
+            if (length > (MaxAllocSize - 1) / MAX_CONVERSION_GROWTH)
+                ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("Configuration text is too large for encoding conversion")));
+            char *converted = palloc(length * MAX_CONVERSION_GROWTH + 1);
+            FmgrInfo *function = to_utf8 ? &ankus_guc_to_utf8 : &ankus_guc_from_utf8;
+            int source = to_utf8 ? encoding : PG_UTF8;
+            int target = to_utf8 ? PG_UTF8 : encoding;
+        #if PG_VERSION_NUM >= 140000
+            (void) FunctionCall6(function, Int32GetDatum(source), Int32GetDatum(target),
+                CStringGetDatum(text), CStringGetDatum(converted), Int32GetDatum((int) length), BoolGetDatum(false));
+        #else
+            (void) FunctionCall5(function, Int32GetDatum(source), Int32GetDatum(target),
+                CStringGetDatum(text), CStringGetDatum(converted), Int32GetDatum((int) length));
+        #endif
+            return converted;
+        }
+
+        static void
+        ankus_guc_capture_error(ErrorData *data, AnkusError *error)
+        {
+            const char *fields[ANKUS_ERROR_FIELD_COUNT] = {
+                data->message, data->detail, data->hint, data->context,
+                data->schema_name, data->table_name, data->column_name, data->datatype_name,
+                data->constraint_name, data->internalquery, data->filename, data->funcname,
+                data->detail_log, data->backtrace
+            };
+            error->sqlstate = data->sqlerrcode;
+            error->position = data->cursorpos;
+            error->internal_position = data->internalpos;
+            error->line = data->lineno;
+            error->flags = ANKUS_ERROR_RETHROW |
+                (data->output_to_server ? ANKUS_ERROR_SERVER : 0) |
+                (data->output_to_client ? ANKUS_ERROR_CLIENT : 0) |
+                (data->hide_stmt ? ANKUS_ERROR_HIDE_STATEMENT : 0) |
+                (data->hide_ctx ? ANKUS_ERROR_HIDE_CONTEXT : 0);
+        #if PG_VERSION_NUM < 140000
+            error->flags |= data->show_funcname ? ANKUS_ERROR_SHOW_FUNCTION : 0;
+        #endif
+            for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
+            {
+                if (fields[index] == NULL) continue;
+                char *utf8 = ankus_guc_convert(fields[index], true);
+                int length = strlen(utf8);
+                AnkusValue *value = &error->fields[index];
+                if (index == ANKUS_ERROR_MESSAGE)
+                {
+                    int clipped = pg_encoding_mbcliplen(PG_UTF8, utf8, length, sizeof(error->message) - 1);
+                    memcpy(error->message, utf8, clipped);
+                    error->message[clipped] = 0;
+                }
+
+                value->data = malloc((Size) length + 1);
+                if (value->data != NULL)
+                {
+                    memcpy(value->data, utf8, (Size) length + 1);
+                    value->length = length;
+                    value->release = ankus_free_error_buffer;
+                }
+                else
+                    error->flags |= ANKUS_ERROR_INCOMPLETE;
+                if (utf8 != fields[index]) pfree(utf8);
+            }
+        }
+
+        static void
+        ankus_guc_release_value(AnkusValue *value)
+        {
+            if (value->release != NULL)
+                value->release(value->data);
+            memset(value, 0, sizeof(AnkusValue));
+        }
+
+        static void
+        ankus_guc_copy_bytes(AnkusValue *value, const void *data, int length)
+        {
+            value->data = malloc((Size) length + 1);
+            if (value->data == NULL)
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory")));
+            value->length = length;
+            value->release = ankus_free_error_buffer;
+            if (length > 0)
+                memcpy(value->data, data, length);
+            value->data[length] = 0;
+        }
+
+        static void
+        ankus_guc_value(AnkusGuc *definition, const void *input, AnkusValue *value)
+        {
+            switch (definition->kind)
+            {
+                case 0: value->integral = *((const bool *) input) ? 1 : 0; break;
+                case 1:
+                case 4: value->integral = *((const int *) input); break;
+                case 2: memcpy(&value->integral, input, sizeof(double)); break;
+                case 3:
+                {
+                    const char *text = *((const char *const *) input);
+                    if (text == NULL)
+                    {
+                        value->is_null = 1;
+                        break;
+                    }
+
+                    char *utf8 = ankus_guc_convert(text, true);
+                    ankus_guc_copy_bytes(value, utf8, strlen(utf8));
+                    if (utf8 != text)
+                        pfree(utf8);
+                    break;
+                }
+
+                default: elog(ERROR, "invalid Ankus configuration kind");
+            }
+        }
+
+        static int
+        ankus_guc_read(const char *name, int kind, AnkusValue *value, AnkusError *error)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext volatile work = NULL;
+            volatile int status = 0;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    work = AllocSetContextCreate(caller, "Ankus configuration read", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(work);
+                    AnkusGuc *definition = NULL;
+                    for (int index = 0; index < ankus_guc_count; index++)
+                    {
+                        if (ankus_guc_name_equal(ankus_guc_definitions[index]->name_utf8, name))
+                        {
+                            definition = ankus_guc_definitions[index];
+                            break;
+                        }
+                    }
+
+                    if (definition == NULL)
+                        ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Unknown Ankus configuration parameter")));
+                    if (definition->kind != kind)
+                        ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus configuration type does not match its declaration")));
+                    if (!definition->prepared && definition->kind == 3)
+                    {
+                        if (definition->boot.string == NULL)
+                            value->is_null = 1;
+                        else
+                            ankus_guc_copy_bytes(value, definition->boot.string, strlen(definition->boot.string));
+                    }
+                    else
+                        ankus_guc_value(definition, definition->variable, value);
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(caller);
+                    ErrorData *data = CopyErrorData();
+                    FlushErrorState();
+                    ankus_guc_release_value(value);
+                    ankus_guc_capture_error(data, error);
+                    FreeErrorData(data);
+                    status = 1;
+                }
+                PG_END_TRY();
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                FlushErrorState();
+                ereport(FATAL, (errmsg("Unable to recover an Ankus configuration read failure")));
+            }
+            PG_END_TRY();
+            MemoryContextSwitchTo(caller);
+            if (work != NULL)
+                MemoryContextDelete(work);
+            return status;
+        }
+        """;
+
+    /// <summary>
+    /// Provides the shared callback frame, owned argument data, diagnostic reporting, and cleanup.
+    /// </summary>
+    private const string HookCommon = """
+        typedef struct AnkusGucExtra
+        {
+            int32 length;
+            unsigned char data[FLEXIBLE_ARRAY_MEMBER];
+        } AnkusGucExtra;
+
+        typedef struct AnkusGucFrame
+        {
+            AnkusValue arguments[2];
+            AnkusValue results[2];
+            AnkusError error;
+            void *pending_extra;
+            char *pending_string;
+            bool snapshot_owned;
+        } AnkusGucFrame;
+
+        static void
+        ankus_guc_free(void *value)
+        {
+            if (value == NULL)
+                return;
+        #if PG_VERSION_NUM >= 160000
+            guc_free(value);
+        #else
+            free(value);
+        #endif
+        }
+
+        static char *
+        ankus_guc_error_field(AnkusError *error, enum AnkusDiagnosticField field)
+        {
+            const char *utf8 = (const char *) error->fields[field].data;
+            if (utf8 == NULL) return NULL;
+            char *converted = ankus_guc_convert(utf8, false);
+            char *copy = pstrdup(converted);
+            if (converted != utf8) pfree(converted);
+            return copy;
+        }
+
+        static void
+        ankus_guc_report(AnkusError *error, int level)
+        {
+            ErrorData data = {0};
+            data.elevel = level;
+            data.sqlerrcode = error->sqlstate;
+            data.cursorpos = error->position;
+            data.internalpos = error->internal_position;
+            data.lineno = error->line;
+            data.output_to_server = (error->flags & ANKUS_ERROR_SERVER) != 0;
+            data.output_to_client = (error->flags & ANKUS_ERROR_CLIENT) != 0;
+            data.hide_stmt = (error->flags & ANKUS_ERROR_HIDE_STATEMENT) != 0;
+            data.hide_ctx = (error->flags & ANKUS_ERROR_HIDE_CONTEXT) != 0;
+        #if PG_VERSION_NUM < 140000
+            data.show_funcname = (error->flags & ANKUS_ERROR_SHOW_FUNCTION) != 0;
+        #endif
+            data.message = ankus_guc_error_field(error, ANKUS_ERROR_MESSAGE);
+            if (data.message == NULL)
+                data.message = ankus_guc_convert(error->message, false);
+            data.detail = ankus_guc_error_field(error, ANKUS_ERROR_DETAIL);
+            data.hint = ankus_guc_error_field(error, ANKUS_ERROR_HINT);
+            data.context = ankus_guc_error_field(error, ANKUS_ERROR_CONTEXT);
+            data.schema_name = ankus_guc_error_field(error, ANKUS_ERROR_SCHEMA);
+            data.table_name = ankus_guc_error_field(error, ANKUS_ERROR_TABLE);
+            data.column_name = ankus_guc_error_field(error, ANKUS_ERROR_COLUMN);
+            data.datatype_name = ankus_guc_error_field(error, ANKUS_ERROR_DATATYPE);
+            data.constraint_name = ankus_guc_error_field(error, ANKUS_ERROR_CONSTRAINT);
+            data.internalquery = ankus_guc_error_field(error, ANKUS_ERROR_QUERY);
+            data.filename = __FILE__;
+            data.funcname = "ankus_guc_report";
+            data.detail_log = ankus_guc_error_field(error, ANKUS_ERROR_DETAIL_LOG);
+            data.backtrace = ankus_guc_error_field(error, ANKUS_ERROR_BACKTRACE);
+            data.assoc_context = CurrentMemoryContext;
+            if (level == ERROR && (error->flags & ANKUS_ERROR_RETHROW) != 0)
+                ReThrowError(&data);
+            ThrowErrorData(&data);
+        }
+
+        static void
+        ankus_guc_frame_release(AnkusGucFrame *frame)
+        {
+            if (frame->snapshot_owned)
+            {
+                frame->snapshot_owned = false;
+                PopActiveSnapshot();
+            }
+
+            for (int index = 0; index < 2; index++)
+            {
+                ankus_guc_release_value(&frame->arguments[index]);
+                ankus_guc_release_value(&frame->results[index]);
+            }
+
+            ankus_release_error(&frame->error);
+            ankus_guc_free(frame->pending_extra);
+            ankus_guc_free(frame->pending_string);
+            pfree(frame);
+        }
+
+        static void
+        ankus_guc_arguments(AnkusGuc *definition, const void *input, const void *extra, AnkusGucFrame *frame)
+        {
+            ankus_guc_value(definition, input, &frame->arguments[0]);
+            if (extra == NULL)
+                frame->arguments[1].is_null = 1;
+            else
+            {
+                const AnkusGucExtra *payload = extra;
+                ankus_guc_copy_bytes(&frame->arguments[1], payload->data, payload->length);
+            }
+        }
+        """;
+
+    /// <summary>
+    /// Copies accepted check and show strings into allocator-matched native configuration storage.
+    /// </summary>
+    private const string PersistentResult = """
+        static char *
+        ankus_guc_persistent_result(const char *utf8)
+        {
+            char *converted = ankus_guc_convert(utf8, false);
+            Size length = strlen(converted) + 1;
+            char *copy = ankus_guc_allocate(length);
+            memcpy(copy, converted, length);
+            if (converted != utf8) pfree(converted);
+            return copy;
+        }
+        """;
+
+    /// <summary>
+    /// Checks and normalizes proposed values with native GUC rejection semantics.
+    /// </summary>
+    private const string Check = """
+        static int
+        ankus_guc_source(GucSource source)
+        {
+            switch (source)
+            {
+                case PGC_S_DEFAULT: return 0;
+                case PGC_S_DYNAMIC_DEFAULT: return 1;
+                case PGC_S_ENV_VAR: return 2;
+                case PGC_S_FILE: return 3;
+                case PGC_S_ARGV: return 4;
+                case PGC_S_GLOBAL: return 5;
+                case PGC_S_DATABASE: return 6;
+                case PGC_S_USER: return 7;
+                case PGC_S_DATABASE_USER: return 8;
+                case PGC_S_CLIENT: return 9;
+                case PGC_S_OVERRIDE: return 10;
+                case PGC_S_INTERACTIVE: return 11;
+                case PGC_S_TEST: return 12;
+                case PGC_S_SESSION: return 13;
+                default: elog(ERROR, "invalid PostgreSQL configuration source"); return 0;
+            }
+        }
+
+        static void
+        ankus_guc_reject(AnkusError *error)
+        {
+            GUC_check_errcode(error->sqlstate == 0 ? ERRCODE_INVALID_PARAMETER_VALUE : error->sqlstate);
+            GUC_check_errmsg_string = NULL;
+            GUC_check_errdetail_string = NULL;
+            GUC_check_errhint_string = NULL;
+            char *message = ankus_guc_error_field(error, ANKUS_ERROR_MESSAGE);
+            char *detail = ankus_guc_error_field(error, ANKUS_ERROR_DETAIL);
+            char *hint = ankus_guc_error_field(error, ANKUS_ERROR_HINT);
+            if (message != NULL)
+                GUC_check_errmsg("%s", message);
+            else if (error->message[0] != 0)
+            {
+                char *converted = ankus_guc_convert(error->message, false);
+                GUC_check_errmsg("%s", converted);
+                if (converted != error->message) pfree(converted);
+            }
+
+            if (detail != NULL) GUC_check_errdetail("%s", detail);
+            if (hint != NULL) GUC_check_errhint("%s", hint);
+            if (message != NULL) pfree(message);
+            if (detail != NULL) pfree(detail);
+            if (hint != NULL) pfree(hint);
+        }
+
+        static void
+        ankus_guc_accept(AnkusGuc *definition, void *proposed, void **extra, AnkusGucFrame *frame)
+        {
+            AnkusValue *value = &frame->results[0];
+            if (value->is_null && definition->kind != 3)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A scalar configuration check returned NULL")));
+            switch (definition->kind)
+            {
+                case 0:
+                    if (value->integral != 0 && value->integral != 1)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A Boolean configuration check returned an invalid value")));
+                    break;
+                case 1:
+                    if (value->integral < INT_MIN || value->integral > INT_MAX)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration check returned an unrepresentable integer")));
+                    break;
+                case 2:
+                    /* Native check hooks may replace the parsed proposal with any representable double bits. */
+                    break;
+
+                case 3:
+                    if (!value->is_null)
+                    {
+                        if (value->data == NULL || value->length < 0 || memchr(value->data, 0, value->length) != NULL)
+                            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration check returned invalid string data")));
+                        frame->pending_string = ankus_guc_persistent_result((char *) value->data);
+                    }
+
+                    break;
+                case 4:
+                {
+                    bool valid = false;
+                    for (const struct config_enum_entry *option = definition->options; option->name != NULL; option++)
+                        valid = valid || option->val == value->integral;
+                    if (!valid)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration check returned an unknown enumeration value")));
+                    break;
+                }
+            }
+
+            AnkusValue *payload = &frame->results[1];
+            if (!payload->is_null)
+            {
+                if (payload->length < 0 || (payload->length > 0 && payload->data == NULL))
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration check returned invalid extra data")));
+                AnkusGucExtra *copy = ankus_guc_allocate(offsetof(AnkusGucExtra, data) + (Size) payload->length);
+                frame->pending_extra = copy;
+                copy->length = payload->length;
+                if (payload->length > 0)
+                    memcpy(copy->data, payload->data, payload->length);
+            }
+
+            switch (definition->kind)
+            {
+                case 0: *((bool *) proposed) = value->integral != 0; break;
+                case 1:
+                case 4: *((int *) proposed) = (int) value->integral; break;
+                case 2: memcpy(proposed, &value->integral, sizeof(double)); break;
+                case 3:
+                    ankus_guc_free(*((char **) proposed));
+                    *((char **) proposed) = frame->pending_string;
+                    frame->pending_string = NULL;
+                    break;
+            }
+
+            *extra = frame->pending_extra;
+            frame->pending_extra = NULL;
+        }
+
+        static bool
+        ankus_guc_check(AnkusGuc *definition, void *proposed, void **extra, GucSource source)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext work = AllocSetContextCreate(caller, "Ankus configuration check", ALLOCSET_SMALL_SIZES);
+            MemoryContextSwitchTo(work);
+            AnkusGucFrame *frame = palloc0(sizeof(AnkusGucFrame));
+            volatile bool accepted = false;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    ankus_guc_arguments(definition, proposed, NULL, frame);
+                    bool transactional = IsTransactionState();
+                    if (transactional && !ActiveSnapshotSet())
+                    {
+                        PushActiveSnapshot(GetTransactionSnapshot());
+                        frame->snapshot_owned = true;
+                    }
+
+                    int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
+                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL);
+                    if (frame->snapshot_owned)
+                    {
+                        frame->snapshot_owned = false;
+                        PopActiveSnapshot();
+                    }
+
+                    if (status == 0)
+                    {
+                        ankus_guc_accept(definition, proposed, extra, frame);
+                        accepted = true;
+                    }
+                    else
+                        ankus_guc_reject(&frame->error);
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(caller);
+                    if (frame->snapshot_owned)
+                    {
+                        frame->snapshot_owned = false;
+                        PopActiveSnapshot();
+                    }
+
+                    ErrorData *data = CopyErrorData();
+                    FlushErrorState();
+                    ankus_release_error(&frame->error);
+                    ankus_guc_capture_error(data, &frame->error);
+                    FreeErrorData(data);
+                    ankus_guc_reject(&frame->error);
+                    accepted = false;
+                }
+                PG_END_TRY();
+            }
+            PG_FINALLY();
+            {
+                MemoryContextSwitchTo(caller);
+                ankus_guc_frame_release(frame);
+                MemoryContextDelete(work);
+            }
+            PG_END_TRY();
+            return accepted;
+        }
+        """;
+
+    /// <summary>
+    /// Runs assignment callbacks with terminal failure handling and native extra tracking.
+    /// </summary>
+    private const string Assign = """
+        static void
+        ankus_guc_assign(AnkusGuc *definition, const void *accepted, void *extra)
+        {
+            if (!definition->has_assign)
+            {
+                definition->extra = extra;
+                return;
+            }
+
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext volatile work = NULL;
+            AnkusGucFrame *volatile frame = NULL;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    work = AllocSetContextCreate(caller, "Ankus configuration assignment", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(work);
+                    frame = palloc0(sizeof(AnkusGucFrame));
+                    ankus_guc_arguments(definition, accepted, extra, frame);
+                    int status = definition->hook(1, frame->arguments, frame->results, 0,
+                        &frame->error, ankus_guc_read, NULL);
+                    if (status != 0)
+                        ankus_guc_report(&frame->error, FATAL);
+                    definition->extra = extra;
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(caller);
+                    ErrorData *data = CopyErrorData();
+                    FlushErrorState();
+                    data->elevel = FATAL;
+                    ThrowErrorData(data);
+                }
+                PG_END_TRY();
+            }
+            PG_FINALLY();
+            {
+                MemoryContextSwitchTo(caller);
+                if (frame != NULL)
+                    ankus_guc_frame_release(frame);
+                if (work != NULL)
+                    MemoryContextDelete(work);
+            }
+            PG_END_TRY();
+        }
+        """;
+
+    /// <summary>
+    /// Formats current settings with a retained display buffer and phase-safe error handling.
+    /// </summary>
+    private const string Show = """
+        static const char *
+        ankus_guc_show(AnkusGuc *definition)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext volatile work = NULL;
+            AnkusGucFrame *volatile frame = NULL;
+            char *output = NULL;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    work = AllocSetContextCreate(caller, "Ankus configuration display", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(work);
+                    frame = palloc0(sizeof(AnkusGucFrame));
+                    ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
+                    int status = definition->hook(2, frame->arguments, frame->results, 0,
+                        &frame->error, ankus_guc_read, NULL);
+                    if (status != 0)
+                        ankus_guc_report(&frame->error, IsTransactionState() ? ERROR : FATAL);
+                    AnkusValue *value = &frame->results[0];
+                    if (value->is_null || value->data == NULL)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration show hook returned NULL")));
+                    frame->pending_string = ankus_guc_persistent_result((char *) value->data);
+                    ankus_guc_free(definition->show_buffer);
+                    output = definition->show_buffer = frame->pending_string;
+                    frame->pending_string = NULL;
+                }
+                PG_CATCH();
+                {
+                    if (!IsTransactionState())
+                    {
+                        MemoryContextSwitchTo(caller);
+                        ErrorData *data = CopyErrorData();
+                        FlushErrorState();
+                        data->elevel = FATAL;
+                        ThrowErrorData(data);
+                    }
+
+                    PG_RE_THROW();
+                }
+                PG_END_TRY();
+            }
+            PG_FINALLY();
+            {
+                MemoryContextSwitchTo(caller);
+                if (frame != NULL)
+                    ankus_guc_frame_release(frame);
+                if (work != NULL)
+                    MemoryContextDelete(work);
+            }
+            PG_END_TRY();
+            return output;
+        }
+        """;
+}

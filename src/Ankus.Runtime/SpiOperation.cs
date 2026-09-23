@@ -128,4 +128,9 @@ internal enum SpiOperation : byte
     /// Copies tuple descriptors and constructs composite values through the native guard.
     /// </summary>
     Tuple,
+
+    /// <summary>
+    /// Reads generated configuration backing storage through the native guard without a subtransaction.
+    /// </summary>
+    GucRead,
 }

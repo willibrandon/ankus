@@ -73,6 +73,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgAggregateAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IPropertySymbol> gucs = context.SyntaxProvider.CreateSyntaxProvider(
+            static (node, _) => node is PropertyDeclarationSyntax { AttributeLists.Count: > 0 } or IndexerDeclarationSyntax { AttributeLists.Count: > 0 },
+            static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BasePropertyDeclarationSyntax)syntaxContext.Node, token) as IPropertySymbol)
+            .Where(static property => property is not null && property.GetAttributes().Any(GucDeclaration.IsGucAttribute))
+            .Select(static (property, _) => property!);
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
                 "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute").ToImmutableArray());
@@ -80,16 +85,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Right,
-                input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
-        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes)
+        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty)
         {
             return;
         }
@@ -98,9 +103,34 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
-        bool hasDispatchers = !methods.IsEmpty || !aggregateTypes.IsEmpty;
+        var gucs = new List<GucDeclaration>();
+        var gucNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (IPropertySymbol property in gucProperties.Distinct<IPropertySymbol>(SymbolEqualityComparer.Default))
+        {
+            GucDeclaration? guc = GucDeclaration.Create(property, context);
+            if (guc is null)
+            {
+                continue;
+            }
+
+            if (!gucNames.Add(GucDeclaration.Fold(guc.Name)))
+            {
+                GucDeclaration.Error(property, context, "GUC names must be unique under PostgreSQL's ASCII case-insensitive comparison.");
+                continue;
+            }
+
+            gucs.Add(guc);
+        }
+
+        gucs.Sort(static (left, right) => string.CompareOrdinal(GucDeclaration.Fold(left.Name), GucDeclaration.Fold(right.Name)));
+        bool hasGucHooks = gucs.Any(static guc => guc.HasHooks);
+        bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
+        bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
+        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty;
+        bool hasBackend = hasFunctionCallbacks || hasGucCheck;
+        bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        if (hasDispatchers)
+        if (hasBackend)
         {
             native.AppendLine(NativeBridge.ReadBuffers);
             native.AppendLine(NativeBridge.WriteBuffer);
@@ -125,6 +155,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSessionBridge.Source);
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
+            if (hasFunctionCallbacks)
+            {
+                native.AppendLine(NativeErrorBridge.RaiseError);
+            }
+
+            native.AppendLine(NativeGucBridge.ReadBinding);
             native.AppendLine(GuardedBackend.Source);
             if (!aggregateTypes.IsEmpty)
             {
@@ -144,6 +180,23 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             if (methods.Any(static method => SetResult.IsSequence(method.ReturnType)))
             {
                 native.AppendLine(NativeSetBridge.Source);
+            }
+        }
+
+        if (gucs.Count != 0)
+        {
+            native.AppendLine("#include <math.h>");
+            native.AppendLine(NativeGucBridge.Declarations);
+            native.AppendLine(NativeGucBridge.Registration);
+            if (hasGucHooks && !hasBackend)
+            {
+                native.AppendLine(NativeErrorBridge.Declarations);
+                native.AppendLine("typedef int (*AnkusExecute)(struct AnkusRequest *, struct AnkusResult *, AnkusError *);");
+            }
+
+            if (hasDispatchers)
+            {
+                native.AppendLine(NativeGucBridge.GetManagedDeclarations(hasGucCheck, hasGucHooks, hasGucShow));
             }
         }
 
@@ -188,7 +241,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             managed.AppendLine("    {");
         }
 
-        if (hasDispatchers)
+        if (hasBackend)
         {
             native.AppendLine("static bool ankus_enum_supported(Oid type)");
             native.AppendLine("{");
@@ -222,13 +275,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             enumeration.EmitRegistration(managed);
-            if (hasDispatchers)
+            if (hasBackend)
             {
                 enumeration.EmitNativeTypeCheck(native);
             }
         }
 
-        if (hasDispatchers)
+        if (hasBackend)
         {
             native.AppendLine("    return false;");
             native.AppendLine("}");
@@ -242,9 +295,33 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         IMethodSymbol? initializer = InitializeDeclaration.Select(methods, context);
-        if (initializer is not null)
+        var registration = new StringBuilder();
+        if (gucs.Count != 0)
         {
-            PgInitializeEmitter.Emit(initializer, GetCallbackName(initializer, "initialize"), managed, native, exports);
+            var definitions = new List<string>();
+            foreach (GucDeclaration guc in gucs)
+            {
+                string symbol = PgGucEmitter.Emit(guc, GetCallbackName(guc.Property.GetMethod!, "guc"), managed, native);
+                definitions.Add(symbol);
+                registration.AppendLine($"        ankus_guc_register(&{symbol});");
+            }
+
+            if (hasDispatchers)
+            {
+                native.AppendLine("static AnkusGuc *ankus_guc_definitions[] = { " + string.Join(", ", definitions.Select(static symbol => "&" + symbol)) + " };");
+                native.AppendLine($"static const int ankus_guc_count = {definitions.Count};");
+                native.AppendLine(NativeGucBridge.GetManagedSource(hasGucCheck, hasGucHooks, hasGucShow));
+                registration.Insert(0, (hasBackend ? "        ankus_read_guc = ankus_guc_read;\n" : string.Empty) +
+                    "        ankus_guc_prepare_encoding();\n");
+            }
+
+            context.AddSource("GucProperties.g.cs", PgGucEmitter.EmitProperties(gucs));
+        }
+
+        if (initializer is not null || gucs.Count != 0)
+        {
+            PgInitializeEmitter.Emit(initializer, initializer is null ? null : GetCallbackName(initializer, "initialize"),
+                hasGucHooks, registration.ToString(), managed, native, exports);
         }
 
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))

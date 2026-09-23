@@ -37,6 +37,16 @@ internal static class GuardedBackend
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple;
             result->release = ankus_release_result;
 
+            if (request->operation == ANKUS_SPI_GUC_READ)
+            {
+                result->release = NULL;
+                if (ankus_read_guc != NULL)
+                    return ankus_read_guc(request->command, request->scalar_operation, &result->text, error);
+                error->sqlstate = ERRCODE_UNDEFINED_OBJECT;
+                strlcpy(error->message, "This extension has no declared configuration parameters", sizeof(error->message));
+                return 1;
+            }
+
             if (request->operation == ANKUS_SPI_IS_LOG_ENABLED)
             {
                 result->processed = ankus_log_enabled(ankus_log_level(request->log_level));
