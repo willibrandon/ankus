@@ -179,8 +179,8 @@ session or copied-image fork safety. Sources are committed under
 also pass both preload orders and six fresh sessions with this SDK in
 `artifacts/preload/pg-ankus-multi-x7u_dzpt` (release PostgreSQL 18.6/Linux x64).
 
-The user's `pglogical` fork at `/home/brandon/src/pglogical` is an additional
-read-only reference for Windows worker attachment. Preload, child startup and
+The [willibrandon/pglogical](https://github.com/willibrandon/pglogical) fork is an
+additional read-only reference for Windows worker attachment. Preload, child startup and
 background-worker attachment must cover Linux, macOS and Windows; a Linux fork
 experiment alone cannot establish the complete requirement.
 
@@ -775,6 +775,46 @@ receipt; active trace/sampling workers, child recovery and multiple runtime imag
 remain required. Enabled-diagnostics managed forks are still guarded. Production
 integration, application threads and the full PostgreSQL/platform/port requirements
 remain unfinished. Public behavior and guides are unchanged.
+
+Runtime commit `8117d314b` establishes explicit ownership for EventPipe tracing
+requests and sessions. Malformed CollectTracing requests now release their
+connections, StopTracing validates its exact payload length, and failed user-events
+descriptor receipt or session admission releases every received resource. A session
+takes its continuation stream and descriptor only after all fallible enable work
+succeeds. File/serializer construction follows the same rule. Partial buffer-manager,
+provider, event-source, sample-profiler, metadata and Native AOT spin-lock failures
+also clean up safely. A dropped provider callback now completes its pending-callback
+bookkeeping, preventing later provider deletion or shutdown from hanging.
+
+The Linux x64 probe sends real diagnostic protocol traffic. Three final runs each
+pass 17 cases: all five malformed CollectTracing versions; empty, short, long and
+unknown StopTracing requests; missing, extra and invalid descriptors; twenty
+successive trace sessions; and 64 simultaneous sessions followed by rejected
+admission. Every successful trace has a complete NetTrace header and terminator,
+endpoint identity remains stable, descriptor counts return to their baseline, the
+listener pauses and restarts, and shutdown succeeds with empty stderr.
+
+An opt-in link-time allocation probe fails every observed allocation independently:
+18 file-construction points, two serializer-start points and 61 session-enable
+points. Each of the 81 failures runs in a fresh process, retains caller ownership,
+performs exactly one cleanup, recovers with a successful operation in the same
+process, answers another diagnostic query, restarts its listener and shuts down.
+All points pass in three complete runs. The preserved earlier runtime frees file and
+serializer resources at the wrong time and crashes with `SIGSEGV` during session
+construction, so the controls distinguish the repair from a test that merely avoids
+the paths. The earlier response, listener, I/O, connection, reverse-connect and
+lifecycle suites also pass three runs against the final binary.
+
+Native AOT Release and the CoreCLR EventPipe object targets compile successfully;
+the native fixture compiles with warnings as errors. Main `dotnet test` passes all
+4,089 cases with zero failures/skips in 3m44.215s, and the Release build has zero
+warnings/errors. Exact result directories are retained under `artifacts/preload/`,
+with review notes under `.git/testagent/preload/diagnostics-tracing-work/`. This
+milestone does not yet pause an active trace writer or sampling thread across fork.
+Tracing connection handoff, interruptible descriptor receipt, active worker
+checkpoint/recovery, managed listeners, multiple runtime images and macOS/Windows
+execution remain required before enabled-diagnostics fork admission. The guard and
+public guides therefore remain unchanged.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
@@ -1544,7 +1584,7 @@ callbacks. Ordinary SQL state uses the existing exact converters; `PgAggregateSt
 typed NULL composite/array operands. The public average and discrete-percentile examples are in
 `samples/Ankus.Examples.Aggregates`, with the author guide at `docs/src/content/docs/aggregates.md`.
 
-The implementation follows `/home/brandon/src/pgrx/pgrx/src/aggregate.rs`, pgrx's aggregate examples
+The implementation follows `pgrx/src/aggregate.rs`, pgrx's aggregate examples
 and SQL entity graph, and PostgreSQL's `nodeAgg.c`, `nodeWindowAgg.c`, `pg_aggregate.c`,
 `aggregatecmds.c`, and `orderedsetaggs.c`. PostgreSQL's actual `(bytea, internal) -> internal`
 deserializer contract takes precedence over the incompatible pgrx wrapper shape found during
@@ -1815,24 +1855,24 @@ consumable NuGet project SDK; repository development uses project references wit
 available to non-CLI callers; the CLI uses registered installations or an explicit override.
 Prerequisite installation is currently manual.
 
-### Local read-only reference repos (absolute paths)
+### Read-only reference repositories
 
-- **pgrx** → `/home/brandon/src/pgrx` — the port's reference implementation. Key paths:
-  - `/home/brandon/src/pgrx/pgrx/src/` — runtime modules (`spi.rs`, `datum/`,
+- **[pgrx](https://github.com/pgcentralfoundation/pgrx)** — the port's reference implementation. Key paths:
+  - `pgrx/src/` — runtime modules (`spi.rs`, `datum/`,
     `guc.rs`, `memcx.rs`, `trigger_support/`, `iter.rs`, `bgworkers.rs`, …)
-  - `/home/brandon/src/pgrx/pgrx-macros/src/lib.rs` — the proc macros (`pg_extern`, `pg_trigger`, `pg_aggregate`, …)
-  - `/home/brandon/src/pgrx/cargo-pgrx/` — CLI model to mirror (`new/init/build/schema/test/run/package`)
-  - `/home/brandon/src/pgrx/pgrx-examples/` — example set to mirror in `samples/`
-  - `/home/brandon/src/pgrx/pgrx-tests/`, `/home/brandon/src/pgrx/pgrx-unit-tests/` — test strategy reference
-  - `/home/brandon/src/pgrx/v18-ONE-COMPILE-CHANGELOG.md` — one-compile `.pgrxsc` schema model (our `.ankusc` analogue)
-- **postgres** → `/home/brandon/src/postgres` — ABI source of truth. Tags:
+  - `pgrx-macros/src/lib.rs` — the proc macros (`pg_extern`, `pg_trigger`, `pg_aggregate`, …)
+  - `cargo-pgrx/` — CLI model to mirror (`new/init/build/schema/test/run/package`)
+  - `pgrx-examples/` — example set to mirror in `samples/`
+  - `pgrx-tests/`, `pgrx-unit-tests/` — test strategy reference
+  - `v18-ONE-COMPILE-CHANGELOG.md` — one-compile `.pgrxsc` schema model (our `.ankusc` analogue)
+- **[postgres](https://github.com/postgres/postgres)** — ABI source of truth. Tags:
   `REL_13_23`…`REL_18_6`, `REL_19_BETA3`. Key files are `src/include/fmgr.h`,
   `src/backend/utils/fmgr/dfmgr.c`, `src/backend/utils/fmgr/fmgr.c`, and
   `src/include/utils/elog.h`.
-- **runtime** → `/home/brandon/src/runtime` — .NET runtime source (Native AOT: `src/coreclr/nativeaot/`, PAL: `src/coreclr/pal/src/`).
-- **roslyn** → `/home/brandon/src/roslyn` — compiler source (function-pointer grammar, source generators).
-- **msbuild** → `/home/brandon/src/msbuild` — build conventions and type-style rules, compared with `runtime`.
-- **sdk** → `/home/brandon/src/sdk` — .NET SDK and CLI conventions.
+- **[runtime](https://github.com/willibrandon/runtime)** — .NET runtime source (Native AOT: `src/coreclr/nativeaot/`, PAL: `src/coreclr/pal/src/`).
+- **[roslyn](https://github.com/dotnet/roslyn)** — compiler source (function-pointer grammar, source generators).
+- **[msbuild](https://github.com/dotnet/msbuild)** — build conventions and type-style rules, compared with `runtime`.
+- **[sdk](https://github.com/dotnet/sdk)** — .NET SDK and CLI conventions.
 
 ### PostgreSQL memory contexts and allocations
 
@@ -2388,7 +2428,7 @@ The target architecture consists of:
 
 ## Repository-derived parity inventory
 
-Reference: `/home/brandon/src/pgrx`, commit `70383e884582d1bcc7cd681d10886b995a2830cb`,
+Reference: [pgrx](https://github.com/pgcentralfoundation/pgrx), commit `70383e884582d1bcc7cd681d10886b995a2830cb`,
 workspace version `0.19.2`. Paths in this section are relative to that read-only repository.
 This inventory covers feature families discovered in the workspace, including features absent from its
 README. Each family's public APIs, options, error behavior, ownership rules, examples, and regression
@@ -2622,7 +2662,7 @@ The phases track implementation of the complete pgrx feature surface.
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**
-    - [x] Astro/Starlight documentation site, using `/home/brandon/src/ilrepl/docs` as a read-only design reference
+    - [x] Astro/Starlight documentation site, using the `ilrepl` docs as a read-only design reference
     - [x] User-facing guides for extension authors; repository workflows and design notes live in `docs/contributing/`
     - [x] Concise guides, short explanations, and restrained formatting for the implemented APIs
     - [x] Verify site build, navigation, links, search, and desktop/mobile layouts
@@ -2631,7 +2671,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
     - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation
-    - [x] Generated public API reference from XML comments, following `/home/brandon/src/dotsider/src/Dotsider.DocGenerator`
+    - [x] Generated public API reference from XML comments, following the `Dotsider.DocGenerator` design
 - [ ] **P7 — Custom scan + nodes**
    - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
    - [ ] PostgreSQL node representations and pgrx node support APIs
