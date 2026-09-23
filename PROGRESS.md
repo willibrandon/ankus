@@ -602,6 +602,44 @@ errors. Main `dotnet test` passes all 4,089 cases, zero failures/skips (3m44.950
 the Release build has zero warnings/errors (4.79s). The earlier MSB4166 worker exit
 did not recur with communication logging enabled and its cause remains unresolved.
 
+Runtime commit `182710e9f` repairs another diagnostics hang: socket reads and writes
+only applied their timeout to the initial readiness check, then used blocking
+transfers. A client that sent part of a request or stopped reading could hold the
+operation forever. The socket PAL now uses nonblocking streams and one monotonic
+deadline across readiness checks, partial transfers and interrupted system calls.
+Zero-byte operations succeed without waiting. Infinite waits remain infinite, and
+finite poll intervals are bounded before conversion to the signed OS timeout.
+Descriptor passing waits for readiness on the nonblocking socket. Stream creation
+also releases its accepted/connected descriptor if initialization fails; allocation
+failure itself has not been fault-injected in this component probe.
+
+The Linux x64 probe runs the actual Native AOT-linked socket implementation with
+an external client. Eighteen cases check partial and slowly progressing reads,
+blocked and slowly drained writes, signals directed at the transferring native
+thread, complete byte sequences, EOF, zero-byte and zero-timeout operations,
+infinite waits, and delayed descriptor delivery. Three final runs pass all 54
+cases. The same fixture against the preceding SDK exceeds the three-second
+supervisor deadline in all six read/write timeout regressions despite requesting
+300 ms. On the repaired runtime those operations finish near their requested
+deadline. Three endpoint-cleanup runs also pass, including eighteen native child
+closes and the descriptor-reuse regression. The final SDK is
+`artifacts/preload/runtime-diagnostics-io-v2-sdk`; sources, SDKs, binaries, failing
+controls, passing runs and hashes are retained in
+`.git/testagent/preload/diagnostics-io-proof/`.
+
+This fixes the transport's requested timeout contract. It does not add a timeout
+to diagnostic commands that request an infinite wait, implement listener
+retirement/restart, or admit enabled-diagnostics forks. Pending commands, active
+trace writers, sampling, managed listeners and multiple runtime instances remain
+required. Source review also identified follow-up checks for a full Unix listener
+backlog during reverse connection and malformed descriptor messages; those cases
+are not covered by the current passing evidence. This revision has not run on
+macOS or Windows. The native-library EventSource warning remains visible and no
+warning suppression was added. Main `dotnet test` passes 4,089 cases with zero
+failures/skips (3m51.093s); the Release build has zero warnings/errors (12.56s).
+The separate MSB4166 exit did not recur and remains unexplained. Public behavior
+and guides are unchanged; production integration and full-port scope remain open.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
