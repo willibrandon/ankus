@@ -684,6 +684,47 @@ PostgreSQL 18.6/Linux x64; the Release build has zero warnings/errors (12.09s).
 MSBuild communication logging captured another clean run. The earlier MSB4166
 exit remains unexplained and is not claimed fixed by these runtime changes.
 
+Runtime commit `aa36934c4` adds a restartable Native AOT Unix diagnostic listener.
+Previously its detached thread could wait indefinitely for a connection or the
+rest of a request. The listener now owns a joinable thread and a wake pipe.
+Pausing wakes its socket wait and joins the thread, including native thread
+cleanup. Restarting creates a new thread. Accepted connections, request headers,
+payload buffers and consumed-byte counts remain owned by the server throughout.
+No client reconnect or repeated request is required.
+
+The Linux x64 `listener.py` probe passes nine cases in three final runs, with
+186 observed thread-retirement checkpoints. It verifies actual kernel thread
+absence, exact consumed-byte boundaries, unchanged endpoint identity, and replies
+through the real diagnostic protocol. Cases cover idle requests, fragmented
+headers and Unicode payloads, EOF during header/payload input, invalid size/magic,
+and reverse connections. Completing or closing a request while paused produces
+no response until restart. A completed environment-setting request applies the
+exact value; incomplete/error requests leave it unset and return exact protocol
+errors. Reverse clients can reconnect afterward. Twenty idle cycles per run
+preserve descriptor counts, and all cases finish with a live identity query.
+
+The earlier I/O, descriptor, connection and endpoint-cleanup suites also pass
+three runs against this SDK. Fixed and dynamically sized server GC each pass
+active-background-collection, callback-dependency and pending-child descendant
+checks after the shared joinable-thread helper was renamed. All 129 recorded
+native-probe process IDs have exited. The exact SDK is
+`artifacts/preload/runtime-diagnostics-listener-sdk`; sources, binaries, commands,
+results and hashes are retained in `.git/testagent/preload/diagnostics-listener-proof/`.
+
+This component stops the listener while it is waiting for input. A command already
+sending a response or waiting for a tracing descriptor can still delay the join;
+those paths, active tracing/sampling, child recovery and multiple runtime images
+remain required before enabled-diagnostics fork admission. The listener tests do
+not fork, and the existing enabled-diagnostics fork rejection remains in place.
+No macOS/Windows or enabled-diagnostics PostgreSQL execution is claimed for this
+revision. Production integration, application-thread handling and the full port
+and PostgreSQL/platform matrix remain unfinished. The native-library EventSource
+warning remains visible; no warning suppression was added.
+The native Release build passes. Plain `dotnet test` passes 4,089 cases, zero
+failures/skips (3m52.643s), on PostgreSQL 18.6/Linux x64. The main Release build
+has zero warnings/errors (9.91s). MSB4166 did not recur and remains unexplained.
+Public behavior and guides are unchanged.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
