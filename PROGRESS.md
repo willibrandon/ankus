@@ -454,6 +454,54 @@ runtime/platform/consumer integration requirements remain active.
 Plain `dotnet test` passes all 4,089 tests, zero failures/skips, in 3m48.173s.
 The Release build passes with zero warnings/errors (11.33s).
 
+Blocking unregister exposed two deadlocks in fork preparation: an active pool
+worker could wait for a queued callback after dispatch had stopped, and an active
+finalizer could wait for that same unavailable service. Both old-runtime probes
+exit with status 198. Keeping only workers alive exposed another failure: the
+callback itself could need a timer and a new registered wait that had already
+been stopped.
+
+Runtime commit `1fe18de54` fixes the shutdown order. Pool callbacks, their execution-
+context cleanup, and complete finalizer passes share an atomic activity count.
+Preparation keeps workers, timers, and wait threads available until active work
+finishes. The last active callback closes dispatch atomically; only then do service
+threads retire. Remaining queued work stays available to both processes after fork.
+Lifecycle callbacks now register during CoreLib initialization, after its class-
+constructor machinery is ready, so first-use service initialization cannot miss
+an already-started checkpoint.
+
+`--retained-blocking-worker` and `--retained-blocking-finalizer` each require an
+original queued callback to complete before synchronous unregister returns. That
+callback also requires a new timer, registered wait and another worker. The final
+binary passes three runs of each mode: 12 forks and 24 parent/child observations.
+Native snapshots require completed cleanup, zero surviving wait threads, and 69
+other original registrations still unfired. Parent and child then execute those
+registrations independently and verify fresh work and restored pool limits.
+The earlier cleanup probes now observe the beginning of callback draining; their
+final native snapshot still requires actual wait-thread exit. Active cleanup no
+longer runs after service retirement. These test changes follow the corrected
+shutdown order rather than retaining that unsafe intermediate state.
+
+Retained timer/queue/wait, pending callback, finalizer, minimal-service and both
+descendant-fork regressions pass on the same runtime. Active background-GC checks
+also pass. Two generated extensions pass both preload orders and six fresh sessions
+on release PostgreSQL 18.6/Linux x64, with exact managed initialization, hooks,
+retained waits, GC, timers, object isolation and clean shutdown. This revision has
+not been run on macOS or Windows. The production generator/SDK still use their
+existing implementation; these remain owned runtime and integration snapshots.
+SDK: `artifacts/preload/runtime-blocking-verified-sdk`; frozen sources, binaries,
+reproductions and logs: `.git/testagent/preload/blocking-proof/`.
+
+CoreLib Release builds with zero warnings/errors (17.80s), and the native runtime
+build passes. `dotnet test` passes all 4,089 cases, zero failures/skips (3m52.069s),
+with MSBuild communication and failure logging retained in a dedicated directory.
+The main Release build has zero warnings/errors (7.60s). No warning suppression was
+added. The earlier MSB4166 build-worker exit did not recur, including six Ankus
+builds overlapping three runtime builds with communication logging enabled. Older
+available failure dumps belong to other runs and do not establish its cause. It remains unresolved,
+with no guessed configuration workaround applied. The broader runtime/platform,
+background-worker, consumer packaging and full-port requirements remain active.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
