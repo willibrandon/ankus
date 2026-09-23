@@ -9,7 +9,12 @@ before changing an area.
 
 - `pgrx` is the read-only source for pgrx APIs, examples, and tests.
 - `postgres` is the read-only source for PostgreSQL ABI and backend behavior.
-- Other available reference repositories include `runtime`, `roslyn`, `sdk`,
+- [willibrandon/pglogical](https://github.com/willibrandon/pglogical) is a read-only
+  reference for Windows background-worker startup and shared-memory attachment.
+  Preload and worker behavior must work on Linux, macOS, and Windows.
+- [willibrandon/runtime](https://github.com/willibrandon/runtime) hosts the runtime
+  fork. Keep the reference clone read-only; develop the patch in a separate checkout.
+- Other available reference repositories include `roslyn`, `sdk`,
   `msbuild`, `NuGet.Client`, `docs`, `dotnet-api-docs`, and `dotsider`.
   Locate available local checkouts before requesting another clone; treat all
   reference repositories as read-only.
@@ -60,6 +65,9 @@ before changing an area.
   for prerequisites and fixture behavior.
 - Verify observable boundaries, errors, ownership, and same-session recovery;
   test counts and generated-source substrings alone do not prove parity.
+- Keep CI feedback under 10 minutes where possible, with a hard 15-minute timeout
+  per job. Run independent platform checks in parallel, measure cold-cache builds,
+  and cancel superseded runs. Do not hide missing validation to meet the budget.
 - Run a Release build and relevant documentation checks before committing.
   Record exactly which PostgreSQL versions and platforms were actually tested.
 

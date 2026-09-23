@@ -33,6 +33,185 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+**Blocking priority: managed shared preload.** The user has halted all other port work
+until C# initialization and configuration callbacks work through
+`shared_preload_libraries`, including continued managed execution in forked children.
+The existing rejection is not a completed implementation. Source investigation found
+that stock Native AOT initializes a finalizer thread and retains thread/GC state across
+PostgreSQL's fork; pgrx already handles its own thread identity with `pthread_atfork`.
+The first owned-runtime experiment passes on Linux x64: twelve child checks across
+two rounds of forks, plus all parent controls. It preserves startup objects and
+GC handles, returns each child's process ID, and runs GC, finalizers, newly started
+thread-pool work, timers, and exception handling. Stock Native AOT fails the process-ID
+and finalizer checks; warming its pool and timer before fork also breaks both services.
+This first pass starts with only the calling thread and finalizer, uses workstation
+nonconcurrent GC, and disables diagnostics. These are prototype boundaries, not the
+finished requirement. Other GC modes, platforms, and Ankus SDK integration remain
+unverified.
+
+The next runtime revision also passes the parent-warmed pool/timer case. Framework
+workers retire through their normal exit paths before fork; both processes resume
+the preserved queues afterward. The full and minimal harness modes each pass all
+twelve child checks and all parent controls, with empty stderr. CoreLib builds with
+zero warnings/errors in 22 seconds. This run proves warm idle services; the later
+continuity checks below cover retained pending work.
+Sources/logs and the exact binary SDK are retained in
+`.git/testagent/preload/service-proof/` and
+`artifacts/preload/runtime-services-proof-sdk`. The actual linked diagnostics
+implementation is now checked directly; these runs pass with diagnostics environment
+overrides absent. Workstation nonconcurrent GC is still selected explicitly.
+
+A further revision passes default workstation/concurrent GC with all GC and
+diagnostics environment overrides absent. Six actual background-collection
+observations show increasing `GCKind.Background` indices and `Concurrent=true` in
+parent and child; all twelve child stages and parent controls pass. The same child
+also verifies its inherited cyclic graph, GC handle, token, and retained array bytes
+after collection. The probe promotes a retained 16 MiB heap first because the
+collector intentionally uses blocking collection for old heaps below 4 MiB.
+The patch, probe, hashes, and logs are retained in `.git/testagent/preload/bgc-proof/`,
+with the exact SDK in `artifacts/preload/runtime-bgc-proof-sdk`. This proves retirement
+and restart of a warmed background collector. The next probe also passes two forks
+whose preparation actually observes an active collection under the collector lock;
+both qualify on their first attempt. Each child and parent checks all 1,048,576
+retained nodes, both edges per node, another GC handle, all 16 MiB of patterned bytes,
+completed concurrent-collection metadata, a new background collection, finalization,
+and the original graph/PID/task/timer/exception controls. A passive lock-free counter
+records observed activity without pausing or changing GC selection. Evidence and
+exact sources/binaries: `.git/testagent/preload/bgc-active-proof/` and
+`artifacts/preload/runtime-bgc-active-proof-sdk`. Server GC and enabled diagnostics
+remain unimplemented.
+
+Using that same frozen SDK with default GC, retained timers and queued tasks now
+pass two independent forks each, with exact checks in parent and child. The native
+snapshot after runtime preparation sees an unfired timer with 2998–2999 ms remaining;
+the original timer, state object and GC handles survive, and its callback produces
+956 exactly once in both processes. Queue snapshots see all 80 original objects
+pending (16 global, 64 originating in a worker-local queue); all complete exactly
+once with their expected per-index values in both processes. Tokens, object identity,
+independent mutations and restored pool limits also pass. Both native supervisors
+exit zero with empty stderr. Sources: `.git/testagent/preload/fork-probe/`; logs:
+`/tmp/ankus-preload-retained-{timer,queue}.jsonl` and matching `.stderr` files.
+Independent review, frozen sources/logs, exact commands and SDK hashes are retained
+in `.git/testagent/preload/retained-proof/`.
+
+The same binary also passes actual `shared_preload_libraries` execution in release
+PostgreSQL 18.6 on Linux x64. A native probe calls managed initialization in the
+postmaster, then six fresh backends pass all 36 managed stages across two server
+starts. Independent server/OS PIDs, one-time initialization, inherited random token
+and graph, exact callback markers, same-session SQL, and graceful shutdown are
+checked. Logs and the runner's evidence are in
+`artifacts/preload/pg-proof1-a5s2syh4`; sources are in
+`.git/testagent/preload/postgres-probe/`. This uses a dedicated native probe, not yet
+Ankus's generated `[PgInitialize]` entry point or managed configuration hooks.
+The first real generated Ankus probe exposed a separate missing binding: initializers
+outside a transaction could not read settings or log through the transaction-only
+backend binding. The owned generator snapshot now supplies independent guarded
+configuration/logging scopes while preserving the transaction requirement for SPI.
+The failing evidence is retained in `artifacts/preload/pg-ankus-gavowa0s`.
+After this fix, real `[PgInitialize]`, startup check/assign hooks, and backend
+check/assign/show hooks pass across two server starts and six independent connections.
+Exact hook ordering, owned extra bytes, inherited state, GC/finalization, fresh tasks
+and timers, structured errors, managed finally, SET LOCAL rollback, RESET and same-session
+SQL recovery pass. Startup NOTICE/detail independently records the actual postmaster PID.
+Evidence: `artifacts/preload/pg-ankus-ns4xlz51`. This run uses the first runtime SDK with
+nonconcurrent GC. The combined Ankus probe now also passes with the frozen default-GC
+SDK and with tasks/timers warmed in the actual postmaster initializer. All assertions
+pass across two server starts (postmasters 3889263 and 3889349) and three fresh
+connections per start. Evidence: `artifacts/preload/pg-ankus-w2bvaxmk`.
+The standalone test needed to export `RhEnableForkSupport` for `dlsym`, but copying
+that export into an Ankus extension made its runtime call interposable under
+PostgreSQL's `RTLD_GLOBAL` loading. Removing only that unnecessary export lets
+Native AOT's existing export script bind the function locally. The rebuilt ELF
+debug symbols show LOCAL binding and no dynamic relocation; all six Ankus connections
+pass again in `artifacts/preload/pg-ankus-2ungu58j`. The two-extension witness confirms
+local runtime binding and distinct generated managed exports despite identical C#
+type/method names. Loading A,B passes three sessions; B,A later crashes one backend
+with SIGSEGV. Both initializers ran with distinct tokens. Evidence is retained in
+`artifacts/preload/pg-ankus-multi-xwujs5rr`. Native SQL breadcrumbs reproduced the
+failure during image B's GC in `artifacts/preload/pg-ankus-multi-ob38edlz`.
+The 92 MiB backend dump `data/core.3901061` shows the collector reading a null
+method table inside an unfilled heap region. Source review found a concrete lifetime
+bug: lazy recovery dereferences the vanished finalizer's `Thread`, which resides in
+pthread TLS and can be reused when another runtime starts a child thread first.
+The repair captures the allocation context while the finalizer is parked, then uses
+that durable copy for child GC cleanup. It never reads the vanished TLS during lazy
+recovery and leaves the parent's context unchanged. Both extension load orders now
+pass five repeated runs: ten server starts and 30 fresh backend sessions. The repaired
+runtime also passes both actively overlapping background-GC rounds and all parent
+controls. Retained timer and queue regressions also pass two forks each on this
+repaired SDK, with every exact result/status passing and all stderr files empty.
+The retained probe also publishes from its new source location in the owned runtime
+checkout, `eng/ankus/fork-probes/retained-services`. Logs:
+`/tmp/ankus-preload-multi-fixed-retained-{timer,queue}.jsonl`,
+`/tmp/ankus-preload-multi-fixed-repeat.log` and
+`/tmp/ankus-preload-multi-fixed-bgc-full.jsonl`; SDK:
+`artifacts/preload/runtime-multi-proof-sdk`. The separate ELF debugger-header
+interposition issue is recorded for repair; it is not the demonstrated GC crash cause.
+GDB and required libraries were extracted locally under `artifacts/preload/debugger`;
+system packages and dump settings were not changed.
+Independent review in `.git/testagent/preload/multi-proof/` checks all ten starts,
+30 sessions, 20 distinct parent/image tokens and 3,360 matching native SQL markers,
+with no hidden server recovery. The frozen bundle retains passing/failing sources,
+binaries, logs, runtime patch, and hashes for the exact SDK and original core.
+The production generator and SDK have not yet been replaced by these owned snapshots.
+
+The user's `pglogical` fork at `/home/brandon/src/pglogical` is an additional
+read-only reference for Windows worker attachment. Preload, child startup and
+background-worker attachment must cover Linux, macOS and Windows; a Linux fork
+experiment alone cannot establish the complete requirement.
+
+The user has published the repository to GitHub and authorized CI workflows for
+cross-platform verification. CI should finish within 10 minutes where possible,
+with a hard 15-minute timeout per job; cold-cache behavior must be measured too.
+Independent platforms should run in parallel and superseded runs should cancel.
+Upstream runtime work is deferred until the owned patch is proven and has at least
+several months of real usage; there is no immediate upstream proposal planned. The intended
+consumer experience is automatic selection of a compatible patched runtime by
+`Ankus.Sdk` during ordinary `dotnet publish`, with that runtime compiled into the
+native extension. A local packaging prototype now proves that consumer flow on Linux
+x64: a project outside the repository, with an initially empty NuGet cache and only
+an `Ankus.Sdk` reference, publishes without an `IlcSdkPath` override or explicit RID.
+The SDK uses the ordinary current-RID inference option for a native shared library,
+pins the compatible compiler through `KnownILCompilerPack`, and restores its private
+runtime payload. Package data lives under `tools/aotsdk`, keeping private CoreLib out
+of compile references without suppressing NuGet warnings. The compiler response file
+selects that package's CoreLib, and the resulting native symbol stays local. All six
+PostgreSQL backend sessions across two starts pass with default GC and warmed services
+in `artifacts/preload/pg-ankus-fod0cc17`. Sources: `.git/testagent/preload/runtime-package/`
+and the owned SDK snapshot; consumer: `/tmp/ankus-preload-package-consumer-c97yfwcu`;
+local feed: `artifacts/preload/package-feed`. These are unpublished prototype packages.
+Production integration and hosted CI validation remain unfinished.
+
+The prototype uses a separate copy of `runtime` v10.0.11
+(`79d0c463f1b55624c874a11585f7e47731e8d675`) under
+`artifacts/preload/runtime-10.0.11`, matching the installed ILCompiler 10.0.11.
+All reference checkouts remain read-only. Exact source research is in
+`.git/testagent/preload/`. The first proof's runtime patch, binary hashes, environment,
+and complete stock/owned logs are retained in `.git/testagent/preload/first-proof/`;
+its matching runtime SDK is retained in `artifacts/preload/runtime-proof1-sdk`.
+Native/CoreLib builds and both probe publications completed without warnings or
+errors. This is runtime engineering work, not a declaration-only or
+delayed-initialization substitute for postmaster callbacks.
+
+The user replaced the runtime reference with a clone of
+`https://github.com/willibrandon/runtime`. The existing owned runtime working tree
+now has its own Git metadata and local `ankus/fork-support` branch based on the
+exact v10.0.11 commit, with that fork as `origin` and dotnet/runtime as `upstream`.
+The first runtime milestone is committed locally as
+`d45dd8f51d88355653e5f803978ee3b79ae6e2bb` (`Prototype Native AOT fork checkpoints
+for PostgreSQL`), including runnable active-GC and retained-service probes under
+`eng/ankus/fork-probes`. The runtime checkout is clean. Native Release and CoreLib
+builds pass; CoreLib reports zero warnings/errors in 20.71 seconds. The Ankus Release
+build also passes with zero warnings/errors in 10.51 seconds. Public site content
+and generated API pages were unchanged in this research milestone.
+The new reference clone is untouched. No patch commits or branches have been pushed.
+
+Unfinished allocation-exhaustion tests are preserved in stash
+`d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
+guide simplification is preserved separately in stash
+`d5b5bd1d15f722d98fbb16ae59603dd153a67cbd`. Neither task should resume before shared
+preload works. The previous verified milestone follows.
+
 The latest milestone verifies actual allocation above PostgreSQL's ordinary limit and growth
 that remains above the limit. Five real >1 GiB cases cover ordinary, no-OOM, aligned, aligned no-OOM,
 and zeroed storage on release PostgreSQL 18.6/Linux x64. All ten cases in the dedicated resource run
