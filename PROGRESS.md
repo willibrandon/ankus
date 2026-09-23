@@ -298,7 +298,8 @@ An isolated PostgreSQL checkpoint-registration prototype is being built: registe
 runtimes must prepare, report their parked thread, and match an OS inventory of all
 live threads before startup admission and each fork. Unknown/unprepared threads
 remain failures. No installed PostgreSQL binary or Apple thread flag is modified.
-Actual macOS PostgreSQL success and negative controls are not yet established.
+At that stage, macOS PostgreSQL success and negative controls were not yet established.
+The subsequent results and repaired shutdown check are recorded below.
 The source and platform evidence are kept outside public guides; personal validation
 machine details are excluded from all repository documents.
 
@@ -311,7 +312,7 @@ also pass: no-runtime startup works, while an unknown native thread, an unregist
 runtime beside a registered runtime, and a thread created by a fork callback are
 all rejected. A longer repeated run nevertheless exposes an intermittent
 `PostmasterThreadsAreSafe()` assertion during shutdown after successful SQL checks.
-This failure is retained and under investigation; macOS stability is not established.
+The failure was retained for investigation; the correction and repeated checks follow below.
 
 The macOS publish also exposed a separate minimum-OS mismatch: the C compiler used
 the installed SDK's default (26.0), while Native AOT linked for 12.0. Ankus now waits
@@ -324,6 +325,42 @@ artifact target consistency, not execution on macOS 12 or 13. Windows was also
 republished with the complete header/flag fixes and passed another two starts and
 six sessions. Its dedicated validation directory is removed after preserving the
 sources/binaries/logs and verifying the owned clusters had stopped.
+
+The macOS shutdown failure is fixed in the owned PostgreSQL patch. XNU snapshots
+thread references before converting them to Mach ports; threads that finish during
+that interval can appear as `MACH_PORT_NULL` entries. The first inventory incorrectly
+counted those entries as live threads. It now counts actual thread ports and still
+rejects unknown ports and `MACH_PORT_DEAD`, which can represent a policy-hidden live
+thread. No retry, sleep, thread-flag rewrite or diagnostic suppression is involved.
+Ten repeated runs pass both orders: 20 starts, 60 fresh sessions, 40 distinct
+postmaster/image tokens and 6,720 matching native SQL markers. Four terminated-thread
+entries were actually observed by the repaired path. All servers stop cleanly, with
+no assertion, crash recovery or forced shutdown. A final defensive NULL-registration
+check passes another two starts/six sessions plus six guard cases: ordinary startup,
+invalid registration, an unknown native thread alone or beside registered runtimes,
+an unregistered Native AOT image, and a thread introduced during fork preparation.
+
+Runtime commit `817a0e193` exposes the native checkpoint validation callbacks.
+The owned PostgreSQL 18.1 tree at `artifacts/preload/postgres-18.1-fork` has local
+commit `217b767`, including the host registration/inventory checks, OAuth dependency
+fix and native rejection fixtures. The reference clones remain clean. No installed
+server, Apple thread flag, warning severity or consumer style setting was changed.
+macOS requires both the runtime and PostgreSQL patches for this implementation;
+stock PostgreSQL's historical thread guard remains incompatible with managed preload.
+The prototype does not yet supply a normal consumer installation of that server.
+
+Exact sources, binaries, the macOS AOT SDK, compiler/linker inputs, success/failure
+logs and six guard results are frozen in `.git/testagent/preload/macos-proof/`.
+All 3,101 archive entries match their file hashes or link targets. The compressed
+archive SHA-256 is `711574e4d347eb51aa9201fb888d24453b20b8f693d5095f60d9707e7384c9db`.
+The final source files match the tested bundle. Dedicated Windows and macOS validation
+directories were removed after evidence capture and ownership/process checks; shared
+user caches and installed tools were preserved. Main commits `548228c` and `145509f`
+contain the verified header/CRT/preprocessor and deployment-target fixes. Public
+preload guides still describe the shipped implementation while runtime/server
+packaging and generator integration remain unfinished. Server GC, enabled EventPipe,
+user-thread/lock behavior, worker attachment, the complete platform/version matrix
+and all other full-port requirements remain open. The preload priority is still active.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration

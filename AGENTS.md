@@ -16,6 +16,8 @@ before changing an area.
   fork. Keep the reference clone read-only; develop the patch in a separate checkout.
 - [apple-oss-distributions/libpthread](https://github.com/apple-oss-distributions/libpthread)
   is a read-only reference for macOS thread and fork behavior.
+- [apple-oss-distributions/xnu](https://github.com/apple-oss-distributions/xnu)
+  is a read-only reference for Mach thread enumeration and port lifetimes.
 - Other available reference repositories include `roslyn`, `sdk`,
   `msbuild`, `NuGet.Client`, `docs`, `dotnet-api-docs`, and `dotsider`.
   Locate available local checkouts before requesting another clone; treat all
