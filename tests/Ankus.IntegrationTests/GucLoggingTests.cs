@@ -254,7 +254,7 @@ public sealed class GucLoggingTests(TestContext context)
 
         PostgresNotice notice = Assert.ContainsSingle(notices);
         Assert.AreEqual("Ankus hooks-only check entered.", notice.MessageText);
-        Assert.AreEqual("source=File;sql=unavailable", notice.Detail);
+        Assert.AreEqual($"source=File;sql=unavailable;pid={connection.ProcessID}", notice.Detail);
         Assert.AreEqual("off", await ScalarAsync(connection, "SHOW ankus_guc_hooks.enabled"));
         Assert.AreEqual(42, await ScalarAsync(connection, "SELECT 42"));
     }

@@ -229,14 +229,11 @@ parallel safe only when its complete behavior meets PostgreSQL's requirements.
 
 ## Preloading
 
-Native declarations without managed initialization or hooks can be registered
-through `shared_preload_libraries`. PostgreSQL's postmaster executes only native
-registration, and managed code starts separately when a backend first calls it.
-`Postmaster` settings require this loading mode. A late load is rejected before
-PostgreSQL's fatal late-registration path.
+Settings can be registered through `shared_preload_libraries`, including settings
+with managed hooks or `[PgInitialize]`. `Postmaster` settings require this loading
+mode. A late load is rejected before PostgreSQL's fatal late-registration path.
 
-See the [configuration sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.Configuration)
-for contexts, units, and typed getters. Its startup-only declaration requires:
+The configuration sample has a startup-only setting:
 
 ```ini
 shared_preload_libraries = 'Ankus.Examples.Configuration'
@@ -245,8 +242,6 @@ ankus_configuration.startup = 11
 
 Shared-preload names, descriptions, labels, and string defaults currently must be
 ASCII: the postmaster has no database encoding to use for inherited metadata.
-Backend registration supports server-encoded text. Libraries containing managed
-hooks or `[PgInitialize]` are rejected before managed entry in a forking postmaster;
-use backend loading or `session_preload_libraries` for those libraries. Managed
-postmaster hooks, non-ASCII shared-preload metadata, and the
-raw placeholder flag remain tracked full-port work in `PROGRESS.md`.
+Backend registration supports server-encoded text. During postmaster startup,
+managed hooks have no transaction, so `Spi` is unavailable. The same hooks can use
+`Spi` later when PostgreSQL calls them inside a backend transaction.

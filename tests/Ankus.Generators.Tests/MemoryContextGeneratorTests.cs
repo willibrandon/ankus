@@ -36,8 +36,8 @@ public sealed partial class PgFunctionGeneratorTests
         "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,Ankus.NativeValue*,int,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *")]
     [DataRow("public static class Functions { [Ankus.PgInitialize] public static void Initialize() { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "Ankus.NativeCallError*,nint,nint",
-        "AnkusError *, AnkusExecute, AnkusMemoryApi *")]
+        "Ankus.NativeCallError*,nint,nint,nint,nint",
+        "AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *")]
     [DataRow("public static partial class Settings { [Ankus.PgGucInt(\"demo.value\", 1, \"Value\", Check = nameof(Check))] public static partial int Value { get; } public static Ankus.PgGucCheckResult<int> Check(int value, Ankus.PgGucSource source) => new(Ankus.PgMemoryContext.Current.Run(() => value)); }",
         "int,Ankus.NativeValue*,Ankus.NativeValue*,int,Ankus.NativeCallError*,nint,nint,nint,nint",
         "int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *")]
@@ -65,6 +65,7 @@ public sealed partial class PgFunctionGeneratorTests
         {
             "phase" => ["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
             "operation" => ["global::Ankus.NativeBackend.Exit(previous, operation == 3);"],
+            "error" => ["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
             _ => ["global::Ankus.NativeBackend.Exit(previous);"],
         };
         AssertMemoryCallbackScope(syntax, exits);
@@ -75,7 +76,8 @@ public sealed partial class PgFunctionGeneratorTests
         {
             "phase" => "&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);",
             "operation" => "backend ? ankus_spi_execute : NULL, &memory);",
-            "error" => $"int status = {callback.Name}(error, IsTransactionState() ? ankus_spi_execute : NULL, &memory);",
+            "error" => $"int status = {callback.Name}(error, ankus_read_guc,\n" +
+                       "            IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);",
             _ when callback.Parameters.Any(static parameter => parameter.Name == "owner") => "scope->owner, (void *) ankus_aggregate_api, &memory);",
             _ when source.Contains("PgTrigger", StringComparison.Ordinal) || source.Contains("PgEventTrigger", StringComparison.Ordinal)
                 => "status = callback(arguments, result, error, ankus_spi_execute, &memory);",

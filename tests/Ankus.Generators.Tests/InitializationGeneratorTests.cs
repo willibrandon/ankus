@@ -28,14 +28,15 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         IMethodSymbol callback = InitializationCallback(compilation);
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
-        Assert.AreSequenceEqual(["Ankus.NativeCallError*", "nint", "nint"], callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
+        Assert.AreSequenceEqual(["Ankus.NativeCallError*", "nint", "nint", "nint", "nint"],
+            callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
         Assert.AreEqual("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute", entry.AttributeClass!.ToDisplayString());
         Assert.AreEqual(callback.Name, entry.NamedArguments.Single(static argument => argument.Key == "EntryPoint").Value.Value);
         Assert.AreEqual("System.Runtime.CompilerServices.CallConvCdecl",
             Assert.IsInstanceOfType<ITypeSymbol>(Assert.ContainsSingle(entry.NamedArguments.Single(static argument => argument.Key == "CallConvs").Value.Values).Value).ToDisplayString());
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains($"extern int {callback.Name}(AnkusError *, AnkusExecute, AnkusMemoryApi *);", native);
+        Assert.Contains($"extern int {callback.Name}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);", native);
         Assert.DoesNotContain("PG_FUNCTION_INFO_V1(", native);
         Assert.DoesNotContain("ankus_event_trigger_call", native);
         Assert.DoesNotContain("ankus_trigger_call", native);
@@ -53,9 +54,15 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax callback = Assert.IsInstanceOfType<MethodDeclarationSyntax>(InitializationCallback(compilation)
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
-        Assert.HasCount(4, body.Statements);
-        Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.HasCount(6, body.Statements);
+        Assert.AreSequenceEqual(
+        [
+            "nint previousBackend = global::Ankus.NativeBackend.Enter(execute);",
+            "nint previousRead = global::Ankus.NativeGuc.Enter(read);",
+            "nint previousLog = global::Ankus.NativeLog.Enter(log);",
+        ], body.Statements.Take(3).Select(static statement => statement.ToString()));
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeLog.Exit(previousLog);",
+            "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);");
         Assert.AreSequenceEqual(["global::Functions.@event();", "return 0;"], guarded.Block.Statements.Skip(2).Select(static statement => statement.ToString()));
         CatchClauseSyntax failure = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", failure.Declaration!.Type.ToString());
@@ -64,10 +71,10 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// The native loader checks process safety and recursion before managed entry and resets failed initialization before rethrow.
+    /// The native loader enables fork support after managed entry and resets failed initialization before rethrow.
     /// </summary>
     [TestMethod]
-    public void InitializationNativeBoundaryGuardsPostmasterRecursionAndRetry()
+    public void InitializationNativeBoundaryEnablesForkSupportAndPreservesRetry()
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "public static class Functions { [Ankus.PgInitialize] public static void Initialize() { } }");
@@ -76,9 +83,6 @@ public sealed partial class PgFunctionGeneratorTests
         string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..];
         string[] ordered =
         [
-            "if (IsPostmasterEnvironment && !IsUnderPostmaster)",
-            "errcode(ERRCODE_FEATURE_NOT_SUPPORTED)",
-            "session_preload_libraries or LOAD",
             "if (ankus_initialization_state == 1)",
             "errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE)",
             "if (ankus_initialization_state == 2)",
@@ -90,13 +94,20 @@ public sealed partial class PgFunctionGeneratorTests
             "if (IsTransactionState() && !ActiveSnapshotSet())",
             "PushActiveSnapshot(GetTransactionSnapshot());",
             "snapshot_owned = true;",
-            $"int status = {InitializationCallback(compilation).Name}(error, IsTransactionState() ? ankus_spi_execute : NULL, &memory);",
+            $"int status = {InitializationCallback(compilation).Name}(error, ankus_read_guc,",
+            "IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);",
             "if (snapshot_owned)",
             "snapshot_owned = false;",
             "PopActiveSnapshot();",
             "if (status != 0)",
             "ankus_initialization_state = 0;",
             "ankus_raise_error(error);",
+            "#ifndef WIN32",
+            "if (IsPostmasterEnvironment && !IsUnderPostmaster)",
+            "int32_t fork_status = RhEnableForkSupport();",
+            "if (fork_status != 1)",
+            "errmsg(\"Ankus runtime fork support failed: %d\", fork_status)",
+            "#endif",
             "ankus_initialization_state = 2;",
             "PG_CATCH();",
             "ankus_initialization_state = 0;",
@@ -119,6 +130,10 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.IsGreaterThanOrEqualTo(position, found, statement);
             position = found + statement.Length;
         }
+
+        Assert.Contains("extern int32_t RhEnableForkSupport(void);", native);
+        Assert.Contains("ankus_initialization_log", native);
+        Assert.DoesNotContain("cannot run through shared_preload_libraries", native);
     }
 
     /// <summary>

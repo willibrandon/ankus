@@ -15,6 +15,7 @@
     <Project Path="src/Ankus.Build/Ankus.Build.csproj" />
     <Project Path="src/Ankus.DocGenerator/Ankus.DocGenerator.csproj" />
     <Project Path="src/Ankus.Generators/Ankus.Generators.csproj" />
+    <Project Path="src/Ankus.NativeAot.Runtime/Ankus.NativeAot.Runtime.csproj" />
     <Project Path="src/Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <Project Path="src/Ankus.Runtime/Ankus.Runtime.csproj" />
     <Project Path="src/Ankus.Sdk/Ankus.Sdk.csproj" />
@@ -27,6 +28,7 @@
     <Project Path="tests/Ankus.Generators.Tests/Ankus.Generators.Tests.csproj" />
     <Project Path="tests/Ankus.GucAssignExtension/Ankus.GucAssignExtension.csproj" />
     <Project Path="tests/Ankus.GucHooksExtension/Ankus.GucHooksExtension.csproj" />
+    <Project Path="tests/Ankus.PreloadExtension/Ankus.PreloadExtension.csproj" />
     <Project Path="tests/Ankus.GucOnlyExtension/Ankus.GucOnlyExtension.csproj" />
     <Project Path="tests/Ankus.GucPrefixExtension/Ankus.GucPrefixExtension.csproj" />
     <Project Path="tests/Ankus.GucShowExtension/Ankus.GucShowExtension.csproj" />

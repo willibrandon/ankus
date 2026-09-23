@@ -31,7 +31,7 @@ public static partial class Settings
 
         PgLog.Write(PgLogLevel.Notice, new PgDiagnostic("Ankus hooks-only check entered.")
         {
-            Detail = $"source={source};sql={sql}",
+            Detail = $"source={source};sql={sql};pid={Environment.ProcessId}",
         });
         return new(proposed);
     }

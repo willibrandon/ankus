@@ -33,20 +33,32 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Latest preload evidence: the owned runtime preserves server GC across native forks
-on Linux x64, including dynamic heap sizing and active background collection. It
-also checkpoints the diagnostics listener, active EventPipe writers and the sample
-profiler while preserving partially sent trace output. Child-side diagnostics reset,
-consumer integration and the remaining platform/runtime requirements are unfinished.
-Two generated extensions pass both preload orders on PostgreSQL 18.6.
-The entries below retain the sequence of verified prototypes and their boundaries.
+Managed `shared_preload_libraries` now works through the generated Ankus SDK path on
+PostgreSQL 18.6/Linux x64. One postmaster loaded two independently linked Native AOT
+extensions. A managed initializer and managed configuration hook both ran before fork.
+Three distinct backends inherited the same initializer token and graph, then completed
+fresh tasks, fresh timers, a timer created in the postmaster, garbage collection,
+finalization, exception/finally handling, configuration-hook SPI, and clean shutdown.
+Focused generator tests pass 55/55; focused PostgreSQL tests pass 2/2, with the combined
+two-runtime proof completing in 57 seconds. The exact Linux runtime package packs as
+`Ankus.NativeAot.Runtime.linux-x64` version `10.0.11-ankus.1` with its license, notices,
+RID marker, and complete patched AOT SDK payload. The runtime branch tip is `46ba322df`;
+the EventPipe child-recovery milestone is `3531857c6`.
 
-**Blocking priority: managed shared preload.** The user has halted all other port work
-until C# initialization and configuration callbacks work through
-`shared_preload_libraries`, including continued managed execution in forked children.
-The existing rejection is not a completed implementation. Source investigation found
-that stock Native AOT initializes a finalizer thread and retains thread/GC state across
-PostgreSQL's fork; pgrx already handles its own thread identity with `pthread_atfork`.
+An isolated consumer also restores the packaged SDK and runtime into an empty NuGet
+cache, publishes without repository references or a manual runtime path, starts the
+result through `shared_preload_libraries`, and calls managed functions from PostgreSQL.
+That package test passes in 1m45s. The complete Linux x64 test set passes 4089/4089
+in 4m00.939s, including all 2032 PostgreSQL integration cases in 3m47.237s. The
+Release solution build has zero warnings and errors.
+
+macOS and Windows execution, other PostgreSQL versions, and public package publication remain
+required before cross-platform parity is claimed. Runtime package definitions cover
+`win-x64`, `linux-x64`, `osx-x64`, and `osx-arm64`; only `linux-x64` has
+a built and executed payload. The entries below retain the sequence
+of verified prototypes and their boundaries. Source investigation found that stock
+Native AOT initializes a finalizer thread and retains thread/GC state across PostgreSQL's
+fork; pgrx already handles its own thread identity with `pthread_atfork`.
 The first owned-runtime experiment passes on Linux x64: twelve child checks across
 two rounds of forks, plus all parent controls. It preserves startup objects and
 GC handles, returns each child's process ID, and runs GC, finalizers, newly started
@@ -1737,7 +1749,8 @@ Failures reset the state for retry. Owned diagnostics and managed finally blocks
 native boundary. Session preload has an initial transaction but no portal snapshot; `_PG_init`
 pushes a snapshot only when needed and releases only its own snapshot on success or failure.
 When no transaction exists, generated dispatch binds no transaction-dependent native entry point.
-The forking postmaster is rejected natively before Native AOT can initialize runtime threads.
+In a forking postmaster, the generated loader initializes managed code and then enables
+the patched runtime checkpoint before PostgreSQL creates backends.
 
 | Requirement | Concrete evidence |
 |---|---|
@@ -1748,7 +1761,7 @@ The forking postmaster is rejected natively before Native AOT can initialize run
 | SQL rollback and managed state lifetime | `InitializationFailureRollsBackSqlAndPreservesCallerState` verifies savepoint rollback, earlier writes, successful retry, and initialized managed state after outer transaction rollback |
 | Native error recovery and nested initialization | `InitializationSpiErrorsPreserveCallerState` catches division/recursive-load errors while preserving a prepared statement and transaction writes; `InitializationCanLoadAnotherExtension` proves nested Native AOT initialization and continued SPI |
 | Startup snapshot and failure isolation | `SessionPreloadInitializesBeforeFirstFunction`, `SessionPreloadFailureUnwindsAndPreservesServer` verify preload before client SQL, finally logging before connection failure, a healthy existing backend, and a corrected new connection |
-| Postmaster rejection before managed callback | `SharedPreloadRejectsManagedInitialization` verifies actionable native failure and absence of the sample's managed notice |
+| Managed postmaster state and runtime services across fork | `SharedPreloadPreservesManagedRuntimeAcrossFork` loads two Native AOT extensions and verifies inherited state, tasks, timers, finalization, GC, exceptions, hooks, three backend PIDs and clean shutdown |
 | No-transaction bindings, thread affinity and scope restoration | `NontransactionalInitializationBlocksBackendEntryPoints`, `NestedDisabledInitializationRestoresOuterBinding`, `InitializationBindingDoesNotFlowToWorkerThreads`, `InitializationRestoresTheOwningSpiSession`, `InitializationPreservesAbortCleanupRestrictions`, `EventQueriesHonorDisabledInitializationAndRecover` |
 
 Focused checks pass: 7 runtime cases, all 962 generator cases (including 50 new initialization cases),
@@ -1762,7 +1775,7 @@ Existing duplicate-404/missing-site-URL site warnings remain visible; no warning
 Actual native loading without a transaction, standalone/EXEC_BACKEND behavior, and other PostgreSQL
 versions/platforms are not claimed executed. The no-transaction branch is verified by generated
 contract checks and direct runtime binding tests. The GUC work below extends this initialization
-foundation; arbitrary managed postmaster initialization remains a required full-port item.
+foundation; other PostgreSQL versions and operating systems remain required full-port work.
 
 ### Configuration settings evidence
 
@@ -1780,8 +1793,8 @@ errors cross the boundary as owned copies. Cached native encoding converters kee
 usable during abort/restoration and out-of-transaction reporting without catalog lookup.
 
 Registration precedes `[PgInitialize]`, detects owned definitions on retry, and never overwrites an
-adopted placeholder value. Native-only declarations can run before postmaster fork; managed runtime
-entry occurs in individual backends. A GUC-only library and separate check-only, assign-only and
+adopted placeholder value. Managed hooks can run before postmaster fork and continue in individual
+backends. A GUC-only library and separate check-only, assign-only and
 show-only libraries publish with only their required native helpers. No warning is disabled and no
 unused helper is retained through a dummy reference or warning-suppression attribute.
 
@@ -1797,7 +1810,7 @@ unused helper is retained through a dummy reference or warning-suppression attri
 | Flags, privileges, visibility, identifier bytes and security restrictions | `FlagsPreserveNativeListingResetAndIdentifierRules`, `PrivilegesAndVisibilityUseNativeChecks`, `ClientOptionsRespectBackendPrivilegeAndParameterGrant`, `DisallowInFilePreservesNativeFileAndAlterSystemBehavior` |
 | Every memory/time unit and server-derived block size | `UnitsUseServerConversionsAndBlockSizes` |
 | Native preload, managed backend lifetime, reload/reset priority, startup-only contexts and client defaults | `SharedPreloadPreservesNativeStorageAndBackendRuntime`, `ReloadPreservesSourcePriorityAndConnectionContexts`, `ClientDefaultsAndBackendSettingsRetainSources`, `LatePostmasterRegistrationRejectsWithoutTerminatingBackend` |
-| Small library publication and no managed postmaster entry | `GucOnlyLibraryLoadsAndRegisters`, `HooksOnlyLibraryRunsItsCheckInBackend`, `AssignOnlyLibraryPreservesOldValueAndRestoration`, `ShowOnlyLibraryReadsNativeStorageWithoutRecursion`, `SharedPreloadRejectsHooksWithoutManagedInitializer`, `SharedPreloadRejectsMetadataWithoutDatabaseEncoding` |
+| Small library publication and managed postmaster hooks | `GucOnlyLibraryLoadsAndRegisters`, `HooksOnlyLibraryRunsItsCheckInBackend`, `AssignOnlyLibraryPreservesOldValueAndRestoration`, `ShowOnlyLibraryReadsNativeStorageWithoutRecursion`, `SharedPreloadRunsManagedHooksAcrossFork`, `SharedPreloadRejectsMetadataWithoutDatabaseEncoding` |
 | Managed ownership, malformed transport, thread affinity and nested scope cleanup | 52 direct `GucRuntimeTests` cases, including allocator-release checks for successful and failed reads |
 | Compiler contracts and diagnostics | 114 `GucGeneratorTests` cases compile generated declarations and verify exact contracts; the complete generator suite passes 1076 cases |
 
@@ -1811,13 +1824,13 @@ site warnings remain visible.
 Assign/show have typed reads but no SQL executor, since PostgreSQL cannot reliably distinguish normal
 SET from every restoration phase. Unexpected assign failures are FATAL; show failures are ERROR in a
 transaction and FATAL outside it. The lifecycle work below adds independent logging in all hook phases. Shared
-preload metadata/defaults/labels must currently be ASCII; hooks and managed initializers are rejected
-before managed entry in a forking postmaster. PG18's native DisallowInFile flag blocks ALTER SYSTEM
+preload metadata/defaults/labels must currently be ASCII. Managed hooks and initializers run in the
+postmaster and continue in forked backends. PG18's native DisallowInFile flag blocks ALTER SYSTEM
 but does not by itself reject manually supplied custom UserSet file values; tests and public docs
 preserve this observed behavior.
 
 Remaining full-port work is explicit: raw placeholder behavior,
-arbitrary managed postmaster hooks, mixed-encoding shared-preload metadata, complete source
+mixed-encoding shared-preload metadata, complete source
 and placeholder-privilege combinations, parallel-worker propagation, allocation/root measurements,
 packaged GUC consumer and drop/reinstall cases, and actual PostgreSQL 13–19 beta plus Windows/Linux/macOS
 execution. The broader G01–G60 inventory and review dispositions are retained in `.git/testagent/guc/`;
@@ -1864,8 +1877,8 @@ README, sample and generated API are updated. `pnpm build`, `pnpm check` and API
 105 API pages, 1120 members and 134 site pages. Existing duplicate-404/missing-site-URL site warnings
 remain visible. No reference checkout or consumer style template was changed.
 
-Remaining full-port scope includes raw placeholders, arbitrary managed postmaster callbacks,
-mixed-encoding preload metadata, remaining source/privilege combinations, worker propagation,
+Remaining full-port scope includes raw placeholders, mixed-encoding preload metadata,
+remaining source/privilege combinations, worker propagation,
 allocation/root measurements, packaged GUC consumers and the complete PostgreSQL/platform matrix.
 Prefix and logging tests do not establish full GUC or pgrx parity.
 
@@ -1915,8 +1928,8 @@ warning suppressions. README/configuration guide updates, `pnpm build`, `pnpm ch
 pass; the API remains 105 pages/1120 members and the site builds 134 pages. Existing duplicate-404 and
 missing-site-URL warnings remain visible. No reference checkout or consumer style template changed.
 
-Remaining full-port work includes safe explicit treatment of raw placeholder storage, arbitrary
-managed postmaster callbacks, mixed-encoding shared-preload metadata, the rest of the pgrx runtime
+Remaining full-port work includes safe explicit treatment of raw placeholder storage,
+mixed-encoding shared-preload metadata, the rest of the pgrx runtime
 and tooling inventory, and actual PostgreSQL 13–19 beta validation on Windows/Linux/macOS. The native
 CUSTOM_PLACEHOLDER flag assumes PostgreSQL-owned string-placeholder layout and lifetime; exposing it
 on arbitrary typed declarations would violate those assumptions. Existing typed configuration
@@ -1924,13 +1937,10 @@ options continue to reject that internal flag. This milestone does not establish
 
 ### Work in progress
 
-Initialization/GUC research identified a Native AOT hosting constraint: managed entry starts runtime
-threads, and the initialized runtime cannot safely survive the postmaster's fork into a backend.
-Reference evidence is in the read-only `runtime` v10.0.0 bootstrap/thread/finalizer sources and PostgreSQL
-`dfmgr.c`/GUC sources, cross-checked at supported release tags. Backend initialization now has the
-native postmaster guard and focused evidence above. Native-only declarative GUC registration now runs before managed startup;
-arbitrary managed postmaster hooks require additional architecture and remain a full-parity requirement.
-No hook is silently skipped or represented as implemented by this initialization foundation.
+The owned Native AOT runtime now checkpoints its managed services before PostgreSQL fork
+and repairs them in each child. Generated initialization and configuration callbacks use
+that runtime automatically. Linux x64 has direct PostgreSQL evidence above. macOS, Windows,
+the remaining PostgreSQL matrix, and packaged consumer validation are still in progress.
 
 The generated API currently supports accessible, synchronous static methods with by-value
 `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`, `double`, `decimal`, `string`, `byte[]`, `Guid`, `PgJson`, `PgJsonb`, `PgNumeric`,
@@ -2588,7 +2598,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom base-type families and matrix validation remain required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
-| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend `[PgInitialize]` with retry/recursion handling and session-preload snapshots, native-only GUC preload; arbitrary managed postmaster initialization remains required |
+| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend and shared-preload `[PgInitialize]` with retry/recursion handling; Linux x64 fork behavior verified, remaining platform/version matrix required |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
@@ -2627,7 +2637,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs`, `callbacks.rs` | Transaction identifiers, transaction/subtransaction callbacks, unregister and error cleanup | Pending |
-| `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and native-only preload verified above. Raw-placeholder treatment, managed postmaster callbacks, mixed-encoding preload and the full matrix remain required |
+| `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Pending |
@@ -2717,7 +2727,7 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Temporal field/epoch accessors, saturating/wrapping raw factories, named/interval timezone conveniences and timeofday
     - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
    - [x] Backend `_PG_init` bootstrap, guarded exceptions/retry, recursive-load rejection and session preload (PostgreSQL 18.6/Linux x64)
-   - [ ] Memory contexts; full shared-preload parity and managed postmaster initialization; remaining guarded PostgreSQL APIs
+   - [ ] Remaining memory-context parity, shared-preload platform/version validation, and guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
     - [x] `[PgFunction]` → per-function dispatcher + `pg_finfo` shim emission + DDL metadata
     - [x] Scalar/text/bytea conversions, inferred strictness, `T?` NULL handling, SQL overloads

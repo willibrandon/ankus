@@ -41,7 +41,7 @@ Internal = 0
 
 ### Postmaster
 
-Allows changes only during server startup; native-only shared preload registration is required.
+Allows changes only during server startup; shared preload registration is required.
 
 ```csharp
 Postmaster = 1

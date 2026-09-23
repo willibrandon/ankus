@@ -236,17 +236,59 @@ public sealed class InitializationTests(TestContext context)
     }
 
     /// <summary>
-    /// The native postmaster guard rejects shared preload before invoking the managed initializer.
+    /// Shared preload preserves postmaster-managed state and runtime services in independent forked backends.
     /// </summary>
     [TestMethod]
-    public async Task SharedPreloadRejectsManagedInitialization()
+    public async Task SharedPreloadPreservesManagedRuntimeAcrossFork()
     {
-        PostgresTestClusterOptions options = await PreloadOptionsAsync("shared_preload_libraries", "Ankus.Examples.Initialization");
-        InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => PostgresTestCluster.StartAsync(options, context.CancellationToken));
-        Assert.Contains("shared_preload_libraries", error.Message);
-        Assert.Contains("session_preload_libraries", error.Message);
-        Assert.DoesNotContain("Ankus initialization sample loaded.", error.Message);
+        CancellationToken token = context.CancellationToken;
+        PostgresTestClusterOptions options = await PreloadOptionsAsync("shared_preload_libraries",
+            "Ankus.PreloadExtension,Ankus.GucHooksExtension");
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        string startupLog = cluster.ReadServerLog();
+        Assert.Contains("Ankus managed postmaster initializer ran.", startupLog);
+        Assert.Contains("Ankus hooks-only check entered.", startupLog);
+        await using (NpgsqlConnection setup = await cluster.OpenConnectionAsync(token))
+        {
+            await using NpgsqlCommand command = new("CREATE EXTENSION ankus_preload", setup);
+            await command.ExecuteNonQueryAsync(token);
+        }
+
+        int? initializerPid = null;
+        Guid? tokenValue = null;
+        HashSet<int> backends = [];
+        for (int index = 0; index < 3; index++)
+        {
+            await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+            Assert.IsTrue(backends.Add(connection.ProcessID));
+            List<PostgresNotice> notices = [];
+            connection.Notice += (_, arguments) => notices.Add(arguments.Notice);
+            await using NpgsqlCommand command = new("SELECT preload_snapshot()", connection);
+            string snapshot = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token));
+            string[] values = snapshot.Split('|');
+            Assert.HasCount(8, values);
+            int currentInitializerPid = int.Parse(values[0], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.AreNotEqual(connection.ProcessID, currentInitializerPid);
+            Assert.AreEqual(connection.ProcessID, int.Parse(values[1], System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual("1", values[2]);
+            Guid currentToken = Guid.ParseExact(values[3], "D");
+            Assert.AreNotEqual(Guid.Empty, currentToken);
+            Assert.AreEqual("73", values[4]);
+            Assert.AreEqual("42", values[5]);
+            Assert.AreEqual("91", values[6]);
+            Assert.AreEqual("17", values[7]);
+            initializerPid ??= currentInitializerPid;
+            tokenValue ??= currentToken;
+            Assert.AreEqual(initializerPid, currentInitializerPid);
+            Assert.AreEqual(tokenValue, currentToken);
+
+            command.CommandText = "SELECT preload_exercise()";
+            Assert.AreEqual("42|91|191|73|17|731|1", await command.ExecuteScalarAsync(token));
+            command.CommandText = "SET ankus_guc_hooks.enabled = 'off'";
+            await command.ExecuteNonQueryAsync(token);
+            PostgresNotice notice = Assert.ContainsSingle(notices);
+            Assert.AreEqual($"source=Session;sql=42;pid={connection.ProcessID}", notice.Detail);
+        }
     }
 
     private async Task<PostgresTestClusterOptions> PreloadOptionsAsync(string setting, string library)

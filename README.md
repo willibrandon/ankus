@@ -168,15 +168,13 @@ See [memory contexts](docs/src/content/docs/memory-contexts.md).
 
 Use `[PgInitialize]` on one static method to initialize the extension when its
 library loads in a backend. Initialization supports guarded database access,
-owned error diagnostics, and retries after failure. See
-[extension initialization](docs/src/content/docs/initialization.md) for loading,
-transaction behavior, and the Native AOT restriction on shared preload.
+owned error diagnostics, retries after failure, and managed shared preload.
 
 Declare PostgreSQL settings with `[PgGucBool]`, `[PgGucInt]`, `[PgGucReal]`,
 `[PgGucString]`, or `[PgGucEnum]` on static partial getters. PostgreSQL owns their
 storage, startup source priority, permissions, SET/RESET behavior, and transaction restoration. See
 [configuration settings](docs/src/content/docs/configuration.md) for typed hooks,
-units, owned extra data, and native-only shared preload. An assembly `PgGucPrefix`
+units, owned extra data, and shared preload. An assembly `PgGucPrefix`
 attribute checks unknown settings after registration. Hooks can use `PgLog` during reload,
 rollback, and client reporting. Parallel workers restore typed values and regenerate
 hook extra data in their own managed runtime.

@@ -8,4 +8,5 @@
   </ItemGroup>
   <Import Project="../targets/Ankus.Native.targets" />
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="../targets/Ankus.NativeAot.targets" />
 </Project>

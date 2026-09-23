@@ -1,0 +1,42 @@
+<Project>
+  <PropertyGroup>
+    <_AnkusNativeAotVersion>10.0.11-ankus.1</_AnkusNativeAotVersion>
+    <_AnkusNativeAotCompilerVersion>10.0.11</_AnkusNativeAotCompilerVersion>
+    <_AnkusNativeAotSdkPath Condition="'$(AnkusNativeAotSdkPath)' != ''">$([MSBuild]::NormalizeDirectory('$(AnkusNativeAotSdkPath)'))</_AnkusNativeAotSdkPath>
+    <_AnkusNativeAotPayloadVersion Condition="'$(AnkusNativeAotSdkPath)' != ''">$(_AnkusNativeAotVersion)</_AnkusNativeAotPayloadVersion>
+    <_AnkusNativeAotPayloadCompilerVersion Condition="'$(AnkusNativeAotSdkPath)' != ''">$(_AnkusNativeAotCompilerVersion)</_AnkusNativeAotPayloadCompilerVersion>
+    <_AnkusNativeAotPayloadRid Condition="'$(AnkusNativeAotSdkPath)' != '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_AnkusNativeAotPayloadRid>
+    <_AnkusNativeAotPayloadRid Condition="'$(AnkusNativeAotSdkPath)' != '' and '$(_AnkusNativeAotPayloadRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_AnkusNativeAotPayloadRid>
+  </PropertyGroup>
+
+  <Target Name="_ResolveAnkusNativeAotRuntime" BeforeTargets="ProcessFrameworkReferences"
+          Condition="'$(PublishAot)' == 'true'">
+    <ItemGroup>
+      <KnownILCompilerPack Update="Microsoft.DotNet.ILCompiler"
+                           Condition="'%(KnownILCompilerPack.TargetFramework)' == '$(TargetFramework)'">
+        <ILCompilerPackVersion>$(_AnkusNativeAotCompilerVersion)</ILCompilerPackVersion>
+      </KnownILCompilerPack>
+      <PackageReference Include="Ankus.NativeAot.Runtime.$(RuntimeIdentifier)"
+                        Version="[$(_AnkusNativeAotVersion)]" IsImplicitlyDefined="true"
+                        PrivateAssets="all"
+                        Condition="'$(RuntimeIdentifier)' != '' and '$(AnkusNativeAotSdkPath)' == ''" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_SelectAnkusNativeAotRuntime" BeforeTargets="SetupProperties"
+          DependsOnTargets="ImportRuntimeIlcPackageTarget" Condition="'$(PublishAot)' == 'true'">
+    <Error Condition="'$(_AnkusNativeAotPayloadVersion)' != '$(_AnkusNativeAotVersion)' or
+                      '$(_AnkusNativeAotPayloadRid)' != '$(RuntimeIdentifier)'"
+           Text="The restored Ankus Native AOT runtime does not match this SDK and target runtime. Restore this project before publishing." />
+    <Error Condition="'$(_AnkusNativeAotPayloadCompilerVersion)' != '$(_AnkusNativeAotCompilerVersion)' or
+                      '@(ResolvedILCompilerPack->'%(NuGetPackageVersion)')' != '$(_AnkusNativeAotCompilerVersion)'"
+           Text="The restored Native AOT compiler does not match the Ankus runtime package." />
+    <Error Condition="!Exists('$(_AnkusNativeAotSdkPath)System.Private.CoreLib.dll')"
+           Text="The Ankus Native AOT runtime package is missing System.Private.CoreLib.dll." />
+    <Error Condition="'$(IlcSdkPath)' != '' and '$(IlcSdkPath)' != '$(_AnkusNativeAotSdkPath)'"
+           Text="Ankus.Sdk selects its matching Native AOT runtime automatically. Remove the IlcSdkPath override." />
+    <PropertyGroup>
+      <IlcSdkPath>$(_AnkusNativeAotSdkPath)</IlcSdkPath>
+    </PropertyGroup>
+  </Target>
+</Project>

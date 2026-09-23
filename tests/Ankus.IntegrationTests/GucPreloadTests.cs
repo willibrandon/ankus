@@ -94,24 +94,37 @@ public sealed class GucPreloadTests(TestContext context)
     }
 
     /// <summary>
-    /// Hooks alone trigger the native postmaster guard before their first managed callback.
+    /// A hooks-only library runs managed checks in the postmaster and independent forked backends.
     /// </summary>
     [TestMethod]
-    public async Task SharedPreloadRejectsHooksWithoutManagedInitializer()
+    public async Task SharedPreloadRunsManagedHooksAcrossFork()
     {
+        CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions defaults = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
-        var options = new PostgresTestClusterOptions
+        PostgresTestClusterOptions options = new()
         {
             Installation = defaults.Installation,
             DataDirectoryBase = defaults.DataDirectoryBase,
             LogDirectory = defaults.LogDirectory,
             PostgreSqlConfiguration = [.. defaults.PostgreSqlConfiguration, "shared_preload_libraries = 'Ankus.GucHooksExtension'"],
         };
-        InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => PostgresTestCluster.StartAsync(options, context.CancellationToken));
-        Assert.Contains("shared_preload_libraries", error.Message);
-        Assert.Contains("session_preload_libraries", error.Message);
-        Assert.DoesNotContain("Ankus hooks-only check entered.", error.Message);
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        string startupLog = cluster.ReadServerLog();
+        Assert.Contains("Ankus hooks-only check entered.", startupLog);
+        Assert.Contains("source=Default;sql=unavailable;pid=", startupLog);
+        HashSet<int> backends = [];
+        for (int index = 0; index < 3; index++)
+        {
+            await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+            Assert.IsTrue(backends.Add(connection.ProcessID));
+            List<PostgresNotice> notices = [];
+            connection.Notice += (_, arguments) => notices.Add(arguments.Notice);
+            await ExecuteAsync(connection, "SET ankus_guc_hooks.enabled = 'off'");
+            PostgresNotice notice = Assert.ContainsSingle(notices);
+            Assert.AreEqual("Ankus hooks-only check entered.", notice.MessageText);
+            Assert.AreEqual($"source=Session;sql=42;pid={connection.ProcessID}", notice.Detail);
+            Assert.AreEqual("off", await ScalarAsync(connection, "SHOW ankus_guc_hooks.enabled"));
+        }
     }
 
     /// <summary>

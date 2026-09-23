@@ -16,6 +16,8 @@ namespace Ankus.IntegrationTests;
 [DoNotParallelize]
 public sealed partial class ToolCommandTests(TestContext context)
 {
+    private const string NativeAotRuntimeVersion = "10.0.11-ankus.1";
+
     private static string s_root = null!;
     private static string s_tool = null!;
     private static string s_home = null!;
@@ -42,8 +44,20 @@ public sealed partial class ToolCommandTests(TestContext context)
         string feed = Path.Combine(s_root, "feed");
         Directory.CreateDirectory(feed);
         s_version = "0.0.0-test." + Guid.NewGuid().ToString("N");
-        foreach (string project in new[] { "src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
-                     "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing" })
+        string runtimeIdentifier = RuntimeInformation.RuntimeIdentifier;
+        string runtimeSdk = Path.Combine(repository, "artifacts", "nativeaot", runtimeIdentifier, "aotsdk") +
+                            Path.DirectorySeparatorChar;
+        string runtimeSource = Path.Combine(repository, "artifacts", "preload", "runtime-10.0.11");
+        await ProcessRunner.RunCheckedAsync("dotnet",
+            ["pack", Path.Combine(repository, "src/Ankus.NativeAot.Runtime"), "-c", "Release", "-o", feed,
+                "-p:AnkusRuntimeIdentifier=" + runtimeIdentifier, "-p:AnkusRuntimeSdkPath=" + runtimeSdk,
+                "-p:AnkusRuntimeSourcePath=" + runtimeSource,
+                "-bl:" + Path.Combine(repository, "artifacts", "runtime-package-pack-{}.binlog")],
+            new Dictionary<string, string?>(), token);
+
+        string[] projects = ["src/Ankus.Runtime", "src/Ankus.Generators", "src/Ankus.PgConfig",
+            "src/Ankus.Sdk", "src/Ankus.Tool", "src/Ankus.Testing"];
+        foreach (string project in projects)
         {
             await ProcessRunner.RunCheckedAsync("dotnet",
                 ["pack", Path.Combine(repository, project), "-c", "Release", "-o", feed, "-p:Version=" + s_version,
@@ -75,6 +89,8 @@ public sealed partial class ToolCommandTests(TestContext context)
                 new XElement("TreatWarningsAsErrors", "true"), new XElement("AnkusExtensionName", "ankus_tool_probe"))))
             .Save(s_project);
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Hello", "Hello.cs"), Path.Combine(projectDirectory, "Hello.cs"));
+        File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Initialization", "Startup.cs"),
+            Path.Combine(projectDirectory, "Startup.cs"));
         (await InvokeAsync(["publish", "--home", s_home, "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
     }
@@ -224,10 +240,10 @@ public sealed partial class ToolCommandTests(TestContext context)
     }
 
     /// <summary>
-    /// Verifies publishing and staging through the installed tool produce a loadable PostgreSQL extension.
+    /// Verifies package publishing, staging, shared preload, and managed calls in PostgreSQL.
     /// </summary>
     [TestMethod]
-    public async Task PublishedAndInstalledExtensionExecutesInPostgres()
+    public async Task PublishedInstalledAndPreloadedExtensionExecutesInPostgres()
     {
         CancellationToken token = context.CancellationToken;
         PublishedExtension manifest = PublishedExtension.Read(s_published);
@@ -255,6 +271,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             [
                 "extension_control_path = '" + EscapeSetting(shared) + "'",
                 "dynamic_library_path = '" + EscapeSetting(libraries) + "'",
+                "shared_preload_libraries = '" + manifest.Library + "'",
             ],
         }, token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
@@ -350,6 +367,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         JsonElement libraries = assets.RootElement.GetProperty("libraries");
         Assert.AreEqual("package", libraries.GetProperty("Ankus.Runtime/" + s_version).GetProperty("type").GetString());
         Assert.AreEqual("package", libraries.GetProperty("Ankus.Generators/" + s_version).GetProperty("type").GetString());
+        Assert.AreEqual("package", libraries.GetProperty("Ankus.NativeAot.Runtime." + RuntimeInformation.RuntimeIdentifier + "/" +
+            NativeAotRuntimeVersion).GetProperty("type").GetString());
         foreach (JsonProperty library in libraries.EnumerateObject())
         {
             Assert.AreEqual("package", library.Value.GetProperty("type").GetString(), library.Name);

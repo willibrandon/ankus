@@ -148,6 +148,76 @@ internal static class NativeErrorBridge
     internal const string Source = Declarations + "\n" + Logging + "\n" + Capture + "\n" + Reporting;
 
     /// <summary>
+    /// Gets a guarded initializer logging capability that never opens a transaction or enables SPI.
+    /// </summary>
+    internal const string InitializationLogging = """
+        typedef int (*AnkusInitializationLog)(int, int, AnkusError *, AnkusError *, int *);
+
+        static int
+        ankus_initialization_log(int operation, int level, AnkusError *report, AnkusError *error, int *enabled)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext recovery = ankus_error_recovery_context(caller);
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
+            volatile int status = 0;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    if ((operation != 0 && operation != 1) || level < 0 || level > 12 || enabled == NULL)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                            errmsg("Invalid initializer logging request")));
+                    }
+
+                    if (operation == 1 && (level >= 10 || report == NULL))
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                            errmsg("Terminal initializer messages must unwind managed code before reporting")));
+                    }
+
+                    *enabled = ankus_log_enabled(ankus_log_level(level)) ? 1 : 0;
+                    if (operation == 1 && *enabled != 0)
+                    {
+                        /* The shared reporter owns conversion scratch independently of the caller.
+                         * It returns to a surviving context even when reporting resets ErrorContext. */
+                        ankus_report(report, ankus_log_level(level));
+                    }
+                }
+                PG_CATCH();
+                {
+                    ErrorData *data;
+                    MemoryContext diagnostic;
+                    MemoryContextSwitchTo(recovery);
+                    diagnostic = AllocSetContextCreate(TopMemoryContext, "Ankus initializer diagnostics", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(diagnostic);
+                    data = ankus_copy_error_data();
+                    FlushErrorState();
+                    ankus_capture_error(data, error);
+                    ankus_free_error_data(data);
+                    MemoryContextSwitchTo(recovery);
+                    MemoryContextDelete(diagnostic);
+                    status = 1;
+                }
+                PG_END_TRY();
+            }
+            PG_CATCH();
+            {
+                /* Diagnostic recovery also stays inside native frames. A second failure is terminal. */
+                MemoryContextSwitchTo(recovery);
+                FlushErrorState();
+                ereport(FATAL, (errmsg("Unable to recover an Ankus initializer logging failure")));
+            }
+            PG_END_TRY();
+            InterruptHoldoffCount = interrupt_holdoff;
+            QueryCancelHoldoffCount = cancel_holdoff;
+            return status;
+        }
+
+        """;
+
+    /// <summary>
     /// Gets owned diagnostic capture without adding the report dispatcher.
     /// </summary>
     internal const string Capture = """

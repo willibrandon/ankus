@@ -237,7 +237,10 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.Contains(flags, native);
         Assert.Contains(".assign.integer = ankus_guc_", native);
-        Assert.Contains("cannot run through shared_preload_libraries", native);
+        Assert.DoesNotContain("cannot run through shared_preload_libraries", native);
+        Assert.Contains("extern int32_t RhEnableForkSupport(void);", native);
+        Assert.Contains("int32_t fork_status = RhEnableForkSupport();", native);
+        Assert.Contains("Ankus runtime fork support failed: %d", native);
         Assert.Contains("ankus_release_error(", native);
         AssertGucNativeDiagnosticOwnership(native);
         Assert.Contains("ankus_guc_read(", native);

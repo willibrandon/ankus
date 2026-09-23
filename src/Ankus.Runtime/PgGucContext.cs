@@ -11,7 +11,7 @@ public enum PgGucContext
     Internal = 0,
 
     /// <summary>
-    /// Allows changes only during server startup; native-only shared preload registration is required.
+    /// Allows changes only during server startup; shared preload registration is required.
     /// </summary>
     Postmaster = 1,
 

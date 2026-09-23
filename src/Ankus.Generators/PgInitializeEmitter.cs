@@ -27,9 +27,11 @@ internal static class PgInitializeEmitter
                     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                         EntryPoint = "{{callback}}",
                         CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
-                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint execute, nint memory)
+                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
                     {
-                        nint previous = global::Ankus.NativeBackend.Enter(execute);
+                        nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
+                        nint previousRead = global::Ankus.NativeGuc.Enter(read);
+                        nint previousLog = global::Ankus.NativeLog.Enter(log);
                         nint previousMemory = 0;
                         bool memoryEntered = false;
                         try
@@ -51,21 +53,33 @@ internal static class PgInitializeEmitter
                                 global::Ankus.NativeMemoryContext.Exit(previousMemory);
                             }
 
-                            global::Ankus.NativeBackend.Exit(previous);
+                            global::Ankus.NativeLog.Exit(previousLog);
+                            global::Ankus.NativeGuc.Exit(previousRead);
+                            global::Ankus.NativeBackend.Exit(previousBackend);
                         }
                     }
 
                 """);
+            native.AppendLine(NativeErrorBridge.InitializationLogging);
         }
 
-        string guard = method is not null || hasHooks ? """
-                if (IsPostmasterEnvironment && !IsUnderPostmaster)
-                {
-                    ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                        errmsg("Ankus managed initialization cannot run through shared_preload_libraries in the postmaster"),
-                        errdetail("The .NET Native AOT runtime cannot be initialized before PostgreSQL forks backend processes."),
-                        errhint("Use session_preload_libraries or LOAD to initialize the extension in a backend process.")));
-                }
+        string forkDeclaration = method is not null || hasHooks ? """
+            #ifndef WIN32
+            extern int32_t RhEnableForkSupport(void);
+            #endif
+            """ : string.Empty;
+        string forkEnable = method is not null || hasHooks ? """
+                    #ifndef WIN32
+                    if (IsPostmasterEnvironment && !IsUnderPostmaster)
+                    {
+                        int32_t fork_status = RhEnableForkSupport();
+                        if (fork_status != 1)
+                        {
+                            ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+                                errmsg("Ankus runtime fork support failed: %d", fork_status)));
+                        }
+                    }
+                    #endif
 
             """ : string.Empty;
         string errorDeclaration = method is null ? string.Empty : """
@@ -81,7 +95,8 @@ internal static class PgInitializeEmitter
                         snapshot_owned = true;
                     }
 
-                    int status = {{callback}}(error, IsTransactionState() ? ankus_spi_execute : NULL, &memory);
+                    int status = {{callback}}(error, ankus_read_guc,
+                        IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);
                     if (snapshot_owned)
                     {
                         snapshot_owned = false;
@@ -114,13 +129,13 @@ internal static class PgInitializeEmitter
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
 
-            {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusExecute, AnkusMemoryApi *);")}}
+            {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
+            {{forkDeclaration}}
             static int ankus_initialization_state = 0;
 
             PGDLLEXPORT void _PG_init(void);
             PGDLLEXPORT void _PG_init(void)
             {
-            {{guard}}
                 if (ankus_initialization_state == 1)
                 {
                     ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -139,6 +154,7 @@ internal static class PgInitializeEmitter
                 {
             {{registration}}
             {{invocation}}
+            {{forkEnable}}
                     ankus_initialization_state = 2;
                 }
                 PG_CATCH();

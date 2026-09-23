@@ -82,6 +82,7 @@ internal static class IntegrationEnvironment
         await PublishExtensionAsync("tests", "Ankus.GucPrefixExtension", cancellationToken);
         await PublishExtensionAsync("tests", "Ankus.GucUnicodePrefixExtension", cancellationToken);
         await PublishExtensionAsync("tests", "Ankus.GucHooksExtension", cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.PreloadExtension", cancellationToken);
         await PublishExtensionAsync("tests", "Ankus.GucAssignExtension", cancellationToken);
         await PublishExtensionAsync("tests", "Ankus.GucShowExtension", cancellationToken);
         return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);

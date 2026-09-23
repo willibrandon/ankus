@@ -86,16 +86,19 @@ parameters retain the native NULL guard even in mixed nullable signatures.
 ### Library initialization
 
 `[PgInitialize]` generates a native `_PG_init` and a separate managed dispatcher.
-The native entry first rejects the forking postmaster before any reverse P/Invoke
-can initialize Native AOT's runtime threads. Backend and standalone process
-initialization are permitted. The wrapper supplies the guarded SPI callback only
-when `IsTransactionState()` is true; otherwise the managed scope has no backend
-entry point. Nested scopes restore the enclosing binding and callback depth.
+The wrapper supplies the guarded SPI callback only when `IsTransactionState()` is
+true. Configuration reads and logging remain available without a transaction.
+Nested scopes restore the enclosing bindings and callback depth.
 Session preload has a transaction before it has a portal or active snapshot.
 The initializer pushes a transaction snapshot only when none exists, and pops
 only its own snapshot after managed return or native failure. Existing caller
 snapshots remain untouched. This permits guarded startup SPI and leaves
 PostgreSQL's initial transaction with its original snapshot stack.
+
+On Unix, managed shared preload calls the patched runtime's fork checkpoint after
+registration and initialization finish. The runtime stops its own workers before
+PostgreSQL forks and repairs them in each backend. Windows uses PostgreSQL's
+`EXEC_BACKEND` process startup and does not use this checkpoint.
 
 PostgreSQL's loader records a library only after `_PG_init` returns successfully.
 A native three-state guard detects recursive loading before it can recurse
