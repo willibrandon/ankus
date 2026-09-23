@@ -33,10 +33,12 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Latest preload evidence: the owned runtime now preserves server GC across native
-forks on Linux x64, including dynamic heap sizing and active background collection.
-Two generated extensions pass both preload orders on PostgreSQL 18.6. Consumer
-integration and the remaining platform/runtime requirements are still unfinished.
+Latest preload evidence: the owned runtime preserves server GC across native forks
+on Linux x64, including dynamic heap sizing and active background collection. It
+also checkpoints the diagnostics listener, active EventPipe writers and the sample
+profiler while preserving partially sent trace output. Child-side diagnostics reset,
+consumer integration and the remaining platform/runtime requirements are unfinished.
+Two generated extensions pass both preload orders on PostgreSQL 18.6.
 The entries below retain the sequence of verified prototypes and their boundaries.
 
 **Blocking priority: managed shared preload.** The user has halted all other port work
@@ -874,6 +876,35 @@ and `.git/testagent/preload/diagnostics-workers-v3-*`.
 A trace writer blocked inside socket output still needs an interruptible, resumable
 handoff. Child recovery, managed listeners, multiple runtime images and macOS/Windows
 execution also remain required. The enabled-diagnostics fork guard and public guides
+remain unchanged.
+
+Runtime commit `71570d91d` makes blocked EventPipe output interruptible and
+resumable. Each IPC trace session creates an anonymous close-on-exec file before it
+starts. If a checkpoint interrupts a full or partial socket write, the writer appends
+only the unsent bytes with `pwrite`; this path does not allocate from the runtime heap.
+The replacement writer sends the retained range first and advances an explicit cursor.
+A later checkpoint can interrupt that replay without duplicating bytes. Parent resume
+drains the listener interrupt before creating replacement writers.
+
+The final Linux x64 blocked-output case permits exactly 32 bytes, blocks the next
+send, retires the listener, writer and sampler, and then repeats five more checkpoints
+while replay remains blocked. Every cycle creates new workers and leaves only the host
+and finalizer while paused. The original session then resumes, records more managed
+samples and stops normally. Its 7,666-byte trace opens successfully with
+`dotnet-trace report`; descriptor counts return from seven to seven and stderr is
+empty. The complete 22-case tracing suite passes, including all 81 independent
+allocation failures. The full response, listener, I/O, connection, reverse-connection
+and lifecycle suites pass against the same binary.
+
+Native AOT, CoreCLR EventPipe, the standalone diagnostics PAL and the complete
+configured runtime build compile successfully. Fixture C/C++ warnings are errors.
+The exact SDK, probe and host are
+`artifacts/preload/runtime-diagnostics-tracing-v15-sdk`,
+`artifacts/preload/probe-diagnostics-tracing-workers-v11` and
+`artifacts/preload/fork-diagnostics-tracing-host-v8`. Final evidence is retained under
+`artifacts/preload/runtime-10.0.11/.git/testagent/preload/diagnostics-*-v11-all`.
+Child recovery, managed listeners, multiple runtime images and macOS/Windows execution
+remain required before enabled-diagnostics fork admission. The guard and public guides
 remain unchanged.
 
 Unfinished allocation-exhaustion tests are preserved in stash
