@@ -359,8 +359,37 @@ user caches and installed tools were preserved. Main commits `548228c` and `1455
 contain the verified header/CRT/preprocessor and deployment-target fixes. Public
 preload guides still describe the shipped implementation while runtime/server
 packaging and generator integration remain unfinished. Server GC, enabled EventPipe,
-user-thread/lock behavior, worker attachment, the complete platform/version matrix
-and all other full-port requirements remain open. The preload priority is still active.
+registered waits, user-thread/lock behavior, worker attachment, the complete
+platform/version matrix and all other full-port requirements remain open.
+The preload priority is still active.
+
+Further Linux x64 checks found a child-to-grandchild failure in the runtime patch.
+A child that had already entered managed code could fork again, but a native child
+that forked before its first managed call exited with status 198: its runtime was
+still in `ChildPending`, and preparation required `Idle`. Fork preparation now
+checks the native caller and completes the existing child recovery before preparing
+another checkpoint. The minimal child-atfork handler remains unchanged; initialization
+is not replayed, and caller/managed-stack checks remain enforced.
+
+The retained-services host now has `--descendants` and `--descendants-pending`
+regressions. The old runtime passes the first and fails the second; the repaired
+runtime passes both. Ten repeated runs cover 20 children and 40 grandchildren,
+checking the original token and initializer count, cyclic graph and GC-handle
+identity, every retained array value, inherited mutations, ancestor isolation,
+current process identity, GC/finalizers, pool work, timers and exceptions. All
+3,930 native records pass independent review with empty stderr. Existing retained
+timer and queue checks and both actively overlapping background-GC rounds also pass.
+Two generated extensions using the new runtime pass both preload orders and six
+fresh sessions on release PostgreSQL 18.6/Linux x64, with clean shutdowns.
+Runtime commit `2d8c0193c` contains this fix and its regression checks. The new SDK
+is `artifacts/preload/runtime-descendants-proof-sdk`; exact sources,
+before/after binaries, logs and hashes are retained in
+`.git/testagent/preload/descendants-proof/`. This additional runtime change has been
+executed on Linux x64 only; the earlier macOS evidence describes the preceding
+runtime commit. Plain `dotnet test` passes 4,089 tests with zero failures/skips
+(3m50.171s); the Release build has zero warnings/errors (11.30s). Production
+packaging/integration and the other runtime/platform requirements above remain
+unfinished.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
