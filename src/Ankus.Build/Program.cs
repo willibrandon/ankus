@@ -6,11 +6,11 @@ using Ankus.PgConfig;
 
 try
 {
-    if (args.Length != 10)
+    if (args.Length != 11)
     {
         throw new ArgumentException(
             "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
-            "extension name, version, library, runtime identifier, and optional pg_config path.");
+            "extension name, version, library, runtime identifier, optional pg_config path, and target triple.");
     }
 
     string assembly = Path.GetFullPath(args[0]);
@@ -64,6 +64,11 @@ try
     {
         compiler = args[3];
         compilerArguments.AddRange(UnixCompilerArguments.Split(installation.PreprocessorFlags));
+        if (!string.IsNullOrEmpty(args[10]))
+        {
+            compilerArguments.Add($"--target={args[10]}");
+        }
+
         compilerArguments.AddRange(["-c", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror"]);
         compilerArguments.AddRange(["-isystem", installation.ServerIncludeDirectory, "-o", nativeObject]);
         compilerArguments.AddRange(["-isystem", installation.IncludeDirectory]);

@@ -5,7 +5,7 @@
            Text="Ankus extensions require OutputType=Library and NativeLib=Shared." />
   </Target>
 
-  <Target Name="_PrepareAnkusNativeArtifacts" BeforeTargets="WriteIlcRspFileForCompilation" DependsOnTargets="Compile">
+  <Target Name="_PrepareAnkusNativeArtifacts" BeforeTargets="WriteIlcRspFileForCompilation" DependsOnTargets="Compile;SetupOSSpecificProps">
     <PropertyGroup>
       <_AnkusArtifacts>$(NativeIntermediateOutputPath)ankus/</_AnkusArtifacts>
       <AnkusExtensionName Condition="'$(AnkusExtensionName)' == ''">$(TargetName.ToLowerInvariant().Replace('.', '_'))</AnkusExtensionName>
@@ -17,6 +17,7 @@
       <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionName)&quot; &quot;$(AnkusExtensionVersion)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(RuntimeIdentifier)&quot; &quot;$(AnkusPgConfigPath)&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(TargetTriple)&quot;</_AnkusCommand>
     </PropertyGroup>
     <Exec Command="$(_AnkusCommand)" />
     <ReadLinesFromFile File="$(_AnkusArtifacts)exports.txt">

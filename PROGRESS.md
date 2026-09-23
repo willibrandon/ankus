@@ -302,6 +302,29 @@ Actual macOS PostgreSQL success and negative controls are not yet established.
 The source and platform evidence are kept outside public guides; personal validation
 machine details are excluded from all repository documents.
 
+The owned macOS PostgreSQL checkpoint prototype now builds with assertions and
+warnings as errors through Meson. A private OpenLDAP build replaces deprecated
+Apple LDAP headers; the static/shared OAuth targets also need their GSSAPI header
+dependency declared. Neither fix disables a diagnostic. Generated Ankus extensions
+pass both load orders and six fresh sessions against this server. Guard controls
+also pass: no-runtime startup works, while an unknown native thread, an unregistered
+runtime beside a registered runtime, and a thread created by a fork callback are
+all rejected. A longer repeated run nevertheless exposes an intermittent
+`PostmasterThreadsAreSafe()` assertion during shutdown after successful SQL checks.
+This failure is retained and under investigation; macOS stability is not established.
+
+The macOS publish also exposed a separate minimum-OS mismatch: the C compiler used
+the installed SDK's default (26.0), while Native AOT linked for 12.0. Ankus now waits
+for Native AOT's `SetupOSSpecificProps` target and passes its exact `TargetTriple`
+to the native compiler. Mach-O inspection verifies both the bridge and final library
+report 12.0 by default and 13.0 with `AppleMinOSVersion=13.0`; both publications have
+no compiler/linker warnings. Plain `dotnet test` again passes all 4089 cases without
+failures/skips (3m48.371s); Release has zero warnings/errors (6.18s). This checks
+artifact target consistency, not execution on macOS 12 or 13. Windows was also
+republished with the complete header/flag fixes and passed another two starts and
+six sessions. Its dedicated validation directory is removed after preserving the
+sources/binaries/logs and verifying the owned clusters had stopped.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
