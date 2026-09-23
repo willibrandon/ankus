@@ -845,6 +845,37 @@ The guard and public guides remain unchanged. Main plain `dotnet test` passes al
 4,089 cases with zero failures/skips in 3m45.478s; the Release build has zero
 warnings/errors in 12.21s.
 
+Runtime commit `68e7761ad` adds cooperative checkpoints for live EventPipe trace
+writers and the sample profiler. Preparation stops each worker through its normal
+exit path while keeping the session, providers, buffers, serializer and trace stream
+alive. Parent recovery creates new workers without writing a second NetTrace header.
+Every recreated helper also receives the normal `.NET EventPipe` thread name.
+
+The Linux x64 probe keeps one writer session and one sampling session alive through
+20 stop/restart cycles each. Every pause leaves only the host and finalizer tasks;
+every resume creates the expected listener, writer and optional sampler with new
+thread IDs. The sampling case runs bounded managed work and produces a valid
+7,950-byte NetTrace with actual samples. Both cases keep the same session identifier,
+return descriptor counts from seven to seven and exit cleanly. The corrected
+CollectTracing5 fixture now encodes an empty exclusion filter, rather than an empty
+inclusion filter that silently disabled every provider event.
+
+The complete 21-case tracing suite passes, including all 81 independent allocation
+failures. The response, listener, I/O, connection, reverse-connection and lifecycle
+suites also pass against the same binary. Native AOT Release, the CoreCLR EventPipe
+sources and the native fixtures compile successfully; fixture C/C++ warnings are
+errors. The exact SDK is
+`artifacts/preload/runtime-diagnostics-tracing-v9-sdk`; the probe and host are
+`artifacts/preload/probe-diagnostics-tracing-workers-v3` and
+`artifacts/preload/fork-diagnostics-tracing-host-v6`. Results are retained in the
+owned runtime checkout under `.git/testagent/preload/diagnostics-tracing-workers-v3-*`
+and `.git/testagent/preload/diagnostics-workers-v3-*`.
+
+A trace writer blocked inside socket output still needs an interruptible, resumable
+handoff. Child recovery, managed listeners, multiple runtime images and macOS/Windows
+execution also remain required. The enabled-diagnostics fork guard and public guides
+remain unchanged.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
