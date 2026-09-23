@@ -128,6 +128,18 @@ public string PgCtlPath { get; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-79ac57065ed80ab6"></a>
+
+### PreprocessorArguments
+
+Gets the preprocessor arguments reported by this installation, split without shell expansion.
+
+```csharp
+public IReadOnlyList<string> PreprocessorArguments { get; }
+```
+
+Value: [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
 <a id="member-07e3de557bc57ea7"></a>
 
 ### PreprocessorFlags

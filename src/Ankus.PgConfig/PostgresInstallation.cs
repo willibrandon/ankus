@@ -26,6 +26,7 @@ public sealed class PostgresInstallation
         IncludeDirectory = includeDirectory;
         ServerIncludeDirectory = serverIncludeDirectory;
         PreprocessorFlags = preprocessorFlags;
+        PreprocessorArguments = UnixCompilerArguments.Split(preprocessorFlags);
     }
 
     /// <summary>
@@ -67,6 +68,11 @@ public sealed class PostgresInstallation
     /// Gets the preprocessor arguments reported by this installation's build configuration.
     /// </summary>
     public string PreprocessorFlags { get; }
+
+    /// <summary>
+    /// Gets the preprocessor arguments reported by this installation, split without shell expansion.
+    /// </summary>
+    public IReadOnlyList<string> PreprocessorArguments { get; }
 
     /// <summary>
     /// Gets the Ankus version selector for this installation, such as <c>pg18</c>.

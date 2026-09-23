@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Ankus.Build;
+namespace Ankus.PgConfig;
 
 /// <summary>
 /// Reads shell-quoted PostgreSQL compiler arguments without executing shell expressions.
@@ -84,6 +84,6 @@ internal static class UnixCompilerArguments
             result.Add(word.ToString());
         }
 
-        return result;
+        return result.AsReadOnly();
     }
 }

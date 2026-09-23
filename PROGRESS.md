@@ -19,7 +19,8 @@ Linux, and macOS.
 - **Native AOT**: the extension ships as a self-contained native library (no .NET runtime
   install required on the Postgres host), built with `PublishAot`.
 - **Multi-version**: one C# codebase targeting PostgreSQL 13–18 (+19 beta), matching
-  pgrx's supported versions. Only PostgreSQL 18 on Linux x64 has been exercised so far.
+  pgrx's supported versions. PostgreSQL 18 has been exercised on Linux x64,
+  macOS ARM64, and Windows x64.
 - **Developer experience**: ordinary .NET projects, source generators, `dotnet publish`, and `dotnet test`,
   with development tooling corresponding to `cargo pgrx`.
 
@@ -33,32 +34,28 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Managed `shared_preload_libraries` now works through the generated Ankus SDK path on
-PostgreSQL 18.6/Linux x64. One postmaster loaded two independently linked Native AOT
-extensions. A managed initializer and managed configuration hook both ran before fork.
-Three distinct backends inherited the same initializer token and graph, then completed
-fresh tasks, fresh timers, a timer created in the postmaster, garbage collection,
-finalization, exception/finally handling, configuration-hook SPI, and clean shutdown.
-Focused generator tests pass 55/55; focused PostgreSQL tests pass 2/2, with the combined
-two-runtime proof completing in 57 seconds. The exact Linux runtime package packs as
-`Ankus.NativeAot.Runtime.linux-x64` version `10.0.11-ankus.1` with its license, notices,
-RID marker, and complete patched AOT SDK payload. The runtime branch tip is `46ba322df`;
-the EventPipe child-recovery milestone is `3531857c6`.
+Managed `shared_preload_libraries` works through the generated Ankus SDK on
+PostgreSQL 18.6/Linux x64 and PostgreSQL 18.1 on macOS ARM64 and Windows x64.
+Initializers and configuration hooks run during preload. Unix backends inherit the
+initialized managed graph; Windows backends initialize equivalent state in their new
+process. All run tasks, timers, garbage collection, finalizers, exceptions, logging,
+configuration hooks, and SPI where PostgreSQL permits it.
 
-An isolated consumer also restores the packaged SDK and runtime into an empty NuGet
-cache, publishes without repository references or a manual runtime path, starts the
-result through `shared_preload_libraries`, and calls managed functions from PostgreSQL.
-That package test passes in 1m45s. The complete Linux x64 test set passes 4089/4089
-in 4m00.939s, including all 2032 PostgreSQL integration cases in 3m47.237s. The
-Release solution build has zero warnings and errors.
+On Linux and macOS, the postmaster runtime retires its service threads after each
+managed startup callback. A forked backend restores them on its first managed call.
+On Windows, PostgreSQL starts each backend as a new process and preload initialization
+runs there. Extension projects handle both paths automatically.
 
-macOS and Windows execution, other PostgreSQL versions, and public package publication remain
-required before cross-platform parity is claimed. Runtime package definitions cover
-`win-x64`, `linux-x64`, `osx-x64`, and `osx-arm64`; only `linux-x64` has
-a built and executed payload. The entries below retain the sequence
-of verified prototypes and their boundaries. Source investigation found that stock
-Native AOT initializes a finalizer thread and retains thread/GC state across PostgreSQL's
-fork; pgrx already handles its own thread identity with `pthread_atfork`.
+The runtime branch tip is `232bc9d1f`. Its retained-service probes pass timers,
+queued work, waits, blocked workers, finalization, descendants, workstation GC,
+and four-heap server GC. The focused PostgreSQL preload tests pass 2/2 in 54.087s
+on Linux, 3m11.848s on macOS, and 1m22.803s on Windows. Isolated packaged consumers
+also pass on all three platforms. The complete Linux suite passes 4089/4089 with
+no skips in 4m04.670s; the Release build has zero warnings and errors.
+
+macOS x64, PostgreSQL 13–17 and 19 beta, and public package publication remain
+required before full platform and version parity is claimed. The entries below
+retain the sequence of verified prototypes and their boundaries.
 The first owned-runtime experiment passes on Linux x64: twelve child checks across
 two rounds of forks, plus all parent controls. It preserves startup objects and
 GC handles, returns each child's process ID, and runs GC, finalizers, newly started
@@ -3192,3 +3189,16 @@ The phases track implementation of the complete pgrx feature surface.
   are updated. Actual physical exhaustion, datum/node APIs, custom release/unsized layouts,
   broader allocator/resource boundaries, the remaining port inventory and the full matrix
   remain required; the five huge rows are not included in default-suite totals.
+
+- 2026-09-23 — Enabled managed `shared_preload_libraries` without consumer setup on
+  PostgreSQL 18.6/Linux x64 and PostgreSQL 18.1 on macOS ARM64 and Windows x64.
+  Runtime commit `232bc9d1f` keeps Unix postmasters at one thread between managed
+  callbacks and restores runtime services in each forked backend; Windows follows
+  PostgreSQL's `EXEC_BACKEND` process model. Repeated reload hooks and three fresh
+  backends pass on every platform. Retained-service probes cover timers, queued work,
+  waits, descendants, finalization, workstation GC and four-heap server GC. The
+  Linux suite passes 4089/4089 in 4m04.670s; Release and runtime builds have zero
+  warnings or errors. Removed production friend access from `Ankus.PgConfig` to
+  `Ankus.Build`, exposed immutable parsed compiler arguments as a public contract,
+  and removed the empty build-test project. API generation and documentation checks
+  pass with 114 pages and 1213 members. macOS x64 and PostgreSQL 13–17/19 beta remain.

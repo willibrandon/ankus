@@ -1,4 +1,4 @@
-namespace Ankus.Build.Tests;
+namespace Ankus.PgConfig.Tests;
 
 /// <summary>
 /// Verifies PostgreSQL build flags retain their argument boundaries without invoking a shell.

@@ -236,10 +236,10 @@ public sealed class InitializationTests(TestContext context)
     }
 
     /// <summary>
-    /// Shared preload preserves postmaster-managed state and runtime services in independent forked backends.
+    /// Shared preload supplies managed state and runtime services in every backend process.
     /// </summary>
     [TestMethod]
-    public async Task SharedPreloadPreservesManagedRuntimeAcrossFork()
+    public async Task SharedPreloadProvidesManagedRuntimeInEveryBackend()
     {
         CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions options = await PreloadOptionsAsync("shared_preload_libraries",
@@ -254,8 +254,9 @@ public sealed class InitializationTests(TestContext context)
             await command.ExecuteNonQueryAsync(token);
         }
 
-        int? initializerPid = null;
-        Guid? tokenValue = null;
+        int? postmasterInitializerPid = null;
+        Guid? postmasterToken = null;
+        HashSet<Guid> backendTokens = [];
         HashSet<int> backends = [];
         for (int index = 0; index < 3; index++)
         {
@@ -268,7 +269,6 @@ public sealed class InitializationTests(TestContext context)
             string[] values = snapshot.Split('|');
             Assert.HasCount(8, values);
             int currentInitializerPid = int.Parse(values[0], System.Globalization.CultureInfo.InvariantCulture);
-            Assert.AreNotEqual(connection.ProcessID, currentInitializerPid);
             Assert.AreEqual(connection.ProcessID, int.Parse(values[1], System.Globalization.CultureInfo.InvariantCulture));
             Assert.AreEqual("1", values[2]);
             Guid currentToken = Guid.ParseExact(values[3], "D");
@@ -277,10 +277,19 @@ public sealed class InitializationTests(TestContext context)
             Assert.AreEqual("42", values[5]);
             Assert.AreEqual("91", values[6]);
             Assert.AreEqual("17", values[7]);
-            initializerPid ??= currentInitializerPid;
-            tokenValue ??= currentToken;
-            Assert.AreEqual(initializerPid, currentInitializerPid);
-            Assert.AreEqual(tokenValue, currentToken);
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.AreEqual(connection.ProcessID, currentInitializerPid);
+                Assert.IsTrue(backendTokens.Add(currentToken));
+            }
+            else
+            {
+                Assert.AreNotEqual(connection.ProcessID, currentInitializerPid);
+                postmasterInitializerPid ??= currentInitializerPid;
+                postmasterToken ??= currentToken;
+                Assert.AreEqual(postmasterInitializerPid, currentInitializerPid);
+                Assert.AreEqual(postmasterToken, currentToken);
+            }
 
             command.CommandText = "SELECT preload_exercise()";
             Assert.AreEqual("42|91|191|73|17|731|1", await command.ExecuteScalarAsync(token));

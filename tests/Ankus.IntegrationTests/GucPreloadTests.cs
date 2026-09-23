@@ -112,6 +112,35 @@ public sealed class GucPreloadTests(TestContext context)
         string startupLog = cluster.ReadServerLog();
         Assert.Contains("Ankus hooks-only check entered.", startupLog);
         Assert.Contains("source=Default;sql=unavailable;pid=", startupLog);
+        const string reloadMarker = "source=File;sql=unavailable;pid=";
+        int reloadCount = CountOccurrences(startupLog, reloadMarker);
+        await using (NpgsqlConnection administrator = await cluster.OpenConnectionAsync(token))
+        {
+            for (int reloadIndex = 0; reloadIndex < 3; reloadIndex++)
+            {
+                string value = reloadIndex % 2 == 0 ? "off" : "on";
+                await ExecuteAsync(administrator, $"ALTER SYSTEM SET ankus_guc_hooks.enabled = '{value}'");
+                Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(administrator, "SELECT pg_reload_conf()")));
+
+                string reload = string.Empty;
+                int observedCount = reloadCount;
+                for (int attempt = 0; attempt < 100; attempt++)
+                {
+                    reload = cluster.ReadServerLog();
+                    observedCount = CountOccurrences(reload, reloadMarker);
+                    if (observedCount > reloadCount)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(50), token);
+                }
+
+                Assert.IsGreaterThan(reloadCount, observedCount);
+                reloadCount = observedCount;
+            }
+        }
+
         HashSet<int> backends = [];
         for (int index = 0; index < 3; index++)
         {
@@ -265,6 +294,19 @@ public sealed class GucPreloadTests(TestContext context)
                 .. settings,
             ],
         };
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        int count = 0;
+        int offset = 0;
+        while ((offset = text.IndexOf(value, offset, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            offset += value.Length;
+        }
+
+        return count;
     }
 
     private async Task WaitForSettingAsync(NpgsqlConnection connection, string name, string value)

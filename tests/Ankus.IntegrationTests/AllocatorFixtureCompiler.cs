@@ -51,6 +51,7 @@ internal static class AllocatorFixtureCompiler
             compiler = "cl.exe";
             arguments = ["/nologo", "/LD", "/O2", "/MD", "/WX",
                 "/I" + installation.ServerIncludeDirectory,
+                "/I" + installation.IncludeDirectory,
                 "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"),
                 "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc"),
                 "/Fo" + Path.ChangeExtension(outputPath, ".obj"), source, "/link",
@@ -60,7 +61,10 @@ internal static class AllocatorFixtureCompiler
         else
         {
             compiler = "cc";
-            arguments = ["-O2", "-fPIC", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory];
+            arguments = [.. installation.PreprocessorArguments,
+                "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
+                "-isystem", installation.ServerIncludeDirectory,
+                "-isystem", installation.IncludeDirectory];
             if (OperatingSystem.IsMacOS())
             {
                 arguments.AddRange(["-dynamiclib", "-Wl,-undefined,dynamic_lookup"]);

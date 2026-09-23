@@ -63,7 +63,7 @@ try
     else
     {
         compiler = args[3];
-        compilerArguments.AddRange(UnixCompilerArguments.Split(installation.PreprocessorFlags));
+        compilerArguments.AddRange(installation.PreprocessorArguments);
         if (!string.IsNullOrEmpty(args[10]))
         {
             compilerArguments.Add($"--target={args[10]}");

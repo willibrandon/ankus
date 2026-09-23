@@ -383,11 +383,42 @@ internal static class NativeGucBridge
     /// <returns>The selected native implementation fragments.</returns>
     internal static string GetManagedSource(bool hasCheck, bool hasAssign, bool hasShow)
         => ReadSource +
-            (hasCheck || hasAssign || hasShow ? "\n\n" + HookCommon : string.Empty) +
+            (hasCheck || hasAssign || hasShow ? "\n\n" + ForkHost + "\n\n" + HookCommon : string.Empty) +
             (hasCheck || hasShow ? "\n\n" + PersistentResult : string.Empty) +
             (hasCheck ? "\n\n" + Check : string.Empty) +
             (hasAssign ? "\n\n" + Assign : string.Empty) +
             (hasShow ? "\n\n" + Show : string.Empty);
+
+    /// <summary>
+    /// Resumes a dormant postmaster runtime only while a managed hook is executing.
+    /// </summary>
+    private const string ForkHost = """
+        #ifndef WIN32
+        extern int RhEnterForkHost(void);
+        extern int RhExitForkHost(void);
+
+        static void
+        ankus_fork_host_enter(void)
+        {
+            int status = RhEnterForkHost();
+            if (status != 1)
+                ereport(FATAL, (errcode(ERRCODE_INTERNAL_ERROR),
+                    errmsg("Ankus runtime host entry failed: %d", status)));
+        }
+
+        static void
+        ankus_fork_host_exit(void)
+        {
+            int status = RhExitForkHost();
+            if (status != 1)
+                ereport(FATAL, (errcode(ERRCODE_INTERNAL_ERROR),
+                    errmsg("Ankus runtime host exit failed: %d", status)));
+        }
+        #else
+        static void ankus_fork_host_enter(void) { }
+        static void ankus_fork_host_exit(void) { }
+        #endif
+        """;
 
     /// <summary>
     /// Provides owned typed reads, cached conversion functions, and native error capture.
@@ -951,8 +982,10 @@ internal static class NativeGucBridge
                         frame->snapshot_owned = true;
                     }
 
+                    ankus_fork_host_enter();
                     int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
                         &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);
+                    ankus_fork_host_exit();
                     if (frame->snapshot_owned)
                     {
                         frame->snapshot_owned = false;
@@ -1031,8 +1064,10 @@ internal static class NativeGucBridge
                     ankus_memory_initialize(&memory);
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, accepted, extra, frame);
+                    ankus_fork_host_enter();
                     int status = definition->hook(1, frame->arguments, frame->results, 0,
                         &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
+                    ankus_fork_host_exit();
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :
                             ankus_log_level(frame->error.report_level - 1));
@@ -1082,8 +1117,10 @@ internal static class NativeGucBridge
                     ankus_memory_initialize(&memory);
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
+                    ankus_fork_host_enter();
                     int status = definition->hook(2, frame->arguments, frame->results, 0,
                         &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
+                    ankus_fork_host_exit();
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ?
                             (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));

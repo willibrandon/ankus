@@ -241,6 +241,10 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("extern int32_t RhEnableForkSupport(void);", native);
         Assert.Contains("int32_t fork_status = RhEnableForkSupport();", native);
         Assert.Contains("Ankus runtime fork support failed: %d", native);
+        Assert.Contains("extern int RhEnterForkHost(void);", native);
+        Assert.Contains("extern int RhExitForkHost(void);", native);
+        Assert.Contains("ankus_fork_host_enter();", native);
+        Assert.Contains("ankus_fork_host_exit();", native);
         Assert.Contains("ankus_release_error(", native);
         AssertGucNativeDiagnosticOwnership(native);
         Assert.Contains("ankus_guc_read(", native);
