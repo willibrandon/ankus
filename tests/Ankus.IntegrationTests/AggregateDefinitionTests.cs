@@ -66,7 +66,7 @@ public sealed partial class AggregateTests
                 """, token));
             Assert.AreEqual(6L, await Scalar<long>(connection, transaction,
                 "SELECT datatype.state_catalog_options(v) FROM (VALUES(1),(2),(3)) AS input(v)", token));
-            Assert.AreSequenceEqual(new long[] { 1, 3, 5 }, await Scalar<long[]>(connection, transaction, """
+            Assert.AreSequenceEqual([1, 3, 5], await Scalar<long[]>(connection, transaction, """
                 SELECT array_agg(total ORDER BY v) FROM (
                     SELECT v,datatype.state_catalog_options(v) OVER(ORDER BY v ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS total
                     FROM (VALUES(1),(2),(3)) AS input(v)) AS output

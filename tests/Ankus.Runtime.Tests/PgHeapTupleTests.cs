@@ -217,7 +217,7 @@ public sealed class PgHeapTupleTests
         Assert.AreEqual(0, empty.Rank);
         Assert.IsEmpty(empty);
         Assert.AreEqual(9100U, allNull.ElementTypeOid);
-        Assert.AreSequenceEqual(new PgHeapTuple?[] { null, null }, allNull);
+        Assert.AreSequenceEqual([null, null], allNull);
         Assert.AreEqual(2249U, new PgArray<PgHeapTuple?>([descriptor.CreateTuple(), null]).ElementTypeOid);
         Assert.AreEqual(2287U, SpiParameter.Create(new PgHeapTuple?[] { descriptor.CreateTuple() }).TypeOid);
         Assert.AreEqual(2287U, SpiParameter.Create<PgHeapTuple?[]?>(null).TypeOid);

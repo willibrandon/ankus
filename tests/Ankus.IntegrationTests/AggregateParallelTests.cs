@@ -38,7 +38,7 @@ public sealed partial class AggregateTests
             await Execute(connection, transaction, "SET LOCAL max_parallel_workers_per_gather=0; SELECT aggregate_values.parallel_reset('normal')", token);
             long[] serial = await Scalar<long[]>(connection, transaction,
                 "SELECT aggregate_values.parallel_sum(value) FROM aggregate_values.parallel_input", token);
-            Assert.AreSequenceEqual(new long[] { 450015000, 30000, 0, 0, 0, connection.ProcessID }, serial);
+            Assert.AreSequenceEqual([450015000, 30000, 0, 0, 0, connection.ProcessID], serial);
             await AssertParallelReleased(connection, transaction, token);
         });
 

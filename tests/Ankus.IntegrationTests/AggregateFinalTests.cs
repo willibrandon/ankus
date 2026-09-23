@@ -39,7 +39,7 @@ public sealed partial class AggregateTests
             }
 
             Assert.AreEqual(calls, await Scalar<int>(connection, transaction, "SELECT aggregate_values.final_transitions()", token));
-            Assert.AreSequenceEqual(new[] { shared }, await Scalar<bool[]>(connection, transaction,
+            Assert.AreSequenceEqual([shared], await Scalar<bool[]>(connection, transaction,
                 "SELECT aggregate_values.final_shared()", token));
         });
 

@@ -120,6 +120,7 @@ Constructor validation, visibility and native layouts must remain
 unchanged when applying the conversion.
 
 Remove redundant casts. IDE0004 is enforced as an error throughout the repository.
+Use collection expressions where IDE0300 applies; it is also enforced as an error.
 
 Leave a blank line after a closing block brace before the next statement or
 declaration. IDE2003 enforces statement separation during repository builds.

@@ -38,7 +38,7 @@ public sealed partial class PgFunctionGeneratorTests
         string sql = Assert.ContainsSingle(OperatorCastStatements(compilation));
         Assert.StartsWith("CREATE FUNCTION \"apply\"(" + sqlParameters + ") RETURNS integer AS ", sql);
         Assert.Contains(" PARALLEL UNSAFE STRICT SECURITY INVOKER ", sql);
-        Assert.AreSequenceEqual(new long[] { 0, expected, 0, 999, 888 }, InvokeVirtualContextCallback(compilation));
+        Assert.AreSequenceEqual([0, expected, 0, 999, 888], InvokeVirtualContextCallback(compilation));
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public sealed partial class PgFunctionGeneratorTests
             .GetMembers().OfType<IMethodSymbol>());
         Assert.Contains("return ankus_set_execute(fcinfo, " + callback.Name + ", 1, " +
             count.ToString(CultureInfo.InvariantCulture) + ", required, 0, false);", native);
-        Assert.AreSequenceEqual(new long[] { 0, expected, 0, 999, 888 }, InvokeVirtualContextCallback(compilation, nullSecond));
+        Assert.AreSequenceEqual([0, expected, 0, 999, 888], InvokeVirtualContextCallback(compilation, nullSecond));
     }
 
     /// <summary>

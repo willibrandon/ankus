@@ -30,7 +30,7 @@ public sealed class PgArrayTests
         Assert.IsNull(array.GetValue(-2, 5));
         Assert.AreEqual(-7, array[2]);
         Assert.AreEqual(int.MinValue, array.GetValue(-1, 6));
-        Assert.AreSequenceEqual(new int?[] { 11, null, -7, 0, int.MaxValue, int.MinValue }, array);
+        Assert.AreSequenceEqual([11, null, -7, 0, int.MaxValue, int.MinValue], array);
         Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
         Assert.ThrowsExactly<ArgumentException>(() => array.GetValue(-2));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => array.GetValue(-3, 4));
@@ -88,7 +88,7 @@ public sealed class PgArrayTests
     public void TypedRowsRejectNullAndPrecisionLoss()
     {
         var row = new SpiRow([new PgArray<int?>([1, null, 3])], [new("value", 1007)]);
-        Assert.AreSequenceEqual(new int?[] { 1, null, 3 }, row.Get<int?[]>(0));
+        Assert.AreSequenceEqual([1, null, 3], row.Get<int?[]>(0));
         Assert.ThrowsExactly<InvalidOperationException>(() => row.Get<int[]>(0));
         Assert.ThrowsExactly<InvalidCastException>(() => row.Get<long?[]>(0));
         row.Set(0, new DateOnly?[] { new(2000, 1, 1), null });
@@ -96,7 +96,7 @@ public sealed class PgArrayTests
         Assert.AreEqual(new PgDate(0), row.Get<PgArray<PgDate?>>(0)[0]);
         Assert.IsNull(row.Get<PgArray<PgDate?>>(0)[1]);
         row.Set(0, new PgArray<PgNumeric?>([PgNumeric.FromDecimal(1.2300m), null]));
-        Assert.AreSequenceEqual(new decimal?[] { 1.2300m, null }, row.Get<decimal?[]>(0));
+        Assert.AreSequenceEqual([1.2300m, null], row.Get<decimal?[]>(0));
         Assert.AreEqual(1231U, row.GetTypeOid(0));
         row.Set<int[]?>(0, null);
         Assert.IsNull(row.Get<PgArray<int>>(0));
@@ -154,7 +154,7 @@ public sealed class PgArrayTests
             binary.Release();
         }
 
-        Assert.AreSequenceEqual(new string?[] { "héllo 😀", null, "" }, strings);
+        Assert.AreSequenceEqual(["héllo 😀", null, ""], strings);
         Assert.AreSequenceEqual(new byte[] { 0, 255, 16 }, bytes[0]!);
         Assert.IsNull(bytes[1]);
         Assert.IsEmpty(bytes[2]!);
@@ -190,7 +190,7 @@ public sealed class PgArrayTests
         Assert.AreEqual(1, array.Rank);
         Assert.AreSequenceEqual([-2], array.LowerBounds.ToArray());
         Assert.AreSequenceEqual([3], array.Lengths.ToArray());
-        Assert.AreSequenceEqual(new int?[] { 42, null, -7 }, array);
+        Assert.AreSequenceEqual([42, null, -7], array);
     }
 
     /// <summary>

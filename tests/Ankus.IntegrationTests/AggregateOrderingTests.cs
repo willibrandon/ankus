@@ -31,7 +31,7 @@ public sealed partial class AggregateTests
                 SELECT '0:' || 'text'::regtype::oid || ':' || 'pg_catalog.{(order.StartsWith("ASC", StringComparison.Ordinal) ? "<" : ">")}(text,text)'::regoperator::oid || ':' ||
                     '"C"'::regcollation::oid || ':{order.EndsWith("FIRST", StringComparison.Ordinal)}'
                 """, token);
-            Assert.AreSequenceEqual(new[] { expectedKey }, await Scalar<string[]>(connection, transaction,
+            Assert.AreSequenceEqual([expectedKey], await Scalar<string[]>(connection, transaction,
                 "SELECT aggregate_values.aggregate_keys()", token));
             string expectedContext = await Scalar<string>(connection, transaction, """
                 SELECT 'Aggregate:' || 'aggregate_values.ordered_text(text)'::regprocedure::oid || ':' || '"C"'::regcollation::oid || ':False'

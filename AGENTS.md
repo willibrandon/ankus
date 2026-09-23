@@ -34,6 +34,8 @@ before changing an area.
   this rule as an error; preserve constructor validation,
   accessibility, and native struct layouts when converting existing declarations.
 - Remove redundant casts. IDE0004 is enforced as an error throughout the repository.
+- Use collection expressions where IDE0300 applies. IDE0300 is enforced as an error
+  throughout the repository.
 - Never disable warnings. Fix the underlying issue without warning pragmas,
   suppression attributes, `NoWarn`, or reducing an enforced diagnostic's severity.
 - Do not leave an extra blank line immediately after an opening brace.

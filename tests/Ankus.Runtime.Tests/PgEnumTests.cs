@@ -109,7 +109,7 @@ public sealed class PgEnumTests
         Assert.AreEqual(SignedState.Lowest, PgEnums.Parse<SignedState>("quote'\" \\ 😀"));
         Assert.ThrowsExactly<ArgumentException>(() => PgEnums.Parse<SignedState>("replacement"));
         var row = new SpiRow([new PgArray<SignedState>([SignedState.Highest])], [new("value", 0)]);
-        Assert.AreSequenceEqual(new SignedState?[] { SignedState.Highest }, row.Get<SignedState?[]>(0));
+        Assert.AreSequenceEqual([SignedState.Highest], row.Get<SignedState?[]>(0));
     }
 
     /// <summary>
@@ -198,7 +198,7 @@ public sealed class PgEnumTests
         Assert.AreEqual(SignedState.Ready, array.GetValue(-3, 4));
         Assert.IsNull(array.GetValue(-3, 5));
         Assert.AreEqual(SignedState.Lowest, array.GetValue(-2, 5));
-        Assert.AreSequenceEqual(new SignedState?[] { SignedState.Ready, null, SignedState.Highest, SignedState.Lowest }, array);
+        Assert.AreSequenceEqual([SignedState.Ready, null, SignedState.Highest, SignedState.Lowest], array);
         array.ToArray()[0] = SignedState.Zero;
         Assert.AreEqual(SignedState.Ready, array[0]);
         Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
@@ -340,9 +340,9 @@ public sealed class PgEnumTests
     {
         var row = new SpiRow([new ByteState[] { ByteState.Highest, ByteState.Zero }], [new("value", 0)]);
         Assert.AreSequenceEqual([ByteState.Highest, ByteState.Zero], row.Get<ByteState[]>(0));
-        Assert.AreSequenceEqual(new ByteState?[] { ByteState.Highest, ByteState.Zero }, row.Get<ByteState?[]>(0));
+        Assert.AreSequenceEqual([ByteState.Highest, ByteState.Zero], row.Get<ByteState?[]>(0));
         Assert.AreSequenceEqual([ByteState.Highest, ByteState.Zero], row.Get<PgArray<ByteState>>(0));
-        Assert.AreSequenceEqual(new ByteState?[] { ByteState.Highest, ByteState.Zero }, row.Get<PgArray<ByteState?>>(0));
+        Assert.AreSequenceEqual([ByteState.Highest, ByteState.Zero], row.Get<PgArray<ByteState?>>(0));
         Assert.ThrowsExactly<InvalidCastException>(() => row.Get<byte[]>(0));
         Assert.ThrowsExactly<InvalidCastException>(() => row.Get<byte?[]>(0));
 

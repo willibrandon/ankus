@@ -75,6 +75,9 @@ documentation build/type checks, and generated API freshness checks pass.
   while preserving direct `ToArray()` copy-mutation assertions. Consumer templates contain no repository style rules.
 - IDE0004 is enforced as an error throughout repository builds. Redundant casts are removed with
   Roslyn's diagnostic-specific code fix; consumer templates remain free to choose their style.
+- IDE0300 enforces collection expressions as an error throughout repository builds. Roslyn simplified
+  16 array initializers across eight test files while preserving their expected values and element types.
+  Consumer templates contain no repository style enforcement.
 - IDE2003 enforces a blank line after closing blocks before the next statement. Existing C#, embedded native
   code and emitted dispatchers follow the rule. Connected clauses and enclosing closing braces remain together.
   A negative build probe fails on missing separation and passes after the blank line is inserted.
@@ -2109,3 +2112,14 @@ The phases track implementation of the complete pgrx feature surface.
   native deletion. Actual huge-size and native fault witnesses, allocator variants, datum/node
   integration, custom release policies, full remaining port scope and the platform/version
   matrix remain required.
+
+
+- 2026-09-22 — Enforced IDE0300 as an error in the root `.editorconfig` and recorded the rule in
+  AGENTS and the development guide. A non-incremental build rejected existing simplifiable array
+  initializers, proving build enforcement. Roslyn's diagnostic-specific fix simplified 16 initializers
+  across eight test files without changing expected values or weakening assertions. The subsequent
+  non-incremental Release build passes with zero warnings/errors (6.79s). Plain `dotnet test` passes
+  4004 cases with zero failures/skips (3m53.735s) on PostgreSQL 18.6/Linux x64. Combined IDE0300/IDE0004
+  formatter verification is clean. Documentation build, type checks and API freshness pass; the
+  470-file source/style scan is clean and AGENTS contains no personal paths. Consumer templates
+  retain their own style.
