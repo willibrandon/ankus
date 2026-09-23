@@ -428,6 +428,32 @@ finished, plain `dotnet test` passed all 4,089 cases, zero failures/skips, in
 3m43.058s. The failed build log is retained with the successful run.
 The main Release build also passes with zero warnings/errors (12.63s).
 
+Queued wait callbacks and finalizer-driven cleanup now have direct fork evidence.
+`--retained-queued-waits` consumes seventy original wait signals before fork but
+holds their callbacks behind one occupied worker. Each unregister request is already
+accepted and its original notification remains unsignaled. Native preparation confirms
+no callback has run; parent and child must then execute every original callback and
+complete every notification without resignal or reregistration. The checks preserve
+callback context, handle and object identity, token, exact indexed values and process
+isolation, then restore pool limits and require fresh work and collection to succeed.
+
+`--retained-finalizer-wait` uses an actual unreachable object's finalizer to perform
+blocking unregister after both native wait threads exit. It also adds and removes a
+registration while activation is closed. A cleared weak reference and completed
+cleanup prove that finalization ran. Both modes pass three repeated runs each:
+12 forks, 24 parent/child observations and 1,728 exact callbacks, with empty stderr.
+The earlier idle-wait and worker-unregister modes also pass after their shared host
+and helper changes. These are Linux x64 native-host checks using the already verified
+`runtime-waits-verified-sdk`; no further runtime implementation change was needed.
+Runtime commit `d2b121570` contains the new regressions and host checks.
+Sources, the published probe, logs and payload hashes are retained in
+`.git/testagent/preload/wait-boundaries-proof/`. No new PostgreSQL or other-platform
+execution is claimed by these two checks. Monitored wait-object kinds, blocking
+unregister with queued callback dependencies, callback handoff races and the broader
+runtime/platform/consumer integration requirements remain active.
+Plain `dotnet test` passes all 4,089 tests, zero failures/skips, in 3m48.173s.
+The Release build passes with zero warnings/errors (11.33s).
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
