@@ -33,6 +33,12 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Latest preload evidence: the owned runtime now preserves server GC across native
+forks on Linux x64, including dynamic heap sizing and active background collection.
+Two generated extensions pass both preload orders on PostgreSQL 18.6. Consumer
+integration and the remaining platform/runtime requirements are still unfinished.
+The entries below retain the sequence of verified prototypes and their boundaries.
+
 **Blocking priority: managed shared preload.** The user has halted all other port work
 until C# initialization and configuration callbacks work through
 `shared_preload_libraries`, including continued managed execution in forked children.
@@ -79,7 +85,7 @@ and the original graph/PID/task/timer/exception controls. A passive lock-free co
 records observed activity without pausing or changing GC selection. Evidence and
 exact sources/binaries: `.git/testagent/preload/bgc-active-proof/` and
 `artifacts/preload/runtime-bgc-active-proof-sdk`. Server GC and enabled diagnostics
-remain unimplemented.
+were unimplemented in that revision; later server-GC evidence appears below.
 
 Using that same frozen SDK with default GC, retained timers and queued tasks now
 pass two independent forks each, with exact checks in parent and child. The native
@@ -501,6 +507,62 @@ builds overlapping three runtime builds with communication logging enabled. Olde
 available failure dumps belong to other runs and do not establish its cause. It remains unresolved,
 with no guessed configuration workaround applied. The broader runtime/platform,
 background-worker, consumer packaging and full-port requirements remain active.
+
+Runtime commit `b7ec0ca9c` adds server GC to the owned Native AOT fork protocol. Its collector
+threads previously used a detached, non-suspendable lifetime and could not retire
+or restart safely at a checkpoint. The runtime now retains native join handles,
+stops the dynamic heap coordinator before its peers, joins every server collector,
+and restores active and inactive heaps before restarting the coordinator. The
+original GC mode and heap data remain intact. Background collectors retain their
+shared wake event until all have exited; resetting it in each exiting thread could
+strand another waiter. Successful native thread startup also frees its copied name.
+
+The new checks exposed an existing background-GC metadata defect. `do_pre_gc`
+selected a new background result before collector startup could fall back to a
+blocking collection. The abandoned result then appeared in `GCKind.Background`
+with a nonzero index and `Concurrent=false`. The repair restores the previous
+completed background result on fallback. The same metadata assertion fails against
+the SDK before that repair (marker 36, index 7) and passes afterward. Warm-up permits
+bounded startup fallbacks but still requires a real concurrent collection. A fork
+attempt without observed concurrent overlap checks values and finalization, then
+retries; it never counts toward the required active-collection rounds.
+
+Linux x64 verification uses the exact SDK in
+`artifacts/preload/runtime-server-gc-v4-sdk`. Three active-collection runs per mode
+pass: 13 forks, 12 qualifying overlaps and 26 parent/child observations. Native
+checkpoints observe zero server/background collector threads; recovery restores
+four server threads. Dynamic sizing shows one, three and four active heaps while
+the maximum stays four. Fixed sizing stays at four. Each process checks every
+retained node, both edges, GC handles, all patterned bytes, finalizers and fresh
+managed work, with server GC still selected. `GCMaxHeapCount=4` preserves dynamic
+sizing; `GCHeapCount=4` disables it, so those are distinct executed configurations.
+
+All twelve retained-service/baseline/descendant modes pass with both server-GC
+configurations. Background-disabled server-GC controls pass too. The workstation
+collector passes those twelve modes plus the active-collection probe on the same
+native revision. No test relaxes diagnostics or changes runtime GC settings to
+make fork preparation succeed.
+
+Two separately generated extensions pass shared preload with both fixed and dynamic
+server GC on release PostgreSQL 18.6/Linux x64: four server starts, both load orders
+per configuration, and twelve fresh sessions. SQL asserts actual server GC in the
+postmaster and backend, one initialization, inherited state, hooks, GC/finalizers,
+timers, retained waits, errors and image isolation. Both clusters shut down cleanly;
+all 257 recorded native-probe process IDs have exited. Fork-observation exports are
+absent from the extension libraries. Sources, before/after SDKs, binaries, logs,
+PostgreSQL results and payload hashes are frozen in
+`.git/testagent/preload/server-proof/`.
+
+This is still an owned runtime/generator snapshot, not the production SDK. The new
+server-GC revision has not run on macOS or Windows. Enabled diagnostics/EventPipe,
+arbitrary application threads and locks, background-worker attachment, consumer
+packaging/integration and the full PostgreSQL/platform matrix remain required.
+The earlier MSB4166 failure still lacks a reproducible cause; the runtime repairs
+do not establish a fix for that separate build-worker exit.
+The native Release build passes; CoreLib is unchanged from the preceding verified
+SDK. Main `dotnet test` passes all 4,089 cases, zero failures/skips (3m47.217s), and
+the Release build has zero warnings/errors (7.45s). Dedicated MSBuild communication
+and failure logging captured another clean run. No warning suppression was added.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
