@@ -33,13 +33,12 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds literal configuration prefix declarations and guarded logging in every
-GUC hook phase, including abort restoration, file reload and client parameter reporting. Prefix-only
-libraries support native shared preload, and terminal reports preserve managed unwind and native
-severity. Version-aware diagnostic copies retain their source metadata safely. Plain `dotnet test`
-passes 3534 cases on PostgreSQL 18.6/Linux x64; the non-incremental Release build has zero warnings/errors.
-Evidence and exact restrictions are mapped below. Full GUC/preload parity, the remaining port
-inventory and the platform/version matrix remain incomplete.
+The latest milestone verifies configuration source priority and original setter privileges, actual
+parallel-worker propagation and recovery, copied managed/native allocation lifetimes, and cold NuGet
+consumers through SQL drop/reinstall. All 24 new backend/package cases pass. Plain `dotnet test`
+passes 3558 cases on PostgreSQL 18.6/Linux x64; the non-incremental Release build has zero warnings/errors.
+Public source/worker semantics, exact test evidence and allocation-measurement limits are mapped below.
+Full GUC/preload parity, the remaining port inventory and the platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -53,7 +52,7 @@ inventory and the platform/version matrix remain incomplete.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3534 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3558 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -978,6 +977,59 @@ mixed-encoding preload metadata, remaining source/privilege combinations, worker
 allocation/root measurements, packaged GUC consumers and the complete PostgreSQL/platform matrix.
 Prefix and logging tests do not establish full GUC or pgrx parity.
 
+### Configuration source, worker, lifetime, and package evidence
+
+The existing native configuration bridge now has additional direct backend evidence for startup
+priority, original setter privileges, actual parallel workers, allocation ownership and cold SDK
+consumers. These checks required test/sample additions and documentation, with no runtime or native
+bridge changes.
+
+| Requirement | Concrete evidence |
+|---|---|
+| File, database, role, database-role and client priority; session/local overrides and reset defaults | `StartupSourcesPreservePriorityAndResetValues` asserts exact native current/reset/source metadata, typed reads, rollback and unchanged previously connected sessions |
+| Original startup check sources after deferred registration | Both `PlaceholderStartupSourcesReachTypedCheckHooks` cases exercise all five sources through backend function loading and session preload, including boot checks and RESET |
+| Original setter identity and replay-time parameter grants | Four `PlaceholderAdoptionRechecksOriginalSetterGrant` cases cover grant absence/presence/revocation/addition; both `PlaceholderMaskedAndLocalStatesRecheckTheirOwnRoles` cases check independently authorized SET/LOCAL histories, exact native warnings, COMMIT/ROLLBACK and recovery |
+| Worker values, enum aliases/hidden labels, NULL versus empty, exact real bits, regenerated extras and independent managed initialization | Four `BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras` cases require launched workers in native EXPLAIN, foreign PIDs for all 30,000 result rows, exact typed values and worker-created extra data; both `NativePreloadWorkersRestoreValuesWithoutManagedPostmasterState` cases independently verify native shared preload |
+| Worker mutation denial, function-local restoration and failed worker startup recovery | Both `WorkerSetRejectsAndLeaderRecovers` cases, `WorkerFunctionSettingsRestoreValueAndExtra`, and `WorkerRestoreFailurePreservesLeaderAndRecovers` pin SQLSTATE/native diagnostic identity, preserved leader state, restored value/extra and subsequent worker execution |
+| Copied managed objects and native current/reset/prior/masked allocation lifetimes | `ManagedSnapshotsCollectWhileNativeStackRetainsBytes` observes all eight weak-reference categories collecting while 64 KiB native strings/extras remain exact across savepoint/commit/rollback/reset |
+| Warmed native allocation and diagnostic cleanup | UTF8 and LATIN1 `WarmedNativeAllocationsStabilizeAcrossStateAndErrorPaths` cases execute three measured batches of 64 complete cycles after warmup, covering accepted and validation-only values, repeated rejections/exceptions, successful accented payloads, result/diagnostic/log encoding failures, and recovery |
+| Cold SDK packages without repository imports/style, with SQL drop/reinstall lifetime | `PackedGucConsumerPreservesHooksAndNativeStateAcrossReinstall` and `PackedNativeGucConsumerPreloadsWithoutSqlExports` each restore into an initially empty package cache and publish; full typed hooks/extras/normalization/diagnostics and minimal native-only shared preload survive their separate SQL lifecycle checks |
+
+PostgreSQL serializes a nondefault NULL configuration string as empty text; an untouched default
+NULL remains NULL in workers. Check hooks rebuild extra data in the worker instead of transporting
+managed objects. Ordinary worker SET remains forbidden, while native function-local SAVE settings
+restore the previous value and extra. The public guide records these native distinctions.
+
+Allocation assertions require identical retained GUCMemoryContext used bytes after each batch and
+zero surviving Ankus configuration read/check/assign/show/logging contexts. A Linux/glibc-specific
+supplement measures allocated arena plus mmap bytes, validates that counter against a retained and
+released 4 MiB allocation, and limits growth to 512 KiB across measured batches. That allowance is
+one eighth of one batch leaking a single 64 KiB payload per cycle; it does not establish the absence
+of arbitrarily small leaks. The host has glibc 2.41; the supplemental probe requires glibc 2.33+ and
+is not cross-platform allocation evidence. Successful-test context output is not retained by the
+default runner, so absolute byte totals are not claimed. Managed weak-reference/state assertions
+run independently of that platform-specific allocator probe.
+
+The source tests serialize their shared parameter ACL catalog mutations. Review also corrected a
+fixture that batched its initial SET with BEGIN: the initial session value must commit before
+constructing the transaction history under test. Neither correction changes PostgreSQL semantics.
+Static assertion and behavior-gap reviews are recorded in `.git/testagent/guc-state/`; no executed
+mutation coverage is claimed. The focused source command passes nine cases with zero failures/skips;
+all ten worker, three lifetime and two package cases also passed their focused executions.
+Final verification: plain `dotnet test` passes 3558 cases with zero failures/skips in 3m37.716s on
+PostgreSQL 18.6/Linux x64. Non-incremental Release build: zero warnings/errors. XML scan: 789 internal
+declarations, zero omissions. Style scan: 433 C# source/template files, zero opening-brace blanks or
+warning suppressions. README/configuration guide updates, `pnpm build`, `pnpm check`, and API `--check`
+pass; the API remains 105 pages/1120 members and the site builds 134 pages. Existing duplicate-404 and
+missing-site-URL warnings remain visible. No reference checkout or consumer style template changed.
+
+Remaining full-port work includes safe explicit treatment of raw placeholder storage, arbitrary
+managed postmaster callbacks, mixed-encoding shared-preload metadata, the rest of the pgrx runtime
+and tooling inventory, and actual PostgreSQL 13–19 beta validation on Windows/Linux/macOS. The native
+CUSTOM_PLACEHOLDER flag assumes PostgreSQL-owned string-placeholder layout and lifetime; exposing it
+on arbitrary typed declarations would violate those assumptions. Existing typed configuration
+options continue to reject that internal flag. This milestone does not establish full GUC or pgrx parity.
+
 ### Work in progress
 
 Initialization/GUC research identified a Native AOT hosting constraint: managed entry starts runtime
@@ -1239,7 +1291,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs`, `callbacks.rs` | Transaction identifiers, transaction/subtransaction callbacks, unregister and error cleanup | Pending |
-| `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, source/transaction/reload semantics and native-only preload verified above. Prefix/raw-placeholder behavior, complete preload/logging/worker/lifetime verification and the full matrix remain required |
+| `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and native-only preload verified above. Raw-placeholder treatment, managed postmaster callbacks, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Pending |
@@ -1347,7 +1399,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
-  - [ ] Remaining GUC raw/preload/worker/lifetime parity; background workers
+  - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
+  - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
    - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
@@ -1655,3 +1708,16 @@ The phases track implementation of the complete pgrx feature surface.
   Documentation build/type/API freshness checks pass: 105 API pages, 1120 members and 134 site pages.
   Raw placeholders, managed postmaster callbacks, mixed-encoding preload, remaining source/privilege,
   worker/lifetime/package witnesses and the complete full-port/platform inventory remain required.
+
+- 2026-09-22 — Added 24 native configuration lifecycle cases covering five startup sources and reset values,
+  replay-time original setter grants, real worker values/extras/NULL semantics and recovery, measured native
+  allocation/managed-root lifetimes, and cold NuGet consumers through SQL drop/reinstall. Added a parallel-safe
+  configuration sample probe. No runtime or native bridge defect was found in this bounded work; test isolation
+  and transaction setup were corrected. Plain `dotnet test`: 3558 passed, zero failures/skips, 3m37.716s on
+  PostgreSQL 18.6/Linux x64. Non-incremental Release build: zero warnings/errors. XML scan: 789 internal
+  declarations, zero omissions; style scan: 433 C# source/template files, no opening-brace blanks or suppressions.
+  Public guide/README updates and documentation build/type/API freshness checks pass: 105 API pages,
+  1120 members and 134 site pages. Native memory assertions prove warmed GUC allocation equality and bounded
+  libc growth on glibc 2.41, not arbitrary leak absence or cross-platform allocation parity. Raw placeholders,
+  managed postmaster callbacks, mixed-encoding preload, the broader port inventory and the full supported
+  PostgreSQL/platform matrix remain active requirements.

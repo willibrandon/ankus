@@ -43,6 +43,19 @@ definition. Invalid placeholder values produce PostgreSQL's diagnostics.
 Registration survives transaction rollback and `DROP EXTENSION`; dropping SQL
 objects does not unload a library or unregister its settings.
 
+Startup defaults retain PostgreSQL's source priority: configuration file,
+database, role, database-and-role, then client connection options. A session
+`SET` overrides the active value; `RESET` restores the strongest applicable default.
+`pg_settings.source` and `reset_val` expose that distinction. Check hooks receive
+the original source when a deferred definition adopts a startup placeholder,
+including definitions loaded through `session_preload_libraries`.
+
+Placeholder adoption also retains the original setter's identity and privilege
+context. Loading a library as a superuser does not authorize another role's
+earlier setting. PostgreSQL rechecks applicable parameter grants during adoption,
+including separately saved `SET` and `SET LOCAL` states. A rejected replay warns
+and preserves the preceding accepted value.
+
 ## Reserving a prefix
 
 Declare a prefix at assembly scope to catch unknown settings after registration:
@@ -196,6 +209,23 @@ reporting. It preserves filtering, structured fields, and database encoding with
 enabling SQL. Explicit `Fatal` and `Panic` reports retain their severity after
 managed code unwinds. An unhandled `Error` follows the hook's failure policy:
 check rejection, assign FATAL, or show ERROR/FATAL according to transaction state.
+
+## Parallel queries
+
+PostgreSQL restores configuration in each parallel worker. Managed state starts
+independently in that process; check hooks run there to reconstruct extra data
+from the propagated value and source. Do not treat managed static fields or
+previously returned extra objects as shared state between workers.
+
+Native PostgreSQL serialization preserves an untouched default null string by
+leaving it at its default. A nondefault null string serializes as empty text, so
+the worker's check hook receives an empty string. This distinction also applies
+when a leader's check hook normalized a nonnull input to null.
+
+Ordinary configuration changes are forbidden during a parallel operation.
+PostgreSQL permits a function's declared `SET` clause and restores that worker's
+previous value and extra data when the function returns. Mark a function
+parallel safe only when its complete behavior meets PostgreSQL's requirements.
 
 ## Preloading
 

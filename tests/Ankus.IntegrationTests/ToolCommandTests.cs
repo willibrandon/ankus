@@ -14,7 +14,7 @@ namespace Ankus.IntegrationTests;
 /// <param name="context">The current test context.</param>
 [TestClass]
 [DoNotParallelize]
-public sealed class ToolCommandTests(TestContext context)
+public sealed partial class ToolCommandTests(TestContext context)
 {
     private static string s_root = null!;
     private static string s_tool = null!;

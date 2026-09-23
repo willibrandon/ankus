@@ -158,11 +158,12 @@ transaction behavior, and the Native AOT restriction on shared preload.
 
 Declare PostgreSQL settings with `[PgGucBool]`, `[PgGucInt]`, `[PgGucReal]`,
 `[PgGucString]`, or `[PgGucEnum]` on static partial getters. PostgreSQL owns their
-storage, SET/RESET behavior, permissions, and transaction restoration. See
+storage, startup source priority, permissions, SET/RESET behavior, and transaction restoration. See
 [configuration settings](docs/src/content/docs/configuration.md) for typed hooks,
 units, owned extra data, and native-only shared preload. An assembly `PgGucPrefix`
 attribute checks unknown settings after registration. Hooks can use `PgLog` during reload,
-rollback, and client reporting.
+rollback, and client reporting. Parallel workers restore typed values and regenerate
+hook extra data in their own managed runtime.
 
 ## Publishing and installation
 
