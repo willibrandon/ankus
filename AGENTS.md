@@ -14,6 +14,8 @@ before changing an area.
   Preload and worker behavior must work on Linux, macOS, and Windows.
 - [willibrandon/runtime](https://github.com/willibrandon/runtime) hosts the runtime
   fork. Keep the reference clone read-only; develop the patch in a separate checkout.
+- [apple-oss-distributions/libpthread](https://github.com/apple-oss-distributions/libpthread)
+  is a read-only reference for macOS thread and fork behavior.
 - Other available reference repositories include `roslyn`, `sdk`,
   `msbuild`, `NuGet.Client`, `docs`, `dotnet-api-docs`, and `dotsider`.
   Locate available local checkouts before requesting another clone; treat all
@@ -70,6 +72,9 @@ before changing an area.
   and cancel superseded runs. Do not hide missing validation to meet the budget.
 - Run a Release build and relevant documentation checks before committing.
   Record exactly which PostgreSQL versions and platforms were actually tested.
+- For personal validation machines, document platform versions and test evidence
+  only. Keep machine names, addresses, usernames, connection details and personal
+  device paths out of repository documents, including `PROGRESS.md`.
 
 ## Progress, documentation, and commits
 

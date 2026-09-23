@@ -56,6 +56,18 @@ public string DropDbPath { get; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-e0747ac4c4ad39a1"></a>
+
+### IncludeDirectory
+
+Gets the public header directory, including dependencies of the server headers.
+
+```csharp
+public string IncludeDirectory { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-d5e8427baa86a672"></a>
 
 ### InitDbPath
@@ -112,6 +124,18 @@ Gets the platform-correct path to PostgreSQL's <code>pg_ctl</code> executable.
 
 ```csharp
 public string PgCtlPath { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-07e3de557bc57ea7"></a>
+
+### PreprocessorFlags
+
+Gets the preprocessor arguments reported by this installation's build configuration.
+
+```csharp
+public string PreprocessorFlags { get; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)

@@ -242,8 +242,8 @@ The new reference clone is untouched. No patch commits or branches have been pus
 Two further local runtime commits are saved: `8ce70563e` fixes debugger descriptor
 binding and includes the regression host; `961301d3d` admits macOS x64/arm64 in the
 existing Unix checkpoint guards and uses Mach-O linker roots in the native probes.
-The latter is source preparation only: Linux Release builds and preload execution
-pass, but no macOS or Windows execution has occurred. The owned Ankus generator
+That commit initially had Linux validation only. Subsequent local Windows and
+macOS results are recorded below. The owned Ankus generator
 also omits fork enablement under `WIN32`, where PostgreSQL starts a fresh process;
 managed initialization remains enabled. Windows worker attachment, actual platform
 CI, server GC, enabled EventPipe and the other checkpoint requirements remain open.
@@ -253,6 +253,54 @@ zero failures/skips in 3m47.444s; the Release build has zero warnings/errors in
 11.82s. These are baseline checks of the main repository; the owned runtime and
 packaged preload proofs above establish the new behavior separately. Public API
 and site content are unchanged while production integration remains open.
+
+Local Windows validation now passes real generated managed preload on PostgreSQL
+18.1/x64 (OS build 26200, SDK 10.0.401). Both extension orders pass across two
+starts and six fresh SQL sessions. Each Windows backend runs its own initializer;
+all twelve backend/image tokens are distinct and hook/initializer PIDs equal the
+actual backend PID. Exact configuration callbacks, object state, GC/finalizers,
+tasks/timers, owned diagnostics, SET LOCAL rollback, RESET and same-session recovery
+pass. Both servers stop cleanly without crash recovery. Frozen source, binaries,
+SQL results and hashes are in `.git/testagent/preload/windows-proof/`. This does
+not yet verify Ankus background-worker registration/attachment or the full suite
+on Windows.
+
+The Windows probe hang was output-handle lifetime, not a failed server startup.
+`pg_ctl` lets server children inherit its handles, so waiting for captured output
+to reach EOF can outlive `pg_ctl` itself. One native supervisor now owns the whole
+start/query/stop sequence and directs tool output to real files; it waits for the
+process exit independently of inherited handles. The repository cluster fixture
+already avoids capturing Windows startup output. The probe also distinguishes the
+logical replication launcher's expected exit code 1 after a requested fast shutdown
+from unexpected worker exits before shutdown.
+
+Native compilation exposed two independent build defects. The bridge now includes
+both PostgreSQL public and server headers, and uses shell-tokenized Unix
+`pg_config --cppflags` for dependency includes and SDK paths. Empty flags are valid;
+quoted and escaped paths retain their boundaries without invoking a shell.
+Windows compiles the bridge with `/MT` to match Native AOT's static C runtime and
+uses `/WX`; the previous `/MD` caused LNK4098. Both actual Windows extensions publish
+without that conflict, and both macOS extensions compile with the reported
+Homebrew dependency paths. Twelve direct compiler-argument tests pass. Plain
+`dotnet test` passes 4089 cases with zero failures/skips in 3m53.236s on PostgreSQL
+18.6/Linux x64; Release has zero warnings/errors (6.85s). Documentation build/type
+checks and API freshness pass (114 API pages, 1212 members). Site build still reports
+the existing duplicate-404 and missing-site-URL warnings.
+
+On macOS 26.5.2/arm64 (build 25F84), the owned native runtime and CoreLib build,
+active-background-GC probe, retained-timer probe and retained-queue probe all pass.
+The first real PostgreSQL 18.1 preload still fails at its startup thread guard.
+Apple's `pthread_is_threaded_np()` reports whether the process has ever created a
+thread, including after that thread has joined; a direct native witness reports
+`before=0 after_join=1`. PostgreSQL rejects that state before the runtime reaches
+its fork preparation. A runtime patch alone cannot change this stock-server check.
+An isolated PostgreSQL checkpoint-registration prototype is being built: registered
+runtimes must prepare, report their parked thread, and match an OS inventory of all
+live threads before startup admission and each fork. Unknown/unprepared threads
+remain failures. No installed PostgreSQL binary or Apple thread flag is modified.
+Actual macOS PostgreSQL success and negative controls are not yet established.
+The source and platform evidence are kept outside public guides; personal validation
+machine details are excluded from all repository documents.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration

@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Ankus.Build.Tests" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
   </ItemGroup>
 </Project>

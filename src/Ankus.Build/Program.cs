@@ -48,8 +48,9 @@ try
     if (OperatingSystem.IsWindows())
     {
         compiler = Path.Combine(Path.GetDirectoryName(args[3]) ?? string.Empty, "cl.exe");
-        compilerArguments.AddRange(["/nologo", "/c", "/O2", "/MD", $"/Fo{nativeObject}"]);
+        compilerArguments.AddRange(["/nologo", "/c", "/O2", "/MT", "/WX", $"/Fo{nativeObject}"]);
         compilerArguments.Add($"/I{installation.ServerIncludeDirectory}");
+        compilerArguments.Add($"/I{installation.IncludeDirectory}");
         compilerArguments.Add($"/I{Path.Combine(installation.ServerIncludeDirectory, "port", "win32")}");
         compilerArguments.Add($"/I{Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc")}");
         foreach (string directory in WindowsToolchain.GetIncludeDirectories(args[4]))
@@ -62,8 +63,10 @@ try
     else
     {
         compiler = args[3];
+        compilerArguments.AddRange(UnixCompilerArguments.Split(installation.PreprocessorFlags));
         compilerArguments.AddRange(["-c", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror"]);
         compilerArguments.AddRange(["-isystem", installation.ServerIncludeDirectory, "-o", nativeObject]);
+        compilerArguments.AddRange(["-isystem", installation.IncludeDirectory]);
     }
 
     compilerArguments.Add(source);

@@ -22,6 +22,7 @@
     <Project Path="src/Ankus.Tool/Ankus.Tool.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Ankus.Build.Tests/Ankus.Build.Tests.csproj" />
     <Project Path="tests/Ankus.Examples.Hello.Tests/Ankus.Examples.Hello.Tests.csproj" />
     <Project Path="tests/Ankus.Generators.Tests/Ankus.Generators.Tests.csproj" />
     <Project Path="tests/Ankus.GucAssignExtension/Ankus.GucAssignExtension.csproj" />

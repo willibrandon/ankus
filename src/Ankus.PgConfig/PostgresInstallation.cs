@@ -14,14 +14,18 @@ public sealed class PostgresInstallation
         string binDirectory,
         string libraryDirectory,
         string sharedDirectory,
-        string serverIncludeDirectory)
+        string includeDirectory,
+        string serverIncludeDirectory,
+        string preprocessorFlags)
     {
         PgConfigPath = pgConfigPath;
         Version = version;
         BinDirectory = binDirectory;
         LibraryDirectory = libraryDirectory;
         SharedDirectory = sharedDirectory;
+        IncludeDirectory = includeDirectory;
         ServerIncludeDirectory = serverIncludeDirectory;
+        PreprocessorFlags = preprocessorFlags;
     }
 
     /// <summary>
@@ -50,9 +54,19 @@ public sealed class PostgresInstallation
     public string SharedDirectory { get; }
 
     /// <summary>
+    /// Gets the public header directory, including dependencies of the server headers.
+    /// </summary>
+    public string IncludeDirectory { get; }
+
+    /// <summary>
     /// Gets the server header directory for compiling native extension boundaries against this installation.
     /// </summary>
     public string ServerIncludeDirectory { get; }
+
+    /// <summary>
+    /// Gets the preprocessor arguments reported by this installation's build configuration.
+    /// </summary>
+    public string PreprocessorFlags { get; }
 
     /// <summary>
     /// Gets the Ankus version selector for this installation, such as <c>pg18</c>.
@@ -146,8 +160,10 @@ public sealed class PostgresInstallation
         Task<string> binDirectory = QueryAsync(resolvedPath, "--bindir", cancellationToken);
         Task<string> libraryDirectory = QueryAsync(resolvedPath, "--pkglibdir", cancellationToken);
         Task<string> sharedDirectory = QueryAsync(resolvedPath, "--sharedir", cancellationToken);
+        Task<string> includeDirectory = QueryAsync(resolvedPath, "--includedir", cancellationToken);
         Task<string> serverIncludeDirectory = QueryAsync(resolvedPath, "--includedir-server", cancellationToken);
-        await Task.WhenAll(version, binDirectory, libraryDirectory, sharedDirectory, serverIncludeDirectory).ConfigureAwait(false);
+        Task<string> preprocessorFlags = QueryAsync(resolvedPath, "--cppflags", cancellationToken);
+        await Task.WhenAll(version, binDirectory, libraryDirectory, sharedDirectory, includeDirectory, serverIncludeDirectory, preprocessorFlags).ConfigureAwait(false);
 
         return new PostgresInstallation(
             resolvedPath,
@@ -155,7 +171,9 @@ public sealed class PostgresInstallation
             Path.GetFullPath(await binDirectory.ConfigureAwait(false)),
             Path.GetFullPath(await libraryDirectory.ConfigureAwait(false)),
             Path.GetFullPath(await sharedDirectory.ConfigureAwait(false)),
-            Path.GetFullPath(await serverIncludeDirectory.ConfigureAwait(false)));
+            Path.GetFullPath(await includeDirectory.ConfigureAwait(false)),
+            Path.GetFullPath(await serverIncludeDirectory.ConfigureAwait(false)),
+            await preprocessorFlags.ConfigureAwait(false));
     }
 
     private string GetExecutablePath(string name)
@@ -207,7 +225,8 @@ public sealed class PostgresInstallation
             throw;
         }
 
-        string output = (await standardOutput.ConfigureAwait(false)).Trim();
+        string rawOutput = await standardOutput.ConfigureAwait(false);
+        string output = argument == "--cppflags" ? rawOutput.TrimEnd('\r', '\n') : rawOutput.Trim();
         string error = (await standardError.ConfigureAwait(false)).Trim();
 
         if (process.ExitCode != 0)
@@ -216,7 +235,7 @@ public sealed class PostgresInstallation
                 $"'{pgConfigPath} {argument}' exited with code {process.ExitCode}: {error}");
         }
 
-        if (output.Length == 0)
+        if (output.Length == 0 && argument != "--cppflags")
         {
             throw new InvalidOperationException($"'{pgConfigPath} {argument}' returned no output.");
         }
