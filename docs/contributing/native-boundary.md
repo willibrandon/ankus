@@ -599,6 +599,16 @@ and registers a new identity without freeing the pointer on failure. AllocSet
 creation validates supplied block sizes against target-header alignment and
 version-specific chunk-offset limits before entering assert-only native checks.
 
+Typed boxes and tracked borrowed views share the existing checked allocation
+identity. Transferring an individual owner to context ownership retains that
+identity; raw detach consumes it. Raw borrowed addresses use a separate guarded
+copy operation with the supplied context identity and captured reset generation.
+They require no allocation-header lookup, release rights, or per-view native
+record. Explicit reset advances the generation; implicit cleanup removes the
+context identity. Generation exhaustion permanently retires new raw borrows
+without wrapping back to a live generation. The unsafe caller still proves
+address validity and any external lifetime shorter than the context's lifetime.
+
 Deletion checks current-context ancestry. A native protection stack retains
 explicit reset/delete roots and the actual iterator/aggregate state owners across
 managed callbacks. It prevents overlapping destructive operations, child creation

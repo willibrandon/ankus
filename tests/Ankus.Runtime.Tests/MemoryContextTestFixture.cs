@@ -80,6 +80,8 @@ internal sealed unsafe class MemoryContextTestFixture : IDisposable
                 return new NativeMemoryResult { _pointer = 701 };
             case NativeMemoryOperation.Adopt:
                 return new NativeMemoryResult { _pointer = 601, _length = request._length };
+            case NativeMemoryOperation.CaptureGeneration:
+                return new NativeMemoryResult { _value = 901 };
             case NativeMemoryOperation.Switch:
                 nint previous = Current;
                 Current = request._context;
@@ -87,6 +89,35 @@ internal sealed unsafe class MemoryContextTestFixture : IDisposable
             default:
                 return default;
         }
+    }
+
+    /// <summary>
+    /// Observes checked byte reads and writes using one supplied test buffer without modeling native allocation lifetime.
+    /// </summary>
+    /// <param name="request">The observed native operation.</param>
+    /// <param name="storage">The independently prepared bytes used for this response.</param>
+    /// <returns>The scripted byte-copy response or ordinary baseline response.</returns>
+    internal NativeMemoryResult RespondWithStorage(NativeMemoryRequest request, byte[] storage)
+    {
+        int offset = checked((int)request._value);
+        int length = checked((int)request._length);
+        if (request._operation == NativeMemoryOperation.Read)
+        {
+            if (length != 0)
+            {
+                storage.AsSpan(offset, length).CopyTo(new Span<byte>((void*)request._data, length));
+            }
+
+            return new NativeMemoryResult { _pointer = 701 };
+        }
+
+        if (request._operation == NativeMemoryOperation.Write)
+        {
+            new ReadOnlySpan<byte>((void*)request._data, length).CopyTo(storage.AsSpan(offset, length));
+            return default;
+        }
+
+        return Respond(request);
     }
 
     /// <summary>

@@ -72,6 +72,35 @@ Value: [PgAllocationOptions](/api/ankus.pgallocationoptions/)
 
 ## Methods
 
+<a id="member-5554db0c0bc27a14"></a>
+
+### Borrow&lt;T&gt;(nuint)
+
+Borrows a typed view whose bounds and shared allocation lifetime are checked on every access.
+
+```csharp
+public PgNativeReference<T> Borrow<T>(nuint offset = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged value type.
+
+Parameters:
+
+`offset` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The allocation byte offset of the complete value.
+
+Returns: <code>PgNativeReference&lt;T&gt;</code>
+
+A view without ownership or individual release rights.
+
+Resizing is observed by existing views. Freeing, detaching, or resetting the allocation
+invalidates its views; no native pointer is cached by this checked borrow.
+
 <a id="member-57786b1cb8d5fa70"></a>
 
 ### Clear(nuint, nuint)

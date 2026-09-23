@@ -201,6 +201,18 @@ internal enum NativeMemoryOperation
     /// Adopts exclusive ownership of a live palloc-compatible pointer.
     /// </summary>
     Adopt = 23,
+    /// <summary>
+    /// Captures a live context's reset generation for a borrowed raw reference.
+    /// </summary>
+    CaptureGeneration = 24,
+    /// <summary>
+    /// Copies a borrowed raw reference after validating its context identity and reset generation.
+    /// </summary>
+    ReadReference = 25,
+    /// <summary>
+    /// Writes a borrowed raw reference after validating its context identity and reset generation.
+    /// </summary>
+    WriteReference = 26,
 }
 
 /// <summary>

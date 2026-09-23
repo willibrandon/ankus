@@ -152,6 +152,80 @@ invalidation callback marks a context nonempty, including after an explicit rese
 so this property does not establish whether all user allocations were freed.
 These statistics describe native contexts, not the managed heap.
 
+## Native boxes and borrowed values
+
+Use a typed wrapper when one allocation holds one unmanaged value:
+
+| Type | Ownership | Cleanup |
+| --- | --- | --- |
+| `PgNativeBox<T>` | One individually owned native allocation | `Dispose()` frees it; its native context also reclaims it |
+| `PgContextValue<T>` | Storage owned by the native context | Context reset or deletion reclaims it; the wrapper has no `Dispose()` |
+| `PgNativeReference<T>` | A borrowed view with no release rights | The underlying allocation or explicit lifetime context governs access |
+
+```csharp
+using PgMemoryContext context = PgMemoryContext.Create("boxed value");
+using PgNativeBox<int> box = context.CreateBox(5);
+PgNativeReference<int> reference = box.Borrow();
+PgContextValue<int> retained = box.ReleaseToContext();
+
+reference.Value = 21; // retained.Value is now 21
+box.Dispose();       // the consumed owner cannot free retained storage
+
+PgContextValue<int> snapshot = reference.CloneInto(context);
+reference.Value = 42; // snapshot.Value remains 21
+```
+
+`CreateBox` and `CreateContextValue` copy an initialized unmanaged value into
+native memory. Their `TryCreate` variants return null only when the native
+allocator returns null; initialization and other errors still throw.
+`AllocateZeroedBox<T>` starts with zero bytes.
+`DangerousAllocateUninitializedBox<T>` requires initialization before reading.
+These factories do not run a constructor in native storage. Reclamation never
+calls the value's `Dispose()` method or recursively releases embedded pointers.
+Use a context cleanup callback for managed cleanup actions.
+
+`Value` reads or writes a copy. It does not expose a managed reference or span
+whose lifetime could escape the checks. `CloneInto` returns a context-owned
+shallow copy; `CloneOwnedInto` returns an individually disposable copy. Both copy
+exactly `sizeof(T)` bytes, including padding and embedded pointer values, into
+the specified context or `Current` when omitted. Clones use the destination's
+default allocation policy and alignment. They do not duplicate pointed-to data.
+
+`allocation.Borrow<T>(offset)` creates a typed view at a byte offset. It checks
+the range and native identity at creation and on later access. A checked view
+follows its allocation when resizing moves the chunk; shrinking below its range
+rejects access. `ReleaseToContext` consumes the owning wrapper while retaining
+the checked allocation and existing views. Raw `DangerousDetach` consumes the
+allocation's checked tracking, including shared views, without freeing storage.
+Garbage collection of any wrapper never invokes PostgreSQL.
+
+For unsafe interoperability, `context.DangerousAdoptBox<T>(address)` takes
+individual ownership of a valid `palloc`-family chunk. A null address returns a
+null managed reference without a backend call. `DangerousAdoptContextValue<T>`
+requires a non-null compatible chunk and transfers it to context ownership.
+The existing adoption requirements for provenance, native owner, alignment,
+size policy and exclusivity apply.
+
+`context.DangerousBorrow<T>(address)` borrows without acquiring ownership or
+inspecting an allocation header. A null address returns null. Non-null addresses
+can refer to stack, interior, or resource-owned memory when the caller guarantees
+accessible, initialized bytes and the required external lifetime. The resulting
+reference's `LifetimeContext` is an explicit lifetime anchor, not an inferred
+allocator owner. A captured reset generation makes the view stale after context
+reset even when the context itself survives. No native record is allocated for
+each borrowed view.
+
+The anchor does not detect a shorter lifetime caused by stack return, external
+free or resize, or closing a separate native resource. The unsafe caller must
+prevent later access in those cases. Failed context cleanup does not invalidate
+references prematurely: if a cleanup callback throws before native invalidation,
+the payload and its views remain live until cleanup proceeds.
+
+An unmanaged .NET type does not establish a PostgreSQL C layout or SQL type.
+These wrappers copy raw bytes; arbitrary boxed values are not automatically SQL
+arguments or results. Versioned native layouts, datum conversion, virtual context
+parameters and PostgreSQL node APIs remain separate required parts of the port.
+
 ## Cleanup callbacks
 
 `RegisterResetCallback(Action)` connects managed cleanup to PostgreSQL's native

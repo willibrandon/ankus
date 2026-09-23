@@ -99,6 +99,36 @@ Returns: [PgAllocation](/api/ankus.pgallocation/)
 
 The checked zeroed allocation.
 
+<a id="member-efc3a99ba4dcd717"></a>
+
+### AllocateZeroedBox&lt;T&gt;(PgAllocationOptions, nuint)
+
+Allocates an individually owned value whose entire representation is zeroed without running a constructor.
+
+```csharp
+public PgNativeBox<T> AllocateZeroedBox<T>(PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation.
+
+Parameters:
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+Additional native size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+The individually disposable zeroed owner.
+
 <a id="member-37671cf61d386cdd"></a>
 
 ### AllocateZeroed&lt;T&gt;(nuint, PgAllocationOptions, nuint)
@@ -256,6 +286,206 @@ The AllocSet block sizes, or null for PostgreSQL's default preset.
 Returns: [PgMemoryContext](/api/ankus.pgmemorycontext/)
 
 The new owned context.
+
+<a id="member-adb562b9cc278a69"></a>
+
+### CreateBox&lt;T&gt;(T, PgAllocationOptions, nuint)
+
+Creates an initialized unmanaged value with individual native allocation ownership.
+
+```csharp
+public PgNativeBox<T> CreateBox<T>(T value, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation to copy; no C ABI or SQL type is inferred.
+
+Parameters:
+
+`value` — <code>T</code>
+
+The initial value copied into native storage.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The native initialization and size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+The individually disposable owner.
+
+<a id="member-6eb767b1a2cd2b93"></a>
+
+### CreateContextValue&lt;T&gt;(T, PgAllocationOptions, nuint)
+
+Creates an initialized unmanaged value reclaimed by its native context rather than individual disposal.
+
+```csharp
+public PgContextValue<T> CreateContextValue<T>(T value, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation to copy.
+
+Parameters:
+
+`value` — <code>T</code>
+
+The initial value.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The native initialization and size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgContextValue&lt;T&gt;</code>
+
+The context-owned value.
+
+<a id="member-12ca1b6e7696b9f5"></a>
+
+### DangerousAdoptBox&lt;T&gt;(void*, bool, nuint)
+
+Adopts exclusive individual ownership of an initialized palloc-compatible value, mapping a null address to null.
+
+```csharp
+public PgNativeBox<T>? DangerousAdoptBox<T>(void* address, bool huge = false, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The complete unmanaged representation at the supplied address.
+
+Parameters:
+
+`address` — [void*](https://learn.microsoft.com/dotnet/api/system.void)
+
+The live palloc-family address, or null.
+
+`huge` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the allocation uses PostgreSQL's huge-size policy.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The allocation's original explicit alignment, or zero for the server default.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+The individually disposable owner, or null without backend access for a null address.
+
+The caller guarantees accessible initialized bytes, native allocator provenance, and exclusive ownership.
+
+<a id="member-b364c99fcf75cab3"></a>
+
+### DangerousAdoptContextValue&lt;T&gt;(void*, bool, nuint)
+
+Adopts a non-null initialized palloc-compatible value for reclamation by its native context.
+
+```csharp
+public PgContextValue<T> DangerousAdoptContextValue<T>(void* address, bool huge = false, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The complete unmanaged representation at the supplied address.
+
+Parameters:
+
+`address` — [void*](https://learn.microsoft.com/dotnet/api/system.void)
+
+The non-null live palloc-family address.
+
+`huge` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether the allocation uses PostgreSQL's huge-size policy.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The allocation's original explicit alignment, or zero for the server default.
+
+Returns: <code>PgContextValue&lt;T&gt;</code>
+
+The non-null context-owned value.
+
+The caller transfers exclusive ownership and guarantees accessible initialized bytes and native allocator provenance.
+
+<a id="member-c2b258bc7228f5e2"></a>
+
+### DangerousAllocateUninitializedBox&lt;T&gt;(PgAllocationOptions, nuint)
+
+Allocates individually owned native storage that must be fully initialized before its value is read.
+
+```csharp
+public PgNativeBox<T> DangerousAllocateUninitializedBox<T>(PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation.
+
+Parameters:
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The native initialization and size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+The individually disposable uninitialized owner.
+
+<a id="member-0a639879332d5c81"></a>
+
+### DangerousBorrow&lt;T&gt;(void*)
+
+Borrows an external initialized address using this context as a reset-sensitive lifetime anchor.
+
+```csharp
+public PgNativeReference<T>? DangerousBorrow<T>(void* address) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The complete unmanaged representation available at the address.
+
+Parameters:
+
+`address` — [void*](https://learn.microsoft.com/dotnet/api/system.void)
+
+The accessible initialized raw address, or null.
+
+Returns: <code>PgNativeReference&lt;T&gt;</code>
+
+A borrowed view, or null without backend access for a null address.
+
+The address need not be a palloc chunk start. No native allocator ownership is inferred or acquired.
+The caller guarantees at least sizeof(T) valid bytes and honors any shorter external lifetime,
+including stack return, resource closure, external free, or external resize.
 
 <a id="member-68628cf191ce64b4"></a>
 
@@ -554,6 +784,74 @@ A power of two below 128 MiB, or zero for PostgreSQL's default alignment.
 Returns: [PgAllocation](/api/ankus.pgallocation/)
 
 The checked allocation, or null for allocator exhaustion.
+
+<a id="member-7b2dfecc4a570ad8"></a>
+
+### TryCreateBox&lt;T&gt;(T, PgAllocationOptions, nuint)
+
+Attempts initialized native value allocation using PostgreSQL's no-OOM policy.
+
+```csharp
+public PgNativeBox<T>? TryCreateBox<T>(T value, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation to copy.
+
+Parameters:
+
+`value` — <code>T</code>
+
+The initial value.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The native initialization and size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+The individually disposable owner, or null only for allocator exhaustion.
+
+<a id="member-85403c9ec2a4edb9"></a>
+
+### TryCreateContextValue&lt;T&gt;(T, PgAllocationOptions, nuint)
+
+Attempts initialized context-owned storage using PostgreSQL's no-OOM policy.
+
+```csharp
+public PgContextValue<T>? TryCreateContextValue<T>(T value, PgAllocationOptions options = PgAllocationOptions.None, nuint alignment = 0) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged representation to copy.
+
+Parameters:
+
+`value` — <code>T</code>
+
+The initial value.
+
+`options` — [PgAllocationOptions](/api/ankus.pgallocationoptions/)
+
+The native initialization and size policies.
+
+`alignment` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The requested explicit alignment, or zero for the server default.
+
+Returns: <code>PgContextValue&lt;T&gt;</code>
+
+The context-owned value, or null only for allocator exhaustion.
 
 
 ## Properties

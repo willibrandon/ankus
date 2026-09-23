@@ -52,7 +52,10 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_REGISTER_CALLBACK = 20,
             ANKUS_MEMORY_CANCEL_CALLBACK = 21,
             ANKUS_MEMORY_DETACH = 22,
-            ANKUS_MEMORY_ADOPT = 23
+            ANKUS_MEMORY_ADOPT = 23,
+            ANKUS_MEMORY_CAPTURE_GENERATION = 24,
+            ANKUS_MEMORY_READ_REFERENCE = 25,
+            ANKUS_MEMORY_WRITE_REFERENCE = 26
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -238,7 +241,7 @@ internal static class NativeMemoryBridge
             uint64 id;
             MemoryContext context;
             uint64 parent_id;
-            uint64 generation;
+            uintptr_t generation;
             bool alive;
             AnkusMemoryProtection *retain_reset;
             bool callback_pending;
@@ -365,7 +368,12 @@ internal static class NativeMemoryBridge
             if (entry->retain_reset)
             {
                 entry->callback_pending = false;
-                entry->generation++;
+                /* Zero permanently retires borrowing if the generation space is exhausted. */
+                if (entry->generation != 0)
+                {
+                    entry->generation++;
+                }
+
                 return;
             }
 
@@ -992,6 +1000,54 @@ internal static class NativeMemoryBridge
                         ankus_memory_free_allocation(allocation);
                     }
 
+                    break;
+                }
+                case ANKUS_MEMORY_CAPTURE_GENERATION:
+                {
+                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    if (entry->generation == 0)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                            errmsg("the memory context's borrow generation space is exhausted")));
+                    }
+
+                    result->value = (intptr_t) entry->generation;
+                    break;
+                }
+                case ANKUS_MEMORY_READ_REFERENCE:
+                case ANKUS_MEMORY_WRITE_REFERENCE:
+                {
+                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    if (entry->generation == 0 || entry->generation != (uintptr_t) request->other)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                            errmsg("the borrowed PostgreSQL memory reference is stale")));
+                    }
+
+                    if (request->pointer == 0 || (request->length != 0 && request->data == 0))
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                            errmsg("the borrowed memory address or managed buffer is null")));
+                    }
+
+                    /* The unsafe caller proves address accessibility and any lifetime shorter
+                     * than this anchor. Stack, interior and resource-owned addresses need no
+                     * palloc header, exclusive ownership, or per-reference native registry. */
+                    if (request->length != 0)
+                    {
+                        if (request->operation == ANKUS_MEMORY_READ_REFERENCE)
+                        {
+                            memcpy((void *) request->data, (const void *) request->pointer, (Size) request->length);
+                        }
+                        else
+                        {
+                            memcpy((void *) request->pointer, (const void *) request->data, (Size) request->length);
+                        }
+                    }
+
+                    result->context = (intptr_t) entry->id;
+                    result->pointer = request->pointer;
+                    result->length = request->length;
                     break;
                 }
                 case ANKUS_MEMORY_READ:

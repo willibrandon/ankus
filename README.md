@@ -155,6 +155,8 @@ temporary current-context scopes, checked byte access, and deterministic cleanup
 Typed factories and span copies preserve unmanaged bytes; allocation options support
 zeroing, explicit alignment, and PostgreSQL's huge size policy. `RunTransient` creates
 and selects a child context, restores the caller, and attempts deletion on every exit.
+`PgNativeBox<T>`, `PgContextValue<T>`, and `PgNativeReference<T>` distinguish
+individual ownership, context ownership, and borrowed access to unmanaged values.
 Reset and transaction cleanup invalidate managed handles before they can access
 freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
 native context resets or is deleted; its disposable registration supports cancellation.

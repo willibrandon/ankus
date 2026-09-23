@@ -8,7 +8,7 @@ namespace Ankus;
 /// <summary>
 /// Represents a checked PostgreSQL memory context accessed from synchronous backend callbacks.
 /// </summary>
-public sealed unsafe class PgMemoryContext : IDisposable
+public sealed unsafe partial class PgMemoryContext : IDisposable
 {
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
     private readonly nint _provider;

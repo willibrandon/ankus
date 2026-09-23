@@ -116,6 +116,22 @@ public sealed unsafe class PgAllocation : IDisposable
     }
 
     /// <summary>
+    /// Borrows a typed view whose bounds and shared allocation lifetime are checked on every access.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged value type.</typeparam>
+    /// <param name="offset">The allocation byte offset of the complete value.</param>
+    /// <returns>A view without ownership or individual release rights.</returns>
+    /// <remarks>
+    /// Resizing is observed by existing views. Freeing, detaching, or resetting the allocation
+    /// invalidates its views; no native pointer is cached by this checked borrow.
+    /// </remarks>
+    public PgNativeReference<T> Borrow<T>(nuint offset = 0) where T : unmanaged
+    {
+        ValidateAccess(offset, (nuint)sizeof(T));
+        return new PgNativeReference<T>(this, offset);
+    }
+
+    /// <summary>
     /// Writes one unmanaged value to the allocation.
     /// </summary>
     /// <typeparam name="T">The unmanaged value type.</typeparam>
@@ -247,6 +263,23 @@ public sealed unsafe class PgAllocation : IDisposable
         NativeMemoryContext.Invoke(ref request, out _);
         _id = 0;
         _length = 0;
+    }
+
+    /// <summary>
+    /// Validates a complete managed view and native identity without copying allocation bytes.
+    /// </summary>
+    /// <param name="offset">The first view byte.</param>
+    /// <param name="length">The full accessible view length.</param>
+    internal void ValidateAccess(nuint offset, nuint length)
+    {
+        EnsureRange(offset, length);
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Read,
+            _context = _id,
+            _value = (nint)offset,
+        };
+        Invoke(ref request);
     }
 
     private void EnsureLive()

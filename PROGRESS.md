@@ -33,13 +33,14 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds typed/aligned native allocation, exact span and UTF-8 copies, resize
-policies, checked raw ownership transfer, AllocSet sizing, and transient contexts. It adds 67 runtime
-and 53 backend cases, including native block growth, transaction ownership, and cleanup failures.
-Plain `dotnet test` passes 3829 cases on PostgreSQL 18.6/Linux x64. Exact bytes, alignment, ownership,
-errors, native inventory and same-session recovery evidence is mapped below. Actual huge-size
-allocation, full memory/GUC/preload parity, the remaining port inventory, and the platform/version
-matrix remain incomplete.
+The latest milestone adds individually owned native boxes, context-owned values, and checked
+borrowed typed references. Exact byte clones preserve padding and shallow pointer fields; reset
+generations invalidate raw views even while their anchor context survives. It adds 34 direct runtime
+and 34 backend cases. IDE0004 now rejects redundant casts throughout repository builds, and existing
+casts were fixed. Plain `dotnet test` passes 3897 cases on PostgreSQL 18.6/Linux x64. Immediate native
+reclamation, ownership transfer, callback errors, native inventory and same-session recovery evidence
+is mapped below. Actual huge-size allocation, virtual context/datum/node APIs, full memory/GUC/preload
+parity, the remaining port inventory, and the platform/version matrix remain incomplete.
 
 The non-incremental Release build has zero warnings/errors. XML documentation, source style,
 documentation build/type checks, and generated API freshness checks pass.
@@ -56,7 +57,7 @@ documentation build/type checks, and generated API freshness checks pass.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3829 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3897 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1246,6 +1247,78 @@ also remain required alongside the full inventory below. Native allocator exhaus
 allocation failure still need controlled failure witnesses; scripted NULL/error responses do not
 prove those native branches. Slab/Bump method restrictions also need actual context-specific cases.
 
+### Native boxes and borrowed typed references
+
+`PgNativeBox<T>` owns individual release rights, `PgContextValue<T>` leaves reclamation to the
+native context, and `PgNativeReference<T>` borrows without acquiring release rights. All expose
+copied unmanaged values; they do not manufacture managed references over native lifetimes.
+`ReleaseToContext` consumes only the old owning wrapper and keeps existing checked views live.
+Raw detach consumes shared tracking without freeing bytes. Failed free or detach retains the
+previous ownership state for retry. None of these wrappers has a finalizer or invokes a native
+value's constructor, `Dispose`, or recursive pointer cleanup.
+
+Cloning copies all `sizeof(T)` bytes, including padding and shallow pointer fields, into independent
+storage in the explicit or current destination context with default allocation policies. Checked
+allocation views retain their byte offset and observe resizing; shrinking below the complete value
+rejects access. Unsafe raw borrows accept stack, interior, and resource-owned addresses without
+reading a palloc header or creating a native allocation record. Their captured context identity
+and native-width reset generation are checked before any copy or pointer extraction. Explicit
+reset invalidates old generations even when the context survives; implicit native cleanup removes
+the old identity. Generation exhaustion permanently retires borrowing instead of wrapping into a
+previously live generation. A callback error before invalidation leaves existing references live
+until the native callback drain advances.
+
+Raw null adoption and borrowing return nullable managed references without backend access;
+context-owned adoption requires a non-null palloc-compatible address. Initialized `TryCreate`
+factories use null only for allocator exhaustion. Initialization failure attempts native cleanup
+and preserves both diagnostics if cleanup also fails. A raw lifetime anchor does not prove
+allocator ownership or detect shorter external lifetimes such as stack return or resource closure.
+
+| Contract | Exact evidence |
+| --- | --- |
+| pgrx five-value, zeroed/uninitialized and raw-null construction | `NativeBoxConstructionPreservesFiveZeroAndNullPointerContracts`, `NullRawViewsAndOwnersNeedNoCapabilityOrLiveContext` |
+| Immediate individual native reclamation while the context remains live | `IndividualDisposalImmediatelyReclaimsNativeChunkWithoutResettingItsContext` observes a 64 KiB block returning to baseline through both allocator accounting and the native context catalog |
+| Context transfer preserves aliases and consumes only individual release rights | `ReleaseToContextPreservesExistingBorrowsAndConsumesOnlyIndividualOwnership`, `FailedContextTransferRetainsOwnerUntilExplicitDisposalOrRetry` |
+| Failed initialization/free/detach preserves errors and ownership | `FailedInitializationFreesNewAllocationAndPreservesCleanupError`, `FailedFreeRetainsOwnerAndSuccessfulRetryInvalidatesBorrow`, `FailedDetachPreservesOwnerAndViewsUntilSuccessfulTransfer` |
+| Raw detach invalidates all old views before exclusive re-adoption | `RawDetachInvalidatesSharedViewsBeforeFreshAdoption` |
+| Exact padding, shallow embedded pointers, independent storage and selected/current destination | `NativeClonesPreservePaddingShallowPointersAndTargetOwnership`, `RawReferenceCloneCopiesExactRepresentationIntoCurrentContext` |
+| No pointee disposal or native freeing from garbage collection | `NativeCleanupNeverInvokesPointeeDispose`, `ManagedCollectionLeavesNativeTypedStorageOwnedByItsContext` |
+| Typed offset views follow relocation and reject narrowed ranges | `BorrowedOffsetViewsFollowResizeAndRevalidateBounds`, `BorrowRejectsPartialAndNativeOverflowRangesBeforeNativeAccess` |
+| Stack/interior aliases, exact reset-tree boundaries and successive generations | `RawStackAndInteriorAliasesExpireWithTheirAnchorGeneration`, `SuccessiveRawGenerationsRespectParentAndDescendantResetBoundaries` |
+| Failed reset preserves references until invalidation actually runs | `FailedResetPreservesRawGenerationUntilSuccessfulRetry` |
+| Separate callbacks, commit/rollback, and savepoint cleanup | `TransactionCleanupExpiresOwnedContextAndRawNativeViews`, `SavepointCleanupRespectsTypedOwnershipAndRawAnchor` |
+| Native-width tokens and backend/provider/thread restrictions | `RawReferencePreservesNativeWidthGenerationBitPattern`, `RawReferencesRemainBoundToBackendCapabilityAndProvider` |
+
+Focused development runs pass all 34 runtime cases (863 ms), all 1113 generator cases (12.779 s),
+and all 34 new backend cases (1m16.275s) on PostgreSQL 18.6/Linux x64. Every backend case checks
+native context inventory and same-session recovery. Assertion review added the failed-transfer
+retry/disposal and immediate individual-reclamation witnesses; stale views alone could have
+missed an omitted native free. Initial IDE0305 build failures were fixed with collection expressions
+without weakening byte-copy assertions. Native generation exhaustion is source-reviewed and the
+token bit pattern is tested directly; no actual generation-counter wrap was executed. Absence of
+per-reference native registry allocation is source-reviewed, not inferred from context byte totals.
+
+IDE0004 is now an error across repository builds. A non-incremental build first rejected existing
+redundant casts; Roslyn's IDE0004 code fix updated 19 C# files. The subsequent non-incremental
+Release build passes with zero warnings/errors (5.00s). `AGENTS.md` and the development guide
+record the rule, while consumer templates retain their own style choices.
+
+Final plain `dotnet test` passes all 3897 cases with zero failures/skips (3m43.662s), including
+the installed-package and generated-consumer suites. The IDE0004 diagnostic-specific formatter
+verification passes without changes. The source/style scan covers 466 C# source/template files
+with no extra opening-brace blank lines or warning suppressions; `AGENTS.md` contains no personal
+paths. XML inspection covers 878 internal declarations with zero omissions. README, the public
+memory guide, native-boundary documentation and generated API pages are updated.
+Documentation build, `pnpm check` and API freshness pass with 114 API pages,
+1210 members and 144 site pages; type checks report zero errors/warnings/hints. Existing site
+duplicate-404 and missing-site-URL warnings remain visible. Reference repositories are unchanged.
+
+Memory-only unmanaged wrappers do not establish SQL type identity or PostgreSQL C layouts.
+Native box/datum conversion, virtual `MemCx` parameters, node APIs, successful huge-size execution,
+native allocation failure witnesses, Slab/Bump behavior and the full version/platform matrix
+remain required. Custom release policies and unsized/context-bound datum layouts are not claimed
+by these three sized ownership wrappers.
+
 ## Key research findings (verified)
 
 ### .NET Native AOT (Microsoft docs, verified)
@@ -1342,7 +1415,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback` | Checked contexts, typed/aligned allocation, copies, raw ownership transfer, transient sizing, cancellable cleanup callbacks and native owner protection implemented; huge-size execution, remaining memory API and version/platform requirements listed above |
+| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing and cancellable cleanup implemented; huge-size execution, virtual context/datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1459,7 +1532,7 @@ complete implementations. AOT serialization must use statically generated metada
 | Source modules | Required behavior | Status |
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
-| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, huge-policy routing, exact copies, raw ownership transfer, transient sizing, reset/delete invalidation, cancellable cleanup and guarded recovery implemented; actual huge-size execution, native boxes, virtual context/datum integration, broader allocator witnesses and full matrix remain required |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup and guarded recovery implemented; actual huge-size execution, virtual context/datum/node integration, custom release policies, broader allocator witnesses and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
@@ -1935,3 +2008,18 @@ The phases track implementation of the complete pgrx feature surface.
   1180 members, 141 site pages. Actual >1 GiB allocation, native exhaustion/registration-failure
   witnesses, Slab/Bump behavior, native boxes, virtual contexts/datum/node APIs, the remaining
   full-port inventory and the actual PostgreSQL/platform matrix remain active requirements.
+
+- 2026-09-22 — Added individually owned native boxes, context-owned values and typed borrowed
+  references with copied access, exact padding/shallow-pointer clones, nullable raw interop,
+  ownership transfer and checked reset generations. Direct and backend tests cover failed transfer,
+  immediate 64 KiB native reclamation, wrapper collection, moved offset views, two successive
+  generations, failed-reset retry, commit/rollback and savepoint cleanup. All 34 direct runtime and
+  34 backend cases pass; plain `dotnet test` passes 3897/3897 with no skips in 3m43.662s on
+  PostgreSQL 18.6/Linux x64. IDE0004 is now an error repository-wide; Roslyn removed redundant
+  casts from 19 files and its verification pass is clean. Release build: zero warnings/errors;
+  XML: 878 internal declarations with no omissions; style: 466 C# source/template files with
+  no opening-brace blanks or warning suppressions. README/guides/API are updated; documentation
+  build, type checks and API freshness pass with 114 API pages, 1210 members and 144 site pages.
+  Virtual context/datum/node APIs, actual huge allocations, native allocator fault witnesses,
+  Slab/Bump, custom release policies, the remaining full inventory and actual PostgreSQL/platform
+  matrix remain required. Consumer style choices and read-only references are preserved.
