@@ -33,12 +33,12 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds checked PostgreSQL memory contexts and palloc allocations, native reset
-invalidation, callback-independent handle identity, and guarded memory access across generated
-callbacks. It adds 44 runtime, 16 generator, and 20 backend cases. Plain `dotnet test` passes
-3638 cases on PostgreSQL 18.6/Linux x64. Exact reset, encoding, ownership, error-recovery and
-transaction/iterator evidence is mapped below. Full memory/GUC/preload parity, the remaining port
-inventory, and the platform/version matrix remain incomplete.
+The latest milestone adds one-shot memory-context cleanup callbacks, cancellable managed roots,
+native teardown protection, and SPI resource disposal across transaction cleanup. It adds 19 runtime
+and 52 backend cases, including ErrorContext recovery and phase restrictions. Plain `dotnet test`
+passes 3709 cases on PostgreSQL 18.6/Linux x64. Exact ordering, ownership, error, resource-inventory
+and same-session recovery evidence is mapped below. Full memory/GUC/preload parity, the remaining
+port inventory, and the platform/version matrix remain incomplete.
 
 The non-incremental Release build has zero warnings/errors. XML documentation, source style,
 documentation build/type checks, and generated API freshness checks pass.
@@ -55,7 +55,7 @@ documentation build/type checks, and generated API freshness checks pass.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3638 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3709 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1128,8 +1128,60 @@ only Close/Sync protocol messages for statements prepared before the reload; a s
 signals configuration reload. This proves the exact `source=File;sql=unavailable` result without
 opening a SQL transaction in the observed backend while waiting for the signal.
 
-The complete memory port still requires managed reset/drop callback registrations and rooted-object
-cleanup; transient context sizing, aligned/huge and generic typed allocation factories; explicit
+### One-shot memory cleanup callbacks
+
+`PgMemoryContext.RegisterResetCallback(Action)` now returns a cancellable `PgMemoryCallback`.
+Native registrations and managed roots are consumed before user code, including when the action
+throws. LIFO ordering, registration during drain, pending older callbacks after ERROR, and native
+payload lifetime follow pgrx/PostgreSQL. Cancellation releases managed captures immediately and
+retains an inert native record until cleanup, supporting PostgreSQL 13–18 without an unregister API.
+The implementation preserves PostgreSQL's native ERROR behavior after managed frames return.
+
+Cleanup retains owned SPI plan/cursor disposal while masking SQL, logging and inherited
+GUC/aggregate capabilities; the enclosing bindings are restored after success or failure.
+Scoped native owner protection and reset-retention markers allow independent nested resets while
+rejecting reentry into active teardown trees. An adversarial abort probe exposed a
+missing guard on resetting PostgreSQL's own transaction context: GDB showed `CurrentTransactionState`
+filled with PostgreSQL's freed-memory `0x7f` pattern. Infrastructure context resets/deletes are now
+rejected, and tests target executor ancestry separately. Caught native errors also restore interrupt
+holdoff counters before returning into abort cleanup. An adopted parent cursor exposed a late
+subtransaction leak: `CurTransactionContext` had already changed to its surviving parent. Native
+callback registrations now retain a transaction ancestor for deferred closes during its own drain.
+
+ErrorContext-owned callbacks require a precise native restriction. Error recovery could recursively
+delete their active owner, and PostgreSQL's private error stack cannot be isolated by changing the
+ErrorContext pointer. Such callbacks retain managed cleanup but receive direct `55006` (object in use)
+diagnostics for guarded memory/SPI calls before PostgreSQL's error machinery is entered.
+PostgreSQL 19 also drains ErrorContext after normal outermost reporting; that version-specific path
+is source-reviewed, with actual execution still required in the matrix.
+
+| Contract | Exact evidence |
+| --- | --- |
+| Rooting, cancellation, failed registration, one-shot consumption and collection | `NativeRegistrationRootsWrapperAndCaptureUntilConsumption`, `FailedRegistrationReleasesCaptureAndRejectsSavedRoot`, `FailedCancellationPreservesPendingActionAndReleasesDiagnostics`, `CallbackIsConsumedBeforeUserActionAndRunsExactlyOnce`, `PendingNativeOwnershipAndTerminalCleanupHaveExactManagedRootLifetimes` |
+| Provider/thread isolation and capability restoration | `ForeignProviderRejectsCancellationAndDispatchWithoutConsumingRoot`, `CallbackRootsAndCancellationRemainOnTheirOwningThread`, `CallbackMasksInheritedBackendAndLogThenRestoresEveryBinding`, `CallbackRetainsOwnedResourceCleanupBindingAfterRegistrationScopeEnds` |
+| LIFO, reentrant registration/cancellation, failure retry and exact subtree ownership | `ResetCallbacksAreOneShotAndLifo`, `CallbackRegistrationAndCancellationDuringDrainPreserveNativeOrder`, `CallbackFailuresConsumeOnlyTheFailingRegistrationAndRetryPendingCleanup`, `ResetVariantsPreserveNativeCallbackTreeOrderAndPayloadLifetime` |
+| Nested independent resets and active native owner protection | `NestedIndependentResetsPreserveOuterRetainState`, `TeardownProtectsOwnerAndAncestorsWhileKeepingPayloadAndIndependentMemoryUsable`, `NativeAbortCleanupProtectsOwnerOutsideCurrentContext`, `InfrastructureResetsAreRejectedAndOwnedChildrenRemainUsable` |
+| Implicit query/commit/rollback/savepoint cleanup and errors | `ImplicitCommitAndRollbackCleanupRunsExactlyOnce`, `ImplicitSavepointCleanupRespectsItsOwningTransaction`, `ImplicitQueryCleanupPropagatesOwnedCallbackErrorAndRecovers`, `ImplicitCommitCleanupPropagatesOwnedCallbackErrorAndRecovers` |
+| Primary plus cleanup errors, ordered native diagnostics and client recovery | `SqlFailureDrainsImplicitCallbacksAndReportsLastProtocolError` checks both server-log errors; Npgsql exposes the final callback error when cleanup throws |
+| Exact native plan/portal release and disposal order | `ExplicitResetCallbacksDisposeOwnedSpiPlansAndCursors` repeats five times; `ImplicitTransactionCallbacksDisposeOwnedSpiPlansAndCursors` covers commit/rollback/SQL abort; `ImplicitSavepointCallbacksDisposeAdoptedParentCursorAndOwnedPlan` proves closure of a surviving parent cursor |
+| ErrorContext scratch, reclaimed descendants and error-handler restrictions | `ErrorContextFailuresKeepOwnedDiagnosticsOutsideResetScratch`, `ErrorContextSpiFailurePreservesDiagnosticsAndRestoresCaller`, `ErrorContextChildFailureRestoresLiveAncestorAndOriginalCaller`, `ErrorHandlerCallbacksPreserveNativeErrorStackAndRetainedResources` |
+| UTF8/LATIN1 diagnostics and remaining callback ownership after conversion failure | `CallbackErrorsPreserveEncodingAndPendingDrainOwnership` |
+
+Focused validation passes 19 runtime cases (962ms), all 1113 generator cases (9.943s), and
+52 backend cases (1m22.548s), with zero failures/skips. The new test files contain 39 methods,
+71 data-expanded cases, and 222 assertion sites, including shared helpers. Assertion and
+public-outcome reviews cover values, state transitions, exact errors, root release, native resource
+inventory and same-session recovery; no numerical code coverage or executed mutation claim is made.
+Plain `dotnet test` passes all 3709 cases with zero failures/skips in 3m20.988s on PostgreSQL
+18.6/Linux x64. The non-incremental Release build passes with zero warnings/errors (4.98s).
+The style scan covers 451 C# source/template files with no extra opening-brace blanks or warning
+suppressions. README, public memory guide, native boundary guide and generated API reference are
+updated; the site builds 139 pages with 109 API pages/1158 members. Existing duplicate-404 and
+missing-site-URL warnings remain visible. XML inspection covers 856 internal declarations with
+zero omissions; `pnpm check` and API `--check` pass. Reference checkouts and consumer style
+templates are unchanged.
+
+The complete memory port still requires transient context sizing, aligned/huge and generic typed allocation factories; explicit
 raw adoption/ownership transfer and UTF-8 C-string helpers; `PgNativeBox`/node allocation; virtual
 `MemCx` parameters and raw/custom-type datum integration; broader phase/cleanup/error witnesses;
 and actual PostgreSQL 13–19 beta/Windows/Linux/macOS validation. These remain required work, together
@@ -1231,7 +1283,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager` | `PgMemoryContext`, `PgAllocation` | Checked context/byte allocation and callback binding implemented; remaining memory API and version/platform requirements listed above |
+| `palloc`/`MemoryContextManager` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback` | Checked context/byte allocation, cancellable cleanup callbacks and native owner protection implemented; remaining memory API and version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1348,7 +1400,7 @@ complete implementations. AOT serialization must use statically generated metada
 | Source modules | Required behavior | Status |
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
-| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Pending |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked context/byte allocation, reset/delete invalidation, cancellable one-shot managed cleanup, native owner protection and guarded recovery implemented; typed/aligned/huge/raw/native-box allocation, virtual context/datum integration and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
@@ -1798,3 +1850,17 @@ The phases track implementation of the complete pgrx feature surface.
   Managed reset/drop callbacks, typed/aligned/huge/raw allocation and ownership transfer, native boxes,
   virtual context/datum integration, broader cleanup-phase witnesses, and the complete full-port and
   PostgreSQL/platform inventory remain active requirements.
+
+- 2026-09-22 — Added cancellable one-shot memory reset/drop callbacks, managed root ownership,
+  native LIFO and error/retry behavior, and protected callback/iterator/aggregate cleanup owners.
+  Guarded recovery now preserves interrupt holdoffs and avoids reclaimed ErrorContext scratch;
+  ErrorContext-owned callbacks reject native work before entering PostgreSQL's error stack.
+  Retained SPI resource cleanup now drains adopted parent cursors during late savepoint cleanup.
+  Added 19 runtime and 52 backend cases with exact diagnostics, GC roots, native resource counts,
+  UTF8/LATIN1 conversion, and same-session recovery. Focused backend run: 52 passed in 1m22.548s.
+  Plain `dotnet test`: 3709 passed, zero failures/skips, 3m20.988s on PostgreSQL 18.6/Linux x64.
+  Non-incremental Release: zero warnings/errors; XML: 856 internal declarations, no omissions;
+  style: 451 C# source/template files, no opening-brace blanks or suppressions. README/guides/API
+  updated; documentation build/check/freshness pass with 109 API pages, 1158 members, 139 site pages.
+  Typed/aligned/huge/raw/native-box allocation, virtual context/datum integration, remaining full
+  port inventory and actual PostgreSQL 13–19 beta/Windows/Linux/macOS validation remain active.

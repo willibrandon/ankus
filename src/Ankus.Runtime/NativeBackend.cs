@@ -22,6 +22,11 @@ public static unsafe class NativeBackend
     private static SpiSession? s_session;
 
     /// <summary>
+    /// Gets the stable guarded entry point for owned resource release from a later memory cleanup callback.
+    /// </summary>
+    internal static nint CleanupBinding => s_execute;
+
+    /// <summary>
     /// Enters a native callback scope, preserving the previous binding for recursive SPI calls.
     /// </summary>
     /// <param name="execute">The native guarded SPI entry point.</param>

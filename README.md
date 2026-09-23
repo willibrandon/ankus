@@ -153,7 +153,9 @@ Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL no
 Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
 temporary current-context scopes, checked byte access, and deterministic cleanup.
 Reset and transaction cleanup invalidate managed handles before they can access
-freed memory. See [memory contexts](docs/src/content/docs/memory-contexts.md).
+freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
+native context resets or is deleted; its disposable registration supports cancellation.
+See [memory contexts](docs/src/content/docs/memory-contexts.md).
 
 Use `[PgInitialize]` on one static method to initialize the extension when its
 library loads in a backend. Initialization supports guarded database access,

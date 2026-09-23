@@ -129,6 +129,32 @@ Returns: [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
 
 The bytes accounted to this context and its descendants.
 
+<a id="member-10bc4c03499ac468"></a>
+
+### RegisterResetCallback(Action)
+
+Registers a one-shot callback before this context's next reset or deletion.
+
+```csharp
+public PgMemoryCallback RegisterResetCallback(Action callback)
+```
+
+Parameters:
+
+`callback` — [Action](https://learn.microsoft.com/dotnet/api/system.action)
+
+The synchronous cleanup action.
+
+Returns: [PgMemoryCallback](/api/ankus.pgmemorycallback/)
+
+A registration whose disposal cancels the pending callback.
+
+Callbacks run in reverse registration order, including callbacks registered during cleanup.
+SQL, logging, configuration reads, and aggregate operations are unavailable during cleanup.
+Errors propagate after managed frames unwind;
+callbacks not yet invoked remain pending for a subsequent reset or deletion.
+Cleanup owned by ErrorContext or its descendants cannot perform guarded native memory or SPI operations.
+
 <a id="member-2b79839494a34c03"></a>
 
 ### Reset()

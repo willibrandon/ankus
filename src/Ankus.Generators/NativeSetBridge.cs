@@ -19,6 +19,7 @@ internal static class NativeSetBridge
         typedef struct AnkusSetState
         {
             MemoryContextCallback reset;
+            MemoryContext owner;
             void *iterator;
             AnkusSetCallback callback;
             Oid function;
@@ -40,11 +41,21 @@ internal static class NativeSetBridge
             Oid previous = ankus_function_oid;
             int status;
             AnkusMemoryApi memory = {0};
+            AnkusMemoryProtection protection = {0};
             ankus_function_oid = state->function;
             ankus_memory_initialize(&memory);
-            status = state->callback(operation, &state->iterator, arguments, state->row, error,
-                backend ? ankus_spi_execute : NULL, &memory);
-            ankus_function_oid = previous;
+            ankus_memory_protect(&protection, state->owner, operation == 3);
+            PG_TRY();
+            {
+                status = state->callback(operation, &state->iterator, arguments, state->row, error,
+                    backend ? ankus_spi_execute : NULL, &memory);
+            }
+            PG_FINALLY();
+            {
+                ankus_memory_protection = protection.previous;
+                ankus_function_oid = previous;
+            }
+            PG_END_TRY();
             return status;
         }
 
@@ -126,6 +137,7 @@ internal static class NativeSetBridge
             bool skip = false;
             TypeFuncClass result_kind;
             state->function = fcinfo->flinfo->fn_oid;
+            state->owner = context->multi_call_memory_ctx;
             state->callback = callback;
             state->columns = columns;
             state->composite_result = composite_result;

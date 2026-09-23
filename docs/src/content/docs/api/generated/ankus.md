@@ -43,6 +43,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgHeapTuple](/api/ankus.pgheaptuple/)
 - [PgInitializeAttribute](/api/ankus.pginitializeattribute/)
 - [PgLog](/api/ankus.pglog/)
+- [PgMemoryCallback](/api/ankus.pgmemorycallback/)
 - [PgMemoryContext](/api/ankus.pgmemorycontext/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [PgOperatorAttribute](/api/ankus.pgoperatorattribute/)

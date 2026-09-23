@@ -137,6 +137,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
         bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method));
+        if (hasMemoryFunctionCallbacks)
+        {
+            native.AppendLine(NativeMemoryBridge.CleanupBinding);
+        }
+
         if (hasBackend)
         {
             native.AppendLine(NativeBridge.ReadBuffers);
@@ -200,9 +205,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine("#include <math.h>");
             if (hasGucHooks && !hasBackend)
             {
-                native.AppendLine(NativeErrorBridge.Declarations);
-                native.AppendLine(NativeErrorBridge.Logging);
-                native.AppendLine(NativeErrorBridge.Capture);
+                native.AppendLine(NativeErrorBridge.Source);
                 native.AppendLine("struct AnkusRequest;");
                 native.AppendLine("struct AnkusResult;");
                 native.AppendLine("typedef int (*AnkusExecute)(struct AnkusRequest *, struct AnkusResult *, AnkusError *);");

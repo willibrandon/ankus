@@ -560,10 +560,17 @@ their owner, without keeping a pointer to an expired native stack frame.
 
 The memory bridge invokes PostgreSQL directly under a native error guard. It
 does not allocate in an SPI subtransaction or an operation work context. On error
-it restores the context selected at operation entry, copies owned diagnostics in
-a temporary context, resets PostgreSQL's error state, and returns to managed
-code. A caught allocation error consequently leaves both the selected context
-and the original chunk intact.
+it copies owned diagnostics into a temporary child of `TopMemoryContext`, resets
+PostgreSQL's error state, and restores the context selected at operation entry.
+If that context is an `ErrorContext` descendant, flushing deletes it and recovery
+selects the surviving `ErrorContext` instead of restoring a freed pointer.
+The diagnostic owner must remain outside `ErrorContext`, even when that context
+is current: `FlushErrorState` resets it. The memory and SPI guards also restore
+the entry values of `InterruptHoldoffCount` and `QueryCancelHoldoffCount`, which
+PostgreSQL ERROR clears. Abort cleanup can catch native errors inside an existing
+interrupt holdoff section. A caught allocation error leaves ordinary selected
+contexts and their original chunks intact; storage under `ErrorContext` follows
+PostgreSQL's error-flush lifetime.
 
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove
@@ -575,9 +582,46 @@ name remains outside its resettable storage and is released with its registry
 entry. Name transport converts between UTF-8 and server encoding and copies into
 a pinned managed destination before releasing conversion storage.
 
-Deletion checks current-context ancestry. Reset checks protect active callback
-storage. Managed finalizers never invoke PostgreSQL. Context and allocation
-disposal are deterministic and native cleanup makes later disposal harmless.
+Deletion checks current-context ancestry. A native protection stack retains
+explicit reset/delete roots and the actual iterator/aggregate state owners across
+managed callbacks. It prevents overlapping destructive operations, child creation
+in teardown trees, and switching into a context being reclaimed. Each entry is
+removed in `PG_FINALLY`; nested independent resets retain only their own registry
+entries. PostgreSQL infrastructure contexts are protected separately because
+their transaction and backend metadata can outlive the active executor tree.
+Managed finalizers never invoke PostgreSQL. Context and allocation disposal are
+deterministic and native cleanup makes later disposal harmless.
+
+`PgMemoryCallback` registers a native one-shot record with a monotonic managed
+root ID. Both registries remove that ID before entering user code; cancellation
+releases the action immediately and leaves an inert native record until reset.
+This protocol also supports PostgreSQL 13–18, which lack the unregister function
+added in PostgreSQL 19. Native records are independent of context registry node
+lifetime. A managed exception is transported back to native code and raised as
+ERROR, preserving PostgreSQL's pending older callbacks and retry behavior.
+The managed dispatcher masks SQL/logging and inherited GUC/aggregate capabilities, permits owned plan/cursor release
+through the binding captured at registration, and restores enclosing capabilities.
+It also captures a transaction context only when that context is an ancestor of
+the callback owner. That ancestor stays alive through the callback and receives
+deferred cursor cleanup. During late subtransaction deletion PostgreSQL has
+already changed `CurTransactionContext` to the surviving parent; using that
+global would postpone an adopted parent cursor's close until the outer
+transaction ends. Native portal scans still require deferred closing.
+
+If abort cleanup itself raises ERROR, PostgreSQL reports that error after the
+primary SQL error and retries the remaining cleanup. Npgsql retains the last
+ErrorResponse before ReadyForQuery. Backend tests assert both ordered server-log
+diagnostics and the final client exception, followed by same-session recovery.
+
+ErrorContext-owned callbacks inherit a separate error-handler cleanup flag.
+Both native guards return a direct `55006` (object in use) diagnostic before entering PostgreSQL
+while that flag is set. PostgreSQL's private error-stack and recursion counters
+cannot be saved through its public API: swapping the `ErrorContext` pointer would
+not isolate them. A nested caught error could otherwise flush an outer reporter's
+state or reclaim an owner still referenced by the reset stack. This matters for
+ordinary error flushing on every supported version and normal outermost reporting
+on PostgreSQL 19. The flag is restored in `PG_FINALLY`; managed callback failures
+still become native ERROR only after the managed frame has returned.
 
 ## Configuration hook capabilities
 

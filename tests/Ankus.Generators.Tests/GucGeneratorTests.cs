@@ -260,7 +260,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.DoesNotContain("ankus_spi_execute(", native);
             Assert.DoesNotContain("ankus_read_guc", native);
             Assert.DoesNotContain("ankus_enum_supported(", native);
-            Assert.DoesNotContain("ankus_report(", native);
+            Assert.Contains("ankus_report(&error, ERROR);", native);
             Assert.Contains("ankus_capture_error(", native);
         }
 

@@ -1,0 +1,300 @@
+namespace Ankus.TestExtension;
+
+/// <summary>
+/// Probes destructive reentry while native iterator and aggregate storage is being reclaimed.
+/// </summary>
+public static class MemoryCleanupOwnerFunctions
+{
+    private static readonly List<string> s_cleanup = [];
+
+    /// <summary>
+    /// Reads or clears the backend-local cleanup observations.
+    /// </summary>
+    /// <param name="clear">Whether to clear observations after reading them.</param>
+    /// <returns>The ordered cleanup observations.</returns>
+    [PgFunction]
+    public static string MemoryCleanupStatus(bool clear)
+    {
+        string result = string.Join(';', s_cleanup);
+        if (clear)
+        {
+            s_cleanup.Clear();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Rejects resetting a PostgreSQL infrastructure owner while retaining normal child ownership.
+    /// </summary>
+    /// <param name="kind">The predefined infrastructure context.</param>
+    /// <returns>The exact native errors and a value from independently owned storage.</returns>
+    [PgFunction]
+    public static string MemoryInfrastructureProtection(int kind)
+    {
+        var states = new List<string>();
+        for (int operation = 0; operation < 3; operation++)
+        {
+            PgMemoryContext owner = PgMemoryContext.Get((PgMemoryContextKind)kind)
+                ?? throw new InvalidOperationException("The infrastructure context is unavailable.");
+            try
+            {
+                switch (operation)
+                {
+                    case 0:
+                        owner.Reset();
+                        break;
+                    case 1:
+                        owner.ResetOnly();
+                        break;
+                    default:
+                        owner.ResetChildren();
+                        break;
+                }
+
+                states.Add("unexpected success");
+            }
+            catch (PgException error)
+            {
+                states.Add(error.SqlState);
+            }
+        }
+
+        using PgMemoryContext child = PgMemoryContext.Create("infrastructure guard child");
+        using PgAllocation value = child.Allocate(sizeof(int));
+        value.Write(42);
+        int copied = value.Read<int>();
+        child.ResetOnly();
+        return $"{string.Join(',', states)}|{copied}|{child.IsAlive}";
+    }
+
+    /// <summary>
+    /// Recovers a guarded SPI error when PostgreSQL's error context was deliberately selected by managed code.
+    /// </summary>
+    /// <returns>The owned diagnostic, restored context, and subsequent query result.</returns>
+    [PgFunction]
+    public static string MemoryErrorContextSpi()
+    {
+        PgMemoryContext original = PgMemoryContext.Current;
+        PgMemoryContext error = PgMemoryContext.Get(PgMemoryContextKind.Error)
+            ?? throw new InvalidOperationException("No error context.");
+        string state = error.Run(() =>
+        {
+            try
+            {
+                Spi.ExecuteScalar<int>("SELECT 1 / 0");
+                return "unexpected success";
+            }
+            catch (PgException exception)
+            {
+                return $"{exception.SqlState}|{exception.Message}|{PgMemoryContext.Current.Name}";
+            }
+        });
+        return $"{state}|{PgMemoryContext.Current.Id == original.Id}|{Spi.ExecuteScalar<int>("SELECT 42")}";
+    }
+
+    /// <summary>
+    /// Preserves a live current context after PostgreSQL error flushing deletes the selected ErrorContext child.
+    /// </summary>
+    /// <param name="spi">Whether the guarded error originates in SPI rather than the native allocator.</param>
+    /// <returns>The error, selected-context expiration, safe recovery context, and restored caller.</returns>
+    [PgFunction]
+    public static string MemoryErrorContextChild(bool spi)
+    {
+        PgMemoryContext original = PgMemoryContext.Current;
+        PgMemoryContext error = PgMemoryContext.Get(PgMemoryContextKind.Error)
+            ?? throw new InvalidOperationException("No error context.");
+        using PgMemoryContext child = PgMemoryContext.Create("error context child", error);
+        string state = child.Run(() =>
+        {
+            try
+            {
+                if (spi)
+                {
+                    Spi.ExecuteScalar<int>("SELECT 1 / 0");
+                }
+                else
+                {
+                    using PgAllocation allocation = child.Allocate(nuint.MaxValue);
+                }
+
+                return "unexpected success";
+            }
+            catch (PgException exception)
+            {
+                return $"{exception.SqlState}|{child.IsAlive}|{PgMemoryContext.Current.Name}";
+            }
+        });
+        return $"{state}|{PgMemoryContext.Current.Id == original.Id}|{Spi.ExecuteScalar<int>("SELECT 42")}";
+    }
+
+    /// <summary>
+    /// Keeps error-handler cleanup from recursively consuming PostgreSQL's active error stack or memory owner.
+    /// </summary>
+    /// <param name="operation">Explicit child reset, guarded-error cleanup of ErrorContext, or its child.</param>
+    /// <returns>The exact phase rejections, original error, retained payload, and subsequent SPI result.</returns>
+    [PgFunction]
+    public static string MemoryErrorCleanupPhase(int operation)
+    {
+        PgMemoryContext error = PgMemoryContext.Get(PgMemoryContextKind.Error)
+            ?? throw new InvalidOperationException("No error context.");
+        using PgMemoryContext owner = operation == 1 ? error : PgMemoryContext.Create("error-handler callback", error);
+        using PgMemoryContext independent = PgMemoryContext.Create("independent error-handler payload");
+        using PgAllocation value = independent.Allocate(sizeof(int));
+        value.Write(73);
+        using SpiPreparedStatement plan = Spi.Prepare("SELECT 42");
+        var observations = new List<string>();
+        PgMemoryCallback? callback = null;
+        callback = owner.RegisterResetCallback(() =>
+        {
+            observations.Add($"pending:{callback?.IsPending}");
+            try
+            {
+                observations.Add($"unexpected memory access:{value.Read<int>()}");
+            }
+            catch (PgException exception)
+            {
+                observations.Add($"{exception.SqlState}:{exception.Message}");
+            }
+
+            try
+            {
+                plan.Dispose();
+                observations.Add("unexpected plan disposal");
+            }
+            catch (PgException exception)
+            {
+                observations.Add($"{exception.SqlState}:{exception.Message}");
+            }
+        });
+        using (callback)
+        {
+            string trigger = "reset";
+            if (operation == 0)
+            {
+                owner.Reset();
+                owner.Reset();
+            }
+            else
+            {
+                try
+                {
+                    using PgAllocation invalid = independent.Allocate(nuint.MaxValue);
+                    trigger = "unexpected allocation";
+                }
+                catch (PgException exception)
+                {
+                    trigger = exception.SqlState;
+                }
+            }
+
+            return $"{trigger}|{string.Join('|', observations)}|{callback.IsPending}|{owner.IsAlive}|{value.Read<int>()}|{plan.ExecuteScalar<int>()}|{Spi.ExecuteScalar<int>("SELECT 42")}";
+        }
+    }
+
+    /// <summary>
+    /// Suspends an iterator whose finally block attempts to mutate its owning executor tree.
+    /// </summary>
+    /// <returns>Two rows whose native consumer can fail after the first yield.</returns>
+    [PgFunction]
+    public static IEnumerable<int> MemoryCleanupSequence()
+    {
+        PgMemoryContext executor = FindExecutor();
+        try
+        {
+            yield return 1;
+            yield return 2;
+        }
+        finally
+        {
+            Probe(executor);
+        }
+    }
+
+    /// <summary>
+    /// Owns an aggregate payload that attempts destructive memory access from native reset cleanup.
+    /// </summary>
+    [PgAggregate(Name = "memory_cleanup_sum")]
+    public static class CleanupSum
+    {
+        /// <summary>
+        /// Retains the executor handle while accumulating an ordinary sum.
+        /// </summary>
+        /// <param name="state">The existing owned payload.</param>
+        /// <param name="value">The next input.</param>
+        /// <returns>The attached aggregate state.</returns>
+        public static PgAggregateState<CleanupPayload> Transition(PgAggregateState<CleanupPayload>? state, int value)
+        {
+            state ??= new PgAggregateState<CleanupPayload>(new CleanupPayload(FindExecutor()));
+            state.Value.Sum += value;
+            return state;
+        }
+
+        /// <summary>
+        /// Returns the sum before PostgreSQL releases the owned payload.
+        /// </summary>
+        /// <param name="state">The live aggregate state.</param>
+        /// <returns>The accumulated sum.</returns>
+        public static int Final(PgAggregateState<CleanupPayload>? state) => state?.Value.Sum ?? 0;
+    }
+
+    /// <summary>
+    /// Retains an executor ancestor for the native cleanup reentry probe.
+    /// </summary>
+    /// <param name="executor">The ancestor of the native aggregate state.</param>
+    public sealed class CleanupPayload(PgMemoryContext executor) : IDisposable
+    {
+        /// <summary>
+        /// Gets or sets the accumulated value.
+        /// </summary>
+        public int Sum { get; set; }
+
+        /// <summary>
+        /// Probes the native owner's protection before its allocation is freed.
+        /// </summary>
+        public void Dispose() => Probe(executor);
+    }
+
+    private static PgMemoryContext FindExecutor()
+    {
+        for (PgMemoryContext? current = PgMemoryContext.Current; current is not null; current = current.Parent)
+        {
+            if (current.Name == "ExecutorState")
+            {
+                return current;
+            }
+        }
+
+        throw new InvalidOperationException("No executor context in the active callback ancestry.");
+    }
+
+    private static void Probe(PgMemoryContext executor)
+    {
+        bool currentInsideExecutor = false;
+        for (PgMemoryContext? current = PgMemoryContext.Current; current is not null; current = current.Parent)
+        {
+            if (current.Id == executor.Id)
+            {
+                currentInsideExecutor = true;
+            }
+        }
+
+        PgMemoryContext transaction = PgMemoryContext.Get(PgMemoryContextKind.TopTransaction)
+            ?? throw new InvalidOperationException("No transaction context.");
+        var states = new List<string>();
+        foreach (Action operation in new Action[] { executor.ResetOnly, executor.ResetChildren, transaction.ResetOnly, transaction.ResetChildren })
+        {
+            try
+            {
+                operation();
+                states.Add("unexpected success");
+            }
+            catch (PgException exception)
+            {
+                states.Add(exception.SqlState);
+            }
+        }
+
+        s_cleanup.Add($"{currentInsideExecutor}:{string.Join(',', states)}");
+    }
+}

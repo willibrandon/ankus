@@ -138,6 +138,25 @@ public sealed unsafe class PgMemoryContext : IDisposable
     public void ResetChildren() => InvokeContext(NativeMemoryOperation.ResetChildren);
 
     /// <summary>
+    /// Registers a one-shot callback before this context's next reset or deletion.
+    /// </summary>
+    /// <param name="callback">The synchronous cleanup action.</param>
+    /// <returns>A registration whose disposal cancels the pending callback.</returns>
+    /// <remarks>
+    /// Callbacks run in reverse registration order, including callbacks registered during cleanup.
+    /// SQL, logging, configuration reads, and aggregate operations are unavailable during cleanup.
+    /// Errors propagate after managed frames unwind;
+    /// callbacks not yet invoked remain pending for a subsequent reset or deletion.
+    /// Cleanup owned by ErrorContext or its descendants cannot perform guarded native memory or SPI operations.
+    /// </remarks>
+    public PgMemoryCallback RegisterResetCallback(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        EnsureAlive();
+        return PgMemoryCallback.Register(_provider, _id, callback);
+    }
+
+    /// <summary>
     /// Executes a synchronous callback with this context current and restores the previous context on every exit path.
     /// </summary>
     /// <param name="action">The callback that runs with this context current.</param>

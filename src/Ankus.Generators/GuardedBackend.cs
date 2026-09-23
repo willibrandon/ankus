@@ -19,7 +19,19 @@ internal static class GuardedBackend
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
+            if (ankus_memory_error_cleanup)
+            {
+                /* ErrorContext callbacks may run inside PostgreSQL's error reporter.
+                 * Returning a diagnostic must not enter or flush that reporter again. */
+                memset(error, 0, sizeof(*error));
+                error->sqlstate = ERRCODE_OBJECT_IN_USE;
+                strlcpy(error->message, "Guarded SPI operations are unavailable during ErrorContext cleanup", sizeof(error->message));
+                return 1;
+            }
+
             MemoryContext caller_context = CurrentMemoryContext;
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
             volatile int status = 0;
@@ -62,6 +74,7 @@ internal static class GuardedBackend
             }
 
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
+            MemoryContext recovery_context = ankus_memory_contains(ErrorContext, caller_context) ? ErrorContext : caller_context;
             PG_TRY();
             {
                 PG_TRY();
@@ -226,7 +239,7 @@ internal static class GuardedBackend
                     ErrorData *data;
                     MemoryContext diagnostic_context;
                     MemoryContextSwitchTo(caller_context);
-                    diagnostic_context = AllocSetContextCreate(caller_context, "Ankus error diagnostics", ALLOCSET_SMALL_SIZES);
+                    diagnostic_context = AllocSetContextCreate(TopMemoryContext, "Ankus error diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostic_context);
                     data = ankus_copy_error_data();
                     FlushErrorState();
@@ -250,7 +263,7 @@ internal static class GuardedBackend
 
                     ankus_capture_error(data, error);
                     ankus_free_error_data(data);
-                    MemoryContextSwitchTo(caller_context);
+                    MemoryContextSwitchTo(recovery_context);
                     MemoryContextDelete(diagnostic_context);
                     ankus_release_result(result);
                     status = 1;
@@ -260,11 +273,13 @@ internal static class GuardedBackend
             PG_CATCH();
             {
                 /* An unrecoverable recovery error cannot safely return to managed extension code. */
-                MemoryContextSwitchTo(caller_context);
+                MemoryContextSwitchTo(recovery_context);
                 FlushErrorState();
                 ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded SPI failure")));
             }
             PG_END_TRY();
+            InterruptHoldoffCount = interrupt_holdoff;
+            QueryCancelHoldoffCount = cancel_holdoff;
             return status;
         }
 

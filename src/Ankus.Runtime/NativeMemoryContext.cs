@@ -185,6 +185,14 @@ internal enum NativeMemoryOperation
     /// Queries native context allocation statistics.
     /// </summary>
     Statistics = 19,
+    /// <summary>
+    /// Registers a one-shot managed reset callback.
+    /// </summary>
+    RegisterCallback = 20,
+    /// <summary>
+    /// Cancels a callback without unlinking PostgreSQL's pending native record.
+    /// </summary>
+    CancelCallback = 21,
 }
 
 /// <summary>

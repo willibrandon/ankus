@@ -137,7 +137,9 @@ public sealed partial class PgFunctionGeneratorTests
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("typedef int (*AnkusAggregateRelease)(void *, AnkusError *, AnkusExecute, AnkusMemoryApi *);", native);
-        Assert.Contains("ankus_memory_initialize(&memory);\n    status = state->release(handle, &error, ankus_spi_execute, &memory);", native);
+        Assert.Contains("ankus_memory_initialize(&memory);\n    ankus_memory_protect(&protection, state->owner, true);", native);
+        Assert.Contains("status = state->release(handle, &error, ankus_spi_execute, &memory);", native);
+        Assert.Contains("ankus_memory_protection = protection.previous;\n        ankus_aggregate_scope = previous;", native);
     }
 
     /// <summary>

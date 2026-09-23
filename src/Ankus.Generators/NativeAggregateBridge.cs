@@ -60,6 +60,7 @@ internal static class NativeAggregateBridge
             AnkusAggregateScope *previous = ankus_aggregate_scope;
             AnkusError error = {0};
             AnkusMemoryApi memory = {0};
+            AnkusMemoryProtection protection = {0};
             void *handle = state->handle;
             int status;
             if (handle == NULL)
@@ -75,8 +76,17 @@ internal static class NativeAggregateBridge
 
             ankus_aggregate_scope = NULL;
             ankus_memory_initialize(&memory);
-            status = state->release(handle, &error, ankus_spi_execute, &memory);
-            ankus_aggregate_scope = previous;
+            ankus_memory_protect(&protection, state->owner, true);
+            PG_TRY();
+            {
+                status = state->release(handle, &error, ankus_spi_execute, &memory);
+            }
+            PG_FINALLY();
+            {
+                ankus_memory_protection = protection.previous;
+                ankus_aggregate_scope = previous;
+            }
+            PG_END_TRY();
             ankus_release_error(&error);
             if (status != 0)
                 ereport(WARNING, (errmsg("Ankus aggregate state cleanup failed")));
@@ -296,6 +306,7 @@ internal static class NativeAggregateBridge
             AnkusInputBuffer *owned;
             AnkusValue *result;
             AnkusError *error;
+            AnkusMemoryProtection protection = {0};
             volatile Datum datum = (Datum) 0;
             if (kind != AGG_CONTEXT_AGGREGATE && kind != AGG_CONTEXT_WINDOW)
                 ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -314,6 +325,7 @@ internal static class NativeAggregateBridge
             error = MemoryContextAllocZero(temporary, sizeof(AnkusError));
             ankus_aggregate_scope = scope;
             ankus_function_oid = fcinfo->flinfo->fn_oid;
+            ankus_memory_protect(&protection, scope->owner, false);
             PG_TRY();
             {
                 Oid *types;
@@ -372,6 +384,7 @@ internal static class NativeAggregateBridge
             }
             PG_FINALLY();
             {
+                ankus_memory_protection = protection.previous;
                 ankus_aggregate_scope = previous;
                 ankus_function_oid = previous_function;
                 MemoryContextSwitchTo(caller);

@@ -183,11 +183,14 @@ internal static class NativeCursorBridge
                         MemoryContextCallback *cleanup;
                         /* Memory cleanup can run inside At(Sub)Abort_Portals or its
                          * later cleanup scan. Removing another hash entry there is
-                         * unsafe. CurTransactionContext outlives both scans. */
-                        cleanup = MemoryContextAlloc(CurTransactionContext, sizeof(MemoryContextCallback));
+                         * unsafe. Use the callback's captured transaction ancestor when
+                         * CurTransactionContext already points to the surviving parent. */
+                        MemoryContext owner = ankus_memory_cleanup_context != NULL
+                            ? ankus_memory_cleanup_context : CurTransactionContext;
+                        cleanup = MemoryContextAlloc(owner, sizeof(MemoryContextCallback));
                         cleanup->func = ankus_close_aborted_cursors;
                         cleanup->arg = NULL;
-                        MemoryContextRegisterResetCallback(CurTransactionContext, cleanup);
+                        MemoryContextRegisterResetCallback(owner, cleanup);
                         entry->close_pending = true;
                     }
                     else

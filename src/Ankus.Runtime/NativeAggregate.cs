@@ -22,6 +22,16 @@ public static unsafe class NativeAggregate
     private static int s_cleanupDepth;
 
     /// <summary>
+    /// Prevents independent cleanup actions from inheriting an enclosing aggregate callback's native capability.
+    /// </summary>
+    internal static void EnterCleanup() => s_cleanupDepth++;
+
+    /// <summary>
+    /// Restores aggregate access after the matching independent cleanup action returns.
+    /// </summary>
+    internal static void ExitCleanup() => s_cleanupDepth--;
+
+    /// <summary>
     /// Copies aggregate metadata and enters the native owner's scope after every scalar and sort key has been validated.
     /// </summary>
     /// <param name="metadata">Four scalar context fields followed by five scalar fields per sort key.</param>

@@ -6,6 +6,14 @@ namespace Ankus.Generators;
 internal static class NativeMemoryBridge
 {
     /// <summary>
+    /// Gets native cleanup bindings shared by the memory and SPI guards.
+    /// </summary>
+    internal const string CleanupBinding = """
+        static MemoryContext ankus_memory_cleanup_context;
+        static bool ankus_memory_error_cleanup;
+        """;
+
+    /// <summary>
     /// Gets the request envelope, monotonic context/allocation registry, and guarded allocator operations.
     /// </summary>
     internal const string Source = """
@@ -36,7 +44,9 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_CLEAR = 16,
             ANKUS_MEMORY_OWNER = 17,
             ANKUS_MEMORY_EMPTY = 18,
-            ANKUS_MEMORY_STATISTICS = 19
+            ANKUS_MEMORY_STATISTICS = 19,
+            ANKUS_MEMORY_REGISTER_CALLBACK = 20,
+            ANKUS_MEMORY_CANCEL_CALLBACK = 21
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -85,6 +95,119 @@ internal static class NativeMemoryBridge
 
         typedef struct AnkusMemoryAllocation AnkusMemoryAllocation;
         typedef struct AnkusMemoryContext AnkusMemoryContext;
+        typedef struct AnkusMemoryProtection AnkusMemoryProtection;
+
+        struct AnkusMemoryProtection
+        {
+            MemoryContext owner;
+            bool teardown;
+            AnkusMemoryProtection *previous;
+        };
+
+        static AnkusMemoryProtection *ankus_memory_protection;
+
+        static void
+        ankus_memory_protect(AnkusMemoryProtection *scope, MemoryContext owner, bool teardown)
+        {
+            scope->owner = owner;
+            scope->teardown = teardown;
+            scope->previous = ankus_memory_protection;
+            ankus_memory_protection = scope;
+        }
+
+        static bool
+        ankus_memory_contains(MemoryContext ancestor, MemoryContext context)
+        {
+            for (MemoryContext current = context; current != NULL; current = MemoryContextGetParent(current))
+            {
+                if (current == ancestor)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static void
+        ankus_memory_check_protection(MemoryContext context, bool creation)
+        {
+            for (AnkusMemoryProtection *scope = ankus_memory_protection; scope != NULL; scope = scope->previous)
+            {
+                if ((!creation || scope->teardown) &&
+                    (ankus_memory_contains(context, scope->owner) ||
+                        (scope->teardown && ankus_memory_contains(scope->owner, context))))
+                {
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("the memory context overlaps an active native callback or cleanup operation")));
+                }
+            }
+        }
+
+        typedef int (*AnkusMemoryCallbackFunction)(intptr_t, AnkusMemoryApi *, AnkusError *);
+
+        typedef struct AnkusMemoryCallback
+        {
+            MemoryContextCallback callback;
+            MemoryContext owner;
+            MemoryContext cleanup_context;
+            uint64 context_id;
+            intptr_t handle;
+            AnkusMemoryCallbackFunction invoke;
+            struct AnkusMemoryCallback *next;
+        } AnkusMemoryCallback;
+
+        static AnkusMemoryCallback *ankus_memory_callbacks;
+
+        static void
+        ankus_memory_callback(void *argument)
+        {
+            AnkusMemoryCallback *record = argument;
+            AnkusMemoryCallback **slot = &ankus_memory_callbacks;
+            while (*slot != record)
+            {
+                slot = &(*slot)->next;
+            }
+
+            *slot = record->next;
+            intptr_t handle = record->handle;
+            AnkusMemoryCallbackFunction invoke = record->invoke;
+            MemoryContext owner = record->owner;
+            MemoryContext cleanup_context = record->cleanup_context;
+            free(record);
+            if (handle == 0)
+            {
+                return;
+            }
+
+            AnkusMemoryApi memory = {0};
+            AnkusMemoryProtection scope = {0};
+            AnkusError error = {0};
+            int status;
+            MemoryContext previous_cleanup = ankus_memory_cleanup_context;
+            bool previous_error_cleanup = ankus_memory_error_cleanup;
+            ankus_memory_cleanup_context = cleanup_context;
+            ankus_memory_error_cleanup = previous_error_cleanup || ankus_memory_contains(ErrorContext, owner);
+            ankus_memory_initialize(&memory);
+            ankus_memory_protect(&scope, owner, true);
+            PG_TRY();
+            {
+                status = invoke(handle, &memory, &error);
+            }
+            PG_FINALLY();
+            {
+                ankus_memory_cleanup_context = previous_cleanup;
+                ankus_memory_error_cleanup = previous_error_cleanup;
+                ankus_memory_protection = scope.previous;
+            }
+            PG_END_TRY();
+            if (status != 0)
+            {
+                ankus_report(&error, ERROR);
+            }
+
+            ankus_release_error(&error);
+        }
 
         struct AnkusMemoryAllocation
         {
@@ -102,7 +225,7 @@ internal static class NativeMemoryBridge
             uint64 parent_id;
             uint64 generation;
             bool alive;
-            bool retain_reset;
+            AnkusMemoryProtection *retain_reset;
             bool callback_pending;
             char *owned_name;
             MemoryContextCallback callback;
@@ -313,8 +436,21 @@ internal static class NativeMemoryBridge
         }
 
         static void
+        ankus_memory_check_infrastructure(MemoryContext context)
+        {
+            if (context == TopMemoryContext || context == ErrorContext || context == PostmasterContext ||
+                context == CacheMemoryContext || context == MessageContext || context == TopTransactionContext ||
+                context == CurTransactionContext || context == PortalContext)
+            {
+                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                    errmsg("PostgreSQL infrastructure memory contexts cannot be reset or deleted by an extension")));
+            }
+        }
+
+        static void
         ankus_memory_check_delete(AnkusMemoryContext *entry)
         {
+            ankus_memory_check_infrastructure(entry->context);
             if (entry->context == TopMemoryContext || entry->context->parent == NULL)
             {
                 ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -392,6 +528,7 @@ internal static class NativeMemoryBridge
                 {
                     MemoryContext parent = request->context == 0 ? CurrentMemoryContext :
                         ankus_memory_context_from_request(request)->context;
+                    ankus_memory_check_protection(parent, true);
                     MemoryContext context = AllocSetContextCreate(parent, "Ankus memory context", ALLOCSET_DEFAULT_SIZES);
                     MemoryContext caller = CurrentMemoryContext;
                     PG_TRY();
@@ -445,6 +582,8 @@ internal static class NativeMemoryBridge
                 case ANKUS_MEMORY_RESET_ONLY:
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    ankus_memory_check_infrastructure(entry->context);
+                    ankus_memory_check_protection(entry->context, false);
                     for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
                     {
                         if (protected == entry->context)
@@ -459,7 +598,9 @@ internal static class NativeMemoryBridge
                         ankus_memory_check_delete(entry);
                     }
 
-                    entry->retain_reset = true;
+                    AnkusMemoryProtection scope = {0};
+                    ankus_memory_protect(&scope, entry->context, true);
+                    entry->retain_reset = &scope;
                     PG_TRY();
                     {
                         if (request->operation == ANKUS_MEMORY_RESET)
@@ -473,7 +614,8 @@ internal static class NativeMemoryBridge
                     }
                     PG_FINALLY();
                     {
-                        entry->retain_reset = false;
+                        ankus_memory_protection = scope.previous;
+                        entry->retain_reset = NULL;
                         if (!entry->callback_pending)
                         {
                             MemoryContextRegisterResetCallback(entry->context, &entry->callback);
@@ -487,6 +629,8 @@ internal static class NativeMemoryBridge
                 case ANKUS_MEMORY_RESET_CHILDREN:
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    ankus_memory_check_infrastructure(entry->context);
+                    ankus_memory_check_protection(entry->context, false);
                     for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
                     {
                         if (protected != api->current && protected == entry->context)
@@ -496,6 +640,8 @@ internal static class NativeMemoryBridge
                         }
                     }
 
+                    AnkusMemoryProtection scope = {0};
+                    ankus_memory_protect(&scope, entry->context, true);
                     for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
                     {
                         for (MemoryContext parent = MemoryContextGetParent(child->context); parent != NULL;
@@ -503,7 +649,7 @@ internal static class NativeMemoryBridge
                         {
                             if (parent == entry->context)
                             {
-                                child->retain_reset = true;
+                                child->retain_reset = &scope;
                                 break;
                             }
                         }
@@ -515,11 +661,12 @@ internal static class NativeMemoryBridge
                     }
                     PG_FINALLY();
                     {
+                        ankus_memory_protection = scope.previous;
                         for (AnkusMemoryContext *child = ankus_memory_contexts; child != NULL; child = child->next)
                         {
-                            if (child->retain_reset)
+                            if (child->retain_reset == &scope)
                             {
-                                child->retain_reset = false;
+                                child->retain_reset = NULL;
                                 if (!child->callback_pending)
                                 {
                                     MemoryContextRegisterResetCallback(child->context, &child->callback);
@@ -536,6 +683,7 @@ internal static class NativeMemoryBridge
                     AnkusMemoryContext *entry = ankus_memory_context_by_id((uint64) request->context);
                     if (entry != NULL)
                     {
+                        ankus_memory_check_protection(entry->context, false);
                         ankus_memory_check_delete(entry);
                         for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
                         {
@@ -546,13 +694,32 @@ internal static class NativeMemoryBridge
                             }
                         }
 
-                        MemoryContextDelete(entry->context);
+                        AnkusMemoryProtection scope = {0};
+                        ankus_memory_protect(&scope, entry->context, true);
+                        PG_TRY();
+                        {
+                            MemoryContextDelete(entry->context);
+                        }
+                        PG_FINALLY();
+                        {
+                            ankus_memory_protection = scope.previous;
+                        }
+                        PG_END_TRY();
                     }
                     break;
                 }
                 case ANKUS_MEMORY_SWITCH:
                 {
                     AnkusMemoryContext *target = ankus_memory_context_from_request(request);
+                    for (AnkusMemoryProtection *scope = ankus_memory_protection; scope != NULL; scope = scope->previous)
+                    {
+                        if (scope->teardown && ankus_memory_contains(scope->owner, target->context))
+                        {
+                            ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                                errmsg("a context undergoing native cleanup cannot become current")));
+                        }
+                    }
+
                     MemoryContext previous = MemoryContextSwitchTo(target->context);
                     result->context = (intptr_t) ankus_memory_context_id(previous);
                     break;
@@ -707,6 +874,43 @@ internal static class NativeMemoryBridge
                     result->length = MemoryContextMemAllocated(entry->context, true);
                     break;
                 }
+                case ANKUS_MEMORY_REGISTER_CALLBACK:
+                {
+                    AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
+                    AnkusMemoryCallback *record = calloc(1, sizeof(*record));
+                    if (record == NULL)
+                    {
+                        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory registering a memory callback")));
+                    }
+
+                    record->owner = entry->context;
+                    /* This ancestor remains alive until this callback returns, even when
+                     * AtSubCleanup_Memory has already changed CurTransactionContext to its parent. */
+                    record->cleanup_context = ankus_memory_contains(CurTransactionContext, entry->context)
+                        ? CurTransactionContext : NULL;
+                    record->context_id = entry->id;
+                    record->handle = request->other;
+                    record->invoke = (AnkusMemoryCallbackFunction) request->pointer;
+                    record->callback.func = ankus_memory_callback;
+                    record->callback.arg = record;
+                    record->next = ankus_memory_callbacks;
+                    ankus_memory_callbacks = record;
+                    MemoryContextRegisterResetCallback(entry->context, &record->callback);
+                    break;
+                }
+                case ANKUS_MEMORY_CANCEL_CALLBACK:
+                {
+                    for (AnkusMemoryCallback *record = ankus_memory_callbacks; record != NULL; record = record->next)
+                    {
+                        if (record->context_id == (uint64) request->context && record->handle == request->other)
+                        {
+                            record->handle = 0;
+                            break;
+                        }
+                    }
+
+                    break;
+                }
                 default:
                     ereport(ERROR, (errmsg("unknown Ankus memory operation")));
             }
@@ -716,8 +920,20 @@ internal static class NativeMemoryBridge
         ankus_memory_invoke(AnkusMemoryApi *api, AnkusMemoryRequest *request,
             AnkusMemoryResult *result, AnkusError *error)
         {
-            MemoryContext caller = CurrentMemoryContext;
             memset(error, 0, sizeof(*error));
+            if (ankus_memory_error_cleanup)
+            {
+                /* FlushErrorState would recursively reclaim this callback's owner and
+                 * consume an outer error reporter's private error stack. Do not ereport. */
+                error->sqlstate = ERRCODE_OBJECT_IN_USE;
+                strlcpy(error->message, "Guarded memory operations are unavailable during ErrorContext cleanup", sizeof(error->message));
+                return 1;
+            }
+
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext recovery = ankus_memory_contains(ErrorContext, caller) ? ErrorContext : caller;
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
             int status = 0;
             PG_TRY();
             {
@@ -729,25 +945,27 @@ internal static class NativeMemoryBridge
                 MemoryContextSwitchTo(caller);
                 PG_TRY();
                 {
-                    diagnostic = AllocSetContextCreate(caller, "Ankus memory diagnostics", ALLOCSET_SMALL_SIZES);
+                    diagnostic = AllocSetContextCreate(TopMemoryContext, "Ankus memory diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostic);
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
                     ankus_free_error_data(data);
-                    MemoryContextSwitchTo(caller);
+                    MemoryContextSwitchTo(recovery);
                     MemoryContextDelete(diagnostic);
                     status = 1;
                 }
                 PG_CATCH();
                 {
-                    MemoryContextSwitchTo(caller);
+                    MemoryContextSwitchTo(recovery);
                     FlushErrorState();
                     ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded memory failure")));
                 }
                 PG_END_TRY();
             }
             PG_END_TRY();
+            InterruptHoldoffCount = interrupt_holdoff;
+            QueryCancelHoldoffCount = cancel_holdoff;
             return status;
         }
 
