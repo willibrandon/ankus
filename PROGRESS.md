@@ -640,6 +640,50 @@ failures/skips (3m51.093s); the Release build has zero warnings/errors (12.56s).
 The separate MSB4166 exit did not recur and remains unexplained. Public behavior
 and guides are unchanged; production integration and full-port scope remain open.
 
+Runtime commit `1257da736` fixes the reverse-connection stall and descriptor leaks
+identified above. Unix socket connection attempts incorrectly assumed that a local
+listener could never block. A full connection queue disproves that assumption.
+Finite attempts now use nonblocking sockets and the existing operation deadline;
+a full Unix queue returns `EAGAIN` to the diagnostic server's reconnect loop,
+matching .NET's managed socket handling. Errors survive descriptor cleanup and
+the timeout output is initialized on every attempt.
+
+The old runtime hangs in a direct connection attempt and also stops answering
+ordinary `ProcessInfo2` queries when its configured reverse port is full. With the
+repair, the default port answers while that queue remains full. Once the monitor
+accepts queued connections, the runtime reconnects automatically. Three final
+runs each verify three successive reverse connections, their advertisement PID
+and cookie, complete `ProcessInfo2` replies, default-port service and clean exit.
+Six direct connection cases pass in each run, including full/zero-timeout queues,
+retry after recovery, missing/refused endpoints, and an infinite wait released by
+the listener. Descriptor counts stay unchanged after each attempt.
+
+The descriptor receiver also accepted two or three transferred file descriptors
+as if the message contained only one, leaking one descriptor on Linux x64. It now
+rejects extra/truncated lists and closes every delivered descriptor on failure.
+Valid descriptors are marked close-on-exec. The native probe verifies exact file
+contents and launches a native child through `exec` to prove the descriptor is
+closed there; no managed child reentry is involved. The old runtime retains the
+descriptor across exec and grows its descriptor count on both malformed inputs.
+The corrected runtime passes all 21 I/O/descriptor cases in three runs, including
+a real diagnostic query after each operation. Existing endpoint ownership and
+descriptor-reuse checks also pass in three runs, including eighteen native child
+closes. Each supervisor reaps its owned processes.
+
+The exact SDK is `artifacts/preload/runtime-diagnostics-transport-sdk`. Sources,
+SDKs, native binaries, failing controls, successful runs and hashes are retained
+in `.git/testagent/preload/diagnostics-transport-proof/`. These are Linux x64
+results; no macOS or Windows execution of this revision is claimed. Enabled
+diagnostics still needs listener retirement/restart, pending-command preservation,
+active tracing/sampling and multiple-runtime support before fork admission can
+be enabled. The upstream native-library EventSource warning is still present;
+no warnings were suppressed. Production integration and the complete full-port
+and PostgreSQL/platform requirements remain active.
+Main `dotnet test` passes 4,089 cases with zero failures/skips (3m44.930s) on
+PostgreSQL 18.6/Linux x64; the Release build has zero warnings/errors (12.09s).
+MSBuild communication logging captured another clean run. The earlier MSB4166
+exit remains unexplained and is not claimed fixed by these runtime changes.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
