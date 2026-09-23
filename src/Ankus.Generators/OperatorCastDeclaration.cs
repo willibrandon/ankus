@@ -13,9 +13,10 @@ internal static class OperatorCastDeclaration
     /// <summary>
     /// Adds separately addressable operator and cast entities for an already validated function.
     /// </summary>
-    internal static void Add(IMethodSymbol method, FunctionDeclaration function, SqlEntity dependency,
+    internal static void Add(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function, SqlEntity dependency,
         SqlGraph graph, HashSet<string> names, SourceProductionContext context)
     {
+        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsMemoryContext)];
         foreach (AttributeData attribute in method.GetAttributes())
         {
             string? kind = attribute.AttributeClass?.ToDisplayString() switch
@@ -37,8 +38,8 @@ internal static class OperatorCastDeclaration
             }
 
             (string Sql, string Signature)? declaration = kind == "operator"
-                ? CreateOperator(method, function, attribute, context)
-                : CreateCast(method, function, attribute, context);
+                ? CreateOperator(method, sqlParameters, function, attribute, context)
+                : CreateCast(method, sqlParameters, function, attribute, context);
             if (declaration is not { } declared)
             {
                 continue;
@@ -56,7 +57,7 @@ internal static class OperatorCastDeclaration
         }
     }
 
-    private static (string Sql, string Signature)? CreateOperator(IMethodSymbol method, FunctionDeclaration function,
+    private static (string Sql, string Signature)? CreateOperator(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
         AttributeData attribute, SourceProductionContext context)
     {
         string? name = attribute.ConstructorArguments.FirstOrDefault().Value as string;
@@ -66,7 +67,7 @@ internal static class OperatorCastDeclaration
             return Invalid("The operator name must contain 1-63 valid PostgreSQL operator characters, without comment starts or ambiguous trailing + or -.");
         }
 
-        if (method.Parameters.Length is < 1 or > 2 || method.ReturnsVoid || method.Parameters.Any(static parameter => parameter.IsParams))
+        if (parameters.Length is < 1 or > 2 || method.ReturnsVoid || parameters.Any(static parameter => parameter.Symbol.IsParams))
         {
             return Invalid("An operator requires one prefix operand or two binary operands, no variadic parameters, and a non-void result.");
         }
@@ -82,7 +83,7 @@ internal static class OperatorCastDeclaration
             return Invalid("An operator cannot be its own negator.");
         }
 
-        if (method.Parameters.Length == 1 && (commutator is not null || join is not null || hashes || merges))
+        if (parameters.Length == 1 && (commutator is not null || join is not null || hashes || merges))
         {
             return Invalid("Only binary operators can declare a commutator, join estimator, Hashes, or Merges.");
         }
@@ -92,8 +93,8 @@ internal static class OperatorCastDeclaration
             return Invalid("Only boolean operators can declare a negator, selectivity estimators, Hashes, or Merges.");
         }
 
-        string right = FunctionType.Create(method.Parameters[method.Parameters.Length - 1])!.Sql;
-        string? left = method.Parameters.Length == 2 ? FunctionType.Create(method.Parameters[0])!.Sql : null;
+        string right = parameters[parameters.Length - 1].Type!.Sql;
+        string? left = parameters.Length == 2 ? parameters[0].Type!.Sql : null;
         var options = new List<string> { "FUNCTION = " + function.QualifiedName };
         if (left is not null)
         {
@@ -144,7 +145,7 @@ internal static class OperatorCastDeclaration
         }
     }
 
-    private static (string Sql, string Signature)? CreateCast(IMethodSymbol method, FunctionDeclaration function,
+    private static (string Sql, string Signature)? CreateCast(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
         AttributeData attribute, SourceProductionContext context)
     {
         int castContext = attribute.ConstructorArguments.FirstOrDefault().Value is int value ? value : 0;
@@ -153,31 +154,31 @@ internal static class OperatorCastDeclaration
             return Invalid("The cast context must be Explicit, Assignment, or Implicit.");
         }
 
-        if (method.Parameters.Length is < 1 or > 3 || method.ReturnsVoid || method.Parameters.Any(static parameter => parameter.IsParams))
+        if (parameters.Length is < 1 or > 3 || method.ReturnsVoid || parameters.Any(static parameter => parameter.Symbol.IsParams))
         {
             return Invalid("A cast requires one to three non-variadic parameters and a non-void result.");
         }
 
-        if (method.Parameters.Length > 1 && method.Parameters[1].Type.SpecialType != SpecialType.System_Int32 ||
-            method.Parameters.Length > 2 && method.Parameters[2].Type.SpecialType != SpecialType.System_Boolean)
+        if (parameters.Length > 1 && parameters[1].Symbol.Type.SpecialType != SpecialType.System_Int32 ||
+            parameters.Length > 2 && parameters[2].Symbol.Type.SpecialType != SpecialType.System_Boolean)
         {
             return Invalid("A cast's optional second parameter must be non-nullable int (type modifier), and its third must be non-nullable bool (explicit conversion).");
         }
 
-        string source = FunctionType.Create(method.Parameters[0])!.Sql;
+        string source = parameters[0].Type!.Sql;
         string target = FunctionType.CreateResult(method)!.Sql;
         if (source == "record" || target == "record")
         {
             return Invalid("PostgreSQL casts cannot use the record pseudo-type; bind composite source and result values with PgCompositeType.");
         }
 
-        if (source == target && method.Parameters.Length == 1)
+        if (source == target && parameters.Length == 1)
         {
             return Invalid("A one-parameter cast must convert between distinct PostgreSQL types; CLR aliases and nullability do not create distinct SQL types.");
         }
 
         string signature = source + " AS " + target;
-        string arguments = string.Join(", ", method.Parameters.Select(static parameter => FunctionType.Create(parameter)!.Sql));
+        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type!.Sql));
         string suffix = castContext switch { 1 => " AS ASSIGNMENT", 2 => " AS IMPLICIT", _ => string.Empty };
         return ("CREATE CAST (" + signature + ") WITH FUNCTION " + function.QualifiedName + "(" + arguments + ")" + suffix + ";\n", signature);
 

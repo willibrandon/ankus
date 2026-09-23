@@ -52,6 +52,37 @@ public static int Total(
 This allows both `total()` and `total(1, 2, 3)`. See [arrays](/arrays/) for
 variadic calls without a default.
 
+## Injected memory contexts
+
+Add a `PgMemoryContext` parameter to receive the callable's native allocation
+context. It adds no SQL argument:
+
+```csharp
+[PgFunction]
+public static int CopyValue(PgMemoryContext context, int value)
+{
+    using PgAllocation storage = context.Allocate<int>(1);
+    storage.Write(value);
+    return storage.Read<int>();
+}
+```
+
+Call this as `SELECT copy_value(42)`. Context parameters can appear before,
+between, or after SQL parameters, and multiple context parameters are allowed.
+SQL names, defaults, strictness, overload identity, and the 100-argument limit
+count only SQL parameters. Operators and casts follow the same rule.
+
+The injected handle is borrowed and always non-null. Nullable annotations and
+optional null defaults affect direct C# calls only. A `PgParameter` attribute on
+the context reports `ANKUS004` because there is no corresponding SQL name or
+default. Context arrays, context results, and `ref`, `in`, or `out` parameters
+are unsupported.
+
+Scalar functions receive the current native context; set functions receive
+their multi-call context. The handle preserves that owner across temporary
+context switches. See [memory contexts](/memory-contexts/) and
+[set lifetime](/sets-and-tables/#iterator-lifetime-and-errors) for its lifetime.
+
 ## Schemas
 
 Without a schema declaration, functions use the schema selected by
@@ -114,7 +145,7 @@ public static int Maximum(int left, int right) => Math.Max(left, right);
 | --- | --- | --- |
 | `Volatility` | `Volatile` | `Stable` promises statement-stable results; `Immutable` promises equal results for equal arguments forever. Both prohibit database writes. |
 | `ParallelSafety` | `Unsafe` | `Restricted` runs in the parallel leader; `Safe` also permits parallel workers. |
-| `NullInput` | `Inferred` | Infers strictness from parameter nullability. `Strict` skips any NULL call; `CalledOnNull` requires all parameters to be nullable. |
+| `NullInput` | `Inferred` | Infers strictness from SQL parameter nullability. `Strict` skips any NULL call; `CalledOnNull` requires all SQL parameters to be nullable. |
 | `SecurityDefiner` | `false` | Uses the function owner's privileges when true. Otherwise uses the caller's. |
 | `Leakproof` | `false` | Claims the function reveals no argument information except through its result. Installation requires a superuser. |
 | `Cost` | `1` | Positive, finite planner cost in `cpu_operator_cost` units. |

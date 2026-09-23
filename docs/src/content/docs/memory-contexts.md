@@ -30,6 +30,19 @@ prohibits queries. Do not call them from a worker thread or after `await`.
 `TopTransaction`, and `CurTransaction`; it returns null when the selected context
 does not exist in the current phase. `Parent` returns a borrowed parent handle.
 
+Functions, operators, and casts can receive a borrowed `PgMemoryContext` as an
+[injected parameter](/function-declarations/#injected-memory-contexts). A scalar
+call receives its current context. A set factory and its `GetEnumerator` run in
+the multi-call context, which remains alive across row requests. An injected
+handle keeps that context's identity even when `Run` or a nested backend call
+changes the ambient context. Use a fresh `Current` lookup when you need the
+context selected at that later point.
+
+For pgrx users, this is the C# counterpart of a virtual `&MemCx` argument.
+Ankus supplies a checked owner snapshot; pgrx's reference follows the native
+current-context pointer slot. Nullable C# annotations never change the supplied
+owner or inferred SQL strictness, which depends on SQL inputs only.
+
 `Create(name, parent, options)` creates an AllocSet child without changing the current
 context. Omit `parent` to use the current context. Dispose an owned context to
 delete it and its descendants. Disposing a borrowed handle leaves the native
@@ -59,6 +72,10 @@ int result = context.Run(() =>
 It supports nested calls. Deleting the current context or an ancestor is
 rejected; after leaving the scope, disposal can be retried. Native callback
 storage and its ancestors cannot be reset while the callback is active.
+Live set-function owners and their ancestors also remain protected between
+cursor fetches: their executor storage must survive until PostgreSQL closes
+the invocation. This includes `ResetOnly` on an ancestor. Resetting children of
+a suspended set owner preserves that owner but invalidates affected child storage.
 PostgreSQL's infrastructure contexts, including its transaction, portal, cache,
 message and error contexts, cannot be reset or deleted through these checked
 APIs. Create a child context to own storage that your extension can reclaim.

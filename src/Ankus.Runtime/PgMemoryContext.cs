@@ -8,6 +8,13 @@ namespace Ankus;
 /// <summary>
 /// Represents a checked PostgreSQL memory context accessed from synchronous backend callbacks.
 /// </summary>
+/// <remarks>
+/// A function, operator, or cast can declare this type as a by-value parameter to receive
+/// a borrowed context without adding a SQL argument. Scalar functions receive the current
+/// context; set factories receive their multi-call context. The handle keeps that identity
+/// across ambient context switches and becomes stale when PostgreSQL reclaims its owner.
+/// Nullable annotations and optional managed defaults do not make the injected context null.
+/// </remarks>
 public sealed unsafe partial class PgMemoryContext : IDisposable
 {
     private static readonly UTF8Encoding s_utf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -26,6 +33,10 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     /// <summary>
     /// Gets the callback's current PostgreSQL memory context.
     /// </summary>
+    /// <remarks>
+    /// Each lookup resolves the ambient context at that moment. A previously returned or
+    /// injected handle continues to represent its original context after a context switch.
+    /// </remarks>
     public static PgMemoryContext Current => Resolve(NativeMemoryOperation.Current, 0, owned: false)
         ?? throw new InvalidOperationException("PostgreSQL did not expose a current memory context.");
 

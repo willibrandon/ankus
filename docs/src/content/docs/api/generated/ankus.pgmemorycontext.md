@@ -15,6 +15,12 @@ Represents a checked PostgreSQL memory context accessed from synchronous backend
 public sealed class PgMemoryContext : IDisposable
 ```
 
+A function, operator, or cast can declare this type as a by-value parameter to receive
+a borrowed context without adding a SQL argument. Scalar functions receive the current
+context; set factories receive their multi-call context. The handle keeps that identity
+across ambient context switches and becomes stale when PostgreSQL reclaims its owner.
+Nullable annotations and optional managed defaults do not make the injected context null.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 Implements: [IDisposable](https://learn.microsoft.com/dotnet/api/system.idisposable)
@@ -867,6 +873,9 @@ public static PgMemoryContext Current { get; }
 ```
 
 Value: [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+Each lookup resolves the ambient context at that moment. A previously returned or
+injected handle continues to represent its original context after a context switch.
 
 <a id="member-607ac066421dd6c6"></a>
 

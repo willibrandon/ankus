@@ -21,7 +21,7 @@ public enum PgNullInput
 
 ### CalledOnNull
 
-Invokes managed code with NULL arguments. Every parameter must have a nullable declaration.
+Invokes managed code with NULL arguments. Every SQL parameter must have a nullable declaration.
 
 ```csharp
 CalledOnNull = 2
@@ -31,7 +31,7 @@ CalledOnNull = 2
 
 ### Inferred
 
-Declares STRICT when all parameters are required; mixed signatures still reject NULL required arguments before dispatch.
+Declares STRICT when all SQL parameters are required; mixed signatures still reject NULL required arguments before dispatch.
 
 ```csharp
 Inferred = 0

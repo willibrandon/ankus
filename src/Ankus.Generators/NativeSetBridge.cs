@@ -39,6 +39,7 @@ internal static class NativeSetBridge
         ankus_set_call(AnkusSetState *state, int operation, const AnkusValue *arguments, AnkusError *error, bool backend)
         {
             Oid previous = ankus_function_oid;
+            MemoryContext caller = CurrentMemoryContext;
             int status;
             AnkusMemoryApi memory = {0};
             AnkusMemoryProtection protection = {0};
@@ -47,11 +48,21 @@ internal static class NativeSetBridge
             ankus_memory_protect(&protection, state->owner, operation == 3);
             PG_TRY();
             {
+                if (operation == 0)
+                {
+                    MemoryContextSwitchTo(state->owner);
+                }
+
                 status = state->callback(operation, &state->iterator, arguments, state->row, error,
                     backend ? ankus_spi_execute : NULL, &memory);
             }
             PG_FINALLY();
             {
+                if (operation == 0)
+                {
+                    MemoryContextSwitchTo(caller);
+                }
+
                 ankus_memory_protection = protection.previous;
                 ankus_function_oid = previous;
             }
@@ -142,6 +153,10 @@ internal static class NativeSetBridge
             state->columns = columns;
             state->composite_result = composite_result;
             state->econtext = info->econtext;
+            /* PostgreSQL drains reset callbacks in reverse registration order. Register
+             * invalidation first so iterator cleanup can still read direct owner storage. */
+            AnkusMemoryContext *owner = ankus_memory_register_context(state->owner);
+            owner->reserved = true;
             state->reset.func = ankus_set_abort_cleanup;
             state->reset.arg = state;
             MemoryContextRegisterResetCallback(context->multi_call_memory_ctx, &state->reset);

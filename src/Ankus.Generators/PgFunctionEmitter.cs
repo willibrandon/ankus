@@ -13,19 +13,20 @@ internal static class PgFunctionEmitter
     /// Appends a function's complete boundary and installation declarations to the extension artifacts.
     /// </summary>
     /// <param name="method">The attributed managed method.</param>
+    /// <param name="parameterModels">The validated managed parameters and their SQL slots.</param>
     /// <param name="declaration">The validated SQL declaration.</param>
     /// <param name="callback">The assembly-specific managed callback symbol.</param>
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
     /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
-    internal static void Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback,
+    internal static void Emit(IMethodSymbol method, FunctionParameter[] parameterModels, FunctionDeclaration declaration, string callback,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
-        FunctionType[] parameters = [.. method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)];
+        FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsMemoryContext).Select(static parameter => parameter.Type!)];
         FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
-        EmitManaged(method, callback, parameters, result, managed);
+        EmitManaged(method, callback, parameterModels, result, managed);
         EmitNative(nativeName, callback, parameters, result, native);
         sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}({declaration.Arguments})");
         sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
@@ -34,7 +35,7 @@ internal static class PgFunctionEmitter
     }
 
     private static void EmitManaged(
-        IMethodSymbol method, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
+        IMethodSymbol method, string callback, FunctionParameter[] parameters, FunctionType result, StringBuilder source)
     {
         source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         source.AppendLine($"        EntryPoint = \"{callback}\",");
@@ -50,13 +51,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("        {");
         source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
-        var arguments = new List<string>();
-        for (int index = 0; index < parameters.Length; index++)
-        {
-            FunctionType type = parameters[index];
-            string slot = "arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]";
-            arguments.Add(ManagedConversion.Read(type, slot, NumericConstraint.Rescale(method.Parameters[index].GetAttributes())));
-        }
+        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression());
 
         string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";

@@ -558,6 +558,28 @@ envelope and restores the enclosing envelope on return. Checked context and
 allocation identities can therefore outlive a callback when PostgreSQL retains
 their owner, without keeping a pointer to an expired native stack frame.
 
+The generator models virtual `PgMemoryContext` parameters independently of SQL
+slots. Managed invocation order includes these parameters; native argument
+counts, NULL checks, SQL signatures, defaults, and operator/cast operands omit
+them. Each injected handle resolves the current context after memory capability
+entry and keeps a checked snapshot of that owner.
+
+Set creation switches into `multi_call_memory_ctx` for the factory and
+`GetEnumerator`, restoring the caller in `PG_FINALLY`. The memory envelope is
+initialized before that switch to keep the caller's argument storage protected;
+the explicit iterator-owner protection also remains active. Later row callbacks
+retain their existing scratch context behavior. Registering owner invalidation
+before the iterator abort callback lets disposal read direct owner allocations
+before invalidation; PostgreSQL may have already deleted children.
+
+Live set owners carry a registry reservation until native invalidation. Managed
+reset/delete operations reject the owner and affected ancestors even between
+cursor fetches. Ancestor `ResetOnly` is rejected too: required executor descriptors
+can live in the parent's per-query context even when the multi-call child survives.
+`ResetChildren` on the suspended owner itself only affects descendant storage.
+Native executor cleanup bypasses this managed-operation restriction and removes
+the reservation with its registry entry.
+
 The memory bridge invokes PostgreSQL directly under a native error guard. It
 does not allocate in an SPI subtransaction or an operation work context. On error
 it copies owned diagnostics into a temporary child of `TopMemoryContext`, resets

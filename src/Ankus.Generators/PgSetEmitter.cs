@@ -12,7 +12,7 @@ internal static class PgSetEmitter
     /// <summary>
     /// Appends a set function's managed callbacks, native wrapper, SQL, and export names.
     /// </summary>
-    internal static void Emit(IMethodSymbol method, FunctionDeclaration declaration, SetResult set, string callback,
+    internal static void Emit(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
@@ -37,9 +37,7 @@ internal static class PgSetEmitter
         managed.AppendLine();
         managed.AppendLine("            if (operation == 0)");
         managed.AppendLine("            {");
-        string arguments = string.Join(", ", method.Parameters.Select((parameter, index) =>
-            ManagedConversion.Read(FunctionType.Create(parameter)!, "arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]",
-                NumericConstraint.Rescale(parameter.GetAttributes()))));
+        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.ReadExpression()));
         managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
             method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(" + arguments + "));");
         managed.AppendLine("                return 0;");
@@ -97,15 +95,16 @@ internal static class PgSetEmitter
 
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         int mode = attribute is null ? 0 : AttributeValues.Get(attribute, "SetMode", 0);
-        string required = method.Parameters.Length == 0 ? "false" : string.Join(", ", method.Parameters.Select(static parameter =>
-            FunctionType.Create(parameter)!.Nullable ? "false" : "true"));
+        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsMemoryContext)];
+        string required = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
+            parameter.Type!.Nullable ? "false" : "true"));
         native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");
         native.AppendLine($"    const bool required[] = {{ {required} }};");
         native.AppendLine($"    return ankus_set_execute(fcinfo, {callback}, {set.Columns.Length.ToString(CultureInfo.InvariantCulture)}, " +
-            $"{method.Parameters.Length.ToString(CultureInfo.InvariantCulture)}, required, {mode.ToString(CultureInfo.InvariantCulture)}, " +
+            $"{sqlParameters.Length.ToString(CultureInfo.InvariantCulture)}, required, {mode.ToString(CultureInfo.InvariantCulture)}, " +
             $"{(set.Columns.Length == 1 && set.Columns[0].IsComposite ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();

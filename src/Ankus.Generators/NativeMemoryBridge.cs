@@ -243,6 +243,7 @@ internal static class NativeMemoryBridge
             uint64 parent_id;
             uintptr_t generation;
             bool alive;
+            bool reserved;
             AnkusMemoryProtection *retain_reset;
             bool callback_pending;
             char *owned_name;
@@ -456,6 +457,28 @@ internal static class NativeMemoryBridge
         {
             AnkusMemoryContext *entry = ankus_memory_register_context(context);
             return entry == NULL ? 0 : entry->id;
+        }
+
+        static void
+        ankus_memory_check_reserved(MemoryContext context, AnkusMemoryOperation operation)
+        {
+            for (AnkusMemoryContext *entry = ankus_memory_contexts; entry != NULL; entry = entry->next)
+            {
+                if (!entry->alive || !entry->reserved)
+                {
+                    continue;
+                }
+
+                /* Ancestors retain executor descriptors and call state even when a
+                 * reset-only operation would leave the multi-call child intact. */
+                bool affects = ankus_memory_contains(context, entry->context) &&
+                    (operation != ANKUS_MEMORY_RESET_CHILDREN || context != entry->context);
+                if (affects)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("a live set-returning function memory context cannot be reset or deleted")));
+                }
+            }
         }
 
         static void
@@ -736,6 +759,7 @@ internal static class NativeMemoryBridge
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
                     ankus_memory_check_infrastructure(entry->context);
+                    ankus_memory_check_reserved(entry->context, request->operation);
                     ankus_memory_check_protection(entry->context, false);
                     for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
                     {
@@ -783,6 +807,7 @@ internal static class NativeMemoryBridge
                 {
                     AnkusMemoryContext *entry = ankus_memory_context_from_request(request);
                     ankus_memory_check_infrastructure(entry->context);
+                    ankus_memory_check_reserved(entry->context, request->operation);
                     ankus_memory_check_protection(entry->context, false);
                     for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))
                     {
@@ -836,6 +861,7 @@ internal static class NativeMemoryBridge
                     AnkusMemoryContext *entry = ankus_memory_context_by_id((uint64) request->context);
                     if (entry != NULL)
                     {
+                        ankus_memory_check_reserved(entry->context, request->operation);
                         ankus_memory_check_protection(entry->context, false);
                         ankus_memory_check_delete(entry);
                         for (MemoryContext protected = api->current; protected != NULL; protected = MemoryContextGetParent(protected))

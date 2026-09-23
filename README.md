@@ -81,7 +81,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `void` result | `void` |
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
-with only required parameters are declared `STRICT`. For mixed signatures, a NULL
+with only required SQL parameters are declared `STRICT`. For mixed signatures, a NULL
 required argument returns SQL NULL without invoking the method; nullable arguments
 reach managed code. Nullable results become SQL NULL. Methods can share a SQL name
 when their PostgreSQL argument types differ.
@@ -152,6 +152,8 @@ Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL no
 
 Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
 temporary current-context scopes, checked byte access, and deterministic cleanup.
+Declare a `PgMemoryContext` function parameter to receive a borrowed native context
+without adding a SQL argument; set functions receive their multi-call owner.
 Typed factories and span copies preserve unmanaged bytes; allocation options support
 zeroing, explicit alignment, and PostgreSQL's huge size policy. `RunTransient` creates
 and selects a child context, restores the caller, and attempts deletion on every exit.

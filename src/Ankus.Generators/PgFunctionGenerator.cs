@@ -16,7 +16,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 {
     private static readonly DiagnosticDescriptor s_invalidFunction = new(
         "ANKUS001", "Unsupported PostgreSQL function",
-        "'{0}' must be an accessible, synchronous, non-generic static method using supported SQL types and at most 100 by-value parameters",
+        "'{0}' must be an accessible, synchronous, non-generic static method using supported SQL types or injected PgMemoryContext parameters, with by-value parameters and at most 100 SQL arguments",
         "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     private static readonly DiagnosticDescriptor s_invalidName = new(
@@ -356,6 +356,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             bool trigger = TriggerDeclaration.IsTrigger(method);
             bool eventTrigger = EventTriggerDeclaration.IsEventTrigger(method);
             bool contextParameter = trigger || eventTrigger;
+            FunctionParameter[] parameters = contextParameter ? [] : FunctionParameter.Create(method);
             SetResult? set = null;
             if (eventTrigger)
             {
@@ -379,7 +380,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                if (!IsSupported(method, set))
+                if (!IsSupported(method, parameters, set))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
                     continue;
@@ -392,14 +393,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 continue;
             }
 
-            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set, contextParameter);
+            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, name, context, set, contextParameter, parameterModels: parameters);
             if (declaration is null)
             {
                 continue;
             }
 
-            string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", method.Parameters.Select(
-                static parameter => FunctionType.Create(parameter)!.Sql))) + ")";
+            string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", parameters.Where(static parameter => !parameter.IsMemoryContext).Select(
+                static parameter => parameter.Type!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
                 context.ReportDiagnostic(Diagnostic.Create(s_invalidName, method.Locations.FirstOrDefault(), name));
@@ -418,11 +419,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
             else if (set is null)
             {
-                PgFunctionEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+                PgFunctionEmitter.Emit(method, parameters, declaration, callback, managed, native, sql, exports);
             }
             else
             {
-                PgSetEmitter.Emit(method, declaration, set, callback, managed, native, sql, exports);
+                PgSetEmitter.Emit(method, parameters, declaration, set, callback, managed, native, sql, exports);
             }
 
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
@@ -435,10 +436,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             graph.Add(entity);
             if (!contextParameter)
             {
-                OperatorCastDeclaration.Add(method, declaration, entity, graph, relatedNames, context);
+                OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context);
             }
 
-            IEnumerable<FunctionType> contracts = contextParameter ? [] : method.Parameters.Select(static parameter => FunctionType.Create(parameter)!)
+            IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsMemoryContext).Select(static parameter => parameter.Type!)
                 .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
             foreach (FunctionType contract in contracts)
             {
@@ -561,15 +562,15 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static string Metadata(string key, string value)
         => $"[assembly: global::System.Reflection.AssemblyMetadata(\"{key}\", {SymbolDisplay.FormatLiteral(value, quote: true)})]\n";
 
-    private static bool IsSupported(IMethodSymbol method, SetResult? set)
+    private static bool IsSupported(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set)
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            (set is null && FunctionType.CreateResult(method) is null) || method.Parameters.Length > 100 ||
+            (set is null && FunctionType.CreateResult(method) is null) || parameters.Count(static parameter => !parameter.IsMemoryContext) > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-            method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
-                FunctionType.Create(parameter) is null ||
-                (parameter.IsParams && FunctionType.Create(parameter)?.IsVector != true)))
+            parameters.Any(static parameter => parameter.Symbol.RefKind != RefKind.None ||
+                (!parameter.IsMemoryContext && parameter.Type is null) ||
+                (parameter.Symbol.IsParams && parameter.Type?.IsVector != true)))
         {
             return false;
         }

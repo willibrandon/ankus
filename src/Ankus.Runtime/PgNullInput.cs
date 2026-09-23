@@ -6,7 +6,7 @@ namespace Ankus;
 public enum PgNullInput
 {
     /// <summary>
-    /// Declares STRICT when all parameters are required; mixed signatures still reject NULL required arguments before dispatch.
+    /// Declares STRICT when all SQL parameters are required; mixed signatures still reject NULL required arguments before dispatch.
     /// </summary>
     Inferred,
 
@@ -16,7 +16,7 @@ public enum PgNullInput
     Strict,
 
     /// <summary>
-    /// Invokes managed code with NULL arguments. Every parameter must have a nullable declaration.
+    /// Invokes managed code with NULL arguments. Every SQL parameter must have a nullable declaration.
     /// </summary>
     CalledOnNull,
 }

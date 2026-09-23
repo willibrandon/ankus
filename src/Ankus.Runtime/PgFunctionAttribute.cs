@@ -40,7 +40,7 @@ public sealed class PgFunctionAttribute : Attribute
     public PgParallelSafety ParallelSafety { get; set; }
 
     /// <summary>
-    /// Gets or sets SQL NULL dispatch behavior. The default infers strictness from parameter nullability.
+    /// Gets or sets SQL NULL dispatch behavior. The default infers strictness from SQL parameter nullability.
     /// </summary>
     public PgNullInput NullInput { get; set; }
 

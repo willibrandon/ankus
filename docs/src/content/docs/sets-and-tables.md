@@ -127,6 +127,18 @@ across native calls and calls `Dispose` exactly once after acquisition, includin
 empty results, early termination, portal closure, errors, and cancellation.
 An iterator's `finally` blocks therefore run when PostgreSQL abandons the result.
 
+An injected `PgMemoryContext` parameter represents the multi-call owner. The
+factory and `GetEnumerator` run with that context current. Later row callbacks
+can use temporary executor or materialization contexts, so allocate through the
+injected handle when storage must survive across rows. PostgreSQL reclaims the
+owner at invocation cleanup; retained checked handles then become stale.
+Live owners and their ancestors cannot be reset or deleted through managed
+memory APIs, including while a cursor is suspended between fetches.
+
+Iterator disposal can read storage allocated directly in its owner before native
+cleanup invalidates it. Descendant contexts follow PostgreSQL's child-before-parent
+cleanup order; their storage may already be gone during abort disposal.
+
 Each normal callback has the usual guarded backend binding, so iterator bodies
 can use SPI and enum catalog APIs after resumption. Ordinary completion and early
 termination also permit backend calls during disposal. During PostgreSQL abort

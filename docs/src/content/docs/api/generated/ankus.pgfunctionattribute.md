@@ -97,7 +97,7 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 ### NullInput
 
-Gets or sets SQL NULL dispatch behavior. The default infers strictness from parameter nullability.
+Gets or sets SQL NULL dispatch behavior. The default infers strictness from SQL parameter nullability.
 
 ```csharp
 public PgNullInput NullInput { get; set; }

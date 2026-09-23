@@ -33,14 +33,14 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds individually owned native boxes, context-owned values, and checked
-borrowed typed references. Exact byte clones preserve padding and shallow pointer fields; reset
-generations invalidate raw views even while their anchor context survives. It adds 34 direct runtime
-and 34 backend cases. IDE0004 now rejects redundant casts throughout repository builds, and existing
-casts were fixed. Plain `dotnet test` passes 3897 cases on PostgreSQL 18.6/Linux x64. Immediate native
-reclamation, ownership transfer, callback errors, native inventory and same-session recovery evidence
-is mapped below. Actual huge-size allocation, virtual context/datum/node APIs, full memory/GUC/preload
-parity, the remaining port inventory, and the platform/version matrix remain incomplete.
+The latest milestone adds virtual `PgMemoryContext` parameters to ordinary functions,
+operators and casts without consuming SQL arguments. Set factories receive a checked multi-call
+owner, and live set owners remain protected between cursor fetches. It adds 59 generator and
+48 backend cases proving actual callback invocation, SQL signatures, retained payloads, scratch
+expiry, cleanup ordering and same-session recovery. Plain `dotnet test` passes 4004 cases on
+PostgreSQL 18.6/Linux x64. IDE0004 remains enforced as an error throughout repository builds.
+Actual huge-size allocation, datum/node APIs, full memory/GUC/preload parity, the remaining
+port inventory, and the platform/version matrix remain incomplete.
 
 The non-incremental Release build has zero warnings/errors. XML documentation, source style,
 documentation build/type checks, and generated API freshness checks pass.
@@ -57,7 +57,7 @@ documentation build/type checks, and generated API freshness checks pass.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3897 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **4004 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1319,6 +1319,77 @@ native allocation failure witnesses, Slab/Bump behavior and the full version/pla
 remain required. Custom release policies and unsized/context-bound datum layouts are not claimed
 by these three sized ownership wrappers.
 
+
+### Virtual memory-context parameters
+
+Ordinary function, operator and cast methods accept by-value `PgMemoryContext` dependencies
+without consuming SQL arguments. The shared parameter model keeps managed order separate from
+contiguous SQL ordinals and drives validation, overload identity, declaration defaults/names,
+NULL policy, scalar/set marshaling, dependencies, and operator/cast signatures. Multiple and
+interleaved contexts are supported. The PostgreSQL limit counts 100 SQL inputs independently
+of virtual parameters; unsupported types are still rejected rather than silently skipped.
+
+SQL always supplies a non-null borrowed context. Nullable annotations and optional null defaults
+are direct C# call contracts only. SQL strictness uses SQL parameters only. `PgParameter` on a
+context reports `ANKUS004`; numeric and composite metadata retain their existing diagnostics.
+By-reference contexts, arrays and context results remain unsupported. Specialized trigger,
+event-trigger and aggregate callbacks retain their distinct signature contracts.
+
+Reference review follows `pgrx/src/memcx.rs`, `callconv.rs`, `iter.rs`, and `pg_extern` wrapper/SQL
+translation: virtual arguments do not advance native SQL slots, and initial set invocation runs
+in its multi-call owner. Two deliberate C# adaptations are explicit in public docs: checked
+handles retain a fixed owner snapshot rather than aliasing the global CurrentMemoryContext
+pointer slot, and nullable virtual annotations do not affect SQL strictness. pgrx's optionality
+inference includes optional Rust virtual arguments before filtering them from SQL.
+
+Native set creation now selects its multi-call owner for the factory and GetEnumerator while
+preserving the original caller's memory protection. Native finally restores the caller before
+an error is raised. Later row callbacks retain their temporary-context behavior. Owner registry
+invalidation is registered before iterator abort cleanup so direct owner storage remains readable
+during Dispose; PostgreSQL still deletes children before parent callbacks.
+
+A persistent reservation protects live set owners between cursor fetches. Managed destructive
+operations reject owners and affected ancestors; ancestor ResetOnly is also forbidden because
+PostgreSQL stores executor descriptors outside the surviving multi-call child. ResetChildren on
+a suspended owner itself preserves direct owner storage and follows ordinary child reset rules.
+Native executor cleanup retires the reservation through the existing registry invalidator.
+No reparent API or native ABI change is introduced.
+
+| Contract | Exact evidence |
+| --- | --- |
+| Executed scalar/set injection and contiguous SQL ordinals | `VirtualContextsPreserveCompiledScalarArgumentOrder`, `VirtualContextsPreserveCompiledSetFactoryAndNullableArguments` |
+| SQL argument limit, defaults, nullability and overload identity | `VirtualContextsDoNotConsumePostgresArgumentLimit`, `VirtualContextNullabilityDoesNotChangeSqlStrictness`, `VirtualContextErasureDeterminesSqlOverloadIdentity` |
+| Implicit type dependencies remain real graph edges | `VirtualContextsPreserveAutomaticSqlDependencyEdges` uses cycles that disappear if an automatic edge is omitted |
+| Installed SQL signatures, defaults and NULL policy | `CatalogSignaturesDefaultsAndStrictnessExcludeVirtualDependencies` |
+| Operator/cast SQL operand and typmod ordinals | `OperatorsAndCastsRetainSqlOperandAndTypmodOrdinals` |
+| Fixed snapshot, nested SPI and guarded error restoration | `NestedCallbacksPreserveSnapshotProviderAndCurrentRestoration` |
+| Factory/GetEnumerator owner and retained values across real scratch resets | `SetFactoriesRetainOwnerStorageAcrossActualPerRowScratchResets`, `DeferredIteratorBodiesUseCapturedOwnerRatherThanCurrentScratch` |
+| Suspended owners, ancestor protection and child-only reset | `SuspendedOwnerGuardsPreserveCursorRecoveryAndExactChildResetSemantics`, `InterleavedPortalsRetainDistinctOwnersAndExpireIndependently` |
+| Live direct-owner bytes during disposal followed by stale handles | `EarlyShutdownDisposesWithLiveInjectedPayload`, `ExecutorAbortPreservesDirectOwnerPayloadUntilRestrictedCleanupFinishes`, `NativeOutputFailurePreservesOwnerPayloadThroughAbortDisposal` |
+| Original error, cleanup error and exactly-once disposal | `LifecycleErrorsPreserveDiagnosticsAndCleanupBeforeOwnerExpiry`, `DisposalErrorsPreserveLivePayloadObservationAndExactOnceCleanup` |
+| Savepoint and transaction lifetime boundaries | `SavepointAbortExpiresSetOwnerAndPreservesTopTransactionControl`, `TransactionCompletionReclaimsSuspendedOwnerAndItsCapturedViews` |
+
+The existing 1113 generator cases pass (zero failures/skips, 9.935s) after the shared model change.
+All 59 new generator cases pass with zero failures/skips (3.224s). All 48 new backend cases
+pass with zero failures/skips (1m19.984s) on PostgreSQL 18.6/Linux x64. Final plain `dotnet test`
+passes 4004 cases with zero failures/skips (3m16.906s), including package and consumer suites. Assertion review strengthened automatic-dependency witnesses
+and requires the reservation-specific error to distinguish it from unrelated native guards.
+CA1861, CA1859 and MSTEST0037 findings in new tests were fixed without suppressions.
+
+The non-incremental Release build passes with zero warnings/errors (5.11s). The IDE0004-specific
+formatter verification passes without changes. Internal XML inspection covers 902 declarations with zero omissions; the source/style scan covers 470 C#
+source/template files with no opening-brace blank lines or warning suppressions. AGENTS contains
+no personal paths. README, function/memory/set guides, native-boundary documentation and generated
+API pages are updated. Documentation build, `pnpm check` and API freshness pass with 114 API
+pages, 1210 members and 144 site pages; type checks report zero errors/warnings/hints. Existing
+site duplicate-404 and missing-site-URL warnings remain visible.
+
+The native Delete reservation shares the guarded ancestry predicate but remains source-reviewed:
+borrowed managed handles intentionally expose no native-delete operation. This phase does not
+claim custom callback failures in every executor phase, native allocator exhaustion, or additional
+PostgreSQL/platform execution. All other memory requirements and the full port/version/platform
+inventory remain active.
+
 ## Key research findings (verified)
 
 ### .NET Native AOT (Microsoft docs, verified)
@@ -1415,7 +1486,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing and cancellable cleanup implemented; huge-size execution, virtual context/datum/node APIs and full version/platform requirements listed above |
+| `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing and cancellable cleanup implemented; huge-size execution, datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1532,7 +1603,7 @@ complete implementations. AOT serialization must use statically generated metada
 | Source modules | Required behavior | Status |
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
-| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup and guarded recovery implemented; actual huge-size execution, virtual context/datum/node integration, custom release policies, broader allocator witnesses and full matrix remain required |
+| `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup and guarded recovery implemented; actual huge-size execution, datum/node integration, custom release policies, broader allocator witnesses and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
@@ -2023,3 +2094,18 @@ The phases track implementation of the complete pgrx feature surface.
   Virtual context/datum/node APIs, actual huge allocations, native allocator fault witnesses,
   Slab/Bump, custom release policies, the remaining full inventory and actual PostgreSQL/platform
   matrix remain required. Consumer style choices and read-only references are preserved.
+
+
+- 2026-09-22 — Added virtual `PgMemoryContext` parameters to scalar/set functions, operators and
+  casts with SQL-only ordinals, declarations and overload identity. Set factories select their
+  multi-call owner, abort disposal precedes direct-owner invalidation, and persistent reservations
+  protect suspended owners and ancestors. Added 59 generator and 48 real PostgreSQL cases;
+  focused runs pass with zero failures/skips (3.224s and 1m19.984s). Plain `dotnet test` passes
+  all 4004 cases without skips (3m16.906s) on PostgreSQL 18.6/Linux x64. Non-incremental Release
+  passes with zero warnings/errors; XML inspection covers 902 internal declarations and style
+  inspection covers 470 source/template files, both clean. README/guides/API are updated;
+  documentation build/type checks/API freshness pass (114 API pages, 1210 members, 144 site pages).
+  Direct native Delete protection remains source-reviewed, since borrowed handles do not expose
+  native deletion. Actual huge-size and native fault witnesses, allocator variants, datum/node
+  integration, custom release policies, full remaining port scope and the platform/version
+  matrix remain required.
