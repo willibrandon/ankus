@@ -33,13 +33,13 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone adds native PostgreSQL configuration storage, typed partial getters, contexts,
-options/units, enum labels, check/assign/show hooks, owned extra data, rollback/reload handling and
-native-only shared preload. GUC-only and each individual hook-only library shape publish without
-unused native helpers. Plain `dotnet test` passes 3447 cases on PostgreSQL 18.6/Linux x64; the
-non-incremental Release build has zero warnings/errors. Evidence and exact restrictions are mapped
-below. Full GUC/preload parity, the remaining port inventory and the platform/version matrix remain
-incomplete.
+The latest milestone adds literal configuration prefix declarations and guarded logging in every
+GUC hook phase, including abort restoration, file reload and client parameter reporting. Prefix-only
+libraries support native shared preload, and terminal reports preserve managed unwind and native
+severity. Version-aware diagnostic copies retain their source metadata safely. Plain `dotnet test`
+passes 3534 cases on PostgreSQL 18.6/Linux x64; the non-incremental Release build has zero warnings/errors.
+Evidence and exact restrictions are mapped below. Full GUC/preload parity, the remaining port
+inventory and the platform/version matrix remain incomplete.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -53,7 +53,7 @@ incomplete.
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3242 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3534 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -910,8 +910,8 @@ unused helper is retained through a dummy reference or warning-suppression attri
 | Managed ownership, malformed transport, thread affinity and nested scope cleanup | 52 direct `GucRuntimeTests` cases, including allocator-release checks for successful and failed reads |
 | Compiler contracts and diagnostics | 114 `GucGeneratorTests` cases compile generated declarations and verify exact contracts; the complete generator suite passes 1076 cases |
 
-Focused backend verification passes 39 cases on PostgreSQL 18.6/Linux x64. Plain `dotnet test` passes
-3447 cases, zero failures/skips. Non-incremental Release build: zero warnings/errors. Public
+The initial configuration milestone passed 39 focused backend cases on PostgreSQL 18.6/Linux x64.
+Plain `dotnet test` passed 3447 cases, zero failures/skips. Non-incremental Release build: zero warnings/errors. Public
 configuration/initialization guides, README and the native preload sample are updated. Documentation
 build, type check and API freshness pass; 104 API pages contain 1118 members and the site builds 133 pages. XML review finds zero omissions in 755 internal declarations; 415 C# source/template
 files have no opening-brace blank lines or warning suppressions. Existing duplicate-404/missing-site-URL
@@ -919,18 +919,64 @@ site warnings remain visible.
 
 Assign/show have typed reads but no SQL executor, since PostgreSQL cannot reliably distinguish normal
 SET from every restoration phase. Unexpected assign failures are FATAL; show failures are ERROR in a
-transaction and FATAL outside it. PgLog also remains unavailable in those restricted phases. Shared
+transaction and FATAL outside it. The lifecycle work below adds independent logging in all hook phases. Shared
 preload metadata/defaults/labels must currently be ASCII; hooks and managed initializers are rejected
 before managed entry in a forking postmaster. PG18's native DisallowInFile flag blocks ALTER SYSTEM
 but does not by itself reject manually supplied custom UserSet file values; tests and public docs
 preserve this observed behavior.
 
-Remaining full-port work is explicit: prefix warning/reservation, raw placeholder behavior, restricted
-logging, arbitrary managed postmaster hooks, mixed-encoding shared-preload metadata, complete source
+Remaining full-port work is explicit: raw placeholder behavior,
+arbitrary managed postmaster hooks, mixed-encoding shared-preload metadata, complete source
 and placeholder-privilege combinations, parallel-worker propagation, allocation/root measurements,
 packaged GUC consumer and drop/reinstall cases, and actual PostgreSQL 13–19 beta plus Windows/Linux/macOS
 execution. The broader G01–G60 inventory and review dispositions are retained in `.git/testagent/guc/`;
 passing this milestone is not full GUC or pgrx parity.
+
+### Configuration lifecycle and logging evidence
+
+`[assembly: PgGucPrefix("name")]` now composes native prefix checks after all settings register and
+before optional managed initialization, including libraries with no settings or managed callbacks.
+`ANKUS015` rejects null, embedded-zero and malformed-Unicode transport; literal case, empty/dotted
+prefixes, duplicate coalescing and deterministic ordering preserve native semantics. PostgreSQL
+13–14 warn about matching placeholders; PostgreSQL 15+ removes them and reserves future first
+components. Non-ASCII backend prefixes convert through the database encoding; native-only shared
+preload currently requires ASCII.
+
+GUC hooks receive independent read/log/SQL capabilities. `PgLog` can filter and report structured
+messages in check/assign/show, including reload before transaction startup, abort restoration and
+ParameterStatus reporting, without granting SQL access. Native guards contain conversion/reporting
+ERROR beneath managed frames; owned diagnostics and temporary contexts are released. Explicit
+FATAL/PANIC retains terminal severity after managed finally, including when diagnostic encoding
+fails. Unexpected hook errors retain the existing phase-dependent failure policy.
+
+Review identified diagnostic source-pointer ownership differences: PostgreSQL 13–16 CopyErrorData
+borrows five source/translation strings; 17+ copies them, but FreeErrorData treats them as constants.
+Shared native copy/free helpers now retain and release those strings across GUC, SPI and aggregate
+error guards. Exact supported-version source tags were inspected; execution below is only PG18.6/Linux.
+
+| Requirement | Concrete evidence |
+|---|---|
+| Prefix-only native load, placeholder adoption/removal, literal case/dotted prefixes, rollback and independent preload backends | `DeclaredSettingsAreAdoptedBeforeUnknownPlaceholdersAreRemoved`, `PrefixOnlyLibraryPreservesLiteralCaseAndFirstComponentReservation`, `ReservationSurvivesRollbackWithPlaceholderHistory`, `PrefixOnlySharedPreloadReservesNamesInEveryBackend` |
+| UTF8/LATIN1 native prefix encoding and isolated shared-preload rejection | `Latin1PrefixReservationUsesDatabaseEncoding`, `PrefixOnlySharedPreloadRejectsUnicodeWithoutMetadataMasking` |
+| Full structured logging, source fields, old values, SQL denial and abort/function restoration | `AssignmentLogsStructuredDiagnosticsDuringAbortAndFunctionRestoration` pins ordered events and client/server-specific fields |
+| Filtering before conversion, reload and parameter-report phases | `ShowLoggingHonorsClientThresholdsWithoutEnablingSql`, `ReloadCheckLogsWithoutTransactionAccess`, `ParameterStatusShowLogsOutsideTransactions`, `Latin1LoggingPreservesAbortAndReportMessagesAndConversionRecovery` |
+| Actual managed finally, terminal severity and healthy-peer/recoverable-session behavior | `ShowErrorPreservesDiagnosticsAndSameSessionRecovery`, `AssignmentReportsTerminateTheAffectedBackend`, `ShowFatalPreservesTerminalSeverity`, `CheckFatalPreservesTerminalSeverity`, `Latin1TerminalDiagnosticConversionKeepsFatalSeverity` |
+| Thread-local scope isolation, nesting, disabled fallback, exact diagnostic transport and release counts | 47 `NativeLogTests` cases including `LoggingCapabilityDoesNotEnableTransactionApis`, `NestedAndDisabledScopesRestoreTheirExactBinding`, `NativeFailuresReleaseOwnedDiagnosticsAndAllowRecovery`, `TerminalReportsRetainManagedUnwindSemantics` |
+| Prefix declaration compiler contracts and callback scope/lifetime composition | 21 new prefix generator cases; 135 focused GUC generator cases pass, including full/minimal native diagnostic ownership assertions |
+
+Verification: 47 runtime, 135 generator, and 70 focused backend/diagnostic cases pass. Plain
+`dotnet test`: 3534 passed, zero failures/skips, 3m06.420s. The 87 new cases comprise 47 runtime,
+21 generator and 19 backend cases. Non-incremental Release build: zero warnings/errors.
+XML scan: 775 internal declarations, zero omissions. Style scan: 426 C# source/template files,
+zero opening-brace blanks or warning suppressions. Public configuration/logging/native-boundary guides,
+README, sample and generated API are updated. `pnpm build`, `pnpm check` and API `--check` pass:
+105 API pages, 1120 members and 134 site pages. Existing duplicate-404/missing-site-URL site warnings
+remain visible. No reference checkout or consumer style template was changed.
+
+Remaining full-port scope includes raw placeholders, arbitrary managed postmaster callbacks,
+mixed-encoding preload metadata, remaining source/privilege combinations, worker propagation,
+allocation/root measurements, packaged GUC consumers and the complete PostgreSQL/platform matrix.
+Prefix and logging tests do not establish full GUC or pgrx parity.
 
 ### Work in progress
 
@@ -1301,7 +1347,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
-  - [ ] Remaining GUC prefix/raw/preload/logging/worker/lifetime parity; background workers
+  - [ ] Remaining GUC raw/preload/worker/lifetime parity; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
    - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
    - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
@@ -1596,3 +1642,16 @@ The phases track implementation of the complete pgrx feature surface.
   sample describe exact hook/preload limits. Prefix reservation, raw placeholder behavior, restricted logging,
   arbitrary managed postmaster callbacks, mixed-encoding preload, remaining lifecycle/ownership witnesses,
   packaged GUC consumers and the complete PostgreSQL/platform matrix remain active full-port requirements.
+
+- 2026-09-22 — Added assembly configuration prefix declarations and guarded logging in all GUC hook
+  phases, including reload, abort restoration and client reporting. Native prefix behavior preserves
+  literal case and PostgreSQL's version-specific warning/removal/reservation semantics; prefix-only
+  libraries preload without managed entry. Diagnostics preserve every field, filtering and terminal
+  severity after managed finally, including LATIN1 conversion failures. Shared native error copies now
+  own version-dependent source/translation metadata. Added 47 runtime, 21 generator and 19 backend
+  cases. Plain `dotnet test`: 3534 passed, zero failures/skips, 3m06.420s on PostgreSQL 18.6/Linux x64.
+  Non-incremental Release build: zero warnings/errors. XML scan: 775 internal declarations, zero
+  omissions; style scan: 426 C# source/template files, zero opening-brace blanks or suppressions.
+  Documentation build/type/API freshness checks pass: 105 API pages, 1120 members and 134 site pages.
+  Raw placeholders, managed postmaster callbacks, mixed-encoding preload, remaining source/privilege,
+  worker/lifetime/package witnesses and the complete full-port/platform inventory remain required.

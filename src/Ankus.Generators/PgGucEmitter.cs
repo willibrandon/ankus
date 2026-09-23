@@ -42,7 +42,7 @@ internal static class PgGucEmitter
         if (declaration.HasHooks)
         {
             EmitManaged(declaration, callback, managed);
-            native.AppendLine($"extern int {callback}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute);");
+            native.AppendLine($"extern int {callback}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog);");
             native.AppendLine($"static AnkusGuc {symbol};");
             if (declaration.Check is not null)
             {
@@ -166,7 +166,7 @@ internal static class PgGucEmitter
     }
 
     /// <summary>
-    /// Emits a shared phase dispatcher with independently restored native-read and backend scopes.
+    /// Emits a shared phase dispatcher with independently restored read, logging, and backend scopes.
     /// </summary>
     private static void EmitManaged(GucDeclaration declaration, string callback, StringBuilder managed)
     {
@@ -175,10 +175,11 @@ internal static class PgGucEmitter
                 [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                     EntryPoint = "{{callback}}", CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
                 private static int {{callback}}(int phase, global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* results,
-                    int source, global::Ankus.NativeCallError* error, nint read, nint execute)
+                    int source, global::Ankus.NativeCallError* error, nint read, nint execute, nint log)
                 {
                     nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
                     nint previousRead = global::Ankus.NativeGuc.Enter(read);
+                    nint previousLog = global::Ankus.NativeLog.Enter(log);
                     try
                     {
                         {{declaration.ManagedType}} value = {{ReadValue(declaration, "arguments[0]")}};
@@ -239,6 +240,7 @@ internal static class PgGucEmitter
                     }
                     finally
                     {
+                        global::Ankus.NativeLog.Exit(previousLog);
                         global::Ankus.NativeGuc.Exit(previousRead);
                         global::Ankus.NativeBackend.Exit(previousBackend);
                     }

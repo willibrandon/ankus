@@ -81,20 +81,25 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
                 "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute").ToImmutableArray());
+        IncrementalValueProvider<ImmutableArray<AttributeData>> prefixes = context.CompilationProvider.Select(static (compilation, _) =>
+            compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() ==
+                "Ankus.PgGucPrefixAttribute").ToImmutableArray());
         IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Right,
-                input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
-        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties)
+        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties,
+        ImmutableArray<AttributeData> prefixAttributes)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty)
         {
             return;
         }
@@ -103,6 +108,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
         var native = new StringBuilder(NativeBridge.Source);
+        ImmutableArray<string> prefixes = GucPrefixDeclaration.Read(prefixAttributes, context);
         var gucs = new List<GucDeclaration>();
         var gucNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (IPropertySymbol property in gucProperties.Distinct<IPropertySymbol>(SymbolEqualityComparer.Default))
@@ -191,6 +197,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             if (hasGucHooks && !hasBackend)
             {
                 native.AppendLine(NativeErrorBridge.Declarations);
+                native.AppendLine(NativeErrorBridge.Logging);
                 native.AppendLine("typedef int (*AnkusExecute)(struct AnkusRequest *, struct AnkusResult *, AnkusError *);");
             }
 
@@ -318,7 +325,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             context.AddSource("GucProperties.g.cs", PgGucEmitter.EmitProperties(gucs));
         }
 
-        if (initializer is not null || gucs.Count != 0)
+        GucPrefixDeclaration.Emit(prefixes, native, registration);
+        if (initializer is not null || gucs.Count != 0 || !prefixes.IsEmpty)
         {
             PgInitializeEmitter.Emit(initializer, initializer is null ? null : GetCallbackName(initializer, "initialize"),
                 hasGucHooks, registration.ToString(), managed, native, exports);

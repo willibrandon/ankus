@@ -16,3 +16,4 @@ ANKUS011 | Ankus | Error | Invalid PostgreSQL event trigger declaration
 ANKUS012 | Ankus | Error | Invalid PostgreSQL aggregate declaration
 ANKUS013 | Ankus | Error | Invalid PostgreSQL initialization declaration
 ANKUS014 | Ankus | Error | Invalid PostgreSQL configuration declaration
+ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix

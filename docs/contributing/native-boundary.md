@@ -548,3 +548,36 @@ before `PG_TRY`. The wrapper restores the prior function and aggregate scopes in
 storage. SQL results are constructed in the caller's memory context before that
 temporary context is deleted. Registered managed states retain their separate
 aggregate or deserialize owner until its reset callback runs.
+
+## Configuration hook capabilities
+
+GUC callbacks receive separate native pointers for typed setting reads, logging,
+and transaction-bound operations. Managed thread-local scopes restore all three
+bindings in reverse order, including on exception. Assign and show receive no SQL
+executor. Checks receive one only when PostgreSQL has a valid transaction.
+
+The logging callback supports threshold checks and nonterminal reports. It borrows
+the managed diagnostic buffers for the duration of the call and returns separately
+owned errors. Native `PG_TRY` catches conversion and reporting errors below managed
+frames; a temporary context owns converted fields and is deleted on success or
+failure. Cached database converters allow logging during abort, file reload, and
+parameter reporting without catalog lookup, SPI, or a subtransaction.
+
+ERROR, FATAL, and PANIC first unwind managed code. Ordinary hook errors follow
+PostgreSQL's phase constraints: check rejection, assign FATAL, transactional show
+ERROR, and nontransactional show FATAL. Explicit FATAL/PANIC requests keep their
+severity, including if converting their diagnostic text fails. A backend which
+cannot copy an error safely terminates rather than returning through managed code
+with an active PostgreSQL error stack.
+
+Error copies retain their source and translation metadata before the native error
+stack is reset. PostgreSQL 13–16 leave five source/translation pointers borrowed
+in `CopyErrorData`; the bridge copies them explicitly. PostgreSQL 17+ copies those
+strings itself. Paired cleanup frees the owned copies on all supported versions,
+including fields that PostgreSQL's `FreeErrorData` treats as constant.
+
+Assembly prefix declarations run in native initialization after definitions and
+before managed initialization. PostgreSQL 15+ uses `MarkGUCPrefixReserved`;
+13–14 use `EmitWarningsOnPlaceholders`. Prefix-only libraries need neither a
+managed callback nor the SQL execution bridge. Prefix conversion uses the database
+encoding for backend loading and restricts shared-preload text to ASCII.

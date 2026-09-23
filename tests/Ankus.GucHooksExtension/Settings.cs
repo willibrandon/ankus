@@ -19,7 +19,20 @@ public static partial class Settings
     /// <returns>The accepted value.</returns>
     internal static PgGucCheckResult<bool> Check(bool proposed, PgGucSource source)
     {
-        PgLog.Write(PgLogLevel.Notice, "Ankus hooks-only check entered.");
+        string sql;
+        try
+        {
+            sql = Spi.ExecuteScalar<int>("SELECT 42").ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (InvalidOperationException)
+        {
+            sql = "unavailable";
+        }
+
+        PgLog.Write(PgLogLevel.Notice, new PgDiagnostic("Ankus hooks-only check entered.")
+        {
+            Detail = $"source={source};sql={sql}",
+        });
         return new(proposed);
     }
 }

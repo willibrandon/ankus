@@ -203,13 +203,14 @@ internal static class NativeAggregateBridge
                     MemoryContextSwitchTo(caller);
                     diagnostics = AllocSetContextCreate(caller, "Ankus aggregate diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostics);
-                    data = CopyErrorData();
+                    data = ankus_copy_error_data();
                     FlushErrorState();
                     while (GetCurrentTransactionNestLevel() > nesting)
                         RollbackAndReleaseCurrentSubTransaction();
                     MemoryContextSwitchTo(diagnostics);
                     CurrentResourceOwner = resource_owner;
                     ankus_capture_error(data, error);
+                    ankus_free_error_data(data);
                     MemoryContextSwitchTo(caller);
                     MemoryContextDelete(diagnostics);
                     *output = NULL;

@@ -12,6 +12,11 @@ PgLog.Write(PgLogLevel.Notice, "Refresh complete.");
 Calls require the active PostgreSQL backend thread. `Console.WriteLine` does not
 produce a PostgreSQL notice.
 
+Configuration check, assign, and show hooks can log during reload, rollback, and
+client parameter reporting, including outside transactions. Their logging binding
+does not grant SQL access. See [configuration hooks](/configuration/#hooks) for
+phase restrictions and the failure policy for an unhandled `Error`.
+
 ## Levels and filtering
 
 `Debug5` through `Debug1` provide decreasing detail. `Log` reports operational

@@ -13,7 +13,7 @@ public static class PgLog
     public static bool IsEnabled(PgLogLevel level)
     {
         ValidateLevel(level);
-        return NativeBackend.IsLogEnabled(level);
+        return NativeLog.IsEnabled(level);
     }
 
     /// <summary>
@@ -33,7 +33,7 @@ public static class PgLog
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         ValidateLevel(level);
-        NativeBackend.CheckAccess();
+        NativeLog.CheckAccess();
         if (diagnostic.SqlState is string state &&
             (state.Length != 5 || state.Any(static value => value is not (>= '0' and <= '9' or >= 'A' and <= 'Z')) ||
             (level >= PgLogLevel.Error && state == "00000")))
@@ -52,7 +52,7 @@ public static class PgLog
             throw new PgTerminalException(level, diagnostic);
         }
 
-        NativeBackend.Report(level, diagnostic);
+        NativeLog.Report(level, diagnostic);
     }
 
     private static void ValidateLevel(PgLogLevel level)

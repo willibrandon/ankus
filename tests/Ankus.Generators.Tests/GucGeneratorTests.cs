@@ -183,7 +183,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertGucCompilation(compilation, diagnostics);
         IMethodSymbol callback = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers()));
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
-        Assert.AreSequenceEqual(["int", "Ankus.NativeValue*", "Ankus.NativeValue*", "int", "Ankus.NativeCallError*", "nint", "nint"],
+        Assert.AreSequenceEqual(["int", "Ankus.NativeValue*", "Ankus.NativeValue*", "int", "Ankus.NativeCallError*", "nint", "nint", "nint"],
             callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
         Assert.AreEqual("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute", entry.AttributeClass!.ToDisplayString());
@@ -193,8 +193,9 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax syntax = Assert.IsInstanceOfType<MethodDeclarationSyntax>(callback.DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         Assert.AreEqual("nint previousBackend = global::Ankus.NativeBackend.Enter(execute);", syntax.Body!.Statements[0].ToString());
         Assert.AreEqual("nint previousRead = global::Ankus.NativeGuc.Enter(read);", syntax.Body.Statements[1].ToString());
-        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(syntax.Body.Statements[2]);
-        Assert.AreSequenceEqual(["global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
+        Assert.AreEqual("nint previousLog = global::Ankus.NativeLog.Enter(log);", syntax.Body.Statements[2].ToString());
+        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(syntax.Body.Statements[3]);
+        Assert.AreSequenceEqual(["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
             guarded.Finally!.Block.Statements.Select(static statement => statement.ToString()));
         CatchClauseSyntax error = Assert.ContainsSingle(guarded.Catches);
         Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"], error.Block.Statements.Select(static statement => statement.ToString()));
@@ -206,6 +207,9 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("global::Settings.@Assign(value, global::Ankus.NativeGuc.ReadExtra(arguments[1]));", phases.Sections[1].ToString());
         Assert.Contains("A GUC show hook returned null.", phases.Sections[2].ToString());
         string native = ManifestValue(compilation, "Ankus.NativeSource");
+        Assert.Contains($"extern int {callback.Name}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog);", native);
+        AssertGucNativeDiagnosticOwnership(native);
+        Assert.Contains("ankus_capture_error(data, error);\n            ankus_free_error_data(data);", native.ReplaceLineEndings("\n"));
         Assert.Contains(".has_check = true, .has_assign = true, .has_show = true", native);
         Assert.DoesNotContain("ankus_raise_error(", native);
     }
@@ -236,14 +240,20 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains(".assign.integer = ankus_guc_", native);
         Assert.Contains("cannot run through shared_preload_libraries", native);
         Assert.Contains("ankus_release_error(", native);
+        AssertGucNativeDiagnosticOwnership(native);
         Assert.Contains("ankus_guc_read(", native);
         Assert.Contains("ankus_guc_prepare_encoding();", native);
+        Assert.Contains("ankus_guc_log(", native);
+        Assert.Contains("ankus_log_level(", native);
+        Assert.Contains("ankus_log_enabled(", native);
+        Assert.Contains("&frame->error, ankus_guc_read, NULL, ankus_guc_log);", native);
         Assert.DoesNotContain("ankus_raise_error(", native);
         if (options.StartsWith("Check", StringComparison.Ordinal))
         {
             Assert.Contains("ankus_guc_check(", native);
             Assert.Contains("ankus_spi_execute(", native);
             Assert.Contains("ankus_read_guc = ankus_guc_read;", native);
+            Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log);", native);
         }
         else
         {
@@ -531,6 +541,34 @@ public sealed partial class PgFunctionGeneratorTests
         int secondBoot = native.IndexOf(".boot.integer = 42", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, firstBoot);
         Assert.IsGreaterThan(firstBoot, secondBoot);
+    }
+
+    /// <summary>
+    /// Both native bridge shapes own older PostgreSQL's borrowed diagnostic fields until capture completes.
+    /// </summary>
+    /// <param name="source">The full or minimal native hook source.</param>
+    private static void AssertGucNativeDiagnosticOwnership(string source)
+    {
+        string native = source.ReplaceLineEndings("\n");
+        int copy = native.IndexOf("ankus_copy_error_data(void)", StringComparison.Ordinal);
+        int free = native.IndexOf("ankus_free_error_data(ErrorData *data)", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, copy);
+        Assert.IsGreaterThan(copy, free);
+        string copying = native[copy..free];
+        int version = copying.IndexOf("#if PG_VERSION_NUM < 170000", StringComparison.Ordinal);
+        int end = copying.IndexOf("#endif", version, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, version);
+        Assert.IsGreaterThan(version, end);
+        foreach (string field in new[] { "filename", "funcname", "domain", "context_domain", "message_id" })
+        {
+            Assert.Contains($"if (data->{field} != NULL) data->{field} = pstrdup(data->{field});", copying[version..end]);
+            Assert.Contains($"data->{field} = NULL;", native[free..]);
+        }
+
+        Assert.Contains("data->filename, data->funcname, data->domain, data->context_domain, data->message_id", native[free..]);
+        Assert.Contains("pfree((void *) fields[index]);", native[free..]);
+        Assert.Contains("FreeErrorData(data);", native[free..]);
+        Assert.Contains("ErrorData *data = ankus_copy_error_data();\n            FlushErrorState();\n            ankus_guc_capture_error(data, error);\n            ankus_free_error_data(data);", native);
     }
 
     /// <summary>

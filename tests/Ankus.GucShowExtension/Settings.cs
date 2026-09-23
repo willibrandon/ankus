@@ -18,5 +18,39 @@ public static partial class Settings
     /// <param name="extra">The optional copied hook data.</param>
     /// <returns>The display value and independently read native value.</returns>
     internal static string Show(int current, PgGucExtra? extra)
-        => $"display={current};native={Count};extra={(extra is null ? "none" : "present")}";
+    {
+        if (current is 667 or 668 or 669)
+        {
+            try
+            {
+                PgLog.Write(current == 667 ? PgLogLevel.Error : PgLogLevel.Fatal,
+                    new PgDiagnostic(current == 669 ? "Unrepresentable 🐘" : "Display requested termination.")
+                    {
+                        SqlState = "P0001",
+                        Detail = "Managed frames unwind first.",
+                        File = "Display.cs",
+                        Routine = "Display",
+                        Line = 41,
+                    });
+            }
+            finally
+            {
+                PgLog.Write(PgLogLevel.Notice, $"Display finally {current}.");
+            }
+        }
+
+        string sql;
+        try
+        {
+            sql = Spi.ExecuteScalar<int>("SELECT 42").ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (InvalidOperationException)
+        {
+            sql = "unavailable";
+        }
+
+        PgLog.Write(PgLogLevel.Notice, $"show={current};sql={sql};café 100%");
+        PgLog.Write(PgLogLevel.Debug1, "Display debug message.");
+        return $"display={current};native={Count};extra={(extra is null ? "none" : "present")}";
+    }
 }

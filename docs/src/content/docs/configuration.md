@@ -43,6 +43,32 @@ definition. Invalid placeholder values produce PostgreSQL's diagnostics.
 Registration survives transaction rollback and `DROP EXTENSION`; dropping SQL
 objects does not unload a library or unregister its settings.
 
+## Reserving a prefix
+
+Declare a prefix at assembly scope to catch unknown settings after registration:
+
+```csharp
+[assembly: PgGucPrefix("my_extension")]
+```
+
+Ankus registers all declared settings first, checks the prefixes, then calls an
+optional `[PgInitialize]` method. Prefix declarations also work in a library with
+no settings or managed callbacks, including native-only shared preload.
+
+On PostgreSQL 15 and later, PostgreSQL warns about and removes existing unknown
+placeholders under the prefix, then rejects new placeholders with that first
+component. Declared settings retain their adopted values. PostgreSQL 13 and 14
+only warn; they retain the placeholders and allow new ones. Reservation survives
+transaction rollback and repeated library loading.
+
+Prefix matching is literal and case sensitive, even though setting lookup is
+case insensitive. Use the same spelling consistently. Ankus passes the supplied
+text without normalizing it: a dotted prefix can remove matching existing
+placeholders but does not reserve a first component against future ones. Empty
+prefixes retain native behavior. Null, embedded zero characters, and malformed
+Unicode produce `ANKUS015`. Non-ASCII prefixes use the backend's database encoding;
+shared-preload prefixes currently must be ASCII.
+
 ## Types and metadata
 
 | Attribute | Property type | Additional metadata |
@@ -164,8 +190,12 @@ backend with FATAL.
 Typed setting reads are available in every hook. Check hooks can use guarded SQL
 when PostgreSQL has a valid transaction. Assign and show cannot use SQL, including
 during ordinary `SET`, because PostgreSQL also calls them during restoration and
-outside transactions. The current callback binding also makes `PgLog` unavailable
-in those phases.
+outside transactions. `PgLog` is available in every hook through a separate native
+binding, including file reloads, rollback restoration, and client parameter
+reporting. It preserves filtering, structured fields, and database encoding without
+enabling SQL. Explicit `Fatal` and `Panic` reports retain their severity after
+managed code unwinds. An unhandled `Error` follows the hook's failure policy:
+check rejection, assign FATAL, or show ERROR/FATAL according to transaction state.
 
 ## Preloading
 
@@ -188,5 +218,5 @@ ASCII: the postmaster has no database encoding to use for inherited metadata.
 Backend registration supports server-encoded text. Libraries containing managed
 hooks or `[PgInitialize]` are rejected before managed entry in a forking postmaster;
 use backend loading or `session_preload_libraries` for those libraries. Managed
-postmaster hooks, non-ASCII shared-preload metadata, prefix reservation, and the
+postmaster hooks, non-ASCII shared-preload metadata, and the
 raw placeholder flag remain tracked full-port work in `PROGRESS.md`.

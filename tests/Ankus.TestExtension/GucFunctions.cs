@@ -203,6 +203,19 @@ public static partial class GucFunctions
     internal static PgGucCheckResult<int> CheckInteger(int value, PgGucSource source)
     {
         s_events.Add($"check:{value}:{source}");
+        if (Control is "check-log-fatal" or "check-log-fatal-unrepresentable")
+        {
+            try
+            {
+                PgLog.Write(PgLogLevel.Fatal, new PgDiagnostic(Control == "check-log-fatal-unrepresentable" ?
+                    "Unrepresentable 🐘" : "Check requested termination.") { SqlState = "P0001" });
+            }
+            finally
+            {
+                PgLog.Write(PgLogLevel.Notice, "Check finally.");
+            }
+        }
+
         if (source == PgGucSource.Default && Control == "reject-boot")
         {
             return new(new PgGucCheckError("Rejected boot integer."));
@@ -255,6 +268,11 @@ public static partial class GucFunctions
     /// <returns>The display text.</returns>
     internal static string ShowInteger(int value, PgGucExtra? extra)
     {
+        if (Control == "log-unrepresentable")
+        {
+            PgLog.Write(PgLogLevel.Notice, "Unrepresentable 🐘");
+        }
+
         if (Control == "show-error")
         {
             throw new PgException("22023", "Show failed safely.");
@@ -372,7 +390,14 @@ public static partial class GucFunctions
     /// <param name="extra">The copied accepted hook data.</param>
     /// <returns>The report display text.</returns>
     internal static string ShowReported(int value, PgGucExtra? extra)
-        => value == 666 ? throw new InvalidOperationException("Report show must not fail.") : $"report={value};sql={ProbeSql()}";
+    {
+        if (Control == "logging")
+        {
+            PgLog.Write(PgLogLevel.Notice, $"report={value};sql={ProbeSql()};café 100%");
+        }
+
+        return value == 666 ? throw new InvalidOperationException("Report show must not fail.") : $"report={value};sql={ProbeSql()}";
+    }
 
     private static string ProbeSql()
     {

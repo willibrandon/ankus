@@ -22,8 +22,9 @@ internal static class NativeGucBridge
         struct AnkusRequest;
         struct AnkusResult;
         typedef int (*AnkusGucRead)(const char *, int, AnkusValue *, struct AnkusError *);
+        typedef int (*AnkusGucLog)(int, int, struct AnkusError *, struct AnkusError *, int *);
         typedef int (*AnkusGucHook)(int, AnkusValue *, AnkusValue *, int, struct AnkusError *, AnkusGucRead,
-            int (*)(struct AnkusRequest *, struct AnkusResult *, struct AnkusError *));
+            int (*)(struct AnkusRequest *, struct AnkusResult *, struct AnkusError *), AnkusGucLog);
 
         typedef union AnkusGucNumber
         {
@@ -599,11 +600,11 @@ internal static class NativeGucBridge
                 PG_CATCH();
                 {
                     MemoryContextSwitchTo(caller);
-                    ErrorData *data = CopyErrorData();
+                    ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_guc_release_value(value);
                     ankus_guc_capture_error(data, error);
-                    FreeErrorData(data);
+                    ankus_free_error_data(data);
                     status = 1;
                 }
                 PG_END_TRY();
@@ -693,14 +694,65 @@ internal static class NativeGucBridge
             data.datatype_name = ankus_guc_error_field(error, ANKUS_ERROR_DATATYPE);
             data.constraint_name = ankus_guc_error_field(error, ANKUS_ERROR_CONSTRAINT);
             data.internalquery = ankus_guc_error_field(error, ANKUS_ERROR_QUERY);
-            data.filename = __FILE__;
-            data.funcname = "ankus_guc_report";
+            data.filename = ankus_guc_error_field(error, ANKUS_ERROR_FILE);
+            data.funcname = ankus_guc_error_field(error, ANKUS_ERROR_ROUTINE);
             data.detail_log = ankus_guc_error_field(error, ANKUS_ERROR_DETAIL_LOG);
             data.backtrace = ankus_guc_error_field(error, ANKUS_ERROR_BACKTRACE);
+            /* ErrorData source locations must survive caller-context cleanup after ERROR. */
+            data.filename = data.filename == NULL ? __FILE__ :
+                (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.filename) : data.filename);
+            data.funcname = data.funcname == NULL ? "ankus_guc_report" :
+                (level >= ERROR ? MemoryContextStrdup(ErrorContext, data.funcname) : data.funcname);
             data.assoc_context = CurrentMemoryContext;
             if (level == ERROR && (error->flags & ANKUS_ERROR_RETHROW) != 0)
                 ReThrowError(&data);
             ThrowErrorData(&data);
+        }
+
+        static int
+        ankus_guc_log(int operation, int level, AnkusError *report, AnkusError *error, int *enabled)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext volatile work = NULL;
+            volatile int status = 0;
+            PG_TRY();
+            {
+                PG_TRY();
+                {
+                    if ((operation != 0 && operation != 1) || level < 0 || level > 12 || enabled == NULL)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid configuration logging request")));
+                    if (operation == 1 && (level >= 10 || report == NULL))
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Terminal configuration messages must unwind managed code before reporting")));
+                    *enabled = ankus_log_enabled(ankus_log_level(level)) ? 1 : 0;
+                    if (operation == 1 && *enabled != 0)
+                    {
+                        work = AllocSetContextCreate(caller, "Ankus configuration logging", ALLOCSET_SMALL_SIZES);
+                        MemoryContextSwitchTo(work);
+                        ankus_guc_report(report, ankus_log_level(level));
+                    }
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(caller);
+                    ErrorData *data = ankus_copy_error_data();
+                    FlushErrorState();
+                    ankus_guc_capture_error(data, error);
+                    ankus_free_error_data(data);
+                    status = 1;
+                }
+                PG_END_TRY();
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                FlushErrorState();
+                ereport(FATAL, (errmsg("Unable to recover an Ankus configuration logging failure")));
+            }
+            PG_END_TRY();
+            MemoryContextSwitchTo(caller);
+            if (work != NULL)
+                MemoryContextDelete(work);
+            return status;
         }
 
         static void
@@ -897,7 +949,7 @@ internal static class NativeGucBridge
                     }
 
                     int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
-                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL);
+                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log);
                     if (frame->snapshot_owned)
                     {
                         frame->snapshot_owned = false;
@@ -909,6 +961,8 @@ internal static class NativeGucBridge
                         ankus_guc_accept(definition, proposed, extra, frame);
                         accepted = true;
                     }
+                    else if (frame->error.report_level != 0)
+                        ankus_guc_report(&frame->error, ankus_log_level(frame->error.report_level - 1));
                     else
                         ankus_guc_reject(&frame->error);
                 }
@@ -921,11 +975,17 @@ internal static class NativeGucBridge
                         PopActiveSnapshot();
                     }
 
-                    ErrorData *data = CopyErrorData();
+                    ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
+                    if (frame->error.report_level != 0)
+                    {
+                        data->elevel = ankus_log_level(frame->error.report_level - 1);
+                        ThrowErrorData(data);
+                    }
+
                     ankus_release_error(&frame->error);
                     ankus_guc_capture_error(data, &frame->error);
-                    FreeErrorData(data);
+                    ankus_free_error_data(data);
                     ankus_guc_reject(&frame->error);
                     accepted = false;
                 }
@@ -967,17 +1027,19 @@ internal static class NativeGucBridge
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, accepted, extra, frame);
                     int status = definition->hook(1, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL);
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log);
                     if (status != 0)
-                        ankus_guc_report(&frame->error, FATAL);
+                        ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :
+                            ankus_log_level(frame->error.report_level - 1));
                     definition->extra = extra;
                 }
                 PG_CATCH();
                 {
                     MemoryContextSwitchTo(caller);
-                    ErrorData *data = CopyErrorData();
+                    ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
-                    data->elevel = FATAL;
+                    data->elevel = frame == NULL || frame->error.report_level == 0 ? FATAL :
+                        ankus_log_level(frame->error.report_level - 1);
                     ThrowErrorData(data);
                 }
                 PG_END_TRY();
@@ -1014,9 +1076,10 @@ internal static class NativeGucBridge
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
                     int status = definition->hook(2, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL);
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log);
                     if (status != 0)
-                        ankus_guc_report(&frame->error, IsTransactionState() ? ERROR : FATAL);
+                        ankus_guc_report(&frame->error, frame->error.report_level == 0 ?
+                            (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));
                     AnkusValue *value = &frame->results[0];
                     if (value->is_null || value->data == NULL)
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A configuration show hook returned NULL")));
@@ -1027,12 +1090,13 @@ internal static class NativeGucBridge
                 }
                 PG_CATCH();
                 {
-                    if (!IsTransactionState())
+                    if ((frame != NULL && frame->error.report_level != 0) || !IsTransactionState())
                     {
                         MemoryContextSwitchTo(caller);
-                        ErrorData *data = CopyErrorData();
+                        ErrorData *data = ankus_copy_error_data();
                         FlushErrorState();
-                        data->elevel = FATAL;
+                        data->elevel = frame == NULL || frame->error.report_level == 0 ? FATAL :
+                            ankus_log_level(frame->error.report_level - 1);
                         ThrowErrorData(data);
                     }
 

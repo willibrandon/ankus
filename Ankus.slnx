@@ -27,7 +27,9 @@
     <Project Path="tests/Ankus.GucAssignExtension/Ankus.GucAssignExtension.csproj" />
     <Project Path="tests/Ankus.GucHooksExtension/Ankus.GucHooksExtension.csproj" />
     <Project Path="tests/Ankus.GucOnlyExtension/Ankus.GucOnlyExtension.csproj" />
+    <Project Path="tests/Ankus.GucPrefixExtension/Ankus.GucPrefixExtension.csproj" />
     <Project Path="tests/Ankus.GucShowExtension/Ankus.GucShowExtension.csproj" />
+    <Project Path="tests/Ankus.GucUnicodePrefixExtension/Ankus.GucUnicodePrefixExtension.csproj" />
     <Project Path="tests/Ankus.IntegrationTests/Ankus.IntegrationTests.csproj" />
     <Project Path="tests/Ankus.PgConfig.Tests/Ankus.PgConfig.Tests.csproj" />
     <Project Path="tests/Ankus.Runtime.Tests/Ankus.Runtime.Tests.csproj" />

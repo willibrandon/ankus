@@ -61,13 +61,48 @@ internal static class NativeErrorBridge
             free(data);
         }
 
+        static ErrorData *
+        ankus_copy_error_data(void)
+        {
+            ErrorData *data = CopyErrorData();
+        #if PG_VERSION_NUM < 170000
+            /* Older PostgreSQL releases leave these pointers in ErrorContext or their original owner. */
+            if (data->filename != NULL) data->filename = pstrdup(data->filename);
+            if (data->funcname != NULL) data->funcname = pstrdup(data->funcname);
+            if (data->domain != NULL) data->domain = pstrdup(data->domain);
+            if (data->context_domain != NULL) data->context_domain = pstrdup(data->context_domain);
+            if (data->message_id != NULL) data->message_id = pstrdup(data->message_id);
+        #endif
+            return data;
+        }
+
+        static void
+        ankus_free_error_data(ErrorData *data)
+        {
+            /* CopyErrorData owns these strings, but FreeErrorData treats them as constant. */
+            const char *fields[] = {
+                data->filename, data->funcname, data->domain, data->context_domain, data->message_id
+            };
+            for (int index = 0; index < 5; index++)
+            {
+                if (fields[index] != NULL)
+                    pfree((void *) fields[index]);
+            }
+
+            data->filename = NULL;
+            data->funcname = NULL;
+            data->domain = NULL;
+            data->context_domain = NULL;
+            data->message_id = NULL;
+            FreeErrorData(data);
+        }
+
         """;
 
     /// <summary>
-    /// Gets diagnostic capture, allocator-matched cleanup, and backend error reconstruction helpers.
+    /// Gets severity mapping and transaction-independent PostgreSQL message filtering.
     /// </summary>
-    internal const string Source = Declarations + """
-
+    internal const string Logging = """
         static int
         ankus_log_level(int level)
         {
@@ -105,6 +140,12 @@ internal static class NativeErrorBridge
         #endif
         }
 
+        """;
+
+    /// <summary>
+    /// Gets diagnostic capture, allocator-matched cleanup, and backend error reconstruction helpers.
+    /// </summary>
+    internal const string Source = Declarations + "\n" + Logging + "\n" + """
         static void
         ankus_capture_error(ErrorData *data, AnkusError *error)
         {

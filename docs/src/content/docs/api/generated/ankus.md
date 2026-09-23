@@ -36,6 +36,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgGucExtra](/api/ankus.pggucextra/)
 - [PgGucIntAttribute](/api/ankus.pggucintattribute/)
 - [PgGucLabelAttribute](/api/ankus.pgguclabelattribute/)
+- [PgGucPrefixAttribute](/api/ankus.pggucprefixattribute/)
 - [PgGucRealAttribute](/api/ankus.pggucrealattribute/)
 - [PgGucStringAttribute](/api/ankus.pggucstringattribute/)
 - [PgHeapTuple](/api/ankus.pgheaptuple/)

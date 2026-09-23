@@ -228,7 +228,7 @@ internal static class GuardedBackend
                     MemoryContextSwitchTo(caller_context);
                     diagnostic_context = AllocSetContextCreate(caller_context, "Ankus error diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostic_context);
-                    data = CopyErrorData();
+                    data = ankus_copy_error_data();
                     FlushErrorState();
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
@@ -249,6 +249,7 @@ internal static class GuardedBackend
                     }
 
                     ankus_capture_error(data, error);
+                    ankus_free_error_data(data);
                     MemoryContextSwitchTo(caller_context);
                     MemoryContextDelete(diagnostic_context);
                     ankus_release_result(result);

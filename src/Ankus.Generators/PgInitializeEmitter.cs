@@ -14,7 +14,7 @@ internal static class PgInitializeEmitter
     /// <param name="method">The optional validated initialization method.</param>
     /// <param name="callback">The optional assembly-specific managed symbol.</param>
     /// <param name="hasHooks">Whether configuration registration can enter managed hooks.</param>
-    /// <param name="registration">Native configuration registration statements.</param>
+    /// <param name="registration">Native setting registration followed by prefix checking statements.</param>
     /// <param name="managed">The managed dispatch source.</param>
     /// <param name="native">The native library source.</param>
     /// <param name="exports">The native linker exports.</param>
