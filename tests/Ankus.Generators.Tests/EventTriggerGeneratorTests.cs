@@ -33,7 +33,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.IsInstanceOfType<ITypeSymbol>(Assert.ContainsSingle(entry.NamedArguments.Single(static argument => argument.Key == "CallConvs").Value.Values).Value).ToDisplayString());
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("ankus_event_trigger_call(FunctionCallInfo fcinfo, AnkusEventTriggerCallback callback)", native);
-        Assert.Contains($"extern int {callback.Name}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);\n" +
+        Assert.Contains($"extern int {callback.Name}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);\n" +
             $"PG_FUNCTION_INFO_V1({nativeName});\nPGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)\n{{\n" +
             $"    return ankus_event_trigger_call(fcinfo, {callback.Name});\n}}", native);
         Assert.DoesNotContain("ankus_trigger_call", native);
@@ -56,19 +56,18 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax callback = Assert.IsInstanceOfType<MethodDeclarationSyntax>(EventTriggerCallback(compilation)
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
-        Assert.HasCount(2, body.Statements);
+        Assert.HasCount(4, body.Statements);
         Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(body.Statements[1]);
-        Assert.AreEqual("global::Ankus.NativeBackend.Exit(previous);", Assert.ContainsSingle(guarded.Finally!.Block.Statements).ToString());
-        Assert.HasCount(2, guarded.Block.Statements);
-        LocalDeclarationStatementSyntax entry = Assert.IsInstanceOfType<LocalDeclarationStatementSyntax>(guarded.Block.Statements[0]);
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.HasCount(4, guarded.Block.Statements);
+        LocalDeclarationStatementSyntax entry = Assert.IsInstanceOfType<LocalDeclarationStatementSyntax>(guarded.Block.Statements[2]);
         Assert.AreEqual("global::Ankus.PgEventTriggerContext", entry.Declaration.Type.ToString());
         VariableDeclaratorSyntax variable = Assert.ContainsSingle(entry.Declaration.Variables);
         Assert.AreEqual("context", variable.Identifier.ValueText);
         InvocationExpressionSyntax enter = Assert.IsInstanceOfType<InvocationExpressionSyntax>(variable.Initializer!.Value);
         Assert.AreEqual("global::Ankus.NativeEventTrigger.Enter", enter.Expression.ToString());
         Assert.AreEqual("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 2)", Assert.ContainsSingle(enter.ArgumentList.Arguments).ToString());
-        TryStatementSyntax active = Assert.IsInstanceOfType<TryStatementSyntax>(guarded.Block.Statements[1]);
+        TryStatementSyntax active = Assert.IsInstanceOfType<TryStatementSyntax>(guarded.Block.Statements[3]);
         Assert.IsEmpty(active.Catches);
         Assert.AreSequenceEqual(["global::Functions.@event(context);", "return 0;"], active.Block.Statements.Select(static statement => statement.ToString()));
         Assert.AreEqual("global::Ankus.NativeEventTrigger.Exit(context);", Assert.ContainsSingle(active.Finally!.Block.Statements).ToString());

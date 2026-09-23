@@ -31,6 +31,14 @@ no longer needed.
 Cursors normally end with their transaction. `Detach()` transfers responsibility
 for closing the cursor; it does not extend the PostgreSQL portal's lifetime.
 
+`PgMemoryContext` and `PgAllocation` follow PostgreSQL's native ownership tree.
+A live handle can be reused by a later synchronous callback from the same
+extension and backend. Reset, parent deletion, and transaction cleanup invalidate
+affected handles; checked access then throws before dereferencing freed storage.
+Dispose owned resources on the backend thread. `Run` temporarily selects a
+context and restores the previous one even when the callback throws. See
+[memory contexts](/memory-contexts/) for reset variants and allocation rules.
+
 Cursors opened in an SPI environment containing trigger transition tables close
 when that trigger callback ends, including detached cursors. Retained plans
 resolve transition tables from the current invocation; they do not preserve

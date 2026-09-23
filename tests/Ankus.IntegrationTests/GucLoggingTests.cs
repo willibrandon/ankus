@@ -217,25 +217,45 @@ public sealed class GucLoggingTests(TestContext context)
         };
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
+        await using NpgsqlConnection administrator = await cluster.OpenConnectionAsync(context.CancellationToken);
         var notices = new List<PostgresNotice>();
         connection.Notice += (_, args) => notices.Add(args.Notice);
-        await ExecuteAsync(connection, "ALTER SYSTEM SET ankus_guc_hooks.enabled = 'off'");
-        notices.Clear();
-        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(connection, "SELECT pg_reload_conf()")));
-        for (int attempt = 0; attempt < 100; attempt++)
+        var probes = new List<NpgsqlCommand>();
+        try
         {
-            if (Equals("off", await ScalarAsync(connection, "SHOW ankus_guc_hooks.enabled")))
+            for (int index = 0; index < 100; index++)
             {
-                break;
+                var probe = new NpgsqlCommand($"SELECT {index}", connection);
+                probes.Add(probe);
+                await probe.PrepareAsync(context.CancellationToken);
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
+            await ExecuteAsync(administrator, "ALTER SYSTEM SET ankus_guc_hooks.enabled = 'off'");
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(administrator, "SELECT pg_reload_conf()")));
+            // Close/Sync wakes command processing without starting a SQL transaction.
+            foreach (NpgsqlCommand probe in probes)
+            {
+                await probe.UnprepareAsync(context.CancellationToken);
+                if (notices.Count != 0)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
+            }
+        }
+        finally
+        {
+            foreach (NpgsqlCommand probe in probes)
+            {
+                await probe.DisposeAsync();
+            }
         }
 
-        Assert.AreEqual("off", await ScalarAsync(connection, "SHOW ankus_guc_hooks.enabled"));
         PostgresNotice notice = Assert.ContainsSingle(notices);
         Assert.AreEqual("Ankus hooks-only check entered.", notice.MessageText);
         Assert.AreEqual("source=File;sql=unavailable", notice.Detail);
+        Assert.AreEqual("off", await ScalarAsync(connection, "SHOW ankus_guc_hooks.enabled"));
         Assert.AreEqual(42, await ScalarAsync(connection, "SELECT 42"));
     }
 

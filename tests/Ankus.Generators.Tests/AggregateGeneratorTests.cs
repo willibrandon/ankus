@@ -51,16 +51,15 @@ public sealed partial class PgFunctionGeneratorTests
         AssertAggregateCompilation(compilation, diagnostics);
         MethodDeclarationSyntax callback = Assert.IsInstanceOfType<MethodDeclarationSyntax>(AggregateCallback(compilation, "transition")
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
-        Assert.AreSequenceEqual(["arguments", "result", "error", "execute", "metadata", "metadataCount", "owner", "api"],
+        Assert.AreSequenceEqual(["arguments", "result", "error", "execute", "metadata", "metadataCount", "owner", "api", "memory"],
             callback.ParameterList.Parameters.Select(static parameter => parameter.Identifier.ValueText));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
-        Assert.HasCount(2, body.Statements);
+        Assert.HasCount(4, body.Statements);
         Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax outer = Assert.IsInstanceOfType<TryStatementSyntax>(body.Statements[1]);
-        Assert.AreEqual("global::Ankus.NativeBackend.Exit(previous);", Assert.ContainsSingle(outer.Finally!.Block.Statements).ToString());
-        Assert.HasCount(2, outer.Block.Statements);
-        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api)", outer.Block.Statements[0].ToString());
-        TryStatementSyntax inner = Assert.IsInstanceOfType<TryStatementSyntax>(outer.Block.Statements[1]);
+        TryStatementSyntax outer = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.HasCount(4, outer.Block.Statements);
+        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api)", outer.Block.Statements[2].ToString());
+        TryStatementSyntax inner = Assert.IsInstanceOfType<TryStatementSyntax>(outer.Block.Statements[3]);
         Assert.AreSequenceEqual([
             "global::Ankus.PgAggregateState<global::Counter> value = global::Owned.@Transition(context, global::Ankus.NativeAggregate.Read<global::Counter>(arguments[0]), (arguments[1].IsNull != 0 ? (int?)null : (int)arguments[1].Integral));",
             "*result = global::Ankus.NativeAggregate.Write(value);",

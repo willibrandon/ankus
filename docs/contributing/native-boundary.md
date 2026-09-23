@@ -549,6 +549,36 @@ storage. SQL results are constructed in the caller's memory context before that
 temporary context is deleted. Registered managed states retain their separate
 aggregate or deserialize owner until its reset callback runs.
 
+## Memory-context capability
+
+Every generated managed callback also receives a synchronous memory-operation
+envelope. Its provider token identifies the extension's native registry rather
+than a callback stack address. Thread-local managed binding selects the current
+envelope and restores the enclosing envelope on return. Checked context and
+allocation identities can therefore outlive a callback when PostgreSQL retains
+their owner, without keeping a pointer to an expired native stack frame.
+
+The memory bridge invokes PostgreSQL directly under a native error guard. It
+does not allocate in an SPI subtransaction or an operation work context. On error
+it restores the context selected at operation entry, copies owned diagnostics in
+a temporary context, resets PostgreSQL's error state, and returns to managed
+code. A caught allocation error consequently leaves both the selected context
+and the original chunk intact.
+
+Validation metadata and owned context identifiers use the extension's C runtime
+allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove
+allocation records before native storage can be reused; monotonically increasing
+identities prevent a recycled address from reviving a stale handle. Explicit
+resets retain the selected registry entries and re-register one-shot invalidators.
+Implicit native cleanup invalidates those entries. An explicitly owned context's
+name remains outside its resettable storage and is released with its registry
+entry. Name transport converts between UTF-8 and server encoding and copies into
+a pinned managed destination before releasing conversion storage.
+
+Deletion checks current-context ancestry. Reset checks protect active callback
+storage. Managed finalizers never invoke PostgreSQL. Context and allocation
+disposal are deterministic and native cleanup makes later disposal harmless.
+
 ## Configuration hook capabilities
 
 GUC callbacks receive separate native pointers for typed setting reads, logging,

@@ -20,11 +20,15 @@ internal static class PgSetEmitter
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         managed.AppendLine($"    private static int {callback}(int operation, nint* iterator, global::Ankus.NativeValue* arguments,");
-        managed.AppendLine("        global::Ankus.NativeValue* columns, global::Ankus.NativeCallError* error, nint execute)");
+        managed.AppendLine("        global::Ankus.NativeValue* columns, global::Ankus.NativeCallError* error, nint execute, nint memory)");
         managed.AppendLine("    {");
         managed.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute, operation == 3);");
+        managed.AppendLine("        nint previousMemory = 0;");
+        managed.AppendLine("        bool memoryEntered = false;");
         managed.AppendLine("        try");
         managed.AppendLine("        {");
+        managed.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        managed.AppendLine("            memoryEntered = true;");
         managed.AppendLine("            if (operation is 2 or 3)");
         managed.AppendLine("            {");
         managed.AppendLine("                global::Ankus.NativeSet.Dispose(ref *iterator);");
@@ -82,6 +86,10 @@ internal static class PgSetEmitter
         managed.AppendLine("        }");
         managed.AppendLine("        finally");
         managed.AppendLine("        {");
+        managed.AppendLine("            if (memoryEntered)");
+        managed.AppendLine("            {");
+        managed.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        managed.AppendLine("            }");
         managed.AppendLine("            global::Ankus.NativeBackend.Exit(previous, operation == 3);");
         managed.AppendLine("        }");
         managed.AppendLine("    }");
@@ -91,7 +99,7 @@ internal static class PgSetEmitter
         int mode = attribute is null ? 0 : AttributeValues.Get(attribute, "SetMode", 0);
         string required = method.Parameters.Length == 0 ? "false" : string.Join(", ", method.Parameters.Select(static parameter =>
             FunctionType.Create(parameter)!.Nullable ? "false" : "true"));
-        native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);");
+        native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");

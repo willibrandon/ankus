@@ -45,6 +45,20 @@ public sealed class NativeAotExtensionTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
+    /// Verifies checked PostgreSQL memory-context allocation, reset invalidation, and current-context restoration.
+    /// </summary>
+    [TestMethod]
+    public Task MemoryContextRoundTripPreservesOwnershipAndInvalidatesResetData()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(MemoryContextRoundTripPreservesOwnershipAndInvalidatesResetData), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand("SELECT datatype.memory_context_round_trip(41)", connection, transaction);
+
+            object? result = await command.ExecuteScalarAsync(token);
+
+            Assert.AreEqual("Ankus memory test|41|True|42|True", Assert.IsInstanceOfType<string>(result));
+        }, context.CancellationToken);
+
+    /// <summary>
     /// Verifies PostgreSQL's STRICT contract for either or both null operands.
     /// </summary>
     /// <param name="left">The nullable first operand.</param>

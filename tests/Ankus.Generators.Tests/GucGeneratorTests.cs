@@ -183,7 +183,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertGucCompilation(compilation, diagnostics);
         IMethodSymbol callback = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers()));
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
-        Assert.AreSequenceEqual(["int", "Ankus.NativeValue*", "Ankus.NativeValue*", "int", "Ankus.NativeCallError*", "nint", "nint", "nint"],
+        Assert.AreSequenceEqual(["int", "Ankus.NativeValue*", "Ankus.NativeValue*", "int", "Ankus.NativeCallError*", "nint", "nint", "nint", "nint"],
             callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
         Assert.AreEqual("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute", entry.AttributeClass!.ToDisplayString());
@@ -194,12 +194,11 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("nint previousBackend = global::Ankus.NativeBackend.Enter(execute);", syntax.Body!.Statements[0].ToString());
         Assert.AreEqual("nint previousRead = global::Ankus.NativeGuc.Enter(read);", syntax.Body.Statements[1].ToString());
         Assert.AreEqual("nint previousLog = global::Ankus.NativeLog.Enter(log);", syntax.Body.Statements[2].ToString());
-        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(syntax.Body.Statements[3]);
-        Assert.AreSequenceEqual(["global::Ankus.NativeLog.Exit(previousLog);", "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);"],
-            guarded.Finally!.Block.Statements.Select(static statement => statement.ToString()));
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(syntax, "global::Ankus.NativeLog.Exit(previousLog);",
+            "global::Ankus.NativeGuc.Exit(previousRead);", "global::Ankus.NativeBackend.Exit(previousBackend);");
         CatchClauseSyntax error = Assert.ContainsSingle(guarded.Catches);
         Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"], error.Block.Statements.Select(static statement => statement.ToString()));
-        SwitchStatementSyntax phases = Assert.IsInstanceOfType<SwitchStatementSyntax>(guarded.Block.Statements[1]);
+        SwitchStatementSyntax phases = Assert.IsInstanceOfType<SwitchStatementSyntax>(guarded.Block.Statements[3]);
         Assert.AreSequenceEqual(["case 0:", "case 1:", "case 2:", "default:"], phases.Sections.Select(static section => section.Labels.Single().ToString()));
         Assert.Contains("global::Ankus.NativeGuc.WriteCheckError(result.Error, error);", phases.Sections[0].ToString());
         Assert.Contains("return 2;", phases.Sections[0].ToString());
@@ -207,7 +206,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("global::Settings.@Assign(value, global::Ankus.NativeGuc.ReadExtra(arguments[1]));", phases.Sections[1].ToString());
         Assert.Contains("A GUC show hook returned null.", phases.Sections[2].ToString());
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains($"extern int {callback.Name}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog);", native);
+        Assert.Contains($"extern int {callback.Name}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *);", native);
         AssertGucNativeDiagnosticOwnership(native);
         Assert.Contains("ankus_capture_error(data, error);\n            ankus_free_error_data(data);", native.ReplaceLineEndings("\n"));
         Assert.Contains(".has_check = true, .has_assign = true, .has_show = true", native);
@@ -246,14 +245,14 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_guc_log(", native);
         Assert.Contains("ankus_log_level(", native);
         Assert.Contains("ankus_log_enabled(", native);
-        Assert.Contains("&frame->error, ankus_guc_read, NULL, ankus_guc_log);", native);
+        Assert.Contains("&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);", native);
         Assert.DoesNotContain("ankus_raise_error(", native);
         if (options.StartsWith("Check", StringComparison.Ordinal))
         {
             Assert.Contains("ankus_guc_check(", native);
             Assert.Contains("ankus_spi_execute(", native);
             Assert.Contains("ankus_read_guc = ankus_guc_read;", native);
-            Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log);", native);
+            Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);", native);
         }
         else
         {
@@ -262,7 +261,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.DoesNotContain("ankus_read_guc", native);
             Assert.DoesNotContain("ankus_enum_supported(", native);
             Assert.DoesNotContain("ankus_report(", native);
-            Assert.DoesNotContain("ankus_capture_error(", native);
+            Assert.Contains("ankus_capture_error(", native);
         }
 
         if (options.StartsWith("Show", StringComparison.Ordinal))

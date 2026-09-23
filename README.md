@@ -150,6 +150,11 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
+Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
+temporary current-context scopes, checked byte access, and deterministic cleanup.
+Reset and transaction cleanup invalidate managed handles before they can access
+freed memory. See [memory contexts](docs/src/content/docs/memory-contexts.md).
+
 Use `[PgInitialize]` on one static method to initialize the extension when its
 library loads in a backend. Initialization supports guarded database access,
 owned error diagnostics, and retries after failure. See

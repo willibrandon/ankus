@@ -41,11 +41,15 @@ internal static class PgFunctionEmitter
         source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         source.AppendLine($"    private static int {callback}(");
         source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
-        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute)");
+        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute, nint memory)");
         source.AppendLine("    {");
         source.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
+        source.AppendLine("        nint previousMemory = 0;");
+        source.AppendLine("        bool memoryEntered = false;");
         source.AppendLine("        try");
         source.AppendLine("        {");
+        source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        source.AppendLine("            memoryEntered = true;");
         var arguments = new List<string>();
         for (int index = 0; index < parameters.Length; index++)
         {
@@ -87,6 +91,10 @@ internal static class PgFunctionEmitter
         source.AppendLine("        }");
         source.AppendLine("        finally");
         source.AppendLine("        {");
+        source.AppendLine("            if (memoryEntered)");
+        source.AppendLine("            {");
+        source.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        source.AppendLine("            }");
         source.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
         source.AppendLine("        }");
         source.AppendLine("    }");
@@ -95,7 +103,7 @@ internal static class PgFunctionEmitter
 
     private static void EmitNative(string name, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
     {
-        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);");
+        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
         source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
         source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
         source.AppendLine("{");
@@ -111,6 +119,8 @@ internal static class PgFunctionEmitter
         source.AppendLine("    AnkusValue result = {0};");
         source.AppendLine("    AnkusError error = {0};");
         source.AppendLine("    int status;");
+        source.AppendLine("    AnkusMemoryApi memory = {0};");
+        source.AppendLine("    ankus_memory_initialize(&memory);");
         source.AppendLine("    Oid previous_function;");
         source.AppendLine("    volatile Datum datum = (Datum) 0;");
         source.AppendLine($"    if (PG_NARGS() != {count})");
@@ -204,7 +214,7 @@ internal static class PgFunctionEmitter
 
         source.AppendLine("    previous_function = ankus_function_oid;");
         source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
-        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute);");
+        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute, &memory);");
         source.AppendLine("    ankus_function_oid = previous_function;");
         if (hasBuffers)
         {

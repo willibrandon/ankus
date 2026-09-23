@@ -1,0 +1,280 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+namespace Ankus;
+
+/// <summary>
+/// Binds PostgreSQL memory-context operations to one generated native callback.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public static unsafe class NativeMemoryContext
+{
+    [ThreadStatic]
+    private static nint s_api;
+
+    [ThreadStatic]
+    private static int s_depth;
+
+    /// <summary>
+    /// Enters the native memory capability supplied by a generated callback.
+    /// </summary>
+    /// <param name="api">The callback-scoped native memory envelope.</param>
+    /// <returns>The enclosing envelope, restored by <see cref="Exit"/>.</returns>
+    public static nint Enter(nint api)
+    {
+        nint previous = s_api;
+        s_api = api;
+        s_depth++;
+        return previous;
+    }
+
+    /// <summary>
+    /// Restores the enclosing native memory capability.
+    /// </summary>
+    /// <param name="previous">The value returned by <see cref="Enter"/>.</param>
+    public static void Exit(nint previous)
+    {
+        if (s_depth <= 0)
+        {
+            throw new InvalidOperationException("The PostgreSQL memory capability stack is unbalanced.");
+        }
+
+        s_api = previous;
+        s_depth--;
+    }
+
+    /// <summary>
+    /// Gets the current native capability provider identity.
+    /// </summary>
+    internal static nint Provider
+    {
+        get
+        {
+            if (s_api == 0)
+            {
+                throw new InvalidOperationException("PostgreSQL memory contexts require an active backend callback.");
+            }
+
+            return ((NativeMemoryApi*)s_api)->_provider;
+        }
+    }
+
+    /// <summary>
+    /// Invokes one checked native memory operation.
+    /// </summary>
+    /// <param name="request">The operation request.</param>
+    /// <param name="result">The native result.</param>
+    internal static void Invoke(ref NativeMemoryRequest request, out NativeMemoryResult result)
+    {
+        _ = Provider;
+        NativeMemoryApi* api = (NativeMemoryApi*)s_api;
+        NativeCallError error = default;
+        NativeMemoryRequest localRequest = request;
+        NativeMemoryResult localResult = default;
+        int status = api->_invoke(s_api, &localRequest, &localResult, &error);
+        result = localResult;
+        if (status == 0)
+        {
+            return;
+        }
+
+        PgException exception;
+        try
+        {
+            exception = error.ToException();
+        }
+        finally
+        {
+            error.Release();
+        }
+
+        throw exception;
+    }
+
+    /// <summary>
+    /// Validates that a context or allocation belongs to this callback's provider.
+    /// </summary>
+    /// <param name="provider">The provider identity stored by the handle.</param>
+    internal static void CheckProvider(nint provider)
+    {
+        if (provider == 0 || provider != Provider)
+        {
+            throw new InvalidOperationException("The PostgreSQL memory handle belongs to another extension provider or backend.");
+        }
+    }
+}
+
+/// <summary>
+/// Identifies one operation in the generated native memory envelope.
+/// </summary>
+internal enum NativeMemoryOperation
+{
+    /// <summary>
+    /// Resolves the current native context.
+    /// </summary>
+    Current = 1,
+    /// <summary>
+    /// Resolves a predefined native context.
+    /// </summary>
+    Predefined = 2,
+    /// <summary>
+    /// Creates a child AllocSet context.
+    /// </summary>
+    Create = 3,
+    /// <summary>
+    /// Resolves the context's parent.
+    /// </summary>
+    Parent = 4,
+    /// <summary>
+    /// Reads a live context's identifier.
+    /// </summary>
+    Name = 5,
+    /// <summary>
+    /// Resets a context and deletes its descendants.
+    /// </summary>
+    Reset = 6,
+    /// <summary>
+    /// Resets only the selected context.
+    /// </summary>
+    ResetOnly = 7,
+    /// <summary>
+    /// Resets descendants while retaining their contexts.
+    /// </summary>
+    ResetChildren = 8,
+    /// <summary>
+    /// Deletes an owned context if it remains live.
+    /// </summary>
+    Delete = 9,
+    /// <summary>
+    /// Switches the current context and returns its predecessor.
+    /// </summary>
+    Switch = 10,
+    /// <summary>
+    /// Allocates a checked palloc chunk.
+    /// </summary>
+    Allocate = 11,
+    /// <summary>
+    /// Resizes a checked palloc chunk.
+    /// </summary>
+    Reallocate = 12,
+    /// <summary>
+    /// Frees a live allocation immediately.
+    /// </summary>
+    Free = 13,
+    /// <summary>
+    /// Copies bytes from a live allocation.
+    /// </summary>
+    Read = 14,
+    /// <summary>
+    /// Copies bytes into a live allocation.
+    /// </summary>
+    Write = 15,
+    /// <summary>
+    /// Clears a checked range of an allocation.
+    /// </summary>
+    Clear = 16,
+    /// <summary>
+    /// Resolves an allocation's actual native owner.
+    /// </summary>
+    Owner = 17,
+    /// <summary>
+    /// Queries PostgreSQL's context emptiness flag.
+    /// </summary>
+    IsEmpty = 18,
+    /// <summary>
+    /// Queries native context allocation statistics.
+    /// </summary>
+    Statistics = 19,
+}
+
+/// <summary>
+/// Carries one memory operation request across the native ABI.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMemoryRequest
+{
+    /// <summary>
+    /// Selects the native operation.
+    /// </summary>
+    internal NativeMemoryOperation _operation;
+    /// <summary>
+    /// Carries zero-fill and no-OOM allocation flags.
+    /// </summary>
+    internal int _flags;
+    /// <summary>
+    /// Carries the operation's context or allocation identity.
+    /// </summary>
+    internal nint _context;
+    /// <summary>
+    /// Reserves a secondary native identity.
+    /// </summary>
+    internal nint _other;
+    /// <summary>
+    /// Reserves an explicitly borrowed native pointer.
+    /// </summary>
+    internal nint _pointer;
+    /// <summary>
+    /// Borrows the pinned managed input or output buffer.
+    /// </summary>
+    internal nint _data;
+    /// <summary>
+    /// Carries the byte length of the requested operation.
+    /// </summary>
+    internal nuint _length;
+    /// <summary>
+    /// Reserves a native allocation alignment.
+    /// </summary>
+    internal nuint _alignment;
+    /// <summary>
+    /// Carries an offset or predefined-context discriminator.
+    /// </summary>
+    internal nint _value;
+}
+
+/// <summary>
+/// Carries one memory operation result across the native ABI.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMemoryResult
+{
+    /// <summary>
+    /// Returns a context identity or a resized allocation identity.
+    /// </summary>
+    internal nint _context;
+    /// <summary>
+    /// Returns a new allocation identity or an explicitly requested raw pointer.
+    /// </summary>
+    internal nint _pointer;
+    /// <summary>
+    /// Reserves a native buffer pointer for operation-specific transport.
+    /// </summary>
+    internal nint _data;
+    /// <summary>
+    /// Returns the byte length of a name, allocation, or native statistic.
+    /// </summary>
+    internal nuint _length;
+    /// <summary>
+    /// Returns a scalar operation result.
+    /// </summary>
+    internal nint _value;
+}
+
+/// <summary>
+/// Describes the native operation function supplied by a generated callback.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct NativeMemoryApi
+{
+    /// <summary>
+    /// Identifies the native extension registry independently of a callback's stack address.
+    /// </summary>
+    internal nint _provider;
+    /// <summary>
+    /// Protects the native callback's initial memory owner from destructive operations.
+    /// </summary>
+    internal nint _current;
+    /// <summary>
+    /// Invokes PostgreSQL with a native error guard beneath the managed frame.
+    /// </summary>
+    internal delegate* unmanaged[Cdecl]<nint, NativeMemoryRequest*, NativeMemoryResult*, NativeCallError*, int> _invoke;
+}

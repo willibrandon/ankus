@@ -136,6 +136,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
+        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method));
         if (hasBackend)
         {
             native.AppendLine(NativeBridge.ReadBuffers);
@@ -161,6 +162,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSessionBridge.Source);
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
+            if (hasMemoryFunctionCallbacks)
+            {
+                native.AppendLine(NativeMemoryBridge.Source);
+            }
+
             if (hasFunctionCallbacks)
             {
                 native.AppendLine(NativeErrorBridge.RaiseError);
@@ -192,14 +198,19 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         if (gucs.Count != 0)
         {
             native.AppendLine("#include <math.h>");
-            native.AppendLine(NativeGucBridge.Declarations);
-            native.AppendLine(NativeGucBridge.Registration);
             if (hasGucHooks && !hasBackend)
             {
                 native.AppendLine(NativeErrorBridge.Declarations);
                 native.AppendLine(NativeErrorBridge.Logging);
+                native.AppendLine(NativeErrorBridge.Capture);
+                native.AppendLine("struct AnkusRequest;");
+                native.AppendLine("struct AnkusResult;");
                 native.AppendLine("typedef int (*AnkusExecute)(struct AnkusRequest *, struct AnkusResult *, AnkusError *);");
+                native.AppendLine(NativeMemoryBridge.Source);
             }
+
+            native.AppendLine(NativeGucBridge.Declarations);
+            native.AppendLine(NativeGucBridge.Registration);
 
             if (hasDispatchers)
             {

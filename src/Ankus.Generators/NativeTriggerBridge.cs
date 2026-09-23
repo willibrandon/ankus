@@ -51,7 +51,7 @@ internal static class NativeTriggerBridge
     /// Gets row and metadata transport, HeapTuple reconstruction, and guarded trigger entry points.
     /// </summary>
     internal const string Source = """
-        typedef int (*AnkusTriggerCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);
+        typedef int (*AnkusTriggerCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);
 
         static int64 ankus_next_trigger_id = 0;
 
@@ -199,6 +199,7 @@ internal static class NativeTriggerBridge
             error = MemoryContextAllocZero(scope.context, sizeof(AnkusError));
             ankus_trigger_scope = &scope;
             ankus_function_oid = fcinfo->flinfo->fn_oid;
+            AnkusMemoryApi memory = {0};
             PG_TRY();
             {
                 AnkusInputBuffer owned = {0};
@@ -206,6 +207,7 @@ internal static class NativeTriggerBridge
                 ArrayType *array;
                 int status;
                 MemoryContextSwitchTo(scope.context);
+                ankus_memory_initialize(&memory);
                 arguments[0].integral = trigger->tg_event;
                 arguments[1].integral = RelationGetRelid(trigger->tg_relation);
                 arguments[2].integral = trigger->tg_trigger->tgoid;
@@ -231,7 +233,7 @@ internal static class NativeTriggerBridge
 
                 ankus_tuple_transport(RelationGetDescr(trigger->tg_relation), RelationGetDescr(trigger->tg_relation)->tdtypeid,
                     NULL, NULL, &arguments[11], &owned);
-                status = callback(arguments, result, error, ankus_spi_execute);
+                status = callback(arguments, result, error, ankus_spi_execute, &memory);
                 if (status != 0)
                     ankus_raise_error(error);
                 if (!TRIGGER_FIRED_AFTER(trigger->tg_event) && !result->is_null)

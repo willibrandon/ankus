@@ -27,11 +27,15 @@ internal static class PgInitializeEmitter
                     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                         EntryPoint = "{{callback}}",
                         CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
-                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint execute)
+                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint execute, nint memory)
                     {
                         nint previous = global::Ankus.NativeBackend.Enter(execute);
+                        nint previousMemory = 0;
+                        bool memoryEntered = false;
                         try
                         {
+                            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
+                            memoryEntered = true;
                             {{method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}}.@{{method.Name}}();
                             return 0;
                         }
@@ -42,6 +46,11 @@ internal static class PgInitializeEmitter
                         }
                         finally
                         {
+                            if (memoryEntered)
+                            {
+                                global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                            }
+
                             global::Ankus.NativeBackend.Exit(previous);
                         }
                     }
@@ -60,6 +69,8 @@ internal static class PgInitializeEmitter
 
             """ : string.Empty;
         string errorDeclaration = method is null ? string.Empty : """
+                AnkusMemoryApi memory = {0};
+                ankus_memory_initialize(&memory);
                 AnkusError *error = MemoryContextAllocZero(caller, sizeof(AnkusError));
                 volatile bool snapshot_owned = false;
             """;
@@ -70,7 +81,7 @@ internal static class PgInitializeEmitter
                         snapshot_owned = true;
                     }
 
-                    int status = {{callback}}(error, IsTransactionState() ? ankus_spi_execute : NULL);
+                    int status = {{callback}}(error, IsTransactionState() ? ankus_spi_execute : NULL, &memory);
                     if (snapshot_owned)
                     {
                         snapshot_owned = false;
@@ -103,7 +114,7 @@ internal static class PgInitializeEmitter
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
 
-            {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusExecute);")}}
+            {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusExecute, AnkusMemoryApi *);")}}
             static int ankus_initialization_state = 0;
 
             PGDLLEXPORT void _PG_init(void);

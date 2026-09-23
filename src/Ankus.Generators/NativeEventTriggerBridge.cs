@@ -12,7 +12,7 @@ internal static class NativeEventTriggerBridge
         #include "commands/event_trigger.h"
         #include "tcop/cmdtag.h"
 
-        typedef int (*AnkusEventTriggerCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);
+        typedef int (*AnkusEventTriggerCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);
 
         static Datum
         ankus_event_trigger_call(FunctionCallInfo fcinfo, AnkusEventTriggerCallback callback)
@@ -40,11 +40,13 @@ internal static class NativeEventTriggerBridge
             /* A nested DDL callback has no row-trigger query environment of its own. */
             ankus_trigger_scope = NULL;
             ankus_function_oid = fcinfo->flinfo->fn_oid;
+            AnkusMemoryApi memory = {0};
             PG_TRY();
             {
                 const char *texts[2] = {event->event, GetCommandTagName(event->tag)};
                 int status;
                 MemoryContextSwitchTo(context);
+                ankus_memory_initialize(&memory);
                 for (int index = 0; index < 2; index++)
                 {
                     char *utf8 = pg_server_to_any(texts[index], strlen(texts[index]), PG_UTF8);
@@ -52,7 +54,7 @@ internal static class NativeEventTriggerBridge
                     arguments[index].length = strlen(utf8);
                 }
 
-                status = callback(arguments, result, error, ankus_spi_execute);
+                status = callback(arguments, result, error, ankus_spi_execute, &memory);
                 if (status != 0)
                     ankus_raise_error(error);
             }

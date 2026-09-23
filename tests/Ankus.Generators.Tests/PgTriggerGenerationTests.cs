@@ -74,18 +74,17 @@ public sealed partial class PgFunctionGeneratorTests
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
         Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(body.Statements[1]);
-        Assert.AreEqual("global::Ankus.NativeBackend.Exit(previous);", Assert.ContainsSingle(guarded.Finally!.Block.Statements).ToString());
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
         CatchClauseSyntax error = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", error.Declaration!.Type.ToString());
         Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"],
             error.Block.Statements.Select(static statement => statement.ToString()));
-        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 12)", guarded.Block.Statements[0].ToString());
-        Assert.AreEqual("global::Ankus.PgHeapTuple? value = global::Functions.@return(context);", guarded.Block.Statements[1].ToString());
-        IfStatementSyntax after = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[2]);
-        IfStatementSyntax statement = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[3]);
-        IfStatementSyntax skipped = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[4]);
-        IfStatementSyntax deleted = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[5]);
+        Assert.Contains("new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 12)", guarded.Block.Statements[2].ToString());
+        Assert.AreEqual("global::Ankus.PgHeapTuple? value = global::Functions.@return(context);", guarded.Block.Statements[3].ToString());
+        IfStatementSyntax after = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[4]);
+        IfStatementSyntax statement = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[5]);
+        IfStatementSyntax skipped = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[6]);
+        IfStatementSyntax deleted = Assert.IsInstanceOfType<IfStatementSyntax>(guarded.Block.Statements[7]);
         Assert.AreEqual("context.Timing == global::Ankus.PgTriggerTiming.After", after.Condition.ToString());
         Assert.AreEqual("context.Level == global::Ankus.PgTriggerLevel.Statement", statement.Condition.ToString());
         Assert.AreEqual("value is null", skipped.Condition.ToString());
@@ -105,7 +104,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreSequenceEqual(["result->IsNull = 0;", "return 0;"],
             Assert.IsInstanceOfType<BlockSyntax>(deleted.Statement).Statements.Select(static item => item.ToString()));
         Assert.AreSequenceEqual(["*result = global::Ankus.NativeValue.FromTuple(value);", "return 0;"],
-            guarded.Block.Statements.Skip(6).Select(static item => item.ToString()));
+            guarded.Block.Statements.Skip(8).Select(static item => item.ToString()));
     }
 
     /// <summary>

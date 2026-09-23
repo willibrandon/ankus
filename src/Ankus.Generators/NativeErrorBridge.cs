@@ -145,7 +145,12 @@ internal static class NativeErrorBridge
     /// <summary>
     /// Gets diagnostic capture, allocator-matched cleanup, and backend error reconstruction helpers.
     /// </summary>
-    internal const string Source = Declarations + "\n" + Logging + "\n" + """
+    internal const string Source = Declarations + "\n" + Logging + "\n" + Capture + "\n" + Reporting;
+
+    /// <summary>
+    /// Gets owned diagnostic capture without adding the report dispatcher.
+    /// </summary>
+    internal const string Capture = """
         static void
         ankus_capture_error(ErrorData *data, AnkusError *error)
         {
@@ -202,6 +207,12 @@ internal static class NativeErrorBridge
             }
         }
 
+        """;
+
+    /// <summary>
+    /// Gets native reconstruction and reporting of transported diagnostics.
+    /// </summary>
+    private const string Reporting = """
         static char *
         ankus_error_field(AnkusError *error, enum AnkusDiagnosticField field)
         {

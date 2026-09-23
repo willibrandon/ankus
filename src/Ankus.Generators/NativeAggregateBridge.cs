@@ -15,8 +15,8 @@ internal static class NativeAggregateBridge
         #include "utils/sortsupport.h"
 
         typedef int (*AnkusAggregateCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute,
-            const AnkusValue *, int, void *, void *);
-        typedef int (*AnkusAggregateRelease)(void *, AnkusError *, AnkusExecute);
+            const AnkusValue *, int, void *, void *, AnkusMemoryApi *);
+        typedef int (*AnkusAggregateRelease)(void *, AnkusError *, AnkusExecute, AnkusMemoryApi *);
 
         typedef struct AnkusAggregateState
         {
@@ -59,6 +59,7 @@ internal static class NativeAggregateBridge
             AnkusAggregateState *state = argument;
             AnkusAggregateScope *previous = ankus_aggregate_scope;
             AnkusError error = {0};
+            AnkusMemoryApi memory = {0};
             void *handle = state->handle;
             int status;
             if (handle == NULL)
@@ -73,7 +74,8 @@ internal static class NativeAggregateBridge
             }
 
             ankus_aggregate_scope = NULL;
-            status = state->release(handle, &error, ankus_spi_execute);
+            ankus_memory_initialize(&memory);
+            status = state->release(handle, &error, ankus_spi_execute, &memory);
             ankus_aggregate_scope = previous;
             ankus_release_error(&error);
             if (status != 0)
@@ -341,8 +343,10 @@ internal static class NativeAggregateBridge
                     }
                 }
 
+                AnkusMemoryApi memory = {0};
+                ankus_memory_initialize(&memory);
                 status = callback(arguments, result, error, ankus_spi_execute, metadata, metadata_count,
-                    scope->owner, (void *) ankus_aggregate_api);
+                    scope->owner, (void *) ankus_aggregate_api, &memory);
                 if (status != 0)
                     ankus_raise_error(error);
                 fcinfo->isnull = result->is_null;

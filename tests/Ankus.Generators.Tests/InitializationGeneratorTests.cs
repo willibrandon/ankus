@@ -28,14 +28,14 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         IMethodSymbol callback = InitializationCallback(compilation);
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
-        Assert.AreSequenceEqual(["Ankus.NativeCallError*", "nint"], callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
+        Assert.AreSequenceEqual(["Ankus.NativeCallError*", "nint", "nint"], callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
         Assert.AreEqual("System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute", entry.AttributeClass!.ToDisplayString());
         Assert.AreEqual(callback.Name, entry.NamedArguments.Single(static argument => argument.Key == "EntryPoint").Value.Value);
         Assert.AreEqual("System.Runtime.CompilerServices.CallConvCdecl",
             Assert.IsInstanceOfType<ITypeSymbol>(Assert.ContainsSingle(entry.NamedArguments.Single(static argument => argument.Key == "CallConvs").Value.Values).Value).ToDisplayString());
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains($"extern int {callback.Name}(AnkusError *, AnkusExecute);", native);
+        Assert.Contains($"extern int {callback.Name}(AnkusError *, AnkusExecute, AnkusMemoryApi *);", native);
         Assert.DoesNotContain("PG_FUNCTION_INFO_V1(", native);
         Assert.DoesNotContain("ankus_event_trigger_call", native);
         Assert.DoesNotContain("ankus_trigger_call", native);
@@ -53,15 +53,14 @@ public sealed partial class PgFunctionGeneratorTests
         MethodDeclarationSyntax callback = Assert.IsInstanceOfType<MethodDeclarationSyntax>(InitializationCallback(compilation)
             .DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken));
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);
-        Assert.HasCount(2, body.Statements);
+        Assert.HasCount(4, body.Statements);
         Assert.AreEqual("nint previous = global::Ankus.NativeBackend.Enter(execute);", body.Statements[0].ToString());
-        TryStatementSyntax guarded = Assert.IsInstanceOfType<TryStatementSyntax>(body.Statements[1]);
-        Assert.AreSequenceEqual(["global::Functions.@event();", "return 0;"], guarded.Block.Statements.Select(static statement => statement.ToString()));
+        TryStatementSyntax guarded = AssertMemoryCallbackScope(callback, "global::Ankus.NativeBackend.Exit(previous);");
+        Assert.AreSequenceEqual(["global::Functions.@event();", "return 0;"], guarded.Block.Statements.Skip(2).Select(static statement => statement.ToString()));
         CatchClauseSyntax failure = Assert.ContainsSingle(guarded.Catches);
         Assert.AreEqual("global::System.Exception", failure.Declaration!.Type.ToString());
         Assert.AreSequenceEqual(["global::Ankus.NativeError.Write(exception, error);", "return 1;"],
             failure.Block.Statements.Select(static statement => statement.ToString()));
-        Assert.AreEqual("global::Ankus.NativeBackend.Exit(previous);", Assert.ContainsSingle(guarded.Finally!.Block.Statements).ToString());
     }
 
     /// <summary>
@@ -91,7 +90,7 @@ public sealed partial class PgFunctionGeneratorTests
             "if (IsTransactionState() && !ActiveSnapshotSet())",
             "PushActiveSnapshot(GetTransactionSnapshot());",
             "snapshot_owned = true;",
-            $"int status = {InitializationCallback(compilation).Name}(error, IsTransactionState() ? ankus_spi_execute : NULL);",
+            $"int status = {InitializationCallback(compilation).Name}(error, IsTransactionState() ? ankus_spi_execute : NULL, &memory);",
             "if (snapshot_owned)",
             "snapshot_owned = false;",
             "PopActiveSnapshot();",

@@ -21,10 +21,11 @@ internal static class NativeGucBridge
         struct AnkusError;
         struct AnkusRequest;
         struct AnkusResult;
+        struct AnkusMemoryApi;
         typedef int (*AnkusGucRead)(const char *, int, AnkusValue *, struct AnkusError *);
         typedef int (*AnkusGucLog)(int, int, struct AnkusError *, struct AnkusError *, int *);
         typedef int (*AnkusGucHook)(int, AnkusValue *, AnkusValue *, int, struct AnkusError *, AnkusGucRead,
-            int (*)(struct AnkusRequest *, struct AnkusResult *, struct AnkusError *), AnkusGucLog);
+            int (*)(struct AnkusRequest *, struct AnkusResult *, struct AnkusError *), AnkusGucLog, struct AnkusMemoryApi *);
 
         typedef union AnkusGucNumber
         {
@@ -934,6 +935,8 @@ internal static class NativeGucBridge
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext work = AllocSetContextCreate(caller, "Ankus configuration check", ALLOCSET_SMALL_SIZES);
             MemoryContextSwitchTo(work);
+            AnkusMemoryApi memory = {0};
+            ankus_memory_initialize(&memory);
             AnkusGucFrame *frame = palloc0(sizeof(AnkusGucFrame));
             volatile bool accepted = false;
             PG_TRY();
@@ -949,7 +952,7 @@ internal static class NativeGucBridge
                     }
 
                     int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
-                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log);
+                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);
                     if (frame->snapshot_owned)
                     {
                         frame->snapshot_owned = false;
@@ -1024,10 +1027,12 @@ internal static class NativeGucBridge
                 {
                     work = AllocSetContextCreate(caller, "Ankus configuration assignment", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(work);
+                    AnkusMemoryApi memory = {0};
+                    ankus_memory_initialize(&memory);
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, accepted, extra, frame);
                     int status = definition->hook(1, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL, ankus_guc_log);
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :
                             ankus_log_level(frame->error.report_level - 1));
@@ -1073,10 +1078,12 @@ internal static class NativeGucBridge
                 {
                     work = AllocSetContextCreate(caller, "Ankus configuration display", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(work);
+                    AnkusMemoryApi memory = {0};
+                    ankus_memory_initialize(&memory);
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
                     int status = definition->hook(2, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL, ankus_guc_log);
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ?
                             (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));

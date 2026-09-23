@@ -883,11 +883,11 @@ public sealed class PgAggregateTests
             registration.Released = true;
         }
 
-        var release = (delegate* unmanaged[Cdecl]<void*, NativeCallError*, nint, int>)registration.Callback;
+        var release = (delegate* unmanaged[Cdecl]<void*, NativeCallError*, nint, nint, int>)registration.Callback;
         NativeCallError error = default;
         try
         {
-            return release((void*)registration.Id, &error, BackendPointer) == 0 ? null : error.ToException();
+            return release((void*)registration.Id, &error, BackendPointer, 0) == 0 ? null : error.ToException();
         }
         finally
         {

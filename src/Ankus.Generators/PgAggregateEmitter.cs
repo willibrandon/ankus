@@ -21,11 +21,15 @@ internal static class PgAggregateEmitter
         managed.AppendLine($"    private static int {callback}(");
         managed.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
         managed.AppendLine("        global::Ankus.NativeCallError* error, nint execute, global::Ankus.NativeValue* metadata,");
-        managed.AppendLine("        int metadataCount, nint owner, nint api)");
+        managed.AppendLine("        int metadataCount, nint owner, nint api, nint memory)");
         managed.AppendLine("    {");
         managed.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
+        managed.AppendLine("        nint previousMemory = 0;");
+        managed.AppendLine("        bool memoryEntered = false;");
         managed.AppendLine("        try");
         managed.AppendLine("        {");
+        managed.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
+        managed.AppendLine("            memoryEntered = true;");
         managed.AppendLine("            global::Ankus.PgAggregateContext context = global::Ankus.NativeAggregate.Enter(");
         managed.AppendLine("                new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api);");
         managed.AppendLine("            try");
@@ -79,6 +83,10 @@ internal static class PgAggregateEmitter
         managed.AppendLine("        }");
         managed.AppendLine("        finally");
         managed.AppendLine("        {");
+        managed.AppendLine("            if (memoryEntered)");
+        managed.AppendLine("            {");
+        managed.AppendLine("                global::Ankus.NativeMemoryContext.Exit(previousMemory);");
+        managed.AppendLine("            }");
         managed.AppendLine("            global::Ankus.NativeBackend.Exit(previous);");
         managed.AppendLine("        }");
         managed.AppendLine("    }");
@@ -88,7 +96,7 @@ internal static class PgAggregateEmitter
         string[] internalArguments = [.. helper.Types.Select(static value => value.IsInternal ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
         string count = required.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, required.Length).ToString(CultureInfo.InvariantCulture);
-        native.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *);");
+        native.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *);");
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");

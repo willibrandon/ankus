@@ -42,7 +42,7 @@ internal static class PgGucEmitter
         if (declaration.HasHooks)
         {
             EmitManaged(declaration, callback, managed);
-            native.AppendLine($"extern int {callback}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog);");
+            native.AppendLine($"extern int {callback}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *);");
             native.AppendLine($"static AnkusGuc {symbol};");
             if (declaration.Check is not null)
             {
@@ -175,13 +175,17 @@ internal static class PgGucEmitter
                 [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                     EntryPoint = "{{callback}}", CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
                 private static int {{callback}}(int phase, global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* results,
-                    int source, global::Ankus.NativeCallError* error, nint read, nint execute, nint log)
+                    int source, global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
                 {
                     nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
                     nint previousRead = global::Ankus.NativeGuc.Enter(read);
                     nint previousLog = global::Ankus.NativeLog.Enter(log);
+                    nint previousMemory = 0;
+                    bool memoryEntered = false;
                     try
                     {
+                        previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
+                        memoryEntered = true;
                         {{declaration.ManagedType}} value = {{ReadValue(declaration, "arguments[0]")}};
                         switch (phase)
                         {
@@ -240,6 +244,11 @@ internal static class PgGucEmitter
                     }
                     finally
                     {
+                        if (memoryEntered)
+                        {
+                            global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                        }
+
                         global::Ankus.NativeLog.Exit(previousLog);
                         global::Ankus.NativeGuc.Exit(previousRead);
                         global::Ankus.NativeBackend.Exit(previousBackend);

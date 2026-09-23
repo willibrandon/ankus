@@ -20,6 +20,9 @@ public static partial class Settings
     /// <param name="extra">The optional copied hook data.</param>
     internal static void Assign(int accepted, PgGucExtra? extra)
     {
+        using PgMemoryContext memory = PgMemoryContext.Create("assign memory");
+        using PgAllocation value = memory.Allocate(sizeof(int));
+        value.Write(accepted);
         if (Count != s_previous)
         {
             throw new InvalidOperationException("Assign-only native old value was incorrect.");
@@ -77,6 +80,6 @@ public static partial class Settings
             DetailLog = "Server assignment detail",
         });
         PgLog.Write(PgLogLevel.Debug1, "Assignment debug message.");
-        s_previous = accepted;
+        s_previous = value.Read<int>();
     }
 }

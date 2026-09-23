@@ -143,7 +143,7 @@ public static unsafe class NativeAggregate
         {
             (s_roots ??= []).Add(id, state);
             nint pointer = Invoke(context, 0, id,
-                (nint)(delegate* unmanaged[Cdecl]<void*, NativeCallError*, nint, int>)&Release, null, 0);
+                (nint)(delegate* unmanaged[Cdecl]<void*, NativeCallError*, nint, nint, int>)&Release, null, 0);
             if (pointer == 0)
             {
                 throw new InvalidOperationException("The native aggregate owner returned an invalid state header.");
@@ -322,11 +322,15 @@ public static unsafe class NativeAggregate
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int Release(void* handle, NativeCallError* error, nint execute)
+    private static int Release(void* handle, NativeCallError* error, nint execute, nint memory)
     {
         nint previous = NativeBackend.Enter(execute, abortCleanup: true);
+        nint previousMemory = 0;
+        bool memoryEntered = false;
         try
         {
+            previousMemory = NativeMemoryContext.Enter(memory);
+            memoryEntered = true;
             if (s_roots is null || !s_roots.Remove((nint)handle, out IAggregateState? state))
             {
                 throw new InvalidOperationException("The aggregate state ID is stale, unknown, or belongs to another backend thread.");
@@ -342,6 +346,11 @@ public static unsafe class NativeAggregate
         }
         finally
         {
+            if (memoryEntered)
+            {
+                NativeMemoryContext.Exit(previousMemory);
+            }
+
             NativeBackend.Exit(previous, abortCleanup: true);
         }
     }

@@ -33,12 +33,15 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The latest milestone verifies configuration source priority and original setter privileges, actual
-parallel-worker propagation and recovery, copied managed/native allocation lifetimes, and cold NuGet
-consumers through SQL drop/reinstall. All 24 new backend/package cases pass. Plain `dotnet test`
-passes 3558 cases on PostgreSQL 18.6/Linux x64; the non-incremental Release build has zero warnings/errors.
-Public source/worker semantics, exact test evidence and allocation-measurement limits are mapped below.
-Full GUC/preload parity, the remaining port inventory and the platform/version matrix remain incomplete.
+The latest milestone adds checked PostgreSQL memory contexts and palloc allocations, native reset
+invalidation, callback-independent handle identity, and guarded memory access across generated
+callbacks. It adds 44 runtime, 16 generator, and 20 backend cases. Plain `dotnet test` passes
+3638 cases on PostgreSQL 18.6/Linux x64. Exact reset, encoding, ownership, error-recovery and
+transaction/iterator evidence is mapped below. Full memory/GUC/preload parity, the remaining port
+inventory, and the platform/version matrix remain incomplete.
+
+The non-incremental Release build has zero warnings/errors. XML documentation, source style,
+documentation build/type checks, and generated API freshness checks pass.
 
 - `Ankus.slnx` contains the runtime, source generator, native build tool, native sample,
   PostgreSQL discovery, test infrastructure, and five developer-visible MSTest projects.
@@ -52,7 +55,7 @@ Full GUC/preload parity, the remaining port inventory and the platform/version m
   Publishing from a generated solution selects its sole Ankus SDK project; ambiguous solutions require `--project`.
   Mutation checks prove native code is rebuilt, and initialization-failure checks prove build/SQL errors fail tests
   and clean up owned cluster/publish directories. PostgreSQL logs and binlogs are retained.
-- **`dotnet test`**: **3558 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
+- **`dotnet test`**: **3638 passed, 0 failed, 0 skipped** on Linux x64 with PostgreSQL 18.6.
 - The public testing package lives in `src/Ankus.Testing`; repository-specific fixtures and executable tests live in
   `tests/Ankus.IntegrationTests`, `tests/Ankus.Examples.Hello.Tests`, `tests/Ankus.PgConfig.Tests`,
   `tests/Ankus.Generators.Tests`, and `tests/Ankus.Runtime.Tests`.
@@ -1073,6 +1076,65 @@ Prerequisite installation is currently manual.
 - **msbuild** → `/home/brandon/src/msbuild` — build conventions and type-style rules, compared with `runtime`.
 - **sdk** → `/home/brandon/src/sdk` — .NET SDK and CLI conventions.
 
+### PostgreSQL memory contexts and allocations
+
+The memory-context port now has `PgMemoryContext`, predefined native context selectors,
+owned AllocSet children, borrowed handles, parent/name/liveness queries, nested `Run` scopes,
+three native reset variants, and native allocation statistics. `PgAllocation` provides checked
+byte and unmanaged-value copies, zeroed/no-OOM allocation, resize, clear, native-owner lookup,
+deterministic free, and explicitly unsafe pointer access. Contexts and chunks are validated by
+monotonic native identities; managed handles can survive callbacks while their native owners remain
+alive. Backend-thread/provider checks reject detached and foreign-provider access.
+
+An independent guarded memory capability now accompanies scalar, set, trigger, event-trigger,
+aggregate/release, initializer, and GUC callbacks. It does not use SPI scratch contexts or
+subtransactions. Native errors restore the context selected at operation entry and transport
+owned diagnostics below the managed stack. Assign/show-only GUC fixtures allocate and read memory
+while their SQL capability remains unavailable. Native-only declarations omit unused memory helpers.
+
+Reference review covered read-only pgrx `memcxt`, `memcx`, `palloc/pbox`, `pgbox`, their examples/tests,
+and PostgreSQL context implementations/headers. Backend testing found and corrected first-reset
+callback re-registration, context-name storage freed by reset, diagnostic copying from ErrorContext,
+callback-stack-address provider identity, and native helper emission in GUC-only libraries.
+Names now survive explicit resets, convert through server encoding, and reject malformed UTF-16;
+failed encoding does not leave an orphaned context.
+
+| Contract | Exact evidence |
+| --- | --- |
+| Thread/provider/callback lifetime and owned diagnostics | `DetachedOperationsRequireBackendCapability`, `CapabilitiesRemainThreadBound`, `HandlesRemainUsableAcrossCallbackEnvelopesWithSameProvider`, `ForeignProviderRejectsContextAndAllocationWithoutNativeCall`, `NativeErrorsReleaseOwnedDiagnosticsAndRecover` |
+| Checked byte ranges, typed copies, null/no-OOM distinction and failed resize/free | `InvalidRangesAreRejectedBeforeNativeCalls`, `NativeSizeOverflowRangesAreRejectedBeforeNativeCalls`, `ReadWriteAndClearPreserveBytesAndOffsets`, `TryAllocateReturnsNullOnlyForSuccessfulNativeNull`, `TryAllocatePropagatesNativeErrors`, `DisposeFailureRetainsAllocationForRetry` |
+| Generated ABI and scope restoration | `GeneratedCallbacksBindMemoryWithinExceptionBoundary`, `SetMemoryScopeEnclosesCreationAdvancementAndBothDisposalModes`, `AggregateStateReleaseNativeAbiCarriesIndependentMemoryCapability`, `NativeOnlyDeclarationsOmitMemoryDispatch` |
+| Reset/delete subtree and repeated invalidation | `ResetVariantsPreserveNamesAndInvalidateTheirExactSubtree`, `MemoryContextRoundTripPreservesOwnershipAndInvalidatesResetData` |
+| Native allocator bounds, ownership, error recovery, nested scopes and catalog-visible cleanup | `AllocationBoundariesPreserveBytesAndActualNativeOwner`, `AllocationErrorsPreserveContentsAndSelectedContext`, `NestedScopesRestoreAfterFailureAndAllowDeletionRetry`, `NativeInventoryProvesOwnedAndBorrowedContextLifetimes` |
+| Active native callback storage protection | `ActiveNativeCallbackStorageRejectsDestructiveResets` |
+| Later callbacks, commit/rollback and subtransactions | `SavedHandlesSurviveCallbacksAndExpireAtTransactionEnd`, `SubtransactionRollbackInvalidatesOnlyItsOwnedContext` |
+| Iterator retention, early shutdown and failure | `IteratorCallbacksRetainAndDisposeNativeStorage`, `IteratorFailureReclaimsNativeStorageAndRecovers` |
+| UTF8/LATIN1 identifiers and failure cleanup | `ContextNamesUseServerEncodingAndRecoverWithoutLeaking` |
+
+Development evidence: 44 focused runtime cases passed; the combined memory/GUC backend run passed
+101 cases (zero failures/skips, 2m14.452s). Four final focused cases then verified protected resets,
+both database encodings, and transaction-free reload observation. Plain `dotnet test` passed
+3638 cases (zero failures/skips, 3m13.702s), including all 20 new memory backend cases, on PostgreSQL
+18.6/Linux x64. The final non-incremental Release build has zero warnings/errors. XML inspection
+covered 848 internal declarations with no omissions; 445 C# source/template files have no extra
+opening-brace blank lines or warning suppressions. Documentation build/type/API freshness checks
+pass: 108 API pages, 1155 members, and 138 site pages. Existing site warnings about the duplicate
+404 route and missing sitemap site URL remain visible.
+The public memory-context guide, execution guide, README, and native boundary documentation describe
+the implemented ownership and failure contracts.
+
+The full run also exposed a timing-dependent GUC reload test. The observed backend now receives
+only Close/Sync protocol messages for statements prepared before the reload; a separate backend
+signals configuration reload. This proves the exact `source=File;sql=unavailable` result without
+opening a SQL transaction in the observed backend while waiting for the signal.
+
+The complete memory port still requires managed reset/drop callback registrations and rooted-object
+cleanup; transient context sizing, aligned/huge and generic typed allocation factories; explicit
+raw adoption/ownership transfer and UTF-8 C-string helpers; `PgNativeBox`/node allocation; virtual
+`MemCx` parameters and raw/custom-type datum integration; broader phase/cleanup/error witnesses;
+and actual PostgreSQL 13–19 beta/Windows/Linux/macOS validation. These remain required work, together
+with the full inventory below; this milestone does not establish complete memory or pgrx parity.
+
 ## Key research findings (verified)
 
 ### .NET Native AOT (Microsoft docs, verified)
@@ -1169,7 +1231,7 @@ The target architecture consists of:
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
 | `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
-| `palloc`/`MemoryContextManager` | `PgMemoryContext`, `Palloc` | ☐ |
+| `palloc`/`MemoryContextManager` | `PgMemoryContext`, `PgAllocation` | Checked context/byte allocation and callback binding implemented; remaining memory API and version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
@@ -1721,3 +1783,18 @@ The phases track implementation of the complete pgrx feature surface.
   libc growth on glibc 2.41, not arbitrary leak absence or cross-platform allocation parity. Raw placeholders,
   managed postmaster callbacks, mixed-encoding preload, the broader port inventory and the full supported
   PostgreSQL/platform matrix remain active requirements.
+
+- 2026-09-22 — Added checked PostgreSQL memory contexts and palloc chunks, monotonic lifetime identities,
+  reset/delete invalidation, nested current-context restoration, UTF8/server-encoding context names,
+  direct guarded allocation errors, and callback-independent provider identity. Every current generated
+  callback family receives the memory capability; assign/show-only hooks retain SQL restrictions.
+  Added 44 runtime, 16 generator, and 20 backend cases, including transaction/subtransaction cleanup,
+  repeated resets, iterator shutdown, encoding-failure cleanup, native inventory, and protected callback
+  storage. Fixed a GUC reload test's transaction timing using pre-prepared Close/Sync messages.
+  Plain `dotnet test`: 3638 passed, zero failures/skips, 3m13.702s on PostgreSQL 18.6/Linux x64.
+  Non-incremental Release build: zero warnings/errors. XML scan: 848 internal declarations, no omissions;
+  style scan: 445 C# source/template files, no opening-brace blanks or suppressions. Public guides,
+  README, generated API reference, and site validation pass: 108 API pages, 1155 members, 138 site pages.
+  Managed reset/drop callbacks, typed/aligned/huge/raw allocation and ownership transfer, native boxes,
+  virtual context/datum integration, broader cleanup-phase witnesses, and the complete full-port and
+  PostgreSQL/platform inventory remain active requirements.

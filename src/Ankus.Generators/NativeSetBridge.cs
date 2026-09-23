@@ -14,7 +14,7 @@ internal static class NativeSetBridge
         #include "utils/tuplestore.h"
         #include "utils/snapmgr.h"
 
-        typedef int (*AnkusSetCallback)(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute);
+        typedef int (*AnkusSetCallback)(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);
 
         typedef struct AnkusSetState
         {
@@ -39,9 +39,11 @@ internal static class NativeSetBridge
         {
             Oid previous = ankus_function_oid;
             int status;
+            AnkusMemoryApi memory = {0};
             ankus_function_oid = state->function;
+            ankus_memory_initialize(&memory);
             status = state->callback(operation, &state->iterator, arguments, state->row, error,
-                backend ? ankus_spi_execute : NULL);
+                backend ? ankus_spi_execute : NULL, &memory);
             ankus_function_oid = previous;
             return status;
         }

@@ -19,6 +19,9 @@ public static partial class Settings
     /// <returns>The display value and independently read native value.</returns>
     internal static string Show(int current, PgGucExtra? extra)
     {
+        using PgMemoryContext memory = PgMemoryContext.Create("show memory");
+        using PgAllocation value = memory.Allocate(sizeof(int));
+        value.Write(current);
         if (current is 667 or 668 or 669)
         {
             try
@@ -51,6 +54,6 @@ public static partial class Settings
 
         PgLog.Write(PgLogLevel.Notice, $"show={current};sql={sql};café 100%");
         PgLog.Write(PgLogLevel.Debug1, "Display debug message.");
-        return $"display={current};native={Count};extra={(extra is null ? "none" : "present")}";
+        return $"display={value.Read<int>()};native={Count};extra={(extra is null ? "none" : "present")}";
     }
 }
