@@ -816,6 +816,35 @@ checkpoint/recovery, managed listeners, multiple runtime images and macOS/Window
 execution remain required before enabled-diagnostics fork admission. The guard and
 public guides therefore remain unchanged.
 
+Runtime commit `68a1418bc` makes the remaining tracing command handoff restartable.
+The diagnostic listener can now stop while CollectTracing waits for a Linux
+UserEvents descriptor or while a successful start response is blocked. Parsed
+payloads, the connection and every unsent response byte remain owned across the
+pause. A trace session does not start its writer until all 28 response bytes reach
+the client. If delivery fails, the runtime disables the session and releases the
+connection instead.
+
+The previous runtime times out while joining the listener at both boundaries. The
+repaired runtime passes three final 19-case tracing runs. Each run pauses twice
+during descriptor receipt, pauses with exactly 28 response bytes queued, resumes,
+returns the session identifier, drains a 738-byte NetTrace stream, stops the
+session, and restores the descriptor count from seven to seven. The 81 independent
+allocation failures and all earlier tracing cases also pass in every run. The
+response, listener, I/O, connection, reverse-connection and lifecycle suites pass
+three more rounds with empty stderr and no remaining processes.
+
+Native AOT Release and the CoreCLR EventPipe object targets compile successfully;
+the native fixture compiles with warnings as errors. The exact SDK is
+`artifacts/preload/runtime-diagnostics-tracing-v7-sdk`; the final probe is
+`artifacts/preload/probe-diagnostics-tracing-handoff-v2`. Controls, final results,
+artifact hashes and 642 verified evidence files are retained in
+`.git/testagent/preload/diagnostics-tracing-handoff-proof/`. Active trace and
+sampling workers, child recovery, managed listeners, multiple runtime images and
+macOS/Windows execution remain required before enabled-diagnostics fork admission.
+The guard and public guides remain unchanged. Main plain `dotnet test` passes all
+4,089 cases with zero failures/skips in 3m45.478s; the Release build has zero
+warnings/errors in 12.21s.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
