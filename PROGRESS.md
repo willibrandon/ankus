@@ -725,6 +725,57 @@ failures/skips (3m52.643s), on PostgreSQL 18.6/Linux x64. The main Release build
 has zero warnings/errors (9.91s). MSB4166 did not recur and remains unexplained.
 Public behavior and guides are unchanged.
 
+Runtime commit `531646d40` preserves ordinary diagnostic responses while the
+listener retires. Previously the command handler itself waited for every socket
+write, so a client that stopped reading could prevent the join indefinitely.
+Handlers now create an owned response, and the listener sends its chunks through
+an interruptible wait. The remaining bytes and offsets survive restart. A
+disconnected client releases the queued buffers and connection. Commands are not
+executed again to reconstruct their replies.
+
+The Linux x64 `response.py` probe passes eight cases in three final runs. It checks
+large Unicode environment replies, repeated pauses, half-closed/disconnected
+clients, reverse connections, completed replies, allocation lifetime and native
+child endpoint cleanup. Each paused observation accounts for bytes already received
+plus bytes still queued. Changing an environment value while paused preserves the
+old value in that reply and exposes the new value in the next query. Native
+children perform no managed calls; their cleanup preserves the parent's pending
+reply and endpoint. The preceding SDK times out at the same pause operation.
+
+Allocation accounting exposed a separate command-line leak. Native AOT returned
+a newly allocated string through an interface whose callers treated it as borrowed.
+The common interface now returns an owned snapshot, released after conversion or
+process-info event emission. CoreCLR returns a current snapshot without its old
+shared/leaked cache; Mono copies its borrowed value. Linux also releases a buffer
+left by a failed `getline`. All three process-info wire formats retain their exact
+values and boundaries. Across 64 measured success/disconnect cycles, the old
+Native AOT build grows live native allocations by 16,144 bytes; all three final
+runs show zero growth. This is component allocation evidence, not a claim about
+every runtime allocation path.
+
+The probes now wait for process-info EOF before counting descriptors. A separate
+native pthread experiment also reproduces Linux returning from `pthread_join`
+while the exiting task remains visible in `/proc` (`PF_EXITING` set). Listener
+checks require that flag for any residual entry, then require its disappearance
+within a bounded wait. They still require the thread to be gone at the checkpoint.
+The earlier listener, I/O, connection and endpoint-cleanup suites pass three runs
+against the final SDK. All 462 recorded process IDs across these experiments have
+exited. SDKs, sources, failing controls, final results and hashes are retained in
+`.git/testagent/preload/diagnostics-response-proof/`; the SDK is
+`artifacts/preload/runtime-diagnostics-response-sdk`.
+
+Native AOT Release and the CoreCLR EventPipe object targets compile successfully.
+CoreCLR execution, Mono execution and macOS/Windows validation are not claimed.
+Plain `dotnet test` passes 4,089 cases, zero failures/skips (3m52.497s), on
+PostgreSQL 18.6/Linux x64; the main Release build has zero warnings/errors (11.75s).
+The upstream native-library EventSource warning remains visible and no warning
+suppression was added. MSB4166 did not recur and remains unexplained.
+Tracing commands still need connection handoff and interruptible descriptor
+receipt; active trace/sampling workers, child recovery and multiple runtime images
+remain required. Enabled-diagnostics managed forks are still guarded. Production
+integration, application threads and the full PostgreSQL/platform/port requirements
+remain unfinished. Public behavior and guides are unchanged.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
