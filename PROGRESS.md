@@ -564,6 +564,44 @@ SDK. Main `dotnet test` passes all 4,089 cases, zero failures/skips (3m47.217s),
 the Release build has zero warnings/errors (7.45s). Dedicated MSBuild communication
 and failure logging captured another clean run. No warning suppression was added.
 
+Runtime commit `d26aacdcb` fixes two native endpoint cleanup defects found during
+the enabled-diagnostics investigation.
+Closing a forked child's inherited diagnostic listener unlinked the creating
+parent's Unix socket path. A real `ProcessInfo2` query succeeds before child
+shutdown and fails with `ENOENT` immediately afterward on the old runtime.
+Listener objects now retain their creator PID, and only that process removes
+the endpoint path. Descriptor close still applies to the current process's copy.
+
+The listen-error path separately closed its descriptor without marking the
+listener closed. A later free could close an unrelated file that reused that
+number. It now calls the common close function. The native regression forces
+`listen` to fail with a non-socket descriptor, opens a new file at the released
+number, then frees the listener. The old runtime closes the new file (result 5);
+the corrected runtime preserves it (result 0).
+
+The final Linux x64 component probe passes three runs. Each run closes inherited
+endpoints in three native children through shutdown and three through ordinary
+close, then queries the original parent's PID, runtime cookie and module identity
+after every close. The creating parent's own shutdown removes the endpoint.
+All eighteen children are reaped. The descriptor-reuse regression also passes in
+each run. These use actual enabled Native AOT diagnostics and the wire protocol,
+with no managed child reentry. The exact SDK is
+`artifacts/preload/runtime-diagnostics-cleanup-sdk`; sources, binaries, failing and
+passing evidence and payload hashes are retained in
+`.git/testagent/preload/diagnostics-proof/`.
+
+The upstream native-library EventSource build warning remains enabled and appears
+in probe publish logs. This component repair does not resolve that warning's full
+scope. Enabled-diagnostics fork admission remains guarded: listener retirement and
+restart, in-flight commands, trace-stream ownership, sampling, managed listeners,
+multiple runtime instances and actual managed backend tracing still need repair
+and verification. No macOS/Windows or enabled-diagnostics PostgreSQL execution is
+claimed here. Production SDK/generator integration and all remaining full-port
+requirements remain active. Native C/C++ builds pass with warnings treated as
+errors. Main `dotnet test` passes all 4,089 cases, zero failures/skips (3m44.950s);
+the Release build has zero warnings/errors (4.79s). The earlier MSB4166 worker exit
+did not recur with communication logging enabled and its cause remains unresolved.
+
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
 guide simplification is preserved separately in stash
