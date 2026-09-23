@@ -145,8 +145,8 @@ checkout, `eng/ankus/fork-probes/retained-services`. Logs:
 `/tmp/ankus-preload-multi-fixed-retained-{timer,queue}.jsonl`,
 `/tmp/ankus-preload-multi-fixed-repeat.log` and
 `/tmp/ankus-preload-multi-fixed-bgc-full.jsonl`; SDK:
-`artifacts/preload/runtime-multi-proof-sdk`. The separate ELF debugger-header
-interposition issue is recorded for repair; it is not the demonstrated GC crash cause.
+`artifacts/preload/runtime-multi-proof-sdk`. A separate ELF debugger-header
+interposition issue was also identified; it is not the demonstrated GC crash cause.
 GDB and required libraries were extracted locally under `artifacts/preload/debugger`;
 system packages and dump settings were not changed.
 Independent review in `.git/testagent/preload/multi-proof/` checks all ten starts,
@@ -154,6 +154,24 @@ Independent review in `.git/testagent/preload/multi-proof/` checks all ten start
 with no hidden server recovery. The frozen bundle retains passing/failing sources,
 binaries, logs, runtime patch, and hashes for the exact SDK and original core.
 The production generator and SDK have not yet been replaced by these owned snapshots.
+
+The debugger-header issue is now repaired in the owned runtime. With the previous
+binary, loading two Native AOT libraries using `RTLD_GLOBAL` leaves the second
+library's exported descriptor uninitialized and overwrites the first. The new
+native host reproduces that failure in both load orders. ELF protected visibility
+keeps the descriptor public for debugger lookup while binding runtime writes to
+the owning image; its exported name, layout and version are unchanged. Both load
+orders and a separate-file copy of the same library pass with the repaired binary.
+The host checks every table's owning image, exact module base, distinct runtime/GC
+addresses, unchanged descriptor/table bytes after the second load, and managed GC
+and reentry. ELF inspection confirms a `GLOBAL PROTECTED` export with no dynamic
+symbol relocation. This covers debugger metadata isolation, not a complete debugger
+session or copied-image fork safety. Sources are committed under
+`eng/ankus/fork-probes/debug-headers`; evidence is frozen in
+`.git/testagent/preload/debugheader-proof/`. The new SDK is
+`artifacts/preload/runtime-debugheader-proof-sdk`. Actual generated Ankus extensions
+also pass both preload orders and six fresh sessions with this SDK in
+`artifacts/preload/pg-ankus-multi-x7u_dzpt` (release PostgreSQL 18.6/Linux x64).
 
 The user's `pglogical` fork at `/home/brandon/src/pglogical` is an additional
 read-only reference for Windows worker attachment. Preload, child startup and
@@ -182,6 +200,21 @@ and the owned SDK snapshot; consumer: `/tmp/ankus-preload-package-consumer-c97yf
 local feed: `artifacts/preload/package-feed`. These are unpublished prototype packages.
 Production integration and hosted CI validation remain unfinished.
 
+The package proof has also been refreshed with both the vanished-TLS allocation
+repair and the debugger-header repair. Runtime payload
+`10.0.11-ankus.prototype.2` and Ankus packages `1.0.0-preload.prototype.3` retain the
+previous package versions unchanged. Two ordinary extension projects outside the
+repository publish with an initially absent NuGet cache, without a runtime path
+override or explicit RID. Their compiler response files select the packaged
+CoreLib, and all 24 restored payload hashes match the source manifest. The projects
+share type and method names but produce independent generated exports. Both preload
+orders, all six fresh sessions, exact initialization/GUC/heap state, GC/finalizers,
+tasks/timers, errors, transaction restoration and same-session recovery pass in
+`artifacts/preload/pg-ankus-multi-a4d3l17c`. Consumer:
+`/tmp/ankus-preload-multi-package-consumer-dhij7t2_`; frozen package/source/compiler/
+SQL evidence: `.git/testagent/preload/multi-package-proof/`. Publications took 7.59
+and 3.48 seconds locally; these are not hosted CI or cold runtime-build timings.
+
 The prototype uses a separate copy of `runtime` v10.0.11
 (`79d0c463f1b55624c874a11585f7e47731e8d675`) under
 `artifacts/preload/runtime-10.0.11`, matching the installed ILCompiler 10.0.11.
@@ -205,6 +238,21 @@ builds pass; CoreLib reports zero warnings/errors in 20.71 seconds. The Ankus Re
 build also passes with zero warnings/errors in 10.51 seconds. Public site content
 and generated API pages were unchanged in this research milestone.
 The new reference clone is untouched. No patch commits or branches have been pushed.
+
+Two further local runtime commits are saved: `8ce70563e` fixes debugger descriptor
+binding and includes the regression host; `961301d3d` admits macOS x64/arm64 in the
+existing Unix checkpoint guards and uses Mach-O linker roots in the native probes.
+The latter is source preparation only: Linux Release builds and preload execution
+pass, but no macOS or Windows execution has occurred. The owned Ankus generator
+also omits fork enablement under `WIN32`, where PostgreSQL starts a fresh process;
+managed initialization remains enabled. Windows worker attachment, actual platform
+CI, server GC, enabled EventPipe and the other checkpoint requirements remain open.
+
+After this milestone, plain `dotnet test` passes all 4077 existing Ankus tests with
+zero failures/skips in 3m47.444s; the Release build has zero warnings/errors in
+11.82s. These are baseline checks of the main repository; the owned runtime and
+packaged preload proofs above establish the new behavior separately. Public API
+and site content are unchanged while production integration remains open.
 
 Unfinished allocation-exhaustion tests are preserved in stash
 `d9d1da45c924b8bdb15fd3f459450873742861ef`; the unverified initialization/configuration
