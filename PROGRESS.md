@@ -3930,5 +3930,18 @@ The phases track implementation of the complete pgrx feature surface.
   PostgreSQL 18.6/Linux x64. Final plain `dotnet test` passes 4,741/4,741 without
   skips in 3m17.706s; Release builds with zero warnings and errors in 12.91s.
   API freshness (135 pages, 1,371 members), `pnpm build` (172 pages), and
-  `pnpm check` pass without diagnostics. The hosted rerun is pending; full
-  PostgreSQL/platform evidence and the remaining port requirements stay open.
+  `pnpm check` pass without diagnostics. Hosted run
+  [36070618730](https://github.com/willibrandon/ankus/actions/runs/36070618730)
+  is green: Linux x64/PostgreSQL 18 passes 4,741; macOS ARM64/PostgreSQL 18 and
+  Windows x64/PostgreSQL 17.11 each pass 4,739 with the two existing Linux-only
+  allocator cases skipped. Quality, runtime packaging, and documentation also
+  pass. The full PostgreSQL/platform matrix and remaining port requirements
+  stay open.
+
+- 2026-09-24 — Rejected Dahomey.Cbor 1.27.0 for default serialization: its
+  released generator fails the immutable-record and nested-nullability probe.
+  The attempted local patch and its package-dependent probe were removed at
+  the user's direction. Do not use locally patched serializers. Evaluate
+  published packages without forks, local feeds, or manual consumer setup.
+  No serializer dependency was added to Ankus. Default CBOR/JSON type
+  generation and its PostgreSQL/platform validation remain open.

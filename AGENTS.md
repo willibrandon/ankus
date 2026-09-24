@@ -30,6 +30,8 @@ before changing an area.
 - Prefer ordinary C# APIs, attributes, source generation, NuGet project SDKs,
   `dotnet publish`, and `dotnet test` while preserving PostgreSQL semantics.
 - Keep Native AOT consumers free of runtime code generation and unbounded reflection.
+- Never use locally patched serializers. Choose published packages that meet the
+  required behavior without forks, local feeds, or manual consumer setup.
 - PostgreSQL ERROR/longjmp must never cross a managed frame. Guard backend calls
   in native code, transport owned diagnostics, and raise errors only after managed
   frames have unwound. Match allocators and test cleanup and backend recovery.
