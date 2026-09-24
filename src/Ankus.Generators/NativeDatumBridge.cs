@@ -6,15 +6,26 @@ namespace Ankus.Generators;
 internal static class NativeDatumBridge
 {
     /// <summary>
-    /// Gets resolved input capture used by polymorphic scalar, set, and aggregate dispatch.
+    /// Gets typed raw input capture used by scalar, set, and aggregate dispatch.
     /// </summary>
     internal const string PolymorphicInput = """
         static void
         ankus_read_polymorphic(FunctionCallInfo call, int index, AnkusValue *value)
         {
             Oid type = get_fn_expr_argtype(call->flinfo, index);
-            if (!OidIsValid(type) || IsPolymorphicType(type))
-                ereport(ERROR, (errcode(ERRCODE_INDETERMINATE_DATATYPE), errmsg("Cannot resolve polymorphic argument type")));
+            if (!OidIsValid(type))
+            {
+                Oid *declared = NULL;
+                int count = 0;
+                (void) get_func_signature(call->flinfo->fn_oid, &declared, &count);
+                if (index >= 0 && index < count)
+                    type = declared[index];
+                if (declared != NULL)
+                    pfree(declared);
+            }
+
+            if (!OidIsValid(type) || IsPolymorphicType(type) || type == ANYOID)
+                ereport(ERROR, (errcode(ERRCODE_INDETERMINATE_DATATYPE), errmsg("Cannot resolve raw argument type")));
             value->is_null = call->args[index].isnull;
             value->auxiliary2 = (int32) type;
             if (!value->is_null)

@@ -26,7 +26,7 @@ public partial struct NativeValue
     }
 
     /// <summary>
-    /// Copies a generated polymorphic input into the active scalar or iterator memory owner.
+    /// Copies a generated raw or polymorphic input into the active scalar or iterator memory owner.
     /// </summary>
     /// <returns>The present datum with its resolved type.</returns>
     public readonly PgDatum ReadPolymorphic()
@@ -37,7 +37,7 @@ public partial struct NativeValue
     }
 
     /// <summary>
-    /// Writes a checked polymorphic result with its exact type for native return validation.
+    /// Writes a checked raw or polymorphic result with its exact type for native return validation.
     /// </summary>
     /// <param name="datum">The live native value.</param>
     /// <returns>The owned transport envelope.</returns>

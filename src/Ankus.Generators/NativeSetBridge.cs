@@ -197,7 +197,8 @@ internal static class NativeSetBridge
                     else if (state->materialize)
                         ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("Materialized record sets require a caller-supplied row descriptor")));
                 }
-                else if (result_kind != TYPEFUNC_SCALAR && scalar_type != INTERNALOID)
+                else if (result_kind != TYPEFUNC_SCALAR && scalar_type != INTERNALOID &&
+                    !(polymorphic_result && result_kind == TYPEFUNC_OTHER))
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus SETOF result requires a scalar column type")));
                 state->descriptor = CreateTemplateTupleDesc(1);
                 TupleDescInitEntry(state->descriptor, 1, "value", scalar_type, -1, 0);

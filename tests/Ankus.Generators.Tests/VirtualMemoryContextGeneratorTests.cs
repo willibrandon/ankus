@@ -140,7 +140,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.StartsWith("CREATE FUNCTION \"apply\"(" + expected + ") RETURNS integer AS ",
             Assert.ContainsSingle(OperatorCastStatements(compilation)));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains("if (PG_NARGS() != " + count.ToString(CultureInfo.InvariantCulture) + ")", native);
+        Assert.Contains("if (PG_NARGS() < " + count.ToString(CultureInfo.InvariantCulture) + ")", native);
         Assert.DoesNotContain("PG_ARGISNULL(" + count.ToString(CultureInfo.InvariantCulture) + ")", native);
     }
 
@@ -231,7 +231,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.StartsWith("CREATE FUNCTION \"apply\"(\"seed\" integer, VARIADIC \"values\" integer[]) RETURNS integer AS ",
             Assert.ContainsSingle(OperatorCastStatements(compilation)));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains("if (PG_NARGS() != 2)", native);
+        Assert.Contains("if (PG_NARGS() < 2)", native);
         Assert.Contains("ankus_read_array(PG_GETARG_DATUM(1), &arguments[1], &owned[1]);", native);
     }
 

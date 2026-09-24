@@ -60,7 +60,7 @@ internal static class PgAggregateEmitter
         {
             managed.AppendLine("                *result = global::Ankus.NativeAggregate.Write(value);");
         }
-        else if (helper.Result.IsInternal)
+        else if (helper.Result.Datum?.IsInternal == true)
         {
             managed.AppendLine("                *result = global::Ankus.NativeAggregate.WriteInternal(value);");
         }
@@ -106,7 +106,7 @@ internal static class PgAggregateEmitter
 
         string[] required = [.. helper.Types.Select(static value => value.Nullable ? "false" : "true"), .. helper.Deserialize ? new[] { "false" } : []];
         string[] internalArguments = [.. helper.Types.Select(static value => value.IsManagedState ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
-        string[] polymorphic = [.. helper.Types.Select(static value => value.Datum?.IsPolymorphic == true ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
+        string[] polymorphic = [.. helper.Types.Select(static value => value.Datum?.UsesRawTransport == true ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
         string count = required.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, required.Length).ToString(CultureInfo.InvariantCulture);
         native.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *);");
@@ -123,7 +123,7 @@ internal static class PgAggregateEmitter
         native.AppendLine($"    const bool polymorphic[{capacity}] = {{{(polymorphic.Length == 0 ? "false" : string.Join(", ", polymorphic))}}};");
         native.AppendLine($"    return ankus_aggregate_call(fcinfo, {callback}, {count}, required, internal_arguments, " +
             $"{(helper.Result.IsManagedState ? "true" : "false")}, {(helper.Deserialize ? "true" : "false")}, polymorphic, " +
-            $"{(helper.Result.Datum?.IsPolymorphic == true ? "true" : "false")});");
+            $"{(helper.Result.Datum?.UsesRawTransport == true ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();
         exports.AppendLine(nativeName);

@@ -201,7 +201,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
                 return Invalid($"The {role} callback cannot also declare a trigger, operator, cast, or set result.");
             }
 
-            if (!CompositeReference.Validate(method, null, context) || !NumericConstraint.Validate(method, context))
+            if (!SqlTypeReference.Validate(method, null, context) || !NumericConstraint.Validate(method, context))
             {
                 return null;
             }
@@ -215,7 +215,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             }
 
             var names = new HashSet<string>(StringComparer.Ordinal);
-            if (result.Datum?.IsPolymorphic == true && !types.Any(static value => value!.Datum?.IsPolymorphic == true))
+            if (result.Datum?.IsSqlPolymorphic == true && !types.Any(static value => value!.Datum?.IsSqlPolymorphic == true))
             {
                 return Invalid($"The {role} callback's polymorphic result requires a polymorphic parameter; use FinalExtra to pass an aggregate input type to an internal-state final callback.");
             }
@@ -291,8 +291,8 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return Invalid("An internal-state aggregate requires a final callback returning a supported SQL result.");
         }
 
-        bool hasPolymorphicInput = aggregate.Direct.Concat(inputs).Any(static input => input.Datum?.IsPolymorphic == true);
-        if (!hasPolymorphicInput && (state.Datum?.IsPolymorphic == true || final?.Result.Datum?.IsPolymorphic == true))
+        bool hasPolymorphicInput = aggregate.Direct.Concat(inputs).Any(static input => input.Datum?.IsSqlPolymorphic == true);
+        if (!hasPolymorphicInput && (state.Datum?.IsSqlPolymorphic == true || final?.Result.Datum?.IsSqlPolymorphic == true))
         {
             return Invalid("A polymorphic aggregate state or result requires a polymorphic aggregate input to resolve its type.");
         }
@@ -318,7 +318,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
         if (hasMoving)
         {
-            if (!hasPolymorphicInput && moving!.Result.Datum?.IsPolymorphic == true)
+            if (!hasPolymorphicInput && moving!.Result.Datum?.IsSqlPolymorphic == true)
             {
                 return Invalid("A polymorphic moving state requires a polymorphic aggregate input to resolve its type.");
             }

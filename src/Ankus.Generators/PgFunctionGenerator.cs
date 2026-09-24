@@ -178,7 +178,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionInvocation.Source);
 
             if (!aggregateTypes.IsEmpty || methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
-                FunctionParameter.Create(method).Any(static parameter => parameter.Type?.IsPolymorphic == true)))
+                FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true)))
             {
                 native.AppendLine(NativeDatumBridge.PolymorphicInput);
             }
@@ -387,7 +387,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             else
             {
                 set = SetResult.Create(method, context, out bool validSet);
-                if (!validSet || !CompositeReference.Validate(method, set, context))
+                if (!validSet || !SqlTypeReference.Validate(method, set, context))
                 {
                     continue;
                 }
@@ -461,10 +461,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     entity.Dependencies.Add(enumEntity);
                 }
 
-                if ((contract.Element ?? contract).Composite?.Schema is { } compositeSchema)
+                if ((contract.Element ?? contract).Binding?.DependencySchema is { } typeSchema)
                 {
                     fixedSchema = true;
-                    if (schemas.TryGetValue(compositeSchema, out SqlEntity? schema))
+                    if (schemas.TryGetValue(typeSchema, out SqlEntity? schema))
                     {
                         entity.Dependencies.Add(schema);
                     }
@@ -538,7 +538,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                         support.Dependencies.Add(enumEntity);
                     }
 
-                    AddSchemaDependency(support, (datum?.Element ?? datum)?.Composite?.Schema);
+                    AddSchemaDependency(support, (datum?.Element ?? datum)?.Binding?.DependencySchema);
                 }
             }
         }

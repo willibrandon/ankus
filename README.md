@@ -1,7 +1,7 @@
 # Ankus
 
 Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
-Define PostgreSQL functions, aggregates, operators, casts, triggers, enums, and
+Define PostgreSQL functions, aggregates, operators, casts, triggers, custom types, and
 configuration settings in C#. Publish them together as a native extension.
 
 [Read the documentation](https://willibrandon.github.io/ankus/).
@@ -82,6 +82,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
+| `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
 

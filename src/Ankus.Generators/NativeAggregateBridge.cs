@@ -317,9 +317,11 @@ internal static class NativeAggregateBridge
                 result_type = get_func_signature(fcinfo->flinfo->fn_oid, &types, &parameter_count);
                 if (parameter_count != arguments_count)
                     ereport(ERROR, (errmsg("Aggregate support catalog signature does not match generated code")));
-                if (polymorphic_result)
+                if (IsPolymorphicType(result_type))
                 {
-                    result_type = get_fn_expr_rettype(fcinfo->flinfo);
+                    Oid resolved = get_fn_expr_rettype(fcinfo->flinfo);
+                    if (OidIsValid(resolved))
+                        result_type = resolved;
                     if (!OidIsValid(result_type) || IsPolymorphicType(result_type))
                         ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Aggregate result type was not resolved")));
                 }

@@ -185,7 +185,7 @@ internal static class NativeSpiBridge
             {
                 if ((Oid) value->integral != parameter->type_oid)
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
-                        errmsg("Polymorphic result type %s does not match resolved type %s",
+                        errmsg("Returned PostgreSQL type %s does not match expected type %s",
                             format_type_be((Oid) value->integral), format_type_be(parameter->type_oid))));
                 AnkusParameter raw = *parameter;
                 raw.value.auxiliary1 = -5;

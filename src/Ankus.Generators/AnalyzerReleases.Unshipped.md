@@ -17,3 +17,4 @@ ANKUS012 | Ankus | Error | Invalid PostgreSQL aggregate declaration
 ANKUS013 | Ankus | Error | Invalid PostgreSQL initialization declaration
 ANKUS014 | Ankus | Error | Invalid PostgreSQL configuration declaration
 ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
+ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding

@@ -69,9 +69,9 @@ internal sealed class FunctionType
     internal EnumDeclaration? Enumeration { get; private set; }
 
     /// <summary>
-    /// Gets the optional named binding for a composite scalar.
+    /// Gets the optional named binding for a composite or raw scalar.
     /// </summary>
-    internal CompositeReference? Composite { get; private set; }
+    internal SqlTypeReference? Binding { get; private set; }
 
     /// <summary>
     /// Gets whether this scalar carries an owned PostgreSQL composite or anonymous record.
@@ -82,6 +82,26 @@ internal sealed class FunctionType
     /// Gets whether PostgreSQL resolves this scalar's concrete type at the call site.
     /// </summary>
     internal bool IsPolymorphic => Reader is "anyelement" or "anyarray";
+
+    /// <summary>
+    /// Gets whether the scalar uses an explicitly bound raw datum.
+    /// </summary>
+    internal bool IsRaw => Reader == "datum";
+
+    /// <summary>
+    /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
+    /// </summary>
+    internal bool UsesRawTransport => IsRaw || IsPolymorphic;
+
+    /// <summary>
+    /// Gets whether the SQL declaration uses a polymorphic type, including an explicit raw binding.
+    /// </summary>
+    internal bool IsSqlPolymorphic => IsPolymorphic || IsRaw && Binding?.IsPolymorphic == true;
+
+    /// <summary>
+    /// Gets whether the SQL declaration uses internal, including an explicit raw binding.
+    /// </summary>
+    internal bool IsSqlInternal => IsInternal || IsRaw && Binding?.IsInternal == true;
 
     /// <summary>
     /// Gets whether the value carries opaque PostgreSQL internal state.
@@ -101,7 +121,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => !IsPolymorphic && !IsInternal && (Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
+    internal bool IsBuffer => !UsesRawTransport && !IsInternal && (Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -146,9 +166,9 @@ internal sealed class FunctionType
     /// Resolves a Roslyn type, including nullable value and reference annotations, to a SQL conversion contract.
     /// </summary>
     /// <param name="type">The managed type symbol.</param>
-    /// <param name="composite">The optional named composite binding for this scalar or array element.</param>
+    /// <param name="binding">The optional named SQL binding for this scalar or composite array element.</param>
     /// <returns>The conversion contract, or null when the type needs an additional converter.</returns>
-    internal static FunctionType? Create(ITypeSymbol type, CompositeReference? composite = null)
+    internal static FunctionType? Create(ITypeSymbol type, SqlTypeReference? binding = null)
     {
         bool nullable = type.NullableAnnotation == NullableAnnotation.Annotated;
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } optional)
@@ -171,8 +191,8 @@ internal sealed class FunctionType
         };
         if (elementType is not null)
         {
-            FunctionType? element = Create(elementType, composite);
-            if (element is null || element.Element is not null || element.IsPolymorphic || element.IsInternal || element.Managed == "void")
+            FunctionType? element = Create(elementType, binding);
+            if (element is null || element.Element is not null || element.UsesRawTransport || element.IsInternal || element.Managed == "void")
             {
                 return null;
             }
@@ -184,6 +204,14 @@ internal sealed class FunctionType
             {
                 Element = element,
                 IsVector = vector,
+            };
+        }
+
+        if (type is INamedTypeSymbol { Name: "PgDatum", Arity: 0 } raw && raw.ContainingNamespace.ToDisplayString() == "Ankus")
+        {
+            return new("global::Ankus.PgDatum", binding?.Sql ?? "record", "datum", "datum", string.Empty, nullable, reference: true)
+            {
+                Binding = binding,
             };
         }
 
@@ -230,9 +258,9 @@ internal sealed class FunctionType
 
         if (name == "global::Ankus.PgHeapTuple")
         {
-            return new(name, composite?.Sql ?? "record", "tuple", "tuple", string.Empty, nullable, reference: true)
+            return new(name, binding?.Sql ?? "record", "tuple", "tuple", string.Empty, nullable, reference: true)
             {
-                Composite = composite,
+                Binding = binding,
             };
         }
 
@@ -316,14 +344,14 @@ internal sealed class FunctionType
     };
 
     /// <summary>
-    /// Resolves a parameter with its context-specific composite type binding.
+    /// Resolves a parameter with its context-specific SQL type binding.
     /// </summary>
     internal static FunctionType? Create(IParameterSymbol parameter)
-        => Create(parameter.Type, CompositeReference.Read(parameter.GetAttributes()));
+        => Create(parameter.Type, SqlTypeReference.Read(parameter.GetAttributes()));
 
     /// <summary>
-    /// Resolves a scalar return with its context-specific composite type binding.
+    /// Resolves a scalar return with its context-specific SQL type binding.
     /// </summary>
     internal static FunctionType? CreateResult(IMethodSymbol method)
-        => Create(method.ReturnType, CompositeReference.Read(method.GetReturnTypeAttributes()));
+        => Create(method.ReturnType, SqlTypeReference.Read(method.GetReturnTypeAttributes()));
 }

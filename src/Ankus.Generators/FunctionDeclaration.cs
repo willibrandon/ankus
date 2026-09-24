@@ -74,16 +74,16 @@ internal sealed class FunctionDeclaration
 
         FunctionParameter[] sqlParameters = contextParameter ? [] :
             [.. (parameterModels ?? FunctionParameter.Create(method)).Where(static parameter => !parameter.IsInjected)];
-        if (!contextParameter && (set?.Columns.Any(static column => column.IsInternal) ?? FunctionType.CreateResult(method)?.IsInternal == true) &&
-            !sqlParameters.Any(static parameter => parameter.Type?.IsInternal == true))
+        if (!contextParameter && (set?.Columns.Any(static column => column.IsSqlInternal) ?? FunctionType.CreateResult(method)?.IsSqlInternal == true) &&
+            !sqlParameters.Any(static parameter => parameter.Type?.IsSqlInternal == true))
         {
             return Invalid("A PostgreSQL internal result requires an internal SQL input.");
         }
 
-        if (!contextParameter && (set?.Columns.Any(static column => column.IsPolymorphic) ?? FunctionType.CreateResult(method)?.IsPolymorphic == true) &&
-            !sqlParameters.Any(static parameter => parameter.Type?.IsPolymorphic == true))
+        if (!contextParameter && (set?.Columns.Any(static column => column.IsSqlPolymorphic) ?? FunctionType.CreateResult(method)?.IsSqlPolymorphic == true) &&
+            !sqlParameters.Any(static parameter => parameter.Type?.IsSqlPolymorphic == true))
         {
-            return Invalid("A polymorphic result requires a PgAnyElement or PgAnyArray SQL input to resolve its type.");
+            return Invalid("A polymorphic result requires a polymorphic SQL input to resolve its type.");
         }
 
         bool allNullable = sqlNullability?.All(static nullable => nullable) ??

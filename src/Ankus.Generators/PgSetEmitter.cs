@@ -115,7 +115,7 @@ internal static class PgSetEmitter
         string required = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
             parameter.Type!.Nullable ? "false" : "true"));
         string polymorphic = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
-            parameter.Type!.IsPolymorphic ? "true" : "false"));
+            parameter.Type!.UsesRawTransport ? "true" : "false"));
         native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
@@ -130,7 +130,7 @@ internal static class PgSetEmitter
         native.AppendLine($"    return ankus_set_execute(fcinfo, {callback}, {set.Columns.Length.ToString(CultureInfo.InvariantCulture)}, " +
             $"{sqlParameters.Length.ToString(CultureInfo.InvariantCulture)}, required, {mode.ToString(CultureInfo.InvariantCulture)}, " +
             $"{(set.Columns.Length == 1 && set.Columns[0].IsComposite ? "true" : "false")}, polymorphic, " +
-            $"{(set.Columns.Length == 1 && set.Columns[0].IsPolymorphic ? "true" : "false")});");
+            $"{(set.Columns.Length == 1 && set.Columns[0].UsesRawTransport ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();
         sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}({declaration.Arguments})");

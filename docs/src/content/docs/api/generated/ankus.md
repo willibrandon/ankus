@@ -66,6 +66,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
+- [PgSqlTypeAttribute](/api/ankus.pgsqltypeattribute/)
 - [PgSubtransactionCallback](/api/ankus.pgsubtransactioncallback/)
 - [PgTableRewrite](/api/ankus.pgtablerewrite/)
 - [PgTimeZone](/api/ankus.pgtimezone/)

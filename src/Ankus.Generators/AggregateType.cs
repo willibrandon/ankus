@@ -26,7 +26,7 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     /// <summary>
     /// Gets whether this value has PostgreSQL's internal SQL type.
     /// </summary>
-    internal bool IsInternal => Payload is not null || Datum?.IsInternal == true;
+    internal bool IsInternal => Payload is not null || Datum?.IsSqlInternal == true;
 
     /// <summary>
     /// Gets whether the value uses the aggregate-specific managed root transport.
@@ -62,7 +62,7 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
                 type.NullableAnnotation == NullableAnnotation.Annotated);
         }
 
-        FunctionType? datum = FunctionType.Create(type, CompositeReference.Read(attributes));
+        FunctionType? datum = FunctionType.Create(type, SqlTypeReference.Read(attributes));
         return datum is null || datum.Managed == "void" ? null : new(datum, null, datum.Nullable);
     }
 

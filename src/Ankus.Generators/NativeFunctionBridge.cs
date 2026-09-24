@@ -74,29 +74,29 @@ internal static class NativeFunctionBridge
 
             ankus_datum_context(request->result_context, request->result_generation);
             result->function_oid = call->flinfo->fn_oid;
-            result->result_type_oid = get_fn_expr_rettype(call->flinfo);
             result->collation_oid = call->fncollation;
             /* fn_extra remains available to PostgreSQL's set-function machinery. */
             ankus_function_site(call->flinfo, result);
             Oid *declared_types = NULL;
             int declared_count = 0;
             Oid declared_result = get_func_signature(result->function_oid, &declared_types, &declared_count);
-            if (!OidIsValid(result->result_type_oid))
-                result->result_type_oid = declared_result;
-            result->column_count = call->nargs;
+            result->result_type_oid = IsPolymorphicType(declared_result) ? get_fn_expr_rettype(call->flinfo) : declared_result;
+            /* Type input/receive calls include extra native slots beyond their SQL declaration. */
+            int count = Min(call->nargs, declared_count);
+            result->column_count = count;
             result->row_count = 1;
-            if (call->nargs == 0)
+            if (count == 0)
                 return;
 
-            result->columns = calloc(call->nargs, sizeof(AnkusColumn));
-            result->values = calloc(call->nargs, sizeof(AnkusValue));
+            result->columns = calloc(count, sizeof(AnkusColumn));
+            result->values = calloc(count, sizeof(AnkusValue));
             if (result->columns == NULL || result->values == NULL)
                 ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory copying function arguments")));
 
-            for (int index = 0; index < call->nargs; index++)
+            for (int index = 0; index < count; index++)
             {
                 Oid type = get_fn_expr_argtype(call->flinfo, index);
-                if (!OidIsValid(type) && index < declared_count)
+                if (!OidIsValid(type))
                     type = declared_types[index];
                 if (!OidIsValid(type))
                     ereport(ERROR, (errcode(ERRCODE_INDETERMINATE_DATATYPE), errmsg("Cannot determine function argument %d's type", index + 1)));

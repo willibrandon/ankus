@@ -131,9 +131,9 @@ internal static class PgFunctionEmitter
         source.AppendLine("    ankus_memory_initialize(&memory);");
         source.AppendLine("    Oid previous_function;");
         source.AppendLine("    volatile Datum datum = (Datum) 0;");
-        source.AppendLine($"    if (PG_NARGS() != {count})");
+        source.AppendLine($"    if (PG_NARGS() < {count})");
         source.AppendLine("    {");
-        source.AppendLine("        ereport(ERROR, (errmsg(\"Incorrect argument count for generated Ankus function\")));");
+        source.AppendLine("        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg(\"Incorrect argument count for generated Ankus function\")));");
         source.AppendLine("    }");
         source.AppendLine();
         for (int index = 0; index < parameters.Length; index++)
@@ -162,7 +162,7 @@ internal static class PgFunctionEmitter
         {
             FunctionType parameter = parameters[index];
             string argument = index.ToString(CultureInfo.InvariantCulture);
-            if (parameter.IsPolymorphic)
+            if (parameter.UsesRawTransport)
             {
                 source.AppendLine($"{inputIndent}    ankus_read_polymorphic(fcinfo, {argument}, &arguments[{argument}]);");
                 continue;
@@ -247,12 +247,18 @@ internal static class PgFunctionEmitter
         source.AppendLine("        ankus_raise_error(&error);");
         source.AppendLine("    }");
         source.AppendLine();
-        source.AppendLine("    if (result.is_null)");
+        source.AppendLine("    if (result.is_null" + (result.IsRaw ? " && result.data == NULL" : string.Empty) + ")");
         source.AppendLine("    {");
-        if (result.IsComposite || result.IsPolymorphic)
+        if (result.IsComposite || result.UsesRawTransport)
         {
             source.AppendLine("        AnkusParameter parameter = {0};");
-            source.AppendLine("        parameter.type_oid = " + (result.IsPolymorphic ? "get_fn_expr_rettype(fcinfo->flinfo)" : "get_func_rettype(fcinfo->flinfo->fn_oid)") + ";");
+            source.AppendLine("        parameter.type_oid = get_func_rettype(fcinfo->flinfo->fn_oid);");
+            if (result.UsesRawTransport)
+            {
+                source.AppendLine("        if (IsPolymorphicType(parameter.type_oid))");
+                source.AppendLine("            parameter.type_oid = get_fn_expr_rettype(fcinfo->flinfo);");
+            }
+
             source.AppendLine("        parameter.value.is_null = true;");
             source.AppendLine("        (void) ankus_parameter_datum(&parameter);");
         }
@@ -269,10 +275,12 @@ internal static class PgFunctionEmitter
             source.AppendLine("        parameter.value = result;");
             source.AppendLine("        datum = ankus_parameter_datum(&parameter);");
         }
-        else if (result.IsPolymorphic)
+        else if (result.UsesRawTransport)
         {
             source.AppendLine("        AnkusParameter parameter = {0};");
-            source.AppendLine("        parameter.type_oid = get_fn_expr_rettype(fcinfo->flinfo);");
+            source.AppendLine("        parameter.type_oid = get_func_rettype(fcinfo->flinfo->fn_oid);");
+            source.AppendLine("        if (IsPolymorphicType(parameter.type_oid))");
+            source.AppendLine("            parameter.type_oid = get_fn_expr_rettype(fcinfo->flinfo);");
             source.AppendLine("        parameter.value = result;");
             source.AppendLine("        datum = ankus_parameter_datum(&parameter);");
         }
@@ -324,6 +332,12 @@ internal static class PgFunctionEmitter
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("    PG_END_TRY();");
+        if (result.IsRaw)
+        {
+            source.AppendLine("    if (result.is_null)");
+            source.AppendLine("        PG_RETURN_NULL();");
+        }
+
         source.AppendLine("    return datum;");
         source.AppendLine("}");
         source.AppendLine();
