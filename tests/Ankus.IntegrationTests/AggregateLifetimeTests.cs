@@ -12,20 +12,23 @@ public sealed partial class AggregateTests
     /// Real hash spilling and sorted grouping return exact group totals while every state owner is released.
     /// </summary>
     [TestMethod]
-    public Task HashSpillAndSortedGroupingReleaseEveryManagedState()
-        => Run(nameof(HashSpillAndSortedGroupingReleaseEveryManagedState), async (connection, transaction, token) =>
+    public async Task HashSpillAndSortedGroupingReleaseEveryManagedState()
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        await using (NpgsqlTransaction spill = await connection.BeginTransactionAsync(token))
         {
-            await Execute(connection, transaction, """
-                CREATE TABLE aggregate_values.group_input AS SELECT generate_series(1,3000) AS value;
-                ANALYZE aggregate_values.group_input;
+            await Execute(connection, spill, """
+                CREATE TEMP TABLE group_input ON COMMIT PRESERVE ROWS AS SELECT generate_series(1,3000) AS value;
+                ANALYZE group_input;
                 SET LOCAL work_mem='64kB';
                 SET LOCAL enable_sort=off;
                 SET LOCAL max_parallel_workers_per_gather=0;
                 """, token);
-            await Reset(connection, transaction, "normal", token);
-            string plan = await Scalar<string>(connection, transaction, """
+            await Reset(connection, spill, "normal", token);
+            string plan = await Scalar<string>(connection, spill, """
                 EXPLAIN(ANALYZE,FORMAT JSON)
-                SELECT value,aggregate_values.managed_sum(value) FROM aggregate_values.group_input GROUP BY value
+                SELECT value,aggregate_values.managed_sum(value) FROM group_input GROUP BY value
                 """, token);
             using (JsonDocument document = JsonDocument.Parse(plan))
             {
@@ -35,12 +38,21 @@ public sealed partial class AggregateTests
                 Assert.IsGreaterThan(0, aggregate.GetProperty("Disk Usage").GetInt32());
             }
 
+            int[] pending = await Status(connection, spill, token);
+            Assert.AreEqual(3000, pending[0]);
+            Assert.AreEqual(3000, pending[1] + pending[2]);
+            Assert.AreEqual(0, pending[3]);
+            await spill.CommitAsync(token);
+        }
+
+        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
+        {
             await AssertReleased(connection, transaction, 3000, token);
             await Reset(connection, transaction, "normal", token);
             Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
                 SELECT count(*) || ':' || sum(total) FROM (
                     SELECT value,aggregate_values.managed_sum(value) AS total
-                    FROM aggregate_values.group_input GROUP BY value) AS groups
+                    FROM group_input GROUP BY value) AS groups
                 """, token));
             await AssertReleased(connection, transaction, 3000, token);
             await Execute(connection, transaction, "SET LOCAL enable_hashagg=off; SET LOCAL enable_sort=on", token);
@@ -48,10 +60,12 @@ public sealed partial class AggregateTests
             Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
                 SELECT count(*) || ':' || sum(total) FROM (
                     SELECT value,aggregate_values.managed_sum(value) AS total
-                    FROM aggregate_values.group_input GROUP BY value) AS groups
+                    FROM group_input GROUP BY value) AS groups
                 """, token));
             await AssertReleased(connection, transaction, 3000, token);
-        });
+            await transaction.RollbackAsync(token);
+        }
+    }
 
     /// <summary>
     /// Closing an unconsumed aggregate portal and stopping under LIMIT release the unfinished group safely.

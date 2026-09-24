@@ -9,7 +9,7 @@ Namespace: [Ankus.Testing](/api/ankus.testing/)
 
 Assembly: `Ankus.Testing.dll`
 
-Publishes an extension project, loads it into an isolated PostgreSQL 18+ cluster, and owns both lifetimes.
+Publishes an extension project, loads it into an isolated PostgreSQL cluster, and owns both lifetimes.
 Ordinary test initialization can use this fixture without environment variables or wrapper commands.
 
 ```csharp
@@ -80,5 +80,6 @@ Returns: [Task&lt;PostgresExtensionTest&gt;](https://learn.microsoft.com/dotnet/
 
 The fixture to dispose after all tests finish.
 
-Uses PostgreSQL 18's per-cluster extension search path to avoid changing the shared installation.
+PostgreSQL 18 and later use a per-cluster extension search path. Earlier versions run from an isolated,
+relocatable copy of the selected installation.
 Server logs and build logs remain in the project's bin/ankus-test-logs directory.

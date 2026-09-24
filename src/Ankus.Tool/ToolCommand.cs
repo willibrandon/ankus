@@ -61,7 +61,7 @@ internal static class ToolCommand
         {
             string path = await ProjectScaffolder.CreateAsync(result.GetValue(name)!, result.GetValue(output), result.GetValue(extension), token);
             Console.WriteLine($"Created extension solution at {path}");
-            Console.WriteLine("Run dotnet test from that directory to build and test the extension in PostgreSQL 18+.");
+            Console.WriteLine("Run dotnet test from that directory to build and test the extension in PostgreSQL 18.");
             Console.WriteLine("Run ankus publish to publish using your registered PostgreSQL installation.");
         });
         return command;

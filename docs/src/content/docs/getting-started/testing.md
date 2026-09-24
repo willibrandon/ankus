@@ -13,7 +13,7 @@ The MSTest project contains two kinds of tests. Managed tests call ordinary C#
 methods directly. Backend tests publish the extension with Native AOT, start an
 isolated PostgreSQL cluster, and exercise its generated SQL functions.
 
-Backend testing requires PostgreSQL 18+ with server headers and the
+Backend testing requires PostgreSQL with server headers and the
 [Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 The fixture discovers PostgreSQL 18 by default. Register a nonstandard
 installation with `ankus init --pg18 /path/to/pg_config`. Missing prerequisites
@@ -36,9 +36,9 @@ await extension.Cluster.RunInTransactionAsync("addition", async (connection, tra
 ```
 
 The fixture passes the same PostgreSQL installation to native compilation and
-cluster startup, then executes `CREATE EXTENSION`. It uses per-cluster search
-paths, leaving the shared PostgreSQL installation untouched. Supply an explicit
-`PostgresInstallation` to test a particular installation.
+cluster startup, then executes `CREATE EXTENSION`. It leaves the selected
+installation untouched. Supply an explicit `PostgresInstallation` to test a
+particular version.
 
 `RunInTransactionAsync` opens a connection and rolls back when the callback
 finishes, including after assertion failures. Parallel tests use independent
@@ -56,6 +56,5 @@ Build logs and PostgreSQL logs remain under the extension project's
 on disposal. A failed build or extension load fails initialization and cleans up
 the resources it created.
 
-The automatic publication fixture requires PostgreSQL 18's `extension_control_path`.
-For earlier versions, `PostgresTestCluster` accepts an explicitly prepared
-installation and cluster settings.
+PostgreSQL 18 uses its per-cluster extension search path. For earlier versions,
+the fixture makes and removes an isolated copy of the installation.

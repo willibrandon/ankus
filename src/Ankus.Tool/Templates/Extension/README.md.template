@@ -2,7 +2,7 @@
 
 A PostgreSQL extension written in C# and published with .NET Native AOT.
 
-Requires .NET 10, a native C toolchain, and PostgreSQL 18 or later with server headers.
+Requires .NET 10, a native C toolchain, and PostgreSQL 18 with server headers.
 Register PostgreSQL once:
 
 ```sh

@@ -2574,7 +2574,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `src/Ankus.Testing`; development CLI pending |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
-| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend tests, reusable publish/load fixture; attribute-generated backend tests, CLI forwarding and matrix pending |
+| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `src/Ankus.Build` reads managed metadata without loading extension code |
@@ -2772,18 +2772,21 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
-   - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
-   - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
-   - [x] `new` creates version-matched extension/MSTest solutions with CPM and discoverable native tests
-   - [ ] Provisioning/downloads, specialized templates, `schema`, `test`, `run`, server lifecycle and `package` commands
-   - [x] Publish native library, `.control`, and versioned `.sql` artifacts
-    - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
-    - [ ] Distribution packaging and extension upgrades
-     - [x] NuGet entry package with automatic runtime, generator, and build integration dependencies
-    - [x] Local tool package installation and invocation tests
-     - [x] Reusable backend-testing packages
-     - [x] Isolated consumer tests using packed NuGet artifacts
-    - [ ] Public NuGet release after full parity and platform/version validation
+  - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
+  - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
+  - [x] `new` creates version-matched extension/MSTest solutions with CPM and discoverable native tests
+  - [ ] Provisioning/downloads, specialized templates, `schema`, `test`, `run`, server lifecycle and `package` commands
+  - [x] Publish native library, `.control`, and versioned `.sql` artifacts
+  - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
+  - [ ] Distribution packaging and extension upgrades
+  - [x] NuGet entry package with automatic runtime, generator, and build integration dependencies
+  - [x] Local tool package installation and invocation tests
+  - [x] Reusable backend-testing packages
+  - [x] Isolated consumer tests using packed NuGet artifacts
+  - [ ] After feature parity, add `ankus new --test-framework` templates for MSTest,
+    xUnit.net, NUnit and TUnit on Microsoft.Testing.Platform. Keep MSTest as the default
+    and validate the same backend lifecycle and recovery contract in each framework.
+  - [ ] Public NuGet release after full parity and platform/version validation
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
 - [ ] **P6 — Examples + docs**

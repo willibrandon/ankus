@@ -80,6 +80,17 @@ internal static class CustomSql
 
         StringComparison comparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         (string Path, string? Text)[] matches = [.. files.Where(file => string.Equals(Normalize(file.Path, projectDirectory), fullPath, comparison))];
+        string? relativePath = NormalizeRelative(path, projectDirectory);
+        if (matches.Length == 0 && relativePath is not null)
+        {
+            string suffix = Path.DirectorySeparatorChar + relativePath;
+            matches =
+            [
+                .. files.Where(file => Normalize(file.Path, projectDirectory) is string candidate
+                    && candidate.EndsWith(suffix, comparison)),
+            ];
+        }
+
         if (matches.Length != 1 || matches[0].Text is null)
         {
             graph.Error(location, $"SQL file '{path}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.");
@@ -87,6 +98,31 @@ internal static class CustomSql
         }
 
         return matches[0].Text;
+    }
+
+    private static string? NormalizeRelative(string? path, string projectDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path))
+        {
+            return null;
+        }
+
+        if (!Path.IsPathRooted(projectDirectory))
+        {
+            return null;
+        }
+
+        string root = Path.GetPathRoot(projectDirectory)!;
+        string anchor = Path.Combine(root, "__ankus_project__");
+        string? normalized = Normalize(path, anchor);
+        string prefix = anchor + Path.DirectorySeparatorChar;
+        StringComparison comparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (normalized is null || !normalized.StartsWith(prefix, comparison))
+        {
+            return null;
+        }
+
+        return normalized.Substring(prefix.Length);
     }
 
     private static string? Normalize(string? path, string projectDirectory)

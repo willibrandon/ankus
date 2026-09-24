@@ -6,19 +6,24 @@ using Npgsql;
 namespace Ankus.Testing;
 
 /// <summary>
-/// Publishes an extension project, loads it into an isolated PostgreSQL 18+ cluster, and owns both lifetimes.
+/// Publishes an extension project, loads it into an isolated PostgreSQL cluster, and owns both lifetimes.
 /// Ordinary test initialization can use this fixture without environment variables or wrapper commands.
 /// </summary>
 public sealed class PostgresExtensionTest : IAsyncDisposable
 {
     private readonly string _publishDirectory;
+    private readonly PostgresTestInstallation? _stagedInstallation;
     private readonly object _disposeLock = new();
     private Task? _disposeTask;
 
-    private PostgresExtensionTest(PostgresTestCluster cluster, string publishDirectory)
+    private PostgresExtensionTest(
+        PostgresTestCluster cluster,
+        string publishDirectory,
+        PostgresTestInstallation? stagedInstallation)
     {
         Cluster = cluster;
         _publishDirectory = publishDirectory;
+        _stagedInstallation = stagedInstallation;
     }
 
     /// <summary>
@@ -35,7 +40,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// <param name="cancellationToken">Cancels discovery, publication, or startup.</param>
     /// <returns>The fixture to dispose after all tests finish.</returns>
     /// <remarks>
-    /// Uses PostgreSQL 18's per-cluster extension search path to avoid changing the shared installation.
+    /// PostgreSQL 18 and later use a per-cluster extension search path. Earlier versions run from an isolated,
+    /// relocatable copy of the selected installation.
     /// Server logs and build logs remain in the project's bin/ankus-test-logs directory.
     /// </remarks>
     public static async Task<PostgresExtensionTest> StartAsync(string projectPath,
@@ -49,11 +55,6 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         }
 
         installation ??= await PostgresInstallation.DiscoverAsync(cancellationToken).ConfigureAwait(false);
-        if (installation.Version.Major < 18)
-        {
-            throw new NotSupportedException("Isolated extension publication requires PostgreSQL 18 or later (extension_control_path). Use PostgresTestCluster with an explicitly staged installation for earlier versions.");
-        }
-
         string root = Path.GetDirectoryName(projectPath)!;
         string invocation = Guid.NewGuid().ToString("N");
         string output = Path.Combine(root, "bin", "ankus-test-publish", invocation);
@@ -61,6 +62,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         Directory.CreateDirectory(output);
         Directory.CreateDirectory(logs);
         PostgresTestCluster? cluster = null;
+        PostgresTestInstallation? stagedInstallation = null;
         try
         {
             await ProcessRunner.RunCheckedAsync("dotnet",
@@ -77,28 +79,44 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
 
             string searchPath = output.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
             char separator = OperatingSystem.IsWindows() ? ';' : ':';
+            PostgresInstallation clusterInstallation = installation;
+            List<string> configuration = [$"dynamic_library_path = '{searchPath}{separator}$libdir'"];
+            if (installation.Version.Major >= 18)
+            {
+                configuration.Insert(0, $"extension_control_path = '{searchPath}{separator}$system'");
+            }
+            else
+            {
+                string stageRoot = Path.Combine(root, "bin", "ankus-test-postgresql", invocation);
+                stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken)
+                    .ConfigureAwait(false);
+                stagedInstallation.InstallExtensionFiles(output);
+                clusterInstallation = stagedInstallation.Installation;
+            }
+
             cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
             {
-                Installation = installation,
+                Installation = clusterInstallation,
                 DataDirectoryBase = Path.Combine(root, "bin", "ankus-test-pgdata"),
                 LogDirectory = logs,
-                PostgreSqlConfiguration =
-                [
-                    $"extension_control_path = '{searchPath}{separator}$system'",
-                    $"dynamic_library_path = '{searchPath}{separator}$libdir'",
-                ],
+                PostgreSqlConfiguration = configuration,
             }, cancellationToken).ConfigureAwait(false);
             await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             string name = Path.GetFileNameWithoutExtension(manifest.Control);
             await using var command = new NpgsqlCommand("CREATE EXTENSION \"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"", connection);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            return new PostgresExtensionTest(cluster, output);
+            return new PostgresExtensionTest(cluster, output, stagedInstallation);
         }
         catch
         {
             if (cluster is not null)
             {
                 await cluster.DisposeAsync().ConfigureAwait(false);
+            }
+
+            if (stagedInstallation is not null)
+            {
+                await stagedInstallation.DisposeAsync().ConfigureAwait(false);
             }
 
             Directory.Delete(output, recursive: true);
@@ -126,6 +144,11 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         await Cluster.DisposeAsync().ConfigureAwait(false);
+        if (_stagedInstallation is not null)
+        {
+            await _stagedInstallation.DisposeAsync().ConfigureAwait(false);
+        }
+
         if (Directory.Exists(_publishDirectory))
         {
             Directory.Delete(_publishDirectory, recursive: true);

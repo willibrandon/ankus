@@ -13,3 +13,4 @@ Assembly: `Ankus.Testing.dll`
 - [PostgresTestCluster](/api/ankus.testing.postgrestestcluster/)
 - [PostgresTestClusterOptions](/api/ankus.testing.postgrestestclusteroptions/)
 - [PostgresTestException](/api/ankus.testing.postgrestestexception/)
+- [PostgresTestInstallation](/api/ankus.testing.postgrestestinstallation/)

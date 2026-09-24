@@ -9,6 +9,8 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 internal static class IntegrationEnvironment
 {
+    private static PostgresTestInstallation? s_stagedInstallation;
+
     /// <summary>
     /// Gets the repository root from the test binary's build location.
     /// </summary>
@@ -47,18 +49,43 @@ internal static class IntegrationEnvironment
             : await PostgresInstallation.CreateAsync(pgConfig, cancellationToken);
         string nativePath = NativeOutputDirectory.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
         char pathSeparator = OperatingSystem.IsWindows() ? ';' : ':';
+        List<string> configuration = [$"dynamic_library_path = '{nativePath}{pathSeparator}$libdir'"];
+        if (installation.Version.Major >= 18)
+        {
+            configuration.Insert(0, $"extension_control_path = '{nativePath}'");
+        }
+        else
+        {
+            if (s_stagedInstallation is null)
+            {
+                string stageRoot = Path.Combine(RepositoryRoot, "artifacts", "test-postgresql", Guid.NewGuid().ToString("N"));
+                s_stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken);
+                s_stagedInstallation.InstallExtensionFiles(NativeOutputDirectory);
+            }
+
+            installation = s_stagedInstallation.Installation;
+        }
+
         return new PostgresTestClusterOptions
         {
             Installation = installation,
             DataDirectoryBase = Path.Combine(RepositoryRoot, "artifacts", "test-pgdata"),
             LogDirectory = Path.Combine(RepositoryRoot, "artifacts", "test-logs"),
             StartupTimeout = TimeSpan.FromSeconds(60),
-            PostgreSqlConfiguration =
-            [
-                $"extension_control_path = '{nativePath}'",
-                $"dynamic_library_path = '{nativePath}{pathSeparator}$libdir'",
-            ],
+            PostgreSqlConfiguration = configuration,
         };
+    }
+
+    /// <summary>
+    /// Removes a staged pre-18 PostgreSQL installation after every cluster has stopped.
+    /// </summary>
+    internal static async Task CleanupAsync()
+    {
+        if (s_stagedInstallation is not null)
+        {
+            await s_stagedInstallation.DisposeAsync();
+            s_stagedInstallation = null;
+        }
     }
 
     /// <summary>

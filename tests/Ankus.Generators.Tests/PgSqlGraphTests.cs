@@ -118,6 +118,24 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
+    /// A compiler-resolved project-root alias still identifies the unique tracked relative SQL input.
+    /// </summary>
+    [TestMethod]
+    public void SqlFilesUseUniqueRelativeInputAcrossProjectRootAliases()
+    {
+        string root = Path.GetPathRoot(AppContext.BaseDirectory)!;
+        string project = Path.Combine(root, "declared-root", "project alias");
+        string resolved = Path.Combine(root, "resolved-root", "project alias", "sql setup", "seed.sql");
+        var options = new SqlOptions(project);
+        var file = new SqlInput(resolved, "SELECT 'aliased';\n");
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [assembly: Ankus.PgSqlFile("seed", "sql setup/seed.sql", Relocatable = true)]
+            """, [file], options);
+        Assert.IsEmpty(diagnostics);
+        Assert.AreEqual("SELECT 'aliased';\n", ManifestValue(compilation, "Ankus.Sql"));
+    }
+
+    /// <summary>
     /// Missing, duplicated, and unreadable file inputs cannot silently produce an incomplete installation script.
     /// </summary>
     /// <param name="kind">The invalid file-input scenario.</param>

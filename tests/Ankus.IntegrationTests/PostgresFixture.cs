@@ -21,13 +21,8 @@ internal static class PostgresFixture
     /// <param name="context">The assembly test context.</param>
     internal static async Task InitializeAsync(TestContext context)
     {
-        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
-        if (options.Installation.Version.Major != 18)
-        {
-            throw new InvalidOperationException("This integration suite publishes the sample for PostgreSQL 18.");
-        }
-
         await IntegrationEnvironment.PublishSampleAsync(context.CancellationToken);
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
         await AllocatorFixtureCompiler.BuildAsync(options.Installation, context.CancellationToken);
         await AllocatorFaultFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
         s_cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
@@ -49,8 +44,13 @@ internal static class PostgresFixture
         }
         catch
         {
-            await Cluster.DisposeAsync();
-            s_cluster = null;
+            if (s_cluster is not null)
+            {
+                await s_cluster.DisposeAsync();
+                s_cluster = null;
+            }
+
+            await IntegrationEnvironment.CleanupAsync();
             throw;
         }
     }
@@ -60,10 +60,17 @@ internal static class PostgresFixture
     /// </summary>
     internal static async Task CleanupAsync()
     {
-        if (s_cluster is not null)
+        try
         {
-            await s_cluster.DisposeAsync();
-            s_cluster = null;
+            if (s_cluster is not null)
+            {
+                await s_cluster.DisposeAsync();
+                s_cluster = null;
+            }
+        }
+        finally
+        {
+            await IntegrationEnvironment.CleanupAsync();
         }
     }
 }
