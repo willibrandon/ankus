@@ -245,7 +245,6 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         var configuration = new StringBuilder();
         configuration.AppendLine("log_min_messages = info");
         configuration.AppendLine("log_min_duration_statement = 1000");
-        configuration.AppendLine("log_statement = 'all'");
         foreach (string setting in _options.PostgreSqlConfiguration)
         {
             configuration.AppendLine(setting);

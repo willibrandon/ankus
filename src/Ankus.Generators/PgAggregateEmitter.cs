@@ -12,7 +12,15 @@ internal static class PgAggregateEmitter
     /// <summary>
     /// Emits one support function through the aggregate-specific ownership and context boundary.
     /// </summary>
-    internal static string EmitHelper(AggregateHelper helper, string callback, StringBuilder managed, StringBuilder native, StringBuilder exports)
+    /// <param name="helper">The aggregate helper contract.</param>
+    /// <param name="callback">The assembly-specific managed callback symbol.</param>
+    /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
+    /// <param name="managed">The generated managed source.</param>
+    /// <param name="native">The generated native source.</param>
+    /// <param name="exports">The native linker export list.</param>
+    /// <returns>The helper's installation SQL.</returns>
+    internal static string EmitHelper(AggregateHelper helper, string callback, bool ensureInitialized,
+        StringBuilder managed, StringBuilder native, StringBuilder exports)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
@@ -100,6 +108,11 @@ internal static class PgAggregateEmitter
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");
+        if (ensureInitialized)
+        {
+            native.AppendLine("    ankus_ensure_initialized();");
+        }
+
         native.AppendLine($"    const bool required[{capacity}] = {{{(required.Length == 0 ? "false" : string.Join(", ", required))}}};");
         native.AppendLine($"    const bool internal_arguments[{capacity}] = {{{(internalArguments.Length == 0 ? "false" : string.Join(", ", internalArguments))}}};");
         native.AppendLine($"    return ankus_aggregate_call(fcinfo, {callback}, {count}, required, internal_arguments, " +

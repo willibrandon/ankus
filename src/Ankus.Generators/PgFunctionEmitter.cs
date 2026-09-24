@@ -16,18 +16,20 @@ internal static class PgFunctionEmitter
     /// <param name="parameterModels">The validated managed parameters and their SQL slots.</param>
     /// <param name="declaration">The validated SQL declaration.</param>
     /// <param name="callback">The assembly-specific managed callback symbol.</param>
+    /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
     /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
     internal static void Emit(IMethodSymbol method, FunctionParameter[] parameterModels, FunctionDeclaration declaration, string callback,
+        bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
         FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsMemoryContext).Select(static parameter => parameter.Type!)];
         FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameterModels, result, managed);
-        EmitNative(nativeName, callback, parameters, result, native);
+        EmitNative(nativeName, callback, parameters, result, ensureInitialized, native);
         sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}({declaration.Arguments})");
         sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
@@ -96,12 +98,18 @@ internal static class PgFunctionEmitter
         source.AppendLine();
     }
 
-    private static void EmitNative(string name, string callback, FunctionType[] parameters, FunctionType result, StringBuilder source)
+    private static void EmitNative(
+        string name, string callback, FunctionType[] parameters, FunctionType result, bool ensureInitialized, StringBuilder source)
     {
         source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
         source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
         source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
         source.AppendLine("{");
+        if (ensureInitialized)
+        {
+            source.AppendLine("    ankus_ensure_initialized();");
+        }
+
         string count = parameters.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, parameters.Length).ToString(CultureInfo.InvariantCulture);
         bool hasBuffers = parameters.Any(static parameter => parameter.IsBuffer);

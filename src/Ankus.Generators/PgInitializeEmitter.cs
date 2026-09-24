@@ -82,6 +82,7 @@ internal static class PgInitializeEmitter
                     #endif
 
             """ : string.Empty;
+        string ensureDeclaration = method is null ? string.Empty : "static void ankus_ensure_initialized(void);\n";
         string errorDeclaration = method is null ? string.Empty : """
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
@@ -128,13 +129,62 @@ internal static class PgInitializeEmitter
             #include "miscadmin.h"
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
+            #if defined(WIN32) && PG_VERSION_NUM < 180000
+            #include "access/parallel.h"
+            #endif
 
             {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
             {{forkDeclaration}}
             static int ankus_initialization_state = 0;
+            static bool ankus_registration_complete = false;
+            {{ensureDeclaration}}
 
             PGDLLEXPORT void _PG_init(void);
             PGDLLEXPORT void _PG_init(void)
+            {
+                if (ankus_initialization_state == 1)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                        errmsg("Ankus extension initialization is already in progress")));
+                }
+
+                if (ankus_registration_complete)
+                {
+            {{(method is null ? "        return;" : "        ankus_ensure_initialized();\n        return;")}}
+                }
+
+                MemoryContext caller = CurrentMemoryContext;
+                ankus_initialization_state = 1;
+                PG_TRY();
+                {
+            {{registration}}
+            {{(method is null ? forkEnable : string.Empty)}}
+                    ankus_registration_complete = true;
+                    ankus_initialization_state = 0;
+                }
+                PG_CATCH();
+                {
+                    ankus_initialization_state = 0;
+                    MemoryContextSwitchTo(caller);
+                    PG_RE_THROW();
+                }
+                PG_END_TRY();
+                MemoryContextSwitchTo(caller);
+            {{(method is null ? "    ankus_initialization_state = 2;" : """
+                #if defined(WIN32) && PG_VERSION_NUM < 180000
+                if (IsParallelWorker())
+                {
+                    return;
+                }
+                #endif
+
+                ankus_ensure_initialized();
+            """)}}
+            }
+
+            {{(method is null ? string.Empty : $$"""
+            static void
+            ankus_ensure_initialized(void)
             {
                 if (ankus_initialization_state == 1)
                 {
@@ -152,7 +202,6 @@ internal static class PgInitializeEmitter
                 ankus_initialization_state = 1;
                 PG_TRY();
                 {
-            {{registration}}
             {{invocation}}
             {{forkEnable}}
                     ankus_initialization_state = 2;
@@ -169,6 +218,7 @@ internal static class PgInitializeEmitter
             {{cleanup}}
             }
 
+            """)}}
             """);
         exports.AppendLine("_PG_init");
     }

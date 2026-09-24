@@ -26,14 +26,13 @@ public sealed class GucParallelTests(TestContext context)
     [DataRow("value", "café 🐘", "secret", "10")]
     [DataRow("normalized-null", null, "rest", "18446744073709551615")]
     public Task BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras(string textState, string? text, string mode, string modeValue)
-        => RunParallel(nameof(BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras),
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras),
             async (connection, transaction, token) =>
             {
                 await PrepareInputAsync(connection, transaction, token);
-                string local = transaction is null ? string.Empty : "LOCAL ";
                 await ExecuteAsync(connection, transaction,
-                    $"LOAD 'Ankus.TestExtension'; SET {local}ankus_parallel.boolean = off; " +
-                    $"SET {local}ankus_parallel.integer = -41; SET {local}ankus_parallel.real = '-0.125'", token);
+                    "LOAD 'Ankus.TestExtension'; SET LOCAL ankus_parallel.boolean = off; " +
+                    "SET LOCAL ankus_parallel.integer = -41; SET LOCAL ankus_parallel.real = '-0.125'", token);
                 await SetAsync(connection, transaction, "ankus_parallel.mode", mode, token);
                 if (textState != "default")
                 {
@@ -71,7 +70,7 @@ public sealed class GucParallelTests(TestContext context)
 
                 Assert.AreSequenceEqual(leader, await ScalarAsync<string?[]>(connection, transaction,
                     "SELECT datatype.guc_parallel_snapshot(0)", token));
-            });
+            }, context.CancellationToken);
 
     /// <summary>
     /// Both session and local mutations fail in actual workers without changing the leader's state.
@@ -81,29 +80,20 @@ public sealed class GucParallelTests(TestContext context)
     [DataRow(false)]
     [DataRow(true)]
     public Task WorkerSetRejectsAndLeaderRecovers(bool local)
-        => RunParallel(nameof(WorkerSetRejectsAndLeaderRecovers),
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(WorkerSetRejectsAndLeaderRecovers),
             async (connection, transaction, token) =>
             {
                 await PrepareInputAsync(connection, transaction, token);
-                string localKeyword = transaction is null ? string.Empty : "LOCAL ";
-                await ExecuteAsync(connection, transaction, $"LOAD 'Ankus.TestExtension'; SET {localKeyword}ankus_parallel.integer = 37", token);
+                await ExecuteAsync(connection, transaction, "LOAD 'Ankus.TestExtension'; SET LOCAL ankus_parallel.integer = 37", token);
                 await AssertWorkerPlanAsync(connection, transaction, "datatype.guc_parallel_snapshot(value % 2)", token);
-                if (transaction is not null)
-                {
-                    await transaction.SaveAsync("worker_set", token);
-                }
-
+                await transaction.SaveAsync("worker_set", token);
                 PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecuteAsync(connection, transaction,
                     $"SELECT sum(datatype.guc_parallel_set(value, {(local ? "true" : "false")})) FROM guc_parallel_input", token));
                 Assert.AreEqual("25000", error.SqlState);
                 Assert.AreEqual("parameter \"ankus_parallel.integer\" cannot be set during a parallel operation", error.MessageText);
                 Assert.AreEqual("guc.c", error.File);
                 Assert.Contains("parallel worker", error.Where ?? string.Empty);
-                if (transaction is not null)
-                {
-                    await transaction.RollbackAsync("worker_set", token);
-                }
-
+                await transaction.RollbackAsync("worker_set", token);
                 Assert.AreEqual("37", await ScalarAsync<string>(connection, transaction, "SHOW ankus_parallel.integer", token));
                 IReadOnlyList<(string?[] Snapshot, long Rows)> recovered = await ReadGroupsAsync(connection, transaction,
                     "datatype.guc_parallel_snapshot(value % 2)", token);
@@ -115,21 +105,20 @@ public sealed class GucParallelTests(TestContext context)
                 }
 
                 Assert.AreEqual(42, await ScalarAsync<int>(connection, transaction, "SELECT 42", token));
-            });
+            }, context.CancellationToken);
 
     /// <summary>
     /// Function-local SAVE settings are visible only in that function and restore accepted extra in the same worker.
     /// </summary>
     [TestMethod]
     public Task WorkerFunctionSettingsRestoreValueAndExtra()
-        => RunParallel(nameof(WorkerFunctionSettingsRestoreValueAndExtra),
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(WorkerFunctionSettingsRestoreValueAndExtra),
             async (connection, transaction, token) =>
             {
                 await PrepareInputAsync(connection, transaction, token);
-                string local = transaction is null ? string.Empty : "LOCAL ";
-                await ExecuteAsync(connection, transaction, $$"""
+                await ExecuteAsync(connection, transaction, """
                     LOAD 'Ankus.TestExtension';
-                    SET {{local}}ankus_parallel.integer = 37;
+                    SET LOCAL ankus_parallel.integer = 37;
                     CREATE FUNCTION datatype.guc_parallel_scoped(integer) RETURNS integer
                         LANGUAGE SQL STABLE PARALLEL SAFE SET ankus_parallel.integer = '73'
                         AS 'SELECT datatype.guc_parallel_integer($1)';
@@ -147,14 +136,14 @@ public sealed class GucParallelTests(TestContext context)
                 }
 
                 Assert.AreEqual("37", await ScalarAsync<string>(connection, transaction, "SHOW ankus_parallel.integer", token));
-            });
+            }, context.CancellationToken);
 
     /// <summary>
     /// A check rejected during worker startup preserves the leader and can be corrected before launching more workers.
     /// </summary>
     [TestMethod]
     public Task WorkerRestoreFailurePreservesLeaderAndRecovers()
-        => RunParallel(nameof(WorkerRestoreFailurePreservesLeaderAndRecovers),
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(WorkerRestoreFailurePreservesLeaderAndRecovers),
             async (connection, transaction, token) =>
             {
                 await PrepareInputAsync(connection, transaction, token);
@@ -162,11 +151,7 @@ public sealed class GucParallelTests(TestContext context)
                 string expression = "datatype.guc_parallel_snapshot(value % 2)";
                 await AssertWorkerPlanAsync(connection, transaction, expression, token);
                 await SetAsync(connection, transaction, "ankus_parallel.owner", connection.ProcessID.ToString(CultureInfo.InvariantCulture), token);
-                if (transaction is not null)
-                {
-                    await transaction.SaveAsync("worker_restore", token);
-                }
-
+                await transaction.SaveAsync("worker_restore", token);
                 PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => ReadGroupsAsync(connection, transaction, expression, token));
                 Assert.AreEqual("P7821", error.SqlState);
                 Assert.AreEqual("Configuration belongs to another backend.", error.MessageText);
@@ -175,19 +160,14 @@ public sealed class GucParallelTests(TestContext context)
                 Assert.AreNotEqual(connection.ProcessID, worker);
                 Assert.Contains("ankus_parallel.owner", error.Where ?? string.Empty);
                 Assert.Contains("parallel worker", error.Where ?? string.Empty);
-                if (transaction is not null)
-                {
-                    await transaction.RollbackAsync("worker_restore", token);
-                }
-
+                await transaction.RollbackAsync("worker_restore", token);
                 Assert.AreEqual(connection.ProcessID.ToString(CultureInfo.InvariantCulture),
                     await ScalarAsync<string>(connection, transaction, "SHOW ankus_parallel.owner", token));
-                string local = transaction is null ? string.Empty : "LOCAL ";
-                await ExecuteAsync(connection, transaction, $"SET {local}ankus_parallel.owner = 0", token);
+                await ExecuteAsync(connection, transaction, "SET LOCAL ankus_parallel.owner = 0", token);
                 IReadOnlyList<(string?[] Snapshot, long Rows)> recovered = await ReadGroupsAsync(connection, transaction, expression, token);
                 AssertWorkerRows(connection.ProcessID, recovered, processIndex: 1);
                 Assert.AreEqual(42, await ScalarAsync<int>(connection, transaction, "SELECT 42", token));
-            });
+            }, context.CancellationToken);
 
     /// <summary>
     /// Native preloaded declarations propagate all types while managed runtime state starts separately in each worker.
@@ -214,16 +194,13 @@ public sealed class GucParallelTests(TestContext context)
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
         await ExecuteAsync(connection, null, "CREATE EXTENSION ankus_configuration", context.CancellationToken);
-        await using NpgsqlTransaction? transaction = RequiresAutocommitParallelWorkers()
-            ? null
-            : await connection.BeginTransactionAsync(context.CancellationToken);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(context.CancellationToken);
         await PrepareInputAsync(connection, transaction, context.CancellationToken);
-        string local = transaction is null ? string.Empty : "LOCAL ";
-        await ExecuteAsync(connection, transaction, $$"""
-            SET {{local}}ankus_configuration.enabled = off;
-            SET {{local}}"ankus_configuration.user" = 72;
-            SET {{local}}ankus_configuration.real_seconds = '-0.125';
-            SET {{local}}ankus_configuration.mode = 'turbo';
+        await ExecuteAsync(connection, transaction, """
+            SET LOCAL ankus_configuration.enabled = off;
+            SET LOCAL "ankus_configuration.user" = 72;
+            SET LOCAL ankus_configuration.real_seconds = '-0.125';
+            SET LOCAL ankus_configuration.mode = 'turbo';
             """, context.CancellationToken);
         if (text is not null)
         {
@@ -253,53 +230,19 @@ public sealed class GucParallelTests(TestContext context)
             "SELECT configuration_parallel_values(0)", context.CancellationToken));
     }
 
-    private async Task RunParallel(
-        string name,
-        Func<NpgsqlConnection, NpgsqlTransaction?, CancellationToken, Task> action)
-    {
-        if (!RequiresAutocommitParallelWorkers())
-        {
-            await PostgresFixture.Cluster.RunInTransactionAsync(name,
-                (connection, transaction, token) => action(connection, transaction, token),
-                context.CancellationToken);
-            return;
-        }
-
-        try
-        {
-            await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
-            await action(connection, null, context.CancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception error)
-        {
-            throw new PostgresTestException(name, PostgresFixture.Cluster.ReadServerLog(), error);
-        }
-    }
-
-    private static bool RequiresAutocommitParallelWorkers()
-        => OperatingSystem.IsWindows() && PostgresFixture.Cluster.Installation.Version.Major < 18;
-
-    private static Task<int> PrepareInputAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, CancellationToken token)
-    {
-        string local = transaction is null ? string.Empty : "LOCAL ";
-        return ExecuteAsync(connection, transaction, $$"""
-            DROP TABLE IF EXISTS guc_parallel_input;
+    private static Task<int> PrepareInputAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken token)
+        => ExecuteAsync(connection, transaction, """
             CREATE TABLE guc_parallel_input AS SELECT generate_series(1,30000) AS value;
             ALTER TABLE guc_parallel_input SET (parallel_workers=2);
             ANALYZE guc_parallel_input;
-            SET {{local}}max_parallel_workers_per_gather=2;
-            SET {{local}}min_parallel_table_scan_size=0;
-            SET {{local}}parallel_setup_cost=0;
-            SET {{local}}parallel_tuple_cost=0;
-            SET {{local}}parallel_leader_participation=off;
+            SET LOCAL max_parallel_workers_per_gather=2;
+            SET LOCAL min_parallel_table_scan_size=0;
+            SET LOCAL parallel_setup_cost=0;
+            SET LOCAL parallel_tuple_cost=0;
+            SET LOCAL parallel_leader_participation=off;
             """, token);
-    }
 
-    private static async Task AssertWorkerPlanAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, string expression, CancellationToken token)
+    private static async Task AssertWorkerPlanAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string expression, CancellationToken token)
     {
         string plan = await ScalarAsync<string>(connection, transaction,
             $"EXPLAIN (ANALYZE, FORMAT JSON) SELECT {expression} FROM guc_parallel_input", token);
@@ -335,7 +278,7 @@ public sealed class GucParallelTests(TestContext context)
     }
 
     private static async Task<IReadOnlyList<(string?[] Snapshot, long Rows)>> ReadGroupsAsync(
-        NpgsqlConnection connection, NpgsqlTransaction? transaction, string expression, CancellationToken token)
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string expression, CancellationToken token)
     {
         await using var command = new NpgsqlCommand($"SELECT {expression}, count(*) FROM guc_parallel_input GROUP BY 1", connection, transaction);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
@@ -348,12 +291,11 @@ public sealed class GucParallelTests(TestContext context)
         return groups;
     }
 
-    private static async Task SetAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, string name, string value, CancellationToken token)
+    private static async Task SetAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string name, string value, CancellationToken token)
     {
-        await using var command = new NpgsqlCommand("SELECT set_config($1, $2, $3)", connection, transaction);
+        await using var command = new NpgsqlCommand("SELECT set_config($1, $2, true)", connection, transaction);
         command.Parameters.AddWithValue(name);
         command.Parameters.AddWithValue(value);
-        command.Parameters.AddWithValue(transaction is not null);
         await command.ExecuteScalarAsync(token);
     }
 
@@ -363,7 +305,7 @@ public sealed class GucParallelTests(TestContext context)
         return await command.ExecuteNonQueryAsync(token);
     }
 
-    private static async Task<T> ScalarAsync<T>(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql, CancellationToken token)
+    private static async Task<T> ScalarAsync<T>(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, CancellationToken token)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         return Assert.IsInstanceOfType<T>(await command.ExecuteScalarAsync(token));

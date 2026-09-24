@@ -227,31 +227,25 @@ public sealed class GucPreloadTests(TestContext context)
         await ExecuteAsync(connection, "ALTER SYSTEM SET \"ankus_configuration.user\" = '65'");
         await ExecuteAsync(connection, "ALTER SYSTEM SET ankus_configuration.connection = '35'");
         await ExecuteAsync(connection, "ALTER SYSTEM SET ankus_configuration.startup = '15'");
+        string? execParameters = OperatingSystem.IsWindows()
+            ? Path.Combine(cluster.DataDirectory, "global", "config_exec_params")
+            : null;
+        DateTime previousExecParametersWrite = execParameters is null
+            ? default
+            : File.GetLastWriteTimeUtc(execParameters);
         Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(connection, "SELECT pg_reload_conf()")));
         await WaitForSettingAsync(connection, "ankus_configuration.reload", "25");
+        if (execParameters is not null)
+        {
+            await WaitForFileWriteAsync(execParameters, previousExecParametersWrite);
+        }
+
         Assert.AreEqual("90", await ScalarAsync(connection, "SHOW \"ankus_configuration.user\""));
         Assert.AreEqual("31", await ScalarAsync(connection, "SHOW ankus_configuration.connection"));
         Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(connection, "SELECT pending_restart FROM pg_settings WHERE name = 'ankus_configuration.startup'")));
         await ExecuteAsync(connection, "RESET \"ankus_configuration.user\"");
         Assert.AreEqual("65", await ScalarAsync(connection, "SHOW \"ankus_configuration.user\""));
-        NpgsqlConnection? reloaded = null;
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            NpgsqlConnection candidate = await cluster.OpenConnectionAsync(context.CancellationToken);
-            string candidateValue = Assert.IsInstanceOfType<string>(
-                await ScalarAsync(candidate, "SHOW ankus_configuration.connection"));
-            if (candidateValue == "35")
-            {
-                reloaded = candidate;
-                break;
-            }
-
-            await candidate.DisposeAsync();
-            await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
-        }
-
-        await using NpgsqlConnection next = reloaded
-            ?? throw new AssertFailedException("The postmaster did not apply the reloaded connection default.");
+        await using NpgsqlConnection next = await cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.AreEqual("35", await ScalarAsync(next, "SHOW ankus_configuration.connection"));
         Assert.AreEqual("11", await ScalarAsync(next, "SHOW ankus_configuration.startup"));
         await ExecuteAsync(connection, "ALTER SYSTEM RESET \"ankus_configuration.user\"");
@@ -339,6 +333,22 @@ public sealed class GucPreloadTests(TestContext context)
         }
 
         Assert.AreEqual(value, await ScalarAsync(connection, "SHOW \"" + name + "\""));
+    }
+
+    private async Task WaitForFileWriteAsync(string path, DateTime previousWrite)
+    {
+        for (int attempt = 0; attempt < 100; attempt++)
+        {
+            if (File.GetLastWriteTimeUtc(path) != previousWrite)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
+        }
+
+        Assert.AreNotEqual(previousWrite, File.GetLastWriteTimeUtc(path),
+            "The postmaster did not publish its reloaded child-process settings.");
     }
 
     private async Task<object?> ScalarAsync(NpgsqlConnection connection, string sql)

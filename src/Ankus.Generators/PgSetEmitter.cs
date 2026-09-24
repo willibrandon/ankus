@@ -12,7 +12,18 @@ internal static class PgSetEmitter
     /// <summary>
     /// Appends a set function's managed callbacks, native wrapper, SQL, and export names.
     /// </summary>
+    /// <param name="method">The attributed managed method.</param>
+    /// <param name="parameters">The validated managed parameters and their SQL slots.</param>
+    /// <param name="declaration">The validated SQL declaration.</param>
+    /// <param name="set">The validated set result.</param>
+    /// <param name="callback">The assembly-specific managed callback symbol.</param>
+    /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
+    /// <param name="managed">The generated managed source.</param>
+    /// <param name="native">The generated native source.</param>
+    /// <param name="sql">The installation SQL.</param>
+    /// <param name="exports">The native linker export list.</param>
     internal static void Emit(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
+        bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
@@ -102,6 +113,11 @@ internal static class PgSetEmitter
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");
+        if (ensureInitialized)
+        {
+            native.AppendLine("    ankus_ensure_initialized();");
+        }
+
         native.AppendLine($"    const bool required[] = {{ {required} }};");
         native.AppendLine($"    return ankus_set_execute(fcinfo, {callback}, {set.Columns.Length.ToString(CultureInfo.InvariantCulture)}, " +
             $"{sqlParameters.Length.ToString(CultureInfo.InvariantCulture)}, required, {mode.ToString(CultureInfo.InvariantCulture)}, " +

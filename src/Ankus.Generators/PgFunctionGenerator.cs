@@ -413,19 +413,19 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             var sql = new StringBuilder();
             if (eventTrigger)
             {
-                PgEventTriggerEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+                PgEventTriggerEmitter.Emit(method, declaration, callback, initializer is not null, managed, native, sql, exports);
             }
             else if (trigger)
             {
-                PgTriggerEmitter.Emit(method, declaration, callback, managed, native, sql, exports);
+                PgTriggerEmitter.Emit(method, declaration, callback, initializer is not null, managed, native, sql, exports);
             }
             else if (set is null)
             {
-                PgFunctionEmitter.Emit(method, parameters, declaration, callback, managed, native, sql, exports);
+                PgFunctionEmitter.Emit(method, parameters, declaration, callback, initializer is not null, managed, native, sql, exports);
             }
             else
             {
-                PgSetEmitter.Emit(method, parameters, declaration, set, callback, managed, native, sql, exports);
+                PgSetEmitter.Emit(method, parameters, declaration, set, callback, initializer is not null, managed, native, sql, exports);
             }
 
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault());
@@ -506,7 +506,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
 
                 string callback = GetCallbackName(helper.Method, "aggregate_" + SqlText.SnakeCase(helper.Role));
-                string helperSql = PgAggregateEmitter.EmitHelper(helper, callback, managed, native, exports);
+                string helperSql = PgAggregateEmitter.EmitHelper(helper, callback, initializer is not null, managed, native, exports);
                 var support = new SqlEntity("1:aggregate-helper:" + type.ToDisplayString() + ":" + helper.Role, helperSql, helper.Method.Locations.FirstOrDefault());
                 AttributeData? function = helper.Method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
                 if (function is not null)

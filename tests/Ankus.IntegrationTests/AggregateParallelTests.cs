@@ -13,7 +13,7 @@ public sealed partial class AggregateTests
     /// </summary>
     [TestMethod]
     public Task ParallelWorkersSerializeDeserializeAndCombineOwnedState()
-        => RunParallel(nameof(ParallelWorkersSerializeDeserializeAndCombineOwnedState), async (connection, transaction, token) =>
+        => Run(nameof(ParallelWorkersSerializeDeserializeAndCombineOwnedState), async (connection, transaction, token) =>
         {
             await PrepareParallelInput(connection, transaction, token);
             string plan = await Scalar<string>(connection, transaction,
@@ -35,8 +35,7 @@ public sealed partial class AggregateTests
             Assert.AreEqual(result[3], result[4], "Every transported state must be deserialized.");
             Assert.IsNotEmpty(result.Skip(5).Where(process => process != connection.ProcessID), "A foreign backend must have processed input rows.");
             await AssertParallelReleased(connection, transaction, token);
-            string local = transaction is null ? string.Empty : "LOCAL ";
-            await Execute(connection, transaction, $"SET {local}max_parallel_workers_per_gather=0; SELECT aggregate_values.parallel_reset('normal')", token);
+            await Execute(connection, transaction, "SET LOCAL max_parallel_workers_per_gather=0; SELECT aggregate_values.parallel_reset('normal')", token);
             long[] serial = await Scalar<long[]>(connection, transaction,
                 "SELECT aggregate_values.parallel_sum(value) FROM aggregate_values.parallel_input", token);
             Assert.AreSequenceEqual([450015000, 30000, 0, 0, 0, connection.ProcessID], serial);
@@ -57,24 +56,16 @@ public sealed partial class AggregateTests
     [DataRow(5, "38000", "Unable to read beyond the end of the stream.")]
     [DataRow(6, "22P03", "invalid aggregate state format")]
     public Task ParallelCallbackErrorsReleaseOwnedStateAndRecover(int failure, string sqlState, string message)
-        => RunParallel(nameof(ParallelCallbackErrorsReleaseOwnedStateAndRecover), async (connection, transaction, token) =>
+        => Run(nameof(ParallelCallbackErrorsReleaseOwnedStateAndRecover), async (connection, transaction, token) =>
         {
             await PrepareParallelInput(connection, transaction, token);
             await Execute(connection, transaction, "SELECT aggregate_values.parallel_reset('normal')", token);
-            if (transaction is not null)
-            {
-                await transaction.SaveAsync("parallel_error", token);
-            }
-
+            await transaction.SaveAsync("parallel_error", token);
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection, transaction,
                 $"SELECT aggregate_values.parallel_sum(-{failure}) FROM aggregate_values.parallel_input", token));
             Assert.AreEqual(sqlState, error.SqlState);
             Assert.AreEqual(message, error.MessageText);
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync("parallel_error", token);
-            }
-
+            await transaction.RollbackAsync("parallel_error", token);
             await AssertParallelReleased(connection, transaction, token);
             await Execute(connection, transaction, "SELECT aggregate_values.parallel_reset('normal')", token);
             long[] recovered = await Scalar<long[]>(connection, transaction,
@@ -90,24 +81,16 @@ public sealed partial class AggregateTests
     /// </summary>
     [TestMethod]
     public Task ParallelCombineRejectsBorrowedTemporaryStateAndRecovers()
-        => RunParallel(nameof(ParallelCombineRejectsBorrowedTemporaryStateAndRecovers), async (connection, transaction, token) =>
+        => Run(nameof(ParallelCombineRejectsBorrowedTemporaryStateAndRecovers), async (connection, transaction, token) =>
         {
             await PrepareParallelInput(connection, transaction, token);
             await Execute(connection, transaction, "SELECT aggregate_values.parallel_reset('borrow')", token);
-            if (transaction is not null)
-            {
-                await transaction.SaveAsync("borrowed_state", token);
-            }
-
+            await transaction.SaveAsync("borrowed_state", token);
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection, transaction,
                 "SELECT aggregate_values.parallel_sum(value) FROM aggregate_values.parallel_input", token));
             Assert.AreEqual("38000", error.SqlState);
             Assert.Contains("owner", error.MessageText);
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync("borrowed_state", token);
-            }
-
+            await transaction.RollbackAsync("borrowed_state", token);
             await AssertParallelReleased(connection, transaction, token);
             await Execute(connection, transaction, "SELECT aggregate_values.parallel_reset('normal')", token);
             long[] recovered = await Scalar<long[]>(connection, transaction,
@@ -122,7 +105,7 @@ public sealed partial class AggregateTests
     /// </summary>
     [TestMethod]
     public Task NullSerializedAndEmptyPartialStatesRemainSqlNull()
-        => RunParallel(nameof(NullSerializedAndEmptyPartialStatesRemainSqlNull), async (connection, transaction, token) =>
+        => Run(nameof(NullSerializedAndEmptyPartialStatesRemainSqlNull), async (connection, transaction, token) =>
         {
             await PrepareParallelInput(connection, transaction, token);
             await Execute(connection, transaction, "SELECT aggregate_values.parallel_reset('normal')", token);
@@ -140,7 +123,7 @@ public sealed partial class AggregateTests
     /// </summary>
     [TestMethod]
     public Task OrdinaryPartialStatesReceiveInitialConditionIndependently()
-        => RunParallel(nameof(OrdinaryPartialStatesReceiveInitialConditionIndependently), async (connection, transaction, token) =>
+        => Run(nameof(OrdinaryPartialStatesReceiveInitialConditionIndependently), async (connection, transaction, token) =>
         {
             await PrepareParallelInput(connection, transaction, token);
             string plan = await Scalar<string>(connection, transaction,
@@ -157,8 +140,7 @@ public sealed partial class AggregateTests
             Assert.HasCount(2, parallel);
             Assert.IsGreaterThan(1L, parallel[1], "The partial workers and final combine phase each contribute a seed.");
             Assert.AreEqual(450015000L + 10 * parallel[1], parallel[0]);
-            string local = transaction is null ? string.Empty : "LOCAL ";
-            await Execute(connection, transaction, $"SET {local}max_parallel_workers_per_gather=0", token);
+            await Execute(connection, transaction, "SET LOCAL max_parallel_workers_per_gather=0", token);
             long[] serial = [450015010, 1];
             Assert.AreSequenceEqual(serial, await Scalar<long[]>(connection, transaction,
                 "SELECT aggregate_values.parallel_seeded_array(value) FROM aggregate_values.parallel_input", token));
@@ -167,26 +149,22 @@ public sealed partial class AggregateTests
     /// <summary>
     /// Creates a real relation and low-cost parallel plan with leader participation disabled.
     /// </summary>
-    private static Task<int> PrepareParallelInput(NpgsqlConnection connection, NpgsqlTransaction? transaction, CancellationToken token)
-    {
-        string local = transaction is null ? string.Empty : "LOCAL ";
-        return Execute(connection, transaction, $$"""
-            DROP TABLE IF EXISTS aggregate_values.parallel_input;
+    private static Task<int> PrepareParallelInput(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken token)
+        => Execute(connection, transaction, """
             CREATE TABLE aggregate_values.parallel_input AS SELECT generate_series(1,30000) AS value;
             ALTER TABLE aggregate_values.parallel_input SET (parallel_workers=2);
             ANALYZE aggregate_values.parallel_input;
-            SET {{local}}max_parallel_workers_per_gather=2;
-            SET {{local}}min_parallel_table_scan_size=0;
-            SET {{local}}parallel_setup_cost=0;
-            SET {{local}}parallel_tuple_cost=0;
-            SET {{local}}parallel_leader_participation=off;
+            SET LOCAL max_parallel_workers_per_gather=2;
+            SET LOCAL min_parallel_table_scan_size=0;
+            SET LOCAL parallel_setup_cost=0;
+            SET LOCAL parallel_tuple_cost=0;
+            SET LOCAL parallel_leader_participation=off;
             """, token);
-    }
 
     /// <summary>
     /// Checks independently balanced lifecycle counters after successful or aborted parallel work.
     /// </summary>
-    private static async Task AssertParallelReleased(NpgsqlConnection connection, NpgsqlTransaction? transaction, CancellationToken token)
+    private static async Task AssertParallelReleased(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken token)
     {
         int[] status = await Scalar<int[]>(connection, transaction, "SELECT aggregate_values.parallel_status()", token);
         Assert.AreEqual(status[0], status[1], "Every allocated leader payload must be released.");

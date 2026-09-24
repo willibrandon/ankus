@@ -71,7 +71,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// The native loader enables fork support after managed entry and resets failed initialization before rethrow.
+    /// The native loader separates native registration from retryable managed initialization.
     /// </summary>
     [TestMethod]
     public void InitializationNativeBoundaryEnablesForkSupportAndPreservesRetry()
@@ -80,8 +80,35 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgInitialize] public static void Initialize() { } }");
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..];
-        string[] ordered =
+        string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..
+            native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)];
+        string[] loaderOrder =
+        [
+            "if (ankus_initialization_state == 1)",
+            "errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE)",
+            "if (ankus_registration_complete)",
+            "ankus_ensure_initialized();",
+            "return;",
+            "ankus_initialization_state = 1;",
+            "PG_TRY();",
+            "ankus_registration_complete = true;",
+            "ankus_initialization_state = 0;",
+            "PG_CATCH();",
+            "ankus_initialization_state = 0;",
+            "MemoryContextSwitchTo(caller);",
+            "PG_RE_THROW();",
+            "PG_END_TRY();",
+            "MemoryContextSwitchTo(caller);",
+            "#if defined(WIN32) && PG_VERSION_NUM < 180000",
+            "if (IsParallelWorker())",
+            "return;",
+            "#endif",
+            "ankus_ensure_initialized();",
+        ];
+        AssertOrdered(loader, loaderOrder);
+
+        string initializer = native[native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)..];
+        string[] initializationOrder =
         [
             "if (ankus_initialization_state == 1)",
             "errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE)",
@@ -123,17 +150,51 @@ public sealed partial class PgFunctionGeneratorTests
             "ankus_release_error(error);",
             "pfree(error);",
         ];
-        int position = 0;
-        foreach (string statement in ordered)
-        {
-            int found = loader.IndexOf(statement, position, StringComparison.Ordinal);
-            Assert.IsGreaterThanOrEqualTo(position, found, statement);
-            position = found + statement.Length;
-        }
+        AssertOrdered(initializer, initializationOrder);
 
+        Assert.Contains("#include \"access/parallel.h\"", native);
         Assert.Contains("extern int32_t RhEnableForkSupport(void);", native);
         Assert.Contains("ankus_initialization_log", native);
         Assert.DoesNotContain("cannot run through shared_preload_libraries", native);
+    }
+
+    /// <summary>
+    /// Every managed PostgreSQL entry point completes initialization deferred during Windows worker startup.
+    /// </summary>
+    [TestMethod]
+    public void ParallelWorkersInitializeBeforeEveryManagedEntryPoint()
+    {
+        const string source = """
+            public static class Functions
+            {
+                [Ankus.PgInitialize] public static void Initialize() { }
+                [Ankus.PgFunction] public static int Scalar() => 42;
+                [Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<int> Rows() => new[] { 1 };
+                [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Trigger(Ankus.PgTriggerContext context) => context.New;
+                [Ankus.PgEventTrigger] public static void Event(Ankus.PgEventTriggerContext context) { }
+            }
+
+            [Ankus.PgAggregate(InitialCondition = "0")]
+            public static class Sum
+            {
+                public static int Transition(int state, int value) => state + value;
+            }
+            """;
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        AssertInitializationCompilationSucceeds(compilation, diagnostics);
+        string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
+        Assert.AreEqual(7, native.Split("ankus_ensure_initialized();", StringSplitOptions.None).Length - 1);
+    }
+
+    private static void AssertOrdered(string source, IEnumerable<string> statements)
+    {
+        int position = 0;
+        foreach (string statement in statements)
+        {
+            int found = source.IndexOf(statement, position, StringComparison.Ordinal);
+            Assert.IsGreaterThanOrEqualTo(position, found, statement);
+            position = found + statement.Length;
+        }
     }
 
     /// <summary>

@@ -3299,8 +3299,16 @@ The phases track implementation of the complete pgrx feature surface.
   joins its native thread before declaring a postmaster dormant, and discards
   the inherited handle before child recovery. The Linux x64 Release runtime and
   CoreLib build with zero warnings/errors; repeated finalizer-wait and descendant
-  fork probes pass. PostgreSQL 17 Windows parallel tests avoid its fixed-in-18
-  transaction-GUC restore defect while still proving real workers, tool tests use
-  the selected server version, generated-column coverage follows server support,
-  and preload reload checks wait for the postmaster to apply the new default.
-  Ankus Release builds with zero warnings/errors. The hosted rerun is pending.
+  fork probes pass. PostgreSQL 15–17 Windows workers now defer only the managed
+  initializer until their first managed SQL entry point. Native GUC registration
+  still occurs during library restore, allowing PostgreSQL to restore transaction
+  GUCs before managed initialization takes a snapshot. PostgreSQL 18 keeps its
+  eager path. Scalar, set, trigger, event-trigger and aggregate entries enforce
+  completion, and transaction-backed parallel tests are restored. Windows reload
+  tests wait for PostgreSQL's `config_exec_params` replacement before opening a
+  new child; repeated child starts had kept the old file open. Test clusters no
+  longer log every statement. The generator suite passes 1,182/1,182. Plain
+  `dotnet test` passes 4,142/4,142 without skips in 3m15.194s on PostgreSQL
+  18.6/Linux x64; 133 affected integration cases pass in 59.547s. Ankus Release
+  builds with zero warnings/errors. Hosted Windows proof and the PostgreSQL 15–18
+  platform matrix remain pending.
