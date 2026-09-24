@@ -160,6 +160,7 @@ jobs:
           retention-days: 7
 
   unit-macos-x64:
+    needs: runtime
     runs-on: macos-15-intel
     timeout-minutes: 10
     steps:
@@ -168,6 +169,11 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.400
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: nativeaot-osx-x64
+          path: artifacts/nativeaot/osx-x64
 
       - name: Run unit tests
         run: dotnet run --file ./eng/Ankus.Ci.cs -- unit-test
