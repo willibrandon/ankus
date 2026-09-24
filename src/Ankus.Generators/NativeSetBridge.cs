@@ -138,7 +138,8 @@ internal static class NativeSetBridge
 
         static AnkusSetState *
         ankus_set_initialize(FunctionCallInfo fcinfo, FuncCallContext *context, AnkusSetCallback callback,
-            int columns, int arguments, const bool *required, int mode, bool composite_result)
+            int columns, int arguments, const bool *required, int mode, bool composite_result,
+            const bool *polymorphic, bool polymorphic_result)
         {
             ReturnSetInfo *info = (ReturnSetInfo *) fcinfo->resultinfo;
             MemoryContext previous = MemoryContextSwitchTo(context->multi_call_memory_ctx);
@@ -173,6 +174,8 @@ internal static class NativeSetBridge
             if (argument_count != arguments || PG_NARGS() != arguments)
                 ereport(ERROR, (errmsg("Incorrect argument count for generated Ankus set function")));
             result_kind = get_call_result_type(fcinfo, &scalar_type, &descriptor);
+            if (polymorphic_result && (result_kind == TYPEFUNC_COMPOSITE || result_kind == TYPEFUNC_COMPOSITE_DOMAIN || result_kind == TYPEFUNC_RECORD))
+                composite_result = state->composite_result = true;
             if (columns > 1)
             {
                 if (result_kind != TYPEFUNC_COMPOSITE || descriptor == NULL || descriptor->natts != columns)
@@ -218,7 +221,9 @@ internal static class NativeSetBridge
                     for (int index = 0; index < arguments; index++)
                     {
                         input[index].is_null = PG_ARGISNULL(index);
-                        if (!input[index].is_null)
+                        if (polymorphic[index])
+                            ankus_read_polymorphic(fcinfo, index, &input[index]);
+                        else if (!input[index].is_null)
                             ankus_read_value(PG_GETARG_DATUM(index), state->argument_types[index], &input[index], &owned[index]);
                     }
 
@@ -259,7 +264,7 @@ internal static class NativeSetBridge
                         cell.type_oid = TupleDescAttr(state->descriptor, index)->atttypid;
                         cell.value = state->row[index];
                         state->nulls[index] = cell.value.is_null != 0;
-                        if (state->composite_result && !state->nulls[index])
+                        if (state->composite_result && !state->nulls[index] && cell.value.auxiliary1 != -6)
                             state->values[index] = ankus_write_tuple(&cell.value, cell.type_oid, state->composite_descriptor);
                         else
                             state->values[index] = ankus_parameter_datum(&cell);
@@ -289,7 +294,7 @@ internal static class NativeSetBridge
 
         static Datum
         ankus_set_execute(FunctionCallInfo fcinfo, AnkusSetCallback callback, int columns, int arguments,
-            const bool *required, int mode, bool composite_result)
+            const bool *required, int mode, bool composite_result, const bool *polymorphic, bool polymorphic_result)
         {
             FuncCallContext *context;
             AnkusSetState *state;
@@ -297,7 +302,8 @@ internal static class NativeSetBridge
             if (SRF_IS_FIRSTCALL())
             {
                 context = SRF_FIRSTCALL_INIT();
-                state = ankus_set_initialize(fcinfo, context, callback, columns, arguments, required, mode, composite_result);
+                state = ankus_set_initialize(fcinfo, context, callback, columns, arguments, required, mode, composite_result,
+                    polymorphic, polymorphic_result);
             }
             else
             {

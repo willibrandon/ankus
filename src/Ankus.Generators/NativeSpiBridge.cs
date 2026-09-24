@@ -181,6 +181,17 @@ internal static class NativeSpiBridge
         {
             const AnkusValue *value = &parameter->value;
             Oid base_type;
+            if (value->auxiliary1 == -6 && value->data != NULL)
+            {
+                if ((Oid) value->integral != parameter->type_oid)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
+                        errmsg("Polymorphic result type %s does not match resolved type %s",
+                            format_type_be((Oid) value->integral), format_type_be(parameter->type_oid))));
+                AnkusParameter raw = *parameter;
+                raw.value.auxiliary1 = -5;
+                return ankus_parameter_datum(&raw);
+            }
+
             if (get_typtype(parameter->type_oid) == '\0')
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Parameter type OID %u does not exist", parameter->type_oid)));
             base_type = getBaseType(parameter->type_oid);

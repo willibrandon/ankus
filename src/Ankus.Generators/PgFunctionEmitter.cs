@@ -162,6 +162,12 @@ internal static class PgFunctionEmitter
         {
             FunctionType parameter = parameters[index];
             string argument = index.ToString(CultureInfo.InvariantCulture);
+            if (parameter.IsPolymorphic)
+            {
+                source.AppendLine($"{inputIndent}    ankus_read_polymorphic(fcinfo, {argument}, &arguments[{argument}]);");
+                continue;
+            }
+
             source.AppendLine($"{inputIndent}    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
             source.AppendLine($"{inputIndent}    if (!arguments[{argument}].is_null)");
             source.AppendLine(inputIndent + "    {");
@@ -239,10 +245,10 @@ internal static class PgFunctionEmitter
         source.AppendLine();
         source.AppendLine("    if (result.is_null)");
         source.AppendLine("    {");
-        if (result.IsComposite)
+        if (result.IsComposite || result.IsPolymorphic)
         {
             source.AppendLine("        AnkusParameter parameter = {0};");
-            source.AppendLine("        parameter.type_oid = get_func_rettype(fcinfo->flinfo->fn_oid);");
+            source.AppendLine("        parameter.type_oid = " + (result.IsPolymorphic ? "get_fn_expr_rettype(fcinfo->flinfo)" : "get_func_rettype(fcinfo->flinfo->fn_oid)") + ";");
             source.AppendLine("        parameter.value.is_null = true;");
             source.AppendLine("        (void) ankus_parameter_datum(&parameter);");
         }
@@ -252,7 +258,14 @@ internal static class PgFunctionEmitter
         source.AppendLine();
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
-        if (result.Element is not null)
+        if (result.IsPolymorphic)
+        {
+            source.AppendLine("        AnkusParameter parameter = {0};");
+            source.AppendLine("        parameter.type_oid = get_fn_expr_rettype(fcinfo->flinfo);");
+            source.AppendLine("        parameter.value = result;");
+            source.AppendLine("        datum = ankus_parameter_datum(&parameter);");
+        }
+        else if (result.Element is not null)
         {
             source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null && !result.Element.IsComposite ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
         }

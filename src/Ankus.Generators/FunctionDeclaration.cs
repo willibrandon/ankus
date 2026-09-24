@@ -74,6 +74,12 @@ internal sealed class FunctionDeclaration
 
         FunctionParameter[] sqlParameters = contextParameter ? [] :
             [.. (parameterModels ?? FunctionParameter.Create(method)).Where(static parameter => !parameter.IsInjected)];
+        if (!contextParameter && (set?.Columns.Any(static column => column.IsPolymorphic) ?? FunctionType.CreateResult(method)?.IsPolymorphic == true) &&
+            !sqlParameters.Any(static parameter => parameter.Type?.IsPolymorphic == true))
+        {
+            return Invalid("A polymorphic result requires a PgAnyElement or PgAnyArray SQL input to resolve its type.");
+        }
+
         bool allNullable = sqlNullability?.All(static nullable => nullable) ??
             (contextParameter || sqlParameters.All(static parameter => parameter.Type!.Nullable));
         bool allRequired = sqlNullability?.All(static nullable => !nullable) ??

@@ -177,6 +177,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionBridge.Source);
             native.AppendLine(NativeFunctionInvocation.Source);
 
+            if (methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
+                FunctionParameter.Create(method).Any(static parameter => parameter.Type?.IsPolymorphic == true)))
+            {
+                native.AppendLine(NativeDatumBridge.PolymorphicInput);
+            }
+
             if (hasFunctionCallbacks)
             {
                 native.AppendLine(NativeErrorBridge.RaiseError);

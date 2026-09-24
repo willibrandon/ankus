@@ -81,7 +81,7 @@ public sealed partial class PgFunctionGeneratorTests
         IMethodSymbol callback = Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
             .GetMembers().OfType<IMethodSymbol>());
         Assert.Contains("return ankus_set_execute(fcinfo, " + callback.Name + ", 1, " +
-            count.ToString(CultureInfo.InvariantCulture) + ", required, 0, false);", native);
+            count.ToString(CultureInfo.InvariantCulture) + ", required, 0, false, polymorphic, false);", native);
         Assert.AreSequenceEqual([0, expected, 0, 999, 888], InvokeVirtualContextCallback(compilation, nullSecond));
     }
 

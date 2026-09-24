@@ -79,6 +79,11 @@ internal sealed class FunctionType
     internal bool IsComposite => Reader == "tuple";
 
     /// <summary>
+    /// Gets whether PostgreSQL resolves this scalar's concrete type at the call site.
+    /// </summary>
+    internal bool IsPolymorphic => Reader is "anyelement" or "anyarray";
+
+    /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
     /// </summary>
     internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
@@ -91,7 +96,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr";
+    internal bool IsBuffer => !IsPolymorphic && (Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -162,7 +167,7 @@ internal sealed class FunctionType
         if (elementType is not null)
         {
             FunctionType? element = Create(elementType, composite);
-            if (element is null || element.Element is not null || element.Managed == "void")
+            if (element is null || element.Element is not null || element.IsPolymorphic || element.Managed == "void")
             {
                 return null;
             }
@@ -207,6 +212,12 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name is "global::Ankus.PgAnyElement" or "global::Ankus.PgAnyArray")
+        {
+            string sql = name == "global::Ankus.PgAnyElement" ? "anyelement" : "anyarray";
+            return new(name, sql, sql, sql, string.Empty, nullable, reference: true);
+        }
+
         if (name == "global::Ankus.PgHeapTuple")
         {
             return new(name, composite?.Sql ?? "record", "tuple", "tuple", string.Empty, nullable, reference: true)

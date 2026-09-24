@@ -83,6 +83,7 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `T[]`, `PgArray<T>` | Array of the corresponding scalar SQL type |
+| `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `void` result | `void` |
 

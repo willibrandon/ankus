@@ -2608,7 +2608,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Partial: synchronous supported scalar/array/enum types, SETOF/TABLE, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics; polymorphic/raw types pending |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous scalar/array/enum types, SETOF/TABLE, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics, and anyelement/anyarray signatures implemented; general raw/internal bindings remain pending |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
@@ -2636,7 +2636,7 @@ alongside the source-level macro inventory.
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views and custom base-type elements pending |
-| `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | Pending |
+| `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE signatures with checked native ownership. General internal values and polymorphic aggregate signatures remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
@@ -3591,3 +3591,47 @@ The phases track implementation of the complete pgrx feature surface.
   APIs and full PostgreSQL/platform validation remain required. The cached-state
   milestone passed all Linux, macOS ARM64, and Windows CI jobs in
   [run 36032194319](https://github.com/willibrandon/ankus/actions/runs/36032194319).
+
+- 2026-09-24 — Added `PgAnyElement` and `PgAnyArray` for PostgreSQL `anyelement`
+  and `anyarray` signatures. Generated scalar, SETOF, and TABLE functions resolve
+  real argument/result types through the server's function-expression APIs.
+  Managed inputs copy raw storage into the callback or iterator owner; return
+  conversion checks exact type identity and owner generation before reading the
+  datum. Nullable wrappers preserve SQL NULL independently of zero values.
+  Domains, unregistered enums, named/anonymous records, and unmapped types retain
+  native identity. Array metadata retains dimensions, lower bounds, and element
+  OIDs; cells preserve NULLs and independent checked ownership after copying.
+
+  Wrappers bind through `SpiParameter.Create` and `PgFunctionArgument.Create`.
+  `CopyTo` gives values and array cells another owner. Runtime checks reject
+  non-array construction, stale returned storage, and incompatible result types;
+  the generator diagnoses polymorphic results with no type-resolving input.
+  Polymorphic composite sets use PostgreSQL's row descriptors in streaming and
+  materialized execution. Transport-marker checks also retain ordinary temporal
+  values whose auxiliary fields happen to match a marker number.
+
+  Direct runtime checks pass 2/2; generator contracts and diagnostics pass 7/7.
+  The 35-case PostgreSQL scope passes without skips in 44.700s on PostgreSQL
+  18.6/Linux x64, including PostgreSQL void values and NOT NULL domain results.
+  The affected generator scope also passes all ten cases, including three
+  existing compiled iterator-factory checks updated for the native signature.
+  API freshness (131 pages/1,342 members), `pnpm build` (165 pages), and `pnpm check`
+  pass without diagnostics. The Release build has zero warnings and errors.
+  Plain `dotnet test` passes 4,536/4,536 without skips in 2m55.807s on PostgreSQL
+  18.6/Linux x64.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Scalar type identity, SQL NULL, exact values, domains, enums, records and unmapped types | `PolymorphicTests.ScalarValuesPreserveResolvedTypes`; `PgAnyElementTests.ExactIdentityAndLifetimeSurviveTransport`, `NullInputsRequireNullableWrappers` |
+  | Array shape, non-one bounds, empty arrays, NULL cells and element type identity | `PolymorphicTests.ArraysPreserveShapeAndUnmappedElements` |
+  | Scalar/composite SETOF, materialization, TABLE and iterator lifetimes | `PolymorphicTests.SetResultsFollowResolvedElementTypes`, `IteratorOwnersRetainValuesAndTableColumns` |
+  | Array copies, independently expired cells, built-in invocation and invalid runtime array conversion | `PolymorphicTests.ArrayCopiesAndBuiltinCallsPreserveValues` |
+  | Exact output validation, stale storage, strict managed reads, domain NULL constraints and same-backend recovery | `PolymorphicTests.InvalidResultsFailWithoutCorruption`, `NullResultsRespectResolvedDomainConstraints` |
+  | Compiled dispatch, SQL pseudotypes, NULL policies and invalid signature diagnostics | `PgFunctionGeneratorTests.PolymorphicSignaturesCompileWithExactSqlTypes`, `InvalidPolymorphicSignaturesAreDiagnosed` |
+
+  Typed polymorphic query/call results, polymorphic aggregate signatures,
+  general internal/raw signature bindings, custom base types, remaining backend
+  APIs, and full PostgreSQL/platform validation remain required.
+  The preceding function-invocation milestone passed Linux x64/PostgreSQL 18,
+  macOS ARM64/PostgreSQL 18, and Windows x64/PostgreSQL 17 in
+  [CI run 36036454638](https://github.com/willibrandon/ankus/actions/runs/36036454638).

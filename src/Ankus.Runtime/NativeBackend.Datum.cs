@@ -6,6 +6,30 @@ namespace Ankus;
 public static unsafe partial class NativeBackend
 {
     /// <summary>
+    /// Captures exact array shape and raw cells without requiring managed element mappings.
+    /// </summary>
+    /// <param name="datum">The live array datum.</param>
+    /// <returns>The element identity, shape, bounds, and nullable cells.</returns>
+    internal static (uint Element, int[] Dimensions, int[] LowerBounds, PgAnyElement?[] Values) ReadPolymorphicArray(PgDatum datum)
+        => RunDatum(datum, 3, datum.Lifetime, result =>
+        {
+            byte[] shape = result._text.ReadBytes();
+            ReadOnlySpan<int> dimensionsAndBounds = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(shape);
+            int rank = dimensionsAndBounds.Length / 2;
+            var values = new PgAnyElement?[result._rowCount];
+            for (int index = 0; index < values.Length; index++)
+            {
+                NativeValue cell = result._values[index];
+                if (cell.IsNull == 0)
+                {
+                    values[index] = new PgAnyElement(new PgDatum(unchecked((nuint)cell.Integral), result._resultTypeOid, false, datum.Lifetime));
+                }
+            }
+
+            return (result._resultTypeOid, dimensionsAndBounds[..rank].ToArray(), dimensionsAndBounds[rank..].ToArray(), values);
+        });
+
+    /// <summary>
     /// Copies a raw datum into an ordinary managed SPI value.
     /// </summary>
     /// <typeparam name="T">The desired managed type.</typeparam>

@@ -13,6 +13,7 @@ internal static class ManagedConversion
         string numeric = slot + ".ReadNumeric()" + numericSuffix;
         string value = type.Managed switch
         {
+            _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
             _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
                 (type.IsVector ? ".ToVector()" : string.Empty),
             _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
@@ -52,6 +53,7 @@ internal static class ManagedConversion
             + numericSuffix;
         return result.Managed switch
         {
+            _ when result.IsPolymorphic => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value}.Datum);",
             _ when result.Element is not null => "*" + target + " = global::Ankus.NativeValue.FromArray(" +
                 (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
             _ when result.GeometryName.Length != 0 => $"*{target} = global::Ankus.NativeValue.From{result.GeometryName}({value});",

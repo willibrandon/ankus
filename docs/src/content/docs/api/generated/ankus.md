@@ -14,6 +14,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAggregateSortKey](/api/ankus.pgaggregatesortkey/)
 - [PgAggregateState&lt;T&gt;](/api/ankus.pgaggregatestate-1/)
 - [PgAllocation](/api/ankus.pgallocation/)
+- [PgAnyArray](/api/ankus.pganyarray/)
+- [PgAnyElement](/api/ankus.pganyelement/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)

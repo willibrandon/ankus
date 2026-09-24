@@ -6,6 +6,23 @@ namespace Ankus.Generators;
 internal static class NativeDatumBridge
 {
     /// <summary>
+    /// Gets input capture used by polymorphic scalar dispatch and set dispatch.
+    /// </summary>
+    internal const string PolymorphicInput = """
+        static void
+        ankus_read_polymorphic(FunctionCallInfo call, int index, AnkusValue *value)
+        {
+            Oid type = get_fn_expr_argtype(call->flinfo, index);
+            if (!OidIsValid(type) || IsPolymorphicType(type))
+                ereport(ERROR, (errcode(ERRCODE_INDETERMINATE_DATATYPE), errmsg("Cannot resolve polymorphic argument type")));
+            value->is_null = call->args[index].isnull;
+            value->auxiliary2 = (int32) type;
+            if (!value->is_null)
+                value->integral = (int64) (uintptr_t) call->args[index].value;
+        }
+        """;
+
+    /// <summary>
     /// Gets native datum operations invoked inside the existing PostgreSQL error guard.
     /// </summary>
     internal const string Source = """
@@ -83,6 +100,42 @@ internal static class NativeDatumBridge
         }
 
         static void
+        ankus_raw_array(AnkusRequest *request, AnkusResult *result, Datum datum, Oid type)
+        {
+            Oid element = get_element_type(type);
+            if (!OidIsValid(element))
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("The polymorphic value is not an array")));
+            ankus_datum_context(request->result_context, request->result_generation);
+            ArrayType *array = DatumGetArrayTypeP(datum);
+            int rank = ARR_NDIM(array);
+            int shape[MAXDIM * 2];
+            memcpy(shape, ARR_DIMS(array), rank * sizeof(int));
+            memcpy(shape + rank, ARR_LBOUND(array), rank * sizeof(int));
+            ankus_copy_owned(&result->text, (const unsigned char *) shape, (int) (rank * 2 * sizeof(int)));
+            result->result_type_oid = element;
+            int16 length;
+            bool by_value;
+            char alignment;
+            get_typlenbyvalalign(element, &length, &by_value, &alignment);
+            Datum *values;
+            bool *nulls;
+            int count;
+            deconstruct_array(array, element, length, by_value, alignment, &values, &nulls, &count);
+            result->column_count = 1;
+            result->row_count = count;
+            result->values = calloc(Max(count, 1), sizeof(AnkusValue));
+            if (result->values == NULL)
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("Unable to copy polymorphic array cells")));
+            for (int index = 0; index < count; index++)
+            {
+                result->values[index].is_null = nulls[index];
+                if (!nulls[index])
+                    result->values[index].integral = (int64) (uintptr_t) ankus_copy_raw_datum(values[index], element,
+                        request->result_context, request->result_generation);
+            }
+        }
+
+        static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
             if (request->parameter_count != 1)
@@ -117,6 +170,9 @@ internal static class NativeDatumBridge
                 case 2:
                     result->text.integral = (int64) (uintptr_t) ankus_copy_raw_datum(datum,
                         parameter->type_oid, request->result_context, request->result_generation);
+                    break;
+                case 3:
+                    ankus_raw_array(request, result, datum, base);
                     break;
                 default:
                     ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));

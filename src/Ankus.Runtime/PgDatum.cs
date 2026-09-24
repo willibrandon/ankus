@@ -38,6 +38,11 @@ public sealed class PgDatum
     public bool IsNull { get; }
 
     /// <summary>
+    /// Gets the checked native owner shared by derived raw values.
+    /// </summary>
+    internal PgDatumLifetime Lifetime => _lifetime;
+
+    /// <summary>
     /// Reads a supported managed type with the ordinary SPI exact-type and NULL checks.
     /// </summary>
     /// <typeparam name="T">The desired managed type.</typeparam>

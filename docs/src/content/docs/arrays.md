@@ -136,3 +136,14 @@ uses the ordinary strict/null rules for [function parameters](/getting-started/f
 Enums declared with `[PgEnum]` also support vectors, shaped arrays, nullable
 elements and variadic functions. Enum identity is preserved even for byte-backed
 enums. See [enumerated types](/enums/).
+
+## Arrays of any PostgreSQL type
+
+Use `PgAnyArray` to declare an `anyarray` parameter. Its `ElementTypeOid`, `Rank`,
+`GetLength`, and `GetLowerBound` retain the actual type and shape. Indexing and
+enumeration return nullable `PgAnyElement` cells in row-major order. Each cell's
+`Read<T>()` checks the requested managed type; `Datum.ToPostgresString()` works
+with PostgreSQL types that have no C# mapping.
+
+The array and cells belong to the function call or iterator. `CopyTo(context)`
+gives them another owner; resetting or deleting that context invalidates them.

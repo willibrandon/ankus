@@ -34,6 +34,11 @@ PostgreSQL expands a single composite TABLE output into its underlying row
 attributes; multi-column TABLE results retain composite cells as individual
 columns. Materialized composite rows represent a NULL tuple as all-NULL fields.
 
+`IEnumerable<PgAnyElement?>` and `IEnumerable<PgAnyArray?>` declare polymorphic
+sets. Include a `PgAnyElement` or `PgAnyArray` input so PostgreSQL can resolve
+the output type. Polymorphic TABLE columns follow the same rule. Their native
+input values remain live across iterator advances.
+
 ## Named TABLE rows
 
 Return named C# tuples to generate `RETURNS TABLE`. Tuple element names become

@@ -37,7 +37,13 @@ public readonly struct SpiParameter
     /// <param name="value">The parameter value.</param>
     /// <returns>A typed parameter.</returns>
     public static SpiParameter Create<T>(T value)
-        => new(value is PgDatum datum ? datum.TypeOid : SpiType.GetOid(value), value);
+        => value switch
+        {
+            PgDatum datum => Create(datum),
+            PgAnyElement element => Create(element.Datum),
+            PgAnyArray array => Create(array.Datum),
+            _ => new(SpiType.GetOid(value), value),
+        };
 
     /// <summary>
     /// Binds a raw datum with its exact declared PostgreSQL type and SQL NULL flag.

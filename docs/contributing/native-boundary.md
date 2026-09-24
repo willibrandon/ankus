@@ -195,6 +195,14 @@ contract with a null `flinfo`, `context`, and `resultinfo`. Its caller supplies
 the correct argument/result ABI and NULL handling, while the native guard still
 contains PostgreSQL ERROR.
 
+Generated polymorphic signatures resolve input OIDs with `get_fn_expr_argtype`
+and output OIDs with the function expression or resolved set row descriptor.
+Managed wrappers copy raw inputs into the active callback or iterator owner.
+Their result envelopes carry the actual type and context generation; native
+conversion validates both before copying the result. Domain constraints apply
+to NULL returns too. Array snapshots retain exact dimensions, lower bounds,
+element identities, and nullable raw cells under that same checked owner.
+
 ## Representation and encoding
 
 `NativeValue` and generated `AnkusValue` use matching sequential fields: 64-bit

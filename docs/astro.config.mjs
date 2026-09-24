@@ -100,6 +100,7 @@ export default defineConfig({
             { label: 'Transaction callbacks', slug: 'transaction-callbacks' },
             { label: 'Memory contexts', slug: 'memory-contexts' },
             { label: 'Arrays', slug: 'arrays' },
+            { label: 'Polymorphic values', slug: 'polymorphic-values' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },
             { label: 'Numeric values', slug: 'numeric' },
             { label: 'Date and time values', slug: 'date-and-time' },
