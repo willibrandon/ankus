@@ -3941,7 +3941,7 @@ The phases track implementation of the complete pgrx feature surface.
 - 2026-09-24 — Rejected Dahomey.Cbor 1.27.0 for default serialization: its
   released generator fails the immutable-record and nested-nullability probe.
   The attempted local patch and its package-dependent probe were removed at
-  the user's direction. Do not use locally patched serializers. Evaluate
-  published packages without forks, local feeds, or manual consumer setup.
+  the user's direction. The plan is to write our own serializer.
+  Only use NuGet packages owned by Microsoft and/or .NET.
   No serializer dependency was added to Ankus. Default CBOR/JSON type
   generation and its PostgreSQL/platform validation remain open.
