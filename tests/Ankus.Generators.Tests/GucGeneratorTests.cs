@@ -306,7 +306,7 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 ankus_report(error, error->report_level == 0 ? ERROR : ankus_log_level(error->report_level - 1));
             }
-            """, native);
+            """.ReplaceLineEndings("\n"), native);
         Assert.Contains(call, native);
         Assert.Contains("ankus_spi_execute(", native);
     }

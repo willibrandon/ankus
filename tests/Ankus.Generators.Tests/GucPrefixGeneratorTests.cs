@@ -39,7 +39,7 @@ public sealed partial class PgFunctionGeneratorTests
             #else
                     EmitWarningsOnPlaceholders(prefix);
             #endif
-            """, native);
+            """.ReplaceLineEndings("\n"), native);
         Assert.DoesNotContain("ankus_spi_execute", native);
         Assert.DoesNotContain("ankus_guc_register(", native);
         Assert.DoesNotContain("AnkusError", native);
@@ -173,7 +173,7 @@ public sealed partial class PgFunctionGeneratorTests
                         pfree(prefix);
                 }
                 PG_END_TRY();
-            """, native);
+            """.ReplaceLineEndings("\n"), native);
     }
 
     /// <summary>
