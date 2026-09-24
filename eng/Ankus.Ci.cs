@@ -14,69 +14,79 @@ const string RuntimeCompilerVersion = "10.0.11";
 string repositoryRoot = FindRepositoryRoot();
 Directory.SetCurrentDirectory(repositoryRoot);
 
-if (args.Length == 0)
+try
 {
-    throw new InvalidOperationException("Specify an automation command.");
+    if (args.Length == 0)
+    {
+        throw new InvalidOperationException("Specify an automation command.");
+    }
+
+    switch (args[0])
+    {
+        case "metadata":
+            ValidateRuntimeIdentity(repositoryRoot);
+            WriteRuntimeOutputs();
+            break;
+
+        case "release-metadata":
+            ValidateRuntimeIdentity(repositoryRoot);
+            WriteOutput("version", GetReleaseVersion());
+            WriteRuntimeOutputs();
+            break;
+
+        case "quality":
+            ValidateRuntimeIdentity(repositoryRoot);
+            Run(GetDotNetHost(), ["restore", "Ankus.slnx", "-m:1", "-p:PublishAot=false"]);
+            Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "--no-incremental", "--no-restore", "-m:1", "-p:PublishAot=false"]);
+            Run(GetDotNetHost(), ["run", "--project", "src/Ankus.DocGenerator", "--configuration", "Release", "--no-build", "--", "--check"]);
+            Run("corepack", ["enable"]);
+            Dictionary<string, string?> continuousIntegration = new()
+            {
+                ["CI"] = "true",
+            };
+            Run("pnpm", ["install", "--frozen-lockfile"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
+            Run("pnpm", ["exec", "astro", "build"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
+            Run("pnpm", ["check"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
+            break;
+
+        case "runtime-ci":
+            RequireArguments(args, 4);
+            ValidateRuntimeIdentity(repositoryRoot);
+            BuildRuntime(repositoryRoot, args[1], args[2]);
+            StageRuntime(repositoryRoot, args[1], args[2], args[3]);
+            InstallPostgreSql(repositoryRoot);
+            RunRuntimeTests(repositoryRoot);
+            PackRuntime(repositoryRoot, args[3], GetStagedRuntimePath(repositoryRoot, args[3]));
+            break;
+
+        case "release-managed":
+            RequireArguments(args, 2);
+            PackManaged(repositoryRoot, args[1]);
+            break;
+
+        case "release-runtime":
+            RequireArguments(args, 4);
+            ValidateRuntimeIdentity(repositoryRoot);
+            BuildRuntime(repositoryRoot, args[1], args[2]);
+            PackRuntime(repositoryRoot, args[3], GetBuiltRuntimePath(repositoryRoot, args[1], args[2]));
+            break;
+
+        case "publish":
+            RequireArguments(args, 2);
+            PublishPackages(repositoryRoot, args[1]);
+            break;
+
+        default:
+            throw new InvalidOperationException($"Unknown automation command '{args[0]}'.");
+    }
+}
+catch (Exception exception) when (exception is ArgumentException or IOException or InvalidOperationException)
+{
+    Console.Error.WriteLine(exception.Message);
+    return 1;
 }
 
-switch (args[0])
-{
-    case "metadata":
-        ValidateRuntimeIdentity(repositoryRoot);
-        WriteRuntimeOutputs();
-        break;
-
-    case "release-metadata":
-        ValidateRuntimeIdentity(repositoryRoot);
-        WriteOutput("version", GetReleaseVersion());
-        WriteRuntimeOutputs();
-        break;
-
-    case "quality":
-        ValidateRuntimeIdentity(repositoryRoot);
-        Run(GetDotNetHost(), ["restore", "Ankus.slnx", "-m:1", "-p:PublishAot=false"]);
-        Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "--no-incremental", "--no-restore", "-m:1", "-p:PublishAot=false"]);
-        Run(GetDotNetHost(), ["run", "--project", "src/Ankus.DocGenerator", "--configuration", "Release", "--no-build", "--", "--check"]);
-        Run("corepack", ["enable"]);
-        Dictionary<string, string?> continuousIntegration = new()
-        {
-            ["CI"] = "true",
-        };
-        Run("pnpm", ["install", "--frozen-lockfile"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
-        Run("pnpm", ["exec", "astro", "build"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
-        Run("pnpm", ["check"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
-        break;
-
-    case "runtime-ci":
-        RequireArguments(args, 4);
-        ValidateRuntimeIdentity(repositoryRoot);
-        BuildRuntime(repositoryRoot, args[1], args[2]);
-        StageRuntime(repositoryRoot, args[1], args[2], args[3]);
-        InstallPostgreSql(repositoryRoot);
-        RunRuntimeTests(repositoryRoot);
-        PackRuntime(repositoryRoot, args[3], GetStagedRuntimePath(repositoryRoot, args[3]));
-        break;
-
-    case "release-managed":
-        RequireArguments(args, 2);
-        PackManaged(repositoryRoot, args[1]);
-        break;
-
-    case "release-runtime":
-        RequireArguments(args, 4);
-        ValidateRuntimeIdentity(repositoryRoot);
-        BuildRuntime(repositoryRoot, args[1], args[2]);
-        PackRuntime(repositoryRoot, args[3], GetBuiltRuntimePath(repositoryRoot, args[1], args[2]));
-        break;
-
-    case "publish":
-        RequireArguments(args, 2);
-        PublishPackages(repositoryRoot, args[1]);
-        break;
-
-    default:
-        throw new InvalidOperationException($"Unknown automation command '{args[0]}'.");
-}
+return 0;
 
 static string FindRepositoryRoot()
 {
@@ -211,11 +221,29 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
 
     if (OperatingSystem.IsWindows())
     {
-        Run(Path.Combine(runtimeRoot, "build.cmd"), ["-s", "clr.nativeaotruntime+clr.nativeaotlibs", "-c", "Release", "-arch", architecture], runtimeRoot, true);
+        Run(Path.Combine(runtimeRoot, "build.cmd"),
+        [
+            "-s",
+            "clr.nativeaotruntime+clr.nativeaotlibs",
+            "-c",
+            "Release",
+            "-arch",
+            architecture,
+            "/p:ManagePackageVersionsCentrally=false",
+        ], runtimeRoot, true);
         return;
     }
 
-    Run(Path.Combine(runtimeRoot, "build.sh"), ["-s", "clr.nativeaotruntime+clr.nativeaotlibs", "-c", "Release", "-arch", architecture], runtimeRoot);
+    Run(Path.Combine(runtimeRoot, "build.sh"),
+    [
+        "-s",
+        "clr.nativeaotruntime+clr.nativeaotlibs",
+        "-c",
+        "Release",
+        "-arch",
+        architecture,
+        "/p:ManagePackageVersionsCentrally=false",
+    ], runtimeRoot);
 }
 
 static void VerifyPlatform(string platform, string architecture)
