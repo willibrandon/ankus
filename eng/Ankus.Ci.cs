@@ -496,35 +496,45 @@ static void WriteEnvironment(string name, string value)
 static void RunRuntimeTests(string repositoryRoot)
 {
     Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m"], repositoryRoot);
-    string[] testModules =
+    string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
+    string[] unitTestModules =
     [
         "tests/Ankus.Examples.Hello.Tests/bin/Release/net10.0/Ankus.Examples.Hello.Tests.dll",
         "tests/Ankus.Generators.Tests/bin/Release/net10.0/Ankus.Generators.Tests.dll",
         "tests/Ankus.PgConfig.Tests/bin/Release/net10.0/Ankus.PgConfig.Tests.dll",
-        "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll",
         "tests/Ankus.Runtime.Tests/bin/Release/net10.0/Ankus.Runtime.Tests.dll",
     ];
 
-    foreach (string testModule in testModules)
+    Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
+    Task unitTests = Task.Run(() =>
     {
-        string path = Path.Combine(repositoryRoot, testModule.Replace('/', Path.DirectorySeparatorChar));
-
-        if (!File.Exists(path))
+        foreach (string testModule in unitTestModules)
         {
-            throw new FileNotFoundException("A required test module was not built.", path);
+            RunTestModule(repositoryRoot, testModule);
         }
+    });
+    Task.WhenAll(integrationTests, unitTests).GetAwaiter().GetResult();
+}
 
-        Run(GetDotNetHost(),
-        [
-            "test",
-            "--test-modules",
-            testModule,
-            "--root-directory",
-            repositoryRoot,
-            "--minimum-expected-tests",
-            "1",
-        ], repositoryRoot);
+static void RunTestModule(string repositoryRoot, string testModule)
+{
+    string path = Path.Combine(repositoryRoot, testModule.Replace('/', Path.DirectorySeparatorChar));
+
+    if (!File.Exists(path))
+    {
+        throw new FileNotFoundException("A required test module was not built.", path);
     }
+
+    Run(GetDotNetHost(),
+    [
+        "test",
+        "--test-modules",
+        testModule,
+        "--root-directory",
+        repositoryRoot,
+        "--minimum-expected-tests",
+        "1",
+    ], repositoryRoot);
 }
 
 static void PackManaged(string repositoryRoot, string packageVersion)
