@@ -215,6 +215,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             }
 
             var names = new HashSet<string>(StringComparer.Ordinal);
+            if (result.Datum?.IsPolymorphic == true && !types.Any(static value => value!.Datum?.IsPolymorphic == true))
+            {
+                return Invalid($"The {role} callback's polymorphic result requires a polymorphic parameter; use FinalExtra to pass an aggregate input type to an internal-state final callback.");
+            }
+
             foreach (IParameterSymbol parameter in parameters)
             {
                 string parameterName = AggregateHelper.ParameterName(parameter);
@@ -286,6 +291,12 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return Invalid("An internal-state aggregate requires a final callback returning a supported SQL result.");
         }
 
+        bool hasPolymorphicInput = aggregate.Direct.Concat(inputs).Any(static input => input.Datum?.IsPolymorphic == true);
+        if (!hasPolymorphicInput && (state.Datum?.IsPolymorphic == true || final?.Result.Datum?.IsPolymorphic == true))
+        {
+            return Invalid("A polymorphic aggregate state or result requires a polymorphic aggregate input to resolve its type.");
+        }
+
         if (aggregate.Kind == 2 && (aggregate.Direct.Length < inputs.Length ||
             !aggregate.Direct.Skip(aggregate.Direct.Length - inputs.Length).Zip(inputs, static (left, right) => left.Matches(right)).All(static same => same)))
         {
@@ -307,6 +318,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
         if (hasMoving)
         {
+            if (!hasPolymorphicInput && moving!.Result.Datum?.IsPolymorphic == true)
+            {
+                return Invalid("A polymorphic moving state requires a polymorphic aggregate input to resolve its type.");
+            }
+
             if (moving!.Types.Length != transition.Types.Length || !moving.Result.Matches(moving.Types[0]) || moving.Result.Sql == "record" ||
                 !moving.Types.Skip(1).Zip(inputs, static (left, right) => left.Matches(right)).All(static same => same) ||
                 inverse!.Types.Length != moving.Types.Length || !inverse.Result.Matches(moving.Result) ||

@@ -102,6 +102,7 @@ internal static class PgAggregateEmitter
 
         string[] required = [.. helper.Types.Select(static value => value.Nullable ? "false" : "true"), .. helper.Deserialize ? new[] { "false" } : []];
         string[] internalArguments = [.. helper.Types.Select(static value => value.IsInternal ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
+        string[] polymorphic = [.. helper.Types.Select(static value => value.Datum?.IsPolymorphic == true ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
         string count = required.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, required.Length).ToString(CultureInfo.InvariantCulture);
         native.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *);");
@@ -115,8 +116,10 @@ internal static class PgAggregateEmitter
 
         native.AppendLine($"    const bool required[{capacity}] = {{{(required.Length == 0 ? "false" : string.Join(", ", required))}}};");
         native.AppendLine($"    const bool internal_arguments[{capacity}] = {{{(internalArguments.Length == 0 ? "false" : string.Join(", ", internalArguments))}}};");
+        native.AppendLine($"    const bool polymorphic[{capacity}] = {{{(polymorphic.Length == 0 ? "false" : string.Join(", ", polymorphic))}}};");
         native.AppendLine($"    return ankus_aggregate_call(fcinfo, {callback}, {count}, required, internal_arguments, " +
-            $"{(helper.Result.IsInternal ? "true" : "false")}, {(helper.Deserialize ? "true" : "false")});");
+            $"{(helper.Result.IsInternal ? "true" : "false")}, {(helper.Deserialize ? "true" : "false")}, polymorphic, " +
+            $"{(helper.Result.Datum?.IsPolymorphic == true ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();
         exports.AppendLine(nativeName);

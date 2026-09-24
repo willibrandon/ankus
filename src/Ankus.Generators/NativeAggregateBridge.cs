@@ -168,6 +168,13 @@ internal static class NativeAggregateBridge
                         CurrentResourceOwner = resource_owner;
                         *output = (void *) (intptr_t) ((comparison > 0) - (comparison < 0));
                     }
+                    else if (operation == 2)
+                    {
+                        if (handle != ankus_aggregate_scope->owner)
+                            ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                                errmsg("Aggregate memory context does not match the active callback")));
+                        *output = (void *) (uintptr_t) ankus_memory_context_id(ankus_aggregate_scope->owner);
+                    }
                     else
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid aggregate operation")));
                 }
@@ -262,7 +269,8 @@ internal static class NativeAggregateBridge
 
         static Datum
         ankus_aggregate_call(FunctionCallInfo fcinfo, AnkusAggregateCallback callback, int arguments_count,
-            const bool *required, const bool *internal_arguments, bool internal_result, bool deserialize)
+            const bool *required, const bool *internal_arguments, bool internal_result, bool deserialize,
+            const bool *polymorphic, bool polymorphic_result)
         {
             MemoryContext owner;
             int kind = AggCheckCallContext(fcinfo, &owner);
@@ -309,6 +317,13 @@ internal static class NativeAggregateBridge
                 result_type = get_func_signature(fcinfo->flinfo->fn_oid, &types, &parameter_count);
                 if (parameter_count != arguments_count)
                     ereport(ERROR, (errmsg("Aggregate support catalog signature does not match generated code")));
+                if (polymorphic_result)
+                {
+                    result_type = get_fn_expr_rettype(fcinfo->flinfo);
+                    if (!OidIsValid(result_type) || IsPolymorphicType(result_type))
+                        ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Aggregate result type was not resolved")));
+                }
+
                 metadata = ankus_aggregate_metadata(fcinfo, kind, scope, &metadata_count);
                 for (int index = 0; index < arguments_count; index++)
                 {
@@ -317,7 +332,9 @@ internal static class NativeAggregateBridge
                     if (deserialize && index == arguments_count - 1)
                         continue;
                     arguments[index].is_null = PG_ARGISNULL(index);
-                    if (!arguments[index].is_null)
+                    if (polymorphic[index])
+                        ankus_read_polymorphic(fcinfo, index, &arguments[index]);
+                    else if (!arguments[index].is_null)
                     {
                         if (internal_arguments[index])
                             arguments[index].integral = (intptr_t) DatumGetPointer(PG_GETARG_DATUM(index));
@@ -328,13 +345,14 @@ internal static class NativeAggregateBridge
 
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
+                memory.result_context = scope->owner;
                 status = callback(arguments, result, error, ankus_spi_execute, metadata, metadata_count,
                     scope->owner, (void *) ankus_aggregate_api, &memory);
                 if (status != 0)
                     ankus_raise_error(error);
                 fcinfo->isnull = result->is_null;
                 MemoryContextSwitchTo(caller);
-                if (!result->is_null)
+                if (!result->is_null || polymorphic_result)
                 {
                     if (internal_result)
                     {

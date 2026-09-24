@@ -36,7 +36,7 @@ public static unsafe class NativeAggregate
     /// </summary>
     /// <param name="metadata">Four scalar context fields followed by five scalar fields per sort key.</param>
     /// <param name="owner">The native memory context that owns returned state.</param>
-    /// <param name="api">The guarded native adoption and comparison entry point.</param>
+    /// <param name="api">The guarded native adoption, comparison, and memory-owner entry point.</param>
     /// <returns>The active context, which must be passed to Exit in the generated finally block.</returns>
     public static PgAggregateContext Enter(ReadOnlySpan<NativeValue> metadata, nint owner, nint api)
     {
@@ -245,6 +245,24 @@ public static unsafe class NativeAggregate
         }
 
         throw new InvalidOperationException("The managed aggregate state identity space is exhausted.");
+    }
+
+    /// <summary>
+    /// Resolves the active aggregate's result owner while preserving callback and thread checks.
+    /// </summary>
+    /// <param name="context">The exact current aggregate scope.</param>
+    /// <returns>The borrowed checked storage owner.</returns>
+    internal static PgMemoryContext GetMemoryContext(PgAggregateContext context)
+    {
+        CheckContext(context);
+        nint provider = NativeMemoryContext.Provider;
+        nint identity = Invoke(context, 2, context.Owner, 0, null, 0);
+        if (identity == 0)
+        {
+            throw new InvalidOperationException("PostgreSQL did not expose the aggregate memory context.");
+        }
+
+        return PgMemoryContext.FromId(provider, identity);
     }
 
     private static PgAggregateContext Current()

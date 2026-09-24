@@ -28,7 +28,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreSequenceEqual(["Pg_magic_func", nativeName, "pg_finfo_" + nativeName],
             ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
-        Assert.Contains($"return ankus_aggregate_call(fcinfo, {callback.Name}, 2, required, internal_arguments, false, false);",
+        Assert.Contains($"return ankus_aggregate_call(fcinfo, {callback.Name}, 2, required, internal_arguments, false, false, polymorphic, false);",
             ManifestValue(compilation, "Ankus.NativeSource"));
     }
 
@@ -104,7 +104,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.Contains("const bool required[2] = {true, false};", native);
         Assert.Contains("const bool internal_arguments[2] = {false, false};", native);
-        Assert.Contains($"return ankus_aggregate_call(fcinfo, {AggregateCallback(compilation, "deserialize").Name}, 2, required, internal_arguments, true, true);", native);
+        Assert.Contains($"return ankus_aggregate_call(fcinfo, {AggregateCallback(compilation, "deserialize").Name}, 2, required, internal_arguments, true, true, polymorphic, false);", native);
     }
 
     /// <summary>
@@ -567,7 +567,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains(" 100, required, internal_arguments, false, false);", ManifestValue(compilation, "Ankus.NativeSource"));
+        Assert.Contains(" 100, required, internal_arguments, false, false, polymorphic, false);", ManifestValue(compilation, "Ankus.NativeSource"));
     }
 
     /// <summary>

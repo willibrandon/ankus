@@ -14,6 +14,39 @@ public sealed class PgAggregateTests
     private static ApiFixture? s_fixture;
 
     /// <summary>
+    /// Resolves the native aggregate owner only through the exact active callback and owning thread.
+    /// </summary>
+    [TestMethod]
+    public void AggregateMemoryContextRequiresActiveInnermostScope()
+    {
+        using var fixture = new ApiFixture();
+        using var memory = new MemoryContextTestFixture
+        {
+            Handler = static request => request._operation == NativeMemoryOperation.Callback
+                ? new NativeMemoryResult { _context = 999 } : default,
+        };
+        using MemoryContextTestFixture.Scope binding = MemoryContextTestFixture.Enter();
+        PgAggregateContext saved;
+        using (var scope = new AggregateScope())
+        {
+            saved = scope.Context;
+            Assert.AreEqual(601, saved.MemoryContext.Id);
+            RunWorker(() => Assert.ThrowsExactly<InvalidOperationException>(() => saved.MemoryContext));
+            using (var nested = new AggregateScope(owner: 202))
+            {
+                Assert.ThrowsExactly<InvalidOperationException>(() => saved.MemoryContext);
+                Assert.AreEqual(702, nested.Context.MemoryContext.Id);
+            }
+
+            Assert.AreEqual(601, saved.MemoryContext.Id);
+            fixture.MemoryIdentityMissing = true;
+            Assert.ThrowsExactly<InvalidOperationException>(() => saved.MemoryContext);
+        }
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => saved.MemoryContext);
+    }
+
+    /// <summary>
     /// New wrappers retain exact payloads for ordinary managed use and reject null payloads independently of SQL NULL wrappers.
     /// </summary>
     [TestMethod]
@@ -796,7 +829,7 @@ public sealed class PgAggregateTests
     private static unsafe nint BackendPointer => (nint)(delegate* unmanaged[Cdecl]<NativeSpiRequest*, NativeSpiResult*, NativeCallError*, int>)&Backend;
 
     /// <summary>
-    /// Simulates native adoption and comparison while returning any managed test failure as owned diagnostics.
+    /// Simulates native adoption, comparison, and owner lookup while returning managed test failures as owned diagnostics.
     /// </summary>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe int Api(int operation, void* handle, void* release, void** output,
@@ -823,6 +856,12 @@ public sealed class PgAggregateTests
                     *output = (void*)registration.Pointer;
                 }
 
+                return 0;
+            }
+
+            if (operation == 2 && handle != null && release == null && values == null)
+            {
+                *output = fixture.MemoryIdentityMissing ? null : (void*)((nint)handle + 500);
                 return 0;
             }
 
@@ -1112,6 +1151,11 @@ public sealed class PgAggregateTests
         /// Gets or sets whether native adoption incorrectly succeeds without a header pointer.
         /// </summary>
         internal bool MissingPointer { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether resolving aggregate storage returns an invalid zero identity.
+        /// </summary>
+        internal bool MemoryIdentityMissing { get; set; }
 
         /// <summary>
         /// Gets or sets whether native comparison reports a controlled PostgreSQL error.

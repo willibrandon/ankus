@@ -55,6 +55,11 @@ shape; dimension numbers start at zero. Empty arrays have rank zero.
 `ElementTypeOid` retains the declared element type.
 
 Polymorphic values also work in named TABLE columns and materialized sets.
+Aggregates can use these wrappers for inputs, states, and results. When retaining
+an input inside managed aggregate state, copy it to `PgAggregateContext.MemoryContext`.
+`FinalExtra` can supply a nullable input slot to resolve an internal-state
+aggregate's polymorphic result.
+
 Pass either wrapper to `SpiParameter.Create` or `PgFunctionArgument.Create`
 to bind its actual type in a query or function call.
 For a NULL argument, supply its concrete type, such as `SpiParameter.Create<int?>(null)`.
@@ -74,7 +79,8 @@ PgAnyArray values = PgFunctions.Call<PgAnyArray>(
 
 `ExecuteScalars`, sessions, and prepared statements also accept these result
 types. SQL NULL becomes a null wrapper. Query and catalog-call results belong
-to the current function call or iterator and survive SPI session disposal.
+to the current function call, iterator, or aggregate state and survive SPI
+session disposal.
 
 For raw query rows, `row.Get<PgAnyElement>("name")` and
 `row.Get<PgAnyArray>(0)` share the raw result's lifetime. Use `CopyTo(context)`

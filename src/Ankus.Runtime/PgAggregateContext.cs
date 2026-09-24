@@ -1,8 +1,8 @@
 namespace Ankus;
 
 /// <summary>
-/// Owns aggregate execution metadata and provides native ordering comparisons during its active callback.
-/// Metadata remains readable after callback exit; comparison requires the exact current context and backend thread.
+/// Owns aggregate execution metadata and provides state storage and native ordering comparisons during its active callback.
+/// Metadata remains readable after callback exit; storage lookup and comparison require the exact current context and backend thread.
 /// </summary>
 public sealed class PgAggregateContext
 {
@@ -48,12 +48,22 @@ public sealed class PgAggregateContext
     public IReadOnlyList<PgAggregateSortKey> SortKeys { get; }
 
     /// <summary>
+    /// Gets the borrowed PostgreSQL owner for values retained in this aggregate's state.
+    /// </summary>
+    /// <remarks>
+    /// Access requires the current aggregate callback. Copy polymorphic inputs here before retaining
+    /// them in managed state. The returned handle and copied values expire when PostgreSQL resets
+    /// or deletes the owner, including moving-window restarts and group completion.
+    /// </remarks>
+    public PgMemoryContext MemoryContext => NativeAggregate.GetMemoryContext(this);
+
+    /// <summary>
     /// Gets the native memory context that owns new managed states returned by this callback.
     /// </summary>
     internal nint Owner { get; }
 
     /// <summary>
-    /// Gets the guarded native registration and comparison entry point.
+    /// Gets the guarded native registration, comparison, and memory-owner entry point.
     /// </summary>
     internal nint Api { get; }
 

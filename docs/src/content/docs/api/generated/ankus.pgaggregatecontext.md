@@ -9,8 +9,8 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Owns aggregate execution metadata and provides native ordering comparisons during its active callback.
-Metadata remains readable after callback exit; comparison requires the exact current context and backend thread.
+Owns aggregate execution metadata and provides state storage and native ordering comparisons during its active callback.
+Metadata remains readable after callback exit; storage lookup and comparison require the exact current context and backend thread.
 
 ```csharp
 public sealed class PgAggregateContext
@@ -67,6 +67,22 @@ public PgAggregateContextKind Kind { get; }
 ```
 
 Value: [PgAggregateContextKind](/api/ankus.pgaggregatecontextkind/)
+
+<a id="member-18d6148460f63b4c"></a>
+
+### MemoryContext
+
+Gets the borrowed PostgreSQL owner for values retained in this aggregate's state.
+
+```csharp
+public PgMemoryContext MemoryContext { get; }
+```
+
+Value: [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+Access requires the current aggregate callback. Copy polymorphic inputs here before retaining
+them in managed state. The returned handle and copied values expire when PostgreSQL resets
+or deletes the owner, including moving-window restarts and group completion.
 
 <a id="member-60bed1c389c96c11"></a>
 

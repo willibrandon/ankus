@@ -6,7 +6,7 @@ namespace Ankus.Generators;
 internal static class NativeDatumBridge
 {
     /// <summary>
-    /// Gets input capture used by polymorphic scalar dispatch and set dispatch.
+    /// Gets resolved input capture used by polymorphic scalar, set, and aggregate dispatch.
     /// </summary>
     internal const string PolymorphicInput = """
         static void

@@ -146,7 +146,8 @@ return. See [event triggers](docs/src/content/docs/event-triggers.md) and the
 
 Use `[PgAggregate]` with typed static support methods for grouped, parallel,
 moving-window, and ordered-set aggregation. `PgAggregateState<T>` owns managed
-state through PostgreSQL's group and query lifetimes. See
+state through PostgreSQL's group and query lifetimes. `PgAnyElement` and
+`PgAnyArray` support aggregates whose input, state, or result types vary by call. See
 [aggregates](docs/src/content/docs/aggregates.md) and the
 [average sample](samples/Ankus.Examples.Aggregates/IntegerAverage.cs).
 

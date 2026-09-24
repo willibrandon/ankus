@@ -140,6 +140,46 @@ its state without consuming it and supports bounded moving frames.
 direct arguments. They convey type information, not the last row's values, and
 require a non-strict final method.
 
+## Polymorphic values
+
+Use `PgAnyElement` to accept different PostgreSQL types, or `PgAnyArray` for
+arrays. PostgreSQL resolves state and result types from the aggregate inputs:
+
+```csharp
+[PgAggregate]
+public static class FirstValue
+{
+    public static PgAnyElement Transition(PgAnyElement state, PgAnyElement value)
+        => state;
+}
+```
+
+This strict transition keeps the first non-NULL value. PostgreSQL seeds the
+state from that row; empty and all-NULL inputs return NULL. Types, array bounds,
+and values retain their PostgreSQL representation.
+
+For managed state, copy retained inputs into `context.MemoryContext`. Inputs
+otherwise expire when the support callback ends. `FinalExtra` lets PostgreSQL
+resolve a polymorphic result when the state itself is `internal`:
+
+```csharp
+[PgAggregate(FinalExtra = true)]
+public static class FirstStoredValue
+{
+    public static PgAggregateState<PgAnyElement>? Transition(
+        PgAggregateContext context, PgAggregateState<PgAnyElement>? state,
+        PgAnyElement? value)
+        => state ?? (value is null ? null : new(value.CopyTo(context.MemoryContext)));
+
+    public static PgAnyElement? Final(
+        PgAggregateState<PgAnyElement>? state, PgAnyElement? typeWitness)
+        => state?.Value;
+}
+```
+
+The extra `typeWitness` argument is always NULL. Polymorphic values also work
+with moving states, ordered-set comparisons, and parallel combine methods.
+
 ## Ordered and hypothetical sets
 
 Set `Kind = PgAggregateKind.OrderedSet` for `WITHIN GROUP` syntax. Parameters
@@ -178,17 +218,16 @@ FROM (VALUES (30), (10), (20)) AS inputs(value);
 `HypotheticalSet` adds PostgreSQL's hypothetical argument matching rules. The
 implementation still supplies the rank/distribution logic; PostgreSQL does not
 insert the hypothetical row. Ordered-set aggregates cannot be used as windows.
-PostgreSQL's heterogeneous variadic `"any"` ordered-set signature requires the
-polymorphic/raw type surface and is not represented by concrete `params T[]`.
 
 ## Context and errors
 
-`PgAggregateContext` exposes aggregate/window kind, state sharing, input collation,
-an optional aggregate OID, and owned sort metadata. Window callbacks have no
+`PgAggregateContext` exposes state storage, aggregate/window kind, state sharing,
+input collation, an optional aggregate OID, and owned sort metadata. Window callbacks have no
 `Aggref`, so their aggregate OID is null. A shared transition can represent more
 than one aggregate; its reported OID must not be used to select final behavior.
-Metadata remains readable after callback exit. Comparisons require the exact
-current context on its backend thread; nested callbacks restore their parent.
+Metadata remains readable after callback exit. Storage lookup and comparisons
+require the current aggregate context on its backend thread. Nested scalar calls
+retain that aggregate owner; nested aggregates use their own.
 
 Throw `PgException` for a deliberate SQLSTATE and diagnostics. Native comparison,
 datum conversion, and backend calls use guarded boundaries so PostgreSQL ERROR

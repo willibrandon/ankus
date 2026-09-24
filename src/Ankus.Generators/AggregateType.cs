@@ -58,7 +58,7 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
         }
 
         FunctionType? datum = FunctionType.Create(type, CompositeReference.Read(attributes));
-        return datum is null || datum.IsPolymorphic || datum.Managed == "void" ? null : new(datum, null, datum.Nullable);
+        return datum is null || datum.Managed == "void" ? null : new(datum, null, datum.Nullable);
     }
 
     /// <summary>
