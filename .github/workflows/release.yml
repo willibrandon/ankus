@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      runtime_repository: ${{ steps.metadata.outputs.repository }}
+      runtime_commit: ${{ steps.metadata.outputs.commit }}
+      runtime_version: ${{ steps.metadata.outputs.runtime_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Read release metadata
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- release-metadata
+
+  managed-packages:
+    needs: metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Pack managed packages
+        run: >-
+          dotnet run --file ./eng/Ankus.Ci.cs -- release-managed
+          ${{ needs.metadata.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: managed-packages
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 1
+
+  runtime-packages:
+    needs: metadata
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            rid: linux-x64
+            platform: linux
+            architecture: x64
+          - runner: macos-15
+            rid: osx-arm64
+            platform: osx
+            architecture: arm64
+          - runner: macos-15-intel
+            rid: osx-x64
+            platform: osx
+            architecture: x64
+          - runner: windows-2025
+            rid: win-x64
+            platform: windows
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ needs.metadata.outputs.runtime_repository }}
+          ref: ${{ needs.metadata.outputs.runtime_commit }}
+          path: runtime
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Build and pack runtime
+        run: >-
+          dotnet run --file ./eng/Ankus.Ci.cs -- release-runtime
+          ${{ matrix.platform }}
+          ${{ matrix.architecture }}
+          ${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-package-${{ matrix.rid }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [metadata, managed-packages, runtime-packages]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: '*package*'
+          path: artifacts/packages
+          merge-multiple: true
+
+      - uses: NuGet/login@v1
+        id: nuget
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish packages
+        env:
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
+        run: >-
+          dotnet run --file ./eng/Ankus.Ci.cs -- publish
+          ${{ needs.metadata.outputs.version }}

@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build and validate
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- quality
+
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            rid: linux-x64
+            platform: linux
+            architecture: x64
+          - runner: macos-15
+            rid: osx-arm64
+            platform: osx
+            architecture: arm64
+          - runner: macos-15-intel
+            rid: osx-x64
+            platform: osx
+            architecture: x64
+          - runner: windows-2025
+            rid: win-x64
+            platform: windows
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Read runtime identity
+        id: runtime
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- metadata
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.runtime.outputs.repository }}
+          ref: ${{ steps.runtime.outputs.commit }}
+          path: runtime
+
+      - name: Build and test runtime
+        run: >-
+          dotnet run --file ./eng/Ankus.Ci.cs -- runtime-ci
+          ${{ matrix.platform }}
+          ${{ matrix.architecture }}
+          ${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-package-${{ matrix.rid }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-logs-${{ matrix.rid }}
+          path: artifacts/test-logs/**
+          if-no-files-found: ignore
+          retention-days: 7

@@ -3260,3 +3260,17 @@ The phases track implementation of the complete pgrx feature surface.
   passes with zero warnings/errors in 16.44s. API generation/freshness, `pnpm build`
   and `pnpm check` pass with 121 API pages, 1259 members and 153 site pages. Actual
   PostgreSQL 13–17/19 beta and remaining platform execution are still required.
+
+- 2026-09-23 — Added GitHub CI and trusted NuGet release automation. Repository
+  automation is a .NET 10 file-based app; no Bash, PowerShell or `.env` files are
+  used. CI builds the pinned runtime commit on Linux x64, macOS ARM64, macOS x64
+  and Windows x64, installs PostgreSQL 18, and runs the complete test suite on
+  every platform. Each job has a 15-minute limit and superseded CI runs cancel.
+  Release jobs build six managed packages and four platform runtime packages in
+  parallel, validate the exact package set, and publish through NuGet trusted
+  publishing with `Ankus.Sdk` last. The runtime branch is published at commit
+  `232bc9d1f06c300554a0646fa742d60cca49bcdd`. Local validation compiled the file
+  app with zero warnings/errors, validated both workflows and their metadata,
+  packed all six managed packages, and completed the Release/API/site quality
+  path. Hosted CI execution and the PostgreSQL 15–18 matrix remain; PostgreSQL 19
+  will join after PostgreSQL supports it.

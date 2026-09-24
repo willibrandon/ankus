@@ -57,6 +57,9 @@ before changing an area.
 - Document public and internal declarations with XML comments. Put XML summary
   opening tags, text, and closing tags on separate lines. Follow the analyzers;
   generic types must not expose static members (CA1000).
+- Write repository automation as .NET file-based C# apps. Do not add Bash,
+  PowerShell, or `.env` scripts. Each folder containing file-based apps must have
+  a README that briefly lists each app and its purpose.
 
 ## Verification
 
@@ -72,6 +75,8 @@ before changing an area.
 - Keep CI feedback under 10 minutes where possible, with a hard 15-minute timeout
   per job. Run independent platform checks in parallel, measure cold-cache builds,
   and cancel superseded runs. Do not hide missing validation to meet the budget.
+- CI platform evidence must run the full test suite against a real PostgreSQL
+  server. A generated-source check or focused smoke test is not platform proof.
 - Run a Release build and relevant documentation checks before committing.
   Record exactly which PostgreSQL versions and platforms were actually tested.
 - For personal validation machines, document platform versions and test evidence
@@ -87,6 +92,6 @@ before changing an area.
   `dotnet run --project src/Ankus.DocGenerator -c Release`; do not hand-edit them.
 - Validate the site with `pnpm build` and `pnpm check` in `docs/`, and check API
   freshness as documented in `docs/contributing/api-reference.md`.
-- Commit coherent verified milestones along the way. Preserve unrelated user
-  changes. The user has requested local commits and no GitHub publication until
-  the faithful port and its required validation are complete.
+- Commit and push coherent verified milestones, then monitor and repair CI.
+  Preserve unrelated user changes. Do not publish NuGet packages until the
+  faithful port and its required validation are complete.
