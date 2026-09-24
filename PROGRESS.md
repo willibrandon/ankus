@@ -3372,3 +3372,13 @@ The phases track implementation of the complete pgrx feature surface.
   15-minute timeout. The automation no longer accepts shard selections or filters.
   The updated file-based app compiles in Release without diagnostics.
   Execution across PostgreSQL 15–18 on every supported platform remains pending.
+
+- 2026-09-24 — Removed macOS Intel from the CI workflow at the user's request;
+  its release build and runtime package remain included. CI runs on Linux x64,
+  macOS ARM64, and Windows x64. Runtime and full-suite jobs now allow 20 minutes;
+  test sharding remains removed. The preceding full-suite run
+  [36013556684](https://github.com/willibrandon/ankus/actions/runs/36013556684)
+  passed Linux x64/PostgreSQL 18, macOS ARM64/PostgreSQL 18, Windows x64/PostgreSQL
+  17, and quality checks; macOS Intel reached its former 15-minute timeout.
+  Local Release compilation, runtime metadata validation, API freshness, and
+  documentation build/check pass without diagnostics.

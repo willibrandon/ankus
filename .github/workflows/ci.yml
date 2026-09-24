@@ -44,16 +44,12 @@ jobs:
             rid: osx-arm64
             platform: osx
             architecture: arm64
-          - runner: macos-15
-            rid: osx-x64
-            platform: osx
-            architecture: x64
           - runner: windows-2025
             rid: win-x64
             platform: windows
             architecture: x64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -117,14 +113,11 @@ jobs:
           - runner: macos-15
             rid: osx-arm64
             postgresql: 18
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
