@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>A PostgreSQL base type with custom text and binary storage.</Description>
+    <AnkusExtensionName>ankus_custom_types</AnkusExtensionName>
+  </PropertyGroup>
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+</Project>

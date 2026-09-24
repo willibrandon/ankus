@@ -549,6 +549,12 @@ public static unsafe partial class NativeBackend
         => Scalar<uint>(SpiOperation.Enum, missingOk ? 1 : 0, [SpiParameter.Create(name), SpiParameter.Create(schema)]);
 
     /// <summary>
+    /// Resolves a generated variable-length base type inside the native guard.
+    /// </summary>
+    internal static uint ResolveCustomType(string name, string? schema, bool missingOk)
+        => Scalar<uint>(SpiOperation.CustomType, missingOk ? 1 : 0, [SpiParameter.Create(name), SpiParameter.Create(schema)]);
+
+    /// <summary>
     /// Resolves the array OID of a live enum type inside the native guard.
     /// </summary>
     internal static uint EnumArrayOid(uint oid) => Scalar<uint>(SpiOperation.Enum, 2, [SpiParameter.Create(oid)]);

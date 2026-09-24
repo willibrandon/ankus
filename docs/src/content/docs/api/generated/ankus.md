@@ -76,6 +76,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTriggerContext](/api/ankus.pgtriggercontext/)
 - [PgTupleAttributeInfo](/api/ankus.pgtupleattributeinfo/)
 - [PgTupleDescriptor](/api/ankus.pgtupledescriptor/)
+- [PgTypeAttribute](/api/ankus.pgtypeattribute/)
+- [PgTypeCodec&lt;T&gt;](/api/ankus.pgtypecodec-1/)
 - [Spi](/api/ankus.spi/)
 - [SpiColumn](/api/ankus.spicolumn/)
 - [SpiCursor](/api/ankus.spicursor/)

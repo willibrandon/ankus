@@ -28,7 +28,8 @@ internal static class NativeArrayBridge
                 case POINTOID: case LSEGOID: case LINEOID: case BOXOID: case CIRCLEOID: case PATHOID: case POLYGONOID:
                     return true;
                 default:
-                    return type == RECORDOID || get_typtype(type) == TYPTYPE_ENUM || get_typtype(type) == TYPTYPE_COMPOSITE;
+                    return type == RECORDOID || get_typtype(type) == TYPTYPE_ENUM || get_typtype(type) == TYPTYPE_COMPOSITE ||
+                        ankus_custom_type_supported(type);
             }
         }
 
@@ -110,7 +111,7 @@ internal static class NativeArrayBridge
             value->data = (unsigned char *) buffer.data;
             value->length = buffer.len;
             value->auxiliary1 = -1;
-            value->auxiliary2 = composite ? 2 : get_typtype(base_type) == TYPTYPE_ENUM ? 1 : 0;
+            value->auxiliary2 = composite ? 2 : get_typtype(base_type) == TYPTYPE_ENUM ? 1 : ankus_custom_type_supported(base_type) ? 3 : 0;
             value->integral = composite ? base_type : 0;
         }
 

@@ -113,7 +113,8 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
-        => PgEnumRegistry.FindArray(type)?.Convert(array, type) ?? Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
+        => PgTypeRegistry.FindArray(type)?.Convert(array, type) ?? PgEnumRegistry.FindArray(type)?.Convert(array, type) ??
+           Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
            Convert<PgRange<PgDate>>(array, type) ?? Convert<PgRange<DateOnly>>(array, type) ?? Convert<PgRange<PgTimestamp>>(array, type) ??
            Convert<PgRange<DateTime>>(array, type) ?? Convert<PgRange<PgTimestampTz>>(array, type) ?? Convert<PgRange<DateTimeOffset>>(array, type) ??
            Convert<PgPoint>(array, type) ?? Convert<PgPoint?>(array, type) ?? Convert<PgLineSegment>(array, type) ?? Convert<PgLineSegment?>(array, type) ??
@@ -142,7 +143,7 @@ internal static class SpiArray
     /// </summary>
     /// <param name="value">The vector; binary elements remain managed byte-array references.</param>
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
-    internal static IPgArray Wrap(Array value) => PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
+    internal static IPgArray Wrap(Array value) => PgTypeRegistry.FindArray(value.GetType())?.Wrap(value) ?? PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
         PgHeapTuple[] items => new PgArray<PgHeapTuple>(items),
         PgRange<int>[] items => new PgArray<PgRange<int>>(items), PgRange<long>[] items => new PgArray<PgRange<long>>(items),
@@ -202,7 +203,7 @@ internal static class SpiArray
             return typed;
         }
 
-        if (PgEnumRegistry.FindArray(array.GetType()) is not null || SpiType.GetOid<T>() != array.ElementOid)
+        if (PgEnumRegistry.FindArray(array.GetType()) is not null || PgTypeRegistry.FindArray(array.GetType()) is not null || SpiType.GetOid<T>() != array.ElementOid)
         {
             throw new InvalidCastException($"Array elements cannot be read as '{typeof(T)}'.");
         }

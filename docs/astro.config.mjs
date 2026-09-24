@@ -90,6 +90,7 @@ export default defineConfig({
             { label: 'Configuration settings', slug: 'configuration' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Composite values', slug: 'composites' },
+            { label: 'Custom types', slug: 'custom-types' },
             { label: 'Triggers', slug: 'triggers' },
             { label: 'Event triggers', slug: 'event-triggers' },
             { label: 'Aggregates', slug: 'aggregates' },

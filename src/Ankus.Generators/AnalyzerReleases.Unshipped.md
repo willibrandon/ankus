@@ -18,3 +18,4 @@ ANKUS013 | Ankus | Error | Invalid PostgreSQL initialization declaration
 ANKUS014 | Ankus | Error | Invalid PostgreSQL configuration declaration
 ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
+ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec

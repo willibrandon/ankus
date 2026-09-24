@@ -53,7 +53,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_TRANSACTION_ID,
             ANKUS_SPI_DATUM,
             ANKUS_SPI_FUNCTION_CONTEXT,
-            ANKUS_SPI_FUNCTION_CALL
+            ANKUS_SPI_FUNCTION_CALL,
+            ANKUS_SPI_CUSTOM_TYPE
         };
 
         typedef struct AnkusRequest
@@ -266,6 +267,8 @@ internal static class NativeSpiBridge
                         return ankus_write_tuple(value, parameter->type_oid, NULL);
                     if (get_typtype(parameter->type_oid) == TYPTYPE_ENUM)
                         return ankus_write_enum(value, parameter->type_oid);
+                    if (ankus_custom_type_supported(parameter->type_oid))
+                        return ankus_write_custom(value, parameter->type_oid);
                     if (OidIsValid(get_element_type(parameter->type_oid)))
                     {
                         return ankus_write_array(value, get_element_type(parameter->type_oid));
@@ -456,6 +459,12 @@ internal static class NativeSpiBridge
                     if (get_typtype(type) == TYPTYPE_ENUM)
                     {
                         ankus_read_enum(datum, value, owned);
+                        break;
+                    }
+
+                    if (ankus_custom_type_supported(type))
+                    {
+                        ankus_read_custom(datum, type, value, owned);
                         break;
                     }
 

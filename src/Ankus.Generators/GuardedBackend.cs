@@ -54,6 +54,7 @@ internal static class GuardedBackend
             bool geometry = request->operation == ANKUS_SPI_GEOMETRY;
             bool range = request->operation == ANKUS_SPI_RANGE;
             bool enumeration = request->operation == ANKUS_SPI_ENUM;
+            bool custom_type = request->operation == ANKUS_SPI_CUSTOM_TYPE;
             bool tuple = request->operation == ANKUS_SPI_TUPLE;
             bool transaction_callbacks = request->operation == ANKUS_SPI_TRANSACTION_CALLBACKS;
             bool transaction_id = request->operation == ANKUS_SPI_TRANSACTION_ID;
@@ -61,7 +62,7 @@ internal static class GuardedBackend
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
             bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
-                transaction_callbacks || transaction_id || datum || function_context || function_call;
+                transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -219,6 +220,12 @@ internal static class GuardedBackend
                             else if (enumeration)
                             {
                                 ankus_enum_operation(request, result);
+                                code = 0;
+                            }
+                            else if (custom_type)
+                            {
+                                result->text.integral = ankus_resolve_named_type(&request->parameters[0].value,
+                                    &request->parameters[1].value, request->scalar_operation == 1, TYPTYPE_BASE);
                                 code = 0;
                             }
                             else if (tuple)

@@ -194,6 +194,18 @@ internal static class SpiType
             return 1186;
         }
 
+        CustomTypeMapping? custom = PgTypeRegistry.Find(type);
+        if (custom is not null)
+        {
+            return custom.GetOid();
+        }
+
+        custom = PgTypeRegistry.FindArray(type);
+        if (custom is not null)
+        {
+            return custom.GetArrayOid();
+        }
+
         EnumMapping? enumeration = PgEnumRegistry.Find(type);
         if (enumeration is not null)
         {
@@ -226,6 +238,7 @@ internal static class SpiType
         PgDatum datum => datum.ToNative(),
         PgInternal state => state.ToNative(),
         null => new NativeValue { IsNull = 1 },
+        _ when PgTypeRegistry.Find(value.GetType()) is { } custom => custom.Write(value),
         bool boolean => new NativeValue { Integral = boolean ? 1 : 0 },
         sbyte number => new NativeValue { Integral = number },
         short number => new NativeValue { Integral = number },
@@ -328,6 +341,7 @@ internal static class SpiType
             _ when value.IsArray => value.ReadArray(),
             _ when value.IsTuple => value.ReadTuple(),
             _ when value.IsEnum => PgEnumRegistry.FindOid(oid).FromLabel(value.ReadString()),
+            _ when value.IsCustomType => PgTypeRegistry.FindOid(oid).Read(value),
             _ => throw new NotSupportedException($"SPI result type OID {oid} does not have a registered managed conversion."),
         };
     }

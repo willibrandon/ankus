@@ -80,6 +80,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
+| `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with a `PgTypeCodec<T>` |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |

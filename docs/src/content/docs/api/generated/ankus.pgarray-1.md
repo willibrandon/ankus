@@ -89,7 +89,7 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 ### ElementTypeOid
 
 Gets the PostgreSQL element identity, including the named composite identity of an empty or all-null array.
-Enum identities are resolved in the current backend when requested.
+Enum and custom type identities are resolved in the current backend when requested.
 
 ```csharp
 public uint ElementTypeOid { get; }

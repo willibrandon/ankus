@@ -146,6 +146,7 @@ internal static class IntegrationEnvironment
         [
             ("tests", "Ankus.TestExtension"),
             ("samples", "Ankus.Examples.Enums"),
+            ("samples", "Ankus.Examples.CustomTypes"),
             ("samples", "Ankus.Examples.Composites"),
             ("samples", "Ankus.Examples.Operators"),
             ("samples", "Ankus.Examples.Sets"),

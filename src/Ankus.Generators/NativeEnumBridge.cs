@@ -59,7 +59,7 @@ internal static class NativeEnumBridge
         }
 
         static Oid
-        ankus_resolve_enum(const AnkusValue *name, const AnkusValue *schema, bool missing_ok)
+        ankus_resolve_named_type(const AnkusValue *name, const AnkusValue *schema, bool missing_ok, char kind)
         {
             char *type_name = pg_any_to_server((char *) name->data, name->length, PG_UTF8);
             Oid namespace_oid;
@@ -86,15 +86,23 @@ internal static class NativeEnumBridge
 
             type = GetSysCacheOid2(TYPENAMENSP, Anum_pg_type_oid,
                 CStringGetDatum(type_name), ObjectIdGetDatum(namespace_oid));
-            if (!OidIsValid(type) || get_typtype(type) != TYPTYPE_ENUM)
+            if (!OidIsValid(type) || get_typtype(type) != kind ||
+                (kind == TYPTYPE_BASE && get_typlen(type) != -1))
             {
                 if (missing_ok)
                     return InvalidOid;
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT),
-                    errmsg("PostgreSQL enum type \"%s\" does not exist in the declared schema", type_name)));
+                    errmsg("PostgreSQL %s type \"%s\" does not exist in the declared schema",
+                        kind == TYPTYPE_ENUM ? "enum" : "variable-length base", type_name)));
             }
 
             return type;
+        }
+
+        static Oid
+        ankus_resolve_enum(const AnkusValue *name, const AnkusValue *schema, bool missing_ok)
+        {
+            return ankus_resolve_named_type(name, schema, missing_ok, TYPTYPE_ENUM);
         }
 
         """;

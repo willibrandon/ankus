@@ -158,4 +158,9 @@ internal enum SpiOperation : byte
     /// Resolves and invokes a scalar PostgreSQL function by name, OID, or an explicit native entry point.
     /// </summary>
     FunctionCall,
+
+    /// <summary>
+    /// Resolves the current identity of a generated variable-length base type.
+    /// </summary>
+    CustomType,
 }

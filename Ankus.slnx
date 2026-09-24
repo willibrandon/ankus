@@ -3,6 +3,7 @@
     <Project Path="samples/Ankus.Examples.Aggregates/Ankus.Examples.Aggregates.csproj" />
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
     <Project Path="samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" />
+    <Project Path="samples/Ankus.Examples.CustomTypes/Ankus.Examples.CustomTypes.csproj" />
     <Project Path="samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" />
     <Project Path="samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" />
     <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />

@@ -69,6 +69,11 @@ internal sealed class FunctionType
     internal EnumDeclaration? Enumeration { get; private set; }
 
     /// <summary>
+    /// Gets the generated binary storage contract for a custom base type.
+    /// </summary>
+    internal CustomTypeDeclaration? CustomType { get; private set; }
+
+    /// <summary>
     /// Gets the optional named binding for a composite or raw scalar.
     /// </summary>
     internal SqlTypeReference? Binding { get; private set; }
@@ -121,7 +126,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => !UsesRawTransport && !IsInternal && (Enumeration is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
+    internal bool IsBuffer => !UsesRawTransport && !IsInternal && (Enumeration is not null || CustomType is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -204,6 +209,14 @@ internal sealed class FunctionType
             {
                 Element = element,
                 IsVector = vector,
+            };
+        }
+
+        if (type is INamedTypeSymbol named && CustomTypeDeclaration.Create(named) is { } custom)
+        {
+            return new(custom.Managed, custom.Sql, "custom", "custom", string.Empty, nullable, type.IsReferenceType)
+            {
+                CustomType = custom,
             };
         }
 
@@ -354,4 +367,10 @@ internal sealed class FunctionType
     /// </summary>
     internal static FunctionType? CreateResult(IMethodSymbol method)
         => Create(method.ReturnType, SqlTypeReference.Read(method.GetReturnTypeAttributes()));
+
+    /// <summary>
+    /// Creates a native-only buffer conversion for generated type I/O functions.
+    /// </summary>
+    internal static FunctionType CreateIoBuffer(string sql, string reader)
+        => new(string.Empty, sql, reader, reader, string.Empty, nullable: false, reference: true);
 }

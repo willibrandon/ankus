@@ -135,11 +135,12 @@ public sealed class SpiRow
     internal static T Convert<T>(object? value)
     {
         if (value is Array source && typeof(T).IsArray && source.GetType() != typeof(T) &&
-            (PgEnumRegistry.FindArray(source.GetType()) is not null || PgEnumRegistry.FindArray(typeof(T)) is not null))
+            (PgEnumRegistry.FindArray(source.GetType()) is not null || PgEnumRegistry.FindArray(typeof(T)) is not null ||
+             PgTypeRegistry.FindArray(source.GetType()) is not null || PgTypeRegistry.FindArray(typeof(T)) is not null))
         {
             if (source.GetType() == typeof(byte[]) || typeof(T) == typeof(byte[]))
             {
-                throw new InvalidCastException("PostgreSQL enum arrays and binary values have distinct type identities.");
+                throw new InvalidCastException("PostgreSQL mapped arrays and binary values have distinct type identities.");
             }
 
             return (T)SpiArray.Convert(SpiArray.Wrap(source), typeof(T));

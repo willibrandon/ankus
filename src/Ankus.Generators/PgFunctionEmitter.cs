@@ -103,7 +103,10 @@ internal static class PgFunctionEmitter
         source.AppendLine();
     }
 
-    private static void EmitNative(
+    /// <summary>
+    /// Emits a native scalar boundary shared by attributed methods and generated type I/O callbacks.
+    /// </summary>
+    internal static void EmitNative(
         string name, string callback, FunctionType[] parameters, FunctionType result, bool ensureInitialized, StringBuilder source)
     {
         source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
@@ -148,7 +151,8 @@ internal static class PgFunctionEmitter
             }
         }
 
-        bool compositeArguments = parameters.Any(static parameter => (parameter.Element ?? parameter).IsComposite);
+        bool compositeArguments = parameters.Any(static parameter => (parameter.Element ?? parameter).IsComposite ||
+            (parameter.Element ?? parameter).CustomType is not null);
         string inputIndent = compositeArguments ? "    " : string.Empty;
         if (compositeArguments)
         {
@@ -174,6 +178,18 @@ internal static class PgFunctionEmitter
             if (parameter.IsInternal)
             {
                 source.AppendLine($"{inputIndent}        arguments[{argument}].integral = (int64) (uintptr_t) PG_GETARG_DATUM({argument});");
+            }
+            else if (parameter.Reader == "cstring")
+            {
+                source.AppendLine($"{inputIndent}        ankus_read_cstring(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
+            }
+            else if (parameter.Reader == "type_receive")
+            {
+                source.AppendLine($"{inputIndent}        ankus_read_type_receive(PG_GETARG_DATUM({argument}), get_func_rettype(fcinfo->flinfo->fn_oid), &arguments[{argument}]);");
+            }
+            else if (parameter.CustomType is not null)
+            {
+                source.AppendLine($"{inputIndent}        ankus_read_custom(PG_GETARG_DATUM({argument}), ankus_declared_argument_type(fcinfo, {argument}), &arguments[{argument}], &owned[{argument}]);");
             }
             else if (parameter.Element is not null)
             {
@@ -266,6 +282,8 @@ internal static class PgFunctionEmitter
         source.AppendLine("        PG_RETURN_NULL();");
         source.AppendLine("    }");
         source.AppendLine();
+        source.AppendLine("    previous_function = ankus_function_oid;");
+        source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
         if (result.IsInternal)
@@ -286,7 +304,7 @@ internal static class PgFunctionEmitter
         }
         else if (result.Element is not null)
         {
-            source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null && !result.Element.IsComposite ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
+            source.AppendLine($"        datum = ankus_write_array(&result, {(result.Element.Enumeration is null && result.Element.CustomType is null && !result.Element.IsComposite ? result.Element.ScalarOid : "get_element_type(get_func_rettype(fcinfo->flinfo->fn_oid))")});");
         }
         else if (result.RangeSubtype is not null)
         {
@@ -301,6 +319,14 @@ internal static class PgFunctionEmitter
             source.AppendLine("        TupleDesc descriptor = NULL;");
             source.AppendLine("        (void) get_call_result_type(fcinfo, NULL, &descriptor);");
             source.AppendLine("        datum = ankus_write_tuple(&result, get_func_rettype(fcinfo->flinfo->fn_oid), descriptor);");
+        }
+        else if (result.CustomType is not null)
+        {
+            source.AppendLine("        datum = ankus_write_custom(&result, get_func_rettype(fcinfo->flinfo->fn_oid));");
+        }
+        else if (result.Reader == "cstring")
+        {
+            source.AppendLine("        datum = ankus_write_cstring(&result);");
         }
         else if (result.IsTemporal)
         {
@@ -326,6 +352,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("    }");
         source.AppendLine("    PG_FINALLY();");
         source.AppendLine("    {");
+        source.AppendLine("        ankus_function_oid = previous_function;");
         source.AppendLine("        if (result.release != NULL)");
         source.AppendLine("        {");
         source.AppendLine("            result.release(result.data);");

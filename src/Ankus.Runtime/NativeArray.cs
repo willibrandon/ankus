@@ -87,7 +87,8 @@ public unsafe partial struct NativeValue
 
         NativeValue result = FromBytes(buffer.WrittenSpan);
         result._auxiliary1 = -1;
-        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
+        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : PgTypeRegistry.FindArray(value.GetType()) is not null ? 3 :
+            PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
         if (value is PgArray<PgHeapTuple> tuples)
         {
             result._integer = tuples.ElementBaseTypeOid;
@@ -109,7 +110,7 @@ public unsafe partial struct NativeValue
         {
             _ = SpiArray.ArrayOid(oid);
         }
-        else if (_auxiliary2 is not 1 and not 2 || oid == 0 || (_auxiliary2 == 2 && _integer is < 0 or > uint.MaxValue))
+        else if (_auxiliary2 is not 1 and not 2 and not 3 || oid == 0 || (_auxiliary2 == 2 && _integer is < 0 or > uint.MaxValue))
         {
             throw new InvalidOperationException("Invalid array element conversion discriminator.");
         }
@@ -207,6 +208,11 @@ public unsafe partial struct NativeValue
         if (_auxiliary2 == 2)
         {
             return ReadArrayData<PgHeapTuple?>(oid);
+        }
+
+        if (_auxiliary2 == 3)
+        {
+            return PgTypeRegistry.FindOid(oid).ReadArray(this, oid);
         }
 
         return oid switch

@@ -2526,11 +2526,11 @@ The target architecture consists of:
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
 | Raw `EventTriggerData` and event-trigger helpers in `pgrx-pg-sys` | `[PgEventTrigger]` and owned context metadata | Implemented for descriptive DDL/drop/rewrite metadata and login; PostgreSQL 18.6/Linux x64 evidence above; raw bindings remain in the full inventory |
-| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal and explicitly bound raw signatures implemented; strongly typed custom codecs and heterogeneous variadic ANY remain required; verification recorded below |
+| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal, raw and custom-codec signatures implemented; heterogeneous variadic ANY remains required; verification recorded below |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
-| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual base-type SQL and raw input/output callbacks implemented; generated typed codecs, default serialization and binary I/O remain required |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks and generated `[PgType]`/`PgTypeCodec<T>` storage, text and optional binary I/O implemented; default CBOR/JSON serialization and zero-copy storage remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
@@ -2616,10 +2616,10 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
-| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal and raw bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; strongly typed custom codecs, heterogeneous ANY and full matrix remain required |
-| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; custom base-type operands and matrix validation remain required |
+| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal, raw and custom-codec bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; heterogeneous ANY and full matrix remain required |
+| `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
-| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including nullable values, arrays and optional typmod/explicit arguments; custom base-type families and matrix validation remain required |
+| `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend and shared-preload `[PgInitialize]` with retry/recursion handling; Linux x64 fork behavior verified, remaining platform/version matrix required |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
@@ -2635,14 +2635,14 @@ alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views and custom base-type elements pending |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
-| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Pending |
+| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated type I/O implemented; default CBOR/JSON generation remains required |
 | `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
 | `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Pending |
@@ -2654,7 +2654,7 @@ complete implementations. AOT serialization must use statically generated metada
 
 | Source modules | Required behavior | Status |
 |---|---|---|
-| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters and raw parameter binding implemented. Custom base-type integration and the complete PostgreSQL/platform matrix remain pending |
+| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters, raw parameter binding and generated custom-codec types implemented. The complete PostgreSQL/platform matrix remains required |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
@@ -2763,7 +2763,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Polymorphic scalar, SETOF, TABLE and aggregate signatures
     - [x] General `internal` state in scalar, SETOF, TABLE and aggregate callbacks
     - [x] Explicit raw datum bindings in scalar, SETOF, TABLE and aggregate signatures
-    - [ ] Remaining datum mappings and strongly typed custom codecs
+    - [x] Strongly typed custom codecs and generated base-type declarations
+    - [ ] Remaining datum mappings and default custom-type serialization
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -2771,11 +2772,13 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] event triggers with owned DDL/drop/rewrite metadata and login callbacks
   - [x] aggregates for supported concrete and polymorphic types, owned managed states, worker transport, moving windows and native ordering
   - [x] general raw aggregate signatures with checked type identity and state ownership
-  - [ ] strongly typed custom base-type aggregate signatures, heterogeneous ordered-set VARIADIC ANY
+  - [x] strongly typed custom base-type aggregate signatures
+  - [ ] heterogeneous ordered-set VARIADIC ANY
   - [ ] generated equality/order/hash operator classes
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
-  - [ ] custom base types (CBOR/JSON, custom storage/I/O, binary send/receive)
+  - [x] generated custom base types with explicit storage/text codecs and binary send/receive
+  - [ ] default CBOR/JSON custom-type serialization and zero-copy storage
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
@@ -3848,7 +3851,52 @@ The phases track implementation of the complete pgrx feature surface.
   backend cases. The Release build passes with zero warnings and errors in
   5.87s. API freshness (133 pages, 1,359 members), `pnpm build` (169 pages),
   and `pnpm check` pass without diagnostics. The public guide contains a
-  complete manual base-type example. Hosted platform validation is pending.
+  complete manual base-type example. Hosted CI run 36061937604 passes on Linux
+  x64/PostgreSQL 18 (4,696 passed), macOS ARM64/PostgreSQL 18 and Windows
+  x64/PostgreSQL 17 (4,694 passed each, two Linux-only allocator tests skipped).
+  All jobs completed successfully; Windows took 13m53s, macOS 7m55s and Linux
+  7m16s. The documentation deployment also passed.
   Strongly typed custom codecs, declarative base-type generation, default
   CBOR/JSON storage, binary send/receive, heterogeneous variadic `any`, remaining
   backend APIs and the full PostgreSQL/platform matrix remain required.
+
+- 2026-09-24 — Added `[PgType(typeof(Codec))]` and `PgTypeCodec<T>` for classes,
+  structs and enums. Generated SQL installs a shell type, native text I/O
+  callbacks, optional binary send/receive, and a completed variable-length base
+  type before dependent functions and aggregates. Explicit codecs define the
+  stored payload and text format. PostgreSQL handles packed, compressed and
+  external TOAST. Invalid type/codec declarations produce ANKUS017; generated
+  helper signatures participate in duplicate function detection.
+
+  Closed generated registrations support nullable values, vectors, shaped arrays,
+  scalar/set/table functions, aggregate state and inputs, operators, casts and
+  all SPI ownership paths without runtime code generation. Native envelopes
+  retain exact type OIDs; live catalog lookup follows extension relocation and
+  reinstallation. Codec errors unwind managed frames before PostgreSQL reports
+  them. Direct tests exposed and fixed an unnecessary backend lookup when
+  constructing an owned custom array outside a callback.
+  Codec construction is lazy and runs inside that same boundary, so user
+  constructor exceptions become PostgreSQL errors rather than escaping module
+  initialization. The backend regression verifies recovery after that failure.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Compilable value/reference/enum contracts, SQL ordering, type-only modules and diagnostics | `CustomTypesCompileAcrossTypedContracts`, `CustomTypeOnlyExtensionEmitsCompleteModule`, `InvalidCustomTypeContractsAreDiagnosed`, `CustomTypesPreserveLongNamesAndDependencyOrder`, `CustomTypeIoSignaturesCannotBeReplaced` |
+  | Exact payload identity, copied storage, empty versus NULL, closed array conversions and registration failure | `CustomPayloadCopiesStorageAndRequiresExactIdentity`, `CustomPayloadEmptyAndNullRemainDistinct`, `CustomArraysPreserveShapeAndRejectLossyConversions`, `CustomRegistrationRetainsOriginalContractOnFailure`, `NullCodecResultsAreRejected` |
+  | Scalar/reference values, integer extremes, empty strings, NULLs, array shape and every SPI ownership path | `CustomScalarsArraysAndNullsCrossEveryOwnershipPath` |
+  | SETOF/TABLE, early exit, operator/cast, independent aggregate groups and empty input | `CustomSetsOperatorsCastsAndAggregatesUseTypedStorage` |
+  | Independent binary COPY bytes, minimum/zero/maximum values and malformed receive recovery | `CustomBinaryCopyPreservesExactBytes`, `CustomBinaryErrorsPreserveConnectionAndRows` |
+  | Deferred single codec construction, constructor failure, all four conversion errors and same-session recovery | `CustomCodecConstructionIsDeferredAndCached`, `CustomCodecErrorsUnwindAndPreserveBackend` |
+  | Domain/array identity, TOAST, type-only extension relocation and changed OIDs after reinstall | `CustomDomainsPreserveIdentityAndArrayShape`, `CustomStorageSurvivesToastAndCatalogLookup`, `CustomTypeOnlyExtensionTracksRelocationAndReinstallation` |
+  | Real launched workers and partial aggregation of custom states | `CustomAggregateStatesWorkInParallelWorkers` |
+
+  Final plain `dotnet test` passes 4,740/4,740 without skips in 3m17.206s on
+  PostgreSQL 18.6/Linux x64, including 14 new generator cases, six direct runtime
+  cases and 24 backend cases. The final Release build passes with zero warnings
+  and errors in 4.82s. API freshness (135 pages, 1,371 members), `pnpm build`
+  (172 pages), and `pnpm check` pass without diagnostics. Hosted validation of
+  this milestone is pending. The public custom-type guide and Distance sample
+  explain the complete codec contract. Default CBOR storage/JSON text generation, zero-copy
+  `PgVarlena` equivalents, generated operator classes, remaining backend APIs,
+  heterogeneous variadic `any`, and the full PostgreSQL/platform matrix remain
+  required; this is not full `PostgresType` parity.
