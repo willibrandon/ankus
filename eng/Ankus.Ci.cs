@@ -52,6 +52,7 @@ try
         case "runtime-ci":
             RequireArguments(args, 4);
             ValidateRuntimeIdentity(repositoryRoot);
+            InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
             StageRuntime(repositoryRoot, args[1], args[2], args[3]);
             InstallPostgreSql(repositoryRoot);
@@ -67,6 +68,7 @@ try
         case "release-runtime":
             RequireArguments(args, 4);
             ValidateRuntimeIdentity(repositoryRoot);
+            InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
             PackRuntime(repositoryRoot, args[3], GetBuiltRuntimePath(repositoryRoot, args[1], args[2]));
             break;
@@ -260,6 +262,38 @@ static void VerifyPlatform(string platform, string architecture)
     {
         throw new PlatformNotSupportedException($"The {platform}-{architecture} runtime cannot be built on this runner.");
     }
+}
+
+static void InstallRuntimePrerequisites()
+{
+    if (!OperatingSystem.IsLinux())
+    {
+        return;
+    }
+
+    Run("sudo", ["apt-get", "update"]);
+    Run("sudo",
+    [
+        "apt-get",
+        "install",
+        "--yes",
+        "build-essential",
+        "clang",
+        "cmake",
+        "cpio",
+        "curl",
+        "git",
+        "libicu-dev",
+        "libkrb5-dev",
+        "liblttng-ust-dev",
+        "libssl-dev",
+        "lld",
+        "lldb",
+        "llvm",
+        "ninja-build",
+        "pigz",
+        "python-is-python3",
+    ]);
 }
 
 static string GetBuiltRuntimePath(string repositoryRoot, string platform, string architecture)
