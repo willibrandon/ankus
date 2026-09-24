@@ -649,6 +649,7 @@ static void Run(
         if (Path.GetFileNameWithoutExtension(fileName).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
         {
             process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+            process.StartInfo.Environment.Remove("Platform");
         }
 
         process.StartInfo.RedirectStandardOutput = true;
