@@ -479,7 +479,7 @@ static void RunRuntimeTests(string repositoryRoot)
         [
             "test",
             "--test-modules",
-            path,
+            testModule,
             "--root-directory",
             repositoryRoot,
             "--minimum-expected-tests",
