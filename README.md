@@ -3,6 +3,8 @@
 Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
 Write ordinary C# functions and publish them as a native PostgreSQL extension library.
 
+[Read the documentation](https://willibrandon.github.io/ankus/).
+
 ```csharp
 [PgFunction]
 public static int Add(int left, int right) => checked(left + right);

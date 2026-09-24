@@ -2,12 +2,22 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
+  site: 'https://willibrandon.github.io/ankus',
+  base: '/ankus',
   outDir: '../artifacts/docs',
   cacheDir: './node_modules/.astro-cache',
   integrations: [
     starlight({
       title: 'Ankus',
       description: 'PostgreSQL extensions in C# with .NET Native AOT.',
+      disable404Route: true,
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/willibrandon/ankus',
+        },
+      ],
       customCss: ['./src/styles/custom.css'],
       expressiveCode: {
         customizeTheme(theme) {
