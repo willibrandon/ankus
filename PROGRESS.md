@@ -3335,4 +3335,18 @@ The phases track implementation of the complete pgrx feature surface.
   a short owned temporary path. Release builds with zero warnings/errors. Generator
   contracts pass 1,182/1,182, the affected worker/package scope passes 60/60, and
   plain `dotnet test` passes 4,142/4,142 in 3m08.004s on PostgreSQL 18.6/Linux x64.
-  Hosted Windows proof remains pending.
+  The next hosted run reduced Windows to two generated-project failures: `initdb`
+  could start from the short staged installation but could not create PGDATA beyond
+  Windows' legacy path limit. Consumer fixtures now keep ephemeral PGDATA in a short,
+  owned temporary directory and retain build/server logs in the project. The focused
+  generated-project scope passes 3/3, plain `dotnet test` passes 4,142/4,142 in
+  3m11.053s, and the Release/API/documentation quality gate passes with zero
+  diagnostics on PostgreSQL 18.6/Linux x64.
+  That run also exposed an intermittent PostgreSQL 18.6/macOS ARM64 postmaster exit.
+  Apple libpthread wakes `pthread_join` before `__bsdthread_terminate` removes the
+  kernel thread from XNU's task list. Runtime commit
+  `bb56f167c97e2c8e79423de9e43f43cde9ae1a88` waits for that removal before resetting
+  libpthread's single-thread state. Native AOT Release builds with zero warnings/errors
+  on Linux x64 and macOS ARM64. The two-round host/fork probe passes on both; 50
+  consecutive macOS ARM64 executions also pass. Hosted proof of both fixes remains
+  pending.

@@ -12,6 +12,7 @@ namespace Ankus.Testing;
 public sealed class PostgresExtensionTest : IAsyncDisposable
 {
     private readonly string _publishDirectory;
+    private readonly string _dataDirectoryBase;
     private readonly PostgresTestInstallation? _stagedInstallation;
     private readonly object _disposeLock = new();
     private Task? _disposeTask;
@@ -19,10 +20,12 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     private PostgresExtensionTest(
         PostgresTestCluster cluster,
         string publishDirectory,
+        string dataDirectoryBase,
         PostgresTestInstallation? stagedInstallation)
     {
         Cluster = cluster;
         _publishDirectory = publishDirectory;
+        _dataDirectoryBase = dataDirectoryBase;
         _stagedInstallation = stagedInstallation;
     }
 
@@ -68,6 +71,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         string invocation = Guid.NewGuid().ToString("N");
         string output = Path.Combine(root, "bin", "ankus-test-publish", invocation);
         string logs = Path.Combine(root, "bin", "ankus-test-logs");
+        string dataDirectoryBase = Path.Combine(Path.GetTempPath(), "ankus-test-pgdata-" + invocation);
         Directory.CreateDirectory(output);
         Directory.CreateDirectory(logs);
         PostgresTestCluster? cluster = null;
@@ -106,7 +110,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
             {
                 Installation = clusterInstallation,
-                DataDirectoryBase = Path.Combine(root, "bin", "ankus-test-pgdata"),
+                DataDirectoryBase = dataDirectoryBase,
                 LogDirectory = logs,
                 PostgreSqlConfiguration = configuration,
             }, cancellationToken).ConfigureAwait(false);
@@ -114,7 +118,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             string name = Path.GetFileNameWithoutExtension(manifest.Control);
             await using var command = new NpgsqlCommand("CREATE EXTENSION \"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"", connection);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            return new PostgresExtensionTest(cluster, output, stagedInstallation);
+            return new PostgresExtensionTest(cluster, output, dataDirectoryBase, stagedInstallation);
         }
         catch
         {
@@ -128,6 +132,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 await stagedInstallation.DisposeAsync().ConfigureAwait(false);
             }
 
+            DeleteDirectory(dataDirectoryBase);
             Directory.Delete(output, recursive: true);
             throw;
         }
@@ -158,9 +163,18 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             await _stagedInstallation.DisposeAsync().ConfigureAwait(false);
         }
 
+        DeleteDirectory(_dataDirectoryBase);
         if (Directory.Exists(_publishDirectory))
         {
             Directory.Delete(_publishDirectory, recursive: true);
+        }
+    }
+
+    private static void DeleteDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
         }
     }
 

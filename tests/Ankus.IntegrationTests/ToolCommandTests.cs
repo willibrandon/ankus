@@ -17,7 +17,7 @@ namespace Ankus.IntegrationTests;
 [DoNotParallelize]
 public sealed partial class ToolCommandTests(TestContext context)
 {
-    private const string NativeAotRuntimeVersion = "10.0.11-ankus.2";
+    private const string NativeAotRuntimeVersion = "10.0.11-ankus.3";
 
     private static string s_root = null!;
     private static string s_tool = null!;
@@ -749,7 +749,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.Contains("FunctionsExecuteInPostgres", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         Assert.Contains("ManagedErrorsLeaveBackendUsable", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         string projectDirectory = Path.GetDirectoryName(project)!;
-        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.log"));
 
@@ -774,7 +774,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreNotEqual(0, changed.ExitCode);
         Assert.Contains("expected: 42", changed.StandardOutput);
         Assert.Contains("actual:   38", changed.StandardOutput);
-        Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
 
     }
@@ -816,7 +816,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.Contains(failure == "build" ? "Intentional native publication failure" : "division by zero", result.StandardOutput);
         Assert.Contains("BackendTests.InitializeAsync", result.StandardOutput);
         string pgdata = Path.Combine(projectDirectory, "bin", "ankus-test-pgdata");
-        Assert.IsTrue(!Directory.Exists(pgdata) || Directory.GetDirectories(pgdata).Length == 0);
+        Assert.IsFalse(Directory.Exists(pgdata));
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.binlog"));
     }
