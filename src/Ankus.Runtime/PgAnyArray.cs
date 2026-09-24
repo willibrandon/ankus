@@ -67,6 +67,13 @@ public sealed class PgAnyArray : IReadOnlyList<PgAnyElement?>
     public int GetLowerBound(int dimension) => _lowerBounds[dimension];
 
     /// <summary>
+    /// Reads a managed array with exact type checking; polymorphic wrappers retain this array's native lifetime.
+    /// </summary>
+    /// <typeparam name="T">The requested array representation.</typeparam>
+    /// <returns>The managed array copy or checked polymorphic wrapper.</returns>
+    public T Read<T>() => Datum.Read<T>();
+
+    /// <summary>
     /// Copies the complete array into an independent native owner.
     /// </summary>
     /// <param name="context">The destination context.</param>

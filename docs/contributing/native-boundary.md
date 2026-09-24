@@ -203,6 +203,13 @@ conversion validates both before copying the result. Domain constraints apply
 to NULL returns too. Array snapshots retain exact dimensions, lower bounds,
 element identities, and nullable raw cells under that same checked owner.
 
+Typed SPI scalar and tuple results use raw first-row capture when a requested
+column is polymorphic. Ordinary columns retain their existing managed conversion;
+polymorphic datums are copied to the callback's result owner before temporary raw
+storage is deleted. Catalog calls validate array results before execution and
+copy their resolved type and value before releasing executor storage.
+Raw-row `Get<T>` and datum `Read<T>` wrappers share the source generation.
+
 ## Representation and encoding
 
 `NativeValue` and generated `AnkusValue` use matching sequential fields: 64-bit
@@ -639,6 +646,10 @@ the explicit iterator-owner protection also remains active. Later row callbacks
 retain their existing scratch context behavior. Registering owner invalidation
 before the iterator abort callback lets disposal read direct owner allocations
 before invalidation; PostgreSQL may have already deleted children.
+
+The memory envelope separately identifies the result owner. For set callbacks it
+is `multi_call_memory_ctx`, so retained SPI and catalog-call results survive row
+context resets. The original callback context remains protected independently.
 
 Live set owners carry a registry reservation until native invalidation. Managed
 reset/delete operations reject the owner and affected ancestors even between

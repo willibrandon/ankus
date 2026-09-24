@@ -191,6 +191,7 @@ internal sealed unsafe class MemoryContextTestFixture : IDisposable
             _api->_provider = provider;
             _api->_current = s_current!.Current;
             _api->_invoke = &Invoke;
+            _api->_resultContext = s_current.Current;
             _previous = NativeMemoryContext.Enter((nint)_api);
         }
 

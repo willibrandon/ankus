@@ -41,7 +41,7 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         ?? throw new InvalidOperationException("PostgreSQL did not expose a current memory context.");
 
     /// <summary>
-    /// Gets the callback's original context, outside nested SPI connections.
+    /// Gets the callback's result owner outside nested SPI connections, spanning all advances for an iterator.
     /// </summary>
     internal static PgMemoryContext Callback => Resolve(NativeMemoryOperation.Callback, 0, owned: false)
         ?? throw new InvalidOperationException("PostgreSQL did not expose the callback memory context.");

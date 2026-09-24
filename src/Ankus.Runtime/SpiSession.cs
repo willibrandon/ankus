@@ -105,8 +105,8 @@ public sealed class SpiSession
     public T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Scalar, this);
-        return result.Count == 0 || result.Columns.Count == 0 ? SpiRow.Convert<T>(null) : result[0].Get<T>(0);
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>(), this);
+        return result.Get<T>(0, allowMissing: true);
     }
 
     /// <summary>
@@ -124,8 +124,9 @@ public sealed class SpiSession
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Pair, this);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1));
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
+            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>(), this);
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
     /// <summary>
@@ -144,8 +145,9 @@ public sealed class SpiSession
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Triple, this);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1), result.GetFirstValue<TThird>(2));
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
+            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>(), this);
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 
     /// <summary>

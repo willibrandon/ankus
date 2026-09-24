@@ -3,6 +3,10 @@ namespace Ankus;
 /// <summary>
 /// Calls PostgreSQL functions through native lookup, expression evaluation, and guarded error transport.
 /// </summary>
+/// <remarks>
+/// Catalog calls support PgAnyElement and PgAnyArray results owned by the current callback or iterator.
+/// Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
+/// </remarks>
 public static class PgFunctions
 {
     /// <summary>
@@ -44,7 +48,7 @@ public static class PgFunctions
     /// <typeparam name="T">The exact managed result type; use a nullable type when SQL NULL is possible.</typeparam>
     /// <param name="name">The SQL identifier, with ordinary PostgreSQL quoting and search-path rules.</param>
     /// <param name="arguments">Typed values, NULLs, and defaults. Trailing default arguments may be omitted.</param>
-    /// <returns>An independently owned managed result.</returns>
+    /// <returns>An independent managed copy or callback-owned polymorphic result.</returns>
     public static T Call<T>(string name, params ReadOnlySpan<PgFunctionArgument> arguments)
         => NativeBackend.CallFunction<T>(name, 0, null, arguments);
 
@@ -55,7 +59,7 @@ public static class PgFunctions
     /// <param name="name">The SQL function identifier.</param>
     /// <param name="options">The call options.</param>
     /// <param name="arguments">The typed arguments.</param>
-    /// <returns>An independently owned managed result.</returns>
+    /// <returns>An independent managed copy or callback-owned polymorphic result.</returns>
     public static T Call<T>(string name, PgFunctionCallOptions options, params ReadOnlySpan<PgFunctionArgument> arguments)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -68,7 +72,7 @@ public static class PgFunctions
     /// <typeparam name="T">The exact managed result type.</typeparam>
     /// <param name="functionOid">The nonzero function OID.</param>
     /// <param name="arguments">Typed arguments; supply a variadic parameter as an array.</param>
-    /// <returns>An independently owned managed result.</returns>
+    /// <returns>An independent managed copy or callback-owned polymorphic result.</returns>
     public static T Call<T>(uint functionOid, params ReadOnlySpan<PgFunctionArgument> arguments)
     {
         ArgumentOutOfRangeException.ThrowIfZero(functionOid);
@@ -82,7 +86,7 @@ public static class PgFunctions
     /// <param name="functionOid">The nonzero function OID.</param>
     /// <param name="options">The call options.</param>
     /// <param name="arguments">The declared argument list, including any variadic array.</param>
-    /// <returns>An independently owned managed result.</returns>
+    /// <returns>An independent managed copy or callback-owned polymorphic result.</returns>
     public static T Call<T>(uint functionOid, PgFunctionCallOptions options, params ReadOnlySpan<PgFunctionArgument> arguments)
     {
         ArgumentOutOfRangeException.ThrowIfZero(functionOid);

@@ -214,7 +214,7 @@ internal enum NativeMemoryOperation
     /// </summary>
     WriteReference = 26,
     /// <summary>
-    /// Resolves the context captured when the native callback began.
+    /// Resolves the callback's native result owner, spanning all advances for set iterators.
     /// </summary>
     Callback = 27,
 }
@@ -329,4 +329,8 @@ internal unsafe struct NativeMemoryApi
     /// Invokes PostgreSQL with a native error guard beneath the managed frame.
     /// </summary>
     internal delegate* unmanaged[Cdecl]<nint, NativeMemoryRequest*, NativeMemoryResult*, NativeCallError*, int> _invoke;
+    /// <summary>
+    /// Selects the native result owner, which spans all advances for a set iterator.
+    /// </summary>
+    internal nint _resultContext;
 }

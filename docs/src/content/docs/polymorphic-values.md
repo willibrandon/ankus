@@ -57,13 +57,36 @@ shape; dimension numbers start at zero. Empty arrays have rank zero.
 Polymorphic values also work in named TABLE columns and materialized sets.
 Pass either wrapper to `SpiParameter.Create` or `PgFunctionArgument.Create`
 to bind its actual type in a query or function call.
+For a NULL argument, supply its concrete type, such as `SpiParameter.Create<int?>(null)`.
+
+## Query and function results
+
+Read values whose PostgreSQL type is determined at runtime:
+
+```csharp
+PgAnyElement? value = Spi.ExecuteScalar<PgAnyElement?>(
+    "SELECT current_status FROM jobs WHERE id = 42");
+PgAnyArray values = PgFunctions.Call<PgAnyArray>(
+    "pg_catalog.array_append",
+    PgFunctionArgument.Create<int[]>([1, 2]),
+    PgFunctionArgument.Create(3));
+```
+
+`ExecuteScalars`, sessions, and prepared statements also accept these result
+types. SQL NULL becomes a null wrapper. Query and catalog-call results belong
+to the current function call or iterator and survive SPI session disposal.
+
+For raw query rows, `row.Get<PgAnyElement>("name")` and
+`row.Get<PgAnyArray>(0)` share the raw result's lifetime. Use `CopyTo(context)`
+before disposing that result to keep the value longer.
 
 ## Lifetime
 
 Values belong to the current function call or iterator. `CopyTo(context)` keeps
 a value under another memory owner. Resetting or deleting that owner invalidates
-the value and its array cells; later native access throws. Managed values read
-with `Read<T>()` remain independent.
+the value and its array cells; later native access throws. Ordinary managed values
+read with `Read<T>()` remain independent. Reading another polymorphic wrapper
+shares the original lifetime.
 
 To wrap a raw result, construct `PgAnyElement` or `PgAnyArray` from its `PgDatum`.
 The array constructor checks that the datum is an array. Both require a present

@@ -16,7 +16,8 @@ public sealed class PgDatum
 ```
 
 Raw SPI results own their native storage. Copy a value into another context to keep it beyond result disposal.
-Reading a supported managed type returns an independent copy. Native access requires the owning backend thread.
+Reading an ordinary managed type returns an independent copy; polymorphic wrappers share this datum's lifetime.
+Native access requires the owning backend thread.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -111,7 +112,7 @@ The desired managed type.
 
 Returns: <code>T</code>
 
-An independent managed value.
+An independent managed value, or a polymorphic wrapper sharing this datum's lifetime.
 
 <a id="member-2a2b71e7e909187c"></a>
 

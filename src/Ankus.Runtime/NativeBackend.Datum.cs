@@ -30,13 +30,19 @@ public static unsafe partial class NativeBackend
         });
 
     /// <summary>
-    /// Copies a raw datum into an ordinary managed SPI value.
+    /// Converts a raw datum into a managed SPI value or a wrapper sharing the original lifetime.
     /// </summary>
     /// <typeparam name="T">The desired managed type.</typeparam>
     /// <param name="value">The checked datum.</param>
-    /// <returns>The independently owned converted value.</returns>
+    /// <returns>The managed copy or checked polymorphic wrapper.</returns>
     internal static T ReadDatum<T>(PgDatum value)
-        => RunDatum(value, 0, null, static result =>
+    {
+        if (PgPolymorphic.Is<T>())
+        {
+            return PgPolymorphic.Read<T>(value);
+        }
+
+        return RunDatum(value, 0, null, static result =>
         {
             uint typeOid = checked((uint)result._rowsAffected);
             object? converted = result._text.IsEnum && result._text.IsNull == 0
@@ -44,6 +50,7 @@ public static unsafe partial class NativeBackend
                 : SpiType.FromNative(result._text, typeOid);
             return SpiRow.Convert<T>(converted);
         });
+    }
 
     /// <summary>
     /// Copies a datum's PostgreSQL output text into managed storage.
@@ -71,9 +78,10 @@ public static unsafe partial class NativeBackend
     /// <param name="readOnly">The SPI snapshot mode.</param>
     /// <param name="limit">The row limit, or zero for no limit.</param>
     /// <param name="session">The optional active SPI session.</param>
+    /// <param name="resultMode">The columns and rows to capture without changing execution limits.</param>
     /// <returns>The disposable native result.</returns>
     internal static SpiRawResult RunRaw(string commandText, ReadOnlySpan<SpiParameter> parameters, bool readOnly,
-        int limit, SpiSession? session = null)
+        int limit, SpiSession? session = null, SpiResultMode resultMode = SpiResultMode.All)
     {
         CheckAccess();
         byte[] sql = EncodeCommand(commandText);
@@ -85,7 +93,7 @@ public static unsafe partial class NativeBackend
                 _commandLength = sql.Length - 1,
                 _readOnly = readOnly ? (byte)1 : (byte)0,
                 _limit = limit,
-                _resultMode = SpiResultMode.All,
+                _resultMode = resultMode,
                 _sessionId = session?.Identity ?? 0,
             };
             return RunRawRequest(request, parameters);
@@ -100,16 +108,17 @@ public static unsafe partial class NativeBackend
     /// <param name="readOnly">The SPI snapshot mode.</param>
     /// <param name="limit">The row limit.</param>
     /// <param name="session">The plan's optional owning session.</param>
+    /// <param name="resultMode">The columns and rows to capture without changing execution limits.</param>
     /// <returns>The disposable native result.</returns>
     internal static SpiRawResult RunRawPlan(nint plan, ReadOnlySpan<SpiParameter> parameters, bool readOnly,
-        int limit, SpiSession? session)
+        int limit, SpiSession? session, SpiResultMode resultMode = SpiResultMode.All)
         => RunRawRequest(new NativeSpiRequest
         {
             _operation = SpiOperation.ExecutePlan,
             _plan = plan,
             _readOnly = readOnly ? (byte)1 : (byte)0,
             _limit = limit,
-            _resultMode = SpiResultMode.All,
+            _resultMode = resultMode,
             _sessionId = session?.Identity ?? 0,
         }, parameters);
 

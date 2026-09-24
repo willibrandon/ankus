@@ -94,9 +94,19 @@ public static unsafe partial class NativeBackend
     /// <param name="oid">The function OID, or zero for name lookup.</param>
     /// <param name="options">Optional collation and binding settings.</param>
     /// <param name="arguments">The typed arguments and defaults.</param>
-    /// <returns>The independent managed result.</returns>
+    /// <returns>The managed copy or callback-owned polymorphic result.</returns>
     internal static T CallFunction<T>(string? name, uint oid, PgFunctionCallOptions? options, ReadOnlySpan<PgFunctionArgument> arguments)
-        => RunFunction(name, oid, options, arguments, SpiType.GetOid<T>(), null, static result =>
+    {
+        if (PgPolymorphic.Is<T>())
+        {
+            var lifetime = new PgDatumLifetime(PgMemoryContext.Callback);
+            uint expected = typeof(T) == typeof(PgAnyArray) ? 2277U : 2283U;
+            return RunFunction(name, oid, options, arguments, expected, lifetime, result =>
+                PgPolymorphic.Read<T>(new PgDatum(unchecked((nuint)result._text.Integral),
+                    result._resultTypeOid, result._text.IsNull != 0, lifetime)));
+        }
+
+        return RunFunction(name, oid, options, arguments, SpiType.GetOid<T>(), null, static result =>
         {
             uint baseType = checked((uint)result._rowsAffected);
             object? value = result._text.IsEnum && result._text.IsNull == 0
@@ -104,6 +114,7 @@ public static unsafe partial class NativeBackend
                 : SpiType.FromNative(result._text, baseType);
             return SpiRow.Convert<T>(value);
         });
+    }
 
     /// <summary>
     /// Calls a function whose catalog result type is void.

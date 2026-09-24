@@ -131,6 +131,8 @@ internal static class NativeFunctionInvocation
         ankus_function_check_result(Oid actual, Oid expected)
         {
             Oid base = getBaseType(actual);
+            if (expected == ANYELEMENTOID || (expected == ANYARRAYOID && OidIsValid(get_element_type(base))))
+                return;
             if (OidIsValid(expected) && base != expected && !(expected == RECORDOID && type_is_rowtype(base)))
                 ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
                     errmsg("Function result type %s does not match requested type %s", format_type_be(actual), format_type_be(expected))));

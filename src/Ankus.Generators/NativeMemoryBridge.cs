@@ -96,6 +96,7 @@ internal static class NativeMemoryBridge
             intptr_t provider;
             MemoryContext current;
             AnkusMemoryInvoke invoke;
+            MemoryContext result_context;
         };
 
         static int ankus_memory_invoke(AnkusMemoryApi *, AnkusMemoryRequest *, AnkusMemoryResult *, AnkusError *);
@@ -108,6 +109,7 @@ internal static class NativeMemoryBridge
             memory->provider = (intptr_t) &ankus_memory_provider;
             memory->current = CurrentMemoryContext;
             memory->invoke = ankus_memory_invoke;
+            memory->result_context = CurrentMemoryContext;
         }
 
         typedef struct AnkusMemoryAllocation AnkusMemoryAllocation;
@@ -913,7 +915,7 @@ internal static class NativeMemoryBridge
                     break;
                 }
                 case ANKUS_MEMORY_CALLBACK:
-                    result->context = (intptr_t) ankus_memory_context_id(api->current);
+                    result->context = (intptr_t) ankus_memory_context_id(api->result_context);
                     break;
                 case ANKUS_MEMORY_PREDEFINED:
                 {

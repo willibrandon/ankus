@@ -89,3 +89,55 @@ public IEnumerator<PgDatum> GetEnumerator()
 Returns: [IEnumerator&lt;PgDatum&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerator-1)
 
 The value enumerator.
+
+<a id="member-817b051aae059e17"></a>
+
+### Get&lt;T&gt;(int)
+
+Reads a column as a managed value or a polymorphic wrapper sharing this result's lifetime.
+
+```csharp
+public T Get<T>(int ordinal)
+```
+
+Type parameters:
+
+`T`
+
+The requested representation.
+
+Parameters:
+
+`ordinal` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The zero-based column ordinal.
+
+Returns: <code>T</code>
+
+The copied managed value or checked native wrapper.
+
+<a id="member-1e368fc68baae45b"></a>
+
+### Get&lt;T&gt;(string)
+
+Reads the first column with an exact case-sensitive name.
+
+```csharp
+public T Get<T>(string name)
+```
+
+Type parameters:
+
+`T`
+
+The requested representation.
+
+Parameters:
+
+`name` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The column name.
+
+Returns: <code>T</code>
+
+The copied managed value or a wrapper sharing this result's lifetime.

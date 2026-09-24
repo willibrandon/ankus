@@ -46,6 +46,8 @@ internal static class NativeSetBridge
             AnkusMemoryProtection protection = {0};
             ankus_function_oid = state->function;
             ankus_memory_initialize(&memory);
+            /* Results retained by managed iterators must outlive individual row callbacks. */
+            memory.result_context = state->owner;
             ankus_memory_protect(&protection, state->owner, operation == 3);
             PG_TRY();
             {

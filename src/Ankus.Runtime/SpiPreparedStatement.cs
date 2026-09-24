@@ -160,8 +160,8 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <returns>The scalar value.</returns>
     public T ExecuteScalar<T>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = Run(parameters, readOnly: false, limit: 0, SpiResultMode.Scalar);
-        return result.Count == 0 || result.Columns.Count == 0 ? SpiRow.Convert<T>(null) : result[0].Get<T>(0);
+        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>());
+        return result.Get<T>(0, allowMissing: true);
     }
 
     /// <summary>
@@ -176,8 +176,8 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
     public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = Run(parameters, readOnly: false, limit: 0, SpiResultMode.Pair);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1));
+        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Pair, PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>());
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
     /// <summary>
@@ -194,8 +194,9 @@ public sealed class SpiPreparedStatement : IDisposable
     public (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
         params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = Run(parameters, readOnly: false, limit: 0, SpiResultMode.Triple);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1), result.GetFirstValue<TThird>(2));
+        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Triple,
+            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>());
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 
     /// <summary>
@@ -237,6 +238,29 @@ public sealed class SpiPreparedStatement : IDisposable
         try
         {
             return NativeBackend.RunPlan(Handle, parameters, readOnly, limit, resultMode, _session);
+        }
+        finally
+        {
+            _activeExecutions--;
+        }
+    }
+
+    /// <summary>
+    /// Preserves plan access and reentrancy checks while choosing native or managed scalar storage.
+    /// </summary>
+    /// <param name="parameters">The bound values.</param>
+    /// <param name="mode">The selected first-row columns.</param>
+    /// <param name="polymorphic">Whether a requested column requires its actual native identity.</param>
+    /// <returns>The temporary scalar conversion owner.</returns>
+    private SpiScalarResult RunScalars(ReadOnlySpan<SpiParameter> parameters, SpiResultMode mode, bool polymorphic)
+    {
+        ValidateParameters(parameters);
+        _activeExecutions++;
+        try
+        {
+            return polymorphic
+                ? new(null, NativeBackend.RunRawPlan(Handle, parameters, false, 0, _session, mode))
+                : new(NativeBackend.RunPlan(Handle, parameters, false, 0, mode, _session), null);
         }
         finally
         {

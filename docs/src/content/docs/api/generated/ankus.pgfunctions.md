@@ -15,6 +15,9 @@ Calls PostgreSQL functions through native lookup, expression evaluation, and gua
 public static class PgFunctions
 ```
 
+Catalog calls support PgAnyElement and PgAnyArray results owned by the current callback or iterator.
+Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Methods
@@ -259,7 +262,7 @@ The typed arguments.
 
 Returns: <code>T</code>
 
-An independently owned managed result.
+An independent managed copy or callback-owned polymorphic result.
 
 <a id="member-672de9f500f8f803"></a>
 
@@ -289,7 +292,7 @@ Typed values, NULLs, and defaults. Trailing default arguments may be omitted.
 
 Returns: <code>T</code>
 
-An independently owned managed result.
+An independent managed copy or callback-owned polymorphic result.
 
 <a id="member-f8745742876653cb"></a>
 
@@ -323,7 +326,7 @@ The declared argument list, including any variadic array.
 
 Returns: <code>T</code>
 
-An independently owned managed result.
+An independent managed copy or callback-owned polymorphic result.
 
 <a id="member-99909bc3b6e28fb4"></a>
 
@@ -353,7 +356,7 @@ Typed arguments; supply a variadic parameter as an array.
 
 Returns: <code>T</code>
 
-An independently owned managed result.
+An independent managed copy or callback-owned polymorphic result.
 
 <a id="member-d68c51a8ef1c5b50"></a>
 

@@ -178,8 +178,8 @@ public static class Spi
     /// <returns>The scalar result.</returns>
     public static T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Scalar);
-        return result.Count == 0 || result.Columns.Count == 0 ? SpiRow.Convert<T>(null) : result[0].Get<T>(0);
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>());
+        return result.Get<T>(0, allowMissing: true);
     }
 
     /// <summary>
@@ -196,8 +196,9 @@ public static class Spi
     public static (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Pair);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1));
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
+            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>());
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
     /// <summary>
@@ -215,7 +216,8 @@ public static class Spi
     public static (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Triple);
-        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1), result.GetFirstValue<TThird>(2));
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
+            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>());
+        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 }

@@ -67,6 +67,11 @@ Each value follows the same type and NULL rules as `ExecuteScalar<T>`. A returne
 row with too few columns throws `InvalidOperationException`. Extra columns and
 later rows are not copied. These overloads also work on sessions and prepared statements.
 
+Use `PgAnyElement` or `PgAnyArray` as the result type to keep the actual PostgreSQL
+type, including types without a C# mapping. SQL NULL becomes a null wrapper.
+These values survive SPI session disposal and belong to the current function
+call or iterator. `CopyTo(context)` gives them another memory owner.
+
 Reading scalars does not limit command execution. For example, an
 `INSERT ... RETURNING` command completes all its writes even though only its first
 row's requested cells are copied.
@@ -107,6 +112,10 @@ Spi.Execute("INSERT INTO custom_values VALUES ($1)", SpiParameter.Create(value))
 Each `PgDatum` preserves its exact type OID and SQL NULL flag. `Read<T>()` copies a
 supported managed value; `Read(converter)` lets you supply your own conversion.
 Sessions and prepared statements also offer `QueryRaw`.
+
+`result[0].Get<T>("value")` reads a column directly. Ordinary managed values are
+independent copies; `PgAnyElement` and `PgAnyArray` wrappers share the raw result's
+lifetime and preserve its actual type.
 
 Raw results own native memory and survive SPI session and plan disposal. Dispose
 them within the backend callback. Their values expire when the result is disposed

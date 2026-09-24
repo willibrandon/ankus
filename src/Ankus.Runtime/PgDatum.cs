@@ -5,7 +5,8 @@ namespace Ankus;
 /// </summary>
 /// <remarks>
 /// Raw SPI results own their native storage. Copy a value into another context to keep it beyond result disposal.
-/// Reading a supported managed type returns an independent copy. Native access requires the owning backend thread.
+/// Reading an ordinary managed type returns an independent copy; polymorphic wrappers share this datum's lifetime.
+/// Native access requires the owning backend thread.
 /// </remarks>
 public sealed class PgDatum
 {
@@ -46,7 +47,7 @@ public sealed class PgDatum
     /// Reads a supported managed type with the ordinary SPI exact-type and NULL checks.
     /// </summary>
     /// <typeparam name="T">The desired managed type.</typeparam>
-    /// <returns>An independent managed value.</returns>
+    /// <returns>An independent managed value, or a polymorphic wrapper sharing this datum's lifetime.</returns>
     public T Read<T>() => NativeBackend.ReadDatum<T>(this);
 
     /// <summary>

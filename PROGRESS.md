@@ -3635,3 +3635,46 @@ The phases track implementation of the complete pgrx feature surface.
   The preceding function-invocation milestone passed Linux x64/PostgreSQL 18,
   macOS ARM64/PostgreSQL 18, and Windows x64/PostgreSQL 17 in
   [CI run 36036454638](https://github.com/willibrandon/ankus/actions/runs/36036454638).
+
+- 2026-09-24 — Added typed `PgAnyElement` and `PgAnyArray` results to scalar and
+  tuple SPI calls, sessions, prepared statements, and named/OID catalog calls.
+  Mixed tuple results retain ordinary exact managed conversions. Native capture
+  selects the requested first-row columns without limiting SQL execution or
+  write effects. `SpiRawRow.Get<T>` and `PgDatum.Read<T>` can return wrappers with
+  the raw result's checked lifetime; ordinary managed reads remain independent.
+  `PgAnyArray.Read<T>` exposes the same typed conversion convenience.
+
+  Integration testing found and fixed an iterator ownership bug: retained query
+  results were anchored to a single row callback. Native memory envelopes now
+  distinguish protected callback storage from the result owner; set results use
+  the multi-call context across advances. Scalar/session results survive SPI
+  disconnect and plan disposal. Explicit copies survive source disposal, while
+  original values and cells reject access after disposal or reset. Catalog array
+  calls reject scalar result types before side effects, including NULL results.
+  PostgreSQL strips array domains when binding an `anyarray` argument; separate
+  tests verify uncoerced query and catalog results retain those domain OIDs.
+
+  The 80-case affected integration scope passes without skips in 36.948s on
+  PostgreSQL 18.6/Linux x64, including streaming and materialized iterator
+  ownership and every tuple position. Direct runtime checks pass 9/9, including
+  one new raw-read case and existing scalar/identity cases. Plain `dotnet test`
+  passes 4,582/4,582 without skips in 2m53.968s on PostgreSQL 18.6/Linux x64.
+  The Release build has zero warnings and errors. API freshness (131 pages/1,345
+  members), `pnpm build` (165 pages), and `pnpm check` pass without diagnostics.
+  The preceding polymorphic-signature milestone passed
+  Linux x64/PostgreSQL 18, macOS ARM64/PostgreSQL 18, and Windows x64/PostgreSQL 17
+  in [CI run 36039713933](https://github.com/willibrandon/ankus/actions/runs/36039713933).
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Typed scalar, tuple, session, prepared/retained plan, named and OID results with exact identity | `PolymorphicTests.TypedQueryResultsPreserveIdentityAfterExecutionOwnersEnd` |
+  | Empty/shaped arrays, domain and enum identities, nullable cells and large composites | `PolymorphicTests.TypedArrayResultsPreserveShapeAndCellsAfterExecutionOwnersEnd` |
+  | Raw query/cursor lifetime, explicit copies, reset/disposal rejection, name and ordinal lookup | `PolymorphicTests.TypedRawRowsRejectExpiredOwnersAndRetainCopies`; `PgAnyElementTests.TypedRawReadsPreserveIdentityNullsAndCheckedLifetime` |
+  | Streaming/materialized results across advances, early termination and NULL rows | `PolymorphicTests.TypedQueryResultsSurviveIteratorAdvances` |
+  | Every tuple position, managed array reads, NULL/empty/missing cells, final statement and exact conversions | `PolymorphicTests.PolymorphicFirstRowsPreserveExistingScalarContracts` |
+  | Full write execution despite first-row capture or later managed conversion failure | `PolymorphicTests.PolymorphicFirstRowsDoNotLimitWriteEffects` |
+  | Array result validation before side effects, native error rollback and same-backend recovery | `PolymorphicTests.PolymorphicCallsValidateArrayTypesBeforeExecutionAndRecoverFromErrors` |
+
+  Polymorphic aggregate signatures, general internal/raw signature bindings,
+  custom base types, remaining backend APIs, and full PostgreSQL/platform
+  validation remain required.

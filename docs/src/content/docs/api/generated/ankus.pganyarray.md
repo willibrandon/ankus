@@ -114,6 +114,26 @@ Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 The actual lower bound.
 
+<a id="member-f4f9895eaebadcb1"></a>
+
+### Read&lt;T&gt;()
+
+Reads a managed array with exact type checking; polymorphic wrappers retain this array's native lifetime.
+
+```csharp
+public T Read<T>()
+```
+
+Type parameters:
+
+`T`
+
+The requested array representation.
+
+Returns: <code>T</code>
+
+The managed array copy or checked polymorphic wrapper.
+
 
 ## Properties
 

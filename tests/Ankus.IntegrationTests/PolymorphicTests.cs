@@ -7,7 +7,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The test cancellation context.</param>
 [TestClass]
-public sealed class PolymorphicTests(TestContext context)
+public sealed partial class PolymorphicTests(TestContext context)
 {
     /// <summary>
     /// Round trips exact values and type identities without a managed mapping for the input type.

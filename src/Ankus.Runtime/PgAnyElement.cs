@@ -17,10 +17,10 @@ public sealed class PgAnyElement(PgDatum datum)
     public uint TypeOid => Datum.TypeOid;
 
     /// <summary>
-    /// Reads an independent managed value with exact type checking.
+    /// Reads a managed value with exact type checking; polymorphic wrappers retain this value's native lifetime.
     /// </summary>
     /// <typeparam name="T">The managed representation.</typeparam>
-    /// <returns>The copied value.</returns>
+    /// <returns>The managed copy or wrapper sharing this value's lifetime.</returns>
     public T Read<T>() => Datum.Read<T>();
 
     /// <summary>

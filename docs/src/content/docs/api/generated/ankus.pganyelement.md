@@ -62,7 +62,7 @@ The independently owned value.
 
 ### Read&lt;T&gt;()
 
-Reads an independent managed value with exact type checking.
+Reads a managed value with exact type checking; polymorphic wrappers retain this value's native lifetime.
 
 ```csharp
 public T Read<T>()
@@ -76,7 +76,7 @@ The managed representation.
 
 Returns: <code>T</code>
 
-The copied value.
+The managed copy or wrapper sharing this value's lifetime.
 
 
 ## Properties

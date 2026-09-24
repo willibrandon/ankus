@@ -26,6 +26,12 @@ Strict functions are not invoked when an argument is NULL. For a function
 returning `void`, use `PgFunctions.Call` without a type argument. These methods
 return one value; use `Spi.Query` to consume a set of rows.
 
+Use `Call<PgAnyElement>` when the result's PostgreSQL type is determined at
+runtime, or `Call<PgAnyArray>` for an array. These wrappers retain the actual
+type and belong to the current function call or iterator. SQL NULL returns a
+null wrapper. Use `CopyTo(context)` to give a value another owner. An array call
+checks the declared result is an array before invoking the function.
+
 ## Default arguments
 
 Omit trailing defaults or request one explicitly:
