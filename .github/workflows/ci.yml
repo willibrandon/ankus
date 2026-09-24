@@ -132,6 +132,9 @@ jobs:
         with:
           dotnet-version: 10.0.400
 
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
       - uses: actions/download-artifact@v8
         with:
           name: nativeaot-${{ matrix.rid }}

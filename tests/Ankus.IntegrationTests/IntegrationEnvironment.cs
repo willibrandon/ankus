@@ -95,33 +95,70 @@ internal static class IntegrationEnvironment
     internal static async Task<string> PublishSampleAsync(CancellationToken cancellationToken)
     {
         PostgresInstallation installation = await GetInstallationAsync(cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.TestExtension", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Enums", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Composites", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Operators", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Sets", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Triggers", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.EventTriggers", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Aggregates", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Initialization", installation, cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Configuration", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucOnlyExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucPrefixExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucUnicodePrefixExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucHooksExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.PreloadExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucAssignExtension", installation, cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucShowExtension", installation, cancellationToken);
-        return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", installation, cancellationToken);
+        (string Directory, string Name)[] extensions =
+        [
+            ("tests", "Ankus.TestExtension"),
+            ("samples", "Ankus.Examples.Enums"),
+            ("samples", "Ankus.Examples.Composites"),
+            ("samples", "Ankus.Examples.Operators"),
+            ("samples", "Ankus.Examples.Sets"),
+            ("samples", "Ankus.Examples.Triggers"),
+            ("samples", "Ankus.Examples.EventTriggers"),
+            ("samples", "Ankus.Examples.Aggregates"),
+            ("samples", "Ankus.Examples.Initialization"),
+            ("samples", "Ankus.Examples.Configuration"),
+            ("tests", "Ankus.GucOnlyExtension"),
+            ("tests", "Ankus.GucPrefixExtension"),
+            ("tests", "Ankus.GucUnicodePrefixExtension"),
+            ("tests", "Ankus.GucHooksExtension"),
+            ("tests", "Ankus.PreloadExtension"),
+            ("tests", "Ankus.GucAssignExtension"),
+            ("tests", "Ankus.GucShowExtension"),
+            ("samples", "Ankus.Examples.Hello"),
+        ];
+        string publishRoot = Path.Combine(RepositoryRoot, "artifacts", "native-publish", RuntimeInformation.RuntimeIdentifier);
+        if (Directory.Exists(publishRoot))
+        {
+            Directory.Delete(publishRoot, true);
+        }
+
+        Directory.CreateDirectory(publishRoot);
+        (string Directory, string Name) first = extensions[0];
+        await PublishExtensionAsync(first.Directory, first.Name, Path.Combine(publishRoot, first.Name),
+            installation, buildProjectReferences: true, cancellationToken);
+        ParallelOptions options = new()
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 3),
+        };
+        await Parallel.ForEachAsync(extensions.AsMemory(1).ToArray(), options, async (extension, token) =>
+        {
+            await PublishExtensionAsync(extension.Directory, extension.Name, Path.Combine(publishRoot, extension.Name),
+                installation, buildProjectReferences: false, token);
+        });
+
+        if (Directory.Exists(NativeOutputDirectory))
+        {
+            Directory.Delete(NativeOutputDirectory, true);
+        }
+
+        foreach ((string Directory, string Name) extension in extensions)
+        {
+            CopyDirectory(Path.Combine(publishRoot, extension.Name), NativeOutputDirectory);
+        }
+
+        Directory.Delete(publishRoot, true);
+        string libraryExtension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
+        return RequireFile(Path.Combine(NativeOutputDirectory, "Ankus.Examples.Hello" + libraryExtension));
     }
 
-    private static async Task<string> PublishExtensionAsync(string directory, string name,
-        PostgresInstallation installation, CancellationToken cancellationToken)
+    private static async Task PublishExtensionAsync(string directory, string name, string output,
+        PostgresInstallation installation, bool buildProjectReferences, CancellationToken cancellationToken)
     {
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
-        string output = NativeOutputDirectory;
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", output,
+            "-p:BuildProjectReferences=" + buildProjectReferences.ToString(CultureInfo.InvariantCulture).ToLowerInvariant(),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + installation.PgConfigPath];
 
@@ -132,7 +169,17 @@ internal static class IntegrationEnvironment
             cancellationToken);
 
         string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
-        return RequireFile(Path.Combine(output, name + extension));
+        RequireFile(Path.Combine(output, name + extension));
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        foreach (string sourceFile in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string destinationFile = Path.Combine(destination, Path.GetRelativePath(source, sourceFile));
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(sourceFile, destinationFile, true);
+        }
     }
 
     private static async Task<PostgresInstallation> GetInstallationAsync(CancellationToken cancellationToken)

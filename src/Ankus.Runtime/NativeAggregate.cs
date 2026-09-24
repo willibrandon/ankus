@@ -107,7 +107,7 @@ public static unsafe class NativeAggregate
         _ = Current();
         if (id <= 0 || id > nint.MaxValue || s_roots is null || !s_roots.TryGetValue((nint)id, out IAggregateState? state))
         {
-            throw new InvalidOperationException("The aggregate state ID is stale, unknown, or belongs to another backend thread.");
+            throw new PgException("55000", "Invalid or expired Ankus aggregate state");
         }
 
         state.CheckAccess();

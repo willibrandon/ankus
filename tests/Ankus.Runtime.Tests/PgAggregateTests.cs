@@ -238,7 +238,7 @@ public sealed class PgAggregateTests
         Assert.IsNull(Release(registration));
         Assert.AreEqual(1, payload.DisposeCount);
         Assert.ThrowsExactly<ObjectDisposedException>(() => state.Value);
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
+        AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
         Assert.ThrowsExactly<ObjectDisposedException>(() => NativeAggregate.Write(state));
         Assert.IsNotNull(Release(registration));
         Assert.AreEqual(1, payload.DisposeCount);
@@ -256,10 +256,10 @@ public sealed class PgAggregateTests
         NativeValue pointer = NativeAggregate.Write(state);
         Registration registration = fixture.Last!;
         Assert.ThrowsExactly<InvalidCastException>(() => NativeAggregate.Read<long>(Scalar(registration.Id)));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(Scalar(0)));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(Scalar(-1)));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(Scalar(long.MaxValue)));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(pointer));
+        AssertInvalidState(() => NativeAggregate.Read<int>(Scalar(0)));
+        AssertInvalidState(() => NativeAggregate.Read<int>(Scalar(-1)));
+        AssertInvalidState(() => NativeAggregate.Read<int>(Scalar(long.MaxValue)));
+        AssertInvalidState(() => NativeAggregate.Read<int>(pointer));
         Assert.AreEqual(42, NativeAggregate.Read<int>(Scalar(registration.Id))!.Value);
         NativeValue badNull = new() { IsNull = 1, Integral = registration.Id };
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(badNull));
@@ -335,7 +335,7 @@ public sealed class PgAggregateTests
         Registration failed = fixture.Last!;
         Assert.AreEqual(1, payload.DisposeCount);
         Assert.ThrowsExactly<ObjectDisposedException>(() => state.Value);
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(failed.Id)));
+        AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(failed.Id)));
         Assert.IsNotNull(Release(failed));
         Assert.AreEqual(1, payload.DisposeCount);
         fixture.FailAdoption = false;
@@ -363,7 +363,7 @@ public sealed class PgAggregateTests
         Assert.AreEqual("cleanup failed", error.InnerExceptions[1].Message);
         Assert.AreEqual(1, payload.DisposeCount);
         Assert.ThrowsExactly<ObjectDisposedException>(() => state.Value);
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(fixture.Last!.Id)));
+        AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(fixture.Last!.Id)));
     }
 
     /// <summary>
@@ -421,7 +421,7 @@ public sealed class PgAggregateTests
             Assert.AreEqual("cleanup overflow", error.Message);
             Assert.AreEqual(1, payload.DisposeCount);
             Assert.ThrowsExactly<ObjectDisposedException>(() => state.Value);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
+            AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
             Assert.AreEqual(0, child.Context.Compare(1, 1, 1));
             Assert.ThrowsExactly<InvalidOperationException>(() => parent.Context.Compare(1, 1, 1));
             NativeAggregate.Write(new PgAggregateState<int>(9));
@@ -448,7 +448,7 @@ public sealed class PgAggregateTests
         Assert.IsNull(Release(registration));
         Collect();
         Assert.IsFalse(weak.TryGetTarget(out _));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
+        AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(registration.Id)));
     }
 
     /// <summary>
@@ -469,7 +469,7 @@ public sealed class PgAggregateTests
             using var workerScope = new AggregateScope(202);
             Assert.AreEqual(8100U, scope.Context.AggregateOid);
             Assert.ThrowsExactly<InvalidOperationException>(() => state.Value);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<Probe>(Scalar(ownerRegistration.Id)));
+            AssertInvalidState(() => NativeAggregate.Read<Probe>(Scalar(ownerRegistration.Id)));
             Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Write(state));
             Assert.ThrowsExactly<InvalidOperationException>(() => scope.Context.Compare("a", "b"));
             Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Exit(scope.Context));
@@ -764,6 +764,16 @@ public sealed class PgAggregateTests
     /// Creates a plain scalar aggregate metadata slot.
     /// </summary>
     private static NativeValue Scalar(long value) => new() { Integral = value };
+
+    /// <summary>
+    /// Verifies rejection of an internal value that does not identify a live aggregate state.
+    /// </summary>
+    private static void AssertInvalidState(Action action)
+    {
+        PgException error = Assert.ThrowsExactly<PgException>(action);
+        Assert.AreEqual("55000", error.SqlState);
+        Assert.AreEqual("Invalid or expired Ankus aggregate state", error.Message);
+    }
 
     /// <summary>
     /// Creates independent aggregate context metadata with distinct collation, operator, type and argument identities.

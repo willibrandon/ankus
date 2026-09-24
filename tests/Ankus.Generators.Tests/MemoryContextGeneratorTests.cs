@@ -139,9 +139,18 @@ public sealed partial class PgFunctionGeneratorTests
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("typedef int (*AnkusAggregateRelease)(void *, AnkusError *, AnkusExecute, AnkusMemoryApi *);", native);
-        Assert.Contains("ankus_memory_initialize(&memory);\n    ankus_memory_protect(&protection, state->owner, true);", native);
-        Assert.Contains("status = state->release(handle, &error, ankus_spi_execute, &memory);", native);
+        Assert.Contains("ankus_memory_initialize(&memory);\n    ankus_memory_protect(&protection, state->cleanup_owner, true);", native);
+        Assert.Contains("AnkusAggregateRelease release = state->release;", native);
+        Assert.Contains("status = release(handle, &error, ankus_spi_execute, &memory);", native);
         Assert.Contains("ankus_memory_protection = protection.previous;\n        ankus_aggregate_scope = previous;", native);
+        Assert.Contains("state = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusAggregateState));", native);
+        Assert.Contains("MemoryContextRegisterResetCallback(state->cleanup_owner, &state->reset);", native);
+        Assert.Contains("((AggState *) fcinfo->context)->ss.ps.state->es_query_cxt : scope->owner;", native);
+        Assert.Contains("*output = handle;", native);
+        Assert.Contains("arguments[index].integral = (intptr_t) DatumGetPointer(PG_GETARG_DATUM(index));", native);
+        Assert.Contains("datum = (Datum) (uintptr_t) result->integral;", native);
+        Assert.Contains("ankus_aggregate_scope = previous;\n        pfree(state);", native);
+        Assert.DoesNotContain("ankus_aggregate_owners", native);
     }
 
     /// <summary>

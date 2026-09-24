@@ -495,14 +495,14 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot)
 {
-    Run(GetDotNetHost(), ["build", "Ankus.slnx", "-m:1"], repositoryRoot);
+    Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m"], repositoryRoot);
     string[] testModules =
     [
-        "tests/Ankus.Examples.Hello.Tests/bin/Debug/net10.0/Ankus.Examples.Hello.Tests.dll",
-        "tests/Ankus.Generators.Tests/bin/Debug/net10.0/Ankus.Generators.Tests.dll",
-        "tests/Ankus.PgConfig.Tests/bin/Debug/net10.0/Ankus.PgConfig.Tests.dll",
-        "tests/Ankus.IntegrationTests/bin/Debug/net10.0/Ankus.IntegrationTests.dll",
-        "tests/Ankus.Runtime.Tests/bin/Debug/net10.0/Ankus.Runtime.Tests.dll",
+        "tests/Ankus.Examples.Hello.Tests/bin/Release/net10.0/Ankus.Examples.Hello.Tests.dll",
+        "tests/Ankus.Generators.Tests/bin/Release/net10.0/Ankus.Generators.Tests.dll",
+        "tests/Ankus.PgConfig.Tests/bin/Release/net10.0/Ankus.PgConfig.Tests.dll",
+        "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll",
+        "tests/Ankus.Runtime.Tests/bin/Release/net10.0/Ankus.Runtime.Tests.dll",
     ];
 
     foreach (string testModule in testModules)

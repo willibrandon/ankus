@@ -11,7 +11,6 @@ internal static class NativeAggregateBridge
     internal const string Source = """
         #include "executor/nodeAgg.h"
         #include "nodes/nodeFuncs.h"
-        #include "utils/hsearch.h"
         #include "utils/sortsupport.h"
 
         typedef int (*AnkusAggregateCallback)(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute,
@@ -21,17 +20,10 @@ internal static class NativeAggregateBridge
         typedef struct AnkusAggregateState
         {
             MemoryContextCallback reset;
-            MemoryContext owner;
+            MemoryContext cleanup_owner;
             void *handle;
             AnkusAggregateRelease release;
-            uint64 magic;
         } AnkusAggregateState;
-
-        typedef struct AnkusAggregateOwnerEntry
-        {
-            void *address;
-            AnkusAggregateState *state;
-        } AnkusAggregateOwnerEntry;
 
         typedef struct AnkusAggregateSortKey
         {
@@ -45,13 +37,12 @@ internal static class NativeAggregateBridge
         typedef struct AnkusAggregateScope
         {
             MemoryContext owner;
+            MemoryContext lifetime;
             AnkusAggregateSortKey *keys;
             int key_count;
         } AnkusAggregateScope;
 
         static AnkusAggregateScope *ankus_aggregate_scope;
-        static HTAB *ankus_aggregate_owners;
-        #define ANKUS_AGGREGATE_STATE_MAGIC UINT64CONST(0x416E6B7573416767)
 
         static void
         ankus_aggregate_release(void *argument)
@@ -61,6 +52,7 @@ internal static class NativeAggregateBridge
             AnkusError error = {0};
             AnkusMemoryApi memory = {0};
             AnkusMemoryProtection protection = {0};
+            AnkusAggregateRelease release = state->release;
             void *handle = state->handle;
             int status;
             if (handle == NULL)
@@ -68,42 +60,24 @@ internal static class NativeAggregateBridge
             /* Invalidate before entering user cleanup. Reset callbacks can run on abort,
              * window restart, group rescan, or deletion of a temporary deserialized state. */
             state->handle = NULL;
-            state->magic = 0;
-            {
-                void *address = state;
-                (void) hash_search(ankus_aggregate_owners, &address, HASH_REMOVE, NULL);
-            }
 
             ankus_aggregate_scope = NULL;
             ankus_memory_initialize(&memory);
-            ankus_memory_protect(&protection, state->owner, true);
+            ankus_memory_protect(&protection, state->cleanup_owner, true);
             PG_TRY();
             {
-                status = state->release(handle, &error, ankus_spi_execute, &memory);
+                status = release(handle, &error, ankus_spi_execute, &memory);
             }
             PG_FINALLY();
             {
                 ankus_memory_protection = protection.previous;
                 ankus_aggregate_scope = previous;
+                pfree(state);
             }
             PG_END_TRY();
             ankus_release_error(&error);
             if (status != 0)
                 ereport(WARNING, (errmsg("Ankus aggregate state cleanup failed")));
-        }
-
-        static AnkusAggregateState *
-        ankus_aggregate_state(Datum datum)
-        {
-            void *address = DatumGetPointer(datum);
-            AnkusAggregateOwnerEntry *entry = ankus_aggregate_owners == NULL ? NULL :
-                hash_search(ankus_aggregate_owners, &address, HASH_FIND, NULL);
-            /* Look up the address before dereferencing it. A foreign internal state
-             * supplied by SQL is not necessarily large enough for our header. */
-            if (entry == NULL || entry->state->magic != ANKUS_AGGREGATE_STATE_MAGIC || entry->state->handle == NULL)
-                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                    errmsg("Invalid or expired Ankus aggregate state")));
-            return entry->state;
         }
 
         static int
@@ -149,6 +123,7 @@ internal static class NativeAggregateBridge
             ResourceOwner resource_owner = CurrentResourceOwner;
             int nesting = GetCurrentTransactionNestLevel();
             volatile int status = 0;
+            AnkusAggregateState *volatile pending_state = NULL;
             *output = NULL;
             /* Both the operation and diagnostic recovery have native guards. Neither
              * allocation failures nor a user comparison ERROR may cross managed frames. */
@@ -162,33 +137,21 @@ internal static class NativeAggregateBridge
                     if (operation == 0)
                     {
                         AnkusAggregateState *state;
-                        AnkusAggregateOwnerEntry *entry;
-                        void *address;
                         if (handle == NULL || release == NULL)
                             ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                                 errmsg("Aggregate state registration requires a managed owner")));
-                        if (ankus_aggregate_owners == NULL)
-                        {
-                            HASHCTL control = {0};
-                            control.keysize = sizeof(void *);
-                            control.entrysize = sizeof(AnkusAggregateOwnerEntry);
-                            control.hcxt = TopMemoryContext;
-                            ankus_aggregate_owners = hash_create("Ankus aggregate owners", 32,
-                                &control, HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
-                        }
 
-                        state = MemoryContextAllocZero(ankus_aggregate_scope->owner, sizeof(AnkusAggregateState));
-                        state->owner = ankus_aggregate_scope->owner;
+                        state = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusAggregateState));
+                        state->cleanup_owner = ankus_aggregate_scope->lifetime;
                         state->handle = handle;
                         state->release = (AnkusAggregateRelease) release;
-                        state->magic = ANKUS_AGGREGATE_STATE_MAGIC;
                         state->reset.func = ankus_aggregate_release;
                         state->reset.arg = state;
-                        address = state;
-                        entry = hash_search(ankus_aggregate_owners, &address, HASH_ENTER, NULL);
-                        entry->state = state;
-                        MemoryContextRegisterResetCallback(state->owner, &state->reset);
-                        *output = state;
+                        pending_state = state;
+                        MemoryContextRegisterResetCallback(state->cleanup_owner, &state->reset);
+
+                        *output = handle;
+                        pending_state = NULL;
                     }
                     else if (operation == 1)
                     {
@@ -212,6 +175,12 @@ internal static class NativeAggregateBridge
                 {
                     ErrorData *data;
                     MemoryContext diagnostics;
+                    if (pending_state != NULL)
+                    {
+                        pending_state->handle = NULL;
+                        pfree((void *) pending_state);
+                    }
+
                     MemoryContextSwitchTo(caller);
                     diagnostics = AllocSetContextCreate(caller, "Ankus aggregate diagnostics", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(diagnostics);
@@ -319,6 +288,8 @@ internal static class NativeAggregateBridge
             temporary = AllocSetContextCreate(caller, "Ankus aggregate callback", ALLOCSET_SMALL_SIZES);
             scope = MemoryContextAllocZero(temporary, sizeof(AnkusAggregateScope));
             scope->owner = deserialize ? caller : owner;
+            scope->lifetime = kind == AGG_CONTEXT_AGGREGATE ?
+                ((AggState *) fcinfo->context)->ss.ps.state->es_query_cxt : scope->owner;
             arguments = MemoryContextAllocZero(temporary, sizeof(AnkusValue) * Max(arguments_count, 1));
             owned = MemoryContextAllocZero(temporary, sizeof(AnkusInputBuffer) * Max(arguments_count, 1));
             result = MemoryContextAllocZero(temporary, sizeof(AnkusValue));
@@ -349,7 +320,7 @@ internal static class NativeAggregateBridge
                     if (!arguments[index].is_null)
                     {
                         if (internal_arguments[index])
-                            arguments[index].integral = (intptr_t) ankus_aggregate_state(PG_GETARG_DATUM(index))->handle;
+                            arguments[index].integral = (intptr_t) DatumGetPointer(PG_GETARG_DATUM(index));
                         else
                             ankus_read_value(PG_GETARG_DATUM(index), types[index], &arguments[index], &owned[index]);
                     }
@@ -367,11 +338,10 @@ internal static class NativeAggregateBridge
                 {
                     if (internal_result)
                     {
-                        AnkusAggregateState *state = ankus_aggregate_state((Datum) (uintptr_t) result->integral);
-                        if (state->owner != scope->owner)
+                        if (result->integral == 0)
                             ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                                errmsg("Aggregate state belongs to a different memory context; copy its value into a new state")));
-                        datum = PointerGetDatum(state);
+                                errmsg("Managed aggregate state returned an invalid identity")));
+                        datum = (Datum) (uintptr_t) result->integral;
                     }
                     else
                     {

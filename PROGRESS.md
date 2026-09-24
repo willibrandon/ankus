@@ -3277,3 +3277,19 @@ The phases track implementation of the complete pgrx feature surface.
   packed all six managed packages, and completed the Release/API/site quality
   path. Hosted CI execution and the PostgreSQL 15–18 matrix remain; PostgreSQL 19
   will join after PostgreSQL supports it.
+
+- 2026-09-24 — Fixed aggregate-state corruption during hash spill on macOS. SQL
+  `internal` values now carry opaque managed IDs, while query-lifetime reset
+  callbacks own cleanup independently of PostgreSQL's recyclable per-group
+  contexts. Foreign and expired IDs still report SQLSTATE `55000`. All 99
+  aggregate integration cases pass on PostgreSQL 18.1/macOS ARM64, including
+  the 3,000-group spill and sorted-group cleanup cases. Release validation passes
+  1,181 generator, 879 runtime, 22 configuration and 5 sample tests locally.
+  The complete macOS run passed 2,046 of 2,054 cases; six aligned-allocation
+  cases require PostgreSQL 18.6 and two Linux-only cases skipped. Integration
+  setup now publishes 18 Native AOT extensions in isolated directories with
+  three-way bounded concurrency, then merges their outputs deterministically;
+  publishing plus the aggregate suite completed in 2m02s. CI now builds and
+  tests Release outputs in parallel MSBuild mode and initializes MSVC before
+  Windows Native AOT publishing. The hosted cross-platform rerun and remaining
+  PostgreSQL version matrix are pending.
