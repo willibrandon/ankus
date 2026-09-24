@@ -70,11 +70,16 @@ try
             break;
 
         case "runtime-test":
-            RequireArguments(args, 3);
+            RequireArguments(args, 4);
             ValidateRuntimeIdentity(repositoryRoot);
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
-            RunRuntimeTests(repositoryRoot);
+            RunRuntimeTests(repositoryRoot, args[3]);
+            break;
+
+        case "unit-test":
+            RequireArguments(args, 1);
+            RunUnitTests(repositoryRoot);
             break;
 
         case "release-managed":
@@ -493,11 +498,42 @@ static void WriteEnvironment(string name, string value)
     File.AppendAllText(environmentPath, $"{name}={value}{Environment.NewLine}");
 }
 
-static void RunRuntimeTests(string repositoryRoot)
+static void RunRuntimeTests(string repositoryRoot, string suite)
+{
+    bool includeUnitTests = suite switch
+    {
+        "all" => true,
+        "integration" => false,
+        _ => throw new ArgumentOutOfRangeException(nameof(suite), suite, "Test suite must be 'all' or 'integration'."),
+    };
+    BuildTests(repositoryRoot);
+    string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
+
+    if (!includeUnitTests)
+    {
+        RunTestModule(repositoryRoot, integrationTestModule);
+        return;
+    }
+
+    Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
+    Task unitTests = Task.Run(() => RunUnitTestModules(repositoryRoot));
+    Task.WhenAll(integrationTests, unitTests).GetAwaiter().GetResult();
+}
+
+static void RunUnitTests(string repositoryRoot)
+{
+    BuildTests(repositoryRoot);
+    RunUnitTestModules(repositoryRoot);
+}
+
+static void BuildTests(string repositoryRoot)
 {
     Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m"], repositoryRoot);
-    string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
-    string[] unitTestModules =
+}
+
+static void RunUnitTestModules(string repositoryRoot)
+{
+    string[] testModules =
     [
         "tests/Ankus.Examples.Hello.Tests/bin/Release/net10.0/Ankus.Examples.Hello.Tests.dll",
         "tests/Ankus.Generators.Tests/bin/Release/net10.0/Ankus.Generators.Tests.dll",
@@ -505,15 +541,10 @@ static void RunRuntimeTests(string repositoryRoot)
         "tests/Ankus.Runtime.Tests/bin/Release/net10.0/Ankus.Runtime.Tests.dll",
     ];
 
-    Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
-    Task unitTests = Task.Run(() =>
+    foreach (string testModule in testModules)
     {
-        foreach (string testModule in unitTestModules)
-        {
-            RunTestModule(repositoryRoot, testModule);
-        }
-    });
-    Task.WhenAll(integrationTests, unitTests).GetAwaiter().GetResult();
+        RunTestModule(repositoryRoot, testModule);
+    }
 }
 
 static void RunTestModule(string repositoryRoot, string testModule)
