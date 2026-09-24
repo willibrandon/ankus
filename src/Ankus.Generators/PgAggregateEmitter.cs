@@ -56,9 +56,13 @@ internal static class PgAggregateEmitter
         string invocation = helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
             "(" + string.Join(", ", arguments) + ")";
         managed.AppendLine("                " + helper.Result.Managed + " value = " + invocation + ";");
-        if (helper.Result.IsInternal)
+        if (helper.Result.IsManagedState)
         {
             managed.AppendLine("                *result = global::Ankus.NativeAggregate.Write(value);");
+        }
+        else if (helper.Result.IsInternal)
+        {
+            managed.AppendLine("                *result = global::Ankus.NativeAggregate.WriteInternal(value);");
         }
         else
         {
@@ -101,7 +105,7 @@ internal static class PgAggregateEmitter
         managed.AppendLine();
 
         string[] required = [.. helper.Types.Select(static value => value.Nullable ? "false" : "true"), .. helper.Deserialize ? new[] { "false" } : []];
-        string[] internalArguments = [.. helper.Types.Select(static value => value.IsInternal ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
+        string[] internalArguments = [.. helper.Types.Select(static value => value.IsManagedState ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
         string[] polymorphic = [.. helper.Types.Select(static value => value.Datum?.IsPolymorphic == true ? "true" : "false"), .. helper.Deserialize ? new[] { "false" } : []];
         string count = required.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, required.Length).ToString(CultureInfo.InvariantCulture);
@@ -118,7 +122,7 @@ internal static class PgAggregateEmitter
         native.AppendLine($"    const bool internal_arguments[{capacity}] = {{{(internalArguments.Length == 0 ? "false" : string.Join(", ", internalArguments))}}};");
         native.AppendLine($"    const bool polymorphic[{capacity}] = {{{(polymorphic.Length == 0 ? "false" : string.Join(", ", polymorphic))}}};");
         native.AppendLine($"    return ankus_aggregate_call(fcinfo, {callback}, {count}, required, internal_arguments, " +
-            $"{(helper.Result.IsInternal ? "true" : "false")}, {(helper.Deserialize ? "true" : "false")}, polymorphic, " +
+            $"{(helper.Result.IsManagedState ? "true" : "false")}, {(helper.Deserialize ? "true" : "false")}, polymorphic, " +
             $"{(helper.Result.Datum?.IsPolymorphic == true ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();

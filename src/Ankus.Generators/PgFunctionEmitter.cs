@@ -171,7 +171,11 @@ internal static class PgFunctionEmitter
             source.AppendLine($"{inputIndent}    arguments[{argument}].is_null = PG_ARGISNULL({argument});");
             source.AppendLine($"{inputIndent}    if (!arguments[{argument}].is_null)");
             source.AppendLine(inputIndent + "    {");
-            if (parameter.Element is not null)
+            if (parameter.IsInternal)
+            {
+                source.AppendLine($"{inputIndent}        arguments[{argument}].integral = (int64) (uintptr_t) PG_GETARG_DATUM({argument});");
+            }
+            else if (parameter.Element is not null)
             {
                 source.AppendLine($"{inputIndent}        ankus_read_array(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
@@ -258,7 +262,14 @@ internal static class PgFunctionEmitter
         source.AppendLine();
         source.AppendLine("    PG_TRY();");
         source.AppendLine("    {");
-        if (result.IsPolymorphic)
+        if (result.IsInternal)
+        {
+            source.AppendLine("        AnkusParameter parameter = {0};");
+            source.AppendLine("        parameter.type_oid = INTERNALOID;");
+            source.AppendLine("        parameter.value = result;");
+            source.AppendLine("        datum = ankus_parameter_datum(&parameter);");
+        }
+        else if (result.IsPolymorphic)
         {
             source.AppendLine("        AnkusParameter parameter = {0};");
             source.AppendLine("        parameter.type_oid = get_fn_expr_rettype(fcinfo->flinfo);");

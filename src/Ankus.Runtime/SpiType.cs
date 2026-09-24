@@ -33,6 +33,11 @@ internal static class SpiType
     internal static uint GetOid(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (type == typeof(PgInternal))
+        {
+            return 2281;
+        }
+
         if (type == typeof(PgHeapTuple))
         {
             return 2249;
@@ -219,6 +224,7 @@ internal static class SpiType
     internal static NativeValue ToNative(object? value) => value switch
     {
         PgDatum datum => datum.ToNative(),
+        PgInternal state => state.ToNative(),
         null => new NativeValue { IsNull = 1 },
         bool boolean => new NativeValue { Integral = boolean ? 1 : 0 },
         sbyte number => new NativeValue { Integral = number },
@@ -282,6 +288,7 @@ internal static class SpiType
 
         return oid switch
         {
+            2281 => value.ReadInternal(),
             16 => value.Integral != 0,
             17 => value.ReadBytes(),
             18 => (sbyte)value.Integral,

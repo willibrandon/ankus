@@ -2761,7 +2761,8 @@ The phases track implementation of the complete pgrx feature surface.
      - [x] Scalar arrays, vectors, dimensions/lower bounds, NULL elements and SQL variadics
     - [x] `[PgSchema]`, explicit function options, SETOF and named TABLE results
     - [x] Polymorphic scalar, SETOF, TABLE and aggregate signatures
-    - [ ] Remaining datum mappings and general internal/raw signatures
+    - [x] General `internal` state in scalar, SETOF, TABLE and aggregate callbacks
+    - [ ] Remaining datum mappings and general raw signatures
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -3739,5 +3740,61 @@ The phases track implementation of the complete pgrx feature surface.
   The Release build passes with zero warnings and errors in 8.00s. The CI repair
   commit contains only these test fixes and this evidence. The failed CI run
   passed Linux x64/PostgreSQL 18,
-  macOS ARM64/PostgreSQL 18, runtime builds, and quality checks. Windows verification
-  of the fixes remains pending; workflow structure and time limits are unchanged.
+  macOS ARM64/PostgreSQL 18, runtime builds, and quality checks.
+
+  The repair then passed all seven jobs in
+  [CI run 36050481428](https://github.com/willibrandon/ankus/actions/runs/36050481428)
+  at `bfd931c`. Linux x64/PostgreSQL 18 passed all 2,463 integration cases;
+  macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17 each passed 2,461 with
+  only the two existing Linux allocator checks skipped. All other test modules
+  passed without skips. Windows completed in 14m34s and macOS in 5m32s.
+  Workflow structure and time limits are unchanged.
+
+- 2026-09-24 — Added `PgInternal` for PostgreSQL's general `internal` callback
+  type, following pgrx's `datum/internal.rs`. It can retain managed state under a
+  PostgreSQL context or borrow a native word without interpreting its pointee.
+  Nullable wrappers represent SQL NULL separately from a present zero pointer.
+  Managed aliases recover the original owner and exact payload type; reset or
+  deletion releases the root and invokes `IDisposable` once. A failed cleanup
+  cannot revive state through reads, raw access, or a previously bound parameter.
+  Registration failure releases the native identity without taking ownership of
+  the caller's payload.
+
+  Generated scalar, SETOF, TABLE, and aggregate callbacks transport internal
+  words directly. Aggregate state selects the proper native owner, including
+  moving windows and temporary deserialization. Combination rejects returning
+  temporary managed state as destination-owned state. Native caller tests exposed
+  two set-result issues: PostgreSQL classifies `internal` as a pseudotype, and a
+  materialized store outlives its iterator. The set bridge now accepts the exact
+  internal type and retains materialized managed payloads with the caller's
+  result context instead of deleting them with the iterator.
+
+  Direct runtime checks pass 4/4. Compiled signatures and affected diagnostics
+  pass 26/26. The complete 20-case internal backend scope passes without skips in
+  43.759s on PostgreSQL 18.6/Linux x64, including actual workers and native callers
+  for streaming/materialized SETOF and TABLE results. Public documentation now
+  describes managed state, native borrowing, cleanup, and result ownership.
+  A separate SPI round-trip check passes and retains the original managed owner
+  after execution storage is released. Final plain `dotnet test` passes
+  4,641/4,641 without skips in 2m50.526s on PostgreSQL 18.6/Linux x64. The Release
+  build passes with zero warnings and errors in 5.64s. API freshness (132 pages,
+  1,354 members), `pnpm build` (167 pages), and `pnpm check` pass without
+  diagnostics. Cross-platform verification of this milestone remains pending CI.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Native words, zero versus NULL, exact type, owner generations and parameter transport | `PgInternalTests.NativeWordsRetainNullTypeAndLifetimeContracts`; `AggregateTests.InternalNativePointersPreserveNullZeroAndWritableValues` |
+  | Original managed identity, exact type, invalidation before disposal and failed registration | `PgInternalTests.ManagedAliasesRetainExactPayloadAndInvalidateBeforeDisposal`, `FailedRegistrationReleasesIdentityAndPermitsRetry` |
+  | Managed rooting and release even when disposal throws | `PgInternalTests.NativeOwnerRootsPayloadAndReleasesItOnThrowingCleanup`; `AggregateTests.InternalThrowingCleanupRejectsReleasedStateAndRecovers` |
+  | Ordinary support functions, explicit owners, groups, NULL inputs and moving frames | `AggregateTests.InternalFunctionStateSurvivesCallbacksAndReleasesAtQueryEnd`, `InternalAggregateStatesPreserveGroupsAndMovingWindows` |
+  | Native SETOF/TABLE callers, both execution modes, repeated state, NULL rows and early termination | `AggregateTests.InternalSetStatesOutliveRowsAndReleaseWithTheirOwner` |
+  | Worker launch, serialization, deserialization, combination and independent native owners | `AggregateTests.InternalParallelStatesSerializeDeserializeAndCombineAcrossWorkers` |
+  | Transition/serialization/deserialization errors, invalid borrowed state and same-backend recovery | `AggregateTests.InternalAggregateErrorsReleaseOwnedStateAndRecover`, `InternalNativeTypeErrorsPreserveBackendRecovery` |
+  | Compilable scalar/set/table/aggregate declarations and PostgreSQL internal type rules | `PgFunctionGeneratorTests.InternalFunctionSignaturesCompileWithCheckedTransport`, `GeneralInternalAggregateStateCompilesWithSerialization`, `InternalResultsRequireInternalInputs`, `UnsupportedSignaturesAreRejected` |
+
+  PostgreSQL's SQL parser and pgrx's `fn_call` both reject explicit catalog calls
+  with internal signatures; the existing Ankus catalog-call rule follows those
+  references. Native entry-point calls retain their explicit pointer-lifetime
+  contract. General raw signatures, heterogeneous variadic `any`, custom base
+  types, remaining backend APIs, and the full PostgreSQL/platform matrix remain
+  required. This milestone is not evidence of full port completion.

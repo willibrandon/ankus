@@ -108,6 +108,8 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
     [DataRow("public static int[,] Rectangular(int[,] value) => value;")]
     [DataRow("public static Ankus.PgArray<Ankus.PgArray<int>> Nested(Ankus.PgArray<Ankus.PgArray<int>> value) => value;")]
     [DataRow("public static Ankus.PgArray<byte> ByteElements(Ankus.PgArray<byte> value) => value;")]
+    [DataRow("public static Ankus.PgInternal[] InternalArray(Ankus.PgInternal[] value) => value;")]
+    [DataRow("public static Ankus.PgArray<Ankus.PgInternal> InternalArray(Ankus.PgArray<Ankus.PgInternal> value) => value;")]
     [DataRow("public static byte[] ScalarParams(params byte[] value) => value;")]
     [DataRow("public static int SpanParams(params System.ReadOnlySpan<int> value) => value.Length;")]
     [DataRow("public static int ByReference(ref int value) => value;")]

@@ -105,6 +105,13 @@ or share state across several final methods. Retained wrappers reject payload
 access after release, and attached wrappers belong to their backend thread.
 Ordinary managed values copied from inputs use Ankus's owned datum representations.
 
+Use `PgInternal` when the same state also passes through ordinary backend support
+functions or native callbacks. `PgInternal.Create(value)` selects the aggregate
+owner inside aggregate callbacks; `Get<T>()` retrieves the exact retained type.
+Its payload is released at context reset or deletion. If its `Dispose` throws,
+PostgreSQL reports an error and stops that context's cleanup until cleanup is
+retried. The released payload cannot be read or passed again.
+
 ## Parallel aggregation
 
 Set the aggregate's `ParallelSafety` and implement `Combine`. Managed internal

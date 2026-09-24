@@ -37,6 +37,17 @@ public static unsafe partial class NativeBackend
     /// <returns>The managed copy or checked polymorphic wrapper.</returns>
     internal static T ReadDatum<T>(PgDatum value)
     {
+        if (typeof(T) == typeof(PgInternal))
+        {
+            value.Lifetime.Validate();
+            if (value.TypeOid != 2281)
+            {
+                throw new InvalidCastException("The datum is not PostgreSQL internal state.");
+            }
+
+            return value.IsNull ? default! : (T)(object)new PgInternal(value);
+        }
+
         if (PgPolymorphic.Is<T>())
         {
             return PgPolymorphic.Read<T>(value);

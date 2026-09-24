@@ -16,6 +16,10 @@ internal static class AllocatorFixtureCompiler
         AS 'Ankus.AllocatorFixture', 'ankus_test_function_address' LANGUAGE c STRICT;
         CREATE FUNCTION tests.native_nullable_sum(integer, integer) RETURNS integer
         AS 'Ankus.AllocatorFixture', 'ankus_test_nullable_sum' LANGUAGE c;
+        CREATE FUNCTION tests.internal_invoke(regprocedure, integer) RETURNS bigint
+        AS 'Ankus.AllocatorFixture', 'ankus_test_internal_invoke' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.internal_set_invoke(regprocedure, regprocedure, boolean, boolean) RETURNS integer
+        AS 'Ankus.AllocatorFixture', 'ankus_test_internal_set_invoke' LANGUAGE c STRICT;
         CREATE FUNCTION tests.allocator_create(integer, regprocedure, text) RETURNS integer
         AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_create' LANGUAGE c STRICT;
         CREATE FUNCTION tests.allocator_delete() RETURNS void

@@ -24,9 +24,14 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     internal bool Nullable { get; } = nullable;
 
     /// <summary>
-    /// Gets whether this value uses aggregate-owned internal state transport.
+    /// Gets whether this value has PostgreSQL's internal SQL type.
     /// </summary>
-    internal bool IsInternal => Payload is not null;
+    internal bool IsInternal => Payload is not null || Datum?.IsInternal == true;
+
+    /// <summary>
+    /// Gets whether the value uses the aggregate-specific managed root transport.
+    /// </summary>
+    internal bool IsManagedState => Payload is not null;
 
     /// <summary>
     /// Gets the PostgreSQL type spelling.
@@ -39,7 +44,7 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     internal string Managed => (Datum?.Managed ?? "global::Ankus.PgAggregateState<" + Payload + ">") + (Nullable ? "?" : string.Empty);
 
     /// <summary>
-    /// Resolves one aggregate support parameter or result without exposing internal state to ordinary functions.
+    /// Resolves a support value while preserving aggregate-specific managed payload types.
     /// </summary>
     internal static AggregateType? Create(ITypeSymbol type, ImmutableArray<AttributeData> attributes)
     {
@@ -76,6 +81,6 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     /// Emits a nullable-aware managed read for a validated native argument slot.
     /// </summary>
     internal string Read(string slot, ImmutableArray<AttributeData> attributes)
-        => IsInternal ? "global::Ankus.NativeAggregate.Read<" + Payload + ">(" + slot + ")" + (Nullable ? string.Empty : "!") :
+        => IsManagedState ? "global::Ankus.NativeAggregate.Read<" + Payload + ">(" + slot + ")" + (Nullable ? string.Empty : "!") :
             ManagedConversion.Read(Datum!, slot, NumericConstraint.Rescale(attributes));
 }

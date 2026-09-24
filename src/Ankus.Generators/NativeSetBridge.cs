@@ -20,6 +20,7 @@ internal static class NativeSetBridge
         {
             MemoryContextCallback reset;
             MemoryContext owner;
+            MemoryContext result_owner;
             void *iterator;
             AnkusSetCallback callback;
             Oid function;
@@ -47,7 +48,7 @@ internal static class NativeSetBridge
             ankus_function_oid = state->function;
             ankus_memory_initialize(&memory);
             /* Results retained by managed iterators must outlive individual row callbacks. */
-            memory.result_context = state->owner;
+            memory.result_context = state->result_owner;
             ankus_memory_protect(&protection, state->owner, operation == 3);
             PG_TRY();
             {
@@ -153,6 +154,7 @@ internal static class NativeSetBridge
             TypeFuncClass result_kind;
             state->function = fcinfo->flinfo->fn_oid;
             state->owner = context->multi_call_memory_ctx;
+            state->result_owner = state->owner;
             state->callback = callback;
             state->columns = columns;
             state->composite_result = composite_result;
@@ -195,11 +197,18 @@ internal static class NativeSetBridge
                     else if (state->materialize)
                         ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("Materialized record sets require a caller-supplied row descriptor")));
                 }
-                else if (result_kind != TYPEFUNC_SCALAR)
+                else if (result_kind != TYPEFUNC_SCALAR && scalar_type != INTERNALOID)
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus SETOF result requires a scalar column type")));
                 state->descriptor = CreateTemplateTupleDesc(1);
                 TupleDescInitEntry(state->descriptor, 1, "value", scalar_type, -1, 0);
             }
+
+            /* Materialization copies internal words, not their pointed-to state.
+             * Keep managed payloads with the returned store after the iterator closes. */
+            if (state->materialize && !composite_result)
+                for (int index = 0; index < columns; index++)
+                    if (TupleDescAttr(state->descriptor, index)->atttypid == INTERNALOID)
+                        state->result_owner = info->econtext->ecxt_per_query_memory;
 
             state->row = palloc0(sizeof(AnkusValue) * columns);
             state->values = palloc0(sizeof(Datum) * columns);

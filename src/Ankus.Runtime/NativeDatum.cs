@@ -8,6 +8,24 @@ namespace Ankus;
 public partial struct NativeValue
 {
     /// <summary>
+    /// Borrows an internal input, recovering managed state ownership when this extension created it.
+    /// </summary>
+    /// <returns>The present internal state, including a present zero native word.</returns>
+    public readonly PgInternal ReadInternal()
+        => PgInternal.DangerousCreate(unchecked((nuint)Integral), PgMemoryContext.Current);
+
+    /// <summary>
+    /// Writes internal state with its checked native lifetime without cloning its pointee.
+    /// </summary>
+    /// <param name="value">The present internal state.</param>
+    /// <returns>The native-validated raw transport.</returns>
+    public static NativeValue FromInternal(PgInternal value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.ToNative();
+    }
+
+    /// <summary>
     /// Copies a generated polymorphic input into the active scalar or iterator memory owner.
     /// </summary>
     /// <returns>The present datum with its resolved type.</returns>

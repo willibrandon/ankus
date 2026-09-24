@@ -1,7 +1,12 @@
 #include "postgres.h"
 #include "fmgr.h"
+#include "funcapi.h"
+#include "catalog/pg_type_d.h"
+#include "executor/executor.h"
 #include "utils/builtins.h"
+#include "utils/lsyscache.h"
 #include "utils/memutils.h"
+#include "utils/tuplestore.h"
 
 PG_MODULE_MAGIC;
 
@@ -29,6 +34,126 @@ ankus_test_nullable_sum(PG_FUNCTION_ARGS)
     }
 
     PG_RETURN_INT32(total);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_internal_invoke);
+PGDLLEXPORT Datum
+ankus_test_internal_invoke(PG_FUNCTION_ARGS)
+{
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 1);
+    int32 mode = PG_GETARG_INT32(1);
+    int64 stored = 41;
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 1, InvalidOid, NULL, NULL);
+    call->args[0].isnull = mode == 0;
+    call->args[0].value = mode == 2 ? PointerGetDatum(&stored) : (Datum) 0;
+    Datum result = FunctionCallInvoke(call);
+    if (mode == 2 && stored != 42)
+        ereport(ERROR, (errmsg("managed internal callback did not update the native pointee")));
+    if (call->isnull)
+        PG_RETURN_NULL();
+
+    return result;
+}
+
+/* Read each opaque state through its managed consumer while its result owner is live. */
+static void
+internal_fixture_check_row(FmgrInfo *reader, Datum value, bool is_null, int row)
+{
+    LOCAL_FCINFO(call, 1);
+    if (row > 3 || is_null != (row == 3))
+        ereport(ERROR, (errmsg("internal set returned an unexpected row or NULL flag")));
+    InitFunctionCallInfoData(*call, reader, 1, InvalidOid, NULL, NULL);
+    call->args[0].value = value;
+    call->args[0].isnull = is_null;
+    Datum result = FunctionCallInvoke(call);
+    if (call->isnull != is_null || (!is_null && DatumGetInt64(result) != (row == 1 ? 42 : 40)))
+        ereport(ERROR, (errmsg("internal set state did not retain its expected value")));
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_internal_set_invoke);
+PGDLLEXPORT Datum
+ankus_test_internal_set_invoke(PG_FUNCTION_ARGS)
+{
+    MemoryContext previous = CurrentMemoryContext;
+    EState *estate = CreateExecutorState();
+    bool materialize = PG_GETARG_BOOL(2);
+    bool early = PG_GETARG_BOOL(3);
+    volatile int rows = 0;
+    PG_TRY();
+    {
+        MemoryContextSwitchTo(estate->es_query_cxt);
+        FmgrInfo function;
+        FmgrInfo reader;
+        ReturnSetInfo info = {0};
+        LOCAL_FCINFO(call, 1);
+        fmgr_info(PG_GETARG_OID(0), &function);
+        fmgr_info(PG_GETARG_OID(1), &reader);
+        bool table = get_func_rettype(function.fn_oid) == RECORDOID;
+        info.type = T_ReturnSetInfo;
+        info.econtext = GetPerTupleExprContext(estate);
+        info.allowedModes = materialize ? SFRM_Materialize : SFRM_ValuePerCall;
+        InitFunctionCallInfoData(*call, &function, 1, InvalidOid, NULL, (Node *) &info);
+        call->args[0].isnull = true;
+        if (materialize)
+        {
+            (void) FunctionCallInvoke(call);
+            if (info.returnMode != SFRM_Materialize || info.setResult == NULL || info.setDesc == NULL)
+                ereport(ERROR, (errmsg("internal set did not materialize its rows")));
+            TupleTableSlot *slot = MakeSingleTupleTableSlot(info.setDesc, &TTSOpsMinimalTuple);
+            while (tuplestore_gettupleslot(info.setResult, true, false, slot))
+            {
+                bool is_null;
+                Datum value = slot_getattr(slot, 1, &is_null);
+                internal_fixture_check_row(&reader, value, is_null, rows);
+                if (table)
+                {
+                    value = slot_getattr(slot, 2, &is_null);
+                    if (is_null || DatumGetInt32(value) != rows + 1)
+                        ereport(ERROR, (errmsg("internal TABLE position was incorrect")));
+                }
+
+                rows++;
+                ExecClearTuple(slot);
+                if (early)
+                    break;
+            }
+
+            ExecDropSingleTupleTableSlot(slot);
+            tuplestore_end(info.setResult);
+        }
+        else
+        {
+            for (;;)
+            {
+                Datum value = FunctionCallInvoke(call);
+                if (info.isDone == ExprEndResult)
+                    break;
+                bool is_null = call->isnull;
+                if (table)
+                {
+                    HeapTupleHeader tuple = DatumGetHeapTupleHeader(value);
+                    Datum position = GetAttributeByNum(tuple, 2, &is_null);
+                    if (is_null || DatumGetInt32(position) != rows + 1)
+                        ereport(ERROR, (errmsg("internal TABLE position was incorrect")));
+                    value = GetAttributeByNum(tuple, 1, &is_null);
+                }
+
+                internal_fixture_check_row(&reader, value, is_null, rows);
+                rows++;
+                if (early)
+                    break;
+            }
+        }
+    }
+    PG_FINALLY();
+    {
+        MemoryContextSwitchTo(previous);
+        FreeExecutorState(estate);
+    }
+    PG_END_TRY();
+    PG_RETURN_INT32(rows);
 }
 
 static MemoryContext fixture_parent = NULL;

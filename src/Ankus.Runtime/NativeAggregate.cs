@@ -265,6 +265,28 @@ public static unsafe class NativeAggregate
         return PgMemoryContext.FromId(provider, identity);
     }
 
+    /// <summary>
+    /// Writes general internal state while preventing managed payloads from escaping a temporary aggregate owner.
+    /// </summary>
+    /// <param name="value">The returned state, or null for SQL NULL.</param>
+    /// <returns>The checked internal transport.</returns>
+    public static NativeValue WriteInternal(PgInternal? value)
+    {
+        PgAggregateContext context = Current();
+        if (value is null)
+        {
+            return new NativeValue { IsNull = 1 };
+        }
+
+        value.Datum.Lifetime.Validate();
+        if (value.IsManaged && value.Datum.Lifetime.ContextId != GetMemoryContext(context).Id)
+        {
+            throw new InvalidOperationException("Managed internal state must belong to the destination aggregate memory context.");
+        }
+
+        return NativeValue.FromInternal(value);
+    }
+
     private static PgAggregateContext Current()
     {
         if (s_current is null || s_cleanupDepth != 0)

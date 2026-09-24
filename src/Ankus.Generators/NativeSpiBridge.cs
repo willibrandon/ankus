@@ -398,6 +398,7 @@ internal static class NativeSpiBridge
             type = getBaseType(type);
             switch (type)
             {
+                case INTERNALOID: value->integral = (int64) (uintptr_t) datum; break;
                 case INT4RANGEOID: case INT8RANGEOID: case NUMRANGEOID: case DATERANGEOID: case TSRANGEOID: case TSTZRANGEOID:
                     ankus_read_range(datum, value, owned);
                     break;

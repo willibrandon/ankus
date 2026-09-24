@@ -82,6 +82,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
+| `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
