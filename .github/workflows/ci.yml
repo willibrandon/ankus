@@ -114,31 +114,15 @@ jobs:
           - runner: ubuntu-24.04
             rid: linux-x64
             postgresql: 18
-            suite: all
           - runner: macos-15
             rid: osx-arm64
             postgresql: 18
-            suite: all
           - runner: macos-15-intel
             rid: osx-x64
             postgresql: 18
-            suite: integration-1
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
-            suite: integration-2
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
-            suite: integration-3
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
-            suite: integration-4
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
-            suite: all
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     steps:
@@ -161,12 +145,11 @@ jobs:
           dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test
           ${{ matrix.rid }}
           ${{ matrix.postgresql }}
-          ${{ matrix.suite }}
 
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: test-logs-${{ matrix.rid }}-${{ matrix.suite }}
+          name: test-logs-${{ matrix.rid }}
           path: artifacts/test-logs/**
           if-no-files-found: ignore
           retention-days: 7

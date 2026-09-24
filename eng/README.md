@@ -16,7 +16,7 @@ repository root with `dotnet run --file`.
 | `quality` | Build Ankus and validate generated API and site documentation. |
 | `runtime-build` | Build and stage one runtime for CI. |
 | `runtime-pack` | Pack a staged runtime for CI. |
-| `runtime-test` | Use a staged runtime to run PostgreSQL tests, including the four integration shards used by CI. Shard 1 also runs the unit tests. |
+| `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
 | `unit-test` | Build and run the four unit test modules. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack one platform runtime package. |

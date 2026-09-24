@@ -3365,8 +3365,10 @@ The phases track implementation of the complete pgrx feature surface.
   [Hosted CI run 35999926137](https://github.com/willibrandon/ankus/actions/runs/35999926137)
   passes every job and all 2,054 macOS x64 integration cases; the slowest shard
   completes in 11m07s. Windows repeats the full suite successfully in 14m18s. The
-  measured tool shards are consolidated into one 50-test shard, and shard 1 also
-  runs the 2,088 unit cases. CI now has four integration shards and one ARM64 job,
-  matching the five available macOS runners without leaving work queued. The
-  consolidated tool shard passes 50/50 locally in 2m19.830s.
+  intermediate four-shard configuration combined the 50 tool tests and included
+  the 2,088 unit cases in the first job. The tool tests passed 50/50 locally in
+  2m19.830s. Sharding has now been removed at the user's request. Each platform
+  runs the complete unit and integration suites in one job, with the existing
+  15-minute timeout. The automation no longer accepts shard selections or filters.
+  The updated file-based app compiles in Release without diagnostics.
   Execution across PostgreSQL 15–18 on every supported platform remains pending.

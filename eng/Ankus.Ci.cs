@@ -11,20 +11,6 @@ const string RuntimeBase = "v10.0.11";
 const string RuntimeCommit = "bb56f167c97e2c8e79423de9e43f43cde9ae1a88";
 const string RuntimeVersion = "10.0.11-ankus.3";
 const string RuntimeCompilerVersion = "10.0.11";
-const string IntegrationShardOneFilter =
-    "ClassName~Ankus.IntegrationTests.A|ClassName~Ankus.IntegrationTests.C|ClassName~Ankus.IntegrationTests.D|" +
-    "ClassName~Ankus.IntegrationTests.E|ClassName~Ankus.IntegrationTests.F|ClassName~Ankus.IntegrationTests.G";
-const string IntegrationShardTwoFilter =
-    "ClassName~Ankus.IntegrationTests.I|ClassName~Ankus.IntegrationTests.M|ClassName~Ankus.IntegrationTests.N|" +
-    "ClassName~Ankus.IntegrationTests.O|ClassName~Ankus.IntegrationTests.P|ClassName~Ankus.IntegrationTests.R|" +
-    "ClassName~Ankus.IntegrationTests.S";
-const string IntegrationShardThreeFilter =
-    "ClassName!~Ankus.IntegrationTests.A&ClassName!~Ankus.IntegrationTests.C&ClassName!~Ankus.IntegrationTests.D&" +
-    "ClassName!~Ankus.IntegrationTests.E&ClassName!~Ankus.IntegrationTests.F&ClassName!~Ankus.IntegrationTests.G&" +
-    "ClassName!~Ankus.IntegrationTests.I&ClassName!~Ankus.IntegrationTests.M&ClassName!~Ankus.IntegrationTests.N&" +
-    "ClassName!~Ankus.IntegrationTests.O&ClassName!~Ankus.IntegrationTests.P&ClassName!~Ankus.IntegrationTests.R&" +
-    "ClassName!~Ankus.IntegrationTests.S&ClassName!=Ankus.IntegrationTests.ToolCommandTests";
-const string IntegrationShardFourFilter = "ClassName=Ankus.IntegrationTests.ToolCommandTests";
 
 string repositoryRoot = FindRepositoryRoot();
 Directory.SetCurrentDirectory(repositoryRoot);
@@ -84,11 +70,11 @@ try
             break;
 
         case "runtime-test":
-            RequireArguments(args, 4);
+            RequireArguments(args, 3);
             ValidateRuntimeIdentity(repositoryRoot);
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
-            RunRuntimeTests(repositoryRoot, args[3]);
+            RunRuntimeTests(repositoryRoot);
             break;
 
         case "unit-test":
@@ -512,29 +498,11 @@ static void WriteEnvironment(string name, string value)
     File.AppendAllText(environmentPath, $"{name}={value}{Environment.NewLine}");
 }
 
-static void RunRuntimeTests(string repositoryRoot, string suite)
+static void RunRuntimeTests(string repositoryRoot)
 {
-    (bool IncludeUnitTests, string? IntegrationFilter) selection = suite switch
-    {
-        "all" => (true, null),
-        "integration" => (false, null),
-        "integration-1" => (true, IntegrationShardOneFilter),
-        "integration-2" => (false, IntegrationShardTwoFilter),
-        "integration-3" => (false, IntegrationShardThreeFilter),
-        "integration-4" => (false, IntegrationShardFourFilter),
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(suite), suite, "Test suite must be 'all', 'integration', or 'integration-1' through 'integration-4'."),
-    };
     BuildTests(repositoryRoot);
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
-
-    if (!selection.IncludeUnitTests)
-    {
-        RunTestModule(repositoryRoot, integrationTestModule, selection.IntegrationFilter);
-        return;
-    }
-
-    Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule, selection.IntegrationFilter));
+    Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
     Task unitTests = Task.Run(() => RunUnitTestModules(repositoryRoot));
     Task.WhenAll(integrationTests, unitTests).GetAwaiter().GetResult();
 }
@@ -566,7 +534,7 @@ static void RunUnitTestModules(string repositoryRoot)
     }
 }
 
-static void RunTestModule(string repositoryRoot, string testModule, string? filter = null)
+static void RunTestModule(string repositoryRoot, string testModule)
 {
     string path = Path.Combine(repositoryRoot, testModule.Replace('/', Path.DirectorySeparatorChar));
 
@@ -575,7 +543,7 @@ static void RunTestModule(string repositoryRoot, string testModule, string? filt
         throw new FileNotFoundException("A required test module was not built.", path);
     }
 
-    List<string> arguments =
+    string[] arguments =
     [
         "test",
         "--test-modules",
@@ -585,12 +553,6 @@ static void RunTestModule(string repositoryRoot, string testModule, string? filt
         "--minimum-expected-tests",
         "1",
     ];
-    if (filter is not null)
-    {
-        arguments.Add("--filter");
-        arguments.Add(filter);
-    }
-
     Run(GetDotNetHost(), arguments, repositoryRoot);
 }
 
