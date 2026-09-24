@@ -1,3 +1,5 @@
+using System.Net.Sockets;
+using Ankus.Testing;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -257,26 +259,102 @@ public sealed class TransactionCallbackTests(TestContext context)
     }
 
     /// <summary>
-    /// An exception after commit ends only that backend because PostgreSQL can no longer reverse the commit.
+    /// Post-commit exceptions unwind before PANIC and preserve committed writes through PostgreSQL recovery.
     /// </summary>
+    /// <param name="write">Whether the transaction assigns an XID and durably commits a row.</param>
     [TestMethod]
-    public async Task CommitFailureEndsTheBackendWithoutStoppingPostgres()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CommitFailurePreservesTransactionOutcomeThroughRecovery(bool write)
     {
         CancellationToken token = context.CancellationToken;
-        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, token);
+        await using NpgsqlConnection observer = await cluster.OpenConnectionAsync(token);
+        await ExecuteAsync(observer, null,
+            "CREATE SCHEMA datatype; CREATE EXTENSION ankus_test WITH SCHEMA datatype; " +
+            "CREATE TABLE callback_commit(value integer)", token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        string session = "ankus-commit-error-" + Guid.NewGuid().ToString("N");
+        await ExecuteAsync(connection, null,
+            $"SET application_name = '{session}'; SET log_error_verbosity = verbose", token);
         await ResetAsync(connection, token);
         await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
         {
+            if (write)
+            {
+                await ExecuteAsync(connection, transaction, "INSERT INTO callback_commit VALUES (42)", token);
+            }
+
             Assert.IsTrue(await ScalarAsync<bool>(connection, transaction,
                 "SELECT datatype.transaction_callback_register_outer(false, false, true, false)", token));
-            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => transaction.CommitAsync(token));
-            Assert.AreEqual("38000", error.SqlState);
-            Assert.AreEqual("managed post-commit failure", error.MessageText);
-            Assert.AreEqual("FATAL", error.Severity);
+            NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => transaction.CommitAsync(token));
+            if (failure is PostgresException error)
+            {
+                Assert.AreEqual("38000", error.SqlState);
+                Assert.AreEqual("managed post-commit failure", error.MessageText);
+                Assert.AreEqual("PANIC", error.InvariantSeverity);
+            }
+            else
+            {
+                // Windows can reset the socket before the client reads PostgreSQL's terminal error.
+                Assert.IsTrue(OperatingSystem.IsWindows());
+                IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
+                SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+                Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+            }
         }
 
-        await using NpgsqlConnection next = await PostgresFixture.Cluster.OpenConnectionAsync(token);
-        Assert.AreEqual(42, await ScalarAsync<int>(next, null, "SELECT 42", token));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
+        {
+            await Task.Delay(50, deadline.Token);
+        }
+
+        string log = cluster.ReadServerLog();
+        string diagnostic = $"[{session}]: PANIC:  38000: managed post-commit failure";
+        string cleanup = $"[{session}]: WARNING:  01000: managed post-commit finally";
+        Assert.Contains(diagnostic, log);
+        Assert.Contains(cleanup, log);
+        Assert.IsLessThan(log.IndexOf(diagnostic, StringComparison.Ordinal), log.IndexOf(cleanup, StringComparison.Ordinal));
+        Assert.DoesNotContain("AbortTransaction while in COMMIT state", log);
+        Assert.DoesNotContain("it was already committed", log);
+        Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
+        await Assert.ThrowsAsync<NpgsqlException>(() => ScalarAsync<int>(observer, null, "SELECT 42", deadline.Token));
+
+        NpgsqlConnection recovered;
+        while (true)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            try
+            {
+                recovered = await cluster.OpenConnectionAsync(deadline.Token);
+                break;
+            }
+            catch (NpgsqlException error) when (error is not PostgresException ||
+                error is PostgresException { SqlState: PostgresErrorCodes.CannotConnectNow or
+                    PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown })
+            {
+                await Task.Delay(50, deadline.Token);
+            }
+        }
+
+        await using (recovered)
+        {
+            Assert.AreEqual(write ? 1L : 0L,
+                await ScalarAsync<long>(recovered, null, "SELECT count(*) FROM callback_commit", deadline.Token));
+            if (write)
+            {
+                Assert.AreEqual(42, await ScalarAsync<int>(recovered, null, "SELECT value FROM callback_commit", deadline.Token));
+            }
+
+            await ResetAsync(recovered, deadline.Token);
+            Assert.IsTrue(await ScalarAsync<bool>(recovered, null,
+                "SELECT datatype.transaction_callback_register_outer(true, false, false, false)", deadline.Token));
+            Assert.AreEqual("pre1:1,commit|False,False,False,False,null,null," + NoSubtransactions,
+                await StateAsync(recovered, deadline.Token));
+        }
     }
 
     /// <summary>

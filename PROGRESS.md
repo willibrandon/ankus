@@ -3894,9 +3894,41 @@ The phases track implementation of the complete pgrx feature surface.
   PostgreSQL 18.6/Linux x64, including 14 new generator cases, six direct runtime
   cases and 24 backend cases. The final Release build passes with zero warnings
   and errors in 4.82s. API freshness (135 pages, 1,371 members), `pnpm build`
-  (172 pages), and `pnpm check` pass without diagnostics. Hosted validation of
-  this milestone is pending. The public custom-type guide and Distance sample
+  (172 pages), and `pnpm check` pass without diagnostics. Hosted run 36067509967
+  passes Linux x64/PostgreSQL 18 (4,740 passed) and macOS ARM64/PostgreSQL 18
+  (4,738 passed, two Linux-only allocator cases skipped). Windows x64/PostgreSQL
+  17 passes the new custom-type cases but exposes one existing transaction
+  callback failure, investigated below. The public custom-type guide and Distance sample
   explain the complete codec contract. Default CBOR storage/JSON text generation, zero-copy
   `PgVarlena` equivalents, generated operator classes, remaining backend APIs,
   heterogeneous variadic `any`, and the full PostgreSQL/platform matrix remain
   required; this is not full `PostgresType` parity.
+
+- 2026-09-24 — Investigated Windows' `CommitFailureEndsTheBackendWithoutStoppingPostgres`
+  failure using the actual server artifact. PostgreSQL reported the expected
+  managed error, while Npgsql received Windows socket reset 10054. Strengthening
+  the test with a committed write exposed a deeper cross-platform bug: `FATAL`
+  starts normal exit cleanup, which tries to abort a transaction already marked
+  committed. The Linux reproduction reported `cannot abort transaction ... it
+  was already committed` and restarted the cluster. The previous read-only
+  test never assigned an XID and incorrectly promised backend-only termination.
+
+  PostgreSQL 15–18 source places commit callbacks after the durable commit and
+  before resource cleanup. pgrx's `register_xact_callback` explicitly documents
+  whole-cluster recovery after an unhandled commit/abort callback failure.
+  Irreversible Ankus callback failures now report the original diagnostic at
+  `PANIC` after managed frames unwind, avoiding a second attempt to abort a
+  committed transaction. Reversible phases continue to report `ERROR`.
+
+  The regression runs read-only and writing transactions in isolated clusters.
+  It verifies the original SQLSTATE/message, managed finally logging before
+  PANIC, peer disconnection, actual postmaster recovery, committed-row survival,
+  and subsequent managed callback execution. Windows connection resets are
+  accepted only for the exact socket error and with the same session's exact
+  server diagnostic. The public callback guide and XML comments now describe
+  this PostgreSQL behavior. The 13 focused transaction callback cases pass on
+  PostgreSQL 18.6/Linux x64. Final plain `dotnet test` passes 4,741/4,741 without
+  skips in 3m17.706s; Release builds with zero warnings and errors in 12.91s.
+  API freshness (135 pages, 1,371 members), `pnpm build` (172 pages), and
+  `pnpm check` pass without diagnostics. The hosted rerun is pending; full
+  PostgreSQL/platform evidence and the remaining port requirements stay open.

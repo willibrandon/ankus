@@ -56,7 +56,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Managed failures unwind callback scopes before native ERROR or FATAL reporting, with SQL limited to reversible phases.
+    /// Managed failures unwind callback scopes before native ERROR or PANIC reporting, with SQL limited to reversible phases.
     /// </summary>
     [TestMethod]
     public void TransactionDispatchRestoresManagedAndNativeScopesBeforeReporting()
@@ -74,7 +74,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("if (transaction_direct_spi && transaction_frame->failed)", native);
         Assert.Contains("ankus_capture_error(data, &transaction_frame->failure);", native);
         Assert.Contains("ankus_memory_protection = protection.previous;\n    if (snapshot_owned)\n    {\n        PopActiveSnapshot();", native);
-        Assert.Contains("ankus_transaction_report(&error, reversible ? ERROR : FATAL);", native);
+        Assert.Contains("ankus_transaction_report(&error, reversible ? ERROR : PANIC);", native);
         Assert.Contains("PG_FINALLY();\n    {\n        ankus_release_error(error);\n    }", native);
         Assert.Contains("Transaction callbacks require an active PostgreSQL transaction", native);
     }

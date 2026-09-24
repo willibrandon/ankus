@@ -156,7 +156,8 @@ internal static class NativeTransactionBridge
 
             if (status != 0)
             {
-                ankus_transaction_report(&error, reversible ? ERROR : FATAL);
+                /* FATAL runs abort cleanup, which is unsafe after an irreversible transaction phase. */
+                ankus_transaction_report(&error, reversible ? ERROR : PANIC);
             }
 
             ankus_release_error(&error);

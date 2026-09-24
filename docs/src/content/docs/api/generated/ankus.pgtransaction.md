@@ -43,6 +43,9 @@ Returns: [PgTransactionCallback](/api/ankus.pgtransactioncallback/)
 
 A registration that can cancel the pending callback.
 
+PreCommit and PrePrepare exceptions reject the transaction. Unhandled exceptions in completed
+commit, abort, and prepare phases cause PostgreSQL crash recovery; committed changes remain committed.
+
 <a id="member-61fc92fefa2755aa"></a>
 
 ### RegisterSubtransactionCallback(PgSubtransactionEvent, Action&lt;PgSubtransactionId, PgSubtransactionId&gt;)
@@ -66,3 +69,6 @@ The action to run with the current subtransaction ID followed by its parent subt
 Returns: [PgSubtransactionCallback](/api/ankus.pgsubtransactioncallback/)
 
 A registration that can cancel future invocations.
+
+Start and PreCommit exceptions reject the operation. Unhandled exceptions during commit or abort
+cleanup cause PostgreSQL crash recovery.

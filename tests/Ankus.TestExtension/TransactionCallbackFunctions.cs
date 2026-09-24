@@ -55,7 +55,7 @@ public static class TransactionCallbackFunctions
     /// </summary>
     /// <param name="cancelSecond">Whether to cancel the second pre-commit callback.</param>
     /// <param name="failPreCommit">Whether the first pre-commit callback raises an ordinary PostgreSQL error.</param>
-    /// <param name="failCommit">Whether the post-commit callback terminates the backend.</param>
+    /// <param name="failCommit">Whether the post-commit callback fails and requires PostgreSQL recovery.</param>
     /// <param name="registerDuringPreCommit">Whether pre-commit registers commit and pre-commit callbacks.</param>
     /// <returns>Whether every initial callback is pending after registration.</returns>
     [PgFunction]
@@ -89,7 +89,14 @@ public static class TransactionCallbackFunctions
             s_events.Add("commit");
             if (failCommit)
             {
-                throw new InvalidOperationException("managed post-commit failure");
+                try
+                {
+                    throw new InvalidOperationException("managed post-commit failure");
+                }
+                finally
+                {
+                    PgLog.Write(PgLogLevel.Warning, "managed post-commit finally");
+                }
             }
         });
         s_abort = PgTransaction.RegisterCallback(PgTransactionEvent.Abort,

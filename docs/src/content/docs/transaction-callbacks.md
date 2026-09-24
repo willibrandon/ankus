@@ -38,8 +38,9 @@ the registration to cancel a callback that has not run.
 
 `PreCommit` and `PrePrepare` may reject the operation by throwing. Events after
 commit, rollback, or preparation are for cleanup and logging. An unhandled
-exception in those events ends the current backend connection because PostgreSQL
-can no longer reverse the outcome.
+exception in those events causes PostgreSQL to disconnect all sessions and run
+crash recovery, as with pgrx. Committed changes remain committed. Use `PreCommit`
+to reject a transaction safely; handle expected failures inside cleanup callbacks.
 
 ## Savepoints and subtransactions
 
