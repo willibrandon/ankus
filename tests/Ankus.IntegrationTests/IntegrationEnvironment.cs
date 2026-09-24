@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Ankus.PgConfig;
 using Ankus.Testing;
@@ -9,6 +10,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 internal static class IntegrationEnvironment
 {
+    private static PostgresInstallation? s_installation;
     private static PostgresTestInstallation? s_stagedInstallation;
 
     /// <summary>
@@ -43,10 +45,7 @@ internal static class IntegrationEnvironment
     /// <returns>The cluster settings for this environment.</returns>
     internal static async Task<PostgresTestClusterOptions> CreateOptionsAsync(CancellationToken cancellationToken)
     {
-        string? pgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
-        PostgresInstallation installation = string.IsNullOrWhiteSpace(pgConfig)
-            ? await PostgresInstallation.DiscoverAsync(cancellationToken)
-            : await PostgresInstallation.CreateAsync(pgConfig, cancellationToken);
+        PostgresInstallation installation = await GetInstallationAsync(cancellationToken);
         string nativePath = NativeOutputDirectory.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
         char pathSeparator = OperatingSystem.IsWindows() ? ';' : ':';
         List<string> configuration = [$"dynamic_library_path = '{nativePath}{pathSeparator}$libdir'"];
@@ -95,37 +94,36 @@ internal static class IntegrationEnvironment
     /// <returns>The absolute path to the extension library.</returns>
     internal static async Task<string> PublishSampleAsync(CancellationToken cancellationToken)
     {
-        await PublishExtensionAsync("tests", "Ankus.TestExtension", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Enums", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Composites", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Operators", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Sets", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Triggers", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.EventTriggers", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Aggregates", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Initialization", cancellationToken);
-        await PublishExtensionAsync("samples", "Ankus.Examples.Configuration", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucOnlyExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucPrefixExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucUnicodePrefixExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucHooksExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.PreloadExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucAssignExtension", cancellationToken);
-        await PublishExtensionAsync("tests", "Ankus.GucShowExtension", cancellationToken);
-        return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", cancellationToken);
+        PostgresInstallation installation = await GetInstallationAsync(cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.TestExtension", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Enums", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Composites", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Operators", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Sets", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Triggers", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.EventTriggers", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Aggregates", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Initialization", installation, cancellationToken);
+        await PublishExtensionAsync("samples", "Ankus.Examples.Configuration", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucOnlyExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucPrefixExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucUnicodePrefixExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucHooksExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.PreloadExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucAssignExtension", installation, cancellationToken);
+        await PublishExtensionAsync("tests", "Ankus.GucShowExtension", installation, cancellationToken);
+        return await PublishExtensionAsync("samples", "Ankus.Examples.Hello", installation, cancellationToken);
     }
 
-    private static async Task<string> PublishExtensionAsync(string directory, string name, CancellationToken cancellationToken)
+    private static async Task<string> PublishExtensionAsync(string directory, string name,
+        PostgresInstallation installation, CancellationToken cancellationToken)
     {
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
         string output = NativeOutputDirectory;
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
-            "--self-contained", "true", "--output", output];
-        string? pgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
-        if (!string.IsNullOrWhiteSpace(pgConfig))
-        {
-            arguments.Add("-p:AnkusPgConfigPath=" + pgConfig);
-        }
+            "--self-contained", "true", "--output", output,
+            "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
+            "-p:AnkusPgConfigPath=" + installation.PgConfigPath];
 
         await ProcessRunner.RunCheckedAsync(
             "dotnet",
@@ -135,6 +133,21 @@ internal static class IntegrationEnvironment
 
         string extension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
         return RequireFile(Path.Combine(output, name + extension));
+    }
+
+    private static async Task<PostgresInstallation> GetInstallationAsync(CancellationToken cancellationToken)
+    {
+        if (s_installation is not null)
+        {
+            return s_installation;
+        }
+
+        string? pgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
+        PostgresInstallation installation = string.IsNullOrWhiteSpace(pgConfig)
+            ? await PostgresInstallation.DiscoverAsync(cancellationToken)
+            : await PostgresInstallation.CreateAsync(pgConfig, cancellationToken);
+        s_installation = installation;
+        return installation;
     }
 
     private static string RequireFile(string path)
