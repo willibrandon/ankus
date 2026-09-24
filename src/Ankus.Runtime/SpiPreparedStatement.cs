@@ -123,6 +123,35 @@ public sealed class SpiPreparedStatement : IDisposable
         => Run(parameters, readOnly, limit, SpiResultMode.All);
 
     /// <summary>
+    /// Copies native result values without requiring a managed mapping for their PostgreSQL types.
+    /// </summary>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>An owned result that survives this plan and expires on disposal or callback-context cleanup.</returns>
+    public SpiRawResult QueryRaw(params ReadOnlySpan<SpiParameter> parameters)
+        => QueryRaw(readOnly: false, limit: 0, parameters);
+
+    /// <summary>
+    /// Copies raw native results with explicit snapshot mode and row limit.
+    /// </summary>
+    /// <param name="readOnly">Whether PostgreSQL should use read-only SPI execution.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>A result to dispose before leaving the backend callback.</returns>
+    public SpiRawResult QueryRaw(bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        ValidateParameters(parameters);
+        _activeExecutions++;
+        try
+        {
+            return NativeBackend.RunRawPlan(Handle, parameters, readOnly, limit, _session);
+        }
+        finally
+        {
+            _activeExecutions--;
+        }
+    }
+
+    /// <summary>
     /// Reads the first cell without limiting command execution or applying implicit type conversions.
     /// SQL NULL or an absent cell requires a nullable value type or reference type.
     /// </summary>

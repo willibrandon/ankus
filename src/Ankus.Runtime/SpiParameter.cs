@@ -17,7 +17,8 @@ public readonly struct SpiParameter
     public uint TypeOid { get; }
 
     /// <summary>
-    /// Gets the managed parameter value, or null for SQL NULL.
+    /// Gets the managed value or raw datum handle. Ordinary SQL NULL parameters have a null value;
+    /// raw parameters carry their NULL flag in PgDatum.IsNull.
     /// </summary>
     public object? Value { get; }
 
@@ -29,6 +30,17 @@ public readonly struct SpiParameter
     /// <param name="value">The parameter value.</param>
     /// <returns>A typed parameter.</returns>
     public static SpiParameter Create<T>(T value) => new(SpiType.GetOid(value), value);
+
+    /// <summary>
+    /// Binds a raw datum with its exact declared PostgreSQL type and SQL NULL flag.
+    /// </summary>
+    /// <param name="value">The raw value, whose native owner must remain live through execution.</param>
+    /// <returns>The typed raw parameter.</returns>
+    public static SpiParameter Create(PgDatum value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new SpiParameter(value.TypeOid, value);
+    }
 
     /// <summary>
     /// Binds a tuple or SQL NULL using an explicit composite descriptor.

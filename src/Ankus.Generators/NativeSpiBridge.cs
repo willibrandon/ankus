@@ -50,7 +50,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_TUPLE,
             ANKUS_SPI_GUC_READ,
             ANKUS_SPI_TRANSACTION_CALLBACKS,
-            ANKUS_SPI_TRANSACTION_ID
+            ANKUS_SPI_TRANSACTION_ID,
+            ANKUS_SPI_DATUM
         };
 
         typedef struct AnkusRequest
@@ -73,6 +74,8 @@ internal static class NativeSpiBridge
             int scalar_operation;
             Oid scalar_result_oid;
             uint8 cleanup_only;
+            intptr_t result_context;
+            uintptr_t result_generation;
         } AnkusRequest;
 
         typedef struct AnkusColumn
@@ -109,6 +112,9 @@ internal static class NativeSpiBridge
         static Datum ankus_write_tuple(const AnkusValue *value, Oid expected_type, TupleDesc expected_descriptor);
         static Datum ankus_coerce_value(Datum value, bool *is_null, Oid source_type, Oid target_type,
             int32 modifier, Oid collation);
+        static Datum ankus_raw_parameter(const AnkusParameter *parameter);
+        static Datum ankus_copy_raw_datum(Datum datum, Oid type, intptr_t context, uintptr_t generation);
+        static MemoryContext ankus_datum_context(intptr_t identity, uintptr_t generation);
 
         static void
         ankus_release_result(AnkusResult *result)
@@ -171,6 +177,11 @@ internal static class NativeSpiBridge
                 base.type_oid = base_type;
                 datum = ankus_parameter_datum(&base);
                 return ankus_coerce_value(datum, &is_null, base_type, parameter->type_oid, -1, InvalidOid);
+            }
+
+            if (value->auxiliary1 == -5 && value->data != NULL)
+            {
+                return ankus_raw_parameter(parameter);
             }
 
             if (value->is_null)
@@ -449,8 +460,10 @@ internal static class NativeSpiBridge
         }
 
         static void
-        ankus_collect_result(AnkusResult *result, int first_row_columns)
+        ankus_collect_result(AnkusResult *result, int first_row_columns, intptr_t raw_context, uintptr_t raw_generation)
         {
+            if (raw_context != 0)
+                ankus_datum_context(raw_context, raw_generation);
             TupleDesc descriptor;
             Size count;
             uint64 rows;
@@ -504,6 +517,13 @@ internal static class NativeSpiBridge
                     value->is_null = is_null;
                     if (!is_null)
                     {
+                        if (raw_context != 0)
+                        {
+                            value->integral = (int64) (uintptr_t) ankus_copy_raw_datum(datum,
+                                result->columns[column].type_oid, raw_context, raw_generation);
+                            continue;
+                        }
+
                         if (!validated[column])
                         {
                             ankus_check_result_enum(result->columns[column].base_type_oid);

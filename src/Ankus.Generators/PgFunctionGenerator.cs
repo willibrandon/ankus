@@ -173,6 +173,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             native.AppendLine(NativeTransactionBridge.Source);
+            native.AppendLine(NativeDatumBridge.Source);
 
             if (hasFunctionCallbacks)
             {

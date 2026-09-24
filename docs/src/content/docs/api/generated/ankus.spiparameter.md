@@ -17,6 +17,26 @@ public readonly struct SpiParameter
 
 ## Methods
 
+<a id="member-96cd91a58074947a"></a>
+
+### Create(PgDatum)
+
+Binds a raw datum with its exact declared PostgreSQL type and SQL NULL flag.
+
+```csharp
+public static SpiParameter Create(PgDatum value)
+```
+
+Parameters:
+
+`value` — [PgDatum](/api/ankus.pgdatum/)
+
+The raw value, whose native owner must remain live through execution.
+
+Returns: [SpiParameter](/api/ankus.spiparameter/)
+
+The typed raw parameter.
+
 <a id="member-b9921605138a1439"></a>
 
 ### Create(PgHeapTuple?, PgTupleDescriptor)
@@ -113,7 +133,8 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 
 ### Value
 
-Gets the managed parameter value, or null for SQL NULL.
+Gets the managed value or raw datum handle. Ordinary SQL NULL parameters have a null value;
+raw parameters carry their NULL flag in PgDatum.IsNull.
 
 ```csharp
 public object? Value { get; }

@@ -213,6 +213,10 @@ internal enum NativeMemoryOperation
     /// Writes a borrowed raw reference after validating its context identity and reset generation.
     /// </summary>
     WriteReference = 26,
+    /// <summary>
+    /// Resolves the context captured when the native callback began.
+    /// </summary>
+    Callback = 27,
 }
 
 /// <summary>

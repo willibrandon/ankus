@@ -97,4 +97,14 @@ internal unsafe struct NativeSpiRequest
     /// Requests resource release without opening a subtransaction during executor abort cleanup.
     /// </summary>
     internal byte _cleanupOnly;
+
+    /// <summary>
+    /// Identifies the destination context for raw result copies, or zero for managed materialization.
+    /// </summary>
+    internal nint _resultContext;
+
+    /// <summary>
+    /// Contains the destination context's captured reset generation.
+    /// </summary>
+    internal nuint _resultGeneration;
 }

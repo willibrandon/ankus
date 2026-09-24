@@ -57,8 +57,9 @@ internal static class GuardedBackend
             bool tuple = request->operation == ANKUS_SPI_TUPLE;
             bool transaction_callbacks = request->operation == ANKUS_SPI_TRANSACTION_CALLBACKS;
             bool transaction_id = request->operation == ANKUS_SPI_TRANSACTION_ID;
+            bool datum = request->operation == ANKUS_SPI_DATUM;
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
-                transaction_callbacks || transaction_id;
+                transaction_callbacks || transaction_id || datum;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -178,6 +179,11 @@ internal static class GuardedBackend
                                 ankus_transaction_id_operation(result);
                                 code = 0;
                             }
+                            else if (datum)
+                            {
+                                ankus_datum_operation(request, result);
+                                code = 0;
+                            }
                             else if (temporal)
                             {
                                 ankus_temporal_operation(request, result);
@@ -235,7 +241,8 @@ internal static class GuardedBackend
                                 result->processed = (int64) SPI_processed;
                                 if (request->result_mode)
                                 {
-                                    ankus_collect_result(result, request->result_mode == 1 ? 0 : request->result_mode - 1);
+                                    ankus_collect_result(result, request->result_mode == 1 ? 0 : request->result_mode - 1,
+                                        request->result_context, request->result_generation);
                                 }
 
                                 SPI_freetuptable(SPI_tuptable);

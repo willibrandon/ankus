@@ -149,6 +149,26 @@ public static class Spi
         => NativeBackend.Run(commandText, parameters, readOnly, limit, SpiResultMode.All);
 
     /// <summary>
+    /// Copies native result values without requiring a managed mapping for their PostgreSQL types.
+    /// </summary>
+    /// <param name="commandText">The SQL command.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>A result to dispose before leaving the backend callback.</returns>
+    public static SpiRawResult QueryRaw(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => QueryRaw(commandText, readOnly: false, limit: 0, parameters);
+
+    /// <summary>
+    /// Copies raw native results with explicit snapshot mode and row limit.
+    /// </summary>
+    /// <param name="commandText">The SQL command.</param>
+    /// <param name="readOnly">Whether PostgreSQL should use read-only SPI execution.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>An owned result whose datums expire on disposal or callback-context cleanup.</returns>
+    public static SpiRawResult QueryRaw(string commandText, bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
+        => NativeBackend.RunRaw(commandText, parameters, readOnly, limit);
+
+    /// <summary>
     /// Reads the first column of the first result row without implicit type conversion.
     /// SQL NULL and an empty result return null for nullable or reference types and reject non-nullable value types.
     /// </summary>

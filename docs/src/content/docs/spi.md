@@ -92,6 +92,27 @@ underlying base type's value conversion.
 Results are managed copies. Rows, text, and binary buffers remain valid after
 another SPI command or after the original SPI connection is released.
 
+### Raw PostgreSQL values
+
+Use `QueryRaw` when a PostgreSQL type has no managed mapping:
+
+```csharp
+using SpiRawResult result = Spi.QueryRaw("SELECT value FROM custom_values");
+PgDatum value = result[0]["value"];
+string? text = value.ToPostgresString();
+
+Spi.Execute("INSERT INTO custom_values VALUES ($1)", SpiParameter.Create(value));
+```
+
+Each `PgDatum` preserves its exact type OID and SQL NULL flag. `Read<T>()` copies a
+supported managed value; `Read(converter)` lets you supply your own conversion.
+Sessions and prepared statements also offer `QueryRaw`.
+
+Raw results own native memory and survive SPI session and plan disposal. Dispose
+them within the backend callback. Their values expire when the result is disposed
+or its enclosing PostgreSQL context is reclaimed. Use `value.CopyTo(context)` for
+a different lifetime; resetting or deleting that context invalidates the copy.
+
 ### Editing result rows
 
 `SpiRow.Set<T>` replaces a cell in the managed result, using either an ordinal or

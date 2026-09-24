@@ -143,4 +143,9 @@ internal enum SpiOperation : byte
     /// Reads PostgreSQL's next full transaction ID for wrap-aware xid expansion.
     /// </summary>
     TransactionId,
+
+    /// <summary>
+    /// Reads, formats, or copies a checked raw PostgreSQL datum.
+    /// </summary>
+    Datum,
 }

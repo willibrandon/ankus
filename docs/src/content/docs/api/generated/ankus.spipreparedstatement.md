@@ -291,3 +291,51 @@ Values matching the declared parameter types.
 Returns: [SpiResult](/api/ankus.spiresult/)
 
 The managed result.
+
+<a id="member-bd31ffee346830be"></a>
+
+### QueryRaw(bool, int, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Copies raw native results with explicit snapshot mode and row limit.
+
+```csharp
+public SpiRawResult QueryRaw(bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`readOnly` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether PostgreSQL should use read-only SPI execution.
+
+`limit` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The maximum returned rows, or zero for no limit.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Values matching the declared parameter types.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+A result to dispose before leaving the backend callback.
+
+<a id="member-b21caebc18e6afaa"></a>
+
+### QueryRaw(params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Copies native result values without requiring a managed mapping for their PostgreSQL types.
+
+```csharp
+public SpiRawResult QueryRaw(params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Parameters:
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Values matching the declared parameter types.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+An owned result that survives this plan and expires on disposal or callback-context cleanup.

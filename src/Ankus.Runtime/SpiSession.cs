@@ -73,6 +73,29 @@ public sealed class SpiSession
     }
 
     /// <summary>
+    /// Copies native result values without requiring a managed mapping for their PostgreSQL types.
+    /// </summary>
+    /// <param name="commandText">The SQL command.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>An owned result that survives this session and expires on disposal or callback-context cleanup.</returns>
+    public SpiRawResult QueryRaw(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+        => QueryRaw(commandText, readOnly: false, limit: 0, parameters);
+
+    /// <summary>
+    /// Copies raw native results with explicit snapshot mode and row limit.
+    /// </summary>
+    /// <param name="commandText">The SQL command.</param>
+    /// <param name="readOnly">Whether PostgreSQL should use read-only SPI execution.</param>
+    /// <param name="limit">The maximum returned rows, or zero for no limit.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>A result to dispose before leaving the backend callback.</returns>
+    public SpiRawResult QueryRaw(string commandText, bool readOnly, int limit, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        CheckAccess();
+        return NativeBackend.RunRaw(commandText, parameters, readOnly, limit, this);
+    }
+
+    /// <summary>
     /// Reads the first result cell without limiting a command's write effects.
     /// </summary>
     /// <typeparam name="T">The expected managed result type.</typeparam>

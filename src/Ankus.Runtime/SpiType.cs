@@ -20,6 +20,7 @@ internal static class SpiType
     /// <returns>The concrete tuple or array identity, or the declared static type identity.</returns>
     internal static uint GetOid<T>(T value) => value switch
     {
+        PgDatum datum => datum.TypeOid,
         PgHeapTuple tuple => tuple.Descriptor.TypeOid,
         PgArray<PgHeapTuple> array when array.ElementTypeOid != 2249 => NativeBackend.TupleArrayOid(array.ElementTypeOid),
         _ => GetOid<T>(),
@@ -218,6 +219,7 @@ internal static class SpiType
     /// <returns>The native value, whose buffers must be released by the caller.</returns>
     internal static NativeValue ToNative(object? value) => value switch
     {
+        PgDatum datum => datum.ToNative(),
         null => new NativeValue { IsNull = 1 },
         bool boolean => new NativeValue { Integral = boolean ? 1 : 0 },
         sbyte number => new NativeValue { Integral = number },

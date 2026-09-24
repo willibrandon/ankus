@@ -55,7 +55,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_ADOPT = 23,
             ANKUS_MEMORY_CAPTURE_GENERATION = 24,
             ANKUS_MEMORY_READ_REFERENCE = 25,
-            ANKUS_MEMORY_WRITE_REFERENCE = 26
+            ANKUS_MEMORY_WRITE_REFERENCE = 26,
+            ANKUS_MEMORY_CALLBACK = 27
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -911,6 +912,9 @@ internal static class NativeMemoryBridge
                     result->context = (intptr_t) entry->id;
                     break;
                 }
+                case ANKUS_MEMORY_CALLBACK:
+                    result->context = (intptr_t) ankus_memory_context_id(api->current);
+                    break;
                 case ANKUS_MEMORY_PREDEFINED:
                 {
                     MemoryContext context = NULL;

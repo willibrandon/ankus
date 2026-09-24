@@ -7,7 +7,7 @@ namespace Ankus;
 /// Binds guarded PostgreSQL entry points to the current backend thread for the duration of generated managed dispatch.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public static unsafe class NativeBackend
+public static unsafe partial class NativeBackend
 {
     [ThreadStatic]
     private static nint s_execute;
