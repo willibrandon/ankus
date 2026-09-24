@@ -3348,5 +3348,15 @@ The phases track implementation of the complete pgrx feature surface.
   `bb56f167c97e2c8e79423de9e43f43cde9ae1a88` waits for that removal before resetting
   libpthread's single-thread state. Native AOT Release builds with zero warnings/errors
   on Linux x64 and macOS ARM64. The two-round host/fork probe passes on both; 50
-  consecutive macOS ARM64 executions also pass. Hosted proof of both fixes remains
-  pending.
+  consecutive macOS ARM64 executions also pass. The final Windows failure was a test
+  harness shutdown race: bounded fast shutdown completed after its caller timed out,
+  so the immediate fallback correctly found no running postmaster but returned exit
+  code 1. The harness now checks `pg_ctl status` and accepts its documented exit code 3
+  when that race proves the server has stopped.
+  [Hosted CI run 35992682774](https://github.com/willibrandon/ankus/actions/runs/35992682774)
+  passes every job: Linux x64/PostgreSQL 18 passes 4,142/4,142 in 9m28s; macOS
+  ARM64/PostgreSQL 18 passes 4,140 with two Linux-only skips in 7m38s; macOS
+  x64/PostgreSQL 18 passes 2,088/2,088 unit cases in 4m59s and 2,052 integration
+  cases with two Linux-only skips in 11m32s; Windows x64/PostgreSQL 17 passes 4,140
+  with the same two skips in 12m51s. Every job remains below 15 minutes. Execution
+  across PostgreSQL 15–18 on every supported platform remains pending.
