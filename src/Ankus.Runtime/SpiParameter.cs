@@ -29,7 +29,8 @@ public readonly struct SpiParameter
     /// <typeparam name="T">The managed parameter type.</typeparam>
     /// <param name="value">The parameter value.</param>
     /// <returns>A typed parameter.</returns>
-    public static SpiParameter Create<T>(T value) => new(SpiType.GetOid(value), value);
+    public static SpiParameter Create<T>(T value)
+        => new(value is PgDatum datum ? datum.TypeOid : SpiType.GetOid(value), value);
 
     /// <summary>
     /// Binds a raw datum with its exact declared PostgreSQL type and SQL NULL flag.

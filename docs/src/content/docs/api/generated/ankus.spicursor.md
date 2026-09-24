@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Owns a PostgreSQL cursor and fetches independent managed result batches.
+Owns a PostgreSQL cursor and fetches independent managed or raw result batches.
 Cursors opened through SPI live until closed or their transaction ends.
 
 ```csharp
@@ -93,6 +93,50 @@ Whether to move forward rather than backward.
 Returns: [SpiResult](/api/ankus.spiresult/)
 
 An independently owned managed batch.
+
+<a id="member-f293864b6f6ec0b5"></a>
+
+### FetchRaw(int)
+
+Fetches raw native values without requiring a managed mapping for their PostgreSQL types.
+
+```csharp
+public SpiRawResult FetchRaw(int count)
+```
+
+Parameters:
+
+`count` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The nonnegative fetch count, or zero to fetch the current row.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+A disposable batch that survives cursor disposal and expires on disposal or callback-context cleanup.
+
+<a id="member-fcc5c003d2a11279"></a>
+
+### FetchRaw(int, bool)
+
+Fetches raw native values in the requested direction. Backward fetching requires a scrollable cursor.
+
+```csharp
+public SpiRawResult FetchRaw(int count, bool forward)
+```
+
+Parameters:
+
+`count` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The nonnegative fetch count, or zero to fetch the current row.
+
+`forward` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to move forward rather than backward.
+
+Returns: [SpiRawResult](/api/ankus.spirawresult/)
+
+A raw batch to dispose before leaving the backend callback.
 
 
 ## Properties

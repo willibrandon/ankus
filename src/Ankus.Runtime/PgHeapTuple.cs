@@ -84,6 +84,7 @@ public sealed class PgHeapTuple
     /// <summary>
     /// Replaces a cell while preserving declared type, domain, collation, and type-modifier metadata.
     /// Native output applies current catalog and domain constraints before exposing the tuple to PostgreSQL.
+    /// Raw datums are copied into independent managed values before assignment.
     /// </summary>
     /// <typeparam name="T">The replacement's declared managed type, including its type when null.</typeparam>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
@@ -97,7 +98,7 @@ public sealed class PgHeapTuple
             throw new InvalidOperationException("Dropped tuple attributes cannot be changed.");
         }
 
-        uint oid = value is PgHeapTuple tuple ? tuple.Descriptor.BaseTypeOid :
+        uint oid = value is PgDatum datum ? datum.TypeOid : value is PgHeapTuple tuple ? tuple.Descriptor.BaseTypeOid :
             value is null && typeof(T) == typeof(PgHeapTuple) && attribute.IsComposite
                 ? attribute.BaseTypeOid : SpiType.GetOid(value);
         SetCore(ordinal, oid, value);
@@ -113,6 +114,7 @@ public sealed class PgHeapTuple
 
     /// <summary>
     /// Replaces a cell using an explicit parameter identity, including a typed NULL composite or array.
+    /// Raw datums are copied into independent managed values before assignment.
     /// </summary>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
     /// <param name="value">The typed replacement.</param>
@@ -176,7 +178,7 @@ public sealed class PgHeapTuple
             throw new InvalidCastException($"PostgreSQL type OID {oid} cannot replace tuple attribute '{attribute.Name}' of type OID {attribute.TypeOid}.");
         }
 
-        _values[ordinal] = value;
+        _values[ordinal] = value is PgDatum datum ? datum.Read<object?>() : value;
     }
 
     private int ValidateOrdinal(int ordinal)

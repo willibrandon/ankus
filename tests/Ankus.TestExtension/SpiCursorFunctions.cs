@@ -162,6 +162,18 @@ public static class SpiCursorFunctions
     public static string CursorCachedRows(int count) => Values(Cached().Fetch(count));
 
     /// <summary>
+    /// Fetches raw values through the cached cursor's checked portal identity.
+    /// </summary>
+    /// <param name="count">The requested row count.</param>
+    /// <returns>The formatted values with explicit NULL markers.</returns>
+    [PgFunction]
+    public static string CursorCachedRawRows(int count)
+    {
+        using SpiRawResult batch = Cached().FetchRaw(count);
+        return string.Join(',', batch.Select(static row => row[0].ToPostgresString() ?? "<null>"));
+    }
+
+    /// <summary>
     /// Detaches the cached cursor and preserves its native portal.
     /// </summary>
     /// <returns>The name used to find the cursor again.</returns>

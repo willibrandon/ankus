@@ -41,6 +41,7 @@ public sealed class SpiRow
 
     /// <summary>
     /// Replaces a local cell and its type with a supported managed datum. The edit does not update PostgreSQL or result metadata.
+    /// Raw datums are converted to independent managed values before assignment.
     /// </summary>
     /// <typeparam name="T">The replacement type, including its type when the value is null.</typeparam>
     /// <param name="ordinal">The zero-based column ordinal.</param>
@@ -49,14 +50,26 @@ public sealed class SpiRow
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, Count);
-        uint typeOid = SpiType.GetOid(value);
+        uint typeOid;
+        object? managedValue;
+        if (value is PgDatum datum)
+        {
+            typeOid = datum.TypeOid;
+            managedValue = datum.Read<object?>();
+        }
+        else
+        {
+            typeOid = SpiType.GetOid(value);
+            managedValue = value;
+        }
+
         _typeOids ??= [.. _columns.Select(static column => column.TypeOid)];
-        _values[ordinal] = value;
+        _values[ordinal] = managedValue;
         _typeOids[ordinal] = typeOid;
     }
 
     /// <summary>
-    /// Replaces a local cell by exact name. The replacement's declared CLR type determines its PostgreSQL type OID.
+    /// Replaces a local cell by exact name. Raw datums retain their PostgreSQL type identity and are copied into managed storage.
     /// </summary>
     /// <typeparam name="T">The replacement managed type.</typeparam>
     /// <param name="name">The column name; duplicate names resolve to the first column.</param>

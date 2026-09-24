@@ -167,6 +167,32 @@ public sealed class SpiRawTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
+    /// Verifies ordinary rows and tuples own converted raw edits, and stale sources leave their old values intact.
+    /// </summary>
+    /// <param name="isNull">Whether the source is SQL NULL.</param>
+    /// <param name="parameter">Whether the tuple edit uses an explicit parameter.</param>
+    /// <param name="stale">Whether the source was disposed before assignment.</param>
+    /// <param name="expected">The independently expected owned values and rejected edits.</param>
+    [TestMethod]
+    [DataRow(false, false, false, "42|42|23|0")]
+    [DataRow(false, true, false, "42|42|23|0")]
+    [DataRow(true, false, false, "<null>|<null>|23|0")]
+    [DataRow(true, true, false, "<null>|<null>|23|0")]
+    [DataRow(false, false, true, "17|17|23|2")]
+    [DataRow(false, true, true, "17|17|23|2")]
+    [DataRow(true, false, true, "17|17|23|2")]
+    [DataRow(true, true, true, "17|17|23|2")]
+    public Task ManagedEditsCopyRawValuesAndRejectStaleSources(bool isNull, bool parameter, bool stale, string expected)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ManagedEditsCopyRawValuesAndRejectStaleSources), async (connection, transaction, token) =>
+        {
+            await using var command = new NpgsqlCommand("SELECT datatype.raw_managed_assignment($1, $2, $3)", connection, transaction);
+            command.Parameters.AddWithValue(isNull);
+            command.Parameters.AddWithValue(parameter);
+            command.Parameters.AddWithValue(stale);
+            Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+        }, context.CancellationToken);
+
+    /// <summary>
     /// Verifies query options and write rollback under each owner without compromising later backend calls.
     /// </summary>
     /// <param name="api">The SPI owner selection.</param>

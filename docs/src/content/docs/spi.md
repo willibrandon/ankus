@@ -140,6 +140,10 @@ managed object or null. Managed reference values, including byte arrays, follow
 ordinary .NET reference semantics when assigned to a row. The owned rows can be
 read or edited after returning from an extension callback, without a backend binding.
 
+Passing a `PgDatum` to `SpiRow.Set` or `PgHeapTuple.Set` copies a supported managed
+value. The copy remains usable after the raw result is disposed. A failed
+conversion leaves the previous cell unchanged.
+
 ### Query options
 
 For an explicit row limit or read-only SPI execution:
@@ -312,6 +316,12 @@ Each batch owns its managed rows and buffers and remains valid after later fetch
 or cursor disposal. Empty batches retain column metadata. `SpiPreparedStatement.OpenCursor`
 accepts the plan's typed parameters; the resulting cursor remains usable even after
 the prepared statement is disposed.
+
+Use `cursor.FetchRaw(count)` for types without managed mappings. It returns a
+disposable `SpiRawResult` with exact type OIDs, SQL NULL flags, and the same
+conversion methods as `QueryRaw`. Each batch survives later fetches and cursor
+disposal. Dispose raw batches before leaving the backend callback, or use
+`PgDatum.CopyTo(context)` to give individual values another lifetime.
 
 `Fetch(count)` moves forward. `Fetch(count, forward: false)` moves backward when
 the underlying PostgreSQL cursor supports scrolling. Counts must be nonnegative;

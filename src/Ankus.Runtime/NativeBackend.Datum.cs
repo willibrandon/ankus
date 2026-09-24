@@ -90,6 +90,23 @@ public static unsafe partial class NativeBackend
         }, parameters);
 
     /// <summary>
+    /// Fetches a cursor batch into independently owned native storage.
+    /// </summary>
+    /// <param name="identity">The native cursor identity.</param>
+    /// <param name="count">The number of rows to fetch.</param>
+    /// <param name="forward">Whether to fetch forward rather than backward.</param>
+    /// <returns>The owned raw batch.</returns>
+    internal static SpiRawResult FetchRawCursor(long identity, int count, bool forward)
+        => RunRawRequest(new NativeSpiRequest
+        {
+            _operation = SpiOperation.FetchCursor,
+            _cursorId = identity,
+            _limit = count,
+            _resultMode = SpiResultMode.All,
+            _forward = forward ? (byte)1 : (byte)0,
+        }, []);
+
+    /// <summary>
     /// Invokes a datum operation and releases its result even when managed conversion fails.
     /// </summary>
     /// <typeparam name="T">The managed result type.</typeparam>

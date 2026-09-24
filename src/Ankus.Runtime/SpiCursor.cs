@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Owns a PostgreSQL cursor and fetches independent managed result batches.
+/// Owns a PostgreSQL cursor and fetches independent managed or raw result batches.
 /// Cursors opened through SPI live until closed or their transaction ends.
 /// </summary>
 public sealed class SpiCursor : IDisposable
@@ -48,6 +48,34 @@ public sealed class SpiCursor : IDisposable
         try
         {
             return NativeBackend.FetchCursor(Identity, count, forward);
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches raw native values without requiring a managed mapping for their PostgreSQL types.
+    /// </summary>
+    /// <param name="count">The nonnegative fetch count, or zero to fetch the current row.</param>
+    /// <returns>A disposable batch that survives cursor disposal and expires on disposal or callback-context cleanup.</returns>
+    public SpiRawResult FetchRaw(int count) => FetchRaw(count, forward: true);
+
+    /// <summary>
+    /// Fetches raw native values in the requested direction. Backward fetching requires a scrollable cursor.
+    /// </summary>
+    /// <param name="count">The nonnegative fetch count, or zero to fetch the current row.</param>
+    /// <param name="forward">Whether to move forward rather than backward.</param>
+    /// <returns>A raw batch to dispose before leaving the backend callback.</returns>
+    public SpiRawResult FetchRaw(int count, bool forward)
+    {
+        CheckAccess();
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        _fetching = true;
+        try
+        {
+            return NativeBackend.FetchRawCursor(Identity, count, forward);
         }
         finally
         {

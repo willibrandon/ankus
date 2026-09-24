@@ -74,8 +74,11 @@ public sealed class SpiCursorTests(TestContext context)
     /// <summary>
     /// Verifies stale objects cannot operate on a different portal subsequently created with the same name.
     /// </summary>
+    /// <param name="raw">Whether to fetch raw datums or managed values.</param>
     [TestMethod]
-    public async Task ReusedPortalNameDoesNotReviveStaleCursor()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ReusedPortalNameDoesNotReviveStaleCursor(bool raw)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
@@ -91,7 +94,8 @@ public sealed class SpiCursorTests(TestContext context)
             await setup.ExecuteNonQueryAsync(token);
         }
 
-        await using var stale = new NpgsqlCommand("SELECT datatype.cursor_cached_rows(1)", connection, transaction);
+        string fetchFunction = raw ? "cursor_cached_raw_rows" : "cursor_cached_rows";
+        await using var stale = new NpgsqlCommand($"SELECT datatype.{fetchFunction}(1)", connection, transaction);
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => stale.ExecuteScalarAsync(token));
         Assert.AreEqual(PostgresErrorCodes.InvalidCursorName, error.SqlState);
         await using (var recover = new NpgsqlCommand(
@@ -110,10 +114,13 @@ public sealed class SpiCursorTests(TestContext context)
     /// Verifies portal destruction on commit or rollback invalidates managed identities before another callback uses them.
     /// </summary>
     /// <param name="rollback">Whether to roll back the creation transaction.</param>
+    /// <param name="raw">Whether to fetch raw datums or managed values.</param>
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public async Task TransactionEndInvalidatesCursor(bool rollback)
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task TransactionEndInvalidatesCursor(bool rollback, bool raw)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
@@ -132,7 +139,8 @@ public sealed class SpiCursorTests(TestContext context)
             }
         }
 
-        await using var fetch = new NpgsqlCommand("SELECT datatype.cursor_cached_rows(1)", connection);
+        string fetchFunction = raw ? "cursor_cached_raw_rows" : "cursor_cached_rows";
+        await using var fetch = new NpgsqlCommand($"SELECT datatype.{fetchFunction}(1)", connection);
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => fetch.ExecuteScalarAsync(token));
         Assert.AreEqual(PostgresErrorCodes.InvalidCursorName, error.SqlState);
         await using var dispose = new NpgsqlCommand("SELECT datatype.cursor_dispose_cached()", connection);

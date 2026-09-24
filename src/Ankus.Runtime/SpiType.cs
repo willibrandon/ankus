@@ -20,7 +20,6 @@ internal static class SpiType
     /// <returns>The concrete tuple or array identity, or the declared static type identity.</returns>
     internal static uint GetOid<T>(T value) => value switch
     {
-        PgDatum datum => datum.TypeOid,
         PgHeapTuple tuple => tuple.Descriptor.TypeOid,
         PgArray<PgHeapTuple> array when array.ElementTypeOid != 2249 => NativeBackend.TupleArrayOid(array.ElementTypeOid),
         _ => GetOid<T>(),

@@ -2654,7 +2654,7 @@ complete implementations. AOT serialization must use statically generated metada
 
 | Source modules | Required behavior | Status |
 |---|---|---|
-| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN and two-/three-column first-row helpers; extensible/raw datum conversion pending |
+| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters and raw parameter binding implemented. Custom base-type integration and the complete PostgreSQL/platform matrix remain pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
@@ -2751,7 +2751,7 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Temporal field/epoch accessors, saturating/wrapping raw factories, named/interval timezone conveniences and timeofday
     - [x] Two-/three-column first-row helpers on static SPI, sessions and prepared statements
     - [x] Owned raw SPI queries on static calls, sessions, and prepared statements; exact OIDs/NULLs, explicit converters and raw parameter binding
-    - [ ] Complete remaining raw SPI paths, including cursor batches
+    - [x] Raw cursor batches with independent native ownership, scrolling, portal invalidation, and guarded cleanup
    - [x] Backend `_PG_init` bootstrap, guarded exceptions/retry, recursive-load rejection and session preload (PostgreSQL 18.6/Linux x64)
    - [ ] Remaining memory-context parity, shared-preload platform/version validation, and guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -3442,3 +3442,35 @@ The phases track implementation of the complete pgrx feature surface.
   | Strict conversions, row limits, read-only mode, rollback and recovery | `SpiRawTests.ManagedConversionsAndErrorsRecover`; `SpiRawTests.LimitsReadOnlyAndWriteErrorsPreserveTransaction` |
   | Disposal/reset invalidation and explicit lifetime copies | `SpiRawTests.CopySurvivesDisposalAndExpiresWithDestination`; `PgDatumTests.ResetGenerationRejectsEveryNativeAccess` |
   | Provider guards and preserved operational diagnostics | `PgDatumTests.AccessRequiresOriginalBackendProvider`; `PgDatumTests.DeletedOwnerAndOperationalErrorsRemainDistinct` |
+
+- 2026-09-24 — Added `SpiCursor.FetchRaw` with forward/backward and current-row
+  fetching. Batches retain exact type OIDs and NULL flags, support types without
+  managed mappings, and own their native storage independently of the portal,
+  session, prepared plan, and subsequent fetches. Fetch errors release the result
+  context before same-backend recovery. Reentrant disposal, worker-thread access,
+  negative counts, expired portals, and reused portal names retain the existing
+  cursor checks. The 52-case managed/raw cursor scope passes on PostgreSQL
+  18.6/Linux x64.
+
+  Review also found that raw parameter type lookup could put a context-bound
+  handle into an ordinary managed row or tuple. Raw edits now convert to owned
+  managed values before changing the target cell. SQL NULL and exact type
+  identities are retained, and failed conversion leaves the old value unchanged.
+  Eight live-backend regression cases pass, covering generic and explicit-parameter
+  tuple edits, NULLs, source disposal, and stale-input rejection.
+  Plain `dotnet test` passes 4,394/4,394 without skips in 3m05.155s on PostgreSQL
+  18.6/Linux x64. Release compilation has zero warnings/errors. API freshness
+  (125 pages/1,297 members), `pnpm build` (157 pages), and `pnpm check` pass.
+  The preceding raw-query milestone also passed hosted Linux, macOS ARM64, and
+  Windows CI in [run 36023629516](https://github.com/willibrandon/ankus/actions/runs/36023629516).
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Independent raw batches, empty metadata, unmapped types, NULLs and large values | `SpiRawCursorTests.BatchesSurviveSubsequentFetchesAndCursorDisposal` |
+  | Scrolling, current-row fetches, mixed managed/raw fetches and native cleanup | `SpiRawCursorTests.FetchSemanticsAndRecoveryRemainExact` |
+  | Reentrant disposal and native portal removal | `SpiRawCursorTests.RecursiveDisposalCannotInvalidateActiveFetch` |
+  | Raw portal identity after commit, rollback and name reuse | `SpiCursorTests.TransactionEndInvalidatesCursor`; `SpiCursorTests.ReusedPortalNameDoesNotReviveStaleCursor` |
+  | Owned managed edits and failure atomicity | `SpiRawTests.ManagedEditsCopyRawValuesAndRejectStaleSources`; `PgDatumTests.FailedRawConversionPreservesManagedRow` |
+
+  Function-call context, raw/polymorphic signatures, custom base types, remaining
+  backend APIs, and the complete PostgreSQL/platform matrix remain required.

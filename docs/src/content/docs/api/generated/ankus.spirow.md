@@ -192,6 +192,7 @@ The cell value.
 ### Set&lt;T&gt;(int, T)
 
 Replaces a local cell and its type with a supported managed datum. The edit does not update PostgreSQL or result metadata.
+Raw datums are converted to independent managed values before assignment.
 
 ```csharp
 public void Set<T>(int ordinal, T value)
@@ -217,7 +218,7 @@ The replacement value.
 
 ### Set&lt;T&gt;(string, T)
 
-Replaces a local cell by exact name. The replacement's declared CLR type determines its PostgreSQL type OID.
+Replaces a local cell by exact name. Raw datums retain their PostgreSQL type identity and are copied into managed storage.
 
 ```csharp
 public void Set<T>(string name, T value)

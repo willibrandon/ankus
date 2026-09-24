@@ -113,6 +113,7 @@ The converted cell.
 ### Set(int, SpiParameter)
 
 Replaces a cell using an explicit parameter identity, including a typed NULL composite or array.
+Raw datums are copied into independent managed values before assignment.
 
 ```csharp
 public void Set(int ordinal, SpiParameter value)
@@ -154,6 +155,7 @@ The typed replacement.
 
 Replaces a cell while preserving declared type, domain, collation, and type-modifier metadata.
 Native output applies current catalog and domain constraints before exposing the tuple to PostgreSQL.
+Raw datums are copied into independent managed values before assignment.
 
 ```csharp
 public void Set<T>(int ordinal, T value)

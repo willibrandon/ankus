@@ -108,6 +108,22 @@ public sealed class PgDatumTests
     }
 
     /// <summary>
+    /// A failed raw conversion cannot replace an existing managed cell or change its type.
+    /// </summary>
+    [TestMethod]
+    public void FailedRawConversionPreservesManagedRow()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
+        PgDatum datum = PgDatum.DangerousCreate(42, 23, PgMemoryContext.Current);
+        var row = new SpiRow([17], [new SpiColumn("value", 23)]);
+        Assert.ThrowsExactly<InvalidOperationException>(() => row.Set(0, datum));
+        Assert.AreEqual(17, row.Get<int>(0));
+        Assert.AreEqual(23U, row.GetTypeOid(0));
+        Assert.AreEqual(23U, SpiParameter.Create<PgDatum>(datum).TypeOid);
+    }
+
+    /// <summary>
     /// Missing types and objects are rejected before any backend operation.
     /// </summary>
     [TestMethod]

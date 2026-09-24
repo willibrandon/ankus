@@ -147,6 +147,57 @@ public static class SpiRawFunctions
     }
 
     /// <summary>
+    /// Copies raw values into managed rows and tuples without retaining their native owner's lifetime.
+    /// </summary>
+    /// <param name="isNull">Whether to copy SQL NULL.</param>
+    /// <param name="parameter">Whether the tuple edit uses an explicit parameter.</param>
+    /// <param name="stale">Whether the source has already expired.</param>
+    /// <returns>The two managed values after source disposal.</returns>
+    [PgFunction]
+    public static string RawManagedAssignment(bool isNull, bool parameter, bool stale)
+    {
+        using SpiRawResult result = Spi.QueryRaw("SELECT 42 AS value, NULL::int AS missing");
+        PgDatum value = result[0][isNull ? 1 : 0];
+        SpiRow row = Spi.Query("SELECT 17 AS value")[0];
+        PgHeapTuple tuple = PgHeapTuple.Create(("value", SpiParameter.Create(17)));
+        if (stale)
+        {
+            result.Dispose();
+        }
+
+        int rejected = 0;
+        try
+        {
+            row.Set("value", value);
+        }
+        catch (ObjectDisposedException)
+        {
+            rejected++;
+        }
+
+        try
+        {
+            if (parameter)
+            {
+                tuple.Set("value", SpiParameter.Create(value));
+            }
+            else
+            {
+                tuple.Set("value", value);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            rejected++;
+        }
+
+        result.Dispose();
+        return (row.Get<int?>("value")?.ToString(CultureInfo.InvariantCulture) ?? "<null>") + "|" +
+            (tuple.Get<int?>("value")?.ToString(CultureInfo.InvariantCulture) ?? "<null>") + "|" +
+            row.GetTypeOid("value").ToString(CultureInfo.InvariantCulture) + "|" + rejected.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// Attempts both raw access and binding after the native owner expires.
     /// </summary>
     /// <param name="value">The stale datum.</param>
