@@ -31,7 +31,7 @@ internal static class PgSetEmitter
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         managed.AppendLine($"    private static int {callback}(int operation, nint* iterator, global::Ankus.NativeValue* arguments,");
-        managed.AppendLine("        global::Ankus.NativeValue* columns, global::Ankus.NativeCallError* error, nint execute, nint memory)");
+        managed.AppendLine("        global::Ankus.NativeValue* columns, global::Ankus.NativeCallError* error, nint execute, nint memory, nint functionCall)");
         managed.AppendLine("    {");
         managed.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute, operation == 3);");
         managed.AppendLine("        nint previousMemory = 0;");
@@ -48,6 +48,11 @@ internal static class PgSetEmitter
         managed.AppendLine();
         managed.AppendLine("            if (operation == 0)");
         managed.AppendLine("            {");
+        if (parameters.Any(static parameter => parameter.IsFunctionContext))
+        {
+            managed.AppendLine("                global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
+        }
+
         string arguments = string.Join(", ", parameters.Select(static parameter => parameter.ReadExpression()));
         managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
             method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(" + arguments + "));");
@@ -106,10 +111,10 @@ internal static class PgSetEmitter
 
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         int mode = attribute is null ? 0 : AttributeValues.Get(attribute, "SetMode", 0);
-        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsMemoryContext)];
+        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsInjected)];
         string required = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
             parameter.Type!.Nullable ? "false" : "true"));
-        native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
+        native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
         native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
         native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
         native.AppendLine("{");

@@ -2656,7 +2656,7 @@ complete implementations. AOT serialization must use statically generated metada
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters and raw parameter binding implemented. Custom base-type integration and the complete PostgreSQL/platform matrix remain pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
-| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
+| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Injected `PgFunctionContext` snapshots actual OIDs, collation and checked raw arguments across scalar/operator/set calls; per-function cached state and direct/named calls remain pending |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
@@ -2752,6 +2752,7 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Two-/three-column first-row helpers on static SPI, sessions and prepared statements
     - [x] Owned raw SPI queries on static calls, sessions, and prepared statements; exact OIDs/NULLs, explicit converters and raw parameter binding
     - [x] Raw cursor batches with independent native ownership, scrolling, portal invalidation, and guarded cleanup
+    - [x] Injected function-call metadata and raw argument snapshots, with actual type/collation identity and scalar/set ownership
    - [x] Backend `_PG_init` bootstrap, guarded exceptions/retry, recursive-load rejection and session preload (PostgreSQL 18.6/Linux x64)
    - [ ] Remaining memory-context parity, shared-preload platform/version validation, and guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -3474,3 +3475,35 @@ The phases track implementation of the complete pgrx feature surface.
 
   Function-call context, raw/polymorphic signatures, custom base types, remaining
   backend APIs, and the complete PostgreSQL/platform matrix remain required.
+
+- 2026-09-24 — Added injected `PgFunctionContext` parameters. They expose the
+  invoked function and result OIDs, call collation, and ordered `PgDatum`
+  arguments without consuming SQL slots. Native capture uses PostgreSQL's
+  `FunctionCallInfo` and expression helpers from the selected server headers;
+  no managed struct assumes a PostgreSQL internal layout. Argument copies retain
+  actual domain identities and independent NULL flags. Scalar storage belongs to
+  the callback context; iterator storage belongs directly to the multi-call owner
+  so reset cleanup can read it before invalidation. Metadata remains managed and
+  immutable after native storage expires. Repeated injected call parameters share
+  one snapshot, while injected memory contexts keep their existing behavior.
+
+  The 19-case PostgreSQL scope passes on PostgreSQL 18.6/Linux x64 in 34.439s.
+  The 83-case affected generator scope passes, including compiled existing
+  memory-context callbacks with the updated native signatures. The direct runtime
+  metadata test passes. Plain `dotnet test` passes 4,426/4,426 without skips in
+  2m51.700s on PostgreSQL 18.6/Linux x64. Release compilation has zero warnings
+  and errors. API freshness (126 pages/1,301 members), `pnpm build` (158 pages),
+  and `pnpm check` pass without diagnostics.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Actual function/result/type/collation identity, NULLs, nested calls and native error recovery | `FunctionContextTests.ScalarSnapshotsRetainExactCallMetadata`, `DomainArgumentsRetainTheirActualCatalogTypes`, `OperatorExpressionsExposeTheirActualOperand` |
+  | Immutable managed metadata and guarded raw lifetimes | `PgFunctionContextTests.MetadataRemainsOwnedAndArgumentsCannotBeReplaced`; `FunctionContextTests.ExpiredArgumentsFailAndExplicitCopiesRemainLive` |
+  | Streaming/materialized/empty sets, early stop and native abort cleanup | `FunctionContextTests.SetSnapshotsSurviveYieldsAndCleanup`, `IteratorErrorsUnwindWithLiveArguments`, `ExecutorAbortPreservesArgumentsUntilIteratorDisposal` |
+  | SQL signature erasure, defaults, strictness, diagnostics and overload identity | `PgFunctionGeneratorTests.FunctionContextsPreserveSqlSignatures`, `InvalidFunctionContextShapesAreDiagnosed`, `FunctionContextErasureRejectsDuplicateSqlSignature`, `SetFunctionContextIsCapturedDuringFactoryCreation` |
+
+  Per-function cached state (`fn_extra`), direct/named function invocation,
+  raw/polymorphic signatures, custom base types, the remaining backend APIs,
+  and complete PostgreSQL/platform validation remain required. The preceding
+  raw-cursor milestone passes all jobs in
+  [CI run 36026412947](https://github.com/willibrandon/ankus/actions/runs/36026412947).

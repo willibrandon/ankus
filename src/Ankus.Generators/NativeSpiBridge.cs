@@ -51,7 +51,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_GUC_READ,
             ANKUS_SPI_TRANSACTION_CALLBACKS,
             ANKUS_SPI_TRANSACTION_ID,
-            ANKUS_SPI_DATUM
+            ANKUS_SPI_DATUM,
+            ANKUS_SPI_FUNCTION_CONTEXT
         };
 
         typedef struct AnkusRequest
@@ -76,6 +77,7 @@ internal static class NativeSpiBridge
             uint8 cleanup_only;
             intptr_t result_context;
             uintptr_t result_generation;
+            FunctionCallInfo function_call;
         } AnkusRequest;
 
         typedef struct AnkusColumn
@@ -96,6 +98,9 @@ internal static class NativeSpiBridge
             int64 cursor_id;
             AnkusValue cursor_name;
             AnkusValue text;
+            Oid function_oid;
+            Oid result_type_oid;
+            Oid collation_oid;
         } AnkusResult;
 
         typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, struct AnkusError *);

@@ -107,4 +107,9 @@ internal unsafe struct NativeSpiRequest
     /// Contains the destination context's captured reset generation.
     /// </summary>
     internal nuint _resultGeneration;
+
+    /// <summary>
+    /// Borrows a generated callback's FunctionCallInfo only during synchronous snapshot capture.
+    /// </summary>
+    internal nint _functionCall;
 }

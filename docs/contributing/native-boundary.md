@@ -135,6 +135,15 @@ The initialization callback itself never creates a SQL function.
 The `PG_FINALLY` release callback only frees Native AOT-owned native memory. It
 does not call PostgreSQL or execute extension user code.
 
+Scalar and set dispatch also receive the current `FunctionCallInfo` pointer.
+When a method declares `PgFunctionContext`, generated code captures it through
+the native guard before invoking the method or iterator factory. Capture reads
+types and collation through PostgreSQL's expression helpers and copies raw
+arguments into the current context. It never retains the call pointer. Set
+arguments use the multi-call owner directly, preserving access during iterator
+reset cleanup before the owner's generation is invalidated. Metadata becomes an
+immutable managed snapshot; datum access validates the native owner and generation.
+
 ## Ownership
 
 | Value | Owner and lifetime |
@@ -142,6 +151,7 @@ does not call PostgreSQL or execute extension user code.
 | Original input datum | PostgreSQL; borrowed for this invocation |
 | Detoasted or encoding-converted input | PostgreSQL allocation; explicitly freed after dispatch when a new allocation was returned |
 | Managed input string/array | Managed copy; independent of the PostgreSQL input buffer |
+| Injected function-context arguments | PostgreSQL copies; callback or multi-call context with checked reset generation |
 | Managed output string/array | Managed object copied into a native transport buffer |
 | Native output buffer | `NativeMemory.Alloc`; released through a callback into its allocating runtime |
 | Final output datum | PostgreSQL's current memory context |

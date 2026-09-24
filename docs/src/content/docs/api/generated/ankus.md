@@ -31,6 +31,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgEventTriggerContext](/api/ankus.pgeventtriggercontext/)
 - [PgException](/api/ankus.pgexception/)
 - [PgFunctionAttribute](/api/ankus.pgfunctionattribute/)
+- [PgFunctionContext](/api/ankus.pgfunctioncontext/)
 - [PgGucAttribute](/api/ankus.pggucattribute/)
 - [PgGucBoolAttribute](/api/ankus.pggucboolattribute/)
 - [PgGucCheckError](/api/ankus.pgguccheckerror/)

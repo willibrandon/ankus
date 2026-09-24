@@ -148,4 +148,9 @@ internal enum SpiOperation : byte
     /// Reads, formats, or copies a checked raw PostgreSQL datum.
     /// </summary>
     Datum,
+
+    /// <summary>
+    /// Copies a live function call's metadata and raw SQL arguments.
+    /// </summary>
+    FunctionContext,
 }

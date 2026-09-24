@@ -14,7 +14,7 @@ internal static class NativeSetBridge
         #include "utils/tuplestore.h"
         #include "utils/snapmgr.h"
 
-        typedef int (*AnkusSetCallback)(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);
+        typedef int (*AnkusSetCallback)(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);
 
         typedef struct AnkusSetState
         {
@@ -36,7 +36,8 @@ internal static class NativeSetBridge
         } AnkusSetState;
 
         static int
-        ankus_set_call(AnkusSetState *state, int operation, const AnkusValue *arguments, AnkusError *error, bool backend)
+        ankus_set_call(AnkusSetState *state, int operation, const AnkusValue *arguments, AnkusError *error, bool backend,
+            FunctionCallInfo function_call)
         {
             Oid previous = ankus_function_oid;
             MemoryContext caller = CurrentMemoryContext;
@@ -54,7 +55,7 @@ internal static class NativeSetBridge
                 }
 
                 status = state->callback(operation, &state->iterator, arguments, state->row, error,
-                    backend ? ankus_spi_execute : NULL, &memory);
+                    backend ? ankus_spi_execute : NULL, &memory, function_call);
             }
             PG_FINALLY();
             {
@@ -93,7 +94,7 @@ internal static class NativeSetBridge
                 return;
             /* The executor skips expression callbacks on abort. Managed cleanup still runs,
              * but cannot enter a backend that may already be dismantling its transaction. */
-            status = ankus_set_call(state, 3, NULL, &error, true);
+            status = ankus_set_call(state, 3, NULL, &error, true, NULL);
             ankus_release_error(&error);
             if (status != 0)
                 ereport(WARNING, (errmsg("Ankus iterator disposal failed during query abort")));
@@ -103,7 +104,7 @@ internal static class NativeSetBridge
         ankus_set_dispose(AnkusSetState *state)
         {
             AnkusError error = {0};
-            if (state->iterator != NULL && ankus_set_call(state, 2, NULL, &error, true) != 0)
+            if (state->iterator != NULL && ankus_set_call(state, 2, NULL, &error, true, NULL) != 0)
                 ankus_raise_error(&error);
         }
 
@@ -221,7 +222,7 @@ internal static class NativeSetBridge
                             ankus_read_value(PG_GETARG_DATUM(index), state->argument_types[index], &input[index], &owned[index]);
                     }
 
-                    status = ankus_set_call(state, 0, input, &error, true);
+                    status = ankus_set_call(state, 0, input, &error, true, fcinfo);
                 }
                 PG_FINALLY();
                 {
@@ -249,7 +250,7 @@ internal static class NativeSetBridge
                 return false;
             PG_TRY();
             {
-                status = ankus_set_call(state, 1, NULL, &error, true);
+                status = ankus_set_call(state, 1, NULL, &error, true, NULL);
                 if (status == 0)
                 {
                     for (int index = 0; index < state->columns; index++)
@@ -273,7 +274,7 @@ internal static class NativeSetBridge
             if (status == 1)
             {
                 AnkusError cleanup = {0};
-                int cleanup_status = ankus_set_call(state, 2, NULL, &cleanup, true);
+                int cleanup_status = ankus_set_call(state, 2, NULL, &cleanup, true, NULL);
                 if (cleanup_status != 0)
                 {
                     ankus_release_error(&cleanup);

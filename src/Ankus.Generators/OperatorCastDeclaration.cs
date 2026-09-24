@@ -16,7 +16,7 @@ internal static class OperatorCastDeclaration
     internal static void Add(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function, SqlEntity dependency,
         SqlGraph graph, HashSet<string> names, SourceProductionContext context)
     {
-        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsMemoryContext)];
+        FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsInjected)];
         foreach (AttributeData attribute in method.GetAttributes())
         {
             string? kind = attribute.AttributeClass?.ToDisplayString() switch

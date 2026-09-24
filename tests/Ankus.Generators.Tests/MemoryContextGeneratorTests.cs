@@ -15,17 +15,17 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="nativeParameters">The matching ordered native ABI parameter types.</param>
     [TestMethod]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static string Name() => Ankus.PgMemoryContext.Current.Name; }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
-        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
+        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static void Run() { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
-        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
+        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgOperator(\"@+\")][Ankus.PgCast] public static string Render(int value) => Ankus.PgMemoryContext.Current.Name; }",
-        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
-        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
+        "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<string> Names() { yield return Ankus.PgMemoryContext.Current.Name; } }",
-        "int,nint*,Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
-        "int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
+        "int,nint*,Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint,nint",
+        "int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo")]
     [DataRow("public static class Functions { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) { Ankus.PgMemoryContext.Current.Run(() => { }); return context.New; } }",
         "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
@@ -75,13 +75,13 @@ public sealed partial class PgFunctionGeneratorTests
         string nativeInvocation = callback.Parameters[0].Name switch
         {
             "phase" => "&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);",
-            "operation" => "backend ? ankus_spi_execute : NULL, &memory);",
+            "operation" => "backend ? ankus_spi_execute : NULL, &memory, function_call);",
             "error" => $"int status = {callback.Name}(error, ankus_read_guc,\n" +
                        "            IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);",
             _ when callback.Parameters.Any(static parameter => parameter.Name == "owner") => "scope->owner, (void *) ankus_aggregate_api, &memory);",
             _ when source.Contains("PgTrigger", StringComparison.Ordinal) || source.Contains("PgEventTrigger", StringComparison.Ordinal)
                 => "status = callback(arguments, result, error, ankus_spi_execute, &memory);",
-            _ => $"status = {callback.Name}(arguments, &result, &error, ankus_spi_execute, &memory);",
+            _ => $"status = {callback.Name}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo);",
         };
         Assert.Contains(nativeInvocation, native);
         Assert.Contains("ankus_memory_invoke(", native);
@@ -182,7 +182,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <returns>The guarded body for callback-specific semantic assertions.</returns>
     private static TryStatementSyntax AssertMemoryCallbackScope(MethodDeclarationSyntax callback, params string[] remainingExits)
     {
-        ParameterSyntax memory = callback.ParameterList.Parameters.Last();
+        ParameterSyntax memory = callback.ParameterList.Parameters.Single(static parameter => parameter.Identifier.ValueText == "memory");
         Assert.AreEqual("memory", memory.Identifier.ValueText);
         Assert.AreEqual("nint", memory.Type!.ToString());
         BlockSyntax body = Assert.IsInstanceOfType<BlockSyntax>(callback.Body);

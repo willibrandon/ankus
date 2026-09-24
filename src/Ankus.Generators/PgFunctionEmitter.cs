@@ -25,7 +25,7 @@ internal static class PgFunctionEmitter
         bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
     {
-        FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsMemoryContext).Select(static parameter => parameter.Type!)];
+        FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)];
         FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameterModels, result, managed);
@@ -44,7 +44,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
         source.AppendLine($"    private static int {callback}(");
         source.AppendLine("        global::Ankus.NativeValue* arguments, global::Ankus.NativeValue* result,");
-        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute, nint memory)");
+        source.AppendLine("        global::Ankus.NativeCallError* error, nint execute, nint memory, nint functionCall)");
         source.AppendLine("    {");
         source.AppendLine("        nint previous = global::Ankus.NativeBackend.Enter(execute);");
         source.AppendLine("        nint previousMemory = 0;");
@@ -53,6 +53,11 @@ internal static class PgFunctionEmitter
         source.AppendLine("        {");
         source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
+        if (parameters.Any(static parameter => parameter.IsFunctionContext))
+        {
+            source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
+        }
+
         IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression());
 
         string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -101,7 +106,7 @@ internal static class PgFunctionEmitter
     private static void EmitNative(
         string name, string callback, FunctionType[] parameters, FunctionType result, bool ensureInitialized, StringBuilder source)
     {
-        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
+        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
         source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
         source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
         source.AppendLine("{");
@@ -217,7 +222,7 @@ internal static class PgFunctionEmitter
 
         source.AppendLine("    previous_function = ankus_function_oid;");
         source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
-        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute, &memory);");
+        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo);");
         source.AppendLine("    ankus_function_oid = previous_function;");
         if (hasBuffers)
         {

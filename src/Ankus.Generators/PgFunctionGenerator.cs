@@ -174,6 +174,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             native.AppendLine(NativeTransactionBridge.Source);
             native.AppendLine(NativeDatumBridge.Source);
+            native.AppendLine(NativeFunctionBridge.Source);
 
             if (hasFunctionCallbacks)
             {
@@ -403,7 +404,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 continue;
             }
 
-            string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", parameters.Where(static parameter => !parameter.IsMemoryContext).Select(
+            string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", parameters.Where(static parameter => !parameter.IsInjected).Select(
                 static parameter => parameter.Type!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
@@ -443,7 +444,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context);
             }
 
-            IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsMemoryContext).Select(static parameter => parameter.Type!)
+            IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
                 .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
             foreach (FunctionType contract in contracts)
             {
@@ -605,10 +606,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            (set is null && FunctionType.CreateResult(method) is null) || parameters.Count(static parameter => !parameter.IsMemoryContext) > 100 ||
+            (set is null && FunctionType.CreateResult(method) is null) || parameters.Count(static parameter => !parameter.IsInjected) > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
             parameters.Any(static parameter => parameter.Symbol.RefKind != RefKind.None ||
-                (!parameter.IsMemoryContext && parameter.Type is null) ||
+                (!parameter.IsInjected && parameter.Type is null) ||
                 (parameter.Symbol.IsParams && parameter.Type?.IsVector != true)))
         {
             return false;

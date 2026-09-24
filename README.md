@@ -115,6 +115,9 @@ assignment, or implicit conversions. Both generate backing functions and
 dependency-ordered SQL. See [operators and casts](docs/src/content/docs/operators-and-casts.md)
 and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs).
 
+Add a `PgFunctionContext` parameter to inspect a call's collation, function and
+result type OIDs, and raw SQL arguments. It adds no SQL parameter.
+
 ## Querying PostgreSQL
 
 Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elements

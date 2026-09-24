@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace Ankus.Generators;
 
 /// <summary>
-/// Separates managed invocation order from SQL argument slots and injected memory contexts.
+/// Separates managed invocation order from SQL argument slots and injected backend contexts.
 /// </summary>
 /// <param name="symbol">The managed parameter declaration.</param>
 /// <param name="type">The SQL conversion contract, or null for a context or unsupported type.</param>
@@ -29,7 +29,12 @@ internal sealed class FunctionParameter(IParameterSymbol symbol, FunctionType? t
     /// <summary>
     /// Gets whether the backend supplies this parameter without consuming a SQL argument.
     /// </summary>
-    internal bool IsMemoryContext => SqlIndex < 0;
+    internal bool IsInjected => SqlIndex < 0;
+
+    /// <summary>
+    /// Gets whether the parameter receives an owned snapshot of function-call metadata and arguments.
+    /// </summary>
+    internal bool IsFunctionContext => IsInjected && Symbol.Type.Name == "PgFunctionContext";
 
     /// <summary>
     /// Builds the ordered managed invocation parameters while assigning contiguous SQL slots.
@@ -43,10 +48,10 @@ internal sealed class FunctionParameter(IParameterSymbol symbol, FunctionType? t
         for (int index = 0; index < parameters.Length; index++)
         {
             IParameterSymbol parameter = method.Parameters[index];
-            bool memoryContext = parameter.Type is INamedTypeSymbol { Name: "PgMemoryContext", Arity: 0, ContainingType: null } named &&
+            bool injected = parameter.Type is INamedTypeSymbol { Name: "PgMemoryContext" or "PgFunctionContext", Arity: 0, ContainingType: null } named &&
                 named.ContainingNamespace.ToDisplayString() == "Ankus";
-            parameters[index] = new FunctionParameter(parameter, memoryContext ? null : FunctionType.Create(parameter),
-                memoryContext ? -1 : sqlIndex++);
+            parameters[index] = new FunctionParameter(parameter, injected ? null : FunctionType.Create(parameter),
+                injected ? -1 : sqlIndex++);
         }
 
         return parameters;
@@ -57,7 +62,7 @@ internal sealed class FunctionParameter(IParameterSymbol symbol, FunctionType? t
     /// </summary>
     /// <returns>A checked context lookup or a conversion from the parameter's SQL slot.</returns>
     internal string ReadExpression()
-        => IsMemoryContext ? "global::Ankus.PgMemoryContext.Current" :
+        => IsFunctionContext ? "functionContext" : IsInjected ? "global::Ankus.PgMemoryContext.Current" :
             ManagedConversion.Read(Type!, "arguments[" + SqlIndex.ToString(CultureInfo.InvariantCulture) + "]",
                 NumericConstraint.Rescale(Symbol.GetAttributes()));
 }

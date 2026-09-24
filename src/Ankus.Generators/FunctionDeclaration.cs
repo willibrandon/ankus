@@ -73,7 +73,7 @@ internal sealed class FunctionDeclaration
         }
 
         FunctionParameter[] sqlParameters = contextParameter ? [] :
-            [.. (parameterModels ?? FunctionParameter.Create(method)).Where(static parameter => !parameter.IsMemoryContext)];
+            [.. (parameterModels ?? FunctionParameter.Create(method)).Where(static parameter => !parameter.IsInjected)];
         bool allNullable = sqlNullability?.All(static nullable => nullable) ??
             (contextParameter || sqlParameters.All(static parameter => parameter.Type!.Nullable));
         bool allRequired = sqlNullability?.All(static nullable => !nullable) ??
@@ -178,11 +178,11 @@ internal sealed class FunctionDeclaration
         foreach (FunctionParameter model in parameterModels ?? FunctionParameter.Create(method))
         {
             IParameterSymbol parameter = model.Symbol;
-            if (model.IsMemoryContext)
+            if (model.IsInjected)
             {
                 if (parameter.GetAttributes().Any(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute"))
                 {
-                    return Invalid("An injected PgMemoryContext has no SQL parameter name or default; remove PgParameter from it.");
+                    return Invalid($"An injected {parameter.Type.Name} has no SQL parameter name or default; remove PgParameter from it.");
                 }
 
                 continue;

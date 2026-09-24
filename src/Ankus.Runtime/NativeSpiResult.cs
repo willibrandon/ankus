@@ -54,6 +54,21 @@ internal unsafe struct NativeSpiResult
     internal NativeValue _text;
 
     /// <summary>
+    /// Contains the invoked function's catalog identity for a function-context snapshot.
+    /// </summary>
+    internal uint _functionOid;
+
+    /// <summary>
+    /// Contains the resolved function result type for a function-context snapshot.
+    /// </summary>
+    internal uint _resultTypeOid;
+
+    /// <summary>
+    /// Contains the invocation collation, or zero when none applies.
+    /// </summary>
+    internal uint _collationOid;
+
+    /// <summary>
     /// Copies every cell and column into managed objects before native memory is released.
     /// </summary>
     /// <returns>The independent managed result.</returns>

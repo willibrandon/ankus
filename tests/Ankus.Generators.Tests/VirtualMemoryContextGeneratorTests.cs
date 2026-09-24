@@ -473,17 +473,17 @@ public sealed partial class PgFunctionGeneratorTests
             .GetMembers().OfType<IMethodSymbol>());
         string invocation = callback.Parameters[0].Type.SpecialType == SpecialType.System_Int32
             ? """
-                delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, int> invoke =
-                    (delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, int>)address;
+                delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int> invoke =
+                    (delegate* unmanaged[Cdecl]<int, nint*, Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int>)address;
                 nint iterator = 0;
-                int status = invoke(0, &iterator, arguments, &result, &error, 0, (nint)inner);
+                int status = invoke(0, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                 try
                 {
                     if (status == 0)
                     {
-                        status = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner);
+                        status = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                         Ankus.NativeValue first = result;
-                        int completion = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner);
+                        int completion = invoke(1, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                         if (completion != 2)
                         {
                             status = -2;
@@ -496,7 +496,7 @@ public sealed partial class PgFunctionGeneratorTests
                 {
                     if (iterator != 0)
                     {
-                        int disposal = invoke(2, &iterator, arguments, &result, &error, 0, (nint)inner);
+                        int disposal = invoke(2, &iterator, arguments, &result, &error, 0, (nint)inner, 0);
                         if (disposal != 0 || iterator != 0)
                         {
                             status = -3;
@@ -505,9 +505,9 @@ public sealed partial class PgFunctionGeneratorTests
                 }
                 """
             : """
-                delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, int> invoke =
-                    (delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, int>)address;
-                int status = invoke(arguments, &result, &error, 0, (nint)inner);
+                delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int> invoke =
+                    (delegate* unmanaged[Cdecl]<Ankus.NativeValue*, Ankus.NativeValue*, Ankus.NativeCallError*, nint, nint, nint, int>)address;
+                int status = invoke(arguments, &result, &error, 0, (nint)inner, 0);
                 """;
         compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText($$"""
             public static unsafe class VirtualContextProbe

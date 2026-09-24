@@ -83,6 +83,36 @@ their multi-call context. The handle preserves that owner across temporary
 context switches. See [memory contexts](/memory-contexts/) and
 [set lifetime](/sets-and-tables/#iterator-lifetime-and-errors) for its lifetime.
 
+## Function-call context
+
+Add a `PgFunctionContext` parameter to inspect the PostgreSQL call:
+
+```csharp
+[PgFunction]
+public static uint InputCollation(string text, PgFunctionContext call)
+    => call.CollationOid;
+```
+
+```sql
+SELECT input_collation('hello' COLLATE "C");
+```
+
+The context adds no SQL argument. It exposes `FunctionOid`, `ResultTypeOid`,
+`CollationOid`, and zero-based `Arguments`. Each argument is a `PgDatum` with its
+actual PostgreSQL type, SQL NULL flag, and conversion methods such as `Read<int>()`.
+A collation OID of zero means no collation applies.
+
+Metadata remains readable after the call. Raw arguments are independent copies
+owned by the scalar call's memory context or the iterator's multi-call context.
+They survive nested calls and iterator yields; native access fails after their
+owner is reclaimed. Use `argument.CopyTo(context)` for a longer native lifetime,
+or `Read<T>()` for an independent managed value.
+
+Context parameters can appear anywhere among the SQL parameters, including in
+operators and casts. Repeated `PgFunctionContext` parameters receive the same
+snapshot. As with injected memory contexts, SQL defaults, names, and strictness
+apply only to SQL arguments.
+
 ## Schemas
 
 Without a schema declaration, functions use the schema selected by
