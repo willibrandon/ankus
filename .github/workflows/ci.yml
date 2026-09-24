@@ -94,7 +94,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nativeaot-${{ matrix.rid }}
-          path: artifacts/nativeaot/${{ matrix.rid }}/aotsdk
+          path: artifacts/nativeaot/${{ matrix.rid }}
           if-no-files-found: error
           retention-days: 3
 
@@ -135,7 +135,7 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           name: nativeaot-${{ matrix.rid }}
-          path: artifacts/nativeaot/${{ matrix.rid }}/aotsdk
+          path: artifacts/nativeaot/${{ matrix.rid }}
 
       - name: Run full PostgreSQL tests
         run: >-
