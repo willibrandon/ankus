@@ -3359,9 +3359,14 @@ The phases track implementation of the complete pgrx feature surface.
   x64/PostgreSQL 18 passes 2,088/2,088 unit cases in 4m59s and 2,052 integration
   cases with two Linux-only skips in 11m32s; Windows x64/PostgreSQL 17 passes 4,140
   with the same two skips in 12m51s. A repeat completed every macOS x64 test but
-  exceeded the 15-minute job limit during cleanup. The integration suite now runs
-  as six complete, disjoint shards containing 646, 804, 554, 16, 5 and 29 tests.
+  exceeded the 15-minute job limit during cleanup. A diagnostic run split the
+  integration suite into six complete, disjoint shards containing 646, 804, 554,
+  16, 5 and 29 tests.
   [Hosted CI run 35999926137](https://github.com/willibrandon/ankus/actions/runs/35999926137)
   passes every job and all 2,054 macOS x64 integration cases; the slowest shard
-  completes in 11m07s. Windows repeats the full suite successfully in 14m18s.
+  completes in 11m07s. Windows repeats the full suite successfully in 14m18s. The
+  measured tool shards are consolidated into one 50-test shard, and shard 1 also
+  runs the 2,088 unit cases. CI now has four integration shards and one ARM64 job,
+  matching the five available macOS runners without leaving work queued. The
+  consolidated tool shard passes 50/50 locally in 2m19.830s.
   Execution across PostgreSQL 15–18 on every supported platform remains pending.

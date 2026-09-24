@@ -135,14 +135,6 @@ jobs:
             rid: osx-x64
             postgresql: 18
             suite: integration-4
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
-            suite: integration-5
-          - runner: macos-15-intel
-            rid: osx-x64
-            postgresql: 18
-            suite: integration-6
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
@@ -178,22 +170,3 @@ jobs:
           path: artifacts/test-logs/**
           if-no-files-found: ignore
           retention-days: 7
-
-  unit-macos-x64:
-    needs: runtime
-    runs-on: macos-15-intel
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.400
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: nativeaot-osx-x64
-          path: artifacts/nativeaot/osx-x64
-
-      - name: Run unit tests
-        run: dotnet run --file ./eng/Ankus.Ci.cs -- unit-test
