@@ -47,7 +47,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         string runtimeIdentifier = RuntimeInformation.RuntimeIdentifier;
         string runtimeSdk = Path.Combine(repository, "artifacts", "nativeaot", runtimeIdentifier, "aotsdk") +
                             Path.DirectorySeparatorChar;
-        string runtimeSource = Path.Combine(repository, "artifacts", "preload", "runtime-10.0.11");
+        string runtimeSource = Path.Combine(repository, "artifacts", "nativeaot", runtimeIdentifier, "source");
         await ProcessRunner.RunCheckedAsync("dotnet",
             ["pack", Path.Combine(repository, "src/Ankus.NativeAot.Runtime"), "-c", "Release", "-o", feed,
                 "-p:AnkusRuntimeIdentifier=" + runtimeIdentifier, "-p:AnkusRuntimeSdkPath=" + runtimeSdk,

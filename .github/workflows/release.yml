@@ -25,7 +25,7 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.400
 
@@ -44,7 +44,7 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.400
 
@@ -53,7 +53,7 @@ jobs:
           dotnet run --file ./eng/Ankus.Ci.cs -- release-managed
           ${{ needs.metadata.outputs.version }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: managed-packages
           path: artifacts/packages/*.nupkg
@@ -95,7 +95,7 @@ jobs:
           ref: ${{ needs.metadata.outputs.runtime_commit }}
           path: runtime
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.400
 
@@ -106,7 +106,7 @@ jobs:
           ${{ matrix.architecture }}
           ${{ matrix.rid }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: runtime-package-${{ matrix.rid }}
           path: artifacts/packages/*.nupkg
@@ -126,11 +126,11 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.400
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: '*package*'
           path: artifacts/packages
