@@ -50,12 +50,12 @@ try
             break;
 
         case "runtime-ci":
-            RequireArguments(args, 4);
+            RequireArguments(args, 5);
             ValidateRuntimeIdentity(repositoryRoot);
             InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
             StageRuntime(repositoryRoot, args[1], args[2], args[3]);
-            InstallPostgreSql(repositoryRoot);
+            InstallPostgreSql(repositoryRoot, args[4]);
             RunRuntimeTests(repositoryRoot);
             PackRuntime(repositoryRoot, args[3], GetStagedRuntimePath(repositoryRoot, args[3]));
             break;
@@ -342,36 +342,48 @@ static void CopyDirectory(string source, string destination)
     }
 }
 
-static void InstallPostgreSql(string repositoryRoot)
+static void InstallPostgreSql(string repositoryRoot, string version)
 {
+    VerifyPostgreSqlVersion(version);
+
     if (OperatingSystem.IsLinux())
     {
-        InstallPostgreSqlLinux(repositoryRoot);
-        WriteEnvironment("ANKUS_TEST_PG_CONFIG", "/usr/lib/postgresql/18/bin/pg_config");
+        InstallPostgreSqlLinux(repositoryRoot, version);
+        WriteEnvironment("ANKUS_TEST_PG_CONFIG", $"/usr/lib/postgresql/{version}/bin/pg_config");
         return;
     }
 
     if (OperatingSystem.IsMacOS())
     {
-        Run("brew", ["install", "postgresql@18"], environment: new Dictionary<string, string?>
+        string formula = $"postgresql@{version}";
+        Run("brew", ["install", formula], environment: new Dictionary<string, string?>
         {
             ["HOMEBREW_NO_AUTO_UPDATE"] = "1",
         });
-        string prefix = Capture("brew", ["--prefix", "postgresql@18"]);
+        string prefix = Capture("brew", ["--prefix", formula]);
         WriteEnvironment("ANKUS_TEST_PG_CONFIG", Path.Combine(prefix, "bin", "pg_config"));
         return;
     }
 
     if (OperatingSystem.IsWindows())
     {
-        Run("choco", ["upgrade", "postgresql", "--version=18.6.0", "--yes", "--no-progress", "--params", "/Password:root"]);
-        string pgConfig = @"C:\Program Files\PostgreSQL\18\bin\pg_config.exe";
+        string root = Environment.GetEnvironmentVariable("PGROOT")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PostgreSQL", version);
+        string pgConfig = Path.Combine(root, "bin", "pg_config.exe");
 
         if (!File.Exists(pgConfig))
         {
-            throw new FileNotFoundException("PostgreSQL 18 pg_config was not installed.", pgConfig);
+            throw new FileNotFoundException($"The Windows runner does not contain PostgreSQL {version}.", pgConfig);
         }
 
+        string actualVersion = Capture(pgConfig, ["--version"]);
+
+        if (!actualVersion.StartsWith($"PostgreSQL {version}.", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Expected PostgreSQL {version}, but the runner provides {actualVersion}.");
+        }
+
+        Console.WriteLine($"Using preinstalled {actualVersion}.");
         WriteEnvironment("ANKUS_TEST_PG_CONFIG", pgConfig);
         return;
     }
@@ -379,7 +391,15 @@ static void InstallPostgreSql(string repositoryRoot)
     throw new PlatformNotSupportedException("PostgreSQL installation is not defined for this runner.");
 }
 
-static void InstallPostgreSqlLinux(string repositoryRoot)
+static void VerifyPostgreSqlVersion(string version)
+{
+    if (version is not ("15" or "16" or "17" or "18"))
+    {
+        throw new ArgumentOutOfRangeException(nameof(version), version, "PostgreSQL 15 through 18 are supported.");
+    }
+}
+
+static void InstallPostgreSqlLinux(string repositoryRoot, string version)
 {
     Run("sudo", ["apt-get", "update"]);
     Run("sudo", ["apt-get", "install", "--yes", "ca-certificates", "gnupg"]);
@@ -405,7 +425,7 @@ static void InstallPostgreSqlLinux(string repositoryRoot)
     Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/postgresql.gpg", keyPath]);
     Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/pgdg.list"]);
     Run("sudo", ["apt-get", "update"]);
-    Run("sudo", ["apt-get", "install", "--yes", "postgresql-18", "postgresql-server-dev-18"]);
+    Run("sudo", ["apt-get", "install", "--yes", $"postgresql-{version}", $"postgresql-server-dev-{version}"]);
 }
 
 static void WriteEnvironment(string name, string value)
@@ -418,7 +438,36 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot)
 {
-    Run(GetDotNetHost(), ["test", "-m:1"], repositoryRoot);
+    Run(GetDotNetHost(), ["build", "Ankus.slnx", "-m:1"], repositoryRoot);
+    string[] testModules =
+    [
+        "tests/Ankus.Examples.Hello.Tests/bin/Debug/net10.0/Ankus.Examples.Hello.Tests.dll",
+        "tests/Ankus.Generators.Tests/bin/Debug/net10.0/Ankus.Generators.Tests.dll",
+        "tests/Ankus.PgConfig.Tests/bin/Debug/net10.0/Ankus.PgConfig.Tests.dll",
+        "tests/Ankus.IntegrationTests/bin/Debug/net10.0/Ankus.IntegrationTests.dll",
+        "tests/Ankus.Runtime.Tests/bin/Debug/net10.0/Ankus.Runtime.Tests.dll",
+    ];
+
+    foreach (string testModule in testModules)
+    {
+        string path = Path.Combine(repositoryRoot, testModule.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("A required test module was not built.", path);
+        }
+
+        Run(GetDotNetHost(),
+        [
+            "test",
+            "--test-modules",
+            path,
+            "--root-directory",
+            repositoryRoot,
+            "--minimum-expected-tests",
+            "1",
+        ], repositoryRoot);
+    }
 }
 
 static void PackManaged(string repositoryRoot, string packageVersion)
