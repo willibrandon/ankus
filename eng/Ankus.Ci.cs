@@ -3,6 +3,7 @@
 #:property PublishAot=false
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 const string RuntimeRepository = "willibrandon/runtime";
@@ -49,15 +50,21 @@ try
             Run("pnpm", ["check"], Path.Combine(repositoryRoot, "docs"), environment: continuousIntegration);
             break;
 
-        case "runtime-ci":
-            RequireArguments(args, 5);
+        case "runtime-build":
+            RequireArguments(args, 4);
             ValidateRuntimeIdentity(repositoryRoot);
             InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
             StageRuntime(repositoryRoot, args[1], args[2], args[3]);
-            InstallPostgreSql(repositoryRoot, args[4]);
-            RunRuntimeTests(repositoryRoot);
             PackRuntime(repositoryRoot, args[3], GetStagedRuntimePath(repositoryRoot, args[3]));
+            break;
+
+        case "runtime-test":
+            RequireArguments(args, 3);
+            ValidateRuntimeIdentity(repositoryRoot);
+            VerifyStagedRuntime(repositoryRoot, args[1]);
+            InstallPostgreSql(repositoryRoot, args[2]);
+            RunRuntimeTests(repositoryRoot);
             break;
 
         case "release-managed":
@@ -220,23 +227,7 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
 {
     VerifyPlatform(platform, architecture);
     string runtimeRoot = Path.Combine(repositoryRoot, "runtime");
-
-    if (OperatingSystem.IsWindows())
-    {
-        Run(Path.Combine(runtimeRoot, "build.cmd"),
-        [
-            "-s",
-            "clr.nativeaotruntime+clr.nativeaotlibs",
-            "-c",
-            "Release",
-            "-arch",
-            architecture,
-            "/p:ManagePackageVersionsCentrally=false",
-        ], runtimeRoot, true);
-        return;
-    }
-
-    Run(Path.Combine(runtimeRoot, "build.sh"),
+    List<string> arguments =
     [
         "-s",
         "clr.nativeaotruntime+clr.nativeaotlibs",
@@ -245,8 +236,25 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
         "-arch",
         architecture,
         "/p:ManagePackageVersionsCentrally=false",
-    ], runtimeRoot);
+    ];
+
+    if (OperatingSystem.IsWindows())
+    {
+        Run(Path.Combine(runtimeRoot, "build.cmd"), arguments, runtimeRoot, true);
+        return;
+    }
+
+    if (IsMacOsCrossBuild(architecture))
+    {
+        arguments.Add("-cross");
+    }
+
+    Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot);
 }
+
+static bool IsMacOsCrossBuild(string architecture)
+    => OperatingSystem.IsMacOS() && (architecture, RuntimeInformation.ProcessArchitecture) is
+        ("x64", Architecture.Arm64) or ("arm64", Architecture.X64);
 
 static void VerifyPlatform(string platform, string architecture)
 {
@@ -317,6 +325,16 @@ static void StageRuntime(string repositoryRoot, string platform, string architec
     }
 
     CopyDirectory(source, destination);
+}
+
+static void VerifyStagedRuntime(string repositoryRoot, string runtimeIdentifier)
+{
+    string path = GetStagedRuntimePath(repositoryRoot, runtimeIdentifier);
+
+    if (!Directory.Exists(path) || !Directory.EnumerateFiles(path).Any())
+    {
+        throw new DirectoryNotFoundException($"The staged {runtimeIdentifier} runtime was not downloaded to {path}.");
+    }
 }
 
 static void CopyDirectory(string source, string destination)
