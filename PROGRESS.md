@@ -3293,3 +3293,14 @@ The phases track implementation of the complete pgrx feature surface.
   tests Release outputs in parallel MSBuild mode and initializes MSVC before
   Windows Native AOT publishing. The hosted cross-platform rerun and remaining
   PostgreSQL version matrix are pending.
+
+- 2026-09-24 — Fixed the remaining first hosted-matrix failures. Runtime commit
+  `0af10391603f2dc334259157abeeadc5a82f7be9` keeps the Unix finalizer joinable,
+  joins its native thread before declaring a postmaster dormant, and discards
+  the inherited handle before child recovery. The Linux x64 Release runtime and
+  CoreLib build with zero warnings/errors; repeated finalizer-wait and descendant
+  fork probes pass. PostgreSQL 17 Windows parallel tests avoid its fixed-in-18
+  transaction-GUC restore defect while still proving real workers, tool tests use
+  the selected server version, generated-column coverage follows server support,
+  and preload reload checks wait for the postmaster to apply the new default.
+  Ankus Release builds with zero warnings/errors. The hosted rerun is pending.

@@ -234,7 +234,24 @@ public sealed class GucPreloadTests(TestContext context)
         Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(connection, "SELECT pending_restart FROM pg_settings WHERE name = 'ankus_configuration.startup'")));
         await ExecuteAsync(connection, "RESET \"ankus_configuration.user\"");
         Assert.AreEqual("65", await ScalarAsync(connection, "SHOW \"ankus_configuration.user\""));
-        await using NpgsqlConnection next = await cluster.OpenConnectionAsync(context.CancellationToken);
+        NpgsqlConnection? reloaded = null;
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            NpgsqlConnection candidate = await cluster.OpenConnectionAsync(context.CancellationToken);
+            string candidateValue = Assert.IsInstanceOfType<string>(
+                await ScalarAsync(candidate, "SHOW ankus_configuration.connection"));
+            if (candidateValue == "35")
+            {
+                reloaded = candidate;
+                break;
+            }
+
+            await candidate.DisposeAsync();
+            await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
+        }
+
+        await using NpgsqlConnection next = reloaded
+            ?? throw new AssertFailedException("The postmaster did not apply the reloaded connection default.");
         Assert.AreEqual("35", await ScalarAsync(next, "SHOW ankus_configuration.connection"));
         Assert.AreEqual("11", await ScalarAsync(next, "SHOW ankus_configuration.startup"));
         await ExecuteAsync(connection, "ALTER SYSTEM RESET \"ankus_configuration.user\"");

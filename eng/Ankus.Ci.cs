@@ -8,8 +8,8 @@ using System.Text.RegularExpressions;
 
 const string RuntimeRepository = "willibrandon/runtime";
 const string RuntimeBase = "v10.0.11";
-const string RuntimeCommit = "232bc9d1f06c300554a0646fa742d60cca49bcdd";
-const string RuntimeVersion = "10.0.11-ankus.1";
+const string RuntimeCommit = "0af10391603f2dc334259157abeeadc5a82f7be9";
+const string RuntimeVersion = "10.0.11-ankus.2";
 const string RuntimeCompilerVersion = "10.0.11";
 
 string repositoryRoot = FindRepositoryRoot();

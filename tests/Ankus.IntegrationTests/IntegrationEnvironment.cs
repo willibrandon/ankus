@@ -55,14 +55,7 @@ internal static class IntegrationEnvironment
         }
         else
         {
-            if (s_stagedInstallation is null)
-            {
-                string stageRoot = Path.Combine(RepositoryRoot, "artifacts", "test-postgresql", Guid.NewGuid().ToString("N"));
-                s_stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken);
-                s_stagedInstallation.InstallExtensionFiles(NativeOutputDirectory);
-            }
-
-            installation = s_stagedInstallation.Installation;
+            installation = await PrepareExtensionInstallationAsync(NativeOutputDirectory, cancellationToken);
         }
 
         return new PostgresTestClusterOptions
@@ -73,6 +66,32 @@ internal static class IntegrationEnvironment
             StartupTimeout = TimeSpan.FromSeconds(60),
             PostgreSqlConfiguration = configuration,
         };
+    }
+
+    /// <summary>
+    /// Makes extension control files visible to PostgreSQL releases that predate extension_control_path.
+    /// </summary>
+    /// <param name="publishDirectory">The publish directory containing extension control and SQL files.</param>
+    /// <param name="cancellationToken">Cancels PostgreSQL staging.</param>
+    /// <returns>The source installation for PostgreSQL 18 or later; otherwise an isolated staged installation.</returns>
+    internal static async Task<PostgresInstallation> PrepareExtensionInstallationAsync(
+        string publishDirectory,
+        CancellationToken cancellationToken)
+    {
+        PostgresInstallation installation = await GetInstallationAsync(cancellationToken);
+        if (installation.Version.Major >= 18)
+        {
+            return installation;
+        }
+
+        if (s_stagedInstallation is null)
+        {
+            string stageRoot = Path.Combine(RepositoryRoot, "artifacts", "test-postgresql", Guid.NewGuid().ToString("N"));
+            s_stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken);
+        }
+
+        s_stagedInstallation.InstallExtensionFiles(publishDirectory);
+        return s_stagedInstallation.Installation;
     }
 
     /// <summary>

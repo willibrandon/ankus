@@ -427,29 +427,37 @@ public sealed class TriggerTests(TestContext context)
     public Task GeneratedAndDroppedFieldsRespectAvailability()
         => Run(nameof(GeneratedAndDroppedFieldsRespectAvailability), async (connection, transaction, token) =>
         {
-            await Execute(connection, transaction, """
+            bool supportsVirtualColumns = PostgresFixture.Cluster.Installation.Version.Major >= 18;
+            string virtualColumn = supportsVirtualColumns
+                ? ",virtual integer GENERATED ALWAYS AS(value*3) VIRTUAL"
+                : string.Empty;
+            await Execute(connection, transaction, $$"""
                 CREATE TABLE trigger_values.rows(id integer,obsolete text,value integer,note text,
-                    stored integer GENERATED ALWAYS AS(value*2) STORED,
-                    virtual integer GENERATED ALWAYS AS(value*3) VIRTUAL);
+                    stored integer GENERATED ALWAYS AS(value*2) STORED{{virtualColumn}});
                 ALTER TABLE trigger_values.rows DROP COLUMN obsolete;
                 CREATE TRIGGER before_row BEFORE INSERT OR UPDATE ON trigger_values.rows FOR EACH ROW EXECUTE FUNCTION trigger_values.trigger_generated();
                 CREATE TRIGGER after_row AFTER INSERT OR UPDATE ON trigger_values.rows FOR EACH ROW EXECUTE FUNCTION trigger_values.trigger_generated();
                 INSERT INTO trigger_values.rows(id,value,note) VALUES(1,10,'note');
                 """, token);
-            Assert.AreEqual("20:40:60:note", await Scalar<string>(connection, transaction,
-                "SELECT value||':'||stored||':'||virtual||':'||note FROM trigger_values.rows", token));
+            string projection = supportsVirtualColumns
+                ? "value||':'||stored||':'||virtual||':'||note"
+                : "value||':'||stored||':'||note";
+            Assert.AreEqual(supportsVirtualColumns ? "20:40:60:note" : "20:40:note",
+                await Scalar<string>(connection, transaction, $"SELECT {projection} FROM trigger_values.rows", token));
+            string virtualProtection = supportsVirtualColumns ? "|virtual:protected:protected" : string.Empty;
             string[] expected =
             [
-                "Before:dropped:protected|stored:protected:protected|virtual:protected:protected",
+                "Before:dropped:protected|stored:protected:protected" + virtualProtection,
                 "Before:ordinary:55000",
-                "After:dropped:protected|stored:40|virtual:protected:protected",
+                "After:dropped:protected|stored:40" + virtualProtection,
             ];
             Assert.AreSequenceEqual(expected, await Scalar<string[]>(connection, transaction,
                 "SELECT array_agg(timing||':'||detail ORDER BY position) FROM trigger_values.events", token));
             await Execute(connection, transaction, "TRUNCATE trigger_values.events; UPDATE trigger_values.rows SET value=30", token);
-            Assert.AreEqual("40:80:120", await Scalar<string>(connection, transaction,
-                "SELECT value||':'||stored||':'||virtual FROM trigger_values.rows", token));
-            expected[2] = "After:dropped:protected|stored:80|virtual:protected:protected";
+            projection = supportsVirtualColumns ? "value||':'||stored||':'||virtual" : "value||':'||stored";
+            Assert.AreEqual(supportsVirtualColumns ? "40:80:120" : "40:80",
+                await Scalar<string>(connection, transaction, $"SELECT {projection} FROM trigger_values.rows", token));
+            expected[2] = "After:dropped:protected|stored:80" + virtualProtection;
             Assert.AreSequenceEqual(expected, await Scalar<string[]>(connection, transaction,
                 "SELECT array_agg(timing||':'||detail ORDER BY position) FROM trigger_values.events", token));
         });

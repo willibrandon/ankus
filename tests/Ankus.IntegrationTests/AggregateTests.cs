@@ -1,3 +1,4 @@
+using Ankus.Testing;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -318,6 +319,33 @@ public sealed partial class AggregateTests(TestContext context)
     private Task Run(string name, Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task> action)
         => PostgresFixture.Cluster.RunInTransactionAsync(name, action, context.CancellationToken);
 
+    private async Task RunParallel(
+        string name,
+        Func<NpgsqlConnection, NpgsqlTransaction?, CancellationToken, Task> action)
+    {
+        if (!OperatingSystem.IsWindows() || PostgresFixture.Cluster.Installation.Version.Major >= 18)
+        {
+            await PostgresFixture.Cluster.RunInTransactionAsync(name,
+                (connection, transaction, token) => action(connection, transaction, token),
+                context.CancellationToken);
+            return;
+        }
+
+        try
+        {
+            await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+            await action(connection, null, context.CancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            throw new PostgresTestException(name, PostgresFixture.Cluster.ReadServerLog(), error);
+        }
+    }
+
     private static Task<int> Reset(NpgsqlConnection connection, NpgsqlTransaction transaction, string mode, CancellationToken token)
         => Execute(connection, transaction, $"SELECT aggregate_values.aggregate_reset('{mode}')", token);
 
@@ -336,13 +364,13 @@ public sealed partial class AggregateTests(TestContext context)
         Assert.AreEqual(0, status[3], "No native owner may dispose the payload twice.");
     }
 
-    private static async Task<int> Execute(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, CancellationToken token)
+    private static async Task<int> Execute(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql, CancellationToken token)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         return await command.ExecuteNonQueryAsync(token);
     }
 
-    private static async Task<T> Scalar<T>(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql, CancellationToken token)
+    private static async Task<T> Scalar<T>(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql, CancellationToken token)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         return Assert.IsInstanceOfType<T>(await command.ExecuteScalarAsync(token));

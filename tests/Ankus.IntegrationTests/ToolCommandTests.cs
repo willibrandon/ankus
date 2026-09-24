@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -16,7 +17,7 @@ namespace Ankus.IntegrationTests;
 [DoNotParallelize]
 public sealed partial class ToolCommandTests(TestContext context)
 {
-    private const string NativeAotRuntimeVersion = "10.0.11-ankus.1";
+    private const string NativeAotRuntimeVersion = "10.0.11-ankus.2";
 
     private static string s_root = null!;
     private static string s_tool = null!;
@@ -24,6 +25,8 @@ public sealed partial class ToolCommandTests(TestContext context)
     private static string s_published = null!;
     private static string s_project = null!;
     private static string s_version = null!;
+    private static string s_postgresOption = null!;
+    private static string s_postgresKey = null!;
     private static Dictionary<string, string?> s_environment = null!;
     private static PostgresInstallation s_installation = null!;
 
@@ -40,7 +43,9 @@ public sealed partial class ToolCommandTests(TestContext context)
         s_root = Path.Combine(temporary, "ankus package tests " + Guid.NewGuid().ToString("N"));
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
-        s_installation = await PostgresInstallation.DiscoverAsync(token);
+        s_installation = (await IntegrationEnvironment.CreateOptionsAsync(token)).Installation;
+        s_postgresOption = "--pg" + s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
+        s_postgresKey = "pg" + s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
         string feed = Path.Combine(s_root, "feed");
         Directory.CreateDirectory(feed);
         s_version = "0.0.0-test." + Guid.NewGuid().ToString("N");
@@ -77,7 +82,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             ["tool", "install", "Ankus.Tool", "--version", s_version, "--tool-path", toolDirectory, "--configfile", config],
             s_environment, token, workingDirectory: s_root);
         s_tool = Path.Combine(toolDirectory, OperatingSystem.IsWindows() ? "ankus.exe" : "ankus");
-        (await InvokeAsync(["init", "--home", s_home, "--pg18", s_installation.PgConfigPath], token))
+        (await InvokeAsync(["init", "--home", s_home, s_postgresOption, s_installation.PgConfigPath], token))
             .EnsureSuccess(s_tool, ["init"]);
 
         string projectDirectory = Path.Combine(s_root, "author project");
@@ -91,7 +96,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Hello", "Hello.cs"), Path.Combine(projectDirectory, "Hello.cs"));
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Initialization", "Startup.cs"),
             Path.Combine(projectDirectory, "Startup.cs"));
-        (await InvokeAsync(["publish", "--home", s_home, "--project", s_project, "--output", s_published], token))
+        (await InvokeAsync(
+            ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
     }
 
@@ -138,15 +144,17 @@ public sealed partial class ToolCommandTests(TestContext context)
     {
         string home = CreateDirectory();
         string configuration = Path.Combine(home, "config.json");
-        await File.WriteAllTextAsync(configuration, "{\"pg17\":\"other/pg_config\",\"port\":28800}", context.CancellationToken);
-        ProcessResult registered = await InvokeAsync(["init", "--home", home, "--pg18", s_installation.PgConfigPath],
+        int otherMajor = DifferentMajor();
+        string otherKey = "pg" + otherMajor.ToString(CultureInfo.InvariantCulture);
+        await File.WriteAllTextAsync(configuration, $"{{\"{otherKey}\":\"other/pg_config\",\"port\":28800}}", context.CancellationToken);
+        ProcessResult registered = await InvokeAsync(["init", "--home", home, s_postgresOption, s_installation.PgConfigPath],
             context.CancellationToken);
         Assert.AreEqual(0, registered.ExitCode, registered.StandardError);
         using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(configuration, context.CancellationToken));
-        Assert.AreEqual(s_installation.PgConfigPath, document.RootElement.GetProperty("pg18").GetString());
-        Assert.AreEqual("other/pg_config", document.RootElement.GetProperty("pg17").GetString());
+        Assert.AreEqual(s_installation.PgConfigPath, document.RootElement.GetProperty(s_postgresKey).GetString());
+        Assert.AreEqual("other/pg_config", document.RootElement.GetProperty(otherKey).GetString());
         Assert.AreEqual(28800, document.RootElement.GetProperty("port").GetInt32());
-        ProcessResult info = await InvokeAsync(["info", "--home", home], context.CancellationToken);
+        ProcessResult info = await InvokeAsync(["info", "--home", home, "--pg", MajorText()], context.CancellationToken);
         Assert.AreEqual(0, info.ExitCode, info.StandardError);
         Assert.Contains("pg_config: " + s_installation.PgConfigPath, info.StandardOutput);
         Assert.Contains("Server headers: " + s_installation.ServerIncludeDirectory, info.StandardOutput);
@@ -162,11 +170,13 @@ public sealed partial class ToolCommandTests(TestContext context)
         string configuration = Path.Combine(home, "config.json");
         const string Original = "{ \"pg13\": \"keep this\" }\n";
         await File.WriteAllTextAsync(configuration, Original, context.CancellationToken);
+        int wrongMajor = DifferentMajor();
+        string wrongOption = "--pg" + wrongMajor.ToString(CultureInfo.InvariantCulture);
         ProcessResult result = await InvokeAsync(
-            ["init", "--home", home, "--pg18", s_installation.PgConfigPath, "--pg19", s_installation.PgConfigPath],
+            ["init", "--home", home, s_postgresOption, s_installation.PgConfigPath, wrongOption, s_installation.PgConfigPath],
             context.CancellationToken);
         Assert.AreEqual(1, result.ExitCode);
-        Assert.Contains("not PostgreSQL 19", result.StandardError);
+        Assert.Contains("not PostgreSQL " + wrongMajor.ToString(CultureInfo.InvariantCulture), result.StandardError);
         Assert.AreEqual(Original, await File.ReadAllTextAsync(configuration, context.CancellationToken));
     }
 
@@ -182,7 +192,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         string home = CreateDirectory();
         string configuration = Path.Combine(home, "config.json");
         await File.WriteAllTextAsync(configuration, original, context.CancellationToken);
-        ProcessResult result = await InvokeAsync(["init", "--home", home, "--pg18", s_installation.PgConfigPath],
+        ProcessResult result = await InvokeAsync(["init", "--home", home, s_postgresOption, s_installation.PgConfigPath],
             context.CancellationToken);
         Assert.AreEqual(1, result.ExitCode);
         Assert.AreEqual(original, await File.ReadAllTextAsync(configuration, context.CancellationToken));
@@ -198,7 +208,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         ProcessResult missing = await InvokeAsync(["info", "--home", home], context.CancellationToken);
         Assert.AreEqual(1, missing.ExitCode);
         Assert.Contains("ankus init --pg18", missing.StandardError);
-        ProcessResult explicitPath = await InvokeAsync(["info", "--home", home, "--pg-config", s_installation.PgConfigPath],
+        ProcessResult explicitPath = await InvokeAsync(
+            ["info", "--home", home, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath],
             context.CancellationToken);
         Assert.AreEqual(0, explicitPath.ExitCode, explicitPath.StandardError);
         Assert.Contains(s_installation.PgConfigPath, explicitPath.StandardOutput);
@@ -247,12 +258,13 @@ public sealed partial class ToolCommandTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         PublishedExtension manifest = PublishedExtension.Read(s_published);
-        Assert.AreEqual(18, manifest.PostgresMajor);
+        Assert.AreEqual(s_installation.Version.Major, manifest.PostgresMajor);
         Assert.AreEqual(RuntimeInformation.RuntimeIdentifier, manifest.RuntimeIdentifier);
         Assert.AreEqual("ankus_tool_probe.control", manifest.Control);
         Assert.AreEqual("ankus_tool_probe--1.0.0.sql", manifest.Sql);
         string stage = CreateDirectory();
-        ProcessResult result = await InvokeAsync(["install", "--home", s_home, "--from", s_published, "--destdir", stage], token);
+        ProcessResult result = await InvokeAsync(
+            ["install", "--home", s_home, "--pg", MajorText(), "--from", s_published, "--destdir", stage], token);
         Assert.AreEqual(0, result.ExitCode, result.StandardError);
         string libraries = StagedPath(stage, s_installation.LibraryDirectory);
         string shared = StagedPath(stage, s_installation.SharedDirectory);
@@ -262,17 +274,19 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(await File.ReadAllTextAsync(Path.Combine(s_published, "extension", manifest.Control), token),
             await File.ReadAllTextAsync(Path.Combine(shared, "extension", manifest.Control), token));
         Assert.HasCount(3, Directory.GetFiles(stage, "*", SearchOption.AllDirectories));
+        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(s_published, token);
+        List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(libraries) + "'"];
+        if (s_installation.Version.Major >= 18)
+        {
+            configuration.Insert(0, "extension_control_path = '" + EscapeSetting(shared) + "'");
+        }
+
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
             Installation = s_installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
-            PostgreSqlConfiguration =
-            [
-                "extension_control_path = '" + EscapeSetting(shared) + "'",
-                "dynamic_library_path = '" + EscapeSetting(libraries) + "'",
-                "shared_preload_libraries = '" + manifest.Library + "'",
-            ],
+            PostgreSqlConfiguration = [.. configuration, "shared_preload_libraries = '" + manifest.Library + "'"],
         }, token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         await using var command = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe; SELECT public.add(40, 2)", connection);
@@ -305,7 +319,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath, context.CancellationToken))!;
         switch (failure)
         {
-            case "major": manifest["postgresMajor"] = 17; break;
+            case "major": manifest["postgresMajor"] = DifferentMajor(); break;
             case "runtime": manifest["runtimeIdentifier"] = "wrong-architecture"; break;
             case "path": manifest["library"] = "../outside.so"; break;
             case "missing": File.Delete(Path.Combine(source, "extension", manifest["sql"]!.GetValue<string>())); break;
@@ -313,7 +327,8 @@ public sealed partial class ToolCommandTests(TestContext context)
 
         await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString(), context.CancellationToken);
         string stage = CreateDirectory();
-        ProcessResult result = await InvokeAsync(["install", "--home", s_home, "--from", source, "--destdir", stage],
+        ProcessResult result = await InvokeAsync(
+            ["install", "--home", s_home, "--pg", MajorText(), "--from", source, "--destdir", stage],
             context.CancellationToken);
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsNotEmpty(result.StandardError);
@@ -331,7 +346,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         await File.WriteAllTextAsync(Path.Combine(project, "Broken.cs"), "#error Intentional tool test failure", context.CancellationToken);
         string output = CreateDirectory();
         File.Copy(Path.Combine(s_published, PublishedExtension.FileName), Path.Combine(output, PublishedExtension.FileName));
-        ProcessResult result = await InvokeAsync(["build", "--home", s_home, "--project", project, "--output", output],
+        ProcessResult result = await InvokeAsync(
+            ["build", "--home", s_home, "--pg", MajorText(), "--project", project, "--output", output],
             context.CancellationToken);
         Assert.AreEqual(1, result.ExitCode);
         Assert.Contains("Intentional tool test failure", result.StandardOutput);
@@ -638,8 +654,14 @@ public sealed partial class ToolCommandTests(TestContext context)
     [TestMethod]
     public async Task TestingPackageRunsInIndependentMSTestProject()
     {
+        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(
+            s_published,
+            context.CancellationToken);
         string projectDirectory = CreateDirectory();
         string project = Path.Combine(projectDirectory, "ConsumerTests.csproj");
+        string controlSetting = s_installation.Version.Major >= 18
+            ? JsonSerializer.Serialize("extension_control_path = '" + EscapeSetting(s_published) + "'") + ","
+            : string.Empty;
         new XDocument(new XElement("Project", new XAttribute("Sdk", "MSTest.Sdk"),
             new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
                 new XElement("ImplicitUsings", "enable"), new XElement("Nullable", "enable")),
@@ -662,7 +684,7 @@ public sealed partial class ToolCommandTests(TestContext context)
                         Installation = installation,
                         PostgreSqlConfiguration =
                         [
-                            {{JsonSerializer.Serialize("extension_control_path = '" + EscapeSetting(s_published) + "'")}},
+                            {{controlSetting}}
                             {{JsonSerializer.Serialize("dynamic_library_path = '" + EscapeSetting(s_published) + "'")}},
                         ],
                     });
@@ -879,24 +901,35 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsFalse(Directory.Exists(Path.Combine(output, "published")));
     }
 
-    private static Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token)
-        => PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+    private static async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token)
+    {
+        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
+        List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
+        if (s_installation.Version.Major >= 18)
+        {
+            configuration.Insert(0, "extension_control_path = '" + EscapeSetting(output) + "'");
+        }
+
+        return await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
             Installation = s_installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
-            PostgreSqlConfiguration =
-            [
-                "extension_control_path = '" + EscapeSetting(output) + "'",
-                "dynamic_library_path = '" + EscapeSetting(output) + "'",
-            ],
+            PostgreSqlConfiguration = configuration,
         }, token);
+    }
 
     private static Task<ProcessResult> RunDotnetAsync(string[] arguments, CancellationToken token)
         => ProcessRunner.RunAsync("dotnet", arguments, s_environment, token, workingDirectory: s_root);
 
     private static Task<ProcessResult> InvokeAsync(string[] arguments, CancellationToken token)
         => ProcessRunner.RunAsync(s_tool, arguments, s_environment, token, workingDirectory: s_root);
+
+    private static int DifferentMajor()
+        => s_installation.Version.Major == 19 ? 18 : 19;
+
+    private static string MajorText()
+        => s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
 
     private static string CreateDirectory()
     {
