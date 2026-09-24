@@ -226,7 +226,12 @@ public sealed class MemoryCallbackTests(TestContext context)
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
         int backend = connection.ProcessID;
-        await using var command = new NpgsqlCommand("SET log_error_verbosity = verbose", connection);
+        await using var command = new NpgsqlCommand("DO $$ BEGIN RAISE EXCEPTION 'earlier session error'; END $$", connection);
+        // A previous session can leave errors under a reused operating-system process ID.
+        PostgresException previous = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+        Assert.AreEqual("earlier session error", previous.MessageText);
+        string session = "cleanup-" + Guid.NewGuid().ToString("N");
+        command.CommandText = $"SET application_name = '{session}'; SET log_error_verbosity = verbose";
         await command.ExecuteNonQueryAsync(token);
         command.CommandText = $"SELECT datatype.memory_callback_prepare(1, {cleanupThrows}); DO $$ BEGIN RAISE EXCEPTION 'primary cleanup failure' USING ERRCODE = '23514', DETAIL = 'primary detail', HINT = 'primary hint'; END $$";
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
@@ -245,7 +250,7 @@ public sealed class MemoryCallbackTests(TestContext context)
         await AssertImplicitCleanupAsync(connection, backend, token);
         const string errorPrefix = ": ERROR:  ";
         string[] backendLines = [.. PostgresFixture.Cluster.ReadServerLog().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => line.Contains($" [{backend}] ", StringComparison.Ordinal))];
+            .Where(line => line.Contains($"[{session}]: ", StringComparison.Ordinal))];
         string[] loggedErrors = [.. backendLines.Where(line => line.Contains(errorPrefix, StringComparison.Ordinal))
             .Select(line => line[(line.IndexOf(errorPrefix, StringComparison.Ordinal) + errorPrefix.Length)..])];
         Assert.AreSequenceEqual<string>(cleanupThrows ? ["23514: primary cleanup failure", "22023: callback café"] : ["23514: primary cleanup failure"],

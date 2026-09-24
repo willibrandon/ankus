@@ -3718,3 +3718,26 @@ The phases track implementation of the complete pgrx feature surface.
   remain required. The preceding typed-query milestone passed Linux x64/PostgreSQL
   18, macOS ARM64/PostgreSQL 18, and Windows x64/PostgreSQL 17 in
   [CI run 36043147127](https://github.com/willibrandon/ankus/actions/runs/36043147127).
+
+- 2026-09-24 — Fixed two Windows test races found in
+  [CI run 36046783192](https://github.com/willibrandon/ankus/actions/runs/36046783192).
+  The cleanup-error test filtered a shared server log by operating-system process
+  ID, which Windows had reused for another session. It now assigns a unique
+  application name and checks only that session's diagnostics. An intentional
+  earlier error under the same process ID proves unrelated errors are excluded;
+  exact error ordering, detail, hint, cleanup, and backend recovery remain checked.
+
+  The PANIC test could accept a connection before PostgreSQL had noticed the
+  dying backend, then incorrectly treat that connection as recovery. It now waits
+  for the postmaster's recovery-start message before checking a new connection
+  and transaction rollback. The existing 30-second deadline is unchanged, and
+  retry handling is limited to connection and shutdown/startup failures.
+
+  Both data-driven tests pass locally: 4/4 cases without skips in 30.686s on
+  PostgreSQL 18.6/Linux x64. Plain `dotnet test` passes 4,629/4,629 without skips
+  in 2m58.766s; that working-tree run also includes pending internal-state work.
+  The Release build passes with zero warnings and errors in 8.00s. The CI repair
+  commit contains only these test fixes and this evidence. The failed CI run
+  passed Linux x64/PostgreSQL 18,
+  macOS ARM64/PostgreSQL 18, runtime builds, and quality checks. Windows verification
+  of the fixes remains pending; workflow structure and time limits are unchanged.

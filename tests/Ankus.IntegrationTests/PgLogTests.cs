@@ -262,6 +262,13 @@ public sealed class PgLogTests(TestContext context)
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(30));
+            // PANIC can reach the client before the postmaster observes the dying backend.
+            // A connection accepted before crash recovery begins does not prove recovery.
+            while (!cluster.ReadServerLog().Contains("reinitializing", StringComparison.Ordinal))
+            {
+                await Task.Delay(50, deadline.Token);
+            }
+
             // Crash recovery asynchronously closes peers and reopens the database. Retry only startup connection failures.
             while (true)
             {
@@ -273,7 +280,9 @@ public sealed class PgLogTests(TestContext context)
                     Assert.AreEqual(0L, await query.ExecuteScalarAsync(deadline.Token));
                     break;
                 }
-                catch (NpgsqlException)
+                catch (NpgsqlException failure) when (failure is not PostgresException ||
+                    failure is PostgresException { SqlState: PostgresErrorCodes.CannotConnectNow or
+                        PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown })
                 {
                     await Task.Delay(50, deadline.Token);
                 }
