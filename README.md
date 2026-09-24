@@ -1,7 +1,8 @@
 # Ankus
 
 Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
-Write ordinary C# functions and publish them as a native PostgreSQL extension library.
+Define PostgreSQL functions, aggregates, operators, casts, triggers, enums, and
+configuration settings in C#. Publish them together as a native extension.
 
 [Read the documentation](https://willibrandon.github.io/ankus/).
 

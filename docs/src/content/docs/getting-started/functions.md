@@ -17,7 +17,7 @@ Use the Ankus version available from your feed. Packages are currently built
 locally; a public release is pending. The solution includes an extension project,
 managed tests, and tests that load the native extension into PostgreSQL.
 
-For an existing project, use `Ankus.Sdk`:
+The generated `src/Hello/Hello.csproj` uses `Ankus.Sdk`:
 
 ```xml
 <Project Sdk="Ankus.Sdk/1.0.0">
