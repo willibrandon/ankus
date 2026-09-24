@@ -11,6 +11,19 @@ const string RuntimeBase = "v10.0.11";
 const string RuntimeCommit = "bb56f167c97e2c8e79423de9e43f43cde9ae1a88";
 const string RuntimeVersion = "10.0.11-ankus.3";
 const string RuntimeCompilerVersion = "10.0.11";
+const string IntegrationShardOneFilter =
+    "ClassName~Ankus.IntegrationTests.A|ClassName~Ankus.IntegrationTests.C|ClassName~Ankus.IntegrationTests.D|" +
+    "ClassName~Ankus.IntegrationTests.E|ClassName~Ankus.IntegrationTests.F|ClassName~Ankus.IntegrationTests.G";
+const string IntegrationShardTwoFilter =
+    "ClassName~Ankus.IntegrationTests.I|ClassName~Ankus.IntegrationTests.M|ClassName~Ankus.IntegrationTests.N|" +
+    "ClassName~Ankus.IntegrationTests.O|ClassName~Ankus.IntegrationTests.P|ClassName~Ankus.IntegrationTests.R|" +
+    "ClassName~Ankus.IntegrationTests.S";
+const string IntegrationShardThreeFilter =
+    "ClassName!~Ankus.IntegrationTests.A&ClassName!~Ankus.IntegrationTests.C&ClassName!~Ankus.IntegrationTests.D&" +
+    "ClassName!~Ankus.IntegrationTests.E&ClassName!~Ankus.IntegrationTests.F&ClassName!~Ankus.IntegrationTests.G&" +
+    "ClassName!~Ankus.IntegrationTests.I&ClassName!~Ankus.IntegrationTests.M&ClassName!~Ankus.IntegrationTests.N&" +
+    "ClassName!~Ankus.IntegrationTests.O&ClassName!~Ankus.IntegrationTests.P&ClassName!~Ankus.IntegrationTests.R&" +
+    "ClassName!~Ankus.IntegrationTests.S";
 
 string repositoryRoot = FindRepositoryRoot();
 Directory.SetCurrentDirectory(repositoryRoot);
@@ -500,18 +513,22 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot, string suite)
 {
-    bool includeUnitTests = suite switch
+    (bool IncludeUnitTests, string? IntegrationFilter) selection = suite switch
     {
-        "all" => true,
-        "integration" => false,
-        _ => throw new ArgumentOutOfRangeException(nameof(suite), suite, "Test suite must be 'all' or 'integration'."),
+        "all" => (true, null),
+        "integration" => (false, null),
+        "integration-1" => (false, IntegrationShardOneFilter),
+        "integration-2" => (false, IntegrationShardTwoFilter),
+        "integration-3" => (false, IntegrationShardThreeFilter),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(suite), suite, "Test suite must be 'all', 'integration', or 'integration-1' through 'integration-3'."),
     };
     BuildTests(repositoryRoot);
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
 
-    if (!includeUnitTests)
+    if (!selection.IncludeUnitTests)
     {
-        RunTestModule(repositoryRoot, integrationTestModule);
+        RunTestModule(repositoryRoot, integrationTestModule, selection.IntegrationFilter);
         return;
     }
 
@@ -547,7 +564,7 @@ static void RunUnitTestModules(string repositoryRoot)
     }
 }
 
-static void RunTestModule(string repositoryRoot, string testModule)
+static void RunTestModule(string repositoryRoot, string testModule, string? filter = null)
 {
     string path = Path.Combine(repositoryRoot, testModule.Replace('/', Path.DirectorySeparatorChar));
 
@@ -556,7 +573,7 @@ static void RunTestModule(string repositoryRoot, string testModule)
         throw new FileNotFoundException("A required test module was not built.", path);
     }
 
-    Run(GetDotNetHost(),
+    List<string> arguments =
     [
         "test",
         "--test-modules",
@@ -565,7 +582,14 @@ static void RunTestModule(string repositoryRoot, string testModule)
         repositoryRoot,
         "--minimum-expected-tests",
         "1",
-    ], repositoryRoot);
+    ];
+    if (filter is not null)
+    {
+        arguments.Add("--filter");
+        arguments.Add(filter);
+    }
+
+    Run(GetDotNetHost(), arguments, repositoryRoot);
 }
 
 static void PackManaged(string repositoryRoot, string packageVersion)

@@ -122,7 +122,15 @@ jobs:
           - runner: macos-15-intel
             rid: osx-x64
             postgresql: 18
-            suite: integration
+            suite: integration-1
+          - runner: macos-15-intel
+            rid: osx-x64
+            postgresql: 18
+            suite: integration-2
+          - runner: macos-15-intel
+            rid: osx-x64
+            postgresql: 18
+            suite: integration-3
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
@@ -154,7 +162,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: test-logs-${{ matrix.rid }}
+          name: test-logs-${{ matrix.rid }}-${{ matrix.suite }}
           path: artifacts/test-logs/**
           if-no-files-found: ignore
           retention-days: 7
