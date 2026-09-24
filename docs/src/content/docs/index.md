@@ -5,7 +5,7 @@ template: splash
 hero:
   actions:
     - text: Get started
-      link: /getting-started/functions/
+      link: ./getting-started/functions/
       icon: right-arrow
 ---
 

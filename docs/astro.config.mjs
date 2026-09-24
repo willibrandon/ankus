@@ -1,11 +1,44 @@
 import { defineConfig } from 'astro/config';
+import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
+
+const siteBase = '/ankus';
+
+function addSiteBase(url) {
+  if (
+    !url.startsWith('/') ||
+    url.startsWith('//') ||
+    url === siteBase ||
+    url.startsWith(`${siteBase}/`)
+  ) {
+    return url;
+  }
+
+  return `${siteBase}${url}`;
+}
+
+function updateUrl(node, context) {
+  const url = addSiteBase(node.url);
+  if (url !== node.url) {
+    context.setProperty(node, 'url', url);
+  }
+}
+
+const siteBaseLinks = {
+  name: 'ankus-site-base-links',
+  link: updateUrl,
+  definition: updateUrl,
+  image: updateUrl,
+};
 
 export default defineConfig({
   site: 'https://willibrandon.github.io/ankus',
-  base: '/ankus',
+  base: siteBase,
   outDir: '../artifacts/docs',
   cacheDir: './node_modules/.astro-cache',
+  markdown: {
+    processor: satteri({ mdastPlugins: [siteBaseLinks] }),
+  },
   integrations: [
     starlight({
       title: 'Ankus',

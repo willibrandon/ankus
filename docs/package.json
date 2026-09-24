@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
+    "@astrojs/markdown-satteri": "0.4.1",
     "typescript": "6.0.3"
   }
 }
