@@ -117,6 +117,8 @@ and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs)
 
 Add a `PgFunctionContext` parameter to inspect a call's collation, function and
 result type OIDs, and raw SQL arguments. It adds no SQL parameter.
+Its `GetOrCreateState` method caches managed state for each PostgreSQL call site
+and disposes it when PostgreSQL releases the owner.
 
 ## Querying PostgreSQL
 

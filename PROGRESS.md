@@ -2656,7 +2656,7 @@ complete implementations. AOT serialization must use statically generated metada
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters and raw parameter binding implemented. Custom base-type integration and the complete PostgreSQL/platform matrix remain pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
-| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Injected `PgFunctionContext` snapshots actual OIDs, collation and checked raw arguments across scalar/operator/set calls; per-function cached state and direct/named calls remain pending |
+| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected `PgFunctionContext` snapshots actual OIDs, collation and checked raw arguments across scalar/operator/set calls; `GetOrCreateState` caches exactly typed values per call site with native-owner disposal; direct/named calls remain pending |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
@@ -3507,3 +3507,45 @@ The phases track implementation of the complete pgrx feature surface.
   and complete PostgreSQL/platform validation remain required. The preceding
   raw-cursor milestone passes all jobs in
   [CI run 36026412947](https://github.com/willibrandon/ankus/actions/runs/36026412947).
+
+- 2026-09-24 — Added `PgFunctionContext.GetOrCreateState<T>` for pgrx's
+  `pg_func_extra` behavior. Each PostgreSQL expression initializes its state once
+  after a successful factory call. NULL and zero are cached; failed factories
+  remain retryable. The API enforces the original managed type, rejects recursive
+  initialization and off-thread lookup, and runs `IDisposable.Dispose` when
+  PostgreSQL resets or deletes `fn_mcxt`. Cleanup releases roots even when a
+  disposer throws. `StateMemoryContext` provides the checked native owner for
+  state allocations and explicit raw-argument copies.
+
+  A native registry identifies the `FmgrInfo` call site without occupying
+  PostgreSQL's `fn_extra` slot. Set-returning functions therefore retain their
+  iterator machinery and can share cached state across repeated iterator
+  instances. Monotonic site IDs, provider checks, and owner generations prevent
+  recycled addresses or retained snapshots from reviving released state.
+  Existing iterator state remains readable during abort cleanup; cleanup cannot
+  initialize replacement state.
+
+  Direct runtime tests pass 12/12. The 23-case live PostgreSQL scope passes
+  without skips in 45.181s on PostgreSQL 18.6/Linux x64, including separate
+  expressions, repeated prepared executions, cursor close/rollback, large and
+  NULL raw inputs, nested SPI, native errors, early iterator stop, executor abort,
+  disposal failures, root collection, and same-backend recovery. The Release
+  build passes with zero warnings/errors. Plain `dotnet test` passes 4,461/4,461
+  without skips in 2m51.823s on PostgreSQL 18.6/Linux x64. API freshness
+  (126 pages/1,303 members), `pnpm build` (158 pages), and `pnpm check` pass
+  without diagnostics.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Once-only initialization, NULL/zero caching, exact types, retry and recursive initialization | `PgFunctionStateTests.SuccessfulFactoryRunsOnceAndRetainsExactType`, `NullAndZeroValuesAreCached`, `FailedAndRecursiveFactoriesPermitRetry`; `FunctionStateTests.InitializationContractsPreserveBackendRecovery` |
+  | Independent call sites, copied native payloads, expired handles and reclaimed roots | `FunctionStateTests.RowCallsRetainIndependentStateAndOwnedNativeValues`, `PreparedExecutionsDoNotReviveExpiredState` |
+  | Live portal state and close/rollback cleanup | `FunctionStateTests.PortalOwnsStateAcrossFetches` |
+  | Iterator state separation, repeated instances, empty/early/error cleanup | `FunctionStateTests.RepeatedIteratorsShareOnlyTheirCallSiteState`, `IteratorTerminationReleasesStateAndRecovers` |
+  | Throwing disposers, cleanup reentry, ownership ending during initialization | `FunctionStateTests.DisposalErrorsUnwindAndReleaseRootsBeforeRecovery`; `PgFunctionStateTests.ReleaseIsFinalAndDisposesExactlyOnce`, `OwnerEndingDuringFactoryDisposesUnpublishedValue` |
+  | Failed registration, provider mismatch and exact native lifetime errors | `PgFunctionStateTests.RegistrationFailureDoesNotPublishOrStrandState`, `ProviderMismatchFailsBeforeNativeAccess`, `NativeOwnerFailuresNeverRunFactory` |
+
+  Direct/named invocation, raw/polymorphic signatures, custom base types,
+  remaining backend APIs, and complete PostgreSQL/platform validation remain
+  required. The preceding function-context milestone passed all jobs on Linux,
+  macOS ARM64, and Windows in
+  [CI run 36029314830](https://github.com/willibrandon/ankus/actions/runs/36029314830).

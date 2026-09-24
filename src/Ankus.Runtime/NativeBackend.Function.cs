@@ -38,7 +38,9 @@ public static unsafe partial class NativeBackend
                     value.IsNull != 0, lifetime);
             }
 
-            return new PgFunctionContext(result._functionOid, result._resultTypeOid, result._collationOid, arguments);
+            var site = new PgFunctionStateScope(NativeMemoryContext.Provider, result._functionSite,
+                result._functionMemory, result._functionGeneration);
+            return new PgFunctionContext(result._functionOid, result._resultTypeOid, result._collationOid, arguments, site);
         }
         finally
         {

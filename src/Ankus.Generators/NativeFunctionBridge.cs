@@ -9,6 +9,62 @@ internal static class NativeFunctionBridge
     /// Gets function-call capture executed inside the native error and subtransaction guard.
     /// </summary>
     internal const string Source = """
+        typedef struct AnkusFunctionSite
+        {
+            MemoryContextCallback reset;
+            FmgrInfo *function;
+            MemoryContext owner;
+            Oid function_oid;
+            intptr_t identity;
+            struct AnkusFunctionSite *next;
+        } AnkusFunctionSite;
+
+        static AnkusFunctionSite *ankus_function_sites;
+        static uintptr_t ankus_next_function_site = 1;
+
+        static void
+        ankus_function_site_reset(void *argument)
+        {
+            AnkusFunctionSite *site = argument;
+            AnkusFunctionSite **slot = &ankus_function_sites;
+            while (*slot != site)
+                slot = &(*slot)->next;
+            *slot = site->next;
+            free(site);
+        }
+
+        static void
+        ankus_function_site(FmgrInfo *function, AnkusResult *result)
+        {
+            AnkusMemoryContext *owner = ankus_memory_register_context(function->fn_mcxt);
+            result->function_memory = (intptr_t) owner->id;
+            result->function_generation = owner->generation;
+            for (AnkusFunctionSite *site = ankus_function_sites; site != NULL; site = site->next)
+            {
+                if (site->function == function && site->owner == function->fn_mcxt && site->function_oid == function->fn_oid)
+                {
+                    result->function_site = site->identity;
+                    return;
+                }
+            }
+
+            if (ankus_next_function_site > INTPTR_MAX)
+                ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("Ankus function-site identities exhausted")));
+            AnkusFunctionSite *site = calloc(1, sizeof(*site));
+            if (site == NULL)
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("out of memory registering a function site")));
+            site->function = function;
+            site->owner = function->fn_mcxt;
+            site->function_oid = function->fn_oid;
+            site->identity = (intptr_t) ankus_next_function_site++;
+            site->reset.func = ankus_function_site_reset;
+            site->reset.arg = site;
+            site->next = ankus_function_sites;
+            ankus_function_sites = site;
+            MemoryContextRegisterResetCallback(site->owner, &site->reset);
+            result->function_site = site->identity;
+        }
+
         static void
         ankus_function_context(AnkusRequest *request, AnkusResult *result)
         {
@@ -20,6 +76,8 @@ internal static class NativeFunctionBridge
             result->function_oid = call->flinfo->fn_oid;
             result->result_type_oid = get_fn_expr_rettype(call->flinfo);
             result->collation_oid = call->fncollation;
+            /* fn_extra remains available to PostgreSQL's set-function machinery. */
+            ankus_function_site(call->flinfo, result);
             Oid *declared_types = NULL;
             int declared_count = 0;
             Oid declared_result = get_func_signature(result->function_oid, &declared_types, &declared_count);

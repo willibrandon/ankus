@@ -72,3 +72,52 @@ public uint ResultTypeOid { get; }
 ```
 
 Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
+
+<a id="member-b6efa972fa06701d"></a>
+
+### StateMemoryContext
+
+Gets the borrowed PostgreSQL context that owns this call site's cached state.
+
+```csharp
+public PgMemoryContext StateMemoryContext { get; }
+```
+
+Value: [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+Use this context for native allocations retained by cached state. It can outlive individual
+arguments and iterator instances. Access requires the owning backend thread and a live owner.
+
+
+## Methods
+
+<a id="member-10f3088f25b8a8f8"></a>
+
+### GetOrCreateState&lt;T&gt;(Func&lt;T&gt;)
+
+Returns this call site's cached state, creating it once after the first successful factory call.
+
+```csharp
+public T GetOrCreateState<T>(Func<T> factory)
+```
+
+Type parameters:
+
+`T`
+
+The exact managed state type used consistently at this call site.
+
+Parameters:
+
+`factory` — [Func&lt;T&gt;](https://learn.microsoft.com/dotnet/api/system.func-1)
+
+The synchronous factory, invoked only when no successful value has been cached.
+
+Returns: <code>T</code>
+
+The cached value, including null when the factory returns null.
+
+Different PostgreSQL call sites have independent state, even when they invoke the same SQL function.
+Factory failures permit a later retry; recursive initialization of the same site is rejected.
+PostgreSQL reset or deletion releases the cached value and calls IDisposable.Dispose when implemented.
+State lookup requires the owning backend thread. Do not use a disposed state after its owner ends.

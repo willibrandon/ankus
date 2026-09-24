@@ -101,6 +101,9 @@ internal static class NativeSpiBridge
             Oid function_oid;
             Oid result_type_oid;
             Oid collation_oid;
+            intptr_t function_site;
+            intptr_t function_memory;
+            uintptr_t function_generation;
         } AnkusResult;
 
         typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, struct AnkusError *);

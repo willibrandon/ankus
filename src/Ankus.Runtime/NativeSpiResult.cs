@@ -69,6 +69,21 @@ internal unsafe struct NativeSpiResult
     internal uint _collationOid;
 
     /// <summary>
+    /// Contains a reset-sensitive native identity for the function call site.
+    /// </summary>
+    internal nint _functionSite;
+
+    /// <summary>
+    /// Contains the registered identity of the function's cache memory context.
+    /// </summary>
+    internal nint _functionMemory;
+
+    /// <summary>
+    /// Contains the function cache owner's captured reset generation.
+    /// </summary>
+    internal nuint _functionGeneration;
+
+    /// <summary>
     /// Copies every cell and column into managed objects before native memory is released.
     /// </summary>
     /// <returns>The independent managed result.</returns>

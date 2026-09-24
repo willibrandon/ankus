@@ -152,6 +152,7 @@ immutable managed snapshot; datum access validates the native owner and generati
 | Detoasted or encoding-converted input | PostgreSQL allocation; explicitly freed after dispatch when a new allocation was returned |
 | Managed input string/array | Managed copy; independent of the PostgreSQL input buffer |
 | Injected function-context arguments | PostgreSQL copies; callback or multi-call context with checked reset generation |
+| Cached managed function state | Rooted per call site; disposed and unrooted when `fn_mcxt` resets or is deleted |
 | Managed output string/array | Managed object copied into a native transport buffer |
 | Native output buffer | `NativeMemory.Alloc`; released through a callback into its allocating runtime |
 | Final output datum | PostgreSQL's current memory context |
@@ -160,6 +161,22 @@ On input conversion failure, PostgreSQL's error cleanup owns native input
 allocations. Output allocations owned by Native AOT require the explicit release
 callback: PostgreSQL's memory contexts cannot reclaim them. Keeping allocation
 and release in the same runtime also avoids crossing C runtime heaps on Windows.
+
+Function state uses a native registry keyed by `FmgrInfo`, its `fn_mcxt`, and
+function OID. Monotonic identities prevent recycled native addresses from
+reviving old managed entries. Native reset callbacks retire those identities;
+managed reset callbacks release their values, including after a throwing
+`IDisposable.Dispose`. The registry leaves `fn_extra` available for PostgreSQL's
+set-returning function machinery. State can therefore outlive individual
+iterator instances without replacing their `FuncCallContext`.
+
+`StateMemoryContext` validates the original owner and reset generation before
+returning a borrowed handle. Cached native values must use that owner explicitly;
+the factory does not change the current allocation context. Initialization is
+transactional in managed code: a failed factory leaves the entry empty and
+retryable, recursive initialization fails, and a successful null is still cached.
+During native cleanup, existing iterator state remains readable but new state
+cannot be initialized.
 
 ## Representation and encoding
 

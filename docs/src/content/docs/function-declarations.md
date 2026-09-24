@@ -113,6 +113,43 @@ operators and casts. Repeated `PgFunctionContext` parameters receive the same
 snapshot. As with injected memory contexts, SQL defaults, names, and strictness
 apply only to SQL arguments.
 
+## Cached function state
+
+Use `GetOrCreateState` to reuse an object across calls from the same PostgreSQL
+expression:
+
+```csharp
+public sealed class Counter
+{
+    public int Value { get; set; }
+}
+
+[PgFunction]
+public static int CountCalls(int value, PgFunctionContext call)
+{
+    Counter counter = call.GetOrCreateState(static () => new Counter());
+    return ++counter.Value;
+}
+```
+
+```sql
+SELECT count_calls(n) FROM generate_series(1, 3) n; -- 1, 2, 3
+```
+
+Each expression has its own state. PostgreSQL usually releases it at query end;
+a cursor keeps it between fetches. A new query starts fresh. Set functions can
+also keep state across iterator instances at the same call site.
+
+The first successful factory result is cached, including null. A failed factory
+can be retried. Use the same state type at each call site. Lookup requires the
+backend thread, and recursive initialization of the same state is rejected.
+
+If the state implements `IDisposable`, Ankus disposes it when PostgreSQL releases
+its owner. Do not dispose the shared state yourself or use it afterward. For
+native data kept in state, allocate in `call.StateMemoryContext` or copy a raw
+argument with `argument.CopyTo(call.StateMemoryContext)`; individual arguments
+can expire sooner than the cache.
+
 ## Schemas
 
 Without a schema declaration, functions use the schema selected by
