@@ -24,6 +24,6 @@ public static class PgTransaction
     /// <returns>A registration that can cancel future invocations.</returns>
     public static PgSubtransactionCallback RegisterSubtransactionCallback(
         PgSubtransactionEvent @event,
-        Action<uint, uint> callback)
+        Action<PgSubtransactionId, PgSubtransactionId> callback)
         => NativeTransactionCallbacks.Register(@event, callback);
 }

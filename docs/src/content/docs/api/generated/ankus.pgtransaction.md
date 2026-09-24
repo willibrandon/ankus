@@ -43,14 +43,14 @@ Returns: [PgTransactionCallback](/api/ankus.pgtransactioncallback/)
 
 A registration that can cancel the pending callback.
 
-<a id="member-6f2ca7fa9277dfaf"></a>
+<a id="member-61fc92fefa2755aa"></a>
 
-### RegisterSubtransactionCallback(PgSubtransactionEvent, Action&lt;uint, uint&gt;)
+### RegisterSubtransactionCallback(PgSubtransactionEvent, Action&lt;PgSubtransactionId, PgSubtransactionId&gt;)
 
 Registers a callback for every matching subtransaction in the current outer transaction.
 
 ```csharp
-public static PgSubtransactionCallback RegisterSubtransactionCallback(PgSubtransactionEvent @event, Action<uint, uint> callback)
+public static PgSubtransactionCallback RegisterSubtransactionCallback(PgSubtransactionEvent @event, Action<PgSubtransactionId, PgSubtransactionId> callback)
 ```
 
 Parameters:
@@ -59,7 +59,7 @@ Parameters:
 
 The subtransaction phase that runs the callback.
 
-`callback` — [Action&lt;uint, uint&gt;](https://learn.microsoft.com/dotnet/api/system.action-2)
+`callback` — [Action&lt;PgSubtransactionId, PgSubtransactionId&gt;](https://learn.microsoft.com/dotnet/api/system.action-2)
 
 The action to run with the current subtransaction ID followed by its parent subtransaction ID.
 

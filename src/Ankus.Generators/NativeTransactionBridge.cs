@@ -32,6 +32,12 @@ internal static class NativeTransactionBridge
 
         static AnkusTransactionFrame *ankus_transaction_frame;
 
+        static void
+        ankus_transaction_id_operation(AnkusResult *result)
+        {
+            result->processed = (int64) U64FromFullTransactionId(ReadNextFullTransactionId());
+        }
+
         static int
         ankus_transaction_log(int operation, int level, AnkusError *report, AnkusError *error, int *enabled)
         {

@@ -60,9 +60,9 @@ PgSubtransactionCallback registration = PgTransaction.RegisterSubtransactionCall
 | `Commit` | After it commits | No |
 | `Abort` | After it rolls back | No |
 
-The callback receives PostgreSQL's subtransaction ID and parent ID. Dispose its
-registration to stop future calls. Ankus's private error guards do not appear as
-consumer subtransaction events.
+The callback receives `PgSubtransactionId` values for the current and parent IDs.
+Dispose its registration to stop future calls. Ankus's private error guards do
+not appear as consumer subtransaction events.
 
 ## Errors
 

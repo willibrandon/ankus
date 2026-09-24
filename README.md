@@ -150,6 +150,10 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
+Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.
+It works in generated functions, SPI, and arrays, and can expand an `xid` with
+the current server epoch. See [transaction IDs](docs/src/content/docs/transaction-ids.md).
+
 Use `PgTransaction.RegisterCallback` for commit, rollback, preparation, and parallel
 transaction phases. `RegisterSubtransactionCallback` observes savepoints and other
 subtransactions with their exact IDs. Callbacks support cancellation, guarded SPI

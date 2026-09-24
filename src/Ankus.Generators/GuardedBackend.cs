@@ -56,7 +56,9 @@ internal static class GuardedBackend
             bool enumeration = request->operation == ANKUS_SPI_ENUM;
             bool tuple = request->operation == ANKUS_SPI_TUPLE;
             bool transaction_callbacks = request->operation == ANKUS_SPI_TRANSACTION_CALLBACKS;
-            bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple || transaction_callbacks;
+            bool transaction_id = request->operation == ANKUS_SPI_TRANSACTION_ID;
+            bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
+                transaction_callbacks || transaction_id;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -169,6 +171,11 @@ internal static class GuardedBackend
                             {
                                 ankus_transaction_ensure((AnkusTransactionManaged) request->callback,
                                     request->scalar_operation);
+                                code = 0;
+                            }
+                            else if (transaction_id)
+                            {
+                                ankus_transaction_id_operation(result);
                                 code = 0;
                             }
                             else if (temporal)

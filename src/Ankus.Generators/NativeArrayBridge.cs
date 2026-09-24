@@ -20,7 +20,7 @@ internal static class NativeArrayBridge
             switch (type)
             {
                 case BOOLOID: case BYTEAOID: case CHAROID: case INT2OID: case INT4OID: case INT8OID:
-                case OIDOID: case FLOAT4OID: case FLOAT8OID: case TEXTOID: case VARCHAROID: case BPCHAROID:
+                case OIDOID: case XIDOID: case FLOAT4OID: case FLOAT8OID: case TEXTOID: case VARCHAROID: case BPCHAROID:
                 case UUIDOID: case JSONOID: case JSONBOID: case NUMERICOID: case DATEOID: case TIMEOID:
                 case TIMETZOID: case TIMESTAMPOID: case TIMESTAMPTZOID: case INTERVALOID:
                 case INETOID: case CIDROID:

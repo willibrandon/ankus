@@ -259,6 +259,11 @@ internal sealed class FunctionType
             return new(name, sql, sql, sql, string.Empty, nullable, reference: false);
         }
 
+        if (name == "global::Ankus.PgTransactionId")
+        {
+            return new(name, "xid", "TRANSACTIONID", "TransactionId", "Integral", nullable, reference: false);
+        }
+
         return type.SpecialType switch
         {
             SpecialType.System_Boolean => new("bool", "boolean", "BOOL", "Bool", "Integral", nullable, false),
@@ -285,6 +290,7 @@ internal sealed class FunctionType
         "INT32" => "INT4OID",
         "INT64" => "INT8OID",
         "OID" => "OIDOID",
+        "TRANSACTIONID" => "XIDOID",
         _ => BufferOid,
     };
 

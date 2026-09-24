@@ -125,8 +125,12 @@ public sealed unsafe class PgTransactionTests
         var events = new List<string>();
         PgSubtransactionCallback? second = null;
         PgSubtransactionCallback? added = null;
+        PgSubtransactionId firstId = default;
+        PgSubtransactionId firstParent = default;
         using PgSubtransactionCallback first = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Start, (id, parent) =>
         {
+            firstId = id;
+            firstParent = parent;
             events.Add($"A{id}:{parent}");
             second!.Dispose();
             added ??= PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Start,
@@ -137,6 +141,8 @@ public sealed unsafe class PgTransactionTests
         Assert.IsNull(fixture.DispatchSubtransaction(PgSubtransactionEvent.Start, 17, 9, BackendPointer));
         Assert.IsNull(fixture.DispatchSubtransaction(PgSubtransactionEvent.Start, 18, 9, BackendPointer));
         Assert.AreSequenceEqual(["A17:9", "A18:9", "C18:9"], events);
+        Assert.AreEqual(new PgSubtransactionId(18), firstId);
+        Assert.AreEqual(new PgSubtransactionId(9), firstParent);
         Assert.IsTrue(first.IsPending);
         Assert.IsFalse(second.IsPending);
         Assert.IsTrue(added!.IsPending);

@@ -34,6 +34,7 @@ public sealed class ArrayDatumTests(TestContext context)
                     ("int", "integer", "-2147483648, 2147483647, NULL"),
                     ("long", "bigint", "'-9223372036854775808', '9223372036854775807', NULL"),
                     ("oid", "oid", "'0', '4294967295', NULL"),
+                    ("xid", "xid", "'3', '4294967295', NULL"),
                     ("float", "real", "'-0', 'NaN', 'Infinity', '-Infinity', '1e-45', NULL"),
                     ("double", "double precision", "'-0', 'NaN', 'Infinity', '-Infinity', '5e-324', NULL"),
                     ("text", "text", "'héllo 😀', '', 'NULL', NULL, 'a,b{c}\\d'"),

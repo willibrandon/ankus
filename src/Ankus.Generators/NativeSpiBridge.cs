@@ -49,7 +49,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_ENUM,
             ANKUS_SPI_TUPLE,
             ANKUS_SPI_GUC_READ,
-            ANKUS_SPI_TRANSACTION_CALLBACKS
+            ANKUS_SPI_TRANSACTION_CALLBACKS,
+            ANKUS_SPI_TRANSACTION_ID
         };
 
         typedef struct AnkusRequest
@@ -187,6 +188,7 @@ internal static class NativeSpiBridge
                 case INT4OID: return Int32GetDatum(value->integral);
                 case INT8OID: return Int64GetDatum(value->integral);
                 case OIDOID: return ObjectIdGetDatum(value->integral);
+                case XIDOID: return TransactionIdGetDatum(value->integral);
                 case DATEOID:
                 case TIMEOID:
                 case TIMETZOID:
@@ -368,6 +370,7 @@ internal static class NativeSpiBridge
                 case INT4OID: value->integral = DatumGetInt32(datum); break;
                 case INT8OID: value->integral = DatumGetInt64(datum); break;
                 case OIDOID: value->integral = DatumGetObjectId(datum); break;
+                case XIDOID: value->integral = DatumGetTransactionId(datum); break;
                 case DATEOID:
                 case TIMEOID:
                 case TIMETZOID:

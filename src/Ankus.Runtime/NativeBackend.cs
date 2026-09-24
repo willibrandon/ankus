@@ -247,6 +247,19 @@ public static unsafe class NativeBackend
     }
 
     /// <summary>
+    /// Reads PostgreSQL's next 64-bit transaction ID without assigning one to the current transaction.
+    /// </summary>
+    /// <returns>The next full transaction ID.</returns>
+    internal static ulong ReadNextFullTransactionId()
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.TransactionId };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+        return unchecked((ulong)result._rowsAffected);
+    }
+
+    /// <summary>
     /// Executes a retained plan through the common guarded parameter/result path.
     /// </summary>
     /// <param name="plan">The owned native plan.</param>

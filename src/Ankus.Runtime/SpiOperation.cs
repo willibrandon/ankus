@@ -138,4 +138,9 @@ internal enum SpiOperation : byte
     /// Installs the managed transaction and subtransaction callback dispatchers.
     /// </summary>
     TransactionCallbacks,
+
+    /// <summary>
+    /// Reads PostgreSQL's next full transaction ID for wrap-aware xid expansion.
+    /// </summary>
+    TransactionId,
 }

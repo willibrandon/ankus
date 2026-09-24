@@ -42,6 +42,12 @@ public static class ArrayFunctions
     public static PgArray<uint?>? ArrayOid(PgArray<uint?>? value, int mode) => Exchange(value, mode);
 
     /// <summary>
+    /// Exchanges PostgreSQL transaction ID arrays without treating their elements as OIDs.
+    /// </summary>
+    [PgFunction]
+    public static PgArray<PgTransactionId?>? ArrayXid(PgArray<PgTransactionId?>? value, int mode) => Exchange(value, mode);
+
+    /// <summary>
     /// Exchanges single-precision arrays with exact IEEE bits.
     /// </summary>
     [PgFunction]

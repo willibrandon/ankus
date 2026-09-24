@@ -123,6 +123,11 @@ internal static class SpiType
             return 26;
         }
 
+        if (type == typeof(PgTransactionId) || type == typeof(PgTransactionId?))
+        {
+            return 28;
+        }
+
         if (type == typeof(float) || type == typeof(float?))
         {
             return 700;
@@ -220,6 +225,7 @@ internal static class SpiType
         int number => new NativeValue { Integral = number },
         long number => new NativeValue { Integral = number },
         uint number => new NativeValue { Integral = number },
+        PgTransactionId transactionId => NativeValue.FromTransactionId(transactionId),
         float number => new NativeValue { Integral = BitConverter.SingleToInt32Bits(number) },
         double number => new NativeValue { Integral = BitConverter.DoubleToInt64Bits(number) },
         string text => NativeValue.FromString(text),
@@ -283,6 +289,7 @@ internal static class SpiType
             23 => (int)value.Integral,
             25 or 1042 or 1043 => value.ReadString(),
             26 => (uint)value.Integral,
+            28 => value.ReadTransactionId(),
             700 => BitConverter.Int32BitsToSingle((int)value.Integral),
             701 => BitConverter.Int64BitsToDouble(value.Integral),
             2950 => value.ReadGuid(),

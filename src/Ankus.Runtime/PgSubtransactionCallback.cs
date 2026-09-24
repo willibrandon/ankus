@@ -10,9 +10,11 @@ namespace Ankus;
 public sealed class PgSubtransactionCallback : IDisposable
 {
     private readonly TransactionCallbackRegistry _registry;
-    private Action<uint, uint>? _callback;
+    private Action<PgSubtransactionId, PgSubtransactionId>? _callback;
 
-    internal PgSubtransactionCallback(TransactionCallbackRegistry registry, Action<uint, uint> callback)
+    internal PgSubtransactionCallback(
+        TransactionCallbackRegistry registry,
+        Action<PgSubtransactionId, PgSubtransactionId> callback)
     {
         _registry = registry;
         _callback = callback;
@@ -38,7 +40,7 @@ public sealed class PgSubtransactionCallback : IDisposable
     /// Gets the pending action without consuming a repeating registration.
     /// </summary>
     /// <returns>The action, or null when the registration was cancelled or released.</returns>
-    internal Action<uint, uint>? Get() => _callback;
+    internal Action<PgSubtransactionId, PgSubtransactionId>? Get() => _callback;
 
     /// <summary>
     /// Releases the pending action without running it.

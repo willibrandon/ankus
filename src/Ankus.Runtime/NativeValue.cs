@@ -82,6 +82,12 @@ public unsafe partial struct NativeValue
     };
 
     /// <summary>
+    /// Reads a PostgreSQL transaction ID from the scalar transport.
+    /// </summary>
+    /// <returns>The transaction ID.</returns>
+    public readonly PgTransactionId ReadTransactionId() => new(checked((uint)_integer));
+
+    /// <summary>
     /// Writes a PostgreSQL date without allocating a buffer.
     /// </summary>
     /// <param name="value">The date.</param>
@@ -127,6 +133,14 @@ public unsafe partial struct NativeValue
         {
             _integer = value.Microseconds, _auxiliary1 = value.Days, _auxiliary2 = value.Months, _temporalInfinity = value.Infinity,
         };
+
+    /// <summary>
+    /// Writes a PostgreSQL transaction ID. PostgreSQL's invalid transaction ID maps to SQL NULL.
+    /// </summary>
+    /// <param name="value">The transaction ID.</param>
+    /// <returns>The scalar transport.</returns>
+    public static NativeValue FromTransactionId(PgTransactionId value)
+        => new() { _integer = value.Value, _isNull = value.IsValid ? (byte)0 : (byte)1 };
 
     /// <summary>
     /// Copies a borrowed UTF-8 input buffer into a managed string, rejecting malformed UTF-8.

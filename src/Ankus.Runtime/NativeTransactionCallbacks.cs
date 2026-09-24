@@ -51,7 +51,9 @@ internal static unsafe class NativeTransactionCallbacks
     /// <param name="event">The selected subtransaction event.</param>
     /// <param name="callback">The action to retain.</param>
     /// <returns>The cancellable registration.</returns>
-    internal static PgSubtransactionCallback Register(PgSubtransactionEvent @event, Action<uint, uint> callback)
+    internal static PgSubtransactionCallback Register(
+        PgSubtransactionEvent @event,
+        Action<PgSubtransactionId, PgSubtransactionId> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
         Validate(@event);
@@ -204,7 +206,7 @@ internal static unsafe class NativeTransactionCallbacks
         PgSubtransactionCallback[] snapshot = [.. callbacks];
         foreach (PgSubtransactionCallback registration in snapshot)
         {
-            registration.Get()?.Invoke(subtransactionId, parentSubtransactionId);
+            registration.Get()?.Invoke(new PgSubtransactionId(subtransactionId), new PgSubtransactionId(parentSubtransactionId));
         }
     }
 

@@ -49,7 +49,7 @@ internal static class SpiArray
     /// <exception cref="NotSupportedException">The scalar type has no supported array mapping.</exception>
     internal static uint ArrayOid(uint element) => element switch
     {
-        16 => 1000, 17 => 1001, 18 => 1002, 20 => 1016, 21 => 1005, 23 => 1007, 25 => 1009, 26 => 1028,
+        16 => 1000, 17 => 1001, 18 => 1002, 20 => 1016, 21 => 1005, 23 => 1007, 25 => 1009, 26 => 1028, 28 => 1011,
         700 => 1021, 701 => 1022, 2950 => 2951, 114 => 199, 3802 => 3807, 1700 => 1231,
         1082 => 1182, 1083 => 1183, 1266 => 1270, 1114 => 1115, 1184 => 1185, 1186 => 1187,
         869 => 1041, 650 => 651,
@@ -90,6 +90,7 @@ internal static class SpiArray
             Matches<int>(type) || Matches<int?>(type) ? 23u :
             Matches<string>(type) ? 25u :
             Matches<uint>(type) || Matches<uint?>(type) ? 26u :
+            Matches<PgTransactionId>(type) || Matches<PgTransactionId?>(type) ? 28u :
             Matches<float>(type) || Matches<float?>(type) ? 700u :
             Matches<double>(type) || Matches<double?>(type) ? 701u :
             Matches<Guid>(type) || Matches<Guid?>(type) ? 2950u :
@@ -124,6 +125,7 @@ internal static class SpiArray
            Convert<sbyte>(array, type) ?? Convert<sbyte?>(array, type) ?? Convert<short>(array, type) ?? Convert<short?>(array, type) ??
            Convert<int>(array, type) ?? Convert<int?>(array, type) ?? Convert<long>(array, type) ?? Convert<long?>(array, type) ??
            Convert<uint>(array, type) ?? Convert<uint?>(array, type) ?? Convert<float>(array, type) ?? Convert<float?>(array, type) ??
+           Convert<PgTransactionId>(array, type) ?? Convert<PgTransactionId?>(array, type) ??
            Convert<double>(array, type) ?? Convert<double?>(array, type) ?? Convert<string>(array, type) ??
            Convert<Guid>(array, type) ?? Convert<Guid?>(array, type) ?? Convert<PgJson>(array, type) ?? Convert<PgJson?>(array, type) ??
            Convert<PgJsonb>(array, type) ?? Convert<PgJsonb?>(array, type) ?? Convert<PgNumeric>(array, type) ?? Convert<PgNumeric?>(array, type) ??
@@ -165,6 +167,7 @@ internal static class SpiArray
         int[] items => new PgArray<int>(items), int?[] items => new PgArray<int?>(items),
         long[] items => new PgArray<long>(items), long?[] items => new PgArray<long?>(items),
         uint[] items => new PgArray<uint>(items), uint?[] items => new PgArray<uint?>(items),
+        PgTransactionId[] items => new PgArray<PgTransactionId>(items), PgTransactionId?[] items => new PgArray<PgTransactionId?>(items),
         float[] items => new PgArray<float>(items), float?[] items => new PgArray<float?>(items),
         double[] items => new PgArray<double>(items), double?[] items => new PgArray<double?>(items),
         Guid[] items => new PgArray<Guid>(items), Guid?[] items => new PgArray<Guid?>(items),
