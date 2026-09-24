@@ -230,14 +230,11 @@ public sealed class GucPreloadTests(TestContext context)
         string? execParameters = OperatingSystem.IsWindows()
             ? Path.Combine(cluster.DataDirectory, "global", "config_exec_params")
             : null;
-        DateTime previousExecParametersWrite = execParameters is null
-            ? default
-            : File.GetLastWriteTimeUtc(execParameters);
         Assert.IsTrue(Assert.IsInstanceOfType<bool>(await ScalarAsync(connection, "SELECT pg_reload_conf()")));
         await WaitForSettingAsync(connection, "ankus_configuration.reload", "25");
         if (execParameters is not null)
         {
-            await WaitForFileWriteAsync(execParameters, previousExecParametersWrite);
+            await WaitForFileValueAsync(execParameters, "ankus_configuration.connection", "35");
         }
 
         Assert.AreEqual("90", await ScalarAsync(connection, "SHOW \"ankus_configuration.user\""));
@@ -335,11 +332,13 @@ public sealed class GucPreloadTests(TestContext context)
         Assert.AreEqual(value, await ScalarAsync(connection, "SHOW \"" + name + "\""));
     }
 
-    private async Task WaitForFileWriteAsync(string path, DateTime previousWrite)
+    private async Task WaitForFileValueAsync(string path, string name, string value)
     {
+        byte[] expected = System.Text.Encoding.UTF8.GetBytes(name + '\0' + value + '\0');
         for (int attempt = 0; attempt < 100; attempt++)
         {
-            if (File.GetLastWriteTimeUtc(path) != previousWrite)
+            byte[] contents = await File.ReadAllBytesAsync(path, context.CancellationToken);
+            if (contents.AsSpan().IndexOf(expected) >= 0)
             {
                 return;
             }
@@ -347,8 +346,9 @@ public sealed class GucPreloadTests(TestContext context)
             await Task.Delay(TimeSpan.FromMilliseconds(50), context.CancellationToken);
         }
 
-        Assert.AreNotEqual(previousWrite, File.GetLastWriteTimeUtc(path),
-            "The postmaster did not publish its reloaded child-process settings.");
+        byte[] actual = await File.ReadAllBytesAsync(path, context.CancellationToken);
+        Assert.IsGreaterThanOrEqualTo(0, actual.AsSpan().IndexOf(expected),
+            "The postmaster did not publish the reloaded child-process setting.");
     }
 
     private async Task<object?> ScalarAsync(NpgsqlConnection connection, string sql)

@@ -100,7 +100,7 @@ public sealed partial class PgFunctionGeneratorTests
             "PG_END_TRY();",
             "MemoryContextSwitchTo(caller);",
             "#if defined(WIN32) && PG_VERSION_NUM < 180000",
-            "if (IsParallelWorker())",
+            "if (InitializingParallelWorker)",
             "return;",
             "#endif",
             "ankus_ensure_initialized();",

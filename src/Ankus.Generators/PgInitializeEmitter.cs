@@ -21,6 +21,7 @@ internal static class PgInitializeEmitter
     internal static void Emit(IMethodSymbol? method, string? callback, bool hasHooks, string registration,
         StringBuilder managed, StringBuilder native, StringBuilder exports)
     {
+        bool requiresEnsure = method is not null || hasHooks;
         if (method is not null)
         {
             managed.AppendLine($$"""
@@ -82,7 +83,8 @@ internal static class PgInitializeEmitter
                     #endif
 
             """ : string.Empty;
-        string ensureDeclaration = method is null ? string.Empty : "static void ankus_ensure_initialized(void);\n";
+        string ensureDeclaration = requiresEnsure && !hasHooks ? "static void ankus_ensure_initialized(void);\n" : string.Empty;
+        string registrationDeclaration = hasHooks ? string.Empty : "static bool ankus_registration_complete = false;";
         string errorDeclaration = method is null ? string.Empty : """
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
@@ -136,7 +138,7 @@ internal static class PgInitializeEmitter
             {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
             {{forkDeclaration}}
             static int ankus_initialization_state = 0;
-            static bool ankus_registration_complete = false;
+            {{registrationDeclaration}}
             {{ensureDeclaration}}
 
             PGDLLEXPORT void _PG_init(void);
@@ -150,7 +152,7 @@ internal static class PgInitializeEmitter
 
                 if (ankus_registration_complete)
                 {
-            {{(method is null ? "        return;" : "        ankus_ensure_initialized();\n        return;")}}
+            {{(requiresEnsure ? "        ankus_ensure_initialized();\n        return;" : "        return;")}}
                 }
 
                 MemoryContext caller = CurrentMemoryContext;
@@ -158,7 +160,6 @@ internal static class PgInitializeEmitter
                 PG_TRY();
                 {
             {{registration}}
-            {{(method is null ? forkEnable : string.Empty)}}
                     ankus_registration_complete = true;
                     ankus_initialization_state = 0;
                 }
@@ -170,19 +171,19 @@ internal static class PgInitializeEmitter
                 }
                 PG_END_TRY();
                 MemoryContextSwitchTo(caller);
-            {{(method is null ? "    ankus_initialization_state = 2;" : """
+            {{(requiresEnsure ? """
                 #if defined(WIN32) && PG_VERSION_NUM < 180000
-                if (IsParallelWorker())
+                if (InitializingParallelWorker)
                 {
                     return;
                 }
                 #endif
 
                 ankus_ensure_initialized();
-            """)}}
+            """ : "    ankus_initialization_state = 2;")}}
             }
 
-            {{(method is null ? string.Empty : $$"""
+            {{(requiresEnsure ? $$"""
             static void
             ankus_ensure_initialized(void)
             {
@@ -202,6 +203,7 @@ internal static class PgInitializeEmitter
                 ankus_initialization_state = 1;
                 PG_TRY();
                 {
+            {{(hasHooks ? "        ankus_guc_complete_worker_restore();\n" : string.Empty)}}
             {{invocation}}
             {{forkEnable}}
                     ankus_initialization_state = 2;
@@ -218,7 +220,7 @@ internal static class PgInitializeEmitter
             {{cleanup}}
             }
 
-            """)}}
+            """ : string.Empty)}}
             """);
         exports.AppendLine("_PG_init");
     }

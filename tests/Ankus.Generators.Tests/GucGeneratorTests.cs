@@ -245,6 +245,10 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("extern int RhExitForkHost(void);", native);
         Assert.Contains("ankus_fork_host_enter();", native);
         Assert.Contains("ankus_fork_host_exit();", native);
+        Assert.Contains("return InitializingParallelWorker;", native);
+        Assert.Contains("definition->worker_restore_pending = true;", native);
+        Assert.Contains("ankus_guc_complete_worker_restore();", native);
+        Assert.Contains("ankus_guc_assign(definition, definition->variable, existing->extra);", native);
         Assert.Contains("ankus_release_error(", native);
         AssertGucNativeDiagnosticOwnership(native);
         Assert.Contains("ankus_guc_read(", native);
@@ -257,6 +261,7 @@ public sealed partial class PgFunctionGeneratorTests
         if (options.StartsWith("Check", StringComparison.Ordinal))
         {
             Assert.Contains("ankus_guc_check(", native);
+            Assert.Contains("ankus_guc_check_core(definition, &proposed, &extra, existing->source, true);", native);
             Assert.Contains("ankus_spi_execute(", native);
             Assert.Contains("ankus_read_guc = ankus_guc_read;", native);
             Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);", native);

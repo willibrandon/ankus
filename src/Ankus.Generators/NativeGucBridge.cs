@@ -15,6 +15,9 @@ internal static class NativeGucBridge
         #include "miscadmin.h"
         #include "access/xact.h"
         #include "utils/snapmgr.h"
+        #if defined(WIN32) && PG_VERSION_NUM < 180000
+        #include "access/parallel.h"
+        #endif
         #include <limits.h>
         #include <math.h>
 
@@ -74,6 +77,7 @@ internal static class NativeGucBridge
             bool has_check;
             bool has_assign;
             bool has_show;
+            bool worker_restore_pending;
             bool prepared;
             bool installed;
             char *name;
@@ -369,7 +373,12 @@ internal static class NativeGucBridge
     /// <param name="hasShow">Whether any declaration has a show hook.</param>
     /// <returns>The required native callback prototypes.</returns>
     internal static string GetManagedDeclarations(bool hasCheck, bool hasAssign, bool hasShow)
-        => "static int ankus_guc_read(const char *, int, AnkusValue *, AnkusError *);\n" +
+        => (hasCheck || hasAssign || hasShow ? """
+            static bool ankus_registration_complete = false;
+            static void ankus_ensure_initialized(void);
+            static void ankus_guc_complete_worker_restore(void);
+            """ : string.Empty) +
+            "static int ankus_guc_read(const char *, int, AnkusValue *, AnkusError *);\n" +
             (hasCheck ? "static bool ankus_guc_check(AnkusGuc *, void *, void **, GucSource);\n" : string.Empty) +
             (hasAssign ? "static void ankus_guc_assign(AnkusGuc *, const void *, void *);\n" : string.Empty) +
             (hasShow ? "static const char *ankus_guc_show(AnkusGuc *);\n" : string.Empty);
@@ -387,7 +396,8 @@ internal static class NativeGucBridge
             (hasCheck || hasShow ? "\n\n" + PersistentResult : string.Empty) +
             (hasCheck ? "\n\n" + Check : string.Empty) +
             (hasAssign ? "\n\n" + Assign : string.Empty) +
-            (hasShow ? "\n\n" + Show : string.Empty);
+            (hasShow ? "\n\n" + Show : string.Empty) +
+            (hasCheck || hasAssign || hasShow ? "\n\n" + GetWorkerRestore(hasCheck) : string.Empty);
 
     /// <summary>
     /// Resumes a dormant postmaster runtime only while a managed hook is executing.
@@ -659,6 +669,27 @@ internal static class NativeGucBridge
     /// Provides the shared callback frame, owned argument data, diagnostic reporting, and cleanup.
     /// </summary>
     private const string HookCommon = """
+        static bool ankus_guc_replaying_worker_restore = false;
+
+        static bool
+        ankus_guc_worker_restore_in_progress(void)
+        {
+        #if defined(WIN32) && PG_VERSION_NUM < 180000
+            return InitializingParallelWorker;
+        #else
+            return false;
+        #endif
+        }
+
+        static void
+        ankus_guc_ensure_managed_ready(void)
+        {
+            if (!ankus_guc_replaying_worker_restore && ankus_registration_complete)
+                ankus_ensure_initialized();
+            else
+                ankus_guc_complete_worker_restore();
+        }
+
         typedef struct AnkusGucExtra
         {
             int32 length;
@@ -961,7 +992,7 @@ internal static class NativeGucBridge
         }
 
         static bool
-        ankus_guc_check(AnkusGuc *definition, void *proposed, void **extra, GucSource source)
+        ankus_guc_check_core(AnkusGuc *definition, void *proposed, void **extra, GucSource source, bool raise)
         {
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext work = AllocSetContextCreate(caller, "Ankus configuration check", ALLOCSET_SMALL_SIZES);
@@ -999,8 +1030,13 @@ internal static class NativeGucBridge
                     }
                     else if (frame->error.report_level != 0)
                         ankus_guc_report(&frame->error, ankus_log_level(frame->error.report_level - 1));
-                    else
+                    else if (!raise)
                         ankus_guc_reject(&frame->error);
+                    else
+                    {
+                        frame->error.flags |= ANKUS_ERROR_SERVER | ANKUS_ERROR_CLIENT;
+                        ankus_guc_report(&frame->error, ERROR);
+                    }
                 }
                 PG_CATCH();
                 {
@@ -1019,11 +1055,19 @@ internal static class NativeGucBridge
                         ThrowErrorData(data);
                     }
 
-                    ankus_release_error(&frame->error);
-                    ankus_guc_capture_error(data, &frame->error);
-                    ankus_free_error_data(data);
-                    ankus_guc_reject(&frame->error);
-                    accepted = false;
+                    if (raise)
+                    {
+                        data->elevel = ERROR;
+                        ThrowErrorData(data);
+                    }
+                    else
+                    {
+                        ankus_release_error(&frame->error);
+                        ankus_guc_capture_error(data, &frame->error);
+                        ankus_free_error_data(data);
+                        ankus_guc_reject(&frame->error);
+                        accepted = false;
+                    }
                 }
                 PG_END_TRY();
             }
@@ -1036,6 +1080,20 @@ internal static class NativeGucBridge
             PG_END_TRY();
             return accepted;
         }
+
+        static bool
+        ankus_guc_check(AnkusGuc *definition, void *proposed, void **extra, GucSource source)
+        {
+            if (ankus_guc_worker_restore_in_progress())
+            {
+                definition->worker_restore_pending = true;
+                *extra = NULL;
+                return true;
+            }
+
+            ankus_guc_ensure_managed_ready();
+            return ankus_guc_check_core(definition, proposed, extra, source, false);
+        }
         """;
 
     /// <summary>
@@ -1045,6 +1103,14 @@ internal static class NativeGucBridge
         static void
         ankus_guc_assign(AnkusGuc *definition, const void *accepted, void *extra)
         {
+            if (ankus_guc_worker_restore_in_progress())
+            {
+                definition->worker_restore_pending = true;
+                definition->extra = extra;
+                return;
+            }
+
+            ankus_guc_ensure_managed_ready();
             if (!definition->has_assign)
             {
                 definition->extra = extra;
@@ -1103,6 +1169,7 @@ internal static class NativeGucBridge
         static const char *
         ankus_guc_show(AnkusGuc *definition)
         {
+            ankus_guc_ensure_managed_ready();
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             AnkusGucFrame *volatile frame = NULL;
@@ -1160,4 +1227,89 @@ internal static class NativeGucBridge
             return output;
         }
         """;
+
+    private static string GetWorkerRestore(bool hasCheck)
+    {
+        string check = hasCheck ? """
+                if (definition->has_check)
+                {
+                    switch (definition->kind)
+                    {
+                        case 0: proposed.boolean = *((bool *) definition->variable); break;
+                        case 1:
+                        case 4: proposed.integer = *((int *) definition->variable); break;
+                        case 2: proposed.real = *((double *) definition->variable); break;
+                        case 3:
+                        {
+                            const char *current = *((char **) definition->variable);
+                            if (current != NULL)
+                            {
+                                Size length = strlen(current) + 1;
+                                char *copy = ankus_guc_allocate(length);
+                                memcpy(copy, current, length);
+                                proposed.string = copy;
+                            }
+
+                            break;
+                        }
+                    }
+
+                    ankus_guc_check_core(definition, &proposed, &extra, existing->source, true);
+                }
+
+        """ : string.Empty;
+        return $$"""
+        static void
+        ankus_guc_complete_worker_restore(void)
+        {
+            if (ankus_guc_replaying_worker_restore || ankus_guc_worker_restore_in_progress())
+                return;
+            bool pending = false;
+            for (int index = 0; index < ankus_guc_count; index++)
+                pending = pending || ankus_guc_definitions[index]->worker_restore_pending;
+            if (!pending)
+                return;
+
+            ankus_guc_replaying_worker_restore = true;
+            PG_TRY();
+            {
+                for (int index = 0; index < ankus_guc_count; index++)
+                {
+                    AnkusGuc *definition = ankus_guc_definitions[index];
+                    if (!definition->worker_restore_pending)
+                        continue;
+                    struct config_generic *existing = ankus_guc_find(definition->name);
+                    if (!ankus_guc_is_owned(definition, existing))
+                        ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+                            errmsg("Ankus configuration ownership changed during parallel worker restore")));
+                    AnkusGucNumber proposed = {0};
+                    void *extra = NULL;
+                    PG_TRY();
+                    {
+        {{check}}            void *previous = existing->extra;
+                        existing->extra = extra;
+                        definition->extra = extra;
+                        extra = NULL;
+                        if (previous != existing->extra)
+                            ankus_guc_free(previous);
+                        ankus_guc_assign(definition, definition->variable, existing->extra);
+                        definition->worker_restore_pending = false;
+                    }
+                    PG_FINALLY();
+                    {
+                        if (definition->kind == 3)
+                            ankus_guc_free((void *) proposed.string);
+                        ankus_guc_free(extra);
+                    }
+                    PG_END_TRY();
+                }
+            }
+            PG_FINALLY();
+            {
+                ankus_guc_replaying_worker_restore = false;
+            }
+            PG_END_TRY();
+        }
+        """;
+    }
 }

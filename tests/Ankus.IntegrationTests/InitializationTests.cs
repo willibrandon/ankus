@@ -212,16 +212,37 @@ public sealed class InitializationTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection observer = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        string applicationName = "ankus-startup-error-" + Guid.NewGuid().ToString("N");
         var builder = new NpgsqlConnectionStringBuilder(observer.ConnectionString)
         {
+            ApplicationName = applicationName,
             Options = "-c session_preload_libraries=Ankus.TestExtension -c ankus_test.initialization=startup-error",
         };
         await using (var failing = new NpgsqlConnection(builder.ConnectionString))
         {
-            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => failing.OpenAsync(token));
-            Assert.AreEqual("38000", error.SqlState);
-            Assert.AreEqual("Startup initialization failed.", error.MessageText);
-            Assert.AreEqual("FATAL", error.InvariantSeverity);
+            NpgsqlException? failure = null;
+            try
+            {
+                await failing.OpenAsync(token);
+            }
+            catch (NpgsqlException error)
+            {
+                failure = error;
+            }
+
+            Assert.IsNotNull(failure, "The failing session initializer accepted a connection.");
+            if (failure is PostgresException postgres)
+            {
+                Assert.AreEqual("38000", postgres.SqlState);
+                Assert.AreEqual("Startup initialization failed.", postgres.MessageText);
+                Assert.AreEqual("FATAL", postgres.InvariantSeverity);
+            }
+            else
+            {
+                Assert.IsTrue(OperatingSystem.IsWindows());
+                Assert.IsNotNull(failure.InnerException);
+                await WaitForLogAsync(applicationName, "Startup initialization failed.", token);
+            }
         }
 
         string log = PostgresFixture.Cluster.ReadServerLog();
@@ -310,5 +331,23 @@ public sealed class InitializationTests(TestContext context)
             LogDirectory = defaults.LogDirectory,
             PostgreSqlConfiguration = [.. defaults.PostgreSqlConfiguration, $"{setting} = '{library}'"],
         };
+    }
+
+    private static async Task WaitForLogAsync(string session, string message, CancellationToken token)
+    {
+        for (int attempt = 0; attempt < 100; attempt++)
+        {
+            string log = PostgresFixture.Cluster.ReadServerLog();
+            if (log.Contains(session, StringComparison.Ordinal) && log.Contains(message, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), token);
+        }
+
+        string actual = PostgresFixture.Cluster.ReadServerLog();
+        Assert.Contains(session, actual);
+        Assert.Contains(message, actual);
     }
 }

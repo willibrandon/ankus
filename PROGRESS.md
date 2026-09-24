@@ -3299,16 +3299,22 @@ The phases track implementation of the complete pgrx feature surface.
   joins its native thread before declaring a postmaster dormant, and discards
   the inherited handle before child recovery. The Linux x64 Release runtime and
   CoreLib build with zero warnings/errors; repeated finalizer-wait and descendant
-  fork probes pass. PostgreSQL 15–17 Windows workers now defer only the managed
-  initializer until their first managed SQL entry point. Native GUC registration
-  still occurs during library restore, allowing PostgreSQL to restore transaction
-  GUCs before managed initialization takes a snapshot. PostgreSQL 18 keeps its
-  eager path. Scalar, set, trigger, event-trigger and aggregate entries enforce
-  completion, and transaction-backed parallel tests are restored. Windows reload
-  tests wait for PostgreSQL's `config_exec_params` replacement before opening a
-  new child; repeated child starts had kept the old file open. Test clusters no
-  longer log every statement. The generator suite passes 1,182/1,182. Plain
-  `dotnet test` passes 4,142/4,142 without skips in 3m15.194s on PostgreSQL
-  18.6/Linux x64; 133 affected integration cases pass in 59.547s. Ankus Release
-  builds with zero warnings/errors. Hosted Windows proof and the PostgreSQL 15–18
-  platform matrix remain pending.
+  fork probes pass. PostgreSQL 15–17 Windows workers restore extension libraries
+  and GUCs before starting the parallel transaction. Managed GUC checks could
+  therefore acquire the worker's first transaction snapshot too early, causing
+  PostgreSQL's later `transaction_deferrable` restore to fail. Native registration
+  now continues in that phase while every managed initializer and GUC hook waits.
+  After PostgreSQL finishes restoring the worker, Ankus replays checks and
+  assignments against the final native values, rebuilds hook extras, then runs
+  the initializer before the first managed entry. PostgreSQL 18 keeps its eager
+  path. Windows reload tests wait for the exact setting/value pair in
+  `config_exec_params`; startup `FATAL` tests accept Windows' connection reset
+  only after the server log proves the expected diagnostic and cleanup.
+  Transaction-backed parallel tests are restored, and test clusters no longer
+  log every statement. The generator suite passes 1,182/1,182. Plain `dotnet test`
+  passes 4,142/4,142 without skips in 2m57.146s on PostgreSQL 18.6/Linux x64; the
+  nine directly affected integration cases pass in 44.828s. Native initializer,
+  hook-only, assign-only, show-only and native-only fixtures compile with warnings
+  as errors; the nonincremental Release build passes with zero warnings/errors in
+  46.76s. Hosted Windows proof and the complete PostgreSQL 15–18 platform matrix
+  remain pending.
