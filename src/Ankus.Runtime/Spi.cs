@@ -161,4 +161,41 @@ public static class Spi
         SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Scalar);
         return result.Count == 0 || result.Columns.Count == 0 ? SpiRow.Convert<T>(null) : result[0].Get<T>(0);
     }
+
+    /// <summary>
+    /// Reads the first two columns of the first row without limiting command execution.
+    /// SQL NULL or an empty result requires nullable value types or reference types.
+    /// </summary>
+    /// <typeparam name="TFirst">The first column's managed type.</typeparam>
+    /// <typeparam name="TSecond">The second column's managed type.</typeparam>
+    /// <param name="commandText">The SQL commands to execute.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>The first two values from the final statement, without implicit type conversions.</returns>
+    /// <exception cref="InvalidOperationException">A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.</exception>
+    /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
+    public static (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(
+        string commandText, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Pair);
+        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1));
+    }
+
+    /// <summary>
+    /// Reads the first three columns of the first row without limiting command execution.
+    /// SQL NULL or an empty result requires nullable value types or reference types.
+    /// </summary>
+    /// <typeparam name="TFirst">The first column's managed type.</typeparam>
+    /// <typeparam name="TSecond">The second column's managed type.</typeparam>
+    /// <typeparam name="TThird">The third column's managed type.</typeparam>
+    /// <param name="commandText">The SQL commands to execute.</param>
+    /// <param name="parameters">Typed positional parameters.</param>
+    /// <returns>The first three values from the final statement, without implicit type conversions.</returns>
+    /// <exception cref="InvalidOperationException">A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.</exception>
+    /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
+    public static (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
+        string commandText, params ReadOnlySpan<SpiParameter> parameters)
+    {
+        SpiResult result = NativeBackend.Run(commandText, parameters, readOnly: false, limit: 0, SpiResultMode.Triple);
+        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1), result.GetFirstValue<TThird>(2));
+    }
 }

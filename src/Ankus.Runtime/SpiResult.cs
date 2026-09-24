@@ -45,6 +45,27 @@ public sealed class SpiResult : IReadOnlyList<SpiRow>
     public SpiRow this[int index] => _rows[index];
 
     /// <summary>
+    /// Reads one first-row value, treating an empty result as SQL NULL and rejecting a missing column in a returned row.
+    /// </summary>
+    /// <typeparam name="T">The expected managed type.</typeparam>
+    /// <param name="ordinal">The zero-based column index.</param>
+    /// <returns>The copied value with the usual SPI type and NULL checks.</returns>
+    internal T GetFirstValue<T>(int ordinal)
+    {
+        if (Count == 0)
+        {
+            return SpiRow.Convert<T>(null);
+        }
+
+        if (ordinal >= Columns.Count)
+        {
+            throw new InvalidOperationException($"The SPI result has {Columns.Count} columns; column {ordinal + 1} was requested.");
+        }
+
+        return _rows[0].Get<T>(ordinal);
+    }
+
+    /// <summary>
     /// Enumerates rows in PostgreSQL result order.
     /// </summary>
     /// <returns>The row enumerator.</returns>

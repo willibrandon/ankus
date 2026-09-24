@@ -235,7 +235,7 @@ internal static class GuardedBackend
                                 result->processed = (int64) SPI_processed;
                                 if (request->result_mode)
                                 {
-                                    ankus_collect_result(result, request->result_mode == 2);
+                                    ankus_collect_result(result, request->result_mode == 1 ? 0 : request->result_mode - 1);
                                 }
 
                                 SPI_freetuptable(SPI_tuptable);

@@ -56,9 +56,20 @@ value type throws `InvalidOperationException` instead of substituting a default.
 An incompatible result type throws `InvalidCastException`; numeric values are not
 implicitly widened or parsed from text.
 
-Reading a scalar does not limit command execution. For example, an
+Use `ExecuteScalars` for two or three columns from the first row:
+
+```csharp
+(int id, string? body) = Spi.ExecuteScalars<int, string?>(
+    "SELECT id, body FROM messages WHERE id = $1", SpiParameter.Create(42));
+```
+
+Each value follows the same type and NULL rules as `ExecuteScalar<T>`. A returned
+row with too few columns throws `InvalidOperationException`. Extra columns and
+later rows are not copied. These overloads also work on sessions and prepared statements.
+
+Reading scalars does not limit command execution. For example, an
 `INSERT ... RETURNING` command completes all its writes even though only its first
-returned cell is copied.
+row's requested cells are copied.
 
 ## Rows and metadata
 
@@ -176,7 +187,7 @@ typed nullable parameter.
 An incorrect parameter count or SQL type throws `ArgumentException` before the
 plan executes.
 
-`SpiPreparedStatement` provides `Execute`, `Query`, and `ExecuteScalar<T>` with the
+`SpiPreparedStatement` provides `Execute`, `Query`, `ExecuteScalar`, and `ExecuteScalars` with the
 same result semantics as `Spi`. `Query` also accepts `readOnly` and `limit` options.
 Preparation supports multiple SQL commands; each execution's internal subtransaction
 covers all commands, and results describe the final command.
@@ -217,7 +228,7 @@ foreach (SpiRow row in rows)
 }
 ```
 
-The session offers `Execute`, `Query`, `ExecuteScalar<T>`, `Prepare`, and
+The session offers `Execute`, `Query`, `ExecuteScalar`, `ExecuteScalars`, `Prepare`, and
 `OpenCursor`, with the same parameter and owned-result conversions as the
 standalone API. `Query` and `OpenCursor` accept explicit read-only execution mode.
 Session operations run in individual internal subtransactions: a failed command

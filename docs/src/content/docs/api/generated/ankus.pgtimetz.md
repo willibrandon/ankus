@@ -362,7 +362,7 @@ Reads exact local wall-clock fields without requiring a backend or adjusting for
 public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
 ```
 
-Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Hour, int Minute, int Second, int Microseconds)</code>
 
 The local hour, minute, whole second, and microseconds within that second.
 

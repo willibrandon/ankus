@@ -373,7 +373,7 @@ Reads calendar fields in the backend's session timezone without narrowing throug
 public (int Year, int Month, int Day) GetDateParts()
 ```
 
-Returns: [(int Year, int Month, int Day)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Year, int Month, int Day)</code>
 
 The local year, month, and day. Negative years denote BC; there is no year zero.
 
@@ -421,7 +421,7 @@ Reads exact wall-clock fields in the backend's session timezone.
 public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
 ```
 
-Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Hour, int Minute, int Second, int Microseconds)</code>
 
 The local hour, minute, whole second, and microseconds within that second.
 

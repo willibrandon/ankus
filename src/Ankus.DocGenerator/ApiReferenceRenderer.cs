@@ -233,6 +233,12 @@ internal sealed partial class ApiReferenceRenderer
             return $"[{label}]({link})";
         }
 
+        // Tuple syntax names several components, not a single external API declaration.
+        if (label.StartsWith('(') && label.EndsWith(')'))
+        {
+            return "<code>" + label + "</code>";
+        }
+
         if (reference is not null && Text(reference, "href") is { Length: > 0 } href &&
             Uri.TryCreate(href, UriKind.Absolute, out Uri? uri) && uri.Scheme == "https")
         {

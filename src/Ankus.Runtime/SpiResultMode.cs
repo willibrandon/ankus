@@ -19,4 +19,14 @@ internal enum SpiResultMode : byte
     /// Copies the first column of the first row without limiting command execution.
     /// </summary>
     Scalar,
+
+    /// <summary>
+    /// Copies the first two columns of the first row without limiting command execution.
+    /// </summary>
+    Pair,
+
+    /// <summary>
+    /// Copies the first three columns of the first row without limiting command execution.
+    /// </summary>
+    Triple,
 }

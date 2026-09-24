@@ -123,6 +123,90 @@ Returns: <code>T</code>
 
 The scalar result.
 
+<a id="member-07d8cac35378d595"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond&gt;(string, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Reads the first two columns of the first row without limiting command execution.
+SQL NULL or an empty result requires nullable value types or reference types.
+
+```csharp
+public static (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL commands to execute.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: <code>(TFirst First, TSecond Second)</code>
+
+The first two values from the final statement, without implicit type conversions.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.
+- [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
+<a id="member-68cf41fb44187d3d"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond, TThird&gt;(string, params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Reads the first three columns of the first row without limiting command execution.
+SQL NULL or an empty result requires nullable value types or reference types.
+
+```csharp
+public static (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+`TThird`
+
+The third column's managed type.
+
+Parameters:
+
+`commandText` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The SQL commands to execute.
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Typed positional parameters.
+
+Returns: <code>(TFirst First, TSecond Second, TThird Third)</code>
+
+The first three values from the final statement, without implicit type conversions.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.
+- [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
 <a id="member-7ad0a664880a0df2"></a>
 
 ### Explain(string, params ReadOnlySpan&lt;SpiParameter&gt;)

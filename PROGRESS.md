@@ -2654,7 +2654,7 @@ complete implementations. AOT serialization must use statically generated metada
 
 | Source modules | Required behavior | Status |
 |---|---|---|
-| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting and JSON EXPLAIN; extensible/raw datum conversion and multi-column scalar helpers pending |
+| `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Partial: guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN and two-/three-column first-row helpers; extensible/raw datum conversion pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
@@ -2749,7 +2749,8 @@ The phases track implementation of the complete pgrx feature surface.
       - [x] Temporal operators, component/unit factories, precision clocks, explicit-zone ISO and temporal/numeric JSON
       - [x] Numeric function-boundary constraints, primitive casts, checked generic conversions and operator/sum conveniences
       - [x] Temporal field/epoch accessors, saturating/wrapping raw factories, named/interval timezone conveniences and timeofday
-    - [ ] Complete extensible/raw SPI datum conversion and multi-column scalar helpers
+    - [x] Two-/three-column first-row helpers on static SPI, sessions and prepared statements
+    - [ ] Complete extensible/raw SPI datum conversion
    - [x] Backend `_PG_init` bootstrap, guarded exceptions/retry, recursive-load rejection and session preload (PostgreSQL 18.6/Linux x64)
    - [ ] Remaining memory-context parity, shared-preload platform/version validation, and guarded PostgreSQL APIs
 - [ ] **P2 — Source generator** (`Ankus.Generators`)
@@ -3382,3 +3383,29 @@ The phases track implementation of the complete pgrx feature surface.
   17, and quality checks; macOS Intel reached its former 15-minute timeout.
   Local Release compilation, runtime metadata validation, API freshness, and
   documentation build/check pass without diagnostics.
+
+- 2026-09-24 — Added `ExecuteScalars<TFirst, TSecond>` and
+  `ExecuteScalars<TFirst, TSecond, TThird>` to `Spi`, `SpiSession`, and
+  `SpiPreparedStatement`. They return owned tuples from the final statement's
+  first row and copy only the requested leading columns. Commands run to
+  completion, including every `INSERT ... RETURNING` write. NULL and empty
+  results retain the scalar API's nullable-type rules; missing columns in a
+  returned row and incompatible managed types are rejected. Native conversion
+  failures release partial results and roll back the command before managed
+  code recovers. Six direct result-contract tests and the 189-case affected SPI
+  scope pass on PostgreSQL 18.6/Linux x64. This includes 148 new backend cases
+  across standalone calls, sessions, retained plans and session-owned plans.
+  Plain `dotnet test` passes 4,296/4,296 with no skips in 3m01.582s on that platform.
+  Release compilation, API freshness (122 pages/1,270 members), `pnpm build`
+  (154 pages), and `pnpm check` pass without warnings or errors. The API renderer
+  also fixes invalid external links for named tuple returns, including existing
+  temporal helpers. Extensible/raw SPI datum conversion and PostgreSQL/platform
+  matrix validation remain pending.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Exact values, NULLs, first-row selection and owned results | `SpiScalarTests.FirstRowValuesRemainExactAndOwned`; `SpiResultTests.FirstValuesPreserveOrderAndTypes`, `EmptyResultsRequireNullableTypes`, `NullCellsAndMissingColumnsHaveDifferentContracts`, `ZeroColumnRowsRejectFirstValue` |
+  | Complete writes while ignoring unused columns | `SpiScalarTests.FirstRowReadsCompleteAllWrites` |
+  | Strict conversion errors and same-backend recovery | `SpiScalarTests.ResultErrorsPreserveBackendRecovery` |
+  | Partial native conversion failure and write rollback | `SpiScalarTests.NativeConversionFailureRollsBackWrites` |
+  | Focused and complete validation | SPI unit filter: 6/6; `SpiScalarTests\|SpiQueryTests` integration filter: 189/189; plain `dotnet test`: 4,296/4,296 |

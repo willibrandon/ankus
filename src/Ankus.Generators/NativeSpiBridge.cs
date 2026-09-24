@@ -449,7 +449,7 @@ internal static class NativeSpiBridge
         }
 
         static void
-        ankus_collect_result(AnkusResult *result, bool scalar)
+        ankus_collect_result(AnkusResult *result, int first_row_columns)
         {
             TupleDesc descriptor;
             Size count;
@@ -462,8 +462,8 @@ internal static class NativeSpiBridge
             }
 
             descriptor = SPI_tuptable->tupdesc;
-            rows = scalar ? Min(SPI_processed, 1) : SPI_processed;
-            columns = scalar ? Min(descriptor->natts, 1) : descriptor->natts;
+            rows = first_row_columns > 0 ? Min(SPI_processed, 1) : SPI_processed;
+            columns = first_row_columns > 0 ? Min(descriptor->natts, first_row_columns) : descriptor->natts;
             if (rows > PG_INT32_MAX || (columns != 0 && rows > MaxAllocSize / sizeof(AnkusValue) / columns))
             {
                 ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("SPI result exceeds managed array capacity")));

@@ -109,6 +109,82 @@ Returns: <code>T</code>
 
 The scalar value.
 
+<a id="member-239e43263637d9db"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond&gt;(params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Reads the first two columns of the first row without limiting command execution.
+SQL NULL or an empty result requires nullable value types or reference types.
+
+```csharp
+public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+Parameters:
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Values matching the declared parameter types.
+
+Returns: <code>(TFirst First, TSecond Second)</code>
+
+The first two values from the final statement, without implicit type conversions.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.
+- [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
+<a id="member-9683e69519896742"></a>
+
+### ExecuteScalars&lt;TFirst, TSecond, TThird&gt;(params ReadOnlySpan&lt;SpiParameter&gt;)
+
+Reads the first three columns of the first row without limiting command execution.
+SQL NULL or an empty result requires nullable value types or reference types.
+
+```csharp
+public (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(params ReadOnlySpan<SpiParameter> parameters)
+```
+
+Type parameters:
+
+`TFirst`
+
+The first column's managed type.
+
+`TSecond`
+
+The second column's managed type.
+
+`TThird`
+
+The third column's managed type.
+
+Parameters:
+
+`parameters` — [ReadOnlySpan&lt;SpiParameter&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Values matching the declared parameter types.
+
+Returns: <code>(TFirst First, TSecond Second, TThird Third)</code>
+
+The first three values from the final statement, without implicit type conversions.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.
+- [InvalidCastException](https://learn.microsoft.com/dotnet/api/system.invalidcastexception): A column cannot be read as its requested managed type.
+
 <a id="member-1bc56f024c323ae3"></a>
 
 ### Keep()

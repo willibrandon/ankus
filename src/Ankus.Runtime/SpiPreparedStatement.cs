@@ -136,6 +136,40 @@ public sealed class SpiPreparedStatement : IDisposable
     }
 
     /// <summary>
+    /// Reads the first two columns of the first row without limiting command execution.
+    /// SQL NULL or an empty result requires nullable value types or reference types.
+    /// </summary>
+    /// <typeparam name="TFirst">The first column's managed type.</typeparam>
+    /// <typeparam name="TSecond">The second column's managed type.</typeparam>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>The first two values from the final statement, without implicit type conversions.</returns>
+    /// <exception cref="InvalidOperationException">A returned row has fewer than two columns, or SQL NULL is read as a non-nullable value type.</exception>
+    /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
+    public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(params ReadOnlySpan<SpiParameter> parameters)
+    {
+        SpiResult result = Run(parameters, readOnly: false, limit: 0, SpiResultMode.Pair);
+        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1));
+    }
+
+    /// <summary>
+    /// Reads the first three columns of the first row without limiting command execution.
+    /// SQL NULL or an empty result requires nullable value types or reference types.
+    /// </summary>
+    /// <typeparam name="TFirst">The first column's managed type.</typeparam>
+    /// <typeparam name="TSecond">The second column's managed type.</typeparam>
+    /// <typeparam name="TThird">The third column's managed type.</typeparam>
+    /// <param name="parameters">Values matching the declared parameter types.</param>
+    /// <returns>The first three values from the final statement, without implicit type conversions.</returns>
+    /// <exception cref="InvalidOperationException">A returned row has fewer than three columns, or SQL NULL is read as a non-nullable value type.</exception>
+    /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
+    public (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
+        params ReadOnlySpan<SpiParameter> parameters)
+    {
+        SpiResult result = Run(parameters, readOnly: false, limit: 0, SpiResultMode.Triple);
+        return (result.GetFirstValue<TFirst>(0), result.GetFirstValue<TSecond>(1), result.GetFirstValue<TThird>(2));
+    }
+
+    /// <summary>
     /// Frees the native plan through a guarded backend call. Repeated disposal is harmless.
     /// PostgreSQL APIs cannot run on the finalizer thread. Independent plans require explicit disposal;
     /// session-owned plans are also released when their session ends.

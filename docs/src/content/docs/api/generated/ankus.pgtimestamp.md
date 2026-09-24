@@ -289,7 +289,7 @@ Reads the full-range Gregorian date without a backend, using the containing day 
 public (int Year, int Month, int Day) GetDateParts()
 ```
 
-Returns: [(int Year, int Month, int Day)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Year, int Month, int Day)</code>
 
 The year, month, and day. Negative years denote BC; there is no year zero.
 
@@ -357,7 +357,7 @@ Reads exact wall-clock fields without a backend, using a nonnegative time of day
 public (int Hour, int Minute, int Second, int Microseconds) GetTimeParts()
 ```
 
-Returns: [(int Hour, int Minute, int Second, int Microseconds)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Hour, int Minute, int Second, int Microseconds)</code>
 
 The hour, minute, whole second, and microseconds within that second.
 

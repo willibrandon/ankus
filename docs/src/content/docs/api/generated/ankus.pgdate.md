@@ -270,7 +270,7 @@ Reads the full-range Gregorian date without requiring a backend.
 public (int Year, int Month, int Day) GetDateParts()
 ```
 
-Returns: [(int Year, int Month, int Day)](https://learn.microsoft.com/dotnet/api/system.int32)
+Returns: <code>(int Year, int Month, int Day)</code>
 
 The year, month, and day. Negative years denote BC; there is no year zero.
 
