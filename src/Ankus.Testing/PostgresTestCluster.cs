@@ -340,11 +340,24 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
                 if (fast?.ExitCode != 0)
                 {
-                    await ProcessRunner.RunCheckedAsync(
+                    string[] immediateArguments =
+                    [
+                        "stop", "-D", DataDirectory, "-m", "immediate", "-w", "-t", GetTimeoutSeconds(_options.ShutdownTimeout),
+                    ];
+                    ProcessResult immediate = await ProcessRunner.RunAsync(
                         Installation.PgCtlPath,
-                        ["stop", "-D", DataDirectory, "-m", "immediate", "-w", "-t", GetTimeoutSeconds(_options.ShutdownTimeout)],
+                        immediateArguments,
                         _environment,
                         timeout.Token).ConfigureAwait(false);
+                    if (immediate.ExitCode != 0)
+                    {
+                        ProcessResult stopped = await ProcessRunner.RunAsync(
+                            Installation.PgCtlPath, ["status", "-D", DataDirectory], _environment, timeout.Token).ConfigureAwait(false);
+                        if (stopped.ExitCode != 3)
+                        {
+                            immediate.EnsureSuccess(Installation.PgCtlPath, immediateArguments);
+                        }
+                    }
                 }
             }
             else if (status.ExitCode != 3)
