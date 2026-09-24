@@ -70,7 +70,7 @@ The extension project file.
 
 `installation` — [PostgresInstallation](/api/ankus.pgconfig.postgresinstallation/)
 
-The PostgreSQL installation, or null to discover PostgreSQL 18.
+The PostgreSQL installation, or null to use <code>ANKUS_TEST_PG_CONFIG</code> when set and otherwise discover PostgreSQL 18.
 
 `cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
 

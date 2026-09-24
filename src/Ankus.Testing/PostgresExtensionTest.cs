@@ -36,7 +36,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// and executes CREATE EXTENSION. Build and startup failures fail initialization rather than skip tests.
     /// </summary>
     /// <param name="projectPath">The extension project file.</param>
-    /// <param name="installation">The PostgreSQL installation, or null to discover PostgreSQL 18.</param>
+    /// <param name="installation">
+    /// The PostgreSQL installation, or null to use <c>ANKUS_TEST_PG_CONFIG</c> when set and otherwise discover PostgreSQL 18.
+    /// </param>
     /// <param name="cancellationToken">Cancels discovery, publication, or startup.</param>
     /// <returns>The fixture to dispose after all tests finish.</returns>
     /// <remarks>
@@ -54,7 +56,14 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             throw new FileNotFoundException("The extension project was not found.", projectPath);
         }
 
-        installation ??= await PostgresInstallation.DiscoverAsync(cancellationToken).ConfigureAwait(false);
+        if (installation is null)
+        {
+            string? testPgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
+            installation = string.IsNullOrWhiteSpace(testPgConfig)
+                ? await PostgresInstallation.DiscoverAsync(cancellationToken).ConfigureAwait(false)
+                : await PostgresInstallation.CreateAsync(testPgConfig, cancellationToken).ConfigureAwait(false);
+        }
+
         string root = Path.GetDirectoryName(projectPath)!;
         string invocation = Guid.NewGuid().ToString("N");
         string output = Path.Combine(root, "bin", "ankus-test-publish", invocation);

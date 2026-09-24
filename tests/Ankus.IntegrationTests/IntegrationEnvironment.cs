@@ -10,6 +10,8 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 internal static class IntegrationEnvironment
 {
+    private static readonly SemaphoreSlim s_stagingLock = new(1, 1);
+    private static bool s_nativeExtensionFilesInstalled;
     private static PostgresInstallation? s_installation;
     private static PostgresTestInstallation? s_stagedInstallation;
 
@@ -84,14 +86,31 @@ internal static class IntegrationEnvironment
             return installation;
         }
 
-        if (s_stagedInstallation is null)
+        await s_stagingLock.WaitAsync(cancellationToken);
+        try
         {
-            string stageRoot = Path.Combine(RepositoryRoot, "artifacts", "test-postgresql", Guid.NewGuid().ToString("N"));
-            s_stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken);
-        }
+            if (s_stagedInstallation is null)
+            {
+                string stageRoot = Path.Combine(RepositoryRoot, "artifacts", "test-postgresql", Guid.NewGuid().ToString("N"));
+                s_stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken);
+            }
 
-        s_stagedInstallation.InstallExtensionFiles(publishDirectory);
-        return s_stagedInstallation.Installation;
+            string source = Path.GetFullPath(publishDirectory);
+            string nativeSource = Path.GetFullPath(NativeOutputDirectory);
+            bool isNativeOutput = string.Equals(source, nativeSource,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            if (!isNativeOutput || !s_nativeExtensionFilesInstalled)
+            {
+                s_stagedInstallation.InstallExtensionFiles(publishDirectory);
+                s_nativeExtensionFilesInstalled |= isNativeOutput;
+            }
+
+            return s_stagedInstallation.Installation;
+        }
+        finally
+        {
+            s_stagingLock.Release();
+        }
     }
 
     /// <summary>
@@ -99,10 +118,19 @@ internal static class IntegrationEnvironment
     /// </summary>
     internal static async Task CleanupAsync()
     {
-        if (s_stagedInstallation is not null)
+        await s_stagingLock.WaitAsync();
+        try
         {
-            await s_stagedInstallation.DisposeAsync();
-            s_stagedInstallation = null;
+            if (s_stagedInstallation is not null)
+            {
+                await s_stagedInstallation.DisposeAsync();
+                s_stagedInstallation = null;
+                s_nativeExtensionFilesInstalled = false;
+            }
+        }
+        finally
+        {
+            s_stagingLock.Release();
         }
     }
 

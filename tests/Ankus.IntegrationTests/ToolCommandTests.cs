@@ -465,7 +465,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             """, context.CancellationToken);
         string output = Path.Combine(projectDirectory, "published");
         ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
-            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+            "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
             "-p:AnkusExtensionVersion=2.3.4", "-bl:" + Path.Combine(projectDirectory, "publish-{}.binlog")], context.CancellationToken);
         result.EnsureSuccess("dotnet", ["publish"]);
         PublishedExtension manifest = PublishedExtension.Read(output);
@@ -517,7 +517,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             "using Ankus; [PgEnum] public enum State { " + (empty ? string.Empty : "Ready, Complete") + " }", token);
         string output = Path.Combine(directory, "published");
         ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
-            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath], token);
+            "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath], token);
         result.EnsureSuccess("dotnet", ["publish"]);
         PublishedExtension manifest = PublishedExtension.Read(output);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
@@ -550,7 +550,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             """, token);
         string output = Path.Combine(directory, "published");
         ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
-            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+            "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
             "-bl:" + Path.Combine(directory, "schema-only-{}.binlog")], token);
         result.EnsureSuccess("dotnet", ["publish"]);
         PublishedExtension manifest = PublishedExtension.Read(output);
@@ -624,7 +624,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         async Task PublishAsync()
         {
             ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
-                "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
                 "-bl:" + Path.Combine(directory, "sql-only-{}.binlog")], token);
             result.EnsureSuccess("dotnet", ["publish"]);
         }
@@ -735,7 +735,8 @@ public sealed partial class ToolCommandTests(TestContext context)
             s_environment, token, workingDirectory: output);
         Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
 
-        ProcessResult tests = await ProcessRunner.RunAsync("dotnet", ["test", "--report-trx", "-bl:generated-tests-{}.binlog"],
+        ProcessResult tests = await ProcessRunner.RunAsync("dotnet",
+            ["test", "--report-trx", "-bl:generated-tests-{}.binlog", "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         string trx = Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single();
@@ -753,7 +754,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(projectDirectory, "bin", "ankus-test-logs"), "*.log"));
 
         string published = Path.Combine(output, "published");
-        ProcessResult publish = await ProcessRunner.RunAsync(s_tool, ["publish", "--home", s_home, "-o", published],
+        ProcessResult publish = await ProcessRunner.RunAsync(s_tool,
+            ["publish", "--home", s_home, "--pg", MajorText(), "-o", published],
             s_environment, token, workingDirectory: output);
         publish.EnsureSuccess(s_tool, ["publish"]);
         Assert.AreEqual("acme_http_probe.control", PublishedExtension.Read(published).Control);
@@ -766,7 +768,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         string text = await File.ReadAllTextAsync(functions, token);
         await File.WriteAllTextAsync(functions, text.Replace("checked(left + right)", "checked(left - right)", StringComparison.Ordinal), token);
         ProcessResult changed = await ProcessRunner.RunAsync("dotnet",
-            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:changed-tests-{}.binlog"],
+            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:changed-tests-{}.binlog",
+                "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, changed.ExitCode);
         Assert.Contains("expected: 42", changed.StandardOutput);
@@ -806,7 +809,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         }
 
         ProcessResult result = await ProcessRunner.RunAsync("dotnet",
-            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:initialization-failure-{}.binlog"],
+            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:initialization-failure-{}.binlog",
+                "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, result.ExitCode);
         Assert.Contains(failure == "build" ? "Intentional native publication failure" : "division by zero", result.StandardOutput);
@@ -894,7 +898,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         XDocument document = XDocument.Load(solution);
         document.Root!.Add(new XElement("Project", new XAttribute("Path", "src/Second/Second.csproj")));
         document.Save(solution);
-        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["publish", "--home", s_home, "-o", "published"],
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ["publish", "--home", s_home, "--pg", MajorText(), "-o", "published"],
             s_environment, token, workingDirectory: output);
         Assert.AreEqual(1, result.ExitCode);
         Assert.Contains("Specify --project", result.StandardError);

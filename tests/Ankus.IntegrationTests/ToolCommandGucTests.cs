@@ -172,7 +172,8 @@ public sealed partial class ToolCommandTests
         string output = Path.Combine(directory, "published");
         ProcessResult published = await ProcessRunner.RunAsync("dotnet",
             ["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
-                "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath, "-bl:" + Path.Combine(directory, "guc-publish-{}.binlog")],
+                "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "-bl:" + Path.Combine(directory, "guc-publish-{}.binlog")],
             environment, token, workingDirectory: directory);
         published.EnsureSuccess("dotnet", ["publish"]);
         ProcessResult evaluated = await ProcessRunner.RunAsync("dotnet",

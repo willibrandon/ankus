@@ -323,6 +323,24 @@ internal static class NativeGucBridge
             if (existing != NULL && (existing->flags & GUC_CUSTOM_PLACEHOLDER) == 0)
                 ereport(ERROR, (errcode(ERRCODE_DUPLICATE_OBJECT),
                     errmsg("configuration parameter \"%s\" is already defined by another owner", definition->name)));
+            char *reload_value = NULL;
+            bool reload_pending = false;
+            GucContext reload_context = PGC_INTERNAL;
+            GucSource reload_source = PGC_S_DEFAULT;
+            Oid reload_role = InvalidOid;
+        #ifdef WIN32
+            if (existing != NULL && IsUnderPostmaster && existing->scontext == PGC_SIGHUP &&
+                (context == PGC_BACKEND || context == PGC_SU_BACKEND))
+            {
+                struct config_string *placeholder = (struct config_string *) existing;
+                reload_pending = true;
+                if (*placeholder->variable != NULL)
+                    reload_value = pstrdup(*placeholder->variable);
+                reload_context = existing->scontext;
+                reload_source = existing->source;
+                reload_role = existing->srole;
+            }
+        #endif
             switch (definition->kind)
             {
                 case 0:
@@ -353,6 +371,23 @@ internal static class NativeGucBridge
                 default: elog(ERROR, "invalid Ankus configuration kind");
             }
 
+            if (reload_pending)
+            {
+                int result = set_config_option_ext(definition->name, reload_value,
+                    reload_context, reload_source, reload_role,
+                    GUC_ACTION_SET, true, ERROR, true);
+                if (reload_value != NULL)
+                    pfree(reload_value);
+                if (result <= 0)
+                    ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+                        errmsg("Ankus configuration could not apply a reloaded backend value")));
+            }
+
+            struct config_generic *registered = ankus_guc_find(definition->name);
+            if (!ankus_guc_is_owned(definition, registered))
+                ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+                    errmsg("Ankus configuration registration lost ownership")));
+            definition->extra = registered->extra;
             definition->installed = true;
         }
         """;
@@ -397,7 +432,7 @@ internal static class NativeGucBridge
             (hasCheck ? "\n\n" + Check : string.Empty) +
             (hasAssign ? "\n\n" + Assign : string.Empty) +
             (hasShow ? "\n\n" + Show : string.Empty) +
-            (hasCheck || hasAssign || hasShow ? "\n\n" + GetWorkerRestore(hasCheck) : string.Empty);
+            (hasCheck || hasAssign || hasShow ? "\n\n" + WorkerRestore : string.Empty);
 
     /// <summary>
     /// Resumes a dormant postmaster runtime only while a managed hook is executing.
@@ -1228,37 +1263,34 @@ internal static class NativeGucBridge
         }
         """;
 
-    private static string GetWorkerRestore(bool hasCheck)
-    {
-        string check = hasCheck ? """
-                if (definition->has_check)
+    private const string WorkerRestore = """
+        static const char *
+        ankus_guc_current_value(AnkusGuc *definition, struct config_generic *existing, char *buffer, Size size)
+        {
+            switch (definition->kind)
+            {
+                case 0:
+                    return *((bool *) definition->variable) ? "true" : "false";
+                case 1:
+                    snprintf(buffer, size, "%d", *((int *) definition->variable));
+                    return buffer;
+                case 2:
+                    snprintf(buffer, size, "%.17e", *((double *) definition->variable));
+                    return buffer;
+                case 3:
                 {
-                    switch (definition->kind)
-                    {
-                        case 0: proposed.boolean = *((bool *) definition->variable); break;
-                        case 1:
-                        case 4: proposed.integer = *((int *) definition->variable); break;
-                        case 2: proposed.real = *((double *) definition->variable); break;
-                        case 3:
-                        {
-                            const char *current = *((char **) definition->variable);
-                            if (current != NULL)
-                            {
-                                Size length = strlen(current) + 1;
-                                char *copy = ankus_guc_allocate(length);
-                                memcpy(copy, current, length);
-                                proposed.string = copy;
-                            }
-
-                            break;
-                        }
-                    }
-
-                    ankus_guc_check_core(definition, &proposed, &extra, existing->source, true);
+                    const char *value = *((char **) definition->variable);
+                    return value == NULL && existing->source != PGC_S_DEFAULT ? "" : value;
                 }
+                case 4:
+                    return config_enum_lookup_by_value((struct config_enum *) existing,
+                        *((int *) definition->variable));
+                default:
+                    elog(ERROR, "invalid Ankus configuration kind");
+                    return NULL;
+            }
+        }
 
-        """ : string.Empty;
-        return $$"""
         static void
         ankus_guc_complete_worker_restore(void)
         {
@@ -1282,26 +1314,27 @@ internal static class NativeGucBridge
                     if (!ankus_guc_is_owned(definition, existing))
                         ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
                             errmsg("Ankus configuration ownership changed during parallel worker restore")));
-                    AnkusGucNumber proposed = {0};
-                    void *extra = NULL;
+                    char buffer[128];
+                    const char *value = ankus_guc_current_value(definition, existing, buffer, sizeof(buffer));
+                    int original_flags = existing->flags;
+                    volatile int result = 0;
                     PG_TRY();
                     {
-        {{check}}            void *previous = existing->extra;
-                        existing->extra = extra;
-                        definition->extra = extra;
-                        extra = NULL;
-                        if (previous != existing->extra)
-                            ankus_guc_free(previous);
-                        ankus_guc_assign(definition, definition->variable, existing->extra);
-                        definition->worker_restore_pending = false;
+                        existing->flags |= GUC_ALLOW_IN_PARALLEL;
+                        result = set_config_option_ext(definition->name, value,
+                            existing->scontext, existing->source, existing->srole,
+                            GUC_ACTION_SET, true, ERROR, true);
                     }
                     PG_FINALLY();
                     {
-                        if (definition->kind == 3)
-                            ankus_guc_free((void *) proposed.string);
-                        ankus_guc_free(extra);
+                        existing->flags = original_flags;
                     }
                     PG_END_TRY();
+                    if (result <= 0)
+                        ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+                            errmsg("Ankus configuration could not be restored in a parallel worker")));
+                    definition->extra = existing->extra;
+                    definition->worker_restore_pending = false;
                 }
             }
             PG_FINALLY();
@@ -1311,5 +1344,4 @@ internal static class NativeGucBridge
             PG_END_TRY();
         }
         """;
-    }
 }

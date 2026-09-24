@@ -3318,3 +3318,17 @@ The phases track implementation of the complete pgrx feature surface.
   as errors; the nonincremental Release build passes with zero warnings/errors in
   46.76s. Hosted Windows proof and the complete PostgreSQL 15–18 platform matrix
   remain pending.
+
+- 2026-09-24 — Diagnosed the next PostgreSQL 17/Windows CI failures. A deferred
+  worker check normalized its value but assigned the original raw value with the
+  normalized extra payload. Replay now goes back through PostgreSQL's setter so
+  the value, extra payload, check and assignment stay together. Windows
+  `EXEC_BACKEND` children also reapply reloaded Backend/SUBackend placeholders
+  with PostgreSQL's reload semantics after custom registration. Pre-18 fixture
+  staging is serialized and installs the shared sample once; generated consumer
+  tests and publishes use the selected PostgreSQL major; cluster shutdown falls
+  back from bounded fast shutdown to immediate shutdown. Release builds with zero
+  warnings/errors. Generator contracts pass 1,182/1,182, the affected backend
+  scope passes 54/54, package/tool tests pass 50/50, and plain `dotnet test`
+  passes 4,142/4,142 in 3m02.858s on PostgreSQL 18.6/Linux x64. Hosted Windows
+  proof remains pending.

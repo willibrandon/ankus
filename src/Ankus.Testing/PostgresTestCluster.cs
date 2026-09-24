@@ -312,6 +312,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 
     private async Task StopAsync()
     {
+        AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
         if (_startAttempted)
         {
             using var timeout = new CancellationTokenSource(_options.ShutdownTimeout);
@@ -319,11 +320,32 @@ public sealed class PostgresTestCluster : IAsyncDisposable
                 Installation.PgCtlPath, ["status", "-D", DataDirectory], _environment, timeout.Token).ConfigureAwait(false);
             if (status.ExitCode == 0)
             {
-                await ProcessRunner.RunCheckedAsync(
-                    Installation.PgCtlPath,
-                    ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", GetTimeoutSeconds(_options.ShutdownTimeout)],
-                    _environment,
-                    timeout.Token).ConfigureAwait(false);
+                TimeSpan fastDuration = TimeSpan.FromTicks(Math.Min(
+                    _options.ShutdownTimeout.Ticks / 2,
+                    TimeSpan.FromSeconds(5).Ticks));
+                using var fastTimeout = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+                fastTimeout.CancelAfter(fastDuration);
+                ProcessResult? fast = null;
+                try
+                {
+                    fast = await ProcessRunner.RunAsync(
+                        Installation.PgCtlPath,
+                        ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", GetTimeoutSeconds(fastDuration)],
+                        _environment,
+                        fastTimeout.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!timeout.IsCancellationRequested)
+                {
+                }
+
+                if (fast?.ExitCode != 0)
+                {
+                    await ProcessRunner.RunCheckedAsync(
+                        Installation.PgCtlPath,
+                        ["stop", "-D", DataDirectory, "-m", "immediate", "-w", "-t", GetTimeoutSeconds(_options.ShutdownTimeout)],
+                        _environment,
+                        timeout.Token).ConfigureAwait(false);
+                }
             }
             else if (status.ExitCode != 3)
             {
@@ -340,8 +362,6 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         {
             Directory.Delete(SocketDirectory, recursive: true);
         }
-
-        AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
     }
 
     private void OnProcessExit(object? sender, EventArgs arguments)
