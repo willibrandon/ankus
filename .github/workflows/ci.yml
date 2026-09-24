@@ -131,6 +131,18 @@ jobs:
             rid: osx-x64
             postgresql: 18
             suite: integration-3
+          - runner: macos-15-intel
+            rid: osx-x64
+            postgresql: 18
+            suite: integration-4
+          - runner: macos-15-intel
+            rid: osx-x64
+            postgresql: 18
+            suite: integration-5
+          - runner: macos-15-intel
+            rid: osx-x64
+            postgresql: 18
+            suite: integration-6
           - runner: windows-2025
             rid: win-x64
             postgresql: 17

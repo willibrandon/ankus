@@ -23,7 +23,12 @@ const string IntegrationShardThreeFilter =
     "ClassName!~Ankus.IntegrationTests.E&ClassName!~Ankus.IntegrationTests.F&ClassName!~Ankus.IntegrationTests.G&" +
     "ClassName!~Ankus.IntegrationTests.I&ClassName!~Ankus.IntegrationTests.M&ClassName!~Ankus.IntegrationTests.N&" +
     "ClassName!~Ankus.IntegrationTests.O&ClassName!~Ankus.IntegrationTests.P&ClassName!~Ankus.IntegrationTests.R&" +
-    "ClassName!~Ankus.IntegrationTests.S";
+    "ClassName!~Ankus.IntegrationTests.S&ClassName!=Ankus.IntegrationTests.ToolCommandTests";
+const string IntegrationShardFourFilter = "ClassName=Ankus.IntegrationTests.ToolCommandTests&Name~New";
+const string IntegrationShardFiveFilter =
+    "ClassName=Ankus.IntegrationTests.ToolCommandTests&(Name~Sdk|Name~TestingPackage)";
+const string IntegrationShardSixFilter =
+    "ClassName=Ankus.IntegrationTests.ToolCommandTests&Name!~New&Name!~Sdk&Name!~TestingPackage";
 
 string repositoryRoot = FindRepositoryRoot();
 Directory.SetCurrentDirectory(repositoryRoot);
@@ -520,8 +525,11 @@ static void RunRuntimeTests(string repositoryRoot, string suite)
         "integration-1" => (false, IntegrationShardOneFilter),
         "integration-2" => (false, IntegrationShardTwoFilter),
         "integration-3" => (false, IntegrationShardThreeFilter),
+        "integration-4" => (false, IntegrationShardFourFilter),
+        "integration-5" => (false, IntegrationShardFiveFilter),
+        "integration-6" => (false, IntegrationShardSixFilter),
         _ => throw new ArgumentOutOfRangeException(
-            nameof(suite), suite, "Test suite must be 'all', 'integration', or 'integration-1' through 'integration-3'."),
+            nameof(suite), suite, "Test suite must be 'all', 'integration', or 'integration-1' through 'integration-6'."),
     };
     BuildTests(repositoryRoot);
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
