@@ -65,17 +65,30 @@ jobs:
         id: runtime
         run: dotnet run --file ./eng/Ankus.Ci.cs -- metadata
 
+      - uses: actions/cache@v5
+        id: runtime-cache
+        with:
+          path: artifacts/nativeaot/${{ matrix.rid }}
+          key: nativeaot-v2-${{ matrix.rid }}-${{ steps.runtime.outputs.commit }}
+
       - uses: actions/checkout@v5
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
         with:
           repository: ${{ steps.runtime.outputs.repository }}
           ref: ${{ steps.runtime.outputs.commit }}
           path: runtime
 
       - name: Build runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
         run: >-
           dotnet run --file ./eng/Ankus.Ci.cs -- runtime-build
           ${{ matrix.platform }}
           ${{ matrix.architecture }}
+          ${{ matrix.rid }}
+
+      - name: Pack runtime
+        run: >-
+          dotnet run --file ./eng/Ankus.Ci.cs -- runtime-pack
           ${{ matrix.rid }}
 
       - uses: actions/upload-artifact@v4

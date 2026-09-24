@@ -14,7 +14,8 @@ repository root with `dotnet run --file`.
 | `metadata` | Validate and export the pinned runtime identity. |
 | `release-metadata` | Validate a release tag and export release metadata. |
 | `quality` | Build Ankus and validate generated API and site documentation. |
-| `runtime-build` | Build, stage, and pack one runtime for CI. |
+| `runtime-build` | Build and stage one runtime for CI. |
+| `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the full suite against PostgreSQL. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack one platform runtime package. |

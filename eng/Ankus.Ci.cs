@@ -56,7 +56,17 @@ try
             InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
             StageRuntime(repositoryRoot, args[1], args[2], args[3]);
-            PackRuntime(repositoryRoot, args[3], GetStagedRuntimePath(repositoryRoot, args[3]));
+            break;
+
+        case "runtime-pack":
+            RequireArguments(args, 2);
+            ValidateRuntimeIdentity(repositoryRoot);
+            VerifyStagedRuntime(repositoryRoot, args[1]);
+            PackRuntime(
+                repositoryRoot,
+                args[1],
+                GetStagedRuntimePath(repositoryRoot, args[1]),
+                GetStagedRuntimeSourcePath(repositoryRoot, args[1]));
             break;
 
         case "runtime-test":
@@ -77,7 +87,11 @@ try
             ValidateRuntimeIdentity(repositoryRoot);
             InstallRuntimePrerequisites();
             BuildRuntime(repositoryRoot, args[1], args[2]);
-            PackRuntime(repositoryRoot, args[3], GetBuiltRuntimePath(repositoryRoot, args[1], args[2]));
+            PackRuntime(
+                repositoryRoot,
+                args[3],
+                GetBuiltRuntimePath(repositoryRoot, args[1], args[2]),
+                Path.Combine(repositoryRoot, "runtime"));
             break;
 
         case "publish":
@@ -314,6 +328,11 @@ static string GetStagedRuntimePath(string repositoryRoot, string runtimeIdentifi
     return Path.Combine(repositoryRoot, "artifacts", "nativeaot", runtimeIdentifier, "aotsdk");
 }
 
+static string GetStagedRuntimeSourcePath(string repositoryRoot, string runtimeIdentifier)
+{
+    return Path.Combine(repositoryRoot, "artifacts", "nativeaot", runtimeIdentifier, "source");
+}
+
 static void StageRuntime(string repositoryRoot, string platform, string architecture, string runtimeIdentifier)
 {
     string source = GetBuiltRuntimePath(repositoryRoot, platform, architecture);
@@ -325,15 +344,35 @@ static void StageRuntime(string repositoryRoot, string platform, string architec
     }
 
     CopyDirectory(source, destination);
+
+    string runtimeSource = Path.Combine(repositoryRoot, "runtime");
+    string stagedSource = GetStagedRuntimeSourcePath(repositoryRoot, runtimeIdentifier);
+    Directory.CreateDirectory(stagedSource);
+    string[] metadataFiles = ["LICENSE.TXT", "THIRD-PARTY-NOTICES.TXT"];
+
+    foreach (string fileName in metadataFiles)
+    {
+        string sourceFile = Path.Combine(runtimeSource, fileName);
+
+        if (!File.Exists(sourceFile))
+        {
+            throw new FileNotFoundException("Required runtime package metadata was not found.", sourceFile);
+        }
+
+        File.Copy(sourceFile, Path.Combine(stagedSource, fileName), true);
+    }
 }
 
 static void VerifyStagedRuntime(string repositoryRoot, string runtimeIdentifier)
 {
     string path = GetStagedRuntimePath(repositoryRoot, runtimeIdentifier);
+    string sourcePath = GetStagedRuntimeSourcePath(repositoryRoot, runtimeIdentifier);
 
-    if (!Directory.Exists(path) || !Directory.EnumerateFiles(path).Any())
+    if (!File.Exists(Path.Combine(path, "System.Private.CoreLib.dll"))
+        || !File.Exists(Path.Combine(sourcePath, "LICENSE.TXT"))
+        || !File.Exists(Path.Combine(sourcePath, "THIRD-PARTY-NOTICES.TXT")))
     {
-        throw new DirectoryNotFoundException($"The staged {runtimeIdentifier} runtime was not downloaded to {path}.");
+        throw new DirectoryNotFoundException($"The staged {runtimeIdentifier} runtime is incomplete.");
     }
 }
 
@@ -518,9 +557,12 @@ static void PackManaged(string repositoryRoot, string packageVersion)
     }
 }
 
-static void PackRuntime(string repositoryRoot, string runtimeIdentifier, string runtimeSdkPath)
+static void PackRuntime(
+    string repositoryRoot,
+    string runtimeIdentifier,
+    string runtimeSdkPath,
+    string runtimeSourcePath)
 {
-    string sourcePath = Path.Combine(repositoryRoot, "runtime");
     string normalizedSdkPath = Path.EndsInDirectorySeparator(runtimeSdkPath)
         ? runtimeSdkPath
         : runtimeSdkPath + Path.DirectorySeparatorChar;
@@ -536,7 +578,7 @@ static void PackRuntime(string repositoryRoot, string runtimeIdentifier, string 
         $"-p:PackageVersion={RuntimeVersion}",
         $"-p:AnkusRuntimeIdentifier={runtimeIdentifier}",
         $"-p:AnkusRuntimeSdkPath={normalizedSdkPath}",
-        $"-p:AnkusRuntimeSourcePath={sourcePath}",
+        $"-p:AnkusRuntimeSourcePath={runtimeSourcePath}",
     ], repositoryRoot);
 }
 
