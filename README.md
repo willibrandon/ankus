@@ -150,6 +150,12 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
+Use `PgTransaction.RegisterCallback` for commit, rollback, preparation, and parallel
+transaction phases. `RegisterSubtransactionCallback` observes savepoints and other
+subtransactions with their exact IDs. Callbacks support cancellation, guarded SPI
+before commit, nested dispatch, and managed cleanup. See
+[transaction callbacks](docs/src/content/docs/transaction-callbacks.md).
+
 Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
 temporary current-context scopes, checked byte access, and deterministic cleanup.
 Declare a `PgMemoryContext` function parameter to receive a borrowed native context

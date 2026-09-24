@@ -48,7 +48,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_RANGE,
             ANKUS_SPI_ENUM,
             ANKUS_SPI_TUPLE,
-            ANKUS_SPI_GUC_READ
+            ANKUS_SPI_GUC_READ,
+            ANKUS_SPI_TRANSACTION_CALLBACKS
         };
 
         typedef struct AnkusRequest
@@ -56,6 +57,7 @@ internal static class NativeSpiBridge
             const char *command;
             const AnkusParameter *parameters;
             SPIPlanPtr plan;
+            intptr_t callback;
             int64 cursor_id;
             int64 session_id;
             int command_length;
@@ -91,6 +93,8 @@ internal static class NativeSpiBridge
             AnkusValue cursor_name;
             AnkusValue text;
         } AnkusResult;
+
+        typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, struct AnkusError *);
 
         static int ankus_return_cursor(Portal portal, AnkusResult *result);
         static int ankus_cursor_operation(AnkusRequest *request, AnkusResult *result);

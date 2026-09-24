@@ -133,4 +133,9 @@ internal enum SpiOperation : byte
     /// Reads generated configuration backing storage through the native guard without a subtransaction.
     /// </summary>
     GucRead,
+
+    /// <summary>
+    /// Installs the managed transaction and subtransaction callback dispatchers.
+    /// </summary>
+    TransactionCallbacks,
 }

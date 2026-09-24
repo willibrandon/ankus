@@ -2475,6 +2475,32 @@ Generated native wrappers use PostgreSQL's own access and detoasting APIs rather
 reimplementing those layouts in managed code. Text/bytea conversions are implemented;
 the full pgrx datum and memory-context API remains required work.
 
+## Transaction callback evidence
+
+`PgTransaction` now covers all eight PostgreSQL outer-transaction events and all four
+subtransaction events from pgrx's callback API. Outer callbacks are one-shot;
+subtransaction callbacks repeat for the current outer transaction. Both registrations
+return cancellable receipts, remain rooted when the receipt is discarded, and release
+unused callbacks at the terminal transaction event.
+
+The generated native dispatcher is installed once per extension backend. Reversible
+phases expose SPI and preserve PostgreSQL snapshots. Savepoint `Start` and `PreCommit`
+run in PostgreSQL transition states that reject another internal subtransaction, so a
+dedicated callback guard executes SPI in the current transaction. Native errors remain
+owned by the active callback frame until all managed frames unwind, then PostgreSQL
+receives the original diagnostic. Nested callback frames support SPI that starts another
+subtransaction. Guard-owned implementation subtransactions stay hidden from consumer
+callbacks.
+
+Direct runtime cases cover registration, ordering, repeated subtransaction delivery,
+cancellation, invalid events, root lifetime, failure cleanup and thread ownership.
+Generator cases verify every stable event mapping, guarded registration, callback-frame
+error transport and terminal ERROR/FATAL selection. PostgreSQL 18.6/Linux x64 cases
+execute commit, rollback, savepoint release, pre-commit SQL, nested dispatch, caught SPI
+failure, same-backend recovery, root cleanup and terminal backend failure through a
+published Native AOT extension. Actual two-phase and parallel-worker event execution,
+PostgreSQL 13–17/19 beta and the remaining platform matrix are still required.
+
 ## Architecture direction
 
 The target architecture consists of:
@@ -2515,7 +2541,7 @@ The target architecture consists of:
 | `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, cancellable cleanup and actual huge-size allocation/resize implemented; datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
-| `callbacks` (transaction/subtransaction callbacks) | scoped callback registration and cleanup | ☐ |
+| `callbacks` (transaction/subtransaction callbacks) | `PgTransaction` outer/subtransaction registration with cancellable receipts | Partial: all event mappings and callback lifetimes implemented; commit/abort/savepoint behavior verified on PostgreSQL 18.6/Linux x64; two-phase, parallel-worker and matrix execution pending |
 | `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | ☐ |
 | `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | ☐ |
@@ -2633,7 +2659,8 @@ complete implementations. AOT serialization must use statically generated metada
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, direct/named calls and result ownership | Partial: generated wrappers read basic arguments/results |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
-| `xid.rs`, `callbacks.rs` | Transaction identifiers, transaction/subtransaction callbacks, unregister and error cleanup | Pending |
+| `xid.rs` | Transaction identifier wrappers and conversions | Pending |
+| `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
@@ -3202,3 +3229,18 @@ The phases track implementation of the complete pgrx feature surface.
   `Ankus.Build`, exposed immutable parsed compiler arguments as a public contract,
   and removed the empty build-test project. API generation and documentation checks
   pass with 114 pages and 1213 members. macOS x64 and PostgreSQL 13–17/19 beta remain.
+
+- 2026-09-23 — Added managed transaction and subtransaction callbacks with all
+  PostgreSQL event mappings, ordered one-shot outer callbacks, repeating savepoint
+  callbacks, cancellation receipts and transaction-owned managed roots. A reentrant
+  native callback frame provides SPI during reversible phases without opening an
+  illegal guard subtransaction in PostgreSQL's savepoint transition states. Native
+  errors remain pending until managed frames unwind, including when managed code
+  catches the transported exception; terminal failures end only the current backend.
+  Focused validation passes 13 runtime, 3 generator and 12 PostgreSQL cases. Plain
+  `dotnet test` passes 4117/4117 with no skips in 3m57.083s on PostgreSQL 18.6/Linux
+  x64. The nonincremental Release build passes with zero warnings/errors in 47.55s.
+  Public documentation, generated API freshness, `pnpm build` and `pnpm check` pass;
+  the API contains 119 pages and 1231 members, and the site builds 150 pages. Actual
+  prepared-transaction and parallel-worker event execution, PostgreSQL 13–17/19 beta
+  and the remaining platform matrix remain required.

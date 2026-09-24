@@ -31,7 +31,8 @@ internal static class AllocatorFaultFixtureCompiler
         int preambleEnd = FindBoundary(emitted, "static inline void\nankus_read_buffer(");
         int diagnosticsStart = FindBoundary(emitted, "#include \"utils/memutils.h\"\n#include \"miscadmin.h\"\n#include \"tcop/dest.h\"");
         int memoryStart = FindBoundary(emitted, "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"utils/memutils.h\"");
-        int memoryEnd = FindBoundary(emitted, "static void\nankus_raise_error(");
+        int memoryEnd = FindBoundary(emitted, "#include \"access/xact.h\"\n#include \"utils/snapmgr.h\"\n\n" +
+            "typedef int (*AnkusTransactionManaged)");
         if (preambleEnd >= diagnosticsStart || diagnosticsStart >= memoryStart || memoryStart >= memoryEnd)
         {
             throw new InvalidOperationException("The emitted native bridge section order changed.");

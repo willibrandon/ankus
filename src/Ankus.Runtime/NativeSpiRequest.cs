@@ -24,6 +24,11 @@ internal unsafe struct NativeSpiRequest
     internal nint _plan;
 
     /// <summary>
+    /// Carries a managed callback entry point for a native registration operation.
+    /// </summary>
+    internal nint _callback;
+
+    /// <summary>
     /// Contains the cursor identity, which is never a dereferenceable PostgreSQL pointer.
     /// </summary>
     internal long _cursorId;

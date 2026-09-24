@@ -14,11 +14,19 @@ internal static class GuardedBackend
         #include "utils/memutils.h"
         #include "utils/resowner.h"
 
-        typedef int (*AnkusExecute)(AnkusRequest *, AnkusResult *, AnkusError *);
-
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
+            AnkusTransactionFrame *transaction_frame = ankus_transaction_frame;
+            bool transaction_direct_spi = transaction_frame != NULL && transaction_frame->direct_spi;
+            if (transaction_direct_spi && transaction_frame->failed)
+            {
+                memset(error, 0, sizeof(*error));
+                error->sqlstate = transaction_frame->failure.sqlstate;
+                strlcpy(error->message, transaction_frame->failure.message, sizeof(error->message));
+                return 1;
+            }
+
             if (ankus_memory_error_cleanup)
             {
                 /* ErrorContext callbacks may run inside PostgreSQL's error reporter.
@@ -34,6 +42,7 @@ internal static class GuardedBackend
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
+            int caller_internal_subtransaction_depth = ankus_internal_subtransaction_depth;
             volatile int status = 0;
             volatile bool retained_plan = false;
             bool standalone = request->session_id == 0;
@@ -46,7 +55,8 @@ internal static class GuardedBackend
             bool range = request->operation == ANKUS_SPI_RANGE;
             bool enumeration = request->operation == ANKUS_SPI_ENUM;
             bool tuple = request->operation == ANKUS_SPI_TUPLE;
-            bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple;
+            bool transaction_callbacks = request->operation == ANKUS_SPI_TRANSACTION_CALLBACKS;
+            bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple || transaction_callbacks;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -71,6 +81,7 @@ internal static class GuardedBackend
                 caller_context = ankus_session->caller_context;
                 caller_owner = ankus_session->caller_owner;
                 caller_nest_level = ankus_session->caller_nest_level;
+                caller_internal_subtransaction_depth = ankus_session->caller_internal_subtransaction_depth;
             }
 
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
@@ -99,8 +110,15 @@ internal static class GuardedBackend
                     }
                     else if (request->operation == ANKUS_SPI_OPEN_SESSION)
                     {
-                        /* Keep this subtransaction until close so partial SPI_connect failures can be rolled back safely. */
-                        BeginInternalSubTransaction(NULL);
+                        /* Outside transaction callbacks, keep this subtransaction until close so
+                         * partial SPI_connect failures can be rolled back safely. Callback phases
+                         * may run while PostgreSQL itself is starting or committing a savepoint. */
+                        if (!transaction_direct_spi)
+                        {
+                            ankus_internal_subtransaction_depth++;
+                            BeginInternalSubTransaction(NULL);
+                        }
+
                         code = SPI_connect();
                         if (code != SPI_OK_CONNECT)
                         {
@@ -108,11 +126,17 @@ internal static class GuardedBackend
                         }
 
                         ankus_register_trigger_data();
-                        ankus_register_session(request, caller_context, caller_owner, caller_nest_level);
+                        ankus_register_session(request, caller_context, caller_owner, caller_nest_level,
+                            caller_internal_subtransaction_depth);
                     }
                     else
                     {
-                        BeginInternalSubTransaction(NULL);
+                        if (!transaction_direct_spi)
+                        {
+                            ankus_internal_subtransaction_depth++;
+                            BeginInternalSubTransaction(NULL);
+                        }
+
                         if (standalone && !direct)
                         {
                             code = SPI_connect();
@@ -139,6 +163,12 @@ internal static class GuardedBackend
                             if (reporting)
                             {
                                 ankus_report(request->diagnostic, ankus_log_level(request->log_level));
+                                code = 0;
+                            }
+                            else if (transaction_callbacks)
+                            {
+                                ankus_transaction_ensure((AnkusTransactionManaged) request->callback,
+                                    request->scalar_operation);
                                 code = 0;
                             }
                             else if (temporal)
@@ -225,10 +255,15 @@ internal static class GuardedBackend
                             }
                         }
 
-                        ReleaseCurrentSubTransaction();
-                        if (request->operation == ANKUS_SPI_CLOSE_SESSION)
+                        if (!transaction_direct_spi)
                         {
                             ReleaseCurrentSubTransaction();
+                            ankus_internal_subtransaction_depth--;
+                            if (request->operation == ANKUS_SPI_CLOSE_SESSION)
+                            {
+                                ReleaseCurrentSubTransaction();
+                                ankus_internal_subtransaction_depth--;
+                            }
                         }
                     }
 
@@ -253,6 +288,8 @@ internal static class GuardedBackend
                         RollbackAndReleaseCurrentSubTransaction();
                     }
 
+                    ankus_internal_subtransaction_depth = caller_internal_subtransaction_depth;
+
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
                     if ((request->operation == ANKUS_SPI_PREPARE || retained_plan) && request->plan != NULL)
@@ -267,6 +304,14 @@ internal static class GuardedBackend
                     }
 
                     ankus_capture_error(data, error);
+                    if (transaction_direct_spi)
+                    {
+                        ankus_release_error(&transaction_frame->failure);
+                        memset(&transaction_frame->failure, 0, sizeof(transaction_frame->failure));
+                        ankus_capture_error(data, &transaction_frame->failure);
+                        transaction_frame->failed = true;
+                    }
+
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(recovery_context);
                     MemoryContextDelete(diagnostic_context);

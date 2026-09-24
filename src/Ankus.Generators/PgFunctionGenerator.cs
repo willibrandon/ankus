@@ -172,6 +172,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 native.AppendLine(NativeMemoryBridge.Source);
             }
 
+            native.AppendLine(NativeTransactionBridge.Source);
+
             if (hasFunctionCallbacks)
             {
                 native.AppendLine(NativeErrorBridge.RaiseError);

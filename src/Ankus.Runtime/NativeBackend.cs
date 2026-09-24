@@ -229,6 +229,24 @@ public static unsafe class NativeBackend
     }
 
     /// <summary>
+    /// Installs the process-wide native dispatchers used by managed transaction registrations.
+    /// </summary>
+    /// <param name="callback">The stable managed callback entry point.</param>
+    /// <param name="dispatchers">One for outer transactions or two for subtransactions.</param>
+    internal static void RegisterTransactionCallbacks(nint callback, int dispatchers)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest
+        {
+            _operation = SpiOperation.TransactionCallbacks,
+            _callback = callback,
+            _scalarOperation = dispatchers,
+        };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+    }
+
+    /// <summary>
     /// Executes a retained plan through the common guarded parameter/result path.
     /// </summary>
     /// <param name="plan">The owned native plan.</param>

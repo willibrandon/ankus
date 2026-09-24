@@ -52,6 +52,7 @@ export default defineConfig({
             { label: 'Operators and casts', slug: 'operators-and-casts' },
             { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },
+            { label: 'Transaction callbacks', slug: 'transaction-callbacks' },
             { label: 'Memory contexts', slug: 'memory-contexts' },
             { label: 'Arrays', slug: 'arrays' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },

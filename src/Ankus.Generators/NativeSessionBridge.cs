@@ -23,6 +23,7 @@ internal static class NativeSessionBridge
             MemoryContext caller_context;
             ResourceOwner caller_owner;
             int caller_nest_level;
+            int caller_internal_subtransaction_depth;
             MemoryContext context;
             AnkusSessionPlan *plans;
             MemoryContextCallback cleanup;
@@ -61,7 +62,8 @@ internal static class NativeSessionBridge
         }
 
         static void
-        ankus_register_session(AnkusRequest *request, MemoryContext caller_context, ResourceOwner caller_owner, int caller_nest_level)
+        ankus_register_session(AnkusRequest *request, MemoryContext caller_context, ResourceOwner caller_owner,
+            int caller_nest_level, int caller_internal_subtransaction_depth)
         {
             AnkusSession *session;
             if (ankus_next_session_id == PG_INT64_MAX)
@@ -75,6 +77,7 @@ internal static class NativeSessionBridge
             session->caller_context = caller_context;
             session->caller_owner = caller_owner;
             session->caller_nest_level = caller_nest_level;
+            session->caller_internal_subtransaction_depth = caller_internal_subtransaction_depth;
             session->context = CurrentMemoryContext;
             session->previous = ankus_session;
             session->cleanup.func = ankus_forget_session;
