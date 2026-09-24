@@ -35,6 +35,7 @@ dotnet_diagnostic.IDE0044.severity = error
 dotnet_diagnostic.IDE0004.severity = error
 dotnet_diagnostic.IDE0300.severity = error
 dotnet_diagnostic.IDE0305.severity = error
+dotnet_diagnostic.IDE0380.severity = error
 dotnet_diagnostic.CA1000.severity = error
 dotnet_diagnostic.IDE0290.severity = error
 csharp_style_prefer_primary_constructors = true:error

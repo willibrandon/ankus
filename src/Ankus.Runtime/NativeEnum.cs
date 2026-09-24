@@ -1,6 +1,6 @@
 namespace Ankus;
 
-public unsafe partial struct NativeValue
+public partial struct NativeValue
 {
     /// <summary>
     /// Copies the enum catalog lookup fields without retaining a native tuple or memory context.

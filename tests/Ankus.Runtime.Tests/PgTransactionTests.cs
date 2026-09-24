@@ -323,7 +323,7 @@ public sealed unsafe class PgTransactionTests
         => (nint)(delegate* unmanaged[Cdecl]<int, int, NativeCallError*, NativeCallError*, int*, int>)&Log;
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int Backend(NativeSpiRequest* request, NativeSpiResult* result, NativeCallError* error)
+    private static int Backend(NativeSpiRequest* request, NativeSpiResult* result, NativeCallError* error)
     {
         TransactionFixture fixture = s_fixture!;
         fixture.Operations.Add(request->_operation);
@@ -343,7 +343,7 @@ public sealed unsafe class PgTransactionTests
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int Log(int operation, int level, NativeCallError* report, NativeCallError* error, int* enabled)
+    private static int Log(int operation, int level, NativeCallError* report, NativeCallError* error, int* enabled)
     {
         _ = level;
         _ = report;

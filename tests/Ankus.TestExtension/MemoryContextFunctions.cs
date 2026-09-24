@@ -3,7 +3,7 @@ namespace Ankus.TestExtension;
 /// <summary>
 /// Exercises context ownership, checked palloc access, reset invalidation, and restoration in a published extension.
 /// </summary>
-public static unsafe class MemoryContextFunctions
+public static class MemoryContextFunctions
 {
     private static PgMemoryContext? s_savedContext;
     private static PgAllocation? s_savedAllocation;

@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 namespace Ankus;
 
-public unsafe partial struct NativeValue
+public partial struct NativeValue
 {
     /// <summary>
     /// Reads a length-delimited, family-normalized PostgreSQL inet binary value.

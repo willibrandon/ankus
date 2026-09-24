@@ -43,6 +43,7 @@ before changing an area.
   this rule as an error; preserve constructor validation,
   accessibility, and native struct layouts when converting existing declarations.
 - Remove redundant casts. IDE0004 is enforced as an error throughout the repository.
+- Remove unnecessary `unsafe` modifiers. IDE0380 is enforced as an error.
 - Use collection expressions where IDE0300 applies. IDE0300 is enforced as an error
   throughout the repository.
 - Never disable warnings. Fix the underlying issue without warning pragmas,
