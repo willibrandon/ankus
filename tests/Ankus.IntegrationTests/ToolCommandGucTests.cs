@@ -118,18 +118,24 @@ public sealed partial class ToolCommandTests
         PublishedExtension manifest = PublishedExtension.Read(output);
         Assert.AreEqual("-- No installable objects declared.\n", (await File.ReadAllTextAsync(
             Path.Combine(output, "extension", manifest.Sql), token)).ReplaceLineEndings("\n"));
+        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
+        List<string> configuration =
+        [
+            "dynamic_library_path = '" + EscapeSetting(output) + "'",
+            "shared_preload_libraries = '" + manifest.Library + "'",
+            "packed_native.slots = 9",
+        ];
+        if (s_installation.Version.Major >= 18)
+        {
+            configuration.Insert(0, "extension_control_path = '" + EscapeSetting(output) + "'");
+        }
+
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
             Installation = s_installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
-            PostgreSqlConfiguration =
-            [
-                "extension_control_path = '" + EscapeSetting(output) + "'",
-                "dynamic_library_path = '" + EscapeSetting(output) + "'",
-                "shared_preload_libraries = '" + manifest.Library + "'",
-                "packed_native.slots = 9",
-            ],
+            PostgreSqlConfiguration = configuration,
         }, token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         Assert.AreEqual("9", await PackageGucScalarAsync(connection, "SHOW packed_native.slots"));

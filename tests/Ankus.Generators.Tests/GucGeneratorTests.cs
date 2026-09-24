@@ -253,6 +253,9 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("existing->scontext, existing->source, existing->srole,", native);
         Assert.Contains("existing->flags |= GUC_ALLOW_IN_PARALLEL;", native);
         Assert.Contains("existing->flags = original_flags;", native);
+        Assert.Contains("errcontext(\"configuration parameter \\\"%s\\\"\", definition->name);", native);
+        Assert.Contains("error_context_stack = &error_context;", native);
+        Assert.Contains("error_context_stack = error_context.previous;", native);
         Assert.Contains("GUC_ACTION_SET, true, ERROR, true);", native);
         Assert.Contains("definition->extra = existing->extra;", native);
         Assert.Contains("ankus_release_error(", native);

@@ -96,7 +96,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             }
             else
             {
-                string stageRoot = Path.Combine(root, "bin", "ankus-test-postgresql", invocation);
+                string stageRoot = Path.Combine(Path.GetTempPath(), "ankus-test-postgresql-" + invocation);
                 stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken)
                     .ConfigureAwait(false);
                 stagedInstallation.InstallExtensionFiles(output);

@@ -3327,8 +3327,12 @@ The phases track implementation of the complete pgrx feature surface.
   with PostgreSQL's reload semantics after custom registration. Pre-18 fixture
   staging is serialized and installs the shared sample once; generated consumer
   tests and publishes use the selected PostgreSQL major; cluster shutdown falls
-  back from bounded fast shutdown to immediate shutdown. Release builds with zero
-  warnings/errors. Generator contracts pass 1,182/1,182, the affected backend
-  scope passes 54/54, package/tool tests pass 50/50, and plain `dotnet test`
-  passes 4,142/4,142 in 3m02.858s on PostgreSQL 18.6/Linux x64. Hosted Windows
-  proof remains pending.
+  back from bounded fast shutdown to immediate shutdown. The first rerun completed
+  Windows in 9m03s and exposed four bounded failures: worker errors lacked the GUC
+  name, one fixture emitted a PostgreSQL 18-only setting, and nested consumer paths
+  exceeded Windows process-path handling. Replay now adds the PostgreSQL error
+  context, the fixture selects version-specific settings, and consumer staging uses
+  a short owned temporary path. Release builds with zero warnings/errors. Generator
+  contracts pass 1,182/1,182, the affected worker/package scope passes 60/60, and
+  plain `dotnet test` passes 4,142/4,142 in 3m08.004s on PostgreSQL 18.6/Linux x64.
+  Hosted Windows proof remains pending.

@@ -1292,6 +1292,13 @@ internal static class NativeGucBridge
         }
 
         static void
+        ankus_guc_worker_restore_error_context(void *argument)
+        {
+            AnkusGuc *definition = (AnkusGuc *) argument;
+            errcontext("configuration parameter \"%s\"", definition->name);
+        }
+
+        static void
         ankus_guc_complete_worker_restore(void)
         {
             if (ankus_guc_replaying_worker_restore || ankus_guc_worker_restore_in_progress())
@@ -1318,15 +1325,21 @@ internal static class NativeGucBridge
                     const char *value = ankus_guc_current_value(definition, existing, buffer, sizeof(buffer));
                     int original_flags = existing->flags;
                     volatile int result = 0;
+                    ErrorContextCallback error_context;
+                    error_context.callback = ankus_guc_worker_restore_error_context;
+                    error_context.arg = definition;
+                    error_context.previous = error_context_stack;
                     PG_TRY();
                     {
                         existing->flags |= GUC_ALLOW_IN_PARALLEL;
+                        error_context_stack = &error_context;
                         result = set_config_option_ext(definition->name, value,
                             existing->scontext, existing->source, existing->srole,
                             GUC_ACTION_SET, true, ERROR, true);
                     }
                     PG_FINALLY();
                     {
+                        error_context_stack = error_context.previous;
                         existing->flags = original_flags;
                     }
                     PG_END_TRY();
