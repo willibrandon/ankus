@@ -52,7 +52,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_TRANSACTION_CALLBACKS,
             ANKUS_SPI_TRANSACTION_ID,
             ANKUS_SPI_DATUM,
-            ANKUS_SPI_FUNCTION_CONTEXT
+            ANKUS_SPI_FUNCTION_CONTEXT,
+            ANKUS_SPI_FUNCTION_CALL
         };
 
         typedef struct AnkusRequest
@@ -78,6 +79,12 @@ internal static class NativeSpiBridge
             intptr_t result_context;
             uintptr_t result_generation;
             FunctionCallInfo function_call;
+            Oid function_oid;
+            Oid collation_oid;
+            const uint8 *argument_defaults;
+            uint8 has_collation;
+            uint8 variadic;
+            PGFunction native_function;
         } AnkusRequest;
 
         typedef struct AnkusColumn

@@ -85,6 +85,7 @@ export default defineConfig({
           label: 'Working with PostgreSQL',
           items: [
             { label: 'Function declarations', slug: 'function-declarations' },
+            { label: 'Calling PostgreSQL functions', slug: 'calling-functions' },
             { label: 'Extension initialization', slug: 'initialization' },
             { label: 'Configuration settings', slug: 'configuration' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },

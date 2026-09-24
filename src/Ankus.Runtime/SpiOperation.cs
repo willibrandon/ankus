@@ -153,4 +153,9 @@ internal enum SpiOperation : byte
     /// Copies a live function call's metadata and raw SQL arguments.
     /// </summary>
     FunctionContext,
+
+    /// <summary>
+    /// Resolves and invokes a scalar PostgreSQL function by name, OID, or an explicit native entry point.
+    /// </summary>
+    FunctionCall,
 }

@@ -2656,7 +2656,7 @@ complete implementations. AOT serialization must use statically generated metada
 |---|---|---|
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters and raw parameter binding implemented. Custom base-type integration and the complete PostgreSQL/platform matrix remain pending |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
-| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected `PgFunctionContext` snapshots actual OIDs, collation and checked raw arguments across scalar/operator/set calls; `GetOrCreateState` caches exactly typed values per call site with native-owner disposal; direct/named calls remain pending |
+| `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
@@ -3549,3 +3549,45 @@ The phases track implementation of the complete pgrx feature surface.
   required. The preceding function-context milestone passed all jobs on Linux,
   macOS ARM64, and Windows in
   [CI run 36029314830](https://github.com/willibrandon/ankus/actions/runs/36029314830).
+
+- 2026-09-24 — Added `PgFunctions` with named and OID scalar calls, void calls,
+  caller-owned raw results, and explicit native entry-point calls corresponding
+  to pgrx's `fn_call` and `direct_function_call` helpers. `PgFunctionArgument`
+  distinguishes values, typed NULLs, and typed defaults; options select explicit
+  collation and SQL VARIADIC array binding. Name lookup uses PostgreSQL's parser;
+  OID calls use the declared parameter list. Native expression evaluation retains
+  ordinary overload/coercion rules, polymorphic types, default expressions,
+  security-definer identity, function-local settings, and nested call metadata.
+
+  EXECUTE permission is checked before expression planning, including strict
+  NULL calls that PostgreSQL could otherwise fold away. Requested result types
+  are checked before invoking the function. Results are copied before executor
+  cleanup; domain OIDs and NULL flags remain intact in raw returns. PostgreSQL
+  errors roll back the guarded call and return owned diagnostics after managed
+  unwinding. Native-address calls preserve pgrx's null `flinfo`/`context`/
+  `resultinfo` contract and allow the version-1 ABI's wider argument count;
+  callers own pointer validity and exact argument/result representation.
+
+  The 27-case integration scope passes without skips in 44.734s on PostgreSQL
+  18.6/Linux x64. Four direct argument/validation tests pass. The selected
+  PostgreSQL 15–18 declarations were reviewed for the parser, executor, and
+  identifier/ACL APIs; PG15 uses its older identifier and ACL signatures.
+  Plain `dotnet test` passes 4,492/4,492 without skips in 3m08.001s on
+  PostgreSQL 18.6/Linux x64. The Release build has zero warnings and errors.
+  API freshness (129 pages/1,326 members), `pnpm build` (162 pages), and
+  `pnpm check` pass without diagnostics.
+
+  | Requirement | Evidence |
+  | --- | --- |
+  | Built-in, SQL, PL/pgSQL, strict NULL and exact typed results | `FunctionCallTests.FunctionLanguagesAndNullInputsMatchSql`; `PgFunctionArgumentTests.TypedNullZeroAndDefaultRemainDistinct` |
+  | Quoted identifiers, search path, overloads, omitted/explicit/volatile defaults | `FunctionCallTests.IdentifierAndOverloadResolutionUsePostgresRules`, `DefaultExpressionsRemainTypedAndExecuteOnce`, `TypedDefaultsResolveOverloadsWithoutGuessing` |
+  | Variadic arrays, polymorphic results, explicit collation and nested managed state | `FunctionCallTests.VariadicAndPolymorphicCallsPreserveTypes`, `CollationAndTextOwnershipSurviveNativeReturn` |
+  | Domain/enum/record identity, raw input binding, result ownership and invalidation | `FunctionCallTests.RawResultsPreserveExactIdentityAndLifetime`, `RawArgumentsPreserveDomainIdentityAndNull`; `PgFunctionArgumentTests.RawArgumentsRetainCatalogIdentityAndLifetime` |
+  | Execute permissions, strict-NULL planning, security definer and setting restoration | `FunctionCallTests.PermissionsAndSecurityDefinerStateFollowPostgres` |
+  | Native addresses, zero/NULL separation, zero/101 arguments, referenced results and native errors | `FunctionCallTests.NativeEntryPointsPreserveDatumAndErrorContracts` |
+  | Pre-execution result validation, invalid calls, rollback, owned diagnostics and same-session recovery | `FunctionCallTests.ErrorsPreserveDiagnosticsRollbackAndSameBackendRecovery`, `InvalidCallsFailBeforeExecutionAndRecover`; `PgFunctionArgumentTests.InvalidIdentitiesFailWithoutNativeAccess` |
+
+  Raw/polymorphic extension signatures, custom base types, remaining backend
+  APIs and full PostgreSQL/platform validation remain required. The cached-state
+  milestone passed all Linux, macOS ARM64, and Windows CI jobs in
+  [run 36032194319](https://github.com/willibrandon/ankus/actions/runs/36032194319).

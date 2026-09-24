@@ -23,6 +23,13 @@ public readonly struct SpiParameter
     public object? Value { get; }
 
     /// <summary>
+    /// Creates a type-only NULL envelope for a function's default argument lookup.
+    /// </summary>
+    /// <param name="typeOid">The validated type identity.</param>
+    /// <returns>The type-only parameter.</returns>
+    internal static SpiParameter CreateType(uint typeOid) => new(typeOid, null);
+
+    /// <summary>
     /// Creates a positional parameter using the declared CLR type, including nullable types.
     /// Parameters appear in SQL as $1, $2, and so on.
     /// </summary>

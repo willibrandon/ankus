@@ -112,4 +112,34 @@ internal unsafe struct NativeSpiRequest
     /// Borrows a generated callback's FunctionCallInfo only during synchronous snapshot capture.
     /// </summary>
     internal nint _functionCall;
+
+    /// <summary>
+    /// Selects a catalog function directly, or zero for name resolution.
+    /// </summary>
+    internal uint _functionOid;
+
+    /// <summary>
+    /// Supplies an explicit input collation when requested.
+    /// </summary>
+    internal uint _collationOid;
+
+    /// <summary>
+    /// Points to one default-expression flag per function argument.
+    /// </summary>
+    internal byte* _argumentDefaults;
+
+    /// <summary>
+    /// Distinguishes an explicit zero collation from inferred argument collation.
+    /// </summary>
+    internal byte _hasCollation;
+
+    /// <summary>
+    /// Requests SQL VARIADIC array binding for a named function call.
+    /// </summary>
+    internal byte _variadic;
+
+    /// <summary>
+    /// Supplies a caller-validated PostgreSQL version-1 entry point for explicit raw invocation.
+    /// </summary>
+    internal nint _nativeFunction;
 }

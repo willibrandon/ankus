@@ -59,8 +59,9 @@ internal static class GuardedBackend
             bool transaction_id = request->operation == ANKUS_SPI_TRANSACTION_ID;
             bool datum = request->operation == ANKUS_SPI_DATUM;
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
+            bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
-                transaction_callbacks || transaction_id || datum || function_context;
+                transaction_callbacks || transaction_id || datum || function_context || function_call;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -188,6 +189,11 @@ internal static class GuardedBackend
                             else if (function_context)
                             {
                                 ankus_function_context(request, result);
+                                code = 0;
+                            }
+                            else if (function_call)
+                            {
+                                ankus_function_invoke(request, result);
                                 code = 0;
                             }
                             else if (temporal)

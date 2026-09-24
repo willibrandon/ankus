@@ -178,6 +178,23 @@ retryable, recursive initialization fails, and a successful null is still cached
 During native cleanup, existing iterator state remains readable but new state
 cannot be initialized.
 
+`PgFunctions` invokes scalar catalog functions through a native `FuncExpr` and
+PostgreSQL's expression executor. Name lookup uses the parser's overload and
+variadic rules; OID lookup builds the declared argument list directly. Default
+expressions, polymorphic types, and implicit argument coercions are resolved
+before execution. An explicit EXECUTE check precedes planning so constant folding
+cannot bypass permission checks for a strict NULL call. The executor supplies
+`FmgrInfo`, function-local settings, security-definer behavior, and nested call
+metadata. The existing subtransaction guard rolls back errors before returning
+owned diagnostics to managed code.
+
+Return types are checked before calling user code. Managed results are copied
+before `FreeExecutorState`; raw results are copied into the caller-selected
+memory context. The explicit native-address API follows pgrx's direct-call
+contract with a null `flinfo`, `context`, and `resultinfo`. Its caller supplies
+the correct argument/result ABI and NULL handling, while the native guard still
+contains PostgreSQL ERROR.
+
 ## Representation and encoding
 
 `NativeValue` and generated `AnkusValue` use matching sequential fields: 64-bit

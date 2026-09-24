@@ -156,6 +156,10 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 ```
 
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
+Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
+arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
+context-owned datum with its exact type identity. See
+[calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.

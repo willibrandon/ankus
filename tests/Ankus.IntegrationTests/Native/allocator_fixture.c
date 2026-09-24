@@ -5,6 +5,32 @@
 
 PG_MODULE_MAGIC;
 
+PG_FUNCTION_INFO_V1(ankus_test_function_address);
+PGDLLEXPORT Datum
+ankus_test_function_address(PG_FUNCTION_ARGS)
+{
+    FmgrInfo function;
+    fmgr_info(PG_GETARG_OID(0), &function);
+    PG_RETURN_INT64((int64) (intptr_t) function.fn_addr);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_nullable_sum);
+PGDLLEXPORT Datum
+ankus_test_nullable_sum(PG_FUNCTION_ARGS)
+{
+    if (fcinfo->flinfo != NULL || fcinfo->context != NULL || fcinfo->resultinfo != NULL)
+        ereport(ERROR, (errmsg("Direct native call unexpectedly supplied catalog execution fields")));
+    int32 total = 0;
+    for (int index = 0; index < PG_NARGS(); index++)
+    {
+        if (PG_ARGISNULL(index))
+            PG_RETURN_NULL();
+        total += PG_GETARG_INT32(index);
+    }
+
+    PG_RETURN_INT32(total);
+}
+
 static MemoryContext fixture_parent = NULL;
 static MemoryContextCallback fixture_cleanup;
 
