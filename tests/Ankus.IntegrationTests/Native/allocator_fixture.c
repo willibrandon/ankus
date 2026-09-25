@@ -1,6 +1,7 @@
 #include "postgres.h"
 #include "fmgr.h"
 #include "funcapi.h"
+#include "lib/stringinfo.h"
 #include "catalog/pg_type_d.h"
 #include "executor/executor.h"
 #include "utils/builtins.h"
@@ -9,6 +10,72 @@
 #include "utils/tuplestore.h"
 
 PG_MODULE_MAGIC;
+
+/* Native access deliberately uses the selected header's layout, never a managed copy. */
+PG_FUNCTION_INFO_V1(ankus_test_stringinfo_cursor);
+PGDLLEXPORT Datum
+ankus_test_stringinfo_cursor(PG_FUNCTION_ARGS)
+{
+    StringInfo buffer = (StringInfo) (intptr_t) PG_GETARG_INT64(0);
+    int value = PG_GETARG_INT32(1);
+    if (value >= 0)
+        buffer->cursor = value;
+    PG_RETURN_INT32(buffer->cursor);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_stringinfo_borrow);
+PGDLLEXPORT Datum
+ankus_test_stringinfo_borrow(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(1);
+    StringInfoData buffer;
+    char readonly_data[] = {65, 0, (char) 255, 127};
+    if (mode == 0 || mode == 4)
+    {
+        initStringInfo(&buffer);
+        appendBinaryStringInfo(&buffer, "abc", 3);
+        buffer.cursor = 7;
+        if (mode == 4)
+            buffer.data[buffer.len] = '?';
+    }
+    else
+    {
+        /* A deliberately unterminated view, or a zero-length NULL data address. */
+        buffer.data = mode == 2 ? NULL : readonly_data;
+        buffer.len = mode == 2 ? 0 : 3;
+        buffer.maxlen = 0;
+        buffer.cursor = 0;
+        if (mode == 3)
+        {
+            readonly_data[1] = 'b';
+            readonly_data[2] = 'c';
+        }
+    }
+
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = PointerGetDatum(&buffer);
+    call->args[1].isnull = false;
+    call->args[1].value = Int32GetDatum(mode);
+    Datum result = FunctionCallInvoke(call);
+    if (call->isnull)
+        elog(ERROR, "StringInfo borrowing unexpectedly returned NULL");
+    if (mode == 0 || mode == 4)
+    {
+        if (buffer.cursor != 7 || (mode == 0 && (buffer.len != 4 || memcmp(buffer.data, "a\021c*\0", 5) != 0)) ||
+            (mode == 4 && (buffer.len != 3 || memcmp(buffer.data, "abc\0", 4) != 0)))
+            elog(ERROR, "StringInfo borrowed mutation changed native length, cursor, bytes or terminator");
+        pfree(buffer.data);
+    }
+    else if (readonly_data[0] != 65 || readonly_data[1] != (mode == 3 ? 'b' : 0) ||
+        (unsigned char) readonly_data[2] != (mode == 3 ? 'c' : 255) || readonly_data[3] != 127)
+        elog(ERROR, "StringInfo readonly borrowing modified caller-owned storage");
+
+    return result;
+}
 
 PG_FUNCTION_INFO_V1(ankus_test_function_address);
 PGDLLEXPORT Datum

@@ -2661,7 +2661,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters, raw parameter binding and generated custom-codec types implemented. The complete PostgreSQL/platform matrix remains required |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
-| `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Pending |
+| `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | Partial: StringInfo stream, checked bytes/UTF-8, borrowing and ownership transfers implemented and tested on Linux x64/PostgreSQL 18.6. PostgreSQL lists and complete version/platform evidence remain pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
@@ -5325,5 +5325,61 @@ The phases track implementation of the complete pgrx feature surface.
   `pnpm build` produces 186 pages. Static assertion and public-outcome
   pseudo-mutation review is Strong for the catalog and existing diagnostic
   boundaries; no empirical mutation or measured coverage claim is made.
-  Hosted validation of this catalog milestone remains pending. Remaining
-  guard/raw APIs and complete PostgreSQL/platform validation remain required.
+  Commit `b2cb27d` passed Linux x64/PostgreSQL 18.6 (6,375 passed, no skips;
+  11m04s) and macOS ARM64/PostgreSQL 18.6 (6,373 passed, two existing Linux-only
+  allocation-accounting skips; 10m08s), plus quality, cached runtime preparation
+  and [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36147748823).
+  The first Windows x64/PostgreSQL 17.11 attempt finished in 18m02s with 6,372
+  passed, one failed, and two existing skips. `ShowFatalPreservesTerminalSeverity`
+  received a connection-reset exception instead of a client PostgreSQL error;
+  the retained server log shows its managed finally notice followed by the
+  expected FATAL message and detail, without a related backend crash. The
+  [full Windows job rerun](https://github.com/willibrandon/ankus/actions/runs/36147748841)
+  passed all 6,373 eligible cases with the same two skips in 15m55s, with
+  diagnostic assertions unchanged. The first failure was not a timeout;
+  transient wire delivery remains an observation, not a proven root cause.
+  Remaining guard/raw APIs and complete PostgreSQL/platform validation remain
+  required.
+
+- 2026-09-25 — Implemented the bounded pgrx StringInfo surface as
+  `PgStringInfoStream`, an ordinary write-only .NET stream over native PostgreSQL
+  storage. Factories accept capacity, raw bytes or strict UTF-8 text; writes
+  support bytes, strings, characters and Unicode scalars. Checked copies,
+  replacement, growth, reset and explicit lossy display preserve binary/NUL
+  contracts. StreamWriter formatting and synchronous completion of async
+  write/flush/dispose APIs retain backend-thread requirements.
+
+  The guarded C bridge uses the selected PostgreSQL headers, independently
+  tracks the native struct and data owner, and removes registry records on
+  context reset/deletion. Partial acquisition frees every acquired native
+  chunk and unpublished record. Borrowed pointers retain an explicit context
+  generation without assuming palloc headers on stack structs or read-only
+  storage. Mutable self-appends resolve their source again after native growth.
+  Whole-struct, data and validated C-string transfers consume handles only on
+  success. Read-only mutation and unsupported allocator operations are rejected
+  before native assertions or chunk-header access.
+
+  Focused runtime and published-backend tests cover exact bytes, UTF-8 failure,
+  NUL preservation, native cursor/terminator behavior, context switches,
+  stack/unterminated/NULL read-only borrowing, ownership transfers, reset and
+  transaction expiry, owned diagnostics and same-session recovery. Test-only
+  native interposition exercises struct/data acquisition failures and checks
+  record/chunk cleanup; 128 repeated large-buffer cycles separately exercise
+  disposal, context reset and data transfer with bounded native retention.
+  Ten focused runtime cases pass with zero failures/skips in 0.876s. The focused
+  published backend scope passes all 33 cases (27 StringInfo cases and six
+  existing allocator-registry cases), with zero failures/skips in 59.464s on
+  Linux x64/PostgreSQL 18.6. Initial validation exposed a missing standard C
+  limits header in GUC-only emitted bridges and incorrect probe ordering/byte
+  length expectations; these are corrected. Native fault probes verify actual
+  Bump/Slab rejection as well as controlled acquisition errors. Static assertion
+  and public-outcome pseudo-mutation review is Strong for this bounded contract;
+  no empirical mutation or measured coverage claim is made.
+
+  Plain `dotnet test` passes all 6,412 tests with zero failures/skips in 290.620s
+  on Linux x64/PostgreSQL 18.6, including the final exact native error-detail
+  assertion. The non-incremental Release build passes in 12.29s with zero
+  warnings/errors. API generation and freshness pass for 150 pages/1,746 members;
+  `pnpm check` reports zero errors, warnings or hints and `pnpm build` produces
+  188 pages. Hosted validation remains pending. PostgreSQL lists and the broader
+  runtime/tooling/version/platform inventory remain required.

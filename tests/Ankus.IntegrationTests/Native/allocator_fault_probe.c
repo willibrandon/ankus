@@ -2,6 +2,9 @@
 #undef calloc
 #undef free
 #undef MemoryContextAllocExtended
+#undef initStringInfo
+#undef enlargeStringInfo
+#undef pfree
 
 static void
 fault_require(bool condition, const char *message)
@@ -177,5 +180,136 @@ ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
      * bounded module deliberately does not compile. */
     (void) ankus_log_level;
     (void) ankus_log_enabled;
+    PG_RETURN_TEXT_P(cstring_to_text(report));
+}
+
+/* Executes the emitted production bridge, observing native chunk releases and
+ * independent registry reservations at bounded acquisition failure points. */
+PG_FUNCTION_INFO_V1(ankus_test_stringinfo_fault);
+PGDLLEXPORT Datum
+ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(0);
+    fault_require(mode >= 1 && mode <= 9, "unknown StringInfo failure scenario");
+    fault_require(fault_live_records == 0 && ankus_stringinfos == NULL && ankus_memory_contexts == NULL,
+        "a prior StringInfo invocation retained registry storage");
+    MemoryContext caller = CurrentMemoryContext;
+    MemoryContext root = AllocSetContextCreate(caller, "Ankus StringInfo fault root", ALLOCSET_SMALL_SIZES);
+    volatile uint64 saved_next = ankus_stringinfo_next_id;
+    char *volatile report = NULL;
+    PG_TRY();
+    {
+        fault_owner = root;
+        AnkusMemoryApi api;
+        ankus_memory_initialize(&api);
+        AnkusMemoryRequest request = {0};
+        AnkusMemoryResult result = {0};
+        AnkusError error = {0};
+        uint64 owner = ankus_memory_context_id(root);
+        request.operation = ANKUS_MEMORY_STRINGINFO;
+        request.flags = ANKUS_STRINGINFO_CREATE;
+        request.context = (intptr_t) owner;
+        request.data = (intptr_t) "live";
+        request.length = 4;
+        request.value = 4096;
+        if (mode >= 8)
+        {
+            MemoryContext special = mode == 8 ? BumpContextCreate(root, "Ankus StringInfo bump", ALLOCSET_SMALL_SIZES) :
+                SlabContextCreate(root, "Ankus StringInfo slab", 8192, 64);
+            request.context = (intptr_t) ankus_memory_context_id(special);
+        }
+
+        int before_live = fault_live_records;
+        int before_allocated = fault_successful_reservations;
+        int before_freed = fault_released_reservations;
+        fault_stringinfo_frees = 0;
+        fault_stringinfo_monitor = true;
+        if (mode <= 4 || mode >= 8)
+        {
+            fault_stringinfo_stage = mode <= 2 ? mode : 0;
+            fault_fail_calloc = mode == 3;
+            if (mode == 4)
+            {
+                ankus_stringinfo_next_id = 0;
+            }
+
+            int status = ankus_memory_invoke(&api, &request, &result, &error);
+            ankus_stringinfo_next_id = saved_next;
+            fault_require(status == 1 && error.sqlstate == (mode >= 8 ? ERRCODE_INTERNAL_ERROR : ERRCODE_OUT_OF_MEMORY),
+                "expected guarded allocation error");
+            fault_require(result.pointer == 0 && result.context == 0 && ankus_stringinfos == NULL,
+                "partial acquisition published a StringInfo");
+            fault_require(fault_live_records == before_live && fault_stringinfo_stage == 0 && !fault_fail_calloc,
+                "failure did not roll back its reservation");
+            int allocated = fault_successful_reservations - before_allocated;
+            int freed = fault_released_reservations - before_freed;
+            int chunks_freed = fault_stringinfo_frees;
+            ankus_release_error(&error);
+            fault_require(CurrentMemoryContext == caller, "failed creation did not restore its caller");
+            request.context = (intptr_t) owner;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "creation retry failed");
+            AnkusStringInfo *entry = ankus_stringinfo_find((uint64) result.pointer);
+            fault_require(entry != NULL && entry->buffer->len == 4 && memcmp(entry->buffer->data, "live\0", 5) == 0,
+                "retry did not preserve initial bytes and terminator");
+            request.flags = ANKUS_STRINGINFO_DISPOSE;
+            request.context = result.pointer;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "retry disposal failed");
+            ankus_release_error(&error);
+            report = psprintf("%s|%d|%d|%d|live|%d", mode >= 8 ? "XX000" : "53200",
+                allocated, freed, chunks_freed, fault_live_records - before_live);
+        }
+        else
+        {
+            for (int iteration = 0; iteration < 128; iteration++)
+            {
+                request.operation = ANKUS_MEMORY_STRINGINFO;
+                request.flags = ANKUS_STRINGINFO_CREATE;
+                request.context = (intptr_t) ankus_memory_context_id(root);
+                request.value = 1048576;
+                fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "bounded StringInfo creation failed");
+                AnkusStringInfo *entry = ankus_stringinfo_find((uint64) result.pointer);
+                fault_require(entry != NULL && entry->buffer->len == 4 && memcmp(entry->buffer->data, "live\0", 5) == 0,
+                    "repeated acquisition corrupted bytes");
+                if (mode == 6)
+                {
+                    MemoryContextReset(root);
+                }
+                else
+                {
+                    request.flags = mode == 5 ? ANKUS_STRINGINFO_DISPOSE : ANKUS_STRINGINFO_DETACH_DATA;
+                    request.context = result.pointer;
+                    fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "bounded StringInfo release failed");
+                    if (mode == 7)
+                    {
+                        fault_require(memcmp((void *) result.pointer, "live\0", 5) == 0, "transfer freed payload");
+                        pfree((void *) result.pointer);
+                    }
+                }
+
+                ankus_release_error(&error);
+                fault_require(ankus_stringinfos == NULL, "release retained owned StringInfo metadata");
+                fault_require(MemoryContextMemAllocated(root, false) < 1048576, "release retained a large native data chunk");
+            }
+
+            report = psprintf("128|live|%d|%d", fault_stringinfo_frees, ankus_stringinfos == NULL);
+        }
+    }
+    PG_FINALLY();
+    {
+        fault_stringinfo_stage = 0;
+        fault_stringinfo_monitor = false;
+        fault_fail_calloc = false;
+        fault_owner = NULL;
+        if (ankus_stringinfo_next_id == 0)
+        {
+            ankus_stringinfo_next_id = saved_next;
+        }
+
+        MemoryContextSwitchTo(caller);
+        MemoryContextDelete(root);
+    }
+    PG_END_TRY();
+    fault_require(fault_live_records == 0 && ankus_stringinfos == NULL && ankus_memory_contexts == NULL,
+        "StringInfo context deletion retained registry storage");
     PG_RETURN_TEXT_P(cstring_to_text(report));
 }

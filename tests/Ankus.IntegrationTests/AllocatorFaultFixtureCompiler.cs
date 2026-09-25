@@ -14,6 +14,8 @@ internal static class AllocatorFaultFixtureCompiler
     internal const string InstallationSql = """
         CREATE FUNCTION tests.allocator_registry_fault(integer) RETURNS text
         AS 'Ankus.AllocatorFaultFixture', 'ankus_test_allocator_registry_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.stringinfo_fault(integer) RETURNS text
+        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_stringinfo_fault' LANGUAGE c STRICT;
         """;
 
     /// <summary>

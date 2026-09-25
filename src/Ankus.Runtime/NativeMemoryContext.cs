@@ -247,6 +247,10 @@ internal enum NativeMemoryOperation
     /// Allocates a zeroed native varlena with a short or ordinary header and checked ownership.
     /// </summary>
     AllocateVarlena = 28,
+    /// <summary>
+    /// Operates on an owned or explicitly anchored PostgreSQL StringInfo buffer.
+    /// </summary>
+    StringInfo = 29,
 }
 
 /// <summary>

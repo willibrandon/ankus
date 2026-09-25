@@ -100,6 +100,7 @@ export default defineConfig({
             { label: 'Transaction IDs', slug: 'transaction-ids' },
             { label: 'Transaction callbacks', slug: 'transaction-callbacks' },
             { label: 'Memory contexts', slug: 'memory-contexts' },
+            { label: 'StringInfo buffers', slug: 'stringinfo' },
             { label: 'Arrays', slug: 'arrays' },
             { label: 'Polymorphic values', slug: 'polymorphic-values' },
             { label: 'Raw values and custom types', slug: 'raw-values' },

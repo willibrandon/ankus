@@ -23,6 +23,10 @@ are available independently of SPI, including initialization and configuration
 hooks. They do not enable database queries in callback phases where PostgreSQL
 prohibits queries. Do not call them from a worker thread or after `await`.
 
+For a growable PostgreSQL binary buffer, use
+[`PgStringInfoStream`](/stringinfo/). It supports ordinary stream writes, strict
+UTF-8 text, checked byte copies, and explicit native ownership transfers.
+
 ## Context ownership
 
 `Current` resolves PostgreSQL's current context at the point of the call.

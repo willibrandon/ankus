@@ -26,6 +26,10 @@ internal static class AllocatorFixtureCompiler
         AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_delete' LANGUAGE c;
         CREATE FUNCTION tests.allocator_flags() RETURNS integer
         AS 'Ankus.AllocatorFixture', 'ankus_test_allocator_flags' LANGUAGE c;
+        CREATE FUNCTION tests.stringinfo_cursor(bigint, integer) RETURNS integer
+        AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_cursor' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.stringinfo_borrow(regprocedure, integer) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_borrow' LANGUAGE c STRICT;
         """;
 
     /// <summary>

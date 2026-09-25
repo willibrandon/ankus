@@ -522,7 +522,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     /// <returns>The borrowed handle.</returns>
     internal static PgMemoryContext FromId(nint provider, nint id) => new(provider, id, owned: false);
 
-    private nint GetId()
+    /// <summary>
+    /// Validates this handle before another checked native resource uses its context identity.
+    /// </summary>
+    /// <returns>The live context identity for the current provider.</returns>
+    internal nint GetId()
     {
         EnsureAlive();
         return _id;

@@ -255,6 +255,11 @@ freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
 native context resets or is deleted; its disposable registration supports cancellation.
 See [memory contexts](docs/src/content/docs/memory-contexts.md).
 
+Use `PgStringInfoStream` for a PostgreSQL-owned growable buffer with ordinary
+stream writes, strict UTF-8 text, exact binary copies, checked context lifetimes,
+and explicit native ownership transfer. See
+[StringInfo buffers](docs/src/content/docs/stringinfo.md).
+
 Use `[PgInitialize]` on one static method to initialize the extension when its
 library loads in a backend. Initialization supports guarded database access,
 owned error diagnostics, retries after failure, and managed shared preload.

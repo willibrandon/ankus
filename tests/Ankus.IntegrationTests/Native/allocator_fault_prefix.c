@@ -5,6 +5,7 @@
 #include "utils/memutils.h"
 #include "utils/palloc.h"
 #include "nodes/memnodes.h"
+#include "lib/stringinfo.h"
 #if PG_VERSION_NUM >= 160000
 #include "utils/memutils_internal.h"
 #include "utils/memutils_memorychunk.h"
@@ -19,6 +20,44 @@ static bool fault_return_null;
 static bool fault_monitor_storage;
 static int fault_storage_calls;
 static MemoryContext fault_owner;
+static int fault_stringinfo_stage;
+static int fault_stringinfo_frees;
+static bool fault_stringinfo_monitor;
+
+static void
+fault_init_stringinfo(StringInfo buffer)
+{
+    if (fault_stringinfo_stage == 1)
+    {
+        fault_stringinfo_stage = 0;
+        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled StringInfo data allocation failure")));
+    }
+
+    initStringInfo(buffer);
+}
+
+static void
+fault_enlarge_stringinfo(StringInfo buffer, int needed)
+{
+    if (fault_stringinfo_stage == 2)
+    {
+        fault_stringinfo_stage = 0;
+        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled StringInfo enlargement failure")));
+    }
+
+    enlargeStringInfo(buffer, needed);
+}
+
+static void
+fault_pfree(void *pointer)
+{
+    if (fault_stringinfo_monitor && GetMemoryChunkContext(pointer) == fault_owner)
+    {
+        fault_stringinfo_frees++;
+    }
+
+    pfree(pointer);
+}
 
 static void *
 fault_calloc(size_t count, size_t size)
@@ -95,3 +134,6 @@ fault_allocate(MemoryContext owner, Size size, int flags)
 #define calloc fault_calloc
 #define free fault_free
 #define MemoryContextAllocExtended fault_allocate
+#define initStringInfo fault_init_stringinfo
+#define enlargeStringInfo fault_enlarge_stringinfo
+#define pfree fault_pfree
