@@ -131,6 +131,8 @@ with exact element identity and checked array shape. Generic declarations regist
 finite, fully constructed types selected by generated signatures, exact managed
 type providers, or explicit `PgDatumType(typeof(ClosedType), name, converter)`
 declarations. Explicit constructions can have independent SQL types and converters.
+Open converter definitions such as `typeof(BoxConverter<>)` infer one closed,
+constraint-checked factory from their exact reader/writer interfaces at compile time.
 See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
 for provider ownership, supported paths, and lifetime requirements.
 

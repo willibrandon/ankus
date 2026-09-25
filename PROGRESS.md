@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic roots support default and explicit per-construction SQL metadata with exact closed converters. Nested mapped arrays, open converter templates, broader metadata, ordinary row/composite conversions and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic roots support default and explicit per-construction SQL metadata with supplied or statically inferred, constraint-checked closed converters. Nested mapped arrays, broader metadata, ordinary row/composite conversions and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -5070,9 +5070,66 @@ The phases track implementation of the complete pgrx feature surface.
   PostgreSQL 18.6. The non-incremental Release build passes in 17.88s with zero
   warnings/errors. API generation and freshness pass for 147 pages/1,431 members;
   `pnpm check` reports zero errors, warnings or hints and `pnpm build` produces
-  184 pages. Hosted platform validation is pending.
+  184 pages. Commit `3db9d68` passes
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36133461545) and
+  [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36133461338).
+  Each platform executed the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,262 | 0 | 10m41s |
+  | macOS ARM64 | 18.6 | 6,260 | 2 | 10m38s |
+  | Windows x64 | 17.11 | 6,260 | 2 | 17m58s |
+
+  All jobs had zero failures. The two non-Linux skips remain the existing
+  Linux-only native allocation measurements. Windows stayed within its new
+  25-minute allowance; all platforms still exceed the preferred ten-minute
+  feedback target. Runtime cache hits do not establish cold-build performance.
 
   Open converter templates, asymmetric argument/result SQL metadata,
   const-generic typmod forms, nested mapped SQL containers, ordinary
   row/composite conversion and complete PostgreSQL/platform validation remain
   full-port requirements.
+
+- 2026-09-25 — Added compile-time inference for open datum converter definitions
+  such as `typeof(Converter<>)`. Exact reader/writer interface patterns determine
+  one finite closed factory for each selected mapped root, including inherited
+  patterns, reversed parameter positions, constructed containing types and
+  compatible partial reader/writer assignments. Missing or ambiguous parameters
+  fail with `ANKUS019`; constraints do not choose among ambiguous candidates.
+  C# declaration binding validates the unique construction, including containing
+  constraints, dependent parameters, nullable constraints and required-member
+  `new()` rules, before any generated artifacts. Its private validation tree is
+  never emitted. The runtime registry and native error boundary remain unchanged.
+
+  Generator review found a nullable annotation loss in generated mapped names.
+  Generated C# now retains inner annotations, while callback NULL handling keeps
+  the outer root non-nullable. Every selected annotation variant is constraint
+  checked before equivalent CLR registrations are combined. Explicit nullable
+  interface variables contribute their annotation without forcing an invalid
+  nullable converter argument. Portable cases also verify invalid constructors,
+  required members, referenced metadata, provider-only roots, derived families
+  and reused-driver invalidation.
+
+  Focused published Native AOT tests pass six cases with zero failures/skips in
+  60.309s on Linux x64/PostgreSQL 18.6. A constrained generic math converter
+  preserves every int4/int8 bit through independent reader and writer values,
+  extrema, lazy closed identities, NULL and rank-two arrays with non-one bounds.
+  Raw-only int2 and reversed nested converter roots execute without callback
+  discovery. Present/NULL sibling OIDs fail before any converter construction;
+  borrowed handles expire and owned reader/writer diagnostics preserve
+  same-backend recovery. The initial two OID tests expected the wrong SQLSTATE;
+  corrected assertions pin the established `38000` contract and exact OID
+  message. The final affected generator scope passes 207 cases with zero
+  failures/skips in 3.250s. Static assertion and public-outcome pseudo-mutation
+  review is Strong for this finite contract; no empirical mutation or coverage
+  claim is made. Plain `dotnet test` passes all 6,317 tests with zero
+  failures/skips in 286.276s on Linux x64/PostgreSQL 18.6. The non-incremental
+  Release build passes in 10.04s with zero warnings/errors. API generation and
+  freshness pass for 147 pages/1,431 members; `pnpm check` reports zero errors,
+  warnings or hints and `pnpm build` produces 184 pages. Hosted platform
+  validation remains pending.
+
+  Asymmetric argument/result SQL metadata, const-generic typmod forms, nested
+  mapped SQL containers, ordinary row/composite conversion and the complete
+  PostgreSQL/platform matrix remain full-port requirements.

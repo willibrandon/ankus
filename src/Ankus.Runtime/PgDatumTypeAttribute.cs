@@ -8,7 +8,10 @@ namespace Ankus;
 /// The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
 /// A default generic declaration is a template selected by fully constructed roots in supported generated
 /// signatures or exact managed PgSqlTypeProvider declarations. Each selected construction must have an
-/// exact reader or writer interface on its supplied closed converter.
+/// exact reader or writer interface on its supplied or inferred closed converter.
+/// An open generic converter definition is closed at compile time from its exact reader/writer interface
+/// patterns. Every parameter, including containing-type parameters, must have one unambiguous assignment
+/// satisfying the C# constraints. No runtime reflection or open-ended registration is generated.
 /// An explicit managed-type declaration selects one closed construction and registers a local root even
 /// without a generated signature. It takes precedence over the optional default declaration on that type.
 /// Exact declarations can assign distinct SQL identities and converters to different closed constructions.
@@ -21,7 +24,7 @@ namespace Ankus;
 /// A reader must return independent managed data; retaining a checked PgDatum does not detach its storage.
 /// </remarks>
 /// <param name="name">The exact unquoted PostgreSQL type identifier.</param>
-/// <param name="converter">The closed converter type with an accessible parameterless constructor.</param>
+/// <param name="converter">The closed converter or inferable generic definition with an accessible parameterless constructor.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, AllowMultiple = true, Inherited = false)]
 public sealed class PgDatumTypeAttribute(string name, Type converter) : Attribute
 {
@@ -30,7 +33,7 @@ public sealed class PgDatumTypeAttribute(string name, Type converter) : Attribut
     /// </summary>
     /// <param name="managedType">The closed managed type whose definition carries this attribute.</param>
     /// <param name="name">The exact unquoted PostgreSQL type identifier.</param>
-    /// <param name="converter">The closed converter type with an accessible parameterless constructor.</param>
+    /// <param name="converter">The closed converter or inferable generic definition with an accessible parameterless constructor.</param>
     public PgDatumTypeAttribute(Type managedType, string name, Type converter) : this(name, converter) => ManagedType = managedType;
 
     /// <summary>
@@ -44,7 +47,7 @@ public sealed class PgDatumTypeAttribute(string name, Type converter) : Attribut
     public string Name { get; } = name;
 
     /// <summary>
-    /// Gets the statically instantiated reader or writer type.
+    /// Gets the supplied reader or writer type, whose generic arguments may be inferred at compile time.
     /// </summary>
     public Type Converter { get; } = converter;
 

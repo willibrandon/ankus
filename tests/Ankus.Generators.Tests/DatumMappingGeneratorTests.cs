@@ -211,7 +211,7 @@ public sealed partial class PgFunctionGeneratorTests
             converter, "ANKUS019", reason);
 
     /// <summary>
-    /// Unsupported wrapper shapes, conflicting metadata and non-named/open converter selections fail at their declarations.
+    /// Unsupported wrapper shapes, conflicting metadata and non-named or uninferable converters fail at their declarations.
     /// </summary>
     /// <param name="declaration">The invalid root declaration.</param>
     /// <param name="converterType">The attribute's converter type expression.</param>
@@ -226,8 +226,12 @@ public sealed partial class PgFunctionGeneratorTests
     {
         string source = "[Ankus.PgDatumType(\"item\", typeof(" + converterType + "))] " + declaration;
         source += " public class Converter { } public class GenericConverter<T> { }";
-        AssertDatumMappingError(source, "ANKUS019", converterType is "Converter[]" or "GenericConverter<>" ?
-            "accessible parameterless constructor" : "closed, concrete");
+        AssertDatumMappingError(source, "ANKUS019", converterType switch
+        {
+            "Converter[]" => "accessible parameterless constructor",
+            "GenericConverter<>" => "cannot be inferred",
+            _ => "closed, concrete",
+        });
     }
 
     /// <summary>

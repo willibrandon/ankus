@@ -155,8 +155,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Two owned concrete identities obtain their independent completed provider dependencies.
     /// </summary>
+    /// <param name="template">Whether the converter definition requires compile-time inference.</param>
     [TestMethod]
-    public void ExplicitDatumMappingsRequireIndependentOwnedProviders()
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ExplicitDatumMappingsRequireIndependentOwnedProviders(bool template)
     {
         string source = """
             [assembly: Ankus.PgSql("narrow", "CREATE DOMAIN narrow_key AS integer;", Relocatable=true)]
@@ -172,6 +175,12 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction] public static Box<long> Wide(Box<long> value) => value;
             }
             """;
+        if (template)
+        {
+            source = source.Replace("typeof(Converter<int>)", "typeof(Converter<>)", StringComparison.Ordinal)
+                .Replace("typeof(Converter<long>)", "typeof(Converter<>)", StringComparison.Ordinal);
+        }
+
         Compilation compilation = GenerateSqlControl(source);
         string sql = ManifestValue(compilation, "Ankus.Sql");
         int narrow = sql.IndexOf("CREATE DOMAIN narrow_key AS integer;", StringComparison.Ordinal);
@@ -220,17 +229,27 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Independent SQL identities support separate closed derived helpers without a synthetic callback root.
     /// </summary>
+    /// <param name="template">Whether each derived helper uses an inferred closed converter.</param>
     [TestMethod]
-    public void ExplicitDatumMappingsDeriveIndependentSqlFamilies()
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ExplicitDatumMappingsDeriveIndependentSqlFamilies(bool template)
     {
-        Compilation compilation = GenerateSqlControl(ExplicitDatumMappingSource.Replace("public readonly record struct Box<T>(T Number);", """
+        string source = ExplicitDatumMappingSource.Replace("public readonly record struct Box<T>(T Number);", """
             [Ankus.PgEquality][Ankus.PgOrdering][Ankus.PgHashing]
             public readonly record struct Box<T>(long Number) : System.IComparable<Box<T>>, Ankus.IPgHashable
             {
                 public int CompareTo(Box<T> other) => Number.CompareTo(other.Number);
                 public int GetPostgresHashCode() => Ankus.PgHash.Compute(unchecked((ulong)Number));
             }
-            """, StringComparison.Ordinal));
+            """, StringComparison.Ordinal);
+        if (template)
+        {
+            source = source.Replace("typeof(Converter<int>)", "typeof(Converter<>)", StringComparison.Ordinal)
+                .Replace("typeof(Converter<long>)", "typeof(Converter<>)", StringComparison.Ordinal);
+        }
+
+        Compilation compilation = GenerateSqlControl(source);
         string sql = ManifestValue(compilation, "Ankus.Sql");
         Assert.Contains("CREATE FUNCTION \"pg_catalog\".\"int4_eq\"(\"pg_catalog\".\"int4\",\"pg_catalog\".\"int4\")", sql);
         Assert.Contains("CREATE FUNCTION \"pg_catalog\".\"int8_eq\"(\"pg_catalog\".\"int8\",\"pg_catalog\".\"int8\")", sql);

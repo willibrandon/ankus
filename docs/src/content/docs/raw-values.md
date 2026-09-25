@@ -150,8 +150,7 @@ Each requested CLR construction selects its own lazy registration; an unused
 `Box<T>` declaration creates none. A constructed containing type, such as
 `Outer<int>.Value`, also retains its exact managed identity. For an owned SQL
 type, declare a provider for **each** closed construction that uses it, even if
-the providers name the same completion block. The attribute's converter must
-already be a closed type; Ankus does not close generic converter templates.
+the providers name the same completion block.
 
 For independent SQL identities, use explicit closed declarations on the owning
 managed type:
@@ -179,6 +178,29 @@ errors. Without a default, using an unlisted construction such as
 `NumberBox<decimal>` fails during source generation. Every owned construction
 still needs its exact managed provider, and distinct SQL types need their own
 completed declarations.
+
+The converter may also be an open generic definition such as
+`typeof(NumberBoxConverter<>)`. Given
+`NumberBoxConverter<T> : IPgDatumReader<NumberBox<T>>, IPgDatumWriter<NumberBox<T>>`,
+Ankus infers `NumberBoxConverter<int>` for `NumberBox<int>` and
+`NumberBoxConverter<long>` for `NumberBox<long>`. This works with either default
+or explicit mappings. The converter implementation must still follow the SQL
+representation selected for each construction.
+
+Inference follows the exact reader and writer interface patterns, including
+inherited interfaces and constructed containing types. It does not copy type
+arguments by position: `Family<TOuter>.Converter<TInner>` implementing
+`IPgDatumReader<Pair<TInner, TOuter>>` closes as `Family<long>.Converter<int>`
+for `Pair<int, long>`. A parameter may represent the entire non-generic root,
+and compatible reader and writer patterns may jointly determine parameters.
+
+Every converter and containing-type parameter must be determined, with exactly
+one complete construction. Missing or ambiguous assignments and violated C#
+constraints produce `ANKUS019` before generation. Constraints validate the
+unique result; they do not select between competing results. Supply an explicit
+closed converter to resolve ambiguity. Ankus emits ordinary closed factories
+for the selected finite roots, with separate lazy instances and no runtime
+generic construction or reflection.
 
 `IPgDatumReader<T>` converts SQL inputs into detached managed values. Copy native
 data before returning; storing the input `PgDatum` in a field does not extend its

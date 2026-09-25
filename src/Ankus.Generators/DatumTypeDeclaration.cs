@@ -8,7 +8,7 @@ namespace Ankus.Generators;
 /// Validates a closed managed datum converter independently of generated storage codecs.
 /// </summary>
 internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol converter, string name, string? schema,
-    bool external, bool canRead, bool canWrite)
+    bool external, bool canRead, bool canWrite, bool inferred)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS019", "Invalid PostgreSQL datum mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -44,9 +44,20 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     internal bool CanWrite { get; } = canWrite;
 
     /// <summary>
+    /// Gets whether compiler constraint validation is required for an inferred converter construction.
+    /// </summary>
+    internal bool HasInferredConverter { get; } = inferred;
+
+    /// <summary>
+    /// Gets the source format preserving nullable arguments inside a constructed managed identity.
+    /// </summary>
+    internal static SymbolDisplayFormat ManagedFormat { get; } = SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+        SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+    /// <summary>
     /// Gets the globally qualified managed name.
     /// </summary>
-    internal string Managed => Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+    internal string Managed => Type.ToDisplayString(ManagedFormat);
 
     /// <summary>
     /// Gets the quoted SQL identity without inferring a schema from the function placement.
@@ -70,6 +81,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
         SourceProductionContext? context = null)
     {
+        type = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         AttributeData[]? attributes = Declarations(type, context);
         if (attributes is null || attributes.Length == 0)
         {
@@ -111,8 +123,24 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             return Invalid("External datum mappings require an explicit Schema.");
         }
 
-        if (attribute.ConstructorArguments[offset + 1].Value is not INamedTypeSymbol converter ||
-            !Accessible(converter, assembly) || converter.IsAbstract || converter.IsStatic || converter.IsRefLikeType)
+        if (attribute.ConstructorArguments[offset + 1].Value is not INamedTypeSymbol converter)
+        {
+            return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
+        }
+
+        bool inferred = converter.IsUnboundGenericType;
+        if (inferred)
+        {
+            INamedTypeSymbol? constructed = DatumConverterTemplate.Close(converter, type, out string? error);
+            if (constructed is null)
+            {
+                return Invalid(error!);
+            }
+
+            converter = constructed;
+        }
+
+        if (!Accessible(converter, assembly) || converter.IsAbstract || converter.IsStatic || converter.IsRefLikeType)
         {
             return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
         }
@@ -145,7 +173,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         }
 
         return new(type, converter, name!, schema, origin == 1,
-            contracts.Any(static item => item.Name == "IPgDatumReader"), contracts.Any(static item => item.Name == "IPgDatumWriter"));
+            contracts.Any(static item => item.Name == "IPgDatumReader"), contracts.Any(static item => item.Name == "IPgDatumWriter"), inferred);
 
         DatumTypeDeclaration? Invalid(string message)
         {
@@ -165,7 +193,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> aggregates, ImmutableArray<AttributeData> attributes,
         SourceProductionContext context)
     {
-        var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         foreach (INamedTypeSymbol type in local.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
         {
             AttributeData[]? declared = Declarations(type, context);
@@ -225,6 +253,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             }
         }
 
+        valid &= DatumConverterTemplate.Validate(compilation, declarations, context);
         foreach (IMethodSymbol method in signatures)
         {
             foreach (IParameterSymbol parameter in method.Parameters)
@@ -271,7 +300,8 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             ValidateSlot(result, method.GetReturnTypeAttributes(), method, read: false);
         }
 
-        return valid ? declarations : null;
+        return valid ? [.. declarations.GroupBy(static declaration => declaration.Type, SymbolEqualityComparer.Default)
+            .Select(static group => group.First())] : null;
 
         void Collect(ITypeSymbol type)
         {
@@ -367,7 +397,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// <summary>
     /// Gets the statically constructible converter identity.
     /// </summary>
-    private INamedTypeSymbol Converter { get; } = converter;
+    internal INamedTypeSymbol Converter { get; } = converter;
 
     /// <summary>
     /// Validates deterministic exact and default declarations without instantiating open generic roots.
@@ -422,14 +452,14 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
             (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) +
             ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension") + ", typeof(" +
-            Converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "), static () => new " +
-            Converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "(), " +
+            Converter.ToDisplayString(ManagedFormat) + "), static () => new " +
+            Converter.ToDisplayString(ManagedFormat) + "(), " +
             (CanRead ? "true" : "false") + ", " + (CanWrite ? "true" : "false") + ");");
 
     /// <summary>
     /// Reports a source-located invalid mapping contract.
     /// </summary>
-    private static void Error(ISymbol symbol, string message, SourceProductionContext context)
+    internal static void Error(ISymbol symbol, string message, SourceProductionContext context)
         => context.ReportDiagnostic(Diagnostic.Create(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message));
 
     /// <summary>

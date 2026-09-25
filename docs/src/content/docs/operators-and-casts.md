@@ -169,6 +169,8 @@ can emit derived helpers. Explicit declarations with independent SQL identities
 can generate independent families. Constructions sharing a default declaration
 inherit its fixed SQL identity, so selecting two with the same generated family
 attributes causes a SQL-object collision diagnostic.
+An open converter definition is inferred and constraint-checked for each selected
+root before any derived helper is emitted; its closed reader supplies the operands.
 
 External mappings can also opt in. Helpers, operators and families use the mapped
 SQL type's schema and belong to the extension; the external type remains
