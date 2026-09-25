@@ -443,6 +443,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 hasGucHooks, registration.ToString(), managed, native, exports);
         }
 
+        bool hasVarlenaReader = false;
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
             if (aggregateMethods.Contains(method) || InitializeDeclaration.IsInitializer(method))
@@ -516,6 +517,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
             else if (set is null)
             {
+                if (!hasVarlenaReader && parameters.Any(static parameter => parameter.Type?.IsVarlena == true))
+                {
+                    native.AppendLine(NativeCustomTypeBridge.BorrowSource);
+                    hasVarlenaReader = true;
+                }
+
                 PgFunctionEmitter.Emit(method, parameters, declaration, callback, ensureManagedReady, managed, native, sql, exports);
             }
             else

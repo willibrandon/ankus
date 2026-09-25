@@ -2530,7 +2530,7 @@ The target architecture consists of:
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
-| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native storage implemented; additional shapes and zero-copy storage remain required |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
@@ -2634,7 +2634,7 @@ alongside the source-level macro inventory.
 | Source | Required behavior | Status |
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
-| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; packed custom native payloads with copied transport; borrowed views and copy-on-write remain |
+| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer; broader layouts and borrowed text/bytea views remain |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
@@ -2643,7 +2643,7 @@ alongside the source-level macro inventory.
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs, custom text with generated storage, and generated CBOR/JSON contracts implemented for records/classes/structs/enums, tagged class variants, inherited members and nested collections; additional shapes remain required |
-| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Explicit storage/text codecs, custom text with generated CBOR, packed native layouts and optional NULL-input errors implemented; zero-copy ownership and broader layouts remain required |
+| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Explicit storage/text codecs, custom text with generated CBOR, packed native layouts with checked borrowing/copy-on-write and optional NULL-input errors implemented; broader layouts remain required |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Implemented for explicit and generated codecs; independent binary COPY and recovery evidence recorded below; full PostgreSQL/platform matrix remains required |
 | `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Explicit codecs, default records and tagged variants implemented; remaining storage paths and related derives remain required |
 
@@ -2780,7 +2780,8 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
   - [x] custom SQL text with generated CBOR storage and optional NULL-input errors
   - [x] packed native custom-type payloads with custom SQL text and copied managed transport
-  - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts and tagged variants implemented; additional shapes remain) and zero-copy storage
+  - [x] checked native PgVarlena borrowing, copy-on-write, cloning and explicit datum transfer for packed layouts
+  - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts and tagged variants implemented; additional shapes remain), broader native layouts and remaining borrowed storage APIs
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
@@ -4173,5 +4174,78 @@ The phases track implementation of the complete pgrx feature surface.
   The final Release build passed with zero warnings/errors in 14.24s. API
   generation and freshness passed (136 pages, 1,375 members), as did `pnpm build`
   (173 pages) and `pnpm check` (zero errors, warnings or hints). Independent
-  source/assertion review found no unresolved defect. Hosted validation of this
-  milestone is pending; earlier platform evidence does not validate this change.
+  source/assertion review found no unresolved defect. Commit `ef2e28b` passed
+  [hosted CI](https://github.com/willibrandon/ankus/actions/runs/36085657783):
+  Linux x64/PostgreSQL 18.6 passed 5,262 tests with no skips; macOS
+  ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 each passed 5,260
+  with the two existing Linux-only allocation-injection cases skipped. Quality,
+  all three runtime jobs and documentation publication also passed. Windows
+  validation took about 14 minutes, above the preferred ten-minute feedback
+  target but within the enforced twenty-minute limit. The full PostgreSQL-major
+  matrix and macOS x64 remain unverified for this milestone.
+
+- 2026-09-24 — Implemented checked native-layout `PgVarlena<T>` ownership.
+
+  Direct scalar callbacks now borrow an unchanged four-byte-header PostgreSQL
+  datum, while short/compressed/external inputs use writable detoast temporaries.
+  The first borrowed write allocates a private native varlena in the captured
+  source context. Backend header macros select short or full headers, and value
+  access copies the exact packed payload without exposing a managed reference
+  into native storage. Unique callback leases expire without backend calls and
+  cannot revive when nesting depth is reused. Access validates thread, provider,
+  context generation and allocation identity as applicable.
+
+  Constructors and `Clone(destination)` validate the destination before native
+  allocation; `Clone()` uses the source context. Explicit `IntoDatum()` copies
+  callback inputs before transfer and consumes aliases only after successful
+  detach. Failed allocation, initialization, transfer and disposal preserve
+  retry rights and owned diagnostics. Ordinary generated output and SPI binding
+  copy payloads without consuming aliases. Canonical untyped SPI remains bare
+  `T`; typed wrapper conversions allocate independent storage and share the
+  original type's lazy text codec. Failed array conversions release provisional
+  wrappers without disposing caller aliases, and vector shape rejection occurs
+  before allocating converted elements.
+
+  Deferred set and aggregate inputs use independent copies in the callback's
+  result owner, including every wrapper element in vector/shaped array inputs.
+  Review found and corrected an unchecked destination-context lookup and an
+  aggregate array path that initially used the per-call temporary context.
+  README, custom-type and memory-context guides, and source XML describe these
+  lifetimes. This remains limited to the existing packed native layouts. Broader
+  layouts, borrowed array/text/bytea views, other unresolved pgrx requirements and
+  the complete PostgreSQL-major/platform matrix remain open.
+
+  | Required behavior | Direct evidence |
+  |---|---|
+  | Exact header offsets, zero initialization and destination validation | `CreationUsesExactHeaderOffsetAndZeroedPayload`, `DefaultValueBypassesUserConstructor`, `InvalidDestinationsFailBeforeAllocation` |
+  | Borrowing, first-write allocation, source aliases and writable temporary cleanup | `BorrowedReadsPreserveInputWithoutAllocation`, `FirstMutationCopiesOnceAndPreservesSourceAliases`, `WritableInputMutatesInPlaceWithoutOwningCleanup`, `VarlenaBorrowingAndMutationPreserveOriginalStorage` |
+  | Callback nesting, depth reuse, thread/provider/context denial and clone lifetime | `NestedScopesPreserveAncestorsAndExpireChildren`, `ReusedDepthNeverRevivesExpiredScope`, `LeaseRequiresOriginatingThreadWithMatchingProvider`, `ClonesUseIndependentStorageAndSelectedContext`, `VarlenaClonesSurviveSourceAndExpireWithDestination` |
+  | Explicit transfer, ordinary output alias preservation and failed-operation retry | `OwnedTransferConsumesAliasesWithoutFreeingStorage`, `FailedOwnedTransferRetainsRetryRights`, `FailedCopyOnWritePreservesBorrowAndBothErrors`, `VarlenaTransferConsumesOnlyExplicitOwners`, `VarlenaOrdinaryReturnsPreserveOwnedAliases` |
+  | Type/NULL/shape identity, malformed envelopes and provisional array cleanup | `NativeInputEnvelopeRejectsNonexactLength`, `NativeInputEnvelopeRejectsInvalidProvenance`, `PartialWrapperArrayFailureReleasesEveryNewOwner`, `MalformedNativeArrayReleasesDecodedWrappers`, `VarlenaValuesCrossOwnershipPaths`, `VarlenaArraysAndTuplesRetainTypeShapeAndNull` |
+  | Short-header boundaries, TOAST, deferred sets and retained aggregate elements | `VarlenaShortHeaderBoundaryPreservesZeroPayload`, `VarlenaDetoastedValuesMutateWithoutReusingSource`, `VarlenaDeferredSetsRetainInputsAndReleaseOwners`, `VarlenaDeferredArraySetsRetainEveryElement`, `VarlenaAggregatesRetainWrapperInputs`, `VarlenaAggregateArraysRetainEveryElement` |
+
+  Focused validation passed 61 direct runtime cases, nine generator cases and
+  33 published Native AOT backend cases, all without failures or skips. The
+  backend run used Linux x64/PostgreSQL 18.6 and took 40.599s.
+  Native publication initially rejected an unused borrow helper; the generator
+  now emits it only for scalar functions that use it. Backend fixture review
+  corrected two PostgreSQL assumptions: column `STORAGE PLAIN` can receive values
+  packed by an intermediate tuple, and managed raw `PgDatum` inputs intentionally
+  copy their storage. The borrowing witness uses two wrappers over one stored
+  127-byte value: both must share the original header, and mutating one must leave
+  the other's address and bytes intact. Cleanup commands use nonquery execution
+  rather than asserting a scalar from a void SQL function.
+
+  The final complete `dotnet test` run passed 5,365/5,365 with zero skips in
+  3m11.356s on Linux x64/PostgreSQL 18.6. An earlier attempt passed all 2,630
+  non-backend tests but stopped during fixture publication when an MSBuild child
+  node exited (`MSB4166`); its 2,735 unexecuted integration cases are not backend
+  evidence. The reported temporary diagnostics directory was already gone.
+  The unchanged full rerun retained an explicit MSBuild diagnostics directory
+  and passed without recurrence; the intermittent publication failure's cause
+  remains unestablished. The Release build passed with zero warnings/errors in
+  14.02s. API generation and freshness passed (137 pages, 1,383 members), as did
+  `pnpm build` (174 pages) and `pnpm check` (zero errors, warnings or hints).
+  Independent source/assertion review found no unresolved ownership defect.
+  Hosted validation of this milestone is pending; earlier platform evidence
+  does not validate this change.

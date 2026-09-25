@@ -94,6 +94,11 @@ internal sealed class FunctionType
     internal bool IsRaw => Reader == "datum";
 
     /// <summary>
+    /// Gets whether a scalar is a checked native-layout varlena view.
+    /// </summary>
+    internal bool IsVarlena => Reader == "varlena";
+
+    /// <summary>
     /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
     /// </summary>
     internal bool UsesRawTransport => IsRaw || IsPolymorphic;
@@ -209,6 +214,21 @@ internal sealed class FunctionType
             {
                 Element = element,
                 IsVector = vector,
+            };
+        }
+
+        if (type is INamedTypeSymbol { Name: "PgVarlena", Arity: 1 } varlena &&
+            varlena.ContainingNamespace.ToDisplayString() == "Ankus")
+        {
+            if (varlena.TypeArguments[0] is not INamedTypeSymbol payload ||
+                CustomTypeDeclaration.Create(payload) is not { NativeLayout: true } layout)
+            {
+                return null;
+            }
+
+            return new("global::Ankus.PgVarlena<" + layout.Managed + ">", layout.Sql, "varlena", "custom", string.Empty, nullable, reference: true)
+            {
+                CustomType = layout,
             };
         }
 

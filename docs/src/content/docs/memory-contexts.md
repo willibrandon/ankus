@@ -216,6 +216,7 @@ Use a typed wrapper when one allocation holds one unmanaged value:
 | --- | --- | --- |
 | `PgNativeBox<T>` | One individually owned native allocation | `Dispose()` frees it; its native context also reclaims it |
 | `PgContextValue<T>` | Storage owned by the native context | Context reset or deletion reclaims it; the wrapper has no `Dispose()` |
+| `PgVarlena<T>` | A registered native-layout SQL value, borrowed or independently allocated | Input views expire at callback exit; independent allocations support `Dispose()` and follow context lifetime |
 | `PgNativeReference<T>` | A borrowed view with no release rights | The underlying allocation or explicit lifetime context governs access |
 
 ```csharp

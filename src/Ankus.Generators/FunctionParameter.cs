@@ -61,8 +61,8 @@ internal sealed class FunctionParameter(IParameterSymbol symbol, FunctionType? t
     /// Emits a managed argument expression after validation and entry into the memory capability.
     /// </summary>
     /// <returns>A checked context lookup or a conversion from the parameter's SQL slot.</returns>
-    internal string ReadExpression()
+    internal string ReadExpression(bool borrowVarlena = false)
         => IsFunctionContext ? "functionContext" : IsInjected ? "global::Ankus.PgMemoryContext.Current" :
             ManagedConversion.Read(Type!, "arguments[" + SqlIndex.ToString(CultureInfo.InvariantCulture) + "]",
-                NumericConstraint.Rescale(Symbol.GetAttributes()));
+                NumericConstraint.Rescale(Symbol.GetAttributes()), borrowVarlena);
 }

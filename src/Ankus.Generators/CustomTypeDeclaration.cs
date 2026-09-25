@@ -50,6 +50,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     internal bool BinaryProtocol => AttributeValues.Get(Attribute, "BinaryProtocol", false);
 
     /// <summary>
+    /// Gets whether this type has a statically proved native payload.
+    /// </summary>
+    internal bool NativeLayout => nativeSize != 0;
+
+    /// <summary>
     /// Gets the optional error raised by a NULL call to the text input function.
     /// </summary>
     internal string? NullInputErrorMessage => AttributeValues.Get<string?>(Attribute, "NullInputErrorMessage", null);
@@ -270,9 +275,10 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// </summary>
     internal void EmitRegistration(StringBuilder source)
     {
-        source.AppendLine("        global::Ankus.PgTypeRegistry.Register" + (Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
+        source.AppendLine("        global::Ankus.PgTypeRegistry.Register" + (NativeLayout ? "Native" : Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
-            (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) + ", static () => new " +
+            (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) + ", " +
+            (NativeLayout ? nativeSize.ToString(CultureInfo.InvariantCulture) + ", " : string.Empty) + "static () => new " +
             (codec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "Codec_" + Symbol) + "());");
     }
 

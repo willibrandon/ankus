@@ -56,7 +56,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_CAPTURE_GENERATION = 24,
             ANKUS_MEMORY_READ_REFERENCE = 25,
             ANKUS_MEMORY_WRITE_REFERENCE = 26,
-            ANKUS_MEMORY_CALLBACK = 27
+            ANKUS_MEMORY_CALLBACK = 27,
+            ANKUS_MEMORY_ALLOCATE_VARLENA = 28
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -982,6 +983,30 @@ internal static class NativeMemoryBridge
                 case ANKUS_MEMORY_ALLOCATE:
                     ankus_memory_allocate_request(ankus_memory_context_from_request(request), request, result);
                     break;
+                case ANKUS_MEMORY_ALLOCATE_VARLENA:
+                {
+                    if (request->length == 0 || request->length > MaxAllocSize - VARHDRSZ)
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid native varlena payload size")));
+                    Size payload = (Size) request->length;
+                    AnkusMemoryRequest allocation_request = *request;
+                    allocation_request.length = payload + VARHDRSZ;
+                    allocation_request.flags = 1; /* Ankus zero-initialization option. */
+                    allocation_request.alignment = 0;
+                    ankus_memory_allocate_request(ankus_memory_context_from_request(request), &allocation_request, result);
+                    AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) result->pointer);
+                    if (payload + VARHDRSZ_SHORT <= VARATT_SHORT_MAX)
+                    {
+                        SET_VARSIZE_SHORT(allocation->pointer, payload + VARHDRSZ_SHORT);
+                        result->value = VARHDRSZ_SHORT;
+                    }
+                    else
+                    {
+                        SET_VARSIZE(allocation->pointer, payload + VARHDRSZ);
+                        result->value = VARHDRSZ;
+                    }
+
+                    break;
+                }
                 case ANKUS_MEMORY_REALLOCATE:
                 {
                     AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) request->context);

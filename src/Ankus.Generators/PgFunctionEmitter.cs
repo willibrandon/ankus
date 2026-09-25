@@ -58,7 +58,7 @@ internal static class PgFunctionEmitter
             source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
         }
 
-        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression());
+        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression(borrowVarlena: true));
 
         string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
@@ -189,7 +189,8 @@ internal static class PgFunctionEmitter
             }
             else if (parameter.CustomType is not null)
             {
-                source.AppendLine($"{inputIndent}        ankus_read_custom(PG_GETARG_DATUM({argument}), ankus_declared_argument_type(fcinfo, {argument}), &arguments[{argument}], &owned[{argument}]);");
+                string reader = parameter.IsVarlena ? "ankus_read_varlena" : "ankus_read_custom";
+                source.AppendLine($"{inputIndent}        {reader}(PG_GETARG_DATUM({argument}), ankus_declared_argument_type(fcinfo, {argument}), &arguments[{argument}], &owned[{argument}]);");
             }
             else if (parameter.Element is not null)
             {

@@ -14,6 +14,10 @@ internal sealed class CustomTypeMapping<T, TOptional>(string name, string? schem
     internal override bool IsReferenceType => !typeof(T).IsValueType;
 
     /// <inheritdoc />
+    internal override object ConvertScalar(object value) => value is IPgVarlena native && native.ManagedType == typeof(T)
+        ? native.CopyValue() : value;
+
+    /// <inheritdoc />
     internal override bool Accepts(object value) => value is T;
 
     /// <inheritdoc />
@@ -55,7 +59,9 @@ internal sealed class CustomTypeMapping<T, TOptional>(string name, string? schem
     /// <inheritdoc />
     internal override object Convert(IPgArray value, Type type)
     {
-        if (value is not PgArray<T> && value is not PgArray<TOptional>)
+        if (value is not PgArray<T> && value is not PgArray<TOptional> &&
+            (PgTypeRegistry.FindArray(value.GetType()) is not { IsAlternate: true } alternate ||
+             alternate.GetOid() != GetOid()))
         {
             throw new InvalidCastException($"Array cannot be converted to '{typeof(T)}' elements.");
         }

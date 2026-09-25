@@ -114,7 +114,8 @@ Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 Native storage depends on field order and host byte order. BinaryProtocol exposes this same representation.
 Changing the layout requires a data migration. Booleans, characters, pointers, platform-sized integers,
 explicit layouts, padding, empty structs and framework value types are rejected by the generator.
-Values use ordinary copied managed transport; this option does not provide a borrowed PostgreSQL view.
+Values of the declared struct use copied managed transport. PgVarlena wrappers provide checked native
+borrowing, copy-on-write mutation and explicit ownership for the same SQL type.
 
 <a id="member-77743b32f37b8983"></a>
 

@@ -15,6 +15,48 @@ public unsafe partial struct NativeValue
     public readonly T ReadCustom<T>() => (T)PgTypeRegistry.Require(typeof(T)).Read(this);
 
     /// <summary>
+    /// Borrows a statically validated native-layout input until its current callback exits.
+    /// </summary>
+    /// <typeparam name="T">The packed native payload.</typeparam>
+    /// <returns>A checked view, writable in place only when native detoasting already made a private copy.</returns>
+    public readonly PgVarlena<T> ReadVarlena<T>() where T : unmanaged
+    {
+        PgVarlenaTypeMapping<T> mapping = PgTypeRegistry.RequireVarlena<T>();
+        ReadOnlySpan<byte> payload = ReadCustomPayload(mapping.GetOid());
+        if (payload.Length != mapping.Size)
+        {
+            throw new PgException("22P03", "Invalid native-layout custom-type value.");
+        }
+
+        if (_integer == 0 || _temporalInfinity is not (0 or 1))
+        {
+            throw new InvalidOperationException("Invalid native varlena input envelope.");
+        }
+
+        return new PgVarlena<T>((nint)_integer, (nint)_data, _temporalInfinity != 0,
+            PgMemoryContext.Current, NativeMemoryContext.BorrowScope);
+    }
+
+    /// <summary>
+    /// Promotes an input to the callback-result context before a set or aggregate retains it.
+    /// </summary>
+    /// <typeparam name="T">The packed native payload.</typeparam>
+    /// <returns>An independent native value with the result owner's lifetime.</returns>
+    public readonly PgVarlena<T> ReadOwnedVarlena<T>() where T : unmanaged =>
+        new(ReadCustom<T>(), PgMemoryContext.Callback);
+
+    /// <summary>
+    /// Reads an array with native element allocations owned by the set or aggregate result context.
+    /// </summary>
+    /// <typeparam name="T">The generated array element type.</typeparam>
+    /// <returns>The shaped array whose native elements survive intermediate callbacks.</returns>
+    public readonly PgArray<T> ReadCallbackArray<T>()
+    {
+        NativeValue value = this;
+        return PgMemoryContext.Callback.Run(() => value.ReadArray<T>());
+    }
+
+    /// <summary>
     /// Encodes a generated custom type into owned native transport.
     /// </summary>
     /// <typeparam name="T">The generated managed type.</typeparam>

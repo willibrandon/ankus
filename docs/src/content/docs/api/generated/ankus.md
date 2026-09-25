@@ -79,6 +79,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTypeAttribute](/api/ankus.pgtypeattribute/)
 - [PgTypeCodec&lt;T&gt;](/api/ankus.pgtypecodec-1/)
 - [PgTypeTextCodec&lt;T&gt;](/api/ankus.pgtypetextcodec-1/)
+- [PgVarlena&lt;T&gt;](/api/ankus.pgvarlena-1/)
 - [Spi](/api/ankus.spi/)
 - [SpiColumn](/api/ankus.spicolumn/)
 - [SpiCursor](/api/ankus.spicursor/)

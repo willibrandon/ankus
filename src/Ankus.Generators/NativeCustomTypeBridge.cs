@@ -33,6 +33,29 @@ internal static class NativeCustomTypeBridge
         """;
 
     /// <summary>
+    /// Gets the borrow adapter emitted when a native scalar wrapper input actually uses it.
+    /// </summary>
+    internal const string BorrowSource = """
+        static void
+        ankus_read_varlena(Datum datum, Oid type, AnkusValue *value, AnkusInputBuffer *owned)
+        {
+            if (get_typtype(type) != TYPTYPE_BASE || get_typlen(type) != -1)
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("PostgreSQL type OID %u has no generated native layout", type)));
+            struct varlena *original = (struct varlena *) DatumGetPointer(datum);
+            struct varlena *unpacked = pg_detoast_datum(original);
+            if (unpacked != original)
+                owned->detoasted = unpacked;
+            value->integral = (int64) (uintptr_t) unpacked;
+            value->data = (unsigned char *) VARDATA(unpacked);
+            value->length = VARSIZE(unpacked) - VARHDRSZ;
+            value->auxiliary1 = -7;
+            value->auxiliary2 = (int32) type;
+            value->temporal_infinity = unpacked != original;
+        }
+
+        """;
+
+    /// <summary>
     /// Gets text I/O helpers emitted only for extensions declaring custom base types.
     /// </summary>
     internal const string TextSource = """

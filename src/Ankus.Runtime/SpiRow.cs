@@ -186,6 +186,11 @@ public sealed class SpiRow
             return (T)SpiRange.Convert(range, typeof(T));
         }
 
+        if (PgTypeRegistry.Find(typeof(T)) is { } mapping)
+        {
+            return (T)mapping.ConvertScalar(value);
+        }
+
         if (value is PgInet address && typeof(T) == typeof(System.Net.IPAddress))
         {
             return (T)(object)address.ToIPAddress();

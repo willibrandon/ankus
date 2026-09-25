@@ -8,16 +8,18 @@ internal static class ManagedConversion
     /// <summary>
     /// Reads a nullable-aware managed value from the shared native transport.
     /// </summary>
-    internal static string Read(FunctionType type, string slot, string numericSuffix)
+    internal static string Read(FunctionType type, string slot, string numericSuffix, bool borrowVarlena = false)
     {
         string numeric = slot + ".ReadNumeric()" + numericSuffix;
         string value = type.Managed switch
         {
+            _ when type.IsVarlena => slot + (borrowVarlena ? ".ReadVarlena<" : ".ReadOwnedVarlena<") + type.CustomType!.Managed + ">()",
             _ when type.CustomType is not null => slot + ".ReadCustom<" + type.Managed + ">()",
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
             _ when type.IsInternal => slot + ".ReadInternal()",
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
-            _ when type.Element is not null => slot + ".ReadArray<" + type.ElementManaged + ">()" +
+            _ when type.Element is not null => slot +
+                (!borrowVarlena && type.Element.IsVarlena ? ".ReadCallbackArray<" : ".ReadArray<") + type.ElementManaged + ">()" +
                 (type.IsVector ? ".ToVector()" : string.Empty),
             _ when type.GeometryName.Length != 0 => slot + ".Read" + type.GeometryName + "()",
             _ when type.RangeSubtype is not null => slot + ".ReadRange<" + type.RangeSubtype.Managed + ">()",

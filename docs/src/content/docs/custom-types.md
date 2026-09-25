@@ -227,10 +227,63 @@ can enforce domain rules, but binary input validates size only; use an explicit
 storage codec if you need additional binary validation.
 
 Changing field order, field types, packing or byte order requires a data
-migration. Ordinary function, SPI, array and set transports copy values into
-managed structs. This storage option does not yet implement pgrx's borrowed
-`PgVarlena<T>` views or copy-on-write ownership. See the compiled
+migration. Using the struct directly in functions, SPI, arrays and sets copies
+values into independent managed storage. See the compiled
 [custom-type sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomTypes).
+
+## Native borrowing and ownership
+
+Use `PgVarlena<T>` with a registered `NativeLayout` type for checked native
+storage. It represents the same SQL type as `T`, with nullable wrappers for SQL
+NULL. The existing packed-layout restrictions still apply.
+
+```csharp
+[PgFunction]
+public static PgVarlena<PackedColor> MakeRed(PgVarlena<PackedColor> color)
+{
+    PackedColor value = color.Value;
+    color.Value = value with { Red = 255 };
+    return color;
+}
+```
+
+A direct scalar input borrows PostgreSQL's storage when detoasting can reuse the
+original datum. Its first write allocates a private copy in the captured source
+context. When detoasting expands a short header, decompresses a value or fetches
+external TOAST storage, the input is already a writable temporary. Mutating
+either form preserves the original SQL value. `Value` reads a copy of `T` and
+writes the complete payload; it never exposes a managed reference into expiring
+storage. `IsBorrowed` reports whether the next write needs a copy. A false value
+can also mean a writable detoast temporary, so it does not imply a longer lifetime.
+
+Unmodified borrowed inputs and writable detoast temporaries expire when their
+managed callback exits. Nested callbacks preserve an outer input's lease; a
+later callback cannot revive an expired one. Independently allocated values,
+including a borrowed input after its first write, follow their context's lifetime.
+Access also requires the originating backend thread and extension provider.
+
+Create a zeroed value with `new PgVarlena<T>(context)`, or initialize it with
+`new PgVarlena<T>(value, context)`. Omitting the context uses the current context.
+`Clone()` creates independent storage in the source context; `Clone(destination)`
+selects a different owner when the copy must outlive the input. Resetting or
+deleting the owner invalidates its values. Dispose an independent wrapper to free
+its allocation early. Disposing an input view does not free PostgreSQL's input
+buffer. Context cleanup reclaims forgotten allocations.
+
+`IntoDatum()` explicitly transfers storage to a checked `PgDatum`, consuming the
+wrapper and every managed alias to it only after successful transfer. Input views
+are copied first, including writable detoast temporaries. A failed transfer leaves
+the original wrapper usable for retry. The datum retains its exact SQL type and
+expires with its context. Normal function returns and SPI parameter bindings copy
+the payload and leave wrapper aliases usable during their lifetimes.
+
+Untyped SPI results use the canonical managed `T`. Requesting `PgVarlena<T>`
+explicitly creates an independent native copy in the current context. Wrapper
+arrays preserve SQL NULL, dimensions and lower bounds through `PgArray<T>`;
+vector conversions reject shape loss. Generated set and aggregate inputs use
+independent native copies in the result owner's context so deferred iteration
+and retained aggregate arguments remain valid between callbacks. Text operations
+share the native type's single lazy text codec.
 
 ## NULL input policy
 

@@ -15,6 +15,9 @@ public static unsafe class NativeMemoryContext
     [ThreadStatic]
     private static int s_depth;
 
+    [ThreadStatic]
+    private static NativeBorrowScope? s_borrowScope;
+
     /// <summary>
     /// Enters the native memory capability supplied by a generated callback.
     /// </summary>
@@ -39,6 +42,12 @@ public static unsafe class NativeMemoryContext
             throw new InvalidOperationException("The PostgreSQL memory capability stack is unbalanced.");
         }
 
+        if (s_borrowScope is { } scope && scope.Depth == s_depth)
+        {
+            scope.Expire();
+            s_borrowScope = scope.Parent;
+        }
+
         s_api = previous;
         s_depth--;
     }
@@ -56,6 +65,23 @@ public static unsafe class NativeMemoryContext
             }
 
             return ((NativeMemoryApi*)s_api)->_provider;
+        }
+    }
+
+    /// <summary>
+    /// Lazily creates a unique lease for buffers retained until this callback exits.
+    /// </summary>
+    internal static NativeBorrowScope BorrowScope
+    {
+        get
+        {
+            nint provider = Provider;
+            if (s_borrowScope is null || s_borrowScope.Depth != s_depth)
+            {
+                s_borrowScope = new NativeBorrowScope(provider, s_depth, s_borrowScope);
+            }
+
+            return s_borrowScope;
         }
     }
 
@@ -217,6 +243,10 @@ internal enum NativeMemoryOperation
     /// Resolves the callback's native result owner, spanning all advances for set iterators.
     /// </summary>
     Callback = 27,
+    /// <summary>
+    /// Allocates a zeroed native varlena with a short or ordinary header and checked ownership.
+    /// </summary>
+    AllocateVarlena = 28,
 }
 
 /// <summary>

@@ -154,8 +154,26 @@ public unsafe partial struct NativeValue
         }
 
         var values = new T[count];
+        try
+        {
+            ReadArrayElements(values, data, offset, oid, enumeration);
+            uint baseOid = _auxiliary2 == 2 && _integer != 0 ? (uint)_integer : oid;
+            return new PgArray<T>(values, (lengths, bounds), _auxiliary2 == 2 ? oid : 0, _auxiliary2 == 2 ? baseOid : 0);
+        }
+        catch (Exception primary)
+        {
+            VarlenaCleanup.Release<T>(values, primary);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Converts each independently owned element after validating the collection's dimensions.
+    /// </summary>
+    private readonly void ReadArrayElements<T>(T[] values, ReadOnlySpan<byte> data, int offset, uint oid, EnumMapping? enumeration)
+    {
         uint baseOid = _auxiliary2 == 2 && _integer != 0 ? (uint)_integer : oid;
-        for (int index = 0; index < count; index++)
+        for (int index = 0; index < values.Length; index++)
         {
             if (data.Length - offset < 28)
             {
@@ -195,8 +213,6 @@ public unsafe partial struct NativeValue
         {
             throw new InvalidOperationException("Unexpected trailing native array data.");
         }
-
-        return new PgArray<T>(values, (lengths, bounds), _auxiliary2 == 2 ? oid : 0, _auxiliary2 == 2 ? baseOid : 0);
     }
 
     /// <summary>

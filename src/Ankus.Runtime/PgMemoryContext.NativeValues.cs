@@ -3,6 +3,23 @@ namespace Ankus;
 public sealed unsafe partial class PgMemoryContext
 {
     /// <summary>
+    /// Allocates a checked native varlena header and zeroed payload in this live provider's context.
+    /// </summary>
+    internal (PgAllocation Allocation, nuint Offset) AllocateVarlena(nuint payloadLength)
+    {
+        EnsureAlive();
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.AllocateVarlena,
+            _context = _id,
+            _length = payloadLength,
+        };
+        NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
+        return (new PgAllocation(_provider, result._pointer, result._length, PgAllocationOptions.Zeroed),
+            checked((nuint)result._value));
+    }
+
+    /// <summary>
     /// Creates an initialized unmanaged value with individual native allocation ownership.
     /// </summary>
     /// <typeparam name="T">The unmanaged representation to copy; no C ABI or SQL type is inferred.</typeparam>

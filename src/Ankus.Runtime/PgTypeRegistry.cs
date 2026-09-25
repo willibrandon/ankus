@@ -33,6 +33,30 @@ public static class PgTypeRegistry
         => Register<T, T?>(name, schema, createCodec);
 
     /// <summary>
+    /// Registers a packed value and its checked varlena views as alternative representations of one SQL type.
+    /// </summary>
+    /// <typeparam name="T">The statically validated native payload.</typeparam>
+    /// <param name="name">The SQL type name.</param>
+    /// <param name="schema">The fixed schema, or null for the installation schema.</param>
+    /// <param name="size">The statically computed packed size.</param>
+    /// <param name="createCodec">The single shared codec factory.</param>
+    public static void RegisterNative<T>(string name, string? schema, int size, Func<PgTypeCodec<T>> createCodec) where T : unmanaged
+    {
+        Register<T, T?>(name, schema, createCodec);
+        var mapping = new PgVarlenaTypeMapping<T>(name, schema, size, Require(typeof(T)));
+        s_scalars[typeof(PgVarlena<T>)] = mapping;
+        s_arrays[typeof(PgVarlena<T>[])] = mapping;
+        s_arrays[typeof(PgArray<PgVarlena<T>>)] = mapping;
+    }
+
+    /// <summary>
+    /// Requires the statically generated native layout without constructing a text codec.
+    /// </summary>
+    internal static PgVarlenaTypeMapping<T> RequireVarlena<T>() where T : unmanaged =>
+        Find(typeof(PgVarlena<T>)) as PgVarlenaTypeMapping<T> ??
+        throw new NotSupportedException($"Type '{typeof(T)}' has no generated native-layout PgType mapping.");
+
+    /// <summary>
     /// Converts a text input to the stored representation through the generated codec.
     /// </summary>
     /// <typeparam name="T">The generated managed type.</typeparam>
@@ -161,7 +185,7 @@ public static class PgTypeRegistry
     {
         foreach (CustomTypeMapping mapping in s_scalars.Values.Distinct())
         {
-            if (mapping.GetOid(missingOk: true) == oid)
+            if (!mapping.IsAlternate && mapping.GetOid(missingOk: true) == oid)
             {
                 return mapping;
             }

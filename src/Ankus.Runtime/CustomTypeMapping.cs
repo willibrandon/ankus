@@ -11,6 +11,16 @@ internal abstract class CustomTypeMapping(string name, string? schema)
     internal abstract bool IsReferenceType { get; }
 
     /// <summary>
+    /// Gets whether this mapping is a typed alternative to the canonical managed SQL value.
+    /// </summary>
+    internal virtual bool IsAlternate => false;
+
+    /// <summary>
+    /// Converts a statically registered alternative representation without changing SQL identity.
+    /// </summary>
+    internal virtual object ConvertScalar(object value) => value;
+
+    /// <summary>
     /// Resolves the current variable-length base-type identity.
     /// </summary>
     internal uint GetOid(bool missingOk = false) => NativeBackend.ResolveCustomType(name, schema, missingOk);
