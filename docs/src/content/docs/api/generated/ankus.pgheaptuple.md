@@ -41,6 +41,7 @@ A shallow detached copy.
 
 Creates and registers an anonymous PostgreSQL record from named typed fields in the active backend.
 New field names must contain at most sixty-three UTF-8 bytes and cannot contain a zero character.
+Relation fields copy their OIDs without retaining the supplied reference's close obligation.
 
 ```csharp
 public static PgHeapTuple Create(params (string Name, SpiParameter Value)[] fields)
@@ -61,6 +62,7 @@ An owned record with a canonical registered type modifier.
 ### Get&lt;T&gt;(int)
 
 Reads a cell with the same strict type and SQL NULL rules as an SPI row.
+Reading PgRelation or its arrays opens fresh references that the caller must dispose.
 
 ```csharp
 public T Get<T>(int ordinal)
@@ -155,7 +157,7 @@ The typed replacement.
 
 Replaces a cell while preserving declared type, domain, collation, and type-modifier metadata.
 Native output applies current catalog and domain constraints before exposing the tuple to PostgreSQL.
-Raw datums are copied into independent managed values before assignment.
+Raw datums are copied into independent managed values before assignment; relations retain only their OIDs.
 
 ```csharp
 public void Set<T>(int ordinal, T value)

@@ -36,6 +36,39 @@ public static class NativeSet
     }
 
     /// <summary>
+    /// Acquires an iterator together with converted arguments that must remain live until iterator disposal.
+    /// </summary>
+    /// <typeparam name="T">The managed row type.</typeparam>
+    /// <param name="source">The sequence, or null for an empty set.</param>
+    /// <param name="arguments">The transferred argument ownership, released on every failed or completed creation path.</param>
+    /// <returns>The rooted iterator, or zero after releasing arguments for a null sequence.</returns>
+    public static nint Create<T>(IEnumerable<T>? source, IDisposable arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        if (source is null)
+        {
+            arguments.Dispose();
+            return 0;
+        }
+
+        IEnumerator<T>? iterator = null;
+        try
+        {
+            iterator = source.GetEnumerator()
+                ?? throw new InvalidOperationException("A set-returning sequence returned a null iterator.");
+            var owned = new OwnedIterator<T>(iterator, arguments);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(owned));
+        }
+        catch
+        {
+            try { iterator?.Dispose(); }
+            finally { arguments.Dispose(); }
+
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Advances a rooted iterator and reads its current row without changing ownership.
     /// </summary>
     /// <typeparam name="T">The managed row type.</typeparam>
@@ -70,5 +103,60 @@ public static class NativeSet
         IDisposable iterator = (IDisposable)owner.Target!;
         owner.Free();
         iterator.Dispose();
+    }
+
+    /// <summary>
+    /// Finds the finite relation argument scope retained by a generated iterator without examining user iterator fields.
+    /// </summary>
+    internal static NativeRelationScope? RelationArguments(nint handle)
+        => handle != 0 && GCHandle.FromIntPtr(handle).Target is IOwnedIterator iterator
+            ? iterator.Arguments as NativeRelationScope : null;
+
+    /// <summary>
+    /// Exposes explicit argument ownership independently of the closed iterator element type.
+    /// </summary>
+    private interface IOwnedIterator
+    {
+        /// <summary>
+        /// Gets the transferred argument owner.
+        /// </summary>
+        IDisposable Arguments { get; }
+    }
+
+    /// <summary>
+    /// Retains argument ownership until after user iterator finally blocks, including when those blocks throw.
+    /// </summary>
+    private sealed class OwnedIterator<T>(IEnumerator<T> iterator, IDisposable arguments) : IEnumerator<T>, IOwnedIterator
+    {
+        /// <summary>
+        /// Gets the resources retained until iterator disposal.
+        /// </summary>
+        public IDisposable Arguments => arguments;
+
+        /// <summary>
+        /// Gets the current user value without changing ownership.
+        /// </summary>
+        public T Current => iterator.Current;
+
+        object? System.Collections.IEnumerator.Current => Current;
+
+        /// <summary>
+        /// Advances the user iterator.
+        /// </summary>
+        public bool MoveNext() => iterator.MoveNext();
+
+        /// <summary>
+        /// Delegates reset to the user iterator.
+        /// </summary>
+        public void Reset() => iterator.Reset();
+
+        /// <summary>
+        /// Disposes the iterator before releasing its arguments.
+        /// </summary>
+        public void Dispose()
+        {
+            try { iterator.Dispose(); }
+            finally { arguments.Dispose(); }
+        }
     }
 }

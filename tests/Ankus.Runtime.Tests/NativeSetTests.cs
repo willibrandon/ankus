@@ -29,6 +29,73 @@ public sealed class NativeSetTests
     }
 
     /// <summary>
+    /// Transferred arguments are released even when no usable iterator can be created.
+    /// </summary>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    public void TransferredArgumentsReleaseOnCreationFailure(int failure)
+    {
+        var owner = new ObservedOwner();
+        var sequence = new ObservedSequence<int>([42])
+        {
+            ReturnNullEnumerator = failure == 1,
+            CreationError = failure == 2 ? new InvalidOperationException("factory") : null,
+        };
+        nint handle = 0;
+        if (failure == 0) { handle = NativeSet.Create<int>(null, owner); }
+        else { Assert.ThrowsExactly<InvalidOperationException>(() => handle = NativeSet.Create(sequence, owner)); }
+
+        Assert.AreEqual(nint.Zero, handle);
+        Assert.AreEqual(1, owner.Disposals);
+        Assert.AreEqual(0, sequence.DisposeCount);
+        Assert.AreEqual(0, sequence.MoveNextCount);
+    }
+
+    /// <summary>
+    /// Arguments remain live during iterator disposal and are released even when the iterator's finally block throws.
+    /// </summary>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void TransferredArgumentsOutliveIteratorCleanup(bool fail)
+    {
+        var owner = new ObservedOwner();
+        var sequence = new ObservedSequence<int>([42])
+        {
+            OnDispose = () => Assert.AreEqual(0, owner.Disposals),
+            DisposeError = fail ? new InvalidOperationException("finally") : null,
+        };
+        nint handle = NativeSet.Create(sequence, owner);
+        Assert.IsTrue(NativeSet.MoveNext(handle, out int value));
+        Assert.AreEqual(42, value);
+        Assert.AreEqual(0, owner.Disposals);
+        if (fail) { Assert.ThrowsExactly<InvalidOperationException>(() => NativeSet.Dispose(ref handle)); }
+        else { NativeSet.Dispose(ref handle); }
+
+        Assert.AreEqual(nint.Zero, handle);
+        Assert.AreEqual(1, owner.Disposals);
+        Assert.AreEqual(1, sequence.DisposeCount);
+        NativeSet.Dispose(ref handle);
+        Assert.AreEqual(1, owner.Disposals);
+    }
+
+    /// <summary>
+    /// Records the lifetime of resources transferred into an iterator owner.
+    /// </summary>
+    private sealed class ObservedOwner : IDisposable
+    {
+        /// <summary>
+        /// Gets the exact number of release calls.
+        /// </summary>
+        internal int Disposals { get; private set; }
+
+        /// <inheritdoc />
+        public void Dispose() => Disposals++;
+    }
+
+    /// <summary>
     /// Empty sequences still own an iterator, and neither creation nor exhaustion disposes it.
     /// </summary>
     [TestMethod]

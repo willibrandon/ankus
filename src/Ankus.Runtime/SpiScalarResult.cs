@@ -5,7 +5,8 @@ namespace Ankus;
 /// </summary>
 /// <param name="managed">The ordinary materialized result, when no mapped or polymorphic values are requested.</param>
 /// <param name="raw">The raw result for mapped, mixed or polymorphic result types.</param>
-internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) : IDisposable
+/// <param name="relations">The provisional relation owners during a multi-column conversion.</param>
+internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, NativeRelationScope? relations = null) : IDisposable
 {
     /// <summary>
     /// Validates read capability before SQL execution and selects raw mapped or polymorphic transport.
@@ -36,20 +37,30 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) 
     /// <returns>The independent result or callback-owned polymorphic values.</returns>
     internal T Read<T>(Func<SpiScalarResult, T> read)
     {
-        Exception? primary = null;
+        NativeRelationScope? ownership = null;
+        T result;
         try
         {
-            return read(this);
+            ownership = new NativeRelationScope();
+            result = read(new SpiScalarResult(managed, raw, ownership));
         }
-        catch (Exception exception)
+        catch (Exception primary)
         {
-            primary = exception;
+            try { PgResultCleanup.Dispose(raw, primary); }
+            finally { ownership?.ReleaseAfterFailure(primary); }
+
             throw;
         }
-        finally
+
+        try { PgResultCleanup.Dispose(raw, null); }
+        catch (Exception cleanup)
         {
-            PgResultCleanup.Dispose(raw, primary);
+            ownership.ReleaseAfterFailure(cleanup);
+            throw;
         }
+
+        ownership.Relinquish();
+        return result;
     }
 
     /// <summary>
@@ -78,9 +89,10 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) 
     {
         if (raw is null)
         {
-            return allowMissing && managed!.Columns.Count == 0
+            T result = allowMissing && managed!.Columns.Count == 0
                 ? SpiRow.Convert<T>(null)
                 : managed!.GetFirstValue<T>(ordinal);
+            return relations is null ? result : relations.Add(result);
         }
 
         if (raw.Count == 0 || (allowMissing && raw.Columns.Count == 0))
@@ -99,7 +111,8 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) 
             value = value.CopyTo(PgMemoryContext.Callback);
         }
 
-        return value.Read<T>();
+        T converted = value.Read<T>();
+        return relations is null ? converted : relations.Add(converted);
     }
 
     /// <summary>

@@ -12,8 +12,199 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/tuplestore.h"
+#include "access/relation.h"
+#include "pgstat.h"
+#include "utils/rel.h"
+#include "utils/resowner.h"
+#include "access/xact.h"
 
 PG_MODULE_MAGIC;
+
+static bool relation_fail_commit = false;
+static int relation_commit_skip = 0;
+
+static void
+relation_commit_fault(SubXactEvent event, SubTransactionId child, SubTransactionId parent, void *argument)
+{
+    (void) child;
+    (void) parent;
+    (void) argument;
+    if (event == SUBXACT_EVENT_PRE_COMMIT_SUB && relation_fail_commit)
+    {
+        if (relation_commit_skip > 0)
+        {
+            relation_commit_skip--;
+            return;
+        }
+
+        relation_fail_commit = false;
+        ereport(ERROR, (errcode(ERRCODE_RAISE_EXCEPTION), errmsg("relation commit fault")));
+    }
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_relation_commit_fault);
+PGDLLEXPORT Datum
+ankus_test_relation_commit_fault(PG_FUNCTION_ARGS)
+{
+    Oid oid = PG_GETARG_OID(1);
+    Relation keeper = relation_open(oid, AccessShareLock);
+    int references = keeper->rd_refcnt;
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 1);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 1, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = ObjectIdGetDatum(oid);
+    bool valid = false;
+    RegisterSubXactCallback(relation_commit_fault, NULL);
+    relation_fail_commit = true;
+    relation_commit_skip = 0;
+    PG_TRY();
+    {
+        Datum result = FunctionCallInvoke(call);
+        valid = !call->isnull && DatumGetBool(result) && !relation_fail_commit && keeper->rd_refcnt == references;
+    }
+    PG_FINALLY();
+    {
+        relation_fail_commit = false;
+        UnregisterSubXactCallback(relation_commit_fault, NULL);
+        relation_close(keeper, AccessShareLock);
+    }
+    PG_END_TRY();
+    PG_RETURN_BOOL(valid);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_relation_transfer_fault);
+PGDLLEXPORT Datum
+ankus_test_relation_transfer_fault(PG_FUNCTION_ARGS)
+{
+    Oid oid = PG_GETARG_OID(1);
+    int mode = PG_GETARG_INT32(2);
+    Relation keeper = relation_open(oid, AccessShareLock);
+    Relation transferred = relation_open(oid, NoLock);
+    int references = keeper->rd_refcnt;
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = Int64GetDatum((intptr_t) transferred);
+    call->args[1].isnull = false;
+    call->args[1].value = Int32GetDatum(mode);
+    bool valid = false;
+    RegisterSubXactCallback(relation_commit_fault, NULL);
+    relation_fail_commit = true;
+    relation_commit_skip = mode == 0 ? 0 : 1;
+    PG_TRY();
+    {
+        Datum result = FunctionCallInvoke(call);
+        valid = !call->isnull && DatumGetBool(result) && !relation_fail_commit && keeper->rd_refcnt == references;
+    }
+    PG_FINALLY();
+    {
+        relation_fail_commit = false;
+        relation_commit_skip = 0;
+        UnregisterSubXactCallback(relation_commit_fault, NULL);
+        /* Preserve diagnostics if a broken implementation consumed the caller's pin. */
+        if (keeper->rd_refcnt == references)
+            relation_close(transferred, NoLock);
+        relation_close(keeper, AccessShareLock);
+    }
+    PG_END_TRY();
+    PG_RETURN_BOOL(valid);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_relation_owner);
+PGDLLEXPORT Datum
+ankus_test_relation_owner(PG_FUNCTION_ARGS)
+{
+    ResourceOwner previous = CurrentResourceOwner;
+    ResourceOwner owner = ResourceOwnerCreate(previous, "relation lifetime test");
+    Oid oid = PG_GETARG_OID(1);
+    bool commit = PG_GETARG_BOOL(2);
+    Relation keeper = relation_open(oid, AccessShareLock);
+    int references = keeper->rd_refcnt;
+    bool valid = false;
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 1);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 1, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = ObjectIdGetDatum(oid);
+    PG_TRY();
+    {
+        CurrentResourceOwner = owner;
+        Datum result = FunctionCallInvoke(call);
+        valid = !call->isnull && DatumGetObjectId(result) == oid && keeper->rd_refcnt == references + 1;
+    }
+    PG_FINALLY();
+    {
+        CurrentResourceOwner = previous;
+        ResourceOwnerRelease(owner, RESOURCE_RELEASE_BEFORE_LOCKS, commit, false);
+        ResourceOwnerRelease(owner, RESOURCE_RELEASE_LOCKS, commit, false);
+        ResourceOwnerRelease(owner, RESOURCE_RELEASE_AFTER_LOCKS, commit, false);
+        ResourceOwnerDelete(owner);
+        valid = valid && keeper->rd_refcnt == references;
+        relation_close(keeper, AccessShareLock);
+    }
+    PG_END_TRY();
+    PG_RETURN_BOOL(valid);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_relation_borrow);
+PGDLLEXPORT Datum
+ankus_test_relation_borrow(PG_FUNCTION_ARGS)
+{
+    Oid oid = PG_GETARG_OID(1);
+    int mode = PG_GETARG_INT32(2);
+    Relation keeper = relation_open(oid, AccessShareLock);
+    Relation transferred = relation_open(oid, NoLock);
+    int before = keeper->rd_refcnt;
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = Int64GetDatum((intptr_t) transferred);
+    call->args[1].isnull = false;
+    call->args[1].value = Int32GetDatum(mode);
+    Datum result = FunctionCallInvoke(call);
+    bool valid = !call->isnull && DatumGetObjectId(result) == oid &&
+        keeper->rd_refcnt == before - (mode == 0 ? 0 : 1);
+    if (mode == 0)
+        relation_close(transferred, NoLock);
+    relation_close(keeper, AccessShareLock);
+    PG_RETURN_BOOL(valid);
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_relation_stats);
+PGDLLEXPORT Datum
+ankus_test_relation_stats(PG_FUNCTION_ARGS)
+{
+    Relation relation = (Relation) (intptr_t) PG_GETARG_INT64(0);
+    Datum values[5] = {Int64GetDatum(0), Int64GetDatum(0), Int64GetDatum(0), Int64GetDatum(0), Int64GetDatum(0)};
+#if PG_VERSION_NUM >= 150000
+    (void) pgstat_should_count_relation(relation);
+#endif
+    if (relation->pgstat_info != NULL)
+    {
+#if PG_VERSION_NUM >= 160000
+        values[0] = Int64GetDatum(relation->pgstat_info->counts.numscans);
+        values[1] = Int64GetDatum(relation->pgstat_info->counts.tuples_returned);
+        values[2] = Int64GetDatum(relation->pgstat_info->counts.tuples_fetched);
+        values[3] = Int64GetDatum(relation->pgstat_info->counts.blocks_fetched);
+        values[4] = Int64GetDatum(relation->pgstat_info->counts.blocks_hit);
+#else
+        values[0] = Int64GetDatum(relation->pgstat_info->t_counts.t_numscans);
+        values[1] = Int64GetDatum(relation->pgstat_info->t_counts.t_tuples_returned);
+        values[2] = Int64GetDatum(relation->pgstat_info->t_counts.t_tuples_fetched);
+        values[3] = Int64GetDatum(relation->pgstat_info->t_counts.t_blocks_fetched);
+        values[4] = Int64GetDatum(relation->pgstat_info->t_counts.t_blocks_hit);
+#endif
+    }
+
+    PG_RETURN_ARRAYTYPE_P(construct_array(values, 5, INT8OID, sizeof(int64), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE));
+}
 
 PG_FUNCTION_INFO_V1(ankus_test_default_values);
 PGDLLEXPORT Datum

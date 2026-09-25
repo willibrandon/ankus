@@ -55,7 +55,7 @@ internal static class SpiArray
         869 => 1041, 650 => 651,
         600 => 1017, 601 => 1018, 602 => 1019, 603 => 1020, 604 => 1027, 628 => 629, 718 => 719,
         3904 => 3905, 3926 => 3927, 3906 => 3907, 3912 => 3913, 3908 => 3909, 3910 => 3911,
-        2249 => 2287,
+        2249 => 2287, 2205 => 2210,
         _ => throw new NotSupportedException($"PostgreSQL type OID {element} is not a supported array element."),
     };
 
@@ -67,6 +67,7 @@ internal static class SpiArray
     internal static uint GetOid(Type type)
     {
         uint element =
+            Matches<PgRelation>(type) || Matches<PgRelationIdentity>(type) || Matches<PgRelationIdentity?>(type) ? 2205u :
             Matches<PgHeapTuple>(type) ? 2249u :
             Matches<PgRange<int>>(type) ? 3904u : Matches<PgRange<long>>(type) ? 3926u :
             Matches<PgRange<PgNumeric>>(type) || Matches<PgRange<decimal>>(type) ? 3906u :
@@ -125,7 +126,7 @@ internal static class SpiArray
     /// </summary>
     private static object ConvertCore(IPgArray array, Type type)
         => PgTypeRegistry.FindArray(type)?.Convert(array, type) ?? PgEnumRegistry.FindArray(type)?.Convert(array, type) ??
-           Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
+           Convert<PgRelation>(array, type) ?? Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
            Convert<PgRange<PgDate>>(array, type) ?? Convert<PgRange<DateOnly>>(array, type) ?? Convert<PgRange<PgTimestamp>>(array, type) ??
            Convert<PgRange<DateTime>>(array, type) ?? Convert<PgRange<PgTimestampTz>>(array, type) ?? Convert<PgRange<DateTimeOffset>>(array, type) ??
            Convert<PgPoint>(array, type) ?? Convert<PgPoint?>(array, type) ?? Convert<PgLineSegment>(array, type) ?? Convert<PgLineSegment?>(array, type) ??
@@ -167,6 +168,7 @@ internal static class SpiArray
     private static IPgArray WrapCore(Array value) => PgTypeRegistry.FindArray(value.GetType())?.Wrap(value) ?? PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
         PgHeapTuple[] items => new PgArray<PgHeapTuple>(items),
+        PgRelation[] items => new PgArray<PgRelation>(items),
         PgRange<int>[] items => new PgArray<PgRange<int>>(items), PgRange<long>[] items => new PgArray<PgRange<long>>(items),
         PgRange<PgNumeric>[] items => new PgArray<PgRange<PgNumeric>>(items), PgRange<decimal>[] items => new PgArray<PgRange<decimal>>(items),
         PgRange<PgDate>[] items => new PgArray<PgRange<PgDate>>(items), PgRange<DateOnly>[] items => new PgArray<PgRange<DateOnly>>(items),
@@ -233,12 +235,20 @@ internal static class SpiArray
         }
 
         var values = new T[array.Count];
-        for (int index = 0; index < values.Length; index++)
+        try
         {
-            values[index] = SpiRow.Convert<T>(array.GetElement(index));
-        }
+            for (int index = 0; index < values.Length; index++)
+            {
+                values[index] = SpiRow.Convert<T>(array.GetElement(index));
+            }
 
-        return new PgArray<T>(values, ([.. array.Lengths], [.. array.LowerBounds]));
+            return new PgArray<T>(values, ([.. array.Lengths], [.. array.LowerBounds]));
+        }
+        catch (Exception primary)
+        {
+            NativeRelationScope.Release(values, primary);
+            throw;
+        }
     }
 
     private static bool Matches<T>(Type type) => type == typeof(T[]) || type == typeof(PgArray<T>);
@@ -250,7 +260,19 @@ internal static class SpiArray
             return null;
         }
 
+        if (typeof(T) == typeof(PgRelation) && array.ElementOid == 2205 && type == typeof(T[]) &&
+            (array.Lengths.Length > 1 || array.LowerBounds.Length == 1 && array.LowerBounds[0] != 1))
+        {
+            throw new InvalidOperationException("Use PgArray<T> to preserve dimensions and lower bounds, or ToArray() to explicitly flatten them.");
+        }
+
         PgArray<T> result = Cast<T>(array);
-        return type == typeof(T[]) ? result.ToVector() : result;
+        try { return type == typeof(T[]) ? result.ToVector() : result; }
+        catch (Exception primary)
+        {
+            if (!ReferenceEquals(result, array)) { NativeRelationScope.Release(result, primary); }
+
+            throw;
+        }
     }
 }

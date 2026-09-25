@@ -139,6 +139,16 @@ internal sealed class FunctionType
     internal bool IsInternal => Reader == "internal";
 
     /// <summary>
+    /// Gets whether this scalar owns a native relation reference for a regclass datum.
+    /// </summary>
+    internal bool IsRelation => Managed == "global::Ankus.PgRelation";
+
+    /// <summary>
+    /// Gets whether this scalar or array carries explicitly disposable relation references.
+    /// </summary>
+    internal bool HasRelations => IsRelation || Element?.IsRelation == true;
+
+    /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
     /// </summary>
     internal string ElementManaged => Element!.Managed + (Element.Nullable ? "?" : string.Empty);
@@ -151,7 +161,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
     /// </summary>
-    internal bool IsBuffer => !UsesRawTransport && !IsInternal && (Enumeration is not null || CustomType is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
+    internal bool IsBuffer => !UsesRawTransport && !IsInternal && !IsRelation && (Enumeration is not null || CustomType is not null || Reference || GeometryName.Length != 0 || Reader is "uuid" or "json" or "jsonb" or "numeric" or "inet" or "cidr");
 
     /// <summary>
     /// Gets the statically supported geometric transport method suffix.
@@ -375,6 +385,11 @@ internal sealed class FunctionType
             return new(name, "tid", "tid", "tid", string.Empty, nullable, reference: false);
         }
 
+        if (name == "global::Ankus.PgRelation")
+        {
+            return new(name, "regclass", "OID", "ObjectId", "Integral", nullable, reference: true);
+        }
+
         if (name == "global::Ankus.PgTransactionId")
         {
             return new(name, "xid", "TRANSACTIONID", "TransactionId", "Integral", nullable, reference: false);
@@ -399,7 +414,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets the built-in scalar OID macro, including the scalar types passed by value.
     /// </summary>
-    internal string ScalarOid => Reader switch
+    internal string ScalarOid => IsRelation ? "REGCLASSOID" : Reader switch
     {
         "tuple" => "RECORDOID",
         "INT16" => "INT2OID",

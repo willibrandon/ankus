@@ -165,6 +165,7 @@ public unsafe partial struct NativeValue
         }
         catch (Exception primary)
         {
+            NativeRelationScope.Release(values, primary);
             VarlenaCleanup.Release<T>(values, primary);
             throw;
         }
@@ -240,6 +241,7 @@ public unsafe partial struct NativeValue
             16 => ReadArrayData<bool?>(oid), 17 => ReadArrayData<byte[]?>(oid), 18 => ReadArrayData<sbyte?>(oid),
             20 => ReadArrayData<long?>(oid), 21 => ReadArrayData<short?>(oid), 23 => ReadArrayData<int?>(oid),
             25 => ReadArrayData<string?>(oid), 26 => ReadArrayData<uint?>(oid), 27 => ReadArrayData<PgItemPointer?>(oid), 28 => ReadArrayData<PgTransactionId?>(oid),
+            2205 => ReadArrayData<PgRelationIdentity?>(oid),
             700 => ReadArrayData<float?>(oid), 701 => ReadArrayData<double?>(oid), 2950 => ReadArrayData<Guid?>(oid),
             114 => ReadArrayData<PgJson?>(oid), 3802 => ReadArrayData<PgJsonb?>(oid), 1700 => ReadArrayData<PgNumeric?>(oid),
             1082 => ReadArrayData<PgDate?>(oid), 1083 => ReadArrayData<PgTime?>(oid), 1266 => ReadArrayData<PgTimeTz?>(oid),

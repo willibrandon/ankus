@@ -39,6 +39,12 @@ sets. Include a `PgAnyElement` or `PgAnyArray` input so PostgreSQL can resolve
 the output type. Polymorphic TABLE columns follow the same rule. Their native
 input values remain live across iterator advances.
 
+[`PgRelation`](/relations/) inputs, including array elements, retain their
+references until iterator disposal. New relation results transfer ownership to
+the generated boundary and close after their OIDs are copied. Yielding an input
+reference preserves its iterator lifetime, allowing it to be read or yielded
+again. These rules also cover TABLE columns and error or early-exit cleanup.
+
 ## Named TABLE rows
 
 Return named C# tuples to generate `RETURNS TABLE`. Tuple element names become

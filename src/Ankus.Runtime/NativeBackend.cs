@@ -772,7 +772,8 @@ public static unsafe partial class NativeBackend
     {
         if (s_abortCleanupDepth != 0)
         {
-            if (request->_operation is not (SpiOperation.FreePlan or SpiOperation.CloseCursor) || request->_sessionId != 0)
+            bool relationRelease = request->_operation == SpiOperation.Relation && request->_scalarOperation == 0;
+            if ((!relationRelease && request->_operation is not (SpiOperation.FreePlan or SpiOperation.CloseCursor)) || request->_sessionId != 0)
             {
                 throw new InvalidOperationException("Only owned PostgreSQL resources may be released during aborted iterator cleanup.");
             }

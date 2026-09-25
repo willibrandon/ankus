@@ -12,6 +12,18 @@ internal static class AllocatorFixtureCompiler
     /// Gets SQL that installs the native fixture functions in an existing tests schema.
     /// </summary>
     internal const string InstallationSql = """
+        CREATE TABLE tests.relation_locks_1 (x integer);
+        CREATE TABLE tests.relation_locks_8 (x integer);
+        CREATE FUNCTION tests.relation_commit_fault(regprocedure, oid) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_commit_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.relation_transfer_fault(regprocedure, oid, integer) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_transfer_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.relation_owner(regprocedure, oid, boolean) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_owner' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.relation_borrow(regprocedure, oid, integer) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_borrow' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.relation_stats(bigint) RETURNS bigint[]
+        AS 'Ankus.AllocatorFixture', 'ankus_test_relation_stats' LANGUAGE c STRICT;
         CREATE FUNCTION tests.default_values(bigint) RETURNS text[]
         AS 'Ankus.AllocatorFixture', 'ankus_test_default_values' LANGUAGE c STRICT;
         CREATE FUNCTION tests.item_pointer_describe(bigint) RETURNS text

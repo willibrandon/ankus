@@ -87,6 +87,7 @@ export default defineConfig({
             { label: 'Function declarations', slug: 'function-declarations' },
             { label: 'Calling PostgreSQL functions', slug: 'calling-functions' },
             { label: 'Catalog lookups and OIDs', slug: 'catalog-lookups' },
+            { label: 'Relation access', slug: 'relations' },
             { label: 'Extension initialization', slug: 'initialization' },
             { label: 'Configuration settings', slug: 'configuration' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },

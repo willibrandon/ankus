@@ -42,6 +42,11 @@ internal static class PgAggregateEmitter
         managed.AppendLine("                new global::System.ReadOnlySpan<global::Ankus.NativeValue>(metadata, metadataCount), owner, api);");
         managed.AppendLine("            try");
         managed.AppendLine("            {");
+        if (helper.Result.Datum?.HasRelations == true || helper.Types.Any(static type => type.Datum?.HasRelations == true))
+        {
+            managed.AppendLine("                using var relationScope = new global::Ankus.NativeRelationScope();");
+        }
+
         var arguments = new List<string>();
         if (helper.ContextParameter)
         {
@@ -50,11 +55,14 @@ internal static class PgAggregateEmitter
 
         for (int index = 0; index < helper.Types.Length; index++)
         {
-            arguments.Add(helper.Types[index].Read("arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]", helper.Parameters[index].GetAttributes()));
+            string argument = helper.Types[index].Read("arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]", helper.Parameters[index].GetAttributes());
+            arguments.Add(helper.Types[index].Datum?.HasRelations == true ? "relationScope.Add(" + argument + ")" : argument);
         }
 
         string invocation = helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
             "(" + string.Join(", ", arguments) + ")";
+        if (helper.Result.Datum?.HasRelations == true) { invocation = "relationScope.Add(" + invocation + ")"; }
+
         managed.AppendLine("                " + helper.Result.Managed + " value = " + invocation + ";");
         if (helper.Result.IsManagedState)
         {

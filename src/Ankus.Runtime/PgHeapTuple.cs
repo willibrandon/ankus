@@ -32,6 +32,10 @@ public sealed class PgHeapTuple
 
         Descriptor = descriptor;
         _values = [.. values];
+        for (int index = 0; index < _values.Length; index++)
+        {
+            _values[index] = PgRelationIdentity.Snapshot(_values[index]);
+        }
     }
 
     /// <summary>
@@ -67,6 +71,7 @@ public sealed class PgHeapTuple
 
     /// <summary>
     /// Reads a cell with the same strict type and SQL NULL rules as an SPI row.
+    /// Reading PgRelation or its arrays opens fresh references that the caller must dispose.
     /// </summary>
     /// <typeparam name="T">The requested managed type.</typeparam>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
@@ -88,7 +93,7 @@ public sealed class PgHeapTuple
     /// <summary>
     /// Replaces a cell while preserving declared type, domain, collation, and type-modifier metadata.
     /// Native output applies current catalog and domain constraints before exposing the tuple to PostgreSQL.
-    /// Raw datums are copied into independent managed values before assignment.
+    /// Raw datums are copied into independent managed values before assignment; relations retain only their OIDs.
     /// </summary>
     /// <typeparam name="T">The replacement's declared managed type, including its type when null.</typeparam>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
@@ -151,6 +156,7 @@ public sealed class PgHeapTuple
     /// <summary>
     /// Creates and registers an anonymous PostgreSQL record from named typed fields in the active backend.
     /// New field names must contain at most sixty-three UTF-8 bytes and cannot contain a zero character.
+    /// Relation fields copy their OIDs without retaining the supplied reference's close obligation.
     /// </summary>
     /// <param name="fields">The field names and typed values in physical order.</param>
     /// <returns>An owned record with a canonical registered type modifier.</returns>
@@ -209,7 +215,7 @@ public sealed class PgHeapTuple
             throw new InvalidCastException($"PostgreSQL type OID {oid} cannot replace tuple attribute '{attribute.Name}' of type OID {attribute.TypeOid}.");
         }
 
-        _values[ordinal] = value is PgDatum datum ? datum.Read<object?>() : value;
+        _values[ordinal] = value is PgDatum datum ? datum.Read<object?>() : PgRelationIdentity.Snapshot(value);
     }
 
     private int ValidateOrdinal(int ordinal)

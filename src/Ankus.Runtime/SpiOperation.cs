@@ -178,4 +178,9 @@ internal enum SpiOperation : byte
     /// Resolves type syntax or exact qualified operator names without retaining catalog or native string storage.
     /// </summary>
     Lookup,
+
+    /// <summary>
+    /// Opens, inspects, and releases checked native relation references.
+    /// </summary>
+    Relation,
 }

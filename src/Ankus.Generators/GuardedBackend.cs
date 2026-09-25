@@ -57,6 +57,7 @@ internal static class GuardedBackend
             bool custom_type = request->operation == ANKUS_SPI_CUSTOM_TYPE;
             bool datum_type = request->operation == ANKUS_SPI_DATUM_TYPE;
             bool lookup = request->operation == ANKUS_SPI_LOOKUP;
+            bool relation = request->operation == ANKUS_SPI_RELATION;
             bool array = request->operation == ANKUS_SPI_ARRAY;
             bool tuple = request->operation == ANKUS_SPI_TUPLE;
             bool transaction_callbacks = request->operation == ANKUS_SPI_TRANSACTION_CALLBACKS;
@@ -65,7 +66,7 @@ internal static class GuardedBackend
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
             bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
-                transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup;
+                transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -110,10 +111,17 @@ internal static class GuardedBackend
                         /* Abort cleanup releases owned resources without SQL or a new subtransaction.
                          * The outer recovery guard also protects diagnostic capture on this path. */
                         if (request->session_id != 0 ||
-                            (request->operation != ANKUS_SPI_FREE_PLAN && request->operation != ANKUS_SPI_CLOSE_CURSOR))
+                            (request->operation != ANKUS_SPI_FREE_PLAN && request->operation != ANKUS_SPI_CLOSE_CURSOR &&
+                                !(relation && request->scalar_operation == 0)))
                             ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                                 errmsg("Only owned resource release is allowed during Ankus abort cleanup")));
-                        code = ankus_run_spi_request(request, result);
+                        if (relation)
+                        {
+                            ankus_relation_close(request->cursor_id);
+                            code = 0;
+                        }
+                        else
+                            code = ankus_run_spi_request(request, result);
                         if (code < 0)
                             ereport(ERROR, (errmsg("Ankus resource cleanup failed: %s", SPI_result_code_string(code))));
                     }
@@ -230,6 +238,11 @@ internal static class GuardedBackend
                                 ankus_lookup_operation(request, result);
                                 code = 0;
                             }
+                            else if (relation)
+                            {
+                                ankus_relation_operation(request, result, caller_owner);
+                                code = 0;
+                            }
                             else if (custom_type)
                             {
                                 result->text.integral = ankus_resolve_named_type(&request->parameters[0].value,
@@ -325,6 +338,9 @@ internal static class GuardedBackend
                     {
                         CurrentResourceOwner = caller_owner;
                     }
+
+                    if (relation)
+                        ankus_relation_finish(request, result);
                 }
                 PG_CATCH();
                 {
@@ -344,6 +360,12 @@ internal static class GuardedBackend
 
                     MemoryContextSwitchTo(diagnostic_context);
                     CurrentResourceOwner = caller_owner;
+                    if (relation && result->cursor_id != 0)
+                    {
+                        ankus_relation_close(result->cursor_id);
+                        result->cursor_id = 0;
+                    }
+
                     if ((request->operation == ANKUS_SPI_PREPARE || retained_plan) && request->plan != NULL)
                     {
                         if (request->session_id != 0)

@@ -41,7 +41,7 @@ public sealed class SpiRow
 
     /// <summary>
     /// Replaces a local cell and its type with a supported managed datum. The edit does not update PostgreSQL or result metadata.
-    /// Raw datums are converted to independent managed values before assignment.
+    /// Raw datums are converted to independent managed values before assignment; relations retain only their OIDs.
     /// </summary>
     /// <typeparam name="T">The replacement type, including its type when the value is null.</typeparam>
     /// <param name="ordinal">The zero-based column ordinal.</param>
@@ -66,7 +66,7 @@ public sealed class SpiRow
         else
         {
             typeOid = SpiType.GetOid(value);
-            managedValue = value;
+            managedValue = PgRelationIdentity.Snapshot(value);
         }
 
         _typeOids ??= [.. _columns.Select(static column => column.TypeOid)];
@@ -99,6 +99,7 @@ public sealed class SpiRow
     /// <summary>
     /// Gets a typed cell without implicit numeric or textual conversion. Temporal cells also accept exact .NET conversions.
     /// SQL NULL is accepted for nullable value types and reference types.
+    /// Reading PgRelation or its arrays opens fresh references that the caller must dispose.
     /// </summary>
     /// <typeparam name="T">The expected managed type.</typeparam>
     /// <param name="ordinal">The zero-based column ordinal.</param>
@@ -185,6 +186,11 @@ public sealed class SpiRow
         if (value is PgNumeric numeric && (typeof(T) == typeof(decimal) || typeof(T) == typeof(decimal?)))
         {
             return (T)(object)numeric.ToDecimal();
+        }
+
+        if (value is PgRelationIdentity relation && typeof(T) == typeof(PgRelation))
+        {
+            return (T)(object)PgRelation.Open(relation.Oid);
         }
 
         if (value is decimal number && (typeof(T) == typeof(PgNumeric) || typeof(T) == typeof(PgNumeric?)))

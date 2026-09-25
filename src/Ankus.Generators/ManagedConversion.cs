@@ -19,6 +19,7 @@ internal static class ManagedConversion
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
             _ when type.IsInternal => slot + ".ReadInternal()",
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
+            _ when type.Element?.IsRelation == true && type.IsVector => slot + ".ReadRelationVector<" + type.ElementManaged + ">()",
             _ when type.Element is not null => slot +
                 (!borrowVarlena && type.Element.IsVarlena ? ".ReadCallbackArray<" : ".ReadArray<") + type.ElementManaged + ">()" +
                 (type.IsVector ? ".ToVector()" : string.Empty),
@@ -26,6 +27,7 @@ internal static class ManagedConversion
             _ when type.RangeSubtype is not null => slot + ".ReadRange<" + type.RangeSubtype.Managed + ">()",
             _ when type.Enumeration is not null => "global::Ankus.PgEnums.Parse<" + type.Managed + ">(" + slot + ".ReadString())",
             _ when type.IsComposite => slot + ".ReadTuple()",
+            _ when type.IsRelation => slot + ".ReadRelation()",
             "string" => slot + ".ReadString()",
             "byte[]" => slot + ".ReadBytes()",
             "global::System.Guid" => slot + ".ReadGuid()",
@@ -71,6 +73,7 @@ internal static class ManagedConversion
             _ when result.RangeSubtype is not null => $"*{target} = global::Ankus.NativeValue.FromRange({value});",
             _ when result.Enumeration is not null => $"*{target} = global::Ankus.NativeValue.FromString(global::Ankus.PgEnums.GetLabel({value}));",
             _ when result.IsComposite => $"*{target} = global::Ankus.NativeValue.FromTuple({value});",
+            _ when result.IsRelation => $"*{target} = global::Ankus.NativeValue.FromRelation({value});",
             "string" => $"*{target} = global::Ankus.NativeValue.FromString({value});",
             "byte[]" => $"*{target} = global::Ankus.NativeValue.FromBytes({value});",
             "global::System.Guid" => $"*{target} = global::Ankus.NativeValue.FromGuid({value});",

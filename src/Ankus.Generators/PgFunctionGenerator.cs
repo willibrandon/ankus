@@ -200,6 +200,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeArrayBridge.Source);
             native.AppendLine(NativeTupleBridge.Source);
             native.AppendLine(NativeTupleBridge.Operations);
+            native.AppendLine(NativeRelationBridge.Source);
             native.AppendLine(NativeScalarFunctions.Source);
             native.AppendLine(NativeTemporalOperations.Source);
             native.AppendLine(NativeNumericOperations.Source);

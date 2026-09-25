@@ -48,22 +48,64 @@ internal static class PgSetEmitter
         managed.AppendLine();
         managed.AppendLine("            if (operation == 0)");
         managed.AppendLine("            {");
+        bool hasRelations = parameters.Any(static parameter => parameter.Type?.HasRelations == true);
+        if (hasRelations)
+        {
+            managed.AppendLine("                using var relationScope = new global::Ankus.NativeRelationScope();");
+        }
+
         if (parameters.Any(static parameter => parameter.IsFunctionContext))
         {
             managed.AppendLine("                global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
         }
 
-        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.ReadExpression()));
+        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type?.HasRelations == true
+            ? "relationScope.Add(" + parameter.ReadExpression() + ")" : parameter.ReadExpression()));
         managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
-            method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(" + arguments + "));");
+            method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(" + arguments + ")" +
+            (hasRelations ? ", relationScope.Detach()" : string.Empty) + ");");
         managed.AppendLine("                return 0;");
         managed.AppendLine("            }");
         managed.AppendLine();
+        bool relationResults = set.Columns.Any(static column => column.HasRelations);
+        if (relationResults)
+        {
+            managed.AppendLine("            using var resultRelations = global::Ankus.NativeRelationScope.ForIterator(*iterator);");
+        }
+
         managed.AppendLine($"            if (!global::Ankus.NativeSet.MoveNext<{set.Managed}>(*iterator, out {set.Managed} value))");
         managed.AppendLine("            {");
         managed.AppendLine("                return 2;");
         managed.AppendLine("            }");
         managed.AppendLine();
+        if (relationResults)
+        {
+            managed.AppendLine("            try");
+            managed.AppendLine("            {");
+            for (int index = 0; index < set.Columns.Length; index++)
+            {
+                if (set.Columns[index].HasRelations)
+                {
+                    managed.AppendLine($"                resultRelations.Add({set.Values[index]});");
+                }
+            }
+
+            managed.AppendLine("            }");
+            managed.AppendLine("            catch (global::System.Exception captureFailure)");
+            managed.AppendLine("            {");
+            for (int index = 0; index < set.Columns.Length; index++)
+            {
+                if (set.Columns[index].HasRelations)
+                {
+                    managed.AppendLine($"                resultRelations.ReleaseFailed({set.Values[index]}, captureFailure);");
+                }
+            }
+
+            managed.AppendLine("                throw;");
+            managed.AppendLine("            }");
+            managed.AppendLine();
+        }
+
         for (int index = 0; index < set.Columns.Length; index++)
         {
             FunctionType column = set.Columns[index];

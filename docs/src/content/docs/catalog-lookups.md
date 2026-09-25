@@ -3,6 +3,11 @@ title: Catalog lookups and OIDs
 description: Use versioned OID constants and resolve PostgreSQL type syntax and exact operator names.
 ---
 
+Use [`PgRelation`](/relations/) for a locked, live relation reference and
+`regclass` arguments or results. It provides relation names, namespace identity,
+kind, estimates, tuple descriptors and related index references with explicit
+cleanup.
+
 `PgTypes` and `PgQualifiedNameBuilder` resolve current catalog identities inside
 an extension callback. PostgreSQL performs the lookup, including search-path
 selection, schema permissions and native error reporting. Results are copied

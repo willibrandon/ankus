@@ -140,6 +140,7 @@ The cell's current type OID.
 
 Gets a typed cell without implicit numeric or textual conversion. Temporal cells also accept exact .NET conversions.
 SQL NULL is accepted for nullable value types and reference types.
+Reading PgRelation or its arrays opens fresh references that the caller must dispose.
 
 ```csharp
 public T Get<T>(int ordinal)
@@ -192,7 +193,7 @@ The cell value.
 ### Set&lt;T&gt;(int, T)
 
 Replaces a local cell and its type with a supported managed datum. The edit does not update PostgreSQL or result metadata.
-Raw datums are converted to independent managed values before assignment.
+Raw datums are converted to independent managed values before assignment; relations retain only their OIDs.
 
 ```csharp
 public void Set<T>(int ordinal, T value)

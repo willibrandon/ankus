@@ -67,6 +67,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `sbyte` | `"char"` (PostgreSQL's internal signed byte) |
 | `short`, `int`, `long` | `smallint`, `integer`, `bigint` |
 | `uint` | `oid` |
+| `PgRelation` | `regclass` (checked relation reference) |
 | `PgItemPointer` | `tid` (physical tuple location) |
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
@@ -224,6 +225,10 @@ See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result row
 Use `PgTypes.GetOid` for native type-name resolution and `PgQualifiedNameBuilder`
 for exact operator lookup. See [catalog name lookups](docs/src/content/docs/catalog-lookups.md)
 for search paths, permissions and current catalog identities.
+Use `PgRelation` to open and lock a relation, inspect live metadata, copy its tuple
+descriptor, and open its indexes. Generated `regclass` arguments and results have
+explicit reference cleanup, including arrays and iterators. See
+[relation access](docs/src/content/docs/relations.md) for ownership and locking.
 `PgBuiltInOid` supplies typed native constants, and `PgOid` classifies values
 against an explicit or active PostgreSQL major version while preserving invalid,
 custom and built-in identity. `PgOid.ToDatum` maps the invalid tag to SQL NULL;

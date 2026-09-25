@@ -43,6 +43,11 @@ internal static class SpiType
             return 2249;
         }
 
+        if (type == typeof(PgRelation) || type == typeof(PgRelationIdentity) || type == typeof(PgRelationIdentity?))
+        {
+            return 2205;
+        }
+
         if (type == typeof(PgPoint) || type == typeof(PgPoint?))
         {
             return 600;
@@ -308,6 +313,8 @@ internal static class SpiType
         TimeSpan interval => NativeValue.FromInterval(PgInterval.FromTimeSpan(interval)),
         Enum enumeration => NativeValue.FromString(PgEnumRegistry.Require(enumeration.GetType()).ToLabel(enumeration)),
         PgHeapTuple tuple => NativeValue.FromTuple(tuple),
+        PgRelation relation => NativeValue.FromRelation(relation),
+        PgRelationIdentity relation => new NativeValue { Integral = relation.Oid },
         IPgArray array => NativeValue.FromArray(array),
         IPgRange range => NativeValue.FromRange(range),
         Array array => NativeValue.FromArray(SpiArray.Wrap(array)),
@@ -338,6 +345,7 @@ internal static class SpiType
             23 => (int)value.Integral,
             25 or 1042 or 1043 => value.ReadString(),
             26 => (uint)value.Integral,
+            2205 => new PgRelationIdentity(checked((uint)value.Integral)),
             27 => value.ReadItemPointer(),
             28 => value.ReadTransactionId(),
             700 => BitConverter.Int32BitsToSingle((int)value.Integral),

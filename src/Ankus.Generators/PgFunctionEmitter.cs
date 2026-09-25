@@ -39,18 +39,20 @@ internal static class PgFunctionEmitter
     private static void EmitManaged(
         IMethodSymbol method, string callback, FunctionParameter[] parameters, FunctionType result, StringBuilder source)
     {
-        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression(borrowVarlena: true));
+        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.Type?.HasRelations == true
+            ? "relationScope.Add(" + parameter.ReadExpression(borrowVarlena: true) + ")" : parameter.ReadExpression(borrowVarlena: true));
         string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
         EmitManaged(callback, result, invocation, NumericConstraint.Rescale(method.GetReturnTypeAttributes()),
-            parameters.Any(static parameter => parameter.IsFunctionContext), source);
+            parameters.Any(static parameter => parameter.IsFunctionContext), source,
+            parameters.Any(static parameter => parameter.Type?.HasRelations == true));
     }
 
     /// <summary>
     /// Emits the shared managed exception and capability boundary around a statically bound invocation.
     /// </summary>
     internal static void EmitManaged(string callback, FunctionType result, string invocation, string numericSuffix,
-        bool hasFunctionContext, StringBuilder source)
+        bool hasFunctionContext, StringBuilder source, bool hasRelationArguments = false)
     {
         source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         source.AppendLine($"        EntryPoint = \"{callback}\",");
@@ -66,6 +68,11 @@ internal static class PgFunctionEmitter
         source.AppendLine("        {");
         source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
+        if (hasRelationArguments || result.HasRelations)
+        {
+            source.AppendLine("            using var relationScope = new global::Ankus.NativeRelationScope();");
+        }
+
         if (hasFunctionContext)
         {
             source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
@@ -77,7 +84,8 @@ internal static class PgFunctionEmitter
         }
         else
         {
-            source.AppendLine($"            {result.Managed}{(result.Nullable ? "?" : string.Empty)} value = {invocation};");
+            string call = result.HasRelations ? "relationScope.Add(" + invocation + ")" : invocation;
+            source.AppendLine($"            {result.Managed}{(result.Nullable ? "?" : string.Empty)} value = {call};");
             bool canBeNull = result.Nullable || result.Reference;
             string value = result.Nullable && !result.Reference ? "value.Value" : "value";
             if (canBeNull)

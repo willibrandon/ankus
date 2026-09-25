@@ -56,6 +56,13 @@ value type throws `InvalidOperationException` instead of substituting a default.
 An incompatible result type throws `InvalidCastException`; numeric values are not
 implicitly widened or parsed from text.
 
+[`PgRelation`](/relations/) reads a `regclass` result as an independently
+disposable relation reference. Ordinary row materialization retains its OID
+without opening it; each `Get<PgRelation>` acquires a new reference. Dispose
+every nonnull element of a returned relation array. `ExecuteScalars` closes
+provisional relation results when a later conversion fails. Relation parameters
+retain their caller's ownership, and ordinary `oid` results remain `uint`.
+
 Use `ExecuteScalars` for two or three columns from the first row:
 
 ```csharp
