@@ -59,12 +59,30 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// Initializes a fresh cluster, waits for readiness, and creates its test database.
     /// A failed startup attempts shutdown and retains the server log in the reported diagnostic.
     /// </summary>
+    /// <remarks>
+    /// If another process claims the reserved port before PostgreSQL binds it, startup retries with a new
+    /// cluster and port, up to three attempts within the same startup timeout. Other startup failures are not retried.
+    /// Failed attempts remove their data and socket directories and retain their server logs.
+    /// </remarks>
     /// <param name="options">The installation and invocation settings.</param>
     /// <param name="cancellationToken">Cancels startup.</param>
     /// <returns>The ready cluster, owned by the caller.</returns>
-    public static async Task<PostgresTestCluster> StartAsync(
+    public static Task<PostgresTestCluster> StartAsync(
         PostgresTestClusterOptions options,
         CancellationToken cancellationToken = default)
+        => StartAsync(options, beforeStart: null, cancellationToken);
+
+    /// <summary>
+    /// Starts a cluster with a per-invocation handoff callback for deterministic startup contention tests.
+    /// </summary>
+    /// <param name="options">The installation and invocation settings.</param>
+    /// <param name="beforeStart">Runs after releasing each reservation, before starting its postmaster.</param>
+    /// <param name="cancellationToken">Cancels the complete initialization and readiness operation.</param>
+    /// <returns>The ready cluster, owned by the caller.</returns>
+    internal static async Task<PostgresTestCluster> StartAsync(
+        PostgresTestClusterOptions options,
+        Action<PostgresTestCluster>? beforeStart,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.Installation);
@@ -74,36 +92,43 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.ShutdownTimeout, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
 
-        using PortReservation reservation = PortReservation.Create();
-        var cluster = new PostgresTestCluster(options, reservation.Port);
-        AppDomain.CurrentDomain.ProcessExit += cluster.OnProcessExit;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.StartupTimeout);
-
-        try
+        const int MaximumAttempts = 3;
+        for (int attempt = 1; ; attempt++)
         {
-            await cluster.InitializeAsync(reservation, timeout.Token).ConfigureAwait(false);
-            return cluster;
-        }
-        catch (Exception error)
-        {
-            string log = cluster.ReadServerLog();
+            timeout.Token.ThrowIfCancellationRequested();
+            using PortReservation reservation = PortReservation.Create();
+            var cluster = new PostgresTestCluster(options, reservation.Port);
+            AppDomain.CurrentDomain.ProcessExit += cluster.OnProcessExit;
             try
             {
-                await cluster.DisposeAsync().ConfigureAwait(false);
+                await cluster.InitializeAsync(reservation, beforeStart, timeout.Token).ConfigureAwait(false);
+                return cluster;
             }
-            catch (Exception cleanupError)
+            catch (Exception error)
             {
-                throw new AggregateException($"Startup and cleanup failed. Log: {cluster.LogFilePath}\n{log}", error, cleanupError);
-            }
+                string log = cluster.ReadServerLog();
+                try
+                {
+                    await cluster.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception cleanupError)
+                {
+                    throw new AggregateException($"Startup and cleanup failed. Log: {cluster.LogFilePath}\n{log}", error, cleanupError);
+                }
 
-            if (error is OperationCanceledException)
-            {
-                throw;
-            }
+                if (error is OperationCanceledException) { throw; }
 
-            throw new InvalidOperationException(
-                $"PostgreSQL startup failed: {error.Message}\nLog: {cluster.LogFilePath}\n{log}", error);
+                if (attempt < MaximumAttempts && cluster.HasPortCollision(log))
+                {
+                    timeout.Token.ThrowIfCancellationRequested();
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"PostgreSQL startup failed: {error.Message}\nLog: {cluster.LogFilePath}\n{log}", error);
+            }
         }
     }
 
@@ -221,7 +246,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
     }
 
-    private async Task InitializeAsync(PortReservation reservation, CancellationToken cancellationToken)
+    private async Task InitializeAsync(PortReservation reservation, Action<PostgresTestCluster>? beforeStart, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DataDirectory)!);
         Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
@@ -262,6 +287,8 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             Path.Combine(DataDirectory, "postgresql.auto.conf"), configuration.ToString(), cancellationToken).ConfigureAwait(false);
 
         reservation.Dispose();
+        beforeStart?.Invoke(this);
+        cancellationToken.ThrowIfCancellationRequested();
         _startAttempted = true;
         await ProcessRunner.RunCheckedAsync(
             Installation.PgCtlPath,
@@ -411,6 +438,11 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     }
 
     private static string QuoteIdentifier(string value) => $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+
+    private bool HasPortCollision(string log)
+        => log.Contains("could not bind IPv4 address \"127.0.0.1\":", StringComparison.Ordinal) &&
+            log.Contains($"Is another postmaster already running on port {Port}?", StringComparison.Ordinal) &&
+            log.Contains("could not create any TCP/IP sockets", StringComparison.Ordinal);
 
     private static string QuoteSetting(string value)
         => $"'{value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal)}'";

@@ -44,6 +44,12 @@ Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
 
+If another process takes the reserved TCP port before PostgreSQL binds it, the
+cluster harness retries with fresh data, socket and log paths and a new port.
+It allows at most three attempts within one `StartupTimeout`, cleans each failed
+attempt's data and sockets, and retains its server log. Other startup failures
+are reported immediately; cancellation stops further attempts.
+
 For a separate PostgreSQL 18 build, set `ANKUS_TEST_PG_CONFIG` to its `pg_config`
 path for the integration test process. The fixture uses that installation for
 both native publishing and cluster startup, preserving the user's registered

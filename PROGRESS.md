@@ -5794,3 +5794,46 @@ The phases track implementation of the complete pgrx feature surface.
   CI timeouts may increase when needed, with an absolute 40-minute maximum per
   job. This authorization is recorded in `AGENTS.md`; current platform test caps
   remain 20 minutes for Linux/macOS and 30 minutes for Windows.
+
+- 2026-09-25 — Investigated the Ubuntu failure at `6006b80` in
+  [CI 36185939545](https://github.com/willibrandon/ankus/actions/runs/36185939545).
+  Linux x64/PostgreSQL 18.6 passed 6,718 tests and failed one, with no skips:
+  `GucPreloadTests.ClientDefaultsAndBackendSettingsRetainSources` failed during
+  postmaster startup because another process claimed its reserved loopback port
+  after the harness released it. This was a native address-in-use failure, not
+  an analyzer finding or a timeout. macOS ARM64/PostgreSQL 18.6 and Windows
+  x64/PostgreSQL 17.11 each passed 6,717 tests with zero failures and the two
+  existing Linux-only allocation measurements skipped, in 13m09s and 17m40s
+  jobs respectively. Quality, runtime preparation and
+  [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36185939499)
+  also passed.
+
+  Cluster startup now retries only a confirmed PostgreSQL address-in-use
+  diagnostic for its selected loopback port. It allows at most three attempts
+  within the original startup deadline, creates fresh data/socket/log paths,
+  cleans each failed attempt and retains its native log. Configuration and
+  other startup errors still fail immediately; cancellation prevents further
+  attempts. Cleanup retains its independent shutdown deadline and cannot stop
+  the process that claimed the port. No analyzer setting, suppression or CI
+  timeout changed.
+
+  Four regression cases use real competing TCP listeners and PostgreSQL:
+  collision recovery with successful SQL and preserved competing ownership;
+  three persistent collisions with complete cleanup and retained diagnostics;
+  an unrelated configuration failure after a collision without stale-log
+  retries; and cancellation at handoff without starting a postmaster. The
+  per-invocation callback is internal and uses the existing test-only friend
+  assembly; it adds no global hook or production friend assembly. The focused
+  run, including the original GUC case and existing cluster tests, passes all
+  13 cases with zero failures/skips in 58.765s on Linux x64/PostgreSQL 18.6.
+
+  Plain `dotnet test` passes all 6,723 tests with zero failures/skips in
+  263.834s on Linux x64/PostgreSQL 18.6, including the final portable path
+  assertion. The non-incremental Release build passes with zero warnings/errors
+  in 19.18s. API generation and freshness pass for 166 pages/2,239 members;
+  `pnpm check` reports zero errors, warnings or hints, and `pnpm build` produces
+  208 pages. The public testing guide and generated API reference document
+  retry, deadline and cleanup behavior. Hosted validation of this repair is
+  pending. This repairs harness startup only; selected-header node layouts,
+  typed managed node APIs, complete raw FFI and the wider full-port/platform
+  inventory remain required.

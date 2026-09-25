@@ -220,3 +220,7 @@ Cancels startup.
 Returns: [Task&lt;PostgresTestCluster&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 The ready cluster, owned by the caller.
+
+If another process claims the reserved port before PostgreSQL binds it, startup retries with a new
+cluster and port, up to three attempts within the same startup timeout. Other startup failures are not retried.
+Failed attempts remove their data and socket directories and retain their server logs.

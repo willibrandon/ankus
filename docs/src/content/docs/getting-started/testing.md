@@ -56,5 +56,11 @@ Build logs and PostgreSQL logs remain under the extension project's
 on disposal. A failed build or extension load fails initialization and cleans up
 the resources it created.
 
+If another process takes the reserved TCP port during startup, the fixture
+retries with a new isolated cluster and port. It allows up to three attempts
+within the original startup timeout, retaining each failed attempt's log and
+removing its data and sockets. Configuration errors and other startup failures
+are reported immediately; cancellation stops further attempts.
+
 PostgreSQL 18 uses its per-cluster extension search path. For earlier versions,
 the fixture makes and removes an isolated copy of the installation.

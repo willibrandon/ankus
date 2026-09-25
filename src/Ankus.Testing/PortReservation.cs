@@ -4,8 +4,8 @@ using System.Net.Sockets;
 namespace Ankus.Testing;
 
 /// <summary>
-/// Holds an operating-system-assigned loopback TCP port until PostgreSQL is ready
-/// to bind it, preventing parallel test invocations from selecting the same port.
+/// Holds an operating-system-assigned loopback TCP port during cluster initialization.
+/// The required release before PostgreSQL binds can race other processes; startup handles that collision.
 /// </summary>
 internal sealed class PortReservation : IDisposable
 {
