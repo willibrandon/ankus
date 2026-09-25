@@ -30,6 +30,16 @@ internal static class NativeCustomTypeBridge
             return ankus_write_buffer(value, false);
         }
 
+        static Datum
+        ankus_write_cstring(const AnkusValue *value)
+        {
+            char *terminated = pnstrdup((char *) value->data, value->length);
+            char *text = pg_any_to_server(terminated, value->length, PG_UTF8);
+            if (text != terminated)
+                pfree(terminated);
+            return CStringGetDatum(text);
+        }
+
         """;
 
     /// <summary>
@@ -88,16 +98,6 @@ internal static class NativeCustomTypeBridge
                 owned->converted = utf8;
             value->data = (unsigned char *) utf8;
             value->length = strlen(utf8);
-        }
-
-        static Datum
-        ankus_write_cstring(const AnkusValue *value)
-        {
-            char *terminated = pnstrdup((char *) value->data, value->length);
-            char *text = pg_any_to_server(terminated, value->length, PG_UTF8);
-            if (text != terminated)
-                pfree(terminated);
-            return CStringGetDatum(text);
         }
 
         """;

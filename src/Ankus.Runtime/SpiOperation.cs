@@ -173,4 +173,9 @@ internal enum SpiOperation : byte
     /// Constructs an exactly typed raw array from shape metadata and checked element datums.
     /// </summary>
     Array,
+
+    /// <summary>
+    /// Resolves type syntax or exact qualified operator names without retaining catalog or native string storage.
+    /// </summary>
+    Lookup,
 }

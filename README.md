@@ -221,6 +221,9 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 ```
 
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
+Use `PgTypes.GetOid` for native type-name resolution and `PgQualifiedNameBuilder`
+for exact operator lookup. See [catalog name lookups](docs/src/content/docs/catalog-lookups.md)
+for search paths, permissions and current catalog identities.
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
 arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also

@@ -2662,7 +2662,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | StringInfo and typed lists, including checked mutation/iteration, exclusive borrowing and container ownership, verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform evidence remains pending |
-| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations implemented as exact `PgItemPointer` values and checked `PgNativeItemPointer` storage, including `tid` scalar/array/SPI/raw conversion; local Linux x64/PostgreSQL 18.6 focused tests pass. Remaining relation/catalog/namespace wrappers and complete version/platform evidence are pending |
+| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations and checked native storage verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Native type-syntax and qualified operator lookup helpers implemented with local Linux x64/PostgreSQL 18.6 focused evidence. Relation/function catalog wrappers and complete version/platform evidence remain pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
@@ -5495,3 +5495,60 @@ The phases track implementation of the complete pgrx feature surface.
   for 154 pages/1,815 members; `pnpm check` reports zero errors, warnings or hints,
   and `pnpm build` produces 194 pages. Hosted validation, complete PostgreSQL
   13–19/platform proof and the broader port inventory remain required.
+
+- 2026-09-25 — Hosted tuple-location milestone `ec5624d`, including the preceding
+  `151bc1d` auto-property cleanup, passes complete CI run
+  [36163435123](https://github.com/willibrandon/ankus/actions/runs/36163435123).
+  Linux x64/PostgreSQL 18.6 passes 6,523 tests with zero failures/skips in a
+  10m58s test job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each pass 6,521 tests with zero failures and two existing Linux-only allocation
+  measurements skipped, in 12m25s and 19m43s test jobs respectively. Every
+  platform runs the entire suite against a real server. Quality and runtime
+  preparation pass; documentation deployment
+  [36163435184](https://github.com/willibrandon/ankus/actions/runs/36163435184)
+  also passes. Windows retains its authorized 25-minute limit. These runs do not
+  establish cold runtime-build or complete PostgreSQL 13–19/platform evidence.
+
+- 2026-09-25 — Implemented the bounded pgrx `namespace.rs` and `wrappers.rs`
+  surface. `PgQualifiedNameBuilder` preserves exact, ordered components in a
+  reusable managed collection and resolves operators through native
+  `OpernameGetOprid`. `PgTypes.GetOid` uses `regtypein` for full native type syntax;
+  `GetOidByManagedName<T>` supplies the short CLR metadata name explicitly,
+  independently of generated SQL type mappings. Lookup preserves exact OIDs,
+  search-path order, implicit catalog priority, temporary-namespace behavior,
+  schema permissions, numeric OID and dash handling, and native parser errors.
+  No identity is cached across DDL or search-path changes.
+
+  Managed text validation rejects embedded zero characters and malformed UTF-16
+  before dispatch or builder mutation. Native lists, nodes and server-encoded
+  names live in the existing guarded temporary operation context. Native errors
+  unwind below managed frames, and input/result/diagnostic ownership is released
+  on failure and retry. Selected-version source review covered PostgreSQL 13–19
+  lookup implementations, including parser-signature changes; that review is
+  not execution evidence for those versions.
+
+  Six focused runtime tests pass with zero failures/skips in 1.055s. The expanded
+  published Native AOT scope passes 35 backend cases with zero failures/skips
+  in 62.264s on Linux x64/PostgreSQL 18.6. Independent catalog OIDs, exact native
+  parser results, qualified-name counts, schema USAGE denial and grant/retry,
+  domain argument identity, reused builders across DROP/CREATE and path changes,
+  and native catch/finally plus same-session recovery establish observable
+  contracts. LATIN1 tests verify a 63-server-byte accented namespace, exact type
+  and operator identity, and rejected unrepresentable names. After warmup,
+  128 repeated success/missing/error cycles check every OID, complete 32-KiB
+  owned diagnostics, zero retained operation contexts and bounded transaction
+  allocation growth.
+
+  Validation exposed and fixed conditional emission of the shared native C-string
+  writer and explicit OID typing in the test client. Static assertion and
+  public-outcome review added permission retry, domain signature, encoding and
+  generic-name cases; no empirical mutation or measured coverage claim is made.
+  The catalog lookup guide, operator guide and README describe exact component
+  versus SQL type syntax and name-based managed lookup. Plain `dotnet test`
+  passes all 6,564 tests with zero failures/skips in 284.857s on Linux
+  x64/PostgreSQL 18.6. The non-incremental Release build passes in 11.25s with
+  zero warnings/errors. API generation and freshness pass for 156 pages/1,823
+  members; `pnpm check` reports zero errors, warnings or hints, and `pnpm build`
+  produces 197 pages. Hosted lookup validation, relation/function catalog and
+  node APIs, the complete PostgreSQL/platform matrix, and the broader port
+  inventory remain required.

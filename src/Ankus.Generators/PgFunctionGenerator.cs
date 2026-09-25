@@ -195,6 +195,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSpiBridge.Source);
             native.AppendLine(NativeTriggerBridge.Declarations);
             native.AppendLine(NativeEnumBridge.Operations);
+            native.AppendLine(NativeLookupBridge.Source);
             native.AppendLine(NativeRangeBridge.Source);
             native.AppendLine(NativeArrayBridge.Source);
             native.AppendLine(NativeTupleBridge.Source);

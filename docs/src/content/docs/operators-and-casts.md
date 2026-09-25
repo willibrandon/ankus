@@ -51,6 +51,10 @@ Nullable parameters follow the normal function policy. An operator with required
 parameters is strict by default; nullable parameters let the method handle NULL.
 Postfix unary operators are not generated.
 
+Use [`PgQualifiedNameBuilder`](/catalog-lookups/#qualified-operator-names) to
+resolve an existing operator's OID from exact name components and argument types.
+Lookup follows the current search path and schema permissions without coercing types.
+
 ## Planner options
 
 ```csharp
