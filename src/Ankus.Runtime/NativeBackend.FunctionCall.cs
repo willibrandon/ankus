@@ -100,6 +100,12 @@ public static unsafe partial class NativeBackend
     /// <returns>The managed copy or callback-owned polymorphic result.</returns>
     internal static T CallFunction<T>(string? name, uint oid, PgFunctionCallOptions? options, ReadOnlySpan<PgFunctionArgument> arguments)
     {
+        if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
+        {
+            mapping.RequireRead();
+            return CallMappedFunction<T>(name, oid, options, arguments, mapping);
+        }
+
         PgDatumRegistry.RejectOrdinaryResult<T>();
         if (PgPolymorphic.Is<T>())
         {
@@ -118,6 +124,40 @@ public static unsafe partial class NativeBackend
                 : SpiType.FromNative(result._text, baseType);
             return SpiRow.Convert<T>(value);
         });
+    }
+
+    /// <summary>
+    /// Reads an exactly typed catalog result before deleting its temporary callback-owned storage.
+    /// </summary>
+    /// <typeparam name="T">The registered reader's managed result type.</typeparam>
+    /// <param name="name">The SQL identifier, or null for OID lookup.</param>
+    /// <param name="oid">The catalog function OID, or zero for name lookup.</param>
+    /// <param name="options">The optional call settings.</param>
+    /// <param name="arguments">The borrowed typed arguments and defaults.</param>
+    /// <param name="mapping">The preflighted scalar reader contract.</param>
+    /// <returns>The detached managed value.</returns>
+    private static T CallMappedFunction<T>(string? name, uint oid, PgFunctionCallOptions? options,
+        ReadOnlySpan<PgFunctionArgument> arguments, DatumTypeMapping mapping)
+    {
+        uint expected = mapping.GetOid();
+        PgMemoryContext owner = PgMemoryContext.Create("Ankus mapped function result", PgMemoryContext.Callback);
+        Exception? primary = null;
+        try
+        {
+            var lifetime = new PgDatumLifetime(owner);
+            return RunFunction(name, oid, options, arguments, expected, lifetime, result =>
+                new PgDatum(unchecked((nuint)result._text.Integral), result._resultTypeOid,
+                    result._text.IsNull != 0, lifetime).Read<T>(), exactResult: true);
+        }
+        catch (Exception exception)
+        {
+            primary = exception;
+            throw;
+        }
+        finally
+        {
+            PgResultCleanup.Dispose(owner, primary);
+        }
     }
 
     /// <summary>
@@ -159,9 +199,11 @@ public static unsafe partial class NativeBackend
     /// <param name="resultType">The expected managed result OID, or zero for raw capture.</param>
     /// <param name="lifetime">The optional raw result destination.</param>
     /// <param name="convert">The synchronous result copier.</param>
+    /// <param name="exactResult">Whether the declared result OID must match before the callee executes.</param>
     /// <returns>The owned converted result.</returns>
     private static T RunFunction<T>(string? name, uint oid, PgFunctionCallOptions? options,
-        ReadOnlySpan<PgFunctionArgument> arguments, uint resultType, PgDatumLifetime? lifetime, Func<NativeSpiResult, T> convert)
+        ReadOnlySpan<PgFunctionArgument> arguments, uint resultType, PgDatumLifetime? lifetime, Func<NativeSpiResult, T> convert,
+        bool exactResult = false)
     {
         CheckAccess();
         byte[] encoded = oid == 0 ? EncodeCommand(name!) : [];
@@ -187,6 +229,7 @@ public static unsafe partial class NativeBackend
                 _hasCollation = options?.CollationOid is not null ? (byte)1 : (byte)0,
                 _variadic = options?.Variadic == true ? (byte)1 : (byte)0,
                 _argumentDefaults = argumentDefaults,
+                _scalarOperation = exactResult ? 1 : 0,
                 _scalarResultOid = resultType,
                 _resultContext = lifetime?.ContextId ?? 0,
                 _resultGeneration = lifetime?.Generation ?? 0,

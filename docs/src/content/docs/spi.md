@@ -67,6 +67,14 @@ Each value follows the same type and NULL rules as `ExecuteScalar<T>`. A returne
 row with too few columns throws `InvalidOperationException`. Extra columns and
 later rows are not copied. These overloads also work on sessions and prepared statements.
 
+Reusable [`PgDatumType` mappings](/raw-values/#reusable-scalar-mappings) work in
+these scalar helpers, including mixed columns. The requested managed type selects
+its reader, which returns a detached value before temporary native storage is
+disposed. No writer is required for a result. A mapping without a reader is
+rejected before execution, including in later tuple columns and queries that
+would return no rows. Present and NULL cells must have the exact mapped SQL type;
+a domain's base type or sibling domain is not interchangeable.
+
 Use `PgAnyElement` or `PgAnyArray` as the result type to keep the actual PostgreSQL
 type, including types without a C# mapping. SQL NULL becomes a null wrapper.
 These values survive SPI session disposal and belong to the current function
@@ -75,6 +83,11 @@ call or iterator. `CopyTo(context)` gives them another memory owner.
 Reading scalars does not limit command execution. For example, an
 `INSERT ... RETURNING` command completes all its writes even though only its first
 row's requested cells are copied.
+
+Mapped and polymorphic results are converted after SQL execution completes. If
+the caller catches a managed conversion error, the completed command's writes
+remain in the transaction. A PostgreSQL error during native execution still
+rolls back the command's internal subtransaction.
 
 ## Rows and metadata
 

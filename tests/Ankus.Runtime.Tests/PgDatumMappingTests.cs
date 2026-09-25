@@ -385,11 +385,11 @@ public sealed unsafe class PgDatumMappingTests
     /// Deferred typed result APIs reject mapped targets before backend execution, including a later mixed column.
     /// </summary>
     [TestMethod]
-    public void OrdinaryMappedResultsFailBeforeBackendExecution()
+    public void UnsupportedMappedResultsFailBeforeBackendExecution()
     {
         PgDatumRegistry.RegisterValue<UnsupportedValue>("unsupported", "fixed", PgTypeOrigin.External,
             typeof(Converter<UnsupportedValue>),
-            static () => throw new InvalidOperationException("No converter should be created."), true, true);
+            static () => throw new InvalidOperationException("No converter should be created."), false, true);
         PgDatumRegistry.RegisterReference<UnsupportedMessage>("unsupported", "fixed", PgTypeOrigin.External,
             typeof(Converter<UnsupportedMessage>),
             static () => throw new InvalidOperationException("No reference converter should be created."), true, true);

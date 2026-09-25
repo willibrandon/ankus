@@ -128,8 +128,16 @@ internal static class NativeFunctionInvocation
         }
 
         static void
-        ankus_function_check_result(Oid actual, Oid expected)
+        ankus_function_check_result(Oid actual, Oid expected, bool exact)
         {
+            if (exact)
+            {
+                if (actual != expected)
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
+                        errmsg("Function result type %s does not match requested type %s", format_type_be(actual), format_type_be(expected))));
+                return;
+            }
+
             Oid base = getBaseType(actual);
             if (expected == ANYELEMENTOID || (expected == ANYARRAYOID && OidIsValid(get_element_type(base))))
                 return;
@@ -159,6 +167,11 @@ internal static class NativeFunctionInvocation
         static void
         ankus_function_invoke(AnkusRequest *request, AnkusResult *result)
         {
+            if (request->scalar_operation < 0 || request->scalar_operation > 1 ||
+                (request->scalar_operation == 1 &&
+                    (!OidIsValid(request->scalar_result_oid) || request->native_function != NULL)))
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid function result validation mode")));
+
             if (request->native_function != NULL)
             {
                 if (request->parameter_count < 0 || request->parameter_count > PG_INT16_MAX)
@@ -212,7 +225,7 @@ internal static class NativeFunctionInvocation
             }
 
             Oid type = expression->funcresulttype;
-            ankus_function_check_result(type, request->scalar_result_oid);
+            ankus_function_check_result(type, request->scalar_result_oid, request->scalar_operation == 1);
             /* Check before constant folding can replace a STRICT NULL call. */
         #if PG_VERSION_NUM >= 160000
             AclResult access = object_aclcheck(ProcedureRelationId, expression->funcid, GetUserId(), ACL_EXECUTE);

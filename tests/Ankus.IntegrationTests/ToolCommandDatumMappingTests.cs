@@ -102,6 +102,8 @@ public sealed partial class ToolCommandTests
             """));
         Assert.AreEqual(FormattableString.Invariant($"{typeOid}|1042|True|True|23|2042"),
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_probe(42)"));
+        Assert.AreEqual("1042|1043|1043|2042|True|True",
+            await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_typed()"));
         Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
             SELECT (SELECT proargtypes[0]='{schema}.package_key'::regtype
                     AND prorettype='{schema}.package_key'::regtype AND NOT proisstrict
@@ -121,12 +123,13 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Captures the domain, its array and all six generated callbacks with their exact extension ownership.
+    /// Captures the domain, its array and all seven generated callbacks with their exact extension ownership.
     /// </summary>
     private async Task<Dictionary<string, uint>> DatumMappingPackageMembers(NpgsqlConnection connection, string schema)
     {
         string[] expected = ["array:package_key", "function:package_echo", "function:package_external_echo",
-            "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay", "type:package_key"];
+            "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay",
+            "function:package_typed", "type:package_key"];
         await using var command = new NpgsqlCommand($"""
             WITH objects(label,classid,objid,ownerid) AS (
                 SELECT 'type:'||typname,'pg_type'::regclass,oid,oid FROM pg_type
@@ -214,9 +217,23 @@ public sealed partial class ToolCommandTests
             }
             [PgFunction(Name = "package_replay")]
             public static int Replay()
+                => Spi.ExecuteScalar<OwnedKey>("SELECT $1", s_remembered).Number;
+            [PgFunction(Name = "package_typed")]
+            public static string Typed(PgFunctionContext call)
             {
-                using SpiRawResult result = Spi.QueryRaw("SELECT $1", s_remembered);
-                return result[0][0].Read<OwnedKey>().Number;
+                string schema = Spi.ExecuteScalar<string>(
+                    "SELECT n.nspname::text FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.oid=$1",
+                    SpiParameter.Create(call.FunctionOid));
+                string type = Spi.QuoteQualifiedIdentifier(schema, "package_key");
+                string function = Spi.QuoteQualifiedIdentifier(schema, "package_echo");
+                uint oid = Spi.ExecuteScalar<uint>("SELECT $1::regprocedure::oid", SpiParameter.Create($"{function}({type})"));
+                OwnedKey queried = Spi.ExecuteScalar<OwnedKey>($"SELECT 42::{type}");
+                OwnedKey named = PgFunctions.Call<OwnedKey>(function, PgFunctionArgument.Create(new OwnedKey(1042)));
+                OwnedKey identified = PgFunctions.Call<OwnedKey>(oid, PgFunctionArgument.Create(new OwnedKey(1042)));
+                ExternalKey external = PgFunctions.Call<ExternalKey>("pg_catalog.abs", PgFunctionArgument.Create(-42));
+                bool queryNull = Spi.ExecuteScalar<OwnedKey?>($"SELECT NULL::{type}") is null;
+                bool callNull = PgFunctions.Call<OwnedKey?>(function, PgFunctionArgument.Create<OwnedKey?>(null)) is null;
+                return FormattableString.Invariant($"{queried.Number}|{named.Number}|{identified.Number}|{external.Number}|{queryNull}|{callNull}");
             }
         }
         """;

@@ -178,8 +178,8 @@ public static class Spi
     /// <returns>The scalar result.</returns>
     public static T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
-        return result.Get<T>(0, allowMissing: true);
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
+        return result.Read(static values => values.Get<T>(0, allowMissing: true));
     }
 
     /// <summary>
@@ -196,9 +196,9 @@ public static class Spi
     public static (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
             SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>());
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1)));
     }
 
     /// <summary>
@@ -216,8 +216,8 @@ public static class Spi
     public static (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
             SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>());
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1), values.Get<TThird>(2)));
     }
 }

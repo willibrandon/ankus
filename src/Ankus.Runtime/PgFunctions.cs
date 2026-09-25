@@ -6,6 +6,8 @@ namespace Ankus;
 /// <remarks>
 /// Catalog calls support PgAnyElement and PgAnyArray results owned by the current callback or iterator.
 /// Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
+/// Registered datum readers use an exact declared result OID check before invoking a catalog function
+/// and return independent managed values before temporary native storage is released.
 /// </remarks>
 public static class PgFunctions
 {

@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable scalar PgDatumType readers/writers are implemented for documented paths. Mapped containers, ordinary row/composite conversions, typed generic results, broader metadata forms and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable scalar PgDatumType readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths. Mapped containers, ordinary row/composite conversions, unsafe native-address typed results, broader metadata forms and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2613,7 +2613,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar callback slots implemented. Mapped containers, broader mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
-| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages and declared catalog-type providers implemented. Providers order existing raw/composite signatures and support explicitly ordered shell/I/O/completion sequences. Reusable managed-identity providers and standalone declared-entity extraction remain required. |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
 | `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; full hosted suites pass on Linux x64/PG18.6, macOS ARM64/PG18.6 and Windows x64/PG17.11. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
@@ -2768,7 +2768,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Strongly typed custom codecs and generated base-type declarations
     - [x] Generated default custom-type serialization, tagged variants, custom text and packed native storage for documented shapes
     - [x] Reusable scalar datum readers/writers and owned managed-identity SQL providers for documented paths
-    - [ ] Mapped containers, ordinary result conversions, broader mapping metadata and additional serialization/native shapes
+    - [x] Typed mapped scalar results in SPI conveniences and named/OID catalog calls, with focused local evidence
+    - [ ] Mapped containers, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -4604,11 +4605,89 @@ The phases track implementation of the complete pgrx feature surface.
   both with zero warnings/errors. API generation and freshness pass with
   147 pages/1,429 members; `pnpm check` reports zero errors, warnings or hints,
   and `pnpm build` produces 184 pages. Native fixture publication and these
-  Release/documentation builds ran sequentially. Hosted platform evidence for
-  this milestone remains pending.
+  Release/documentation builds ran sequentially. Commit `ab971bc` is pushed;
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36105331492) and
+  [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36105331394)
+  passed. Each platform executed the complete suite against PostgreSQL:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 5,906 | 0 | 6m58s |
+  | macOS ARM64 | 18.6 | 5,904 | 2 | 10m32s |
+  | Windows x64 | 17.11 | 5,904 | 2 | 15m05s |
+
+  The two non-Linux skips are the existing
+  `WarmedNativeAllocationsStabilizeAcrossStateAndErrorPaths` cases, whose native
+  allocation measurements require Linux. All jobs had zero failures. Runtime
+  cache hits are not cold-runtime build measurements; the full supported-major
+  and macOS x64 matrix remains unverified here.
 
   Typed mapped arrays, ordinary SPI-row/composite-field conversions, typed
   generic result APIs, automatic derived operator families, generic wrapper
   declarations, asymmetric SQL spellings, standalone extraction and the full
   PostgreSQL-major/platform matrix remain required. This scalar foundation is
   not complete `FromDatum`/`IntoDatum` parity.
+
+- 2026-09-25 — Implemented mapped scalar readers in SPI scalar/pair/triple
+  helpers, their session and retained/session-owned prepared-plan forms, and
+  named/OID `PgFunctions.Call<T>`. Each requested CLR type selects its reader;
+  no writer is required for a result. Every requested position is checked before
+  execution, including later mixed columns. Matching typed NULL checks nominal
+  identity without invoking user code; empty results preserve ordinary absence
+  semantics without inventing a datum. Mixed polymorphic values retain their
+  callback copies while mapped readers detach from temporary storage.
+
+  Catalog calls carry explicit exact-result intent in an existing request field,
+  without changing ABI layout. They compare the declared result OID before
+  `ExecPrepareExpr`, preventing callee and default-expression evaluation on
+  mismatch. Existing built-in domain/base, record, raw, void and polymorphic
+  compatibility remains separate. SPI result conversion runs after SQL completes;
+  catching a mapped reader/factory error retains completed transactional writes.
+  The same timing applies to mapped catalog result conversion.
+
+  Independent design review also identified cleanup paths that could replace a
+  primary conversion/native error when temporary-context deletion failed. SPI
+  raw acquisition, scalar conversion and mapped catalog results now preserve
+  the primary exception and stack, propagate cleanup-only failures, and retain
+  both errors in order when both fail. A failed deletion leaves parent-owned
+  storage potentially live; it does not imply successful cleanup. Uncaught
+  aggregate failures retain the existing generic native error transport policy.
+
+  Focused local validation on Linux x64/PostgreSQL 18.6 passes 47 runtime cases
+  in 922ms and 264 backend/package/SPI/polymorphic/function-call cases in
+  1m20.437s, all with zero failures/skips. The first runtime attempt stopped
+  before execution on four redundant native-integer casts in the new tests;
+  removing them satisfied IDE0004 without changing behavior. A proposed TOAST
+  assertion was corrected before execution to inspect physical storage in the
+  fresh table's TOAST relation instead of assuming uncompressed external text
+  occupies fewer bytes than its payload.
+
+  Independent review requested one additional native evidence partition:
+  caught catalog reader/factory errors after a function writes rows. The added
+  name/OID cases pass 2/2 with zero failures/skips in 54.929s and independently
+  preserve row sets `2,5,9` and `11,17`, exact diagnostics and same-backend
+  recovery. Final independent static production/assertion review is Strong;
+  no empirical mutation or coverage score is claimed. Defensive rejection of
+  malformed private request modes was source-reviewed only; executed tests cover
+  the modes emitted by the public APIs.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | Reader-only results and declared CLR identity across SPI owners | `ReaderOnlyResultsWorkAcrossSpiOwners`, `TypedMappedSpiResultsUseEverySurfaceAndDeclaredAlias`: independent alias values, all four owner forms, scalar/pair/triple selection and integer extrema |
+  | Capability checks before execution in every requested position | `ReadCapabilityPreflightsEverySelectedPosition`, `TypedMappedLaterSlotCapabilitiesFailBeforeAnySqlEffect`, `TypedMappedCatalogWriterOnlyTargetsFailBeforeInvocation`: zero backend/owner/factory activity and untouched nontransactional sequences |
+  | Exact present/NULL identity and ordinary absence behavior | `NullAndEmptyResultsPreserveIdentityAndAbsenceRules`, `TypedMappedAbsenceDoesNotInventAValueOrInvokeAConverter`, `TypedMappedSpiDomainsValidatePresentAndNullIdentities`, `TypedMappedShortRowsFailAfterReleasingTheirTemporaryOwner`: base/sibling/unrelated types, empty/utility results, missing columns and nonnullable failures |
+  | Exact catalog result checks before expression preparation | `CatalogMappedResultsUseExactModeAndTemporaryOwners`, `ExistingCatalogResultsRetainCompatibilityMode`, `TypedMappedCatalogMismatchPreventsCalleeAndDefaultEffects`: emitted mode/current OID, immutable callee/default sequence witnesses and ordinary domain compatibility |
+  | Detached values and temporary cleanup | `MixedResultsCopyPolymorphicStorageBeforeTemporaryCleanup`, `TypedMappedDetachedAndMixedResultsOutliveTheirOwners`, `TypedMappedCatalogStorageAndErrorsPreserveOwnership`: immediate temporary expiry in direct tests, exact fixed-storage words, complete toasted text, mixed polymorphic shape/NULLs and backend recovery |
+  | Primary, cleanup-only and combined failure semantics | `ConversionAndCleanupFailuresPreserveTheirOrdering`, `RawAcquisitionErrorsPreserveNativeDiagnosticsAndCleanup`, `CleanupHelperRetainsOriginalExceptionInstances`, `CatalogFactoryFailureIsCachedWhileEveryOwnerIsReleased`: original exception identity/stack, ordered errors, transport release and failed-deletion lifetime |
+  | Complete command effects and conversion timing | `TypedMappedFirstRowsDoNotLimitWritesOrUseEarlierStatements`, `TypedMappedManagedFailuresRetainCompletedWritesAndRecover`, `TypedMappedCaughtCatalogConversionErrorsRetainCompletedWrites`: full independent row sets, final-statement selection, reader/factory errors and successful later calls |
+  | Live identity and bounded API scope | `TypedMappedResultsResolveExternalIdentityAfterCatalogChanges`, `DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity`, `TypedMappedResultsDoNotExpandOrdinaryCellScope`: replaced OIDs, nine owned identities across relocation/reinstall, preserved shadows, stale parameters and explicit row/tuple rejection |
+
+  Final local verification on Linux x64/PostgreSQL 18.6: plain `dotnet test`
+  passes all 5,976 tests with zero failures/skips in 4m06.195s. The full
+  non-incremental Release build passes in 16.10s with zero warnings/errors.
+  API generation and freshness pass (147 pages, 1,429 members); `pnpm check`
+  reports zero errors, warnings or hints, and `pnpm build` produces 184 pages.
+  Native fixture publication and Release/documentation builds ran sequentially.
+  Hosted platform validation is pending. Mapped arrays, ordinary row/composite
+  conversion, unsafe native-address typed results, broader declaration forms and
+  full platform/version parity remain open.

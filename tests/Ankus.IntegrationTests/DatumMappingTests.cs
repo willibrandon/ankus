@@ -301,7 +301,7 @@ public sealed class DatumMappingTests(TestContext context)
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection,
             $"SELECT datum_mappings.unsupported_result({mode})"));
         Assert.AreEqual("38000", error.SqlState);
-        Assert.AreEqual(mode < 5 ? "Mapped datum results require PgDatum.Read<T>(); ordinary typed result conversion is not supported."
+        Assert.AreEqual(mode < 5 ? "The mapped PostgreSQL type has no datum reader."
             : "Mapped datum arrays are not supported; read individual raw elements explicitly.", error.MessageText);
         Assert.IsFalse(await Scalar<bool>(connection, "SELECT is_called FROM mapped_effect"));
         Assert.AreEqual("recovered", await Scalar<string>(connection, "SELECT datum_mappings.text_echo('recovered')"));

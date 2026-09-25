@@ -17,6 +17,8 @@ public static class PgFunctions
 
 Catalog calls support PgAnyElement and PgAnyArray results owned by the current callback or iterator.
 Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
+Registered datum readers use an exact declared result OID check before invoking a catalog function
+and return independent managed values before temporary native storage is released.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 

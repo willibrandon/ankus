@@ -497,18 +497,18 @@ public static class DatumMappingFunctions
         switch (mode)
         {
             case 0:
-                Spi.ExecuteScalar<MappedText>(scalar);
+                Spi.ExecuteScalar<WriteMappedInt>(scalar);
                 break;
             case 1:
-                Spi.ExecuteScalars<PgAnyElement, MappedText>("SELECT nextval('mapped_effect'), 'text'::text");
+                Spi.ExecuteScalars<PgAnyElement, WriteMappedInt>("SELECT nextval('mapped_effect'), 'text'::text");
                 break;
             case 2:
-                Spi.Connect(session => session.ExecuteScalar<MappedText>(scalar));
+                Spi.Connect(session => session.ExecuteScalar<WriteMappedInt>(scalar));
                 break;
             case 3:
                 using (SpiPreparedStatement plan = Spi.Prepare(scalar))
                 {
-                    plan.ExecuteScalar<MappedText>();
+                    plan.ExecuteScalar<WriteMappedInt>();
                 }
 
                 break;
@@ -519,7 +519,7 @@ public static class DatumMappingFunctions
                 Spi.ExecuteScalar<PgArray<MappedText>>(scalar);
                 break;
             default:
-                PgFunctions.Call<MappedText>("pg_temp.mapped_effect");
+                PgFunctions.Call<WriteMappedInt>("pg_temp.mapped_effect");
                 break;
         }
 

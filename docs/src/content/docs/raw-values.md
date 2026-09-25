@@ -171,8 +171,10 @@ public sealed class CountReader : IPgDatumReader<Count>
 }
 ```
 
-This read-only mapping can appear in function inputs or `PgDatum.Read<Count>()`.
-A managed result or typed parameter needs a writer. `PgFunctionArgument.Default<Count>()`
+This read-only mapping can appear in function inputs, `PgDatum.Read<Count>()`,
+`Spi.ExecuteScalar<Count>()`, or `PgFunctions.Call<Count>()`.
+Returning a value from a generated managed callback, or supplying a typed
+parameter, needs a writer. `PgFunctionArgument.Default<Count>()`
 only supplies a type for PostgreSQL's default expression and needs no writer.
 `SpiParameter.Create<Count?>(null)` still requires a writer even though SQL NULL
 skips its invocation.
@@ -188,8 +190,8 @@ switch to a replacement type after its original type is dropped.
 
 Mapped scalars work in ordinary function arguments/results, nullable values,
 SETOF/TABLE outputs, aggregate support methods, and manual operator/cast functions.
-They also work in `SpiParameter.Create<T>`, `PgFunctionArgument.Create<T>` and
-direct raw reads:
+They also work in `SpiParameter.Create<T>`, `PgFunctionArgument.Create<T>`, typed
+SPI scalar-result helpers, named/OID `PgFunctions.Call<T>`, and direct raw reads:
 
 ```csharp
 Unsigned24 value;
@@ -200,12 +202,25 @@ using (SpiRawResult result = Spi.QueryRaw("SELECT '42'::u24"))
 // value is detached and remains usable after result disposal.
 ```
 
-Use raw result owners and `Read<T>()` for mapped query results. Ordinary typed
-`PgFunctions.Call<T>` and SPI scalar-result APIs currently reject mapped results
-before executing SQL. `SpiRow.Get<T>` and `PgHeapTuple.Get<T>` do not convert
-canonical cells through these converters. Mapped arrays, generic wrapper
-declarations, automatic equality/order/hash families, and different argument and
-result SQL spellings remain unsupported. The generator rejects unsupported
+Typed scalar-result helpers select the requested mapping and dispose their
+temporary native storage after its reader returns. Sessions, prepared statements,
+and two- or three-column results follow the same rule. A missing reader is an
+error before execution, even when SQL would return NULL or no rows. A present
+NULL cell still checks exact type identity; an empty result follows the ordinary
+nullable/reference absence rules without invoking a converter.
+
+Catalog calls check the declared result's exact mapped OID before invoking the
+function or evaluating its defaults. SPI result identity is checked after SQL
+executes. A caught managed reader error does not roll back SQL that already
+completed. See [SPI queries](/spi/#scalar-values) and
+[calling PostgreSQL functions](/calling-functions/).
+
+Use raw result owners and `Read<T>()` for mapped row fields. `SpiRow.Get<T>` and
+`PgHeapTuple.Get<T>` do not convert canonical cells through these converters.
+For native addresses, use `DangerousCallRaw` and an explicit mapped read.
+Mapped arrays, generic wrapper declarations, automatic equality/order/hash
+families, and different argument and result SQL spellings remain unsupported.
+The generator rejects unsupported
 mapped signatures with `ANKUS019`.
 
 Local annotated types are registered even when only used by raw APIs. An

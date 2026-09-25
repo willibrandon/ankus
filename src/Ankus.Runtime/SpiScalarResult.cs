@@ -3,17 +3,47 @@ namespace Ankus;
 /// <summary>
 /// Copies requested first-row values and releases temporary raw storage after conversion.
 /// </summary>
-/// <param name="managed">The ordinary materialized result, when no native wrappers are requested.</param>
-/// <param name="raw">The raw result for mixed or polymorphic result types.</param>
+/// <param name="managed">The ordinary materialized result, when no mapped or polymorphic values are requested.</param>
+/// <param name="raw">The raw result for mapped, mixed or polymorphic result types.</param>
 internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) : IDisposable
 {
     /// <summary>
-    /// Validates a supported ordinary result type before SQL execution and selects raw polymorphic transport.
+    /// Validates read capability before SQL execution and selects raw mapped or polymorphic transport.
     /// </summary>
     internal static bool RequiresRaw<T>()
     {
+        if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
+        {
+            mapping.RequireRead();
+            return true;
+        }
+
         PgDatumRegistry.RejectOrdinaryResult<T>();
         return PgPolymorphic.Is<T>();
+    }
+
+    /// <summary>
+    /// Converts selected cells and releases their temporary owner, preserving both failures if necessary.
+    /// </summary>
+    /// <typeparam name="T">The copied scalar or tuple type.</typeparam>
+    /// <param name="read">The synchronous result-only converter.</param>
+    /// <returns>The independent result or callback-owned polymorphic values.</returns>
+    internal T Read<T>(Func<SpiScalarResult, T> read)
+    {
+        Exception? primary = null;
+        try
+        {
+            return read(this);
+        }
+        catch (Exception exception)
+        {
+            primary = exception;
+            throw;
+        }
+        finally
+        {
+            PgResultCleanup.Dispose(raw, primary);
+        }
     }
 
     /// <summary>

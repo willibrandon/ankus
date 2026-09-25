@@ -229,9 +229,9 @@ public static unsafe partial class NativeBackend
 
             return new SpiRawResult(context, metadata, rows, result._rowsAffected);
         }
-        catch
+        catch (Exception primary)
         {
-            context.Dispose();
+            PgResultCleanup.Dispose(context, primary);
             throw;
         }
         finally

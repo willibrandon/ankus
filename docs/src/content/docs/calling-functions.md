@@ -32,6 +32,14 @@ type and belong to the current function call or iterator. SQL NULL returns a
 null wrapper. Use `CopyTo(context)` to give a value another owner. An array call
 checks the declared result is an array before invoking the function.
 
+Reusable [`PgDatumType` mappings](/raw-values/#reusable-scalar-mappings) can also
+be the result of a named or OID call. Only a reader is required. Ankus checks the
+declared result's exact mapped type before invoking the function or evaluating
+default expressions; a domain's base type and sibling domains are distinct.
+Nullable results retain that identity check even when SQL returns NULL. The
+reader returns a detached managed value before temporary native storage is
+disposed. A mapping without a reader is rejected before the call executes.
+
 ## Default arguments
 
 Omit trailing defaults or request one explicitly:
@@ -83,9 +91,13 @@ with an explicit composite descriptor, use `PgFunctionArgument.Create(parameter)
 ## Errors and permissions
 
 Calls use the current role and honor `EXECUTE` permissions, security-definer
-functions, and function-local settings. A PostgreSQL error becomes a `PgException`;
-the failed call's database changes roll back, and the caller can catch the error
-and continue. Managed results are copied before native execution storage is freed.
+functions, and function-local settings. A PostgreSQL error during native execution
+becomes a `PgException`; the failed call's transactional database changes roll
+back, and the caller can catch the error and continue. Managed results are copied
+before native execution storage is freed.
+
+A mapped reader runs after native execution completes. Catching its managed
+conversion error does not roll back the function's completed database changes.
 
 ## Native entry points
 
@@ -98,3 +110,6 @@ They supply null `flinfo`, `context`, and `resultinfo` fields to the native
 function. Use name or OID calls when the function needs catalog metadata.
 Copying a pointer-bearing value such as `internal` preserves its pointer; it
 does not copy the pointed-to object or extend that object's lifetime.
+
+For `[PgDatumType]` results from a native address, use `DangerousCallRaw` and
+`Read<T>()`. `DangerousCall<T>` does not select mapped readers.

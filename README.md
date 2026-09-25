@@ -206,8 +206,8 @@ arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also
 accept `PgAnyElement` and `PgAnyArray` results for types determined at runtime. See
 [calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
-Read `[PgDatumType]` results with `CallRaw(...).Read<T>()`; ordinary typed result
-APIs do not yet support these mappings.
+`[PgDatumType]` readers also support `Call<T>` and SPI scalar-result helpers,
+with exact mapped type identity and detached managed results.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.

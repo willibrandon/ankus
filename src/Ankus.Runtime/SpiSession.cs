@@ -105,8 +105,8 @@ public sealed class SpiSession
     public T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>(), this);
-        return result.Get<T>(0, allowMissing: true);
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>(), this);
+        return result.Read(static values => values.Get<T>(0, allowMissing: true));
     }
 
     /// <summary>
@@ -124,9 +124,9 @@ public sealed class SpiSession
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
             SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>(), this);
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1)));
     }
 
     /// <summary>
@@ -145,9 +145,9 @@ public sealed class SpiSession
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
+        SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
             SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>(), this);
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1), values.Get<TThird>(2)));
     }
 
     /// <summary>

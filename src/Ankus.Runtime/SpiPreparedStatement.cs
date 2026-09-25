@@ -160,8 +160,8 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <returns>The scalar value.</returns>
     public T ExecuteScalar<T>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
-        return result.Get<T>(0, allowMissing: true);
+        SpiScalarResult result = RunScalars(parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
+        return result.Read(static values => values.Get<T>(0, allowMissing: true));
     }
 
     /// <summary>
@@ -176,8 +176,8 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
     public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Pair, SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>());
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1));
+        SpiScalarResult result = RunScalars(parameters, SpiResultMode.Pair, SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>());
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1)));
     }
 
     /// <summary>
@@ -194,9 +194,9 @@ public sealed class SpiPreparedStatement : IDisposable
     public (TFirst First, TSecond Second, TThird Third) ExecuteScalars<TFirst, TSecond, TThird>(
         params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Triple,
+        SpiScalarResult result = RunScalars(parameters, SpiResultMode.Triple,
             SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>());
-        return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
+        return result.Read(static values => (values.Get<TFirst>(0), values.Get<TSecond>(1), values.Get<TThird>(2)));
     }
 
     /// <summary>
