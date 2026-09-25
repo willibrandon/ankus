@@ -37,6 +37,8 @@ Parameters:
 
 A present PostgreSQL array value.
 
+Extraction preserves existing domain values without reapplying their constraints.
+
 
 ## Methods
 

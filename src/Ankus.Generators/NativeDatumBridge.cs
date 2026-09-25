@@ -153,17 +153,27 @@ internal static class NativeDatumBridge
         static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->parameter_count != 1)
+            if (request->scalar_operation < 0 || request->scalar_operation > 3)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));
+            if (request->parameter_count != 1 || request->parameters == NULL)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Datum operations require one value")));
 
             const AnkusParameter *parameter = &request->parameters[0];
-            Datum datum = ankus_parameter_datum(parameter);
+            const AnkusValue *value = &parameter->value;
+            if (value->auxiliary1 != -5 || value->data == NULL ||
+                value->length != sizeof(AnkusDatumReference) || value->is_null > 1)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid raw datum parameter envelope")));
+            if (get_typtype(parameter->type_oid) == '\0')
+                ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Parameter type OID %u does not exist", parameter->type_oid)));
+            if (request->scalar_operation == 2 || request->scalar_operation == 3)
+                ankus_datum_context(request->result_context, request->result_generation);
+
+            /* Access existing storage without assigning it back through domain constraints. */
+            Datum datum = ankus_raw_parameter(parameter);
             Oid base = getBaseType(parameter->type_oid);
             result->processed = base;
-            result->text.is_null = parameter->value.is_null;
-            if (request->scalar_operation == 2)
-                ankus_datum_context(request->result_context, request->result_generation);
-            if (parameter->value.is_null)
+            result->text.is_null = value->is_null;
+            if (value->is_null)
                 return;
 
             switch (request->scalar_operation)

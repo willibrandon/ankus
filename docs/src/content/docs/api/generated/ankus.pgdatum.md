@@ -17,6 +17,8 @@ public sealed class PgDatum
 
 Raw SPI results own their native storage. Copy a value into another context to keep it beyond result disposal.
 Reading an ordinary managed type returns an independent copy; polymorphic wrappers share this datum's lifetime.
+Native reads, output formatting, and copies access existing storage without reapplying domain constraints.
+Explicit parameter and result assignments still validate those constraints; selected converters and output functions retain their own behavior.
 Native access requires the owning backend thread.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)

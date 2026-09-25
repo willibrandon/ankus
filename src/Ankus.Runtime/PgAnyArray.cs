@@ -15,6 +15,9 @@ public sealed class PgAnyArray : IReadOnlyList<PgAnyElement?>
     /// Reads an array's shape and cells into the supplied datum's checked native owner.
     /// </summary>
     /// <param name="datum">A present PostgreSQL array value.</param>
+    /// <remarks>
+    /// Extraction preserves existing domain values without reapplying their constraints.
+    /// </remarks>
     public PgAnyArray(PgDatum datum)
     {
         Datum = PgAnyElement.RequireValue(datum);

@@ -139,6 +139,11 @@ sibling-domain arrays. A domain over the entire array is also a distinct type;
 declare a separate scalar mapping when that is the representation you need.
 Identity checks still apply to whole-array NULL, empty arrays and all-NULL arrays.
 
+Reading existing domain elements does not rerun their constraints. Raw
+`PgAnyArray` extraction also preserves existing values of a domain over an array
+without assigning the array back to that domain. These reads retain the exact
+type and ownership checks described above.
+
 Whole-array NULL skips element conversion. A NULL element skips its reader or
 writer, but still receives PostgreSQL's domain validation when written. A present
 element writer may return a typed SQL NULL; its type and native lifetime are

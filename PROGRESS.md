@@ -4775,8 +4775,63 @@ The phases track implementation of the complete pgrx feature surface.
   or skips in 245.509s on Linux x64/PostgreSQL 18.6. The non-incremental Release
   build passes in 17.19s with zero warnings/errors. API generation and freshness
   checks pass for 147 pages/1,429 members; `pnpm check` reports zero
-  errors/warnings/hints and `pnpm build` produces 184 pages. Hosted validation
-  for this milestone is pending.
+  errors/warnings/hints and `pnpm build` produces 184 pages. Commit `ad49b1f`
+  passes [full CI](https://github.com/willibrandon/ankus/actions/runs/36112546321)
+  and [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36112546302).
+  Each platform ran the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,109 | 0 | 10m28s |
+  | macOS ARM64 | 18.6 | 6,107 | 2 | 8m24s |
+  | Windows x64 | 17.11 | 6,107 | 2 | 18m41s |
+
+  All jobs had zero failures. The two non-Linux skips are the existing
+  Linux-only native allocation measurement cases. Linux and Windows exceeded
+  the preferred ten-minute target; every job stayed within twenty minutes.
+  Runtime cache hits do not establish cold-runtime build performance.
   Ordinary row/composite conversion, nested/generic mapping declarations,
   unsafe native-address typed results, automatic derived families and full
   platform/version parity remain open.
+
+- 2026-09-25 — Corrected repeated domain validation during raw datum reads.
+  PostgreSQL documents conversion-time domain checks, historical values retained
+  by `ADD CHECK ... NOT VALID`, and domain-typed NULL from an outer join even
+  when the domain is NOT NULL. The pgrx datum readers decode existing storage
+  without assigning it back to the domain. Ankus's raw read, format, copy and
+  array-extraction dispatcher previously passed stored values through its
+  assignment helper and therefore repeated CHECK/NOT NULL validation.
+
+  The native dispatcher now validates the operation, raw envelope, live catalog
+  type and source/destination owners before accessing storage directly. Explicit
+  parameter/output and mapped-array assignment paths retain their domain checks.
+  Formatting still invokes the selected output function; user converters retain
+  their own behavior. No public API, transport layout or serializer changed.
+
+  The new tests first ran against unchanged production on Linux x64/PostgreSQL
+  18.6: 17 failures and five passing controls in 59.048s. Seven cases observed
+  unwanted nontransactional CHECK effects, seven rejected historical values with
+  `23514`, and three rejected outer-join NULL with `23502`. After the correction,
+  all 381 selected backend cases pass with zero failures/skips in 64.048s,
+  including the 22 new cases and 359 existing regressions. The affected direct
+  lifetime/mapping scope passes 56 tests with zero failures/skips in 960ms.
+
+  | Requirement | Named evidence |
+  | --- | --- |
+  | Existing reads avoid CHECK execution | `StoredDomainAccessDoesNotRepeatCheckEffects`: all four native access operations, nested mapped readers, exact values/OIDs/shape, whole NULL versus present all-NULL arrays and unchanged nontransactional sequence state |
+  | Historical values and independent copies | `StoredDomainValuesRemainReadableAfterNotValidConstraint`: values captured before rejecting CHECKs remain readable; all 4,096 copied array cells survive source-result disposal and table deletion, with old handles rejected after owner disposal/reset |
+  | Domain-typed NULL | `OuterJoinDomainNullIsReadableWithoutReassignment`: real outer-join NULL retains NOT NULL domain identity through nullable reads, formatting and copies without invoking the mapped reader |
+  | Assignment remains constrained | `RawAndMappedAssignmentsStillValidateCurrentDomains`: raw/mapped parameters, generated outputs and mapped arrays retain exact CHECK/NOT NULL diagnostics, including framework and writer-produced NULL, untouched target sequences, valid retries and same-backend recovery |
+  | Deleted catalog identity still fails | `DroppedTypedNullStillRequiresALiveCatalogType`: actual captured typed NULL rejects native read/format/copy after its temporary domain is dropped, with exact OID diagnostics and same-session recovery |
+
+  The raw-values and arrays guides and source XML comments document the timing.
+  Independent source and assertion reviews found no unresolved selected-scope
+  issue. Plain `dotnet test` passes all 6,131 tests with zero failures/skips in
+  265.051s on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes
+  in 17.42s with zero warnings/errors. API generation and freshness pass for
+  147 pages/1,429 members; `pnpm check` reports zero errors/warnings/hints and
+  `pnpm build` produces 184 pages. Native publication and Release/documentation
+  builds ran sequentially. Hosted validation for this correction is pending.
+  Private malformed request guards receive source review only; no forwarding
+  shim, empirical mutation or coverage percentage is claimed. Raw composite
+  layout provenance and the remaining full-port requirements remain open.

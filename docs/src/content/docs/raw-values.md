@@ -26,6 +26,13 @@ binds an entire array of the named type, preserving shape and NULL cells.
 C# value; `ToPostgresString()` calls the type's output function. A nullable wrapper
 accepts SQL NULL. A zero datum is a present value, not NULL.
 
+Reading, formatting or copying an existing domain value does not rerun its
+constraints. This preserves historical values after `ADD CHECK ... NOT VALID`
+and domain-typed NULLs produced by outer joins, including for NOT NULL domains.
+Explicit Ankus parameter and result assignments still check current domain
+constraints. Formatting invokes the selected output function, and mapped readers
+retain their own conversion behavior.
+
 Inputs belong to the current function call or iterator. Use `CopyTo(context)` to
 keep one longer. Returned values must have the declared type and a live owner;
 Ankus checks both before using their native storage. These bindings also work
