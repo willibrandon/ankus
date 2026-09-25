@@ -23,24 +23,31 @@ internal static class NativeBindingCatalogCommand
         var options = new JsonSerializerOptions { WriteIndented = true };
         for (int major = 13; major <= 19; major++)
         {
-            string source = await ReadSourceAsync(arguments[0], Revision, major);
+            string source = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/src/include/pg{major}.rs");
             NativeBindingCatalog catalog = NativeBindingParser.Parse(source, major);
             string path = Path.Combine(arguments[1], $"pg{major}.json");
             string content = JsonSerializer.Serialize(catalog, options) + "\n";
-            if (!File.Exists(path) || File.ReadAllText(path) != content)
-            {
-                if (arguments.Length == 3)
-                {
-                    throw new InvalidOperationException($"Native binding catalog is stale: {path}");
-                }
-
-                Directory.CreateDirectory(arguments[1]);
-                await File.WriteAllTextAsync(path, content);
-            }
+            await WriteAsync(path, content, arguments.Length == 3);
+            string headers = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/include/pg{major}.h");
+            headers = string.Join('\n', headers.Split('\n').Select(static line => line.TrimEnd()));
+            await WriteAsync(Path.Combine(arguments[1], $"pg{major}.h"), headers, arguments.Length == 3);
 
             NativeBindingType[] nodes = [.. catalog.Types.Values.Where(static type => type.IsNode)];
             Console.WriteLine($"PG{major}: {catalog.Tags.Count} tags, {nodes.Length} nodes, {nodes.Sum(static type => type.Fields.Count)} node fields.");
         }
+
+        string license = await ReadSourceAsync(arguments[0], Revision, "LICENSE");
+        await WriteAsync(Path.Combine(arguments[1], "LICENSE.pgrx"), license, arguments.Length == 3);
+    }
+
+    private static async Task WriteAsync(string path, string content, bool check)
+    {
+        if (File.Exists(path) && File.ReadAllText(path) == content) { return; }
+
+        if (check) { throw new InvalidOperationException($"Native binding input is stale: {path}"); }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, content);
     }
 
     /// <summary>
@@ -48,9 +55,9 @@ internal static class NativeBindingCatalogCommand
     /// </summary>
     /// <param name="checkout">The existing pgrx checkout.</param>
     /// <param name="revision">The exact committed source revision.</param>
-    /// <param name="major">The PostgreSQL major whose declarations are required.</param>
-    /// <returns>The committed Rust bindings.</returns>
-    private static async Task<string> ReadSourceAsync(string checkout, string revision, int major)
+    /// <param name="path">The committed declaration, header manifest or license path.</param>
+    /// <returns>The exact contents of the committed input file.</returns>
+    private static async Task<string> ReadSourceAsync(string checkout, string revision, string path)
     {
         var start = new ProcessStartInfo("git")
         {
@@ -58,7 +65,7 @@ internal static class NativeBindingCatalogCommand
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        foreach (string argument in new[] { "-C", Path.GetFullPath(checkout), "show", $"{revision}:pgrx-pg-sys/src/include/pg{major}.rs" })
+        foreach (string argument in new[] { "-C", Path.GetFullPath(checkout), "show", $"{revision}:{path}" })
         {
             start.ArgumentList.Add(argument);
         }
@@ -69,7 +76,7 @@ internal static class NativeBindingCatalogCommand
         await process.WaitForExitAsync();
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"Cannot read PostgreSQL {major}: {(await errors).Trim()}");
+            throw new InvalidOperationException($"Cannot read {path}: {(await errors).Trim()}");
         }
 
         return await output;

@@ -8,7 +8,7 @@ repository root with `dotnet run --file`.
 | `Ankus.Ci.cs` | Validate, build, test, pack, and publish Ankus and its pinned Native AOT runtime. |
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
-| `Ankus.Bindings.cs` | Regenerate or check per-major native declarations and node cast graphs from pinned pgrx bindings. |
+| `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs, header manifests and attribution from pinned pgrx bindings. |
 
 `Ankus.Ci.cs` provides these commands:
 
@@ -72,3 +72,25 @@ rules for PostgreSQL 13–19. They contain no assumed platform layouts; native
 sizes and offsets must be established using the selected server headers.
 The app invokes the `Ankus.Build binding-catalogs` command; parsing and catalog
 generation stay inside the build tool without exposing its internals.
+
+The same command refreshes each major's pgrx header include manifest and the
+upstream license notice. These inputs are packaged with the build tool so an
+installed SDK does not need a pgrx checkout to measure a server's native layouts.
+
+For layout development, compile and run the selected header probe:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-layouts 18 /path/to/pg_config artifacts/binding-layouts/pg18
+```
+
+The command writes `native-layout.c`, its executable, raw observations and
+validated `native-layout.json`. It measures every node and its embedded value
+dependencies, including anonymous unions, arrays and flexible tails, and checks
+all node tags against the pinned major. Pointer and C long widths, plain-char
+signedness, byte order, sizes, alignments and field offsets come from the selected
+headers and compiler. The probe runs on the build host; it does not establish a
+cross-compilation ABI. An optional fourth argument selects the C compiler; on
+Windows a fifth argument supplies semicolon-separated native library directories.
+
+Layout observations are build infrastructure. Managed node declarations, SDK
+compilation integration and checked backend node APIs remain separate port work.

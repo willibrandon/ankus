@@ -12,6 +12,12 @@ try
         return 0;
     }
 
+    if (args.Length > 0 && args[0] == "binding-layouts")
+    {
+        await NativeBindingLayoutCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
     if (args.Length != 11)
     {
         throw new ArgumentException(

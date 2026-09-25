@@ -6,6 +6,12 @@ and PostgreSQL 18 with server development headers. Windows also needs the server
 import library. The repository's collation tests require PostgreSQL built with
 ICU support.
 
+Build-tool tests compile standalone C layout probes. Make `cc` on Linux/macOS or
+`clang-cl.exe` on Windows available on `PATH`. Windows also uses `cl.exe` for
+the selected PostgreSQL header probe; a Visual Studio Developer Command Prompt
+supplies its headers and libraries. Install the Visual Studio Clang tools or LLVM
+for the independent standard C fixture.
+
 ## PostgreSQL discovery
 
 Ankus checks `~/.ankus/config.json`, installations under `~/.ankus/postgres/`,

@@ -216,7 +216,7 @@ internal static partial class NativeBindingParser
     /// <summary>
     /// Masks comments and string literals without moving offsets used to preserve original type representations.
     /// </summary>
-    private static string MaskTrivia(string source)
+    internal static string MaskTrivia(string source)
     {
         char[] code = source.ToCharArray();
         for (int index = 0; index < source.Length; index++)

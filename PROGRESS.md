@@ -5837,3 +5837,64 @@ The phases track implementation of the complete pgrx feature surface.
   pending. This repairs harness startup only; selected-header node layouts,
   typed managed node APIs, complete raw FFI and the wider full-port/platform
   inventory remain required.
+
+- 2026-09-25 — Port-handoff repair `dce1ede` passes complete hosted
+  [CI 36189350482](https://github.com/willibrandon/ankus/actions/runs/36189350482)
+  and [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36189350500).
+  Linux x64/PostgreSQL 18.6 passes all 6,723 tests with zero failures/skips in
+  a 7m43s job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 each
+  pass 6,721 tests with zero failures and the two existing Linux-only allocation
+  measurements skipped, in 11m08s and 19m27s jobs. Every platform runs the full
+  suite against a real server, including all four port-handoff regressions.
+  Quality and runtime preparation also pass. No CI timeout increase was needed;
+  the complete PostgreSQL-major/platform matrix remains open.
+
+- 2026-09-25 — Added selected-header native layout observation through the
+  internal `Ankus.Build binding-layouts` command. The packaged tool embeds the
+  pinned PostgreSQL 13–19 declaration catalogs and matching pgrx include
+  manifests; the regeneration command also preserves upstream attribution.
+  An installed SDK can compile the probe without a pgrx checkout. The probe
+  runs on the build host and rejects a different selected PostgreSQL major.
+
+  It measures every node plus its complete embedded value dependencies, using
+  actual C member paths for anonymous structs/unions and array elements. It
+  records pointer/C long widths, char signedness, byte order, type sizes and
+  alignments, field offsets/sizes/alignments and array element sizes. Flexible
+  arrays retain zero inline length and independent element size, including
+  enclosing tail padding. Observations must include every expected field and
+  native tag exactly once; invalid extents, primitive models, tags, duplicate
+  records and incomplete output fail explicitly. Indirect fields do not expand
+  the embedded graph. Cyclic typedef arrays fail without recursive overflow.
+
+  The command compiles against PostgreSQL 18.6/Linux x64 headers and measures
+  499 values and 3,694 fields: all 483 node types/3,632 node fields plus their
+  embedded dependencies. Seventy-five build-tool cases pass with zero
+  failures/skips in 0.990s, including an independently compiled C fixture for
+  anonymous unions, arrays and flexible tail padding, all seven packaged
+  declaration graphs and malformed observation boundaries. The two
+  user-reported CA1720 parameter names are corrected without suppression.
+  Two installed-SDK integration cases pass in 80.260s against the selected real
+  server headers, verifying server version, target primitives and concrete
+  native field contracts, plus rejection of a mismatched major before output
+  creation. Plain `dotnet test` passes all 6,784 tests with zero failures/skips
+  in 285.362s on Linux x64/PostgreSQL 18.6, including the final package checks
+  for the upstream license notice beside the installed build tool.
+
+  The final probe measures member addresses within allocated root storage,
+  avoiding MSVC's unsupported flexible-array element paths in `offsetof` and
+  null-pointer arithmetic. The independent C11 fixture uses Clang on Windows
+  with `/W4 /WX`, preserving warning enforcement for standard flexible arrays.
+  The selected PostgreSQL header command uses the existing MSVC toolchain.
+  Windows/macOS execution of this layout milestone remains pending hosted CI.
+
+  The final non-incremental Release build passes with zero warnings/errors in
+  18.61s. Freshness checks pass for all seven catalogs/header manifests and the
+  license notice. API generation/freshness remain clean for 166 pages/2,239
+  members; `pnpm check` reports zero errors, warnings or hints, and `pnpm build`
+  produces 208 pages. Development prerequisites document the standalone C
+  compilers used by these tests.
+
+  These observations establish physical layout infrastructure. Managed node
+  declarations, SDK compilation integration, checked casting/ownership/backend
+  node tests, complete raw FFI and the broader full-port/platform inventory
+  remain required. `eng/README.md` documents the command and host-only scope.
