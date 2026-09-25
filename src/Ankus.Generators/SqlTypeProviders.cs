@@ -139,14 +139,22 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// </summary>
     /// <param name="consumer">The generated function or aggregate helper.</param>
     /// <param name="contract">The scalar, array or output-column contract.</param>
-    internal void Require(SqlEntity consumer, FunctionType? contract)
+    /// <param name="requireComplete">Whether the complete type must precede this consumer even along an explicit reverse dependency.</param>
+    internal void Require(SqlEntity consumer, FunctionType? contract, bool requireComplete = false)
     {
         DatumTypeDeclaration? mapping = (contract?.Element ?? contract)?.DatumType;
         if (mapping is not null)
         {
             if (!mapping.External && _managed.TryGetValue(mapping.Type, out SqlEntity? managed))
             {
-                consumer.TypeDependencies.Add(managed);
+                if (requireComplete)
+                {
+                    consumer.Dependencies.Add(managed);
+                }
+                else
+                {
+                    consumer.TypeDependencies.Add(managed);
+                }
             }
 
             return;
@@ -155,7 +163,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
         SqlTypeReference? binding = (contract?.Element ?? contract)?.Binding;
         if (binding is not null && _providers.TryGetValue((binding.Schema, binding.Name), out (SqlEntity Entity, bool Custom) provider))
         {
-            if (provider.Custom)
+            if (provider.Custom && !requireComplete)
             {
                 consumer.TypeDependencies.Add(provider.Entity);
             }

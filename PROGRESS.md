@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Nested/generic mapping forms, ordinary row/composite conversions, broader metadata forms and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Nested mapped arrays, generic mapped roots, ordinary row/composite conversions, broader metadata forms and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2770,7 +2770,7 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Reusable scalar datum readers/writers and owned managed-identity SQL providers for documented paths
     - [x] Typed mapped scalar results in SPI conveniences and named/OID catalog calls, with full local evidence
     - [x] Mapped vectors and shaped arrays with exact element/array identity, independent conversion directions and guarded ownership
-    - [ ] Nested/generic mappings, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
+    - [ ] Nested mapped arrays, generic mapped roots, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -2780,7 +2780,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] general raw aggregate signatures with checked type identity and state ownership
   - [x] strongly typed custom base-type aggregate signatures
   - [ ] heterogeneous ordered-set VARIADIC ANY
-  - [x] generated equality/order/hash operator classes for declared types/enums with independent family SQL controls (manual mappings remain)
+  - [x] generated equality/order/hash operator classes for declared types, enums and readable manual scalar mappings with independent family SQL controls
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
@@ -4893,6 +4893,58 @@ The phases track implementation of the complete pgrx feature surface.
   with zero warnings/errors. API generation and freshness pass for 147 pages/
   1,429 members; `pnpm check` reports zero errors/warnings/hints and `pnpm build`
   produces 184 pages. Native publication and Release/documentation builds ran
-  sequentially. Full hosted platform validation follows the commit. Ordinary
-  row/composite mappings, generic/nested forms, derived families, raw composite
-  layout provenance and full-port validation remain open.
+  sequentially. Commit `06398c0` passes
+  [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36118564664).
+  Its [full CI](https://github.com/willibrandon/ankus/actions/runs/36118564543)
+  also passes. Every platform ran the complete suite against a real PostgreSQL
+  server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,166 | 0 | 10m50s |
+  | macOS ARM64 | 18.6 | 6,164 | 2 | 9m33s |
+  | Windows x64 | 17.11 | 6,164 | 2 | 17m52s |
+
+  All jobs had zero failures. The two non-Linux skips are the existing
+  Linux-only native allocation measurements. Linux and Windows exceeded the
+  preferred ten-minute target; every job stayed within twenty minutes. Runtime
+  cache hits do not establish cold-runtime build performance. Ordinary
+  row/composite mappings, generic mapped roots, nested mapped arrays, derived
+  families, raw composite layout provenance and full-port validation remain open.
+
+- 2026-09-25 — Implemented generated equality, ordering and hashing for readable
+  manual `PgDatumType` scalar mappings. pgrx's `HexInt` example combines manual
+  datum readers/writers and a declared SQL type provider with all three derives.
+  Ankus now accepts the exact readable CLR mapping as the derived input, permits
+  reader-only views, and places owned helpers, operators and classes after the
+  completed declared provider. Derive-only modules emit the native mapped-input
+  support. External SQL types remain external; generated fixed-schema helpers
+  and operators make their extension nonrelocatable. The generator preserves
+  existing interface algorithms, SQL controls, collision diagnostics and
+  ordinary shell-capable function ordering. Documented converter obligations
+  include detached reads and stable equality-compatible logical keys.
+
+  The affected generator scope passes 306 tests with zero failures/skips in
+  3.826s, including 31 new cases and 275 regressions. The first run's single
+  failure was an alias-test source rename that changed `int.MinValue` and
+  `int.MaxValue`; correcting the fixture required no production change.
+  Independent generator source/assertion review found no unresolved issue.
+  The affected PostgreSQL 18.6/Linux x64 Native AOT backend/package scope passes
+  all 95 cases with zero failures/skips in 94.492s, including 25 new cases and
+  70 existing mapping/operator/SQL-control regressions. The first backend run
+  exposed a test fixture that read `PgDatum.IsNull` to check lifetime; the
+  corrected fixture checks `DangerousGetBits()` without dereferencing native
+  storage. Production code was unchanged. The tests execute real default B-tree
+  and hash indexes, all five B-tree strategies, both scan directions, duplicate
+  and collision handling, grouping, joins, failed index operations and
+  same-backend recovery, plus a fresh backend using a committed hash index.
+  Helper-only Native AOT packages prove owned-object relocation/reinstallation,
+  preserved shadow objects, external type ownership, SQL controls and normal
+  PostgreSQL collision rollback. Plain `dotnet test` passes all 6,222 tests with
+  zero failures/skips in 284.423s on Linux x64/PostgreSQL 18.6. The
+  non-incremental Release build passes in 16.25s with zero warnings/errors.
+  API generation and freshness pass for 147 pages and 1,429 members; `pnpm check`
+  reports zero errors/warnings/hints and `pnpm build` produces 184 pages.
+  Hosted validation remains pending. Accessible non-generic nested CLR mappings
+  already work; generic mapped roots, nested mapped arrays, ordinary row/composite
+  conversions and full-port validation remain open.

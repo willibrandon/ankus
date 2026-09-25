@@ -22,7 +22,8 @@ internal static class DerivedOperatorDeclaration
     /// <summary>
     /// Emits statically bound helpers through the shared scalar boundary and adds their installation dependencies.
     /// </summary>
-    internal static bool Emit(INamedTypeSymbol type, Dictionary<string, SqlEntity> types, HashSet<string> functions,
+    internal static bool Emit(INamedTypeSymbol type, Dictionary<string, SqlEntity> types, SqlTypeProviders providers,
+        Dictionary<string, SqlEntity> schemas, HashSet<string> functions,
         HashSet<string> relatedNames, Dictionary<string, SqlEntity> operators, SqlGraph graph, SourceProductionContext context,
         bool ensureInitialized, StringBuilder managed, StringBuilder native, StringBuilder exports, out bool relocatable)
     {
@@ -32,9 +33,16 @@ internal static class DerivedOperatorDeclaration
         AttributeData? hashing = Attribute("Ankus.PgHashingAttribute");
         string managedType = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         FunctionType? value = FunctionType.Create(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
-        if (value is null || value.CustomType is null && value.Enumeration is null || !types.TryGetValue(managedType, out SqlEntity? typeEntity))
+        types.TryGetValue(managedType, out SqlEntity? typeEntity);
+        if (value is null || value.DatumType is null &&
+            (value.CustomType is null && value.Enumeration is null || typeEntity is null))
         {
-            return Invalid("Generated operators require a valid, accessible PgType or PgEnum declaration.");
+            return Invalid("Generated operators require a valid, accessible PgType, PgEnum or PgDatumType declaration.");
+        }
+
+        if (value.DatumType is { CanRead: false })
+        {
+            return Invalid("Generated operators require a datum reader for the exact declared PgDatumType.");
         }
 
         bool enumeration = type.TypeKind == TypeKind.Enum;
@@ -53,8 +61,9 @@ internal static class DerivedOperatorDeclaration
             return Invalid("PgHashing requires IPgHashable with a stable, equality-compatible GetPostgresHashCode implementation.");
         }
 
-        string name = value.CustomType?.Name ?? value.Enumeration!.Name;
-        string? schema = value.CustomType?.Schema ?? value.Enumeration?.Schema;
+        string name = value.CustomType?.Name ?? value.Enumeration?.Name ?? value.DatumType!.Name;
+        string? schema = value.CustomType?.Schema ?? value.Enumeration?.Schema ?? value.DatumType?.Schema;
+        relocatable = schema is null;
         string sqlType = value.Sql;
         string binaryArguments = sqlType + "," + sqlType;
         string equalitySignature = Operator("=") + "(" + binaryArguments + ")";
@@ -155,7 +164,7 @@ internal static class DerivedOperatorDeclaration
         SqlEntity Group(string role, AttributeData attribute)
         {
             var entity = new SqlEntity("3:derived-" + role + ":" + managedType, string.Empty, type.Locations.FirstOrDefault());
-            entity.Dependencies.Add(typeEntity);
+            RequireType(entity);
             graph.Configure(entity, attribute);
             graph.Add(entity);
             return entity;
@@ -186,10 +195,24 @@ internal static class DerivedOperatorDeclaration
             string sql = "CREATE FUNCTION " + signature + " RETURNS " + result.Sql + " AS 'MODULE_PATHNAME', '" + nativeName +
                 "' LANGUAGE c IMMUTABLE PARALLEL SAFE STRICT;\n";
             var entity = new SqlEntity("1:derived-function:" + managedType + ":" + role, sql, type.Locations.FirstOrDefault());
-            entity.Dependencies.Add(typeEntity);
+            RequireType(entity);
             entity.Requires.UnionWith(group.Requires);
             graph.Add(entity);
             return entity;
+        }
+
+        void RequireType(SqlEntity entity)
+        {
+            if (typeEntity is not null)
+            {
+                entity.Dependencies.Add(typeEntity);
+            }
+
+            providers.Require(entity, value, requireComplete: true);
+            if (schema is not null && schemas.TryGetValue(schema, out SqlEntity? schemaEntity))
+            {
+                entity.Dependencies.Add(schemaEntity);
+            }
         }
 
         SqlEntity Comparison(string token, string role, string commutator, string negator, string restrict, string join, bool equal, SqlEntity function)

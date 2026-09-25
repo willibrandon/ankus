@@ -88,8 +88,9 @@ families using [custom SQL](/custom-sql/) when PostgreSQL needs them for joins o
 
 ## Generated type operators
 
-Use `[PgEquality]`, `[PgOrdering]`, and `[PgHashing]` on a `[PgType]` declaration
-to expose its managed value semantics to PostgreSQL:
+Use `[PgEquality]`, `[PgOrdering]`, and `[PgHashing]` on a `[PgType]`, `[PgEnum]`,
+or readable `[PgDatumType]` declaration to expose its managed value semantics
+to PostgreSQL:
 
 ```csharp
 [PgType]
@@ -142,6 +143,40 @@ The attributes support generated CBOR, custom text, explicit codecs, tagged clas
 hierarchies and packed native storage. Native-layout comparisons receive copied
 `T` values and preserve existing `PgVarlena<T>` aliases.
 
+### Manual datum mappings
+
+A [`PgDatumType` mapping](/raw-values/#reusable-scalar-mappings) can use the same
+attributes. Its `IPgDatumReader<T>` decodes operands for the exact declared CLR
+type before the comparison or hash runs. No writer is required: generated
+helpers return ordinary SQL `boolean` or `integer`. SQL NULL bypasses both the
+reader and its lazy converter factory. The reader must return detached managed
+values, just as it does for other generated function inputs.
+
+The reader and the value methods share the immutable, parallel-safe contract.
+Logical equality, ordering and hashing may differ from the raw stored bytes,
+but must agree with one another and remain stable across backends and extension
+versions. Changing how a reader interprets indexed values can require rebuilding
+indexes even when the comparison methods themselves have not changed.
+
+For an owned mapping, its `PgSqlTypeProvider` must complete the SQL type before
+the generated support functions and families. Ordinary input/output functions
+can follow a shell type; a completed family cannot precede its type provider.
+Multiple CLR wrappers may share one SQL type, but conflicting generated SQL
+signatures are rejected rather than choosing one wrapper's reader.
+
+External mappings can also opt in. Helpers, operators and families use the mapped
+SQL type's schema and belong to the extension; the external type remains
+externally owned. These fixed-schema objects prevent extension relocation.
+PostgreSQL checks schema privileges and existing objects during installation.
+It permits only one default operator class per type and index method, so adding
+a second default class for a built-in type fails. Family SQL controls below can
+select a nondefault class or omit it; generated functions and operators remain.
+
+PostgreSQL resolves a domain's default index class through its base type. A
+generated class declared for a domain does not make ordinary domain indexes
+select that class automatically. A manual base type with these families can
+use the generated defaults directly.
+
 ### Stable database hashes
 
 PostgreSQL persists hash results in indexes. Implement
@@ -172,7 +207,7 @@ values requires a deliberate data/index migration and rebuilding affected indexe
 
 ### Enums, schemas and dependencies
 
-Both `[PgEnum]` and `[PgType]` enums can opt in. They use underlying numeric
+Enums declared with `[PgEnum]`, `[PgType]`, or `[PgDatumType]` can opt in. They use underlying numeric
 equality and ordering, and hash the numeric value converted to `ulong` in an
 unchecked context. A `[PgEnum]` without these attributes keeps PostgreSQL's label
 declaration order. **Adding `PgOrdering` explicitly selects numeric order for its

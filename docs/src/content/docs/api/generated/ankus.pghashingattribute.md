@@ -17,10 +17,14 @@ Enum declarations hash their numeric value as eight little-endian bytes with PgH
 public sealed class PgHashingAttribute : Attribute
 ```
 
-Requires PgType or PgEnum and a same-type equality operator, generated with PgEquality or declared with PgOperator.
+Requires PgType, PgEnum, or a readable PgDatumType mapping and a same-type equality operator,
+generated with PgEquality or declared with PgOperator. A mapped writer is not required.
 Non-enum types must implement IEquatable of the declared type and IPgHashable. Hashes must agree with equality
 and remain stable across processes, platforms and extension versions. Generated functions are strict,
 immutable and parallel safe. Changing the hashing contract requires rebuilding dependent indexes.
+Mapped readers must also provide stable, immutable and parallel-safe logical keys. Generated objects use the
+mapped SQL type's schema; a fixed schema prevents extension relocation. PostgreSQL validates existing default
+classes and permissions, and resolves a domain's default index class through its base type.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 

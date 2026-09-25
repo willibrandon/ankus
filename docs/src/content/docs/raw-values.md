@@ -186,8 +186,9 @@ only supplies a type for PostgreSQL's default expression and needs no writer.
 `SpiParameter.Create<Count?>(null)` still requires a writer even though SQL NULL
 skips its invocation.
 
-External mappings have no provider dependency and their fixed schemas do not
-prevent extension relocation. Multiple CLR wrappers can share one SQL type;
+External mappings have no provider dependency. Their fixed type references alone
+do not prevent extension relocation; generated operator families add fixed-schema
+objects and therefore do. Multiple CLR wrappers can share one SQL type;
 the requested CLR type selects the converter. Domains keep their own identity:
 a sibling domain or its base type cannot be read through a domain mapping.
 Catalog lookups use current OIDs. A retained typed parameter cannot silently
@@ -197,6 +198,9 @@ switch to a replacement type after its original type is dropped.
 
 Mapped scalars work in ordinary function arguments/results, nullable values,
 SETOF/TABLE outputs, aggregate support methods, and manual operator/cast functions.
+Readable mappings can also declare `PgEquality`, `PgOrdering`, and `PgHashing`
+without a writer. See [generated type operators](/operators-and-casts/#manual-datum-mappings)
+for value contracts, type-provider ordering, schemas and index-class rules.
 They also work in `SpiParameter.Create<T>`, `PgFunctionArgument.Create<T>`, typed
 SPI scalar-result helpers, named/OID `PgFunctions.Call<T>`, and direct raw reads:
 
@@ -236,8 +240,9 @@ For native addresses, `DangerousCall<T>` selects the registered reader; use
 `DangerousCallRaw` for an explicit native owner or delayed mapped read. The caller
 must supply an address whose actual result matches the mapping's SQL type and
 representation; native-address calls cannot check a catalog return declaration.
-Nested mapped arrays, generic wrapper declarations, automatic equality/order/hash
-families, and different argument and result SQL spellings remain unsupported.
+Nested mapped arrays, generic wrapper declarations, and different argument and
+result SQL spellings remain unsupported. Accessible non-generic nested CLR
+declarations are supported.
 The generator rejects unsupported mapped signatures with `ANKUS019`.
 
 Local annotated types are registered even when only used by raw APIs. An

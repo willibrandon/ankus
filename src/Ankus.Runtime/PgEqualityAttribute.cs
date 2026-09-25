@@ -5,9 +5,11 @@ namespace Ankus;
 /// Enum declarations use their underlying numeric equality.
 /// </summary>
 /// <remarks>
-/// Requires PgType or PgEnum. Equality must be an immutable, parallel-safe equivalence relation.
+/// Requires PgType, PgEnum, or a PgDatumType mapping with a reader. A mapped writer is not required.
+/// Equality and any mapped reader must be immutable and parallel safe; equality must be an equivalence relation.
 /// Generated functions are strict and never pass SQL NULL to managed comparisons.
 /// Add PgOrdering or PgHashing to generate compatible default index operator classes.
+/// Generated objects use the mapped SQL type's schema; fixed-schema objects prevent extension relocation.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
 public sealed class PgEqualityAttribute : Attribute

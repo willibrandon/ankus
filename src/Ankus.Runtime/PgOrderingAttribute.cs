@@ -5,11 +5,15 @@ namespace Ankus;
 /// Enum declarations use their underlying numeric order.
 /// </summary>
 /// <remarks>
-/// Requires PgType or PgEnum and a same-type equality operator, generated with PgEquality or declared with PgOperator.
+/// Requires PgType, PgEnum, or a readable PgDatumType mapping and a same-type equality operator,
+/// generated with PgEquality or declared with PgOperator. A mapped writer is not required.
 /// Non-enum types must also implement IEquatable of the declared type. Comparison must define an immutable,
 /// parallel-safe total order whose zero results agree with equality. Generated functions are strict.
 /// On PgEnum this explicit opt-in selects numeric ordering instead of PostgreSQL label declaration order.
 /// Changing ordering after data is indexed requires rebuilding dependent indexes.
+/// Mapped readers share the immutable, parallel-safe contract. Generated objects use the mapped SQL type's schema;
+/// a fixed schema prevents extension relocation. PostgreSQL checks existing default classes and permissions.
+/// PostgreSQL resolves a domain's default index class through its base type.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
 public sealed class PgOrderingAttribute : Attribute

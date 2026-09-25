@@ -209,7 +209,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionBridge.Source);
             native.AppendLine(NativeFunctionInvocation.Source);
 
-            if (!aggregateTypes.IsEmpty || methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
+            if (!aggregateTypes.IsEmpty || derivedTypes.Any(DatumTypeDeclaration.IsMapped) ||
+                methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
                 FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true)))
             {
                 native.AppendLine(NativeDatumBridge.PolymorphicInput);
@@ -616,7 +617,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         foreach (INamedTypeSymbol type in derivedTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
             .OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
         {
-            validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, names, relatedNames, operatorEntities, graph,
+            validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, typeProviders, schemas, names, relatedNames, operatorEntities, graph,
                 context, ensureManagedReady, managed, native, exports, out bool relocatable);
             fixedSchema |= !relocatable;
         }
