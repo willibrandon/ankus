@@ -2530,7 +2530,7 @@ The target architecture consists of:
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
-| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks and generated `[PgType]`/`PgTypeCodec<T>` storage, text and optional binary I/O implemented; default CBOR/JSON serialization and zero-copy storage remain required |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs and generated default CBOR/JSON contracts implemented; polymorphic unions, custom text with generated storage and zero-copy storage remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
@@ -2642,7 +2642,7 @@ alongside the source-level macro inventory.
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
-| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated type I/O implemented; default CBOR/JSON generation remains required |
+| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated CBOR/JSON contracts implemented for concrete records/classes/structs/enums and nested collections; union contracts and custom text with generated storage remain required |
 | `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
 | `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Pending |
@@ -2778,7 +2778,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
-  - [ ] default CBOR/JSON custom-type serialization and zero-copy storage
+  - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts implemented; unions and additional shapes remain) and zero-copy storage
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
@@ -3945,3 +3945,50 @@ The phases track implementation of the complete pgrx feature surface.
   Only use NuGet packages owned by Microsoft and/or .NET.
   No serializer dependency was added to Ankus. Default CBOR/JSON type
   generation and its PostgreSQL/platform validation remain open.
+
+- 2026-09-24 — Added Ankus-owned default custom-type serialization.
+  `[PgType]` without an explicit codec now builds a closed source-generated
+  contract with direct constructor/member access. Ankus owns contract selection,
+  nullable shape, construction, unknown-member handling and diagnostics;
+  Microsoft's unmodified `System.Formats.Cbor` 10.0.12 and framework JSON token
+  APIs provide the format primitives. No serializer fork, runtime code generation,
+  or reflection-based contract discovery is involved.
+
+  The implementation supports immutable records, mutable fields/properties,
+  nested nullable arrays/lists/string-keyed dictionaries, primitive numeric/string/
+  Boolean values and named enum values. Unsupported contracts receive `ANKUS017`.
+  The custom-type guide and sample now explain CBOR storage, JSON text, selected
+  standard naming/constructor attributes, schema evolution and invalid-input
+  behavior. Required-member presence is independent of constructor assignment,
+  preserving constructor validation and normalization. Unsupported serialization
+  attributes, including derived converters and nonpublic inclusion requests,
+  produce diagnostics rather than silently dropping the requested contract.
+
+  Input checks reject integer overflow, floating underflow, decimal rounding,
+  invalid Unicode (including skipped fields), missing/duplicate required members,
+  excessive nesting, and trailing data. Owned decimal reconstruction preserves
+  zero's scale; negative decimal zero is explicitly rejected because CBOR decimal
+  fractions cannot retain its sign bit. Cyclic graphs and runtime subtypes are
+  rejected before they can lose state. Invalid JSON reports `22P02` rather than
+  pgrx's current parse-failure-to-NULL behavior; invalid binary payloads report
+  `22P03`. The native error boundary remains responsible for unwinding before ERROR.
+
+  | Required behavior | Direct evidence |
+  |---|---|
+  | Independent CBOR bytes, exact numeric values and decimal scale | `PgSerializationTests.SignedIntegerFixturesPreserveExactValues`, `DecimalZeroPreservesExactScale`, `DecimalInputRejectsLossyConversions`, `FloatingPointUnderflowCannotSilentlyBecomeZero` |
+  | Compiled and executed immutable/mutable construction, naming and nullable graphs | `DefaultSerializedRecordsExecuteImmutableConstructors`, `DefaultSerializationAttributesPreserveContract`, `DefaultSerializedNestedNullabilityExecutes`, `DefaultSerializedRequiredConstructorMembersPreserveValidation` |
+  | Invalid declarations, nested NULLs, subtype loss, cycles and depth | `InvalidDefaultSerializationContractsAreDiagnosed`, `DefaultSerializedNestedRequiredReferencesRejectNull`, `DefaultSerializedCollectionSubtypesAreRejected`, `DefaultSerializedRecursiveGraphsRespectDepthAndRejectCycles` |
+  | Native AOT scalar/SPI/array/set values, exact SQL type and shape | `SerializedValuesAndNullsCrossOwnershipPaths`, `SerializedArraysPreserveShape`, `SerializedEnumsAndMutableMembersUseGeneratedContracts` |
+  | Binary COPY, row preservation, malformed input and same-backend recovery | `SerializedBinaryCopyUsesIndependentCborFixture`, `SerializedBinaryErrorsPreserveBackendAndRows`, `SerializedInputErrorsPreserveBackend`, `SerializedWriteErrorsPreserveBackend` |
+  | Real compressed/external storage and type-only relocation/reinstallation | `SerializedStorageSurvivesToast`, `CustomTypeOnlyExtensionTracksRelocationAndReinstallation` |
+
+  Focused validation passes 82 runtime cases, 65 generator cases (including 14
+  existing explicit-codec cases), and 39 PostgreSQL cases on PostgreSQL 18.6/Linux
+  x64, without skips. Final plain `dotnet test` passes 4,913/4,913 with zero skips
+  in 3m11.777s on that platform/version. Release builds with zero warnings and
+  errors in 2.59s. API freshness (135 pages, 1,371 members), `pnpm build`
+  (172 pages), and `pnpm check` pass without diagnostics. Hosted validation of
+  this milestone is pending; no new macOS or Windows evidence is claimed yet.
+  Polymorphic unions,
+  additional framework/collection shapes, custom text with generated storage,
+  zero-copy storage and the other full-port requirements remain visible.

@@ -1,11 +1,84 @@
 ---
 title: Custom types
-description: Declare PostgreSQL base types with C# values and explicit storage codecs.
+description: Declare PostgreSQL base types with generated CBOR storage and JSON text, or explicit codecs.
 ---
 
-Put `[PgType]` on a class, struct, or enum and provide a `PgTypeCodec<T>`.
-The codec defines its SQL text format and stored bytes. Ankus creates the type,
-its input/output functions, and its array type.
+Put `[PgType]` on a record, class, struct, or enum. Ankus generates a serializer,
+the PostgreSQL type, its input/output functions, and its array type:
+
+```csharp
+[PgType]
+public sealed record Reading(string Sensor, decimal Value, string? Unit);
+```
+
+```sql
+CREATE TABLE readings(value reading);
+INSERT INTO readings VALUES ('{"Sensor":"outside","Value":19.125,"Unit":"°C"}'), (NULL);
+SELECT value FROM readings;
+```
+
+Default types store CBOR and use JSON for SQL text input/output, following pgrx's
+`PostgresType` model. Ankus owns the contract generator and serialization rules;
+Microsoft's `System.Formats.Cbor` and `System.Text.Json` provide token readers and
+writers. Generated code calls constructors and accesses members directly. No
+reflection-based serializer or separate JSON context is needed.
+
+## Generated contracts
+
+The default serializer supports:
+
+- Public instance fields and properties of accessible concrete classes, structs,
+  and records, including immutable constructor-bound members.
+- Booleans, signed and unsigned 8/16/32/64-bit integers, `float`, `double`,
+  `decimal`, and Unicode strings. Decimal CBOR uses the decimal-fraction tag;
+  decimal scale, including the scale of zero, is retained. JSON decimal input that would
+  require rounding is rejected. A `decimal` with zero magnitude and its sign bit
+  set is rejected because CBOR decimal fractions cannot preserve that sign bit.
+- Enums as case-sensitive strings. Undefined numeric values and unnamed flag
+  combinations are rejected.
+- One-dimensional arrays, `List<T>`, and `Dictionary<string, T>`, nested with
+  other supported contracts. `byte[]` is a sequence of integers in both formats,
+  like a Rust `Vec<u8>`.
+- Nullable values, nullable containers, and nullable elements at every level.
+  SQL NULL bypasses the serializer; JSON or CBOR null cannot represent a present
+  top-level value.
+
+Member names keep their C# spelling. `[JsonPropertyName]` changes a member's key
+in both formats. `[JsonIgnore]` excludes a member; `Condition = Never` includes
+it. `[JsonStringEnumMemberName]` changes an enum's stored name.
+
+An accessible `[JsonConstructor]` selects the constructor. Otherwise Ankus uses
+an accessible parameterless constructor, or the sole accessible constructor.
+Every parameter must match a serialized member's C# name (ignoring case) and
+exact type, including nullability. Remaining members need accessible setters or
+init accessors, or writable fields. Constructor-bound members keep the value
+assigned by the constructor, including any normalization. A constructor that
+binds or deliberately ignores C# `required` members must carry
+`[SetsRequiredMembers]`; Ankus diagnoses missing annotations instead of overwriting
+the constructor's values to satisfy C# initializer requirements.
+
+Missing non-nullable members are errors. Missing nullable members become null;
+`required` and `[JsonRequired]` require presence even when null is permitted.
+Duplicate known members and duplicate dictionary keys are rejected. Unknown
+members are skipped with input validation, allowing readers to tolerate added
+fields. JSON names and dictionary keys are case-sensitive.
+
+Unsupported shapes and serialization attributes produce `ANKUS017`. Inheritance,
+polymorphic unions, arbitrary framework types, multidimensional arrays, and
+non-string dictionary keys currently require an explicit codec. Passing a runtime
+subclass to a generated object contract is rejected so additional state is not
+silently discarded. Nesting is limited to 64 containers; cyclic graphs fail at
+that limit. CBOR preserves non-finite floating-point values; JSON output rejects
+them because JSON has no exact representation.
+
+Malformed JSON input raises SQLSTATE `22P02`; malformed CBOR raises `22P03`.
+Trailing data, numeric overflow or underflow, required null values, and invalid Unicode are
+errors. Ankus deliberately reports invalid JSON instead of adopting pgrx's
+current default input wrapper's conversion of a parse failure to SQL NULL.
+
+## Explicit codecs
+
+Provide a `PgTypeCodec<T>` to define the SQL text format and stored bytes yourself.
 
 This example stores distances as eight-byte integers and displays them as `125mm`:
 
@@ -55,7 +128,7 @@ INSERT INTO measurements VALUES ('125mm'), (NULL);
 SELECT value FROM measurements;
 ```
 
-Use `Distance` directly in `[PgFunction]` methods, aggregate callbacks, operators,
+Use a custom type directly in `[PgFunction]` methods, aggregate callbacks, operators,
 casts, and SPI parameters and results. `Distance?` represents SQL NULL.
 `Distance?[]` supports nullable elements; `PgArray<Distance?>` also preserves
 dimensions and lower bounds. Sets and TABLE results use the same conversions.
@@ -84,3 +157,10 @@ managed callback unwinds.
 Set `BinaryProtocol = true` on `[PgType]` to enable binary send/receive, including
 binary COPY. The wire payload uses the codec's storage format. `Read` must reject
 invalid lengths, trailing bytes, and invalid field values.
+
+For default serialization the binary payload is CBOR, with object members encoded
+as text-keyed maps and arrays as sequences. Renaming members or enum labels,
+changing types or nullability, or removing required constructor parameters changes
+the persisted contract. Plan a data migration before making incompatible changes.
+CBOR use alone does not guarantee interchangeability with every pgrx/Serde contract;
+match member names and value representations explicitly.

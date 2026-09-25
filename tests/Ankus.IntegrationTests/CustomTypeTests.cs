@@ -252,12 +252,24 @@ public sealed class CustomTypeTests(TestContext context)
             """);
         uint before = await Scalar<uint>(connection, "SELECT 'custom_first.distance'::regtype::oid");
         Assert.AreEqual("125mm", await Scalar<string>(connection, "SELECT '125mm'::custom_first.distance::text"));
+        Assert.IsTrue(await Scalar<bool>(connection, """
+            SELECT '{"Sensor":"outside","Value":19.125,"Unit":"°C"}'::custom_first.reading::text::jsonb =
+                '{"Sensor":"outside","Value":19.125,"Unit":"°C"}'::jsonb
+            """));
         await Scalar<object>(connection, "ALTER EXTENSION ankus_custom_types SET SCHEMA custom_second; SELECT 1");
         Assert.AreEqual("-125mm", await Scalar<string>(connection, "SELECT '-125mm'::custom_second.distance::text"));
+        Assert.IsTrue(await Scalar<bool>(connection, """
+            SELECT '{"Sensor":"outside","Value":-0.0000000000000000000000000001}'::custom_second.reading::text::jsonb =
+                '{"Sensor":"outside","Value":-0.0000000000000000000000000001,"Unit":null}'::jsonb
+            """));
         Assert.AreEqual(before, await Scalar<uint>(connection, "SELECT 'custom_second.distance'::regtype::oid"));
         await Scalar<object>(connection, "DROP EXTENSION ankus_custom_types; CREATE EXTENSION ankus_custom_types WITH SCHEMA custom_first; SELECT 1");
         Assert.AreNotEqual(before, await Scalar<uint>(connection, "SELECT 'custom_first.distance'::regtype::oid"));
         Assert.AreEqual("0mm", await Scalar<string>(connection, "SELECT '0mm'::custom_first.distance::text"));
+        Assert.IsTrue(await Scalar<bool>(connection, """
+            SELECT '{"Sensor":"","Value":79228162514264337593543950335}'::custom_first.reading::text::jsonb =
+                '{"Sensor":"","Value":79228162514264337593543950335,"Unit":null}'::jsonb
+            """));
     }
 
     /// <summary>

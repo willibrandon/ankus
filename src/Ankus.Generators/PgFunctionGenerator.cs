@@ -384,6 +384,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         foreach (CustomTypeDeclaration custom in baseTypes)
         {
+            custom.EmitSerializer(managed);
             names.Add(custom.Function("in") + "(cstring)");
             names.Add(custom.Function("out") + "(" + custom.Sql + ")");
             if (custom.BinaryProtocol)

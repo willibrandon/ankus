@@ -1,16 +1,16 @@
 namespace Ankus;
 
 /// <summary>
-/// Generates a PostgreSQL base type whose variable-length storage and text format are defined by a codec.
+/// Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
 /// </summary>
-/// <param name="codec">A concrete PgTypeCodec for this managed type, with an accessible parameterless constructor.</param>
+/// <param name="codec">An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
-public sealed class PgTypeAttribute(Type codec) : Attribute
+public sealed class PgTypeAttribute(Type? codec = null) : Attribute
 {
     /// <summary>
-    /// Gets the statically constructed codec type.
+    /// Gets the statically constructed codec type, or null for generated serialization.
     /// </summary>
-    public Type Codec { get; } = codec;
+    public Type? Codec { get; } = codec;
 
     /// <summary>
     /// Gets or sets the SQL type name; the default is the managed type name in snake_case.

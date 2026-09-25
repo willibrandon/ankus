@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Generates a PostgreSQL base type whose variable-length storage and text format are defined by a codec.
+Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct|AttributeTargets.Enum, Inherited = false)]
@@ -22,19 +22,19 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 <a id="member-4cf35fed9cfc31e7"></a>
 
-### PgTypeAttribute(Type)
+### PgTypeAttribute(Type?)
 
-Generates a PostgreSQL base type whose variable-length storage and text format are defined by a codec.
+Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
 
 ```csharp
-public PgTypeAttribute(Type codec)
+public PgTypeAttribute(Type? codec = null)
 ```
 
 Parameters:
 
 `codec` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
-A concrete PgTypeCodec for this managed type, with an accessible parameterless constructor.
+An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.
 
 
 ## Properties
@@ -55,10 +55,10 @@ Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 ### Codec
 
-Gets the statically constructed codec type.
+Gets the statically constructed codec type, or null for generated serialization.
 
 ```csharp
-public Type Codec { get; }
+public Type? Codec { get; }
 ```
 
 Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)

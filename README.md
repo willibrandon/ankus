@@ -80,7 +80,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
-| `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with a `PgTypeCodec<T>` |
+| `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with CBOR storage and JSON text, or an explicit codec |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
@@ -108,6 +108,13 @@ for buffer ownership and error cleanup.
 
 See [JSON and UUID values](docs/src/content/docs/json-and-uuid.md) for JSON text ownership, document
 access, and source-generated serialization with Native AOT.
+
+Use `[PgType]` on a record, class, struct, or enum for a PostgreSQL base type.
+Ankus generates its own serializer with CBOR storage, JSON text I/O, and direct
+constructor/member access compatible with Native AOT. Nested records, nullable
+members, arrays, lists, and string-keyed dictionaries retain their declared shape.
+Supply a `PgTypeCodec<T>` for a different storage or text format. See
+[custom types](docs/src/content/docs/custom-types.md).
 
 Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,
 including nullable values, arrays, typed SPI queries and schema dependencies.

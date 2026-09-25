@@ -6,6 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.Formats.Cbor" />
     <InternalsVisibleTo Include="Ankus.Runtime.Tests" />
   </ItemGroup>
 </Project>

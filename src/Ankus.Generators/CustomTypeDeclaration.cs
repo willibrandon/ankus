@@ -8,7 +8,7 @@ namespace Ankus.Generators;
 /// <summary>
 /// Validates a generated base type and its statically constructed storage codec.
 /// </summary>
-internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol codec, AttributeData attribute, string name, string? schema)
+internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, DefaultTypeSerializer? serializer, AttributeData attribute, string name, string? schema)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -89,22 +89,35 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("PgType requires an accessible, concrete, non-generic class, struct, or enum without PgEnum.");
         }
 
-        if (attribute.ConstructorArguments.FirstOrDefault().Value is not INamedTypeSymbol codec || !Accessible(codec) ||
-            codec.IsAbstract || codec.IsStatic || !codec.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0 &&
-                constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+        INamedTypeSymbol? codec = attribute.ConstructorArguments.FirstOrDefault().Value as INamedTypeSymbol;
+        DefaultTypeSerializer? serializer = null;
+        if (codec is null)
         {
-            return Invalid("The codec must be accessible and concrete, with an accessible parameterless constructor.");
+            serializer = DefaultTypeSerializer.Create(type, out string? error);
+            if (serializer is null)
+            {
+                return Invalid(error!);
+            }
         }
-
-        INamedTypeSymbol? contract = codec.BaseType;
-        while (contract is not null && !(contract.Name == "PgTypeCodec" && contract.Arity == 1 && contract.ContainingNamespace.ToDisplayString() == "Ankus"))
+        else
         {
-            contract = contract.BaseType;
-        }
+            if (!Accessible(codec) || codec.IsAbstract || codec.IsStatic ||
+                !codec.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0 &&
+                    constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
+            {
+                return Invalid("The codec must be accessible and concrete, with an accessible parameterless constructor.");
+            }
 
-        if (contract is null || !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type))
-        {
-            return Invalid("The codec must derive from PgTypeCodec<T> for this exact managed type.");
+            INamedTypeSymbol? contract = codec.BaseType;
+            while (contract is not null && !(contract.Name == "PgTypeCodec" && contract.Arity == 1 && contract.ContainingNamespace.ToDisplayString() == "Ankus"))
+            {
+                contract = contract.BaseType;
+            }
+
+            if (contract is null || !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type))
+            {
+                return Invalid("The codec must derive from PgTypeCodec<T> for this exact managed type.");
+            }
         }
 
         string name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name));
@@ -127,7 +140,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("Type and schema names must be valid identifiers of at most 63 UTF-8 bytes.");
         }
 
-        return new(type, codec, attribute, name, schema);
+        return new(type, codec, serializer, attribute, name, schema);
 
         CustomTypeDeclaration? Invalid(string message)
         {
@@ -160,8 +173,13 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         source.AppendLine("        global::Ankus.PgTypeRegistry.Register" + (Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
             (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) + ", static () => new " +
-            codec.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "());");
+            (codec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "Codec_" + Symbol) + "());");
     }
+
+    /// <summary>
+    /// Emits an owned serializer for a type without an explicit codec.
+    /// </summary>
+    internal void EmitSerializer(StringBuilder source) => serializer?.Emit("Codec_" + Symbol, source);
 
     /// <summary>
     /// Emits a catalog check that restricts native binary decoding to generated custom types.
