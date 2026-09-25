@@ -11,7 +11,7 @@ public sealed unsafe partial class PgMemoryContext
         NativeMemoryRequest request = new()
         {
             _operation = NativeMemoryOperation.AllocateVarlena,
-            _context = _id,
+            _context = Id,
             _length = payloadLength,
         };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
@@ -138,9 +138,9 @@ public sealed unsafe partial class PgMemoryContext
         }
 
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = _id };
+        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = Id };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
-        return new PgNativeReference<T>(_provider, _id, result._value, (nint)address);
+        return new PgNativeReference<T>(_provider, Id, result._value, (nint)address);
     }
 
     private static PgAllocation InitializeNativeValue<T>(PgAllocation allocation, T value) where T : unmanaged
