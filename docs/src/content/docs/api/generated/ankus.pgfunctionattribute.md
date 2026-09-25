@@ -55,6 +55,20 @@ public bool CreateOrReplace { get; set; }
 
 Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
+<a id="member-8823a4861cbb6dae"></a>
+
+### GenerateSql
+
+Gets or sets whether installation SQL is emitted for this function and its attached operators or casts.
+The default is true. False retains the managed method, native entry points and dependency identifiers.
+Cannot be false when Sql contains a replacement, including an empty string.
+
+```csharp
+public bool GenerateSql { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-9f3ee6b82d0cf29d"></a>
 
 ### Id
@@ -193,6 +207,38 @@ public PgSetMode SetMode { get; set; }
 ```
 
 Value: [PgSetMode](/api/ankus.pgsetmode/)
+
+<a id="member-cb049a9a8549330b"></a>
+
+### Sql
+
+Gets or sets literal installation SQL replacing this function and its attached operators or casts.
+Null preserves generated SQL; empty text emits no statements. Native entry points remain generated.
+Replaces @FUNCTION_NAME@ with the native export and @MODULE_PATHNAME@ with MODULE_PATHNAME without adding quotes.
+
+```csharp
+public string? Sql { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Replacement declarations must match the managed wrapper's argument, result and NULL contracts.
+Explicit dependencies and type/schema prerequisites still apply. For an aggregate helper this affects only
+that helper, not the aggregate declaration. SQL syntax and object definitions are checked by PostgreSQL.
+
+<a id="member-c188b5d892201c9f"></a>
+
+### SqlRelocatable
+
+Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+The default is false. This option is consulted only when Sql is non-null; fixed schemas and other
+non-relocatable declarations can still prevent relocation.
+
+```csharp
+public bool SqlRelocatable { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 <a id="member-1893f39c6c0b9383"></a>
 

@@ -1376,9 +1376,11 @@ provide tracked non-code inputs without runtime reflection or direct generator f
 | SQL-only Native AOT package and relocation | Magic-only native source, packed SDK/runtime/generator, per-block Relocatable opt-in | `ToolCommandTests.SqlFilePackageRebuildsAndRollsBackFailedInstallation` publishes outside the checkout, explicitly LOADs the library, checks changed SQL results, relocates table/view and verifies uninstall removal |
 | Failed SQL installation cleanup | PostgreSQL transactional extension installation | The same package test introduces division by zero after CREATE TABLE, checks SQLSTATE 22012, and independently verifies absence of both the partial table and pg_extension entry |
 
-Custom/disabled function SQL templates, declared custom-type providers, future type-family edges, and standalone
-schema extraction remain required work. These tests establish the implemented installation graph, not full parity
-with every pgrx SQL-entity feature.
+Function SQL controls now use `PgFunction.Sql`, `GenerateSql`, and `SqlRelocatable`;
+the later SQL-generation progress entry records their separate contract and execution evidence.
+Declared custom-type providers, type/enum and aggregate-declaration overrides, generated family overrides,
+future type-family edges, and standalone schema extraction remain required work. These tests establish the
+implemented installation graph, not full parity with every pgrx SQL-entity feature.
 
 Evidence: `artifacts/sql-graph-all-output.txt` records 1152 passing tests with zero failures/skips.
 `sql-graph-{generator,backend,package}-output.txt` records the focused runs; `sql-graph-build-output.txt` records
@@ -2612,7 +2614,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
-| `pgrx(sql = ...)` | Custom/disabled SQL generation and SQL generation callbacks/equivalents | Pending |
+| `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Partial: PgFunction controls for ordinary, set, trigger/event and aggregate-helper functions, including attached operator/cast SQL. Type/enum, aggregate-declaration and ordering/hash family overrides remain required. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
@@ -4307,9 +4309,75 @@ The phases track implementation of the complete pgrx feature surface.
   3m11.785s on Linux x64/PostgreSQL 18.6. The Release build passes with zero
   warnings/errors in 15.41s. API generation/freshness passes (142 pages, 1,396
   members), as do `pnpm build` (179 pages) and `pnpm check` (zero errors, warnings
-  or hints). Hosted validation of this milestone is pending. Fresh backend reuse
+  or hints). [Hosted CI](https://github.com/willibrandon/ankus/actions/runs/36092985059)
+  subsequently passed: Linux x64/PostgreSQL 18.6 ran all 5,484 tests with no skips
+  in a 7m37s job; macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each passed 5,482 with the two existing Linux-only allocation cases skipped,
+  in 8m9s and 14m38s jobs. Quality, runtime preparation, and documentation
+  build/deployment also passed. No custom-operator case was skipped.
+  Fresh backend reuse
   does not establish postmaster restart or upgrade persistence. The public test
   harness has no data-preserving restart operation.
   The hash helper specifies exact byte encodings, not arbitrary Rust `Hash` value
   feeds. Custom SQL generation override/disable hooks, manual raw base-type
   mappings, and the full PostgreSQL-major/platform matrix remain full-port work.
+
+- 2026-09-24 — Added function SQL generation controls. `PgFunction.GenerateSql`
+  disables installation statements while retaining the managed method, native
+  export/finfo, type conversions and dependency identifiers. `PgFunction.Sql`
+  replaces the complete function and attached operator/cast SQL with a literal;
+  null preserves defaults and empty/comment-only strings remain replacements.
+  `@FUNCTION_NAME@` resolves to the actual native export and `@MODULE_PATHNAME@`
+  to PostgreSQL's control-file substitution marker. Replacements conservatively
+  prevent relocation unless `SqlRelocatable` opts in; fixed schemas and other
+  custom blocks still govern the extension-wide result.
+
+  Scalar, SETOF/TABLE, trigger, event-trigger and aggregate-helper callbacks use
+  the same policy without changing their native boundary. Shared aggregate
+  helpers emit one replacement while the parent aggregate remains generated.
+  A function replacement owns its attached operator/cast declarations as one
+  fragment. Their aliases and original internal edges remain in the graph;
+  external incoming dependencies are lifted to the function after all
+  `Requires`, `Before`, bootstrap and final edges resolve. This preserves valid
+  default/disabled interleaving and diagnoses impossible replacement interleaving.
+  `ANKUS005` rejects contradictory controls, malformed Unicode/NUL and invalid
+  graph contracts before emitting a partial manifest. Existing ABI, nullability,
+  operator/cast and specialized callback validation remains active.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | Defaults, retained native contracts and literal boundaries | `SqlGenerationDefaultPreservesAllWrapperKinds`, `SqlGenerationControlsPreserveEveryWrapperKind`, `SqlGenerationEmptyAndLiteralReplacementsRemainExact`, `SqlGenerationLiteralUsesExactWrapperAndModulePlaceholders` |
+  | Overloads, incremental edits, dependencies and diagnostics | `SqlGenerationOverloadsRemainDistinctAndDeterministic`, `SqlGenerationAttributeChangesInvalidateIncrementalOutput`, `SqlGenerationBundlePreservesRelatedAliasesAndPrerequisites`, `SqlGenerationDisabledPreservesAnchorsWithoutLiftingRequirements`, `SqlGenerationRetainsInvalidRelatedGraphs`, `InvalidSqlGenerationOptionsAreDiagnosed`, `SqlGenerationDoesNotBypassExistingContractValidation` |
+  | Type/schema prerequisites, shared helpers and relocation metadata | `SqlGenerationReplacementRetainsAutomaticTypeAndSchemaEdges`, `SqlGenerationSharedAggregateHelperIsReplacedOnce`, `SqlGenerationRelocationRequiresEveryCustomDeclaration` |
+  | Real scalar/NULL/options and iterator ownership | `CustomSqlScalarAliasesPreserveNativeIdentityAndOptions`, `CustomSqlSetFunctionsPreserveRowsAndNulls`, `CustomSqlSetEarlyTerminationDisposesIterator`, `CustomSqlTableFunctionsPreserveColumnsAndCleanup` |
+  | Specialized callbacks, exact catalogs and ownership | `CustomSqlTriggerFunctionsExecuteAndRecover`, `CustomSqlEventTriggerFunctionsExecuteAndRecover`, `CustomSqlAggregateHelpersExecuteIndependentlyOfParents`, `CustomSqlOperatorAndCastBundlesExecuteOnce`, `CustomSqlFunctionObjectsAreExtensionMembers` |
+  | Errors, cleanup and retained disabled exports | `CustomSqlFunctionErrorsRecoverInSameBackend`, `DisabledOnlySqlPackageRetainsCallableNativeExports`: exact values/IEEE bytes, SQL NULL, diagnostics and successful native calls in the same backend |
+  | Packaged incremental SQL, failure atomicity and lifecycle | `ReplacementSqlPackageRebuildsRelocatesAndRollsBackInstallation`: native callback failure after object creation rolls back all five explicit objects; corrected publication preserves exports, relocation preserves OIDs, drop preserves unrelated shadow objects and reinstall creates working fresh identities |
+
+  The 59 generator cases pass with zero failures/skips in 2.647s. The first
+  published backend/package scope passes 17/18 on Linux x64/PostgreSQL 18.6,
+  including all 16 shared backend cases and the disabled-only package. The
+  remaining fixture attempted a PL/pgSQL DO block while its isolated harness's
+  library search path contained only the package output, causing `58P01` for
+  `plpgsql`. The fixture now invokes its newly registered native callback to
+  raise the intended `P8211` after creating the replacement objects. Its focused
+  rerun passes 1/1 with no skips in 1m15.282s, preserving real installation
+  rollback and same-session recovery. No production correction was needed.
+  Independent production/generator/backend review found no unresolved defect.
+  The complete unfiltered `dotnet test` run passes 5,561/5,561 with zero skips
+  in 3m43.970s on Linux x64/PostgreSQL 18.6. The Release build passes with zero
+  warnings/errors in 14.95s. API generation/freshness passes (142 pages, 1,399
+  members), as do `pnpm build` (179 pages) and `pnpm check` (zero errors,
+  warnings or hints). Hosted platform verification is pending the milestone push.
+
+  The pinned pgrx `ToSqlConfig` stores only enabled/literal content, and its
+  function/trigger/general parsers reject callback paths. The advertised callback
+  bullet in its macro documentation is stale; it is not an unimplemented parity
+  requirement. C# literal attributes provide the outcome of Rust's `pgrxsql`
+  documentation fences without interpreting source comments. Type shell/I/O and
+  enum overrides, aggregate-declaration overrides, ordering/hash family overrides,
+  declared custom-type providers, raw/manual mappings, and the complete
+  PostgreSQL/platform matrix remain required. Current pgrx ignores the parent SQL
+  option for its equality derive and applies ordering/hash options only to the
+  family/class, retaining helper SQL; subsequent work must preserve those distinct
+  ownership boundaries without treating this function milestone as full parity.

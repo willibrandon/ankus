@@ -247,6 +247,12 @@ functions and argument/result type declarations. Their `Id` and `Requires`
 properties refer to the operator or cast; `PgFunction.Id` refers to the function.
 For example, a custom SQL view using an operator can require its `PgOperator.Id`.
 
+`PgFunction.Sql` replaces the backing function and its attached operator/cast SQL
+together; `GenerateSql = false` suppresses all those statements while retaining
+the native entry point and dependency IDs. External prerequisites precede the
+complete replacement. See [function SQL controls](/custom-sql/#replace-function-sql)
+for placeholders, relocation and ordering constraints.
+
 The generator reports `ANKUS007` for invalid operator/cast declarations and
 `ANKUS005` for duplicate SQL signatures or invalid dependencies. PostgreSQL
 validates database-dependent contracts during installation. An existing cast for

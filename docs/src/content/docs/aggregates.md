@@ -51,6 +51,12 @@ path, NULL policy, or other ordinary function settings. Support functions are
 aggregate entry points; invoke them through an aggregate in SQL. Their C# bodies
 remain callable directly for managed tests.
 
+`PgFunction.Sql` can replace a support function's SQL while retaining its native
+callback. `GenerateSql = false` omits that helper's SQL, so ordered custom SQL
+must provide it if the aggregate still references it. These options apply to the
+helper independently; they do not suppress `CREATE AGGREGATE`. Shared helpers
+are emitted once. See [function SQL controls](/custom-sql/#replace-function-sql).
+
 `PgAggregateAttribute` configures the aggregate's name, schema, dependency ID,
 `Requires`/`Before` edges, `ParallelSafety`, `StateSize`, and `MovingStateSize`.
 `InitialCondition` and `MovingInitialCondition` are PostgreSQL input strings for

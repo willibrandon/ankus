@@ -23,6 +23,32 @@ public sealed class PgFunctionAttribute : Attribute
     public string[] Requires { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets whether installation SQL is emitted for this function and its attached operators or casts.
+    /// The default is true. False retains the managed method, native entry points and dependency identifiers.
+    /// Cannot be false when Sql contains a replacement, including an empty string.
+    /// </summary>
+    public bool GenerateSql { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets literal installation SQL replacing this function and its attached operators or casts.
+    /// Null preserves generated SQL; empty text emits no statements. Native entry points remain generated.
+    /// Replaces @FUNCTION_NAME@ with the native export and @MODULE_PATHNAME@ with MODULE_PATHNAME without adding quotes.
+    /// </summary>
+    /// <remarks>
+    /// Replacement declarations must match the managed wrapper's argument, result and NULL contracts.
+    /// Explicit dependencies and type/schema prerequisites still apply. For an aggregate helper this affects only
+    /// that helper, not the aggregate declaration. SQL syntax and object definitions are checked by PostgreSQL.
+    /// </remarks>
+    public string? Sql { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+    /// The default is false. This option is consulted only when Sql is non-null; fixed schemas and other
+    /// non-relocatable declarations can still prevent relocation.
+    /// </summary>
+    public bool SqlRelocatable { get; set; }
+
+    /// <summary>
     /// Gets or sets an existing SQL schema, overriding the nearest PgSchema declaration.
     /// Declare PgSchema separately when the extension should create the schema.
     /// A fixed schema makes the extension non-relocatable.

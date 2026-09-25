@@ -11,6 +11,7 @@ internal sealed class SqlGraph
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
     private readonly List<SqlEntity> _entities = [];
+    private readonly List<(SqlEntity Entry, HashSet<SqlEntity> Members)> _replacements = [];
     private readonly SourceProductionContext _context;
     private bool _invalid;
 
@@ -25,6 +26,25 @@ internal sealed class SqlGraph
     /// </summary>
     /// <param name="entity">The declaration node.</param>
     internal void Add(SqlEntity entity) => _entities.Add(entity);
+
+    /// <summary>
+    /// Replaces a declaration and its attached SQL with one fragment ordered after every external prerequisite.
+    /// Original nodes and internal edges remain available for identifiers and cycle validation.
+    /// </summary>
+    /// <param name="entry">The node that will emit the complete replacement.</param>
+    /// <param name="sql">The replacement text.</param>
+    /// <param name="related">Attached nodes whose SQL is included in the replacement.</param>
+    internal void Replace(SqlEntity entry, string sql, IReadOnlyList<SqlEntity> related)
+    {
+        entry.Sql = sql;
+        var members = new HashSet<SqlEntity>(related) { entry };
+        foreach (SqlEntity entity in related)
+        {
+            entity.Sql = string.Empty;
+        }
+
+        _replacements.Add((entry, members));
+    }
 
     /// <summary>
     /// Reads explicit identifiers and dependencies shared by function, schema and SQL attributes.
@@ -130,6 +150,19 @@ internal sealed class SqlGraph
         if (_invalid)
         {
             return null;
+        }
+
+        foreach ((SqlEntity entry, HashSet<SqlEntity> members) in _replacements)
+        {
+            foreach (SqlEntity member in members)
+            {
+                if (member == entry)
+                {
+                    continue;
+                }
+
+                entry.Dependencies.UnionWith(member.Dependencies.Where(dependency => !members.Contains(dependency)));
+            }
         }
 
         var remaining = new Dictionary<SqlEntity, int>();

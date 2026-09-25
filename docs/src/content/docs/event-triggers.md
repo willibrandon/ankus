@@ -40,6 +40,11 @@ extension relocation, and extension-owned event triggers are removed on uninstal
 PostgreSQL handles tag filters, alphabetical firing order, and enable/replica/always
 settings. Event-trigger DDL itself does not invoke event triggers.
 
+`PgFunction.Sql` can replace the event-trigger function declaration, including
+`RETURNS event_trigger`; `GenerateSql = false` retains its native callback without
+installing the function. Attach the event trigger separately with custom SQL.
+See [function SQL controls](/custom-sql/#replace-function-sql).
+
 ## Events and helpers
 
 `context.Kind` is a `PgEventTriggerKind`. `Event` preserves PostgreSQL's event name,

@@ -40,6 +40,12 @@ the trigger during extension installation and order it after its table and funct
 ```
 
 See [custom SQL](/custom-sql/) for dependencies and schema relocation.
+
+Use `PgFunction.Sql` to replace the trigger function's SQL declaration, including
+`RETURNS trigger`, or `GenerateSql = false` to keep its native callback without
+installing the function. These controls do not attach a table trigger. See
+[function SQL controls](/custom-sql/#replace-function-sql).
+
 `Rows`, `SetMode`, and ordinary SQL parameter/result binding attributes do not
 apply to trigger callbacks. Trigger functions cannot be invoked with `SELECT`.
 

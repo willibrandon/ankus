@@ -1,7 +1,14 @@
 ---
 title: Function declarations
-description: Name arguments, provide defaults, choose schemas, and declare PostgreSQL execution options.
+description: Name arguments, provide defaults, choose schemas, and control PostgreSQL function declarations.
 ---
+
+Function options below configure generated SQL. Use `PgFunction.Sql` for a
+complete replacement string, or `GenerateSql = false` to retain native entry
+points without installing the function. Replacement text owns its SQL options
+and must preserve the managed wrapper's argument, result and NULL contracts.
+See [custom SQL](/custom-sql/#replace-function-sql) for placeholders, dependencies
+and relocation.
 
 ## Named arguments and defaults
 

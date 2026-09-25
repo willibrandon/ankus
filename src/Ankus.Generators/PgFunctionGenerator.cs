@@ -544,10 +544,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             graph.Add(entity);
-            if (!contextParameter)
-            {
+            List<SqlEntity> related = contextParameter ? [] :
                 OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context, operatorEntities);
-            }
+            fixedSchema |= !SqlGeneration.Apply(functionAttribute, entity, related, callback.Replace("ankus_managed_", "ankus_fn_"), graph);
 
             IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
                 .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
@@ -637,6 +636,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
 
                 support.Requires.UnionWith(entity.Requires.Where(required => !support.Names.Contains(required)));
+                fixedSchema |= !SqlGeneration.Apply(function, support, [], callback.Replace("ankus_managed_", "ankus_fn_"), graph);
                 graph.Add(support);
                 supportFunctions.Add(helper.Signature, (helper.Method, support));
                 entity.Dependencies.Add(support);

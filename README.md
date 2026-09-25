@@ -143,6 +143,11 @@ result type OIDs, and raw SQL arguments. It adds no SQL parameter.
 Its `GetOrCreateState` method caches managed state for each PostgreSQL call site
 and disposes it when PostgreSQL releases the owner.
 
+Set `PgFunction.Sql` to replace a function's installation SQL, or
+`GenerateSql = false` to retain its native entry points without installing it.
+The same controls cover attached operators/casts and apply to trigger functions
+and aggregate helpers. See [custom SQL](docs/src/content/docs/custom-sql.md).
+
 ## Querying PostgreSQL
 
 Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elements
