@@ -11,6 +11,8 @@ internal static class NativeListBridge
     internal const string Source = """
 
         #include "nodes/pg_list.h"
+        #include "nodes/readfuncs.h"
+        #include "mb/pg_wchar.h"
 
         typedef enum AnkusListOperation
         {
@@ -27,7 +29,8 @@ internal static class NativeListBridge
             ANKUS_LIST_CLEAR = 11,
             ANKUS_LIST_DRAIN = 12,
             ANKUS_LIST_DISPOSE = 13,
-            ANKUS_LIST_DETACH = 14
+            ANKUS_LIST_DETACH = 14,
+            ANKUS_LIST_PARSE_DEFAULTS = 15
         } AnkusListOperation;
 
         typedef struct AnkusList AnkusList;
@@ -346,9 +349,64 @@ internal static class NativeListBridge
         }
 
         static void
+        ankus_list_parse_defaults(AnkusMemoryRequest *request, AnkusMemoryResult *result)
+        {
+            AnkusMemoryContext *owner = ankus_memory_context_from_request(request);
+            ankus_memory_check_chunk_operation(owner->context, "default expression allocation");
+            if (request->length == 0 || request->length >= MaxAllocSize || request->data == 0 ||
+                request->value < 1 || request->value > INT_MAX)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid function defaults request")));
+            AnkusList *entry = calloc(1, sizeof(*entry));
+            if (entry == NULL || ankus_list_next_id == 0)
+            {
+                free(entry);
+                ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("unable to register function defaults")));
+            }
+
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext volatile temporary = NULL;
+            PG_TRY();
+            {
+                temporary = AllocSetContextCreate(caller, "Ankus default input", ALLOCSET_SMALL_SIZES);
+                MemoryContextSwitchTo(temporary);
+                char *utf8 = pnstrdup((char *) request->data, (Size) request->length);
+                char *source = pg_any_to_server(utf8, (int) request->length, PG_UTF8);
+                MemoryContextSwitchTo(owner->context);
+                entry->list = stringToNode(source);
+                MemoryContextSwitchTo(caller);
+                if (entry->list == NIL || !IsA(entry->list, List) || list_length(entry->list) != request->value)
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("invalid function defaults list")));
+                MemoryContextDelete(temporary);
+                temporary = NULL;
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                if (temporary != NULL)
+                    MemoryContextDelete(temporary);
+                free(entry);
+                PG_RE_THROW();
+            }
+            PG_END_TRY();
+            entry->id = ankus_list_next_id++;
+            entry->context_id = owner->id;
+            entry->kind = 1;
+            entry->owned = true;
+            entry->next = ankus_lists;
+            ankus_lists = entry;
+            result->pointer = (intptr_t) entry->id;
+        }
+
+        static void
         ankus_list_execute(AnkusMemoryRequest *request, AnkusMemoryResult *result)
         {
             AnkusListOperation operation = (AnkusListOperation) request->flags;
+            if (operation == ANKUS_LIST_PARSE_DEFAULTS)
+            {
+                ankus_list_parse_defaults(request, result);
+                return;
+            }
+
             if (operation == ANKUS_LIST_CREATE || operation == ANKUS_LIST_BORROW)
             {
                 ankus_list_create(request, result, operation == ANKUS_LIST_BORROW);

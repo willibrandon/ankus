@@ -61,4 +61,8 @@ internal enum NativeListOperation
     /// Transfers native storage without releasing it.
     /// </summary>
     Detach = 14,
+    /// <summary>
+    /// Parses a trusted catalog default-expression list into an explicit context.
+    /// </summary>
+    ParseDefaults = 15,
 }

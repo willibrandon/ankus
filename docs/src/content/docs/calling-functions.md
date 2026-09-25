@@ -1,6 +1,6 @@
 ---
 title: Calling PostgreSQL functions
-description: Call built-in and extension functions by name, catalog OID, or native entry point.
+description: Inspect routine metadata and call built-in and extension functions by name, catalog OID, or native entry point.
 ---
 
 Use `PgFunctions.Call<T>` inside an extension function to call a PostgreSQL
@@ -42,6 +42,47 @@ disposed. A mapping without a reader is rejected before the call executes.
 This also applies to mapped `T[]` and `PgArray<T>` results: the declared return
 type must be the exact array type belonging to the mapped element. Element
 conversion preserves SQL NULL and rejects lossy vector shapes.
+
+## Inspecting routine metadata
+
+`PgFunctions.GetInfo(oid)` returns a detached `PgFunctionInfo` snapshot for any
+`pg_proc` entry: an ordinary function, procedure, aggregate, or window function.
+Zero and missing OIDs return null. Lookup reads PostgreSQL's system cache without
+invoking the routine or requiring its `EXECUTE` permission:
+
+```csharp
+PgFunctionInfo? info = PgFunctions.GetInfo(functionOid);
+IReadOnlyList<uint>? inputTypes = info?.InputArgumentTypeOids;
+```
+
+The snapshot includes ownership and language OIDs, exact cost and row estimates,
+planner support and variadic identities, security and strictness flags, volatility,
+parallel safety, source, optional binary information, and local configuration.
+Its strings and read-only collections survive callback return and catalog
+changes. Obtain a fresh snapshot to observe `ALTER FUNCTION` or `DROP FUNCTION`.
+
+`InputArgumentTypeOids` follows the call signature; `AllArgumentTypeOids`
+also includes output arguments. `ArgumentModes` distinguishes IN, OUT, INOUT,
+VARIADIC, and TABLE. An absent modes array becomes a sequence of IN values.
+For names, an absent catalog array becomes one null per input argument;
+an unnamed entry in a present array stays an empty string. These distinctions
+match pgrx's `PgProc`. Collections use ordinary zero-based .NET indexing.
+The fields retain PostgreSQL's [language-specific catalog meanings](https://www.postgresql.org/docs/18/catalog-pg-proc.html),
+including an empty source string for a SQL-standard function body.
+
+### Native default expressions
+
+`info.GetDefaultArguments(context)` returns null when no defaults exist.
+Otherwise it creates an owned `PgList<nint>` containing actual native expression
+tree pointers for the last `DefaultArgumentCount` input arguments, in signature
+order. Parsing does not evaluate a default or advance a sequence. Repeated calls
+create independent trees from the captured catalog snapshot.
+
+The explicit `PgMemoryContext` owns both the list and its nodes. Dispose the list
+to release its container; its pointees remain until that context resets or is
+deleted. List operations reject an expired context. Raw pointers require the
+selected PostgreSQL version's node declarations and must not outlive their
+owner. A complete managed node-layout and inheritance API remains unfinished.
 
 ## Default arguments
 

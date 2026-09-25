@@ -439,3 +439,23 @@ call has no FmgrInfo, context, or resultinfo; use catalog calls for functions ne
 Registered scalar and array readers return independent managed data before temporary result storage is released.
 Their current mapped type is the caller's result contract; the address supplies no catalog return declaration.
 PostgreSQL errors remain guarded, but invalid pointers or ABI contracts can crash the backend.
+
+<a id="member-1004392c4b1a898e"></a>
+
+### GetInfo(uint)
+
+Copies the metadata of a function, procedure, aggregate or window function from pg_proc.
+
+```csharp
+public static PgFunctionInfo? GetInfo(uint functionOid)
+```
+
+Parameters:
+
+`functionOid` — [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
+
+The exact catalog identity, including zero for a missing entry.
+
+Returns: [PgFunctionInfo](/api/ankus.pgfunctioninfo/)
+
+An immutable detached snapshot, or null when the OID has no pg_proc row.

@@ -8,13 +8,19 @@ internal static class NativeLookupBridge
     /// <summary>
     /// Gets selected-header name construction and exact native catalog lookup operations.
     /// </summary>
-    internal const string Source = """
+    internal const string Source = NativeFunctionCatalogBridge.Source + """
         #include "catalog/namespace.h"
         #include "nodes/value.h"
 
         static void
         ankus_lookup_operation(AnkusRequest *request, AnkusResult *result)
         {
+            if (request->scalar_operation == 3 && request->parameter_count == 1)
+            {
+                ankus_function_catalog(request, result);
+                return;
+            }
+
             if (request->scalar_operation == 2 && request->parameter_count == 0)
             {
                 result->text.integral = PG_VERSION_NUM / 10000;

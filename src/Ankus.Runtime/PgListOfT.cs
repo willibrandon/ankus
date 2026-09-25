@@ -465,6 +465,33 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     }
 
     /// <summary>
+    /// Parses the private catalog node representation into independently owned native expression trees.
+    /// </summary>
+    internal unsafe void InitializeDefaults(string source, int count, PgMemoryContext owner)
+    {
+        byte[] utf8 = System.Text.Encoding.UTF8.GetBytes(source);
+        nint context = owner.GetId();
+        nint provider = NativeMemoryContext.Provider;
+        fixed (byte* data = utf8)
+        {
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.List,
+                _flags = (int)NativeListOperation.ParseDefaults,
+                _context = context,
+                _data = (nint)data,
+                _length = (nuint)utf8.Length,
+                _value = count,
+            };
+            NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
+            if (result._pointer == 0) { throw new InvalidOperationException("PostgreSQL did not return a defaults list identity."); }
+
+            _provider = provider;
+            _handle = result._pointer;
+        }
+    }
+
+    /// <summary>
     /// Binds a previously backend-independent NIL to the active context before allocation.
     /// </summary>
     private void EnsureBound()

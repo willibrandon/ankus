@@ -13,6 +13,13 @@ namespace Ankus;
 public static class PgFunctions
 {
     /// <summary>
+    /// Copies the metadata of a function, procedure, aggregate or window function from pg_proc.
+    /// </summary>
+    /// <param name="functionOid">The exact catalog identity, including zero for a missing entry.</param>
+    /// <returns>An immutable detached snapshot, or null when the OID has no pg_proc row.</returns>
+    public static PgFunctionInfo? GetInfo(uint functionOid) => NativeBackend.FunctionInfo(functionOid);
+
+    /// <summary>
     /// Calls a native PostgreSQL version-1 entry point and copies a supported result or invokes its registered reader.
     /// </summary>
     /// <typeparam name="T">The entry point's actual result type.</typeparam>

@@ -10,6 +10,8 @@
 #undef repalloc
 #undef list_free
 
+#include "nodes/makefuncs.h"
+
 static void
 fault_require(bool condition, const char *message)
 {
@@ -29,6 +31,85 @@ fault_published_count(void)
     }
 
     return count;
+}
+
+static int
+fault_child_contexts(MemoryContext parent)
+{
+    int count = 0;
+    for (MemoryContext child = parent->firstchild; child != NULL; child = child->nextchild) { count++; }
+    return count;
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_function_defaults_fault);
+PGDLLEXPORT Datum
+ankus_test_function_defaults_fault(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(0);
+    fault_require(mode >= 0 && mode <= 5, "unknown defaults fault mode");
+    fault_require(fault_live_records == 0 && ankus_lists == NULL && ankus_memory_contexts == NULL,
+        "previous defaults probe retained registry records");
+    MemoryContext caller = CurrentMemoryContext;
+    MemoryContext root = AllocSetContextCreate(caller, "Ankus defaults fault", ALLOCSET_SMALL_SIZES);
+    uint64 saved_next = ankus_list_next_id;
+    PG_TRY();
+    {
+        AnkusMemoryApi api;
+        ankus_memory_initialize(&api);
+        uint64 owner = ankus_memory_context_id(root);
+        Const *constant = makeConst(INT4OID, -1, InvalidOid, sizeof(int32), Int32GetDatum(42), false, true);
+        char *valid = nodeToString(list_make1(constant));
+        char *source = mode == 3 ? "{INVALID_NODE}" : mode == 5 ? nodeToString(constant) : valid;
+        AnkusMemoryRequest request = {0};
+        AnkusMemoryResult result = {0};
+        AnkusError error = {0};
+        request.operation = ANKUS_MEMORY_LIST;
+        request.flags = ANKUS_LIST_PARSE_DEFAULTS;
+        request.context = (intptr_t) owner;
+        request.data = (intptr_t) source;
+        request.length = mode == 0 ? 0 : strlen(source);
+        request.value = mode == 4 ? 2 : 1;
+        int before = fault_live_records;
+        int children_before = fault_child_contexts(caller);
+        fault_fail_calloc = mode == 1;
+        if (mode == 2) { ankus_list_next_id = 0; }
+        int status = ankus_memory_invoke(&api, &request, &result, &error);
+        ankus_list_next_id = saved_next;
+        int expected = mode == 0 ? ERRCODE_INVALID_PARAMETER_VALUE :
+            mode == 1 || mode == 2 ? ERRCODE_OUT_OF_MEMORY :
+            mode == 3 ? ERRCODE_INTERNAL_ERROR : ERRCODE_INVALID_BINARY_REPRESENTATION;
+        fault_require(status == 1 && error.sqlstate == expected, "wrong defaults error");
+        fault_require(!fault_fail_calloc && ankus_lists == NULL && fault_live_records == before &&
+            result.pointer == 0 && CurrentMemoryContext == caller &&
+            fault_child_contexts(caller) == children_before, "defaults error leaked state");
+        ankus_release_error(&error);
+        request.data = (intptr_t) valid;
+        request.length = strlen(valid);
+        request.value = 1;
+        fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "defaults retry failed");
+        AnkusList *entry = ankus_list_find((uint64) result.pointer);
+        fault_require(entry != NULL && entry->owned && entry->kind == 1 && list_length(entry->list) == 1 &&
+            GetMemoryChunkContext(entry->list) == root, "defaults retry lost ownership");
+        Const *parsed = linitial(entry->list);
+        fault_require(IsA(parsed, Const) && parsed->consttype == INT4OID &&
+            DatumGetInt32(parsed->constvalue) == 42 && GetMemoryChunkContext(parsed) == root, "defaults retry lost node value");
+        request.context = result.pointer;
+        request.flags = ANKUS_LIST_DISPOSE;
+        fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0 &&
+            ankus_lists == NULL && DatumGetInt32(parsed->constvalue) == 42 &&
+            fault_child_contexts(caller) == children_before, "container disposal freed pointees or retained input storage");
+    }
+    PG_FINALLY();
+    {
+        fault_fail_calloc = false;
+        ankus_list_next_id = saved_next;
+        MemoryContextSwitchTo(caller);
+        MemoryContextDelete(root);
+    }
+    PG_END_TRY();
+    fault_require(fault_live_records == 0 && ankus_lists == NULL && ankus_memory_contexts == NULL,
+        "defaults deletion retained native registry records");
+    PG_RETURN_TEXT_P(cstring_to_text("error|released|retry|42|empty"));
 }
 
 static AnkusMemoryResult

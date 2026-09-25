@@ -8,6 +8,10 @@ an extension callback. PostgreSQL performs the lookup, including search-path
 selection, schema permissions and native error reporting. Results are copied
 unsigned OIDs; lookups do not retain catalog pins or cache identities across DDL.
 
+For routine metadata, use [`PgFunctions.GetInfo`](/calling-functions/#inspecting-routine-metadata).
+It copies the function-catalog fields and retains immutable metadata across
+callbacks and catalog changes. Native default trees have an explicit memory owner.
+
 ## OID values and built-in constants
 
 PostgreSQL `oid` values use `uint` in Ankus. All 32 bits, including zero, remain

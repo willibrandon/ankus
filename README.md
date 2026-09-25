@@ -233,6 +233,10 @@ arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also
 accept `PgAnyElement` and `PgAnyArray` results for types determined at runtime. See
 [calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
+Use `PgFunctions.GetInfo` for an immutable function-catalog snapshot, including
+argument types and modes, volatility, permissions-related flags, source and local
+settings. `GetDefaultArguments(context)` materializes actual native expression
+trees in an explicit owner without evaluating them.
 `[PgDatumType]` readers also support `Call<T>` and SPI scalar-result helpers,
 with exact mapped type identity and detached managed results.
 `DangerousCall<T>` accepts mapped results when the caller supplies a valid native

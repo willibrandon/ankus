@@ -8,6 +8,16 @@ namespace Ankus;
 public static class PgList
 {
     /// <summary>
+    /// Allocates a managed wrapper before parsing trusted catalog defaults into its explicit native owner.
+    /// </summary>
+    internal static PgList<nint> ParseDefaults(string source, int count, PgMemoryContext owner)
+    {
+        var result = new PgList<nint>();
+        result.InitializeDefaults(source, count, owner);
+        return result;
+    }
+
+    /// <summary>
     /// Creates an empty list bound to the selected context's current lifetime.
     /// </summary>
     /// <typeparam name="T">Exactly int, uint (OID), PgTransactionId, or nint (opaque pointer).</typeparam>

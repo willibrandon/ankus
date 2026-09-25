@@ -3,6 +3,8 @@
 #include "funcapi.h"
 #include "lib/stringinfo.h"
 #include "nodes/pg_list.h"
+#include "nodes/nodeFuncs.h"
+#include "utils/array.h"
 #include "catalog/pg_type_d.h"
 #include "storage/itemptr.h"
 #include "executor/executor.h"
@@ -12,6 +14,42 @@
 #include "utils/tuplestore.h"
 
 PG_MODULE_MAGIC;
+
+PG_FUNCTION_INFO_V1(ankus_test_default_values);
+PGDLLEXPORT Datum
+ankus_test_default_values(PG_FUNCTION_ARGS)
+{
+    List *expressions = (List *) (intptr_t) PG_GETARG_INT64(0);
+    int count = list_length(expressions);
+    Datum *values = palloc0(sizeof(Datum) * Max(count, 1));
+    bool *nulls = palloc0(sizeof(bool) * Max(count, 1));
+    EState *estate = CreateExecutorState();
+    MemoryContext caller = CurrentMemoryContext;
+    PG_TRY();
+    {
+        for (int index = 0; index < count; index++)
+        {
+            Expr *expression = list_nth(expressions, index);
+            ExprState *state = ExecPrepareExpr(expression, estate);
+            Datum value = ExecEvalExprSwitchContext(state, GetPerTupleExprContext(estate), &nulls[index]);
+            if (!nulls[index])
+            {
+                Oid output;
+                bool varlena;
+                getTypeOutputInfo(exprType((Node *) expression), &output, &varlena);
+                values[index] = CStringGetTextDatum(OidOutputFunctionCall(output, value));
+            }
+        }
+    }
+    PG_FINALLY();
+    {
+        MemoryContextSwitchTo(caller);
+        FreeExecutorState(estate);
+    }
+    PG_END_TRY();
+    int lower = 1;
+    PG_RETURN_ARRAYTYPE_P(construct_md_array(values, nulls, 1, &count, &lower, TEXTOID, -1, false, TYPALIGN_INT));
+}
 
 PG_FUNCTION_INFO_V1(ankus_test_item_pointer_describe);
 PGDLLEXPORT Datum

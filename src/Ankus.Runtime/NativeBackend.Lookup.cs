@@ -4,6 +4,32 @@ namespace Ankus;
 
 public static partial class NativeBackend
 {
+    /// <summary>
+    /// Copies a complete function catalog snapshot and releases all native result storage on every path.
+    /// </summary>
+    internal static unsafe PgFunctionInfo? FunctionInfo(uint oid)
+    {
+        CheckAccess();
+        var request = new NativeSpiRequest { _operation = SpiOperation.Lookup, _scalarOperation = 3 };
+        NativeSpiResult result = default;
+        try
+        {
+            InvokeParameters(&request, [SpiParameter.Create(oid)], &result);
+            if (result._rowCount == 0) { return null; }
+
+            if (result._rowCount != 1 || result._columnCount != 24 || result._values == null)
+            {
+                throw new InvalidOperationException("Invalid function catalog result.");
+            }
+
+            return new PgFunctionInfo(oid, new ReadOnlySpan<NativeValue>(result._values, result._columnCount));
+        }
+        finally
+        {
+            ReleaseResult(&result);
+        }
+    }
+
     private static readonly UTF8Encoding s_lookupEncoding = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>
