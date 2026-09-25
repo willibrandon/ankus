@@ -1376,9 +1376,9 @@ provide tracked non-code inputs without runtime reflection or direct generator f
 | SQL-only Native AOT package and relocation | Magic-only native source, packed SDK/runtime/generator, per-block Relocatable opt-in | `ToolCommandTests.SqlFilePackageRebuildsAndRollsBackFailedInstallation` publishes outside the checkout, explicitly LOADs the library, checks changed SQL results, relocates table/view and verifies uninstall removal |
 | Failed SQL installation cleanup | PostgreSQL transactional extension installation | The same package test introduces division by zero after CREATE TABLE, checks SQLSTATE 22012, and independently verifies absence of both the partial table and pg_extension entry |
 
-Function SQL controls now use `PgFunction.Sql`, `GenerateSql`, and `SqlRelocatable`;
-the later SQL-generation progress entry records their separate contract and execution evidence.
-Declared custom-type providers, type/enum and aggregate-declaration overrides, generated family overrides,
+Function, type/enum, aggregate and ordering/hash family SQL controls now expose
+`Sql`, `GenerateSql`, and `SqlRelocatable`; the later SQL-generation entries record their
+distinct ownership contracts and execution evidence. Declared custom-type providers,
 future type-family edges, and standalone schema extraction remain required work. These tests establish the
 implemented installation graph, not full parity with every pgrx SQL-entity feature.
 
@@ -2614,13 +2614,13 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
-| `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Partial: PgFunction controls for ordinary, set, trigger/event and aggregate-helper functions, including attached operator/cast SQL. Type/enum, aggregate-declaration and ordering/hash family overrides remain required. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them. |
+| `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; declaration-control hosted validation is pending. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal, raw and custom-codec bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; heterogeneous ANY and full matrix remain required |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
-| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins and fresh-backend reuse. Manual raw mappings, SQL-generation overrides and the complete platform/version matrix remain required. |
+| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Manual raw mappings and the complete platform/version matrix remain required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend and shared-preload `[PgInitialize]` with retry/recursion handling; Linux x64 fork behavior verified, remaining platform/version matrix required |
@@ -2776,7 +2776,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] general raw aggregate signatures with checked type identity and state ownership
   - [x] strongly typed custom base-type aggregate signatures
   - [ ] heterogeneous ordered-set VARIADIC ANY
-  - [x] generated equality/order/hash operator classes for declared types/enums (manual mappings and SQL overrides remain)
+  - [x] generated equality/order/hash operator classes for declared types/enums with independent family SQL controls (manual mappings remain)
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
@@ -4368,7 +4368,14 @@ The phases track implementation of the complete pgrx feature surface.
   in 3m43.970s on Linux x64/PostgreSQL 18.6. The Release build passes with zero
   warnings/errors in 14.95s. API generation/freshness passes (142 pages, 1,399
   members), as do `pnpm build` (179 pages) and `pnpm check` (zero errors,
-  warnings or hints). Hosted platform verification is pending the milestone push.
+  warnings or hints). [Hosted CI](https://github.com/willibrandon/ankus/actions/runs/36095871876)
+  passed for commit `d6984ae`: Linux x64/PostgreSQL 18.6 passed all 5,561 tests
+  with zero skips in a 9m41s job; macOS ARM64/PostgreSQL 18.6 and Windows
+  x64/PostgreSQL 17.11 each passed 5,559 with the two existing Linux-only
+  allocation cases skipped, in 8m16s and 15m9s jobs. All function-control cases
+  ran on each platform. Quality, runtime preparation and documentation
+  build/deployment passed. Windows remains above the preferred ten-minute
+  feedback target and below the hard twenty-minute limit.
 
   The pinned pgrx `ToSqlConfig` stores only enabled/literal content, and its
   function/trigger/general parsers reject callback paths. The advertised callback
@@ -4381,3 +4388,64 @@ The phases track implementation of the complete pgrx feature surface.
   option for its equality derive and applies ordering/hash options only to the
   family/class, retaining helper SQL; subsequent work must preserve those distinct
   ownership boundaries without treating this function milestone as full parity.
+
+- 2026-09-24 — Extended SQL controls to declaration owners. `PgType` owns the
+  shell/I/O/completed-type bundle, `PgEnum` owns its
+  enum declaration, `PgAggregate` owns its parent statement, and `PgOrdering`
+  and `PgHashing` own only their family/class statements. Codecs, native exports,
+  type registration, aggregate helpers, comparison/hash functions and relational
+  operators retain their existing contracts and independent policies.
+
+  Type literals receive role-specific native I/O tokens; unavailable binary
+  tokens produce `ANKUS005` instead of fabricating exports or enabling binary
+  support implicitly. Family literals receive exact quoted SQL helper-name
+  tokens so long type identifiers remain usable. Module substitution happens
+  before inserting helper identifiers, preserving marker-like text in legitimate
+  quoted names. The focused generator
+  run passes 119 cases (60 new declaration cases and 59 function-control
+  regressions), with zero failures/skips in 3.415s. Its first attempt stopped
+  before test execution on two culture-formatting diagnostics in fixture text
+  construction; explicit invariant formatting fixed those test-only errors.
+  Generator and runtime builds pass with zero warnings/errors.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | All five declaration boundaries, independent siblings and retained native contracts | `DeclarationSqlDefaultsAndControlsPreserveOwnedBoundaries`, `DeclarationSqlAggregateAndHelperPoliciesRemainIndependent`, `DeclarationSqlFamilyPoliciesRemainIndependent` |
+  | Exact I/O exports, binary availability and quoted/long helper names | `DeclarationSqlTypeTokensMatchActualExports`, `DeclarationSqlUnavailableBinaryTokensAreDiagnosed`, `DeclarationSqlFamilyTokensPreserveQuotedHelperNames`, `DeclarationSqlOutOfContextTokensRemainLiteral` |
+  | Dependencies, collisions, incremental edits, relocation and unchanged validation | `DeclarationSqlControlsRetainDependencies`, `DeclarationSqlControlsRetainGraphDiagnostics`, `DeclarationSqlControlsRetainNameCollisions`, `DeclarationSqlAttributeEditsInvalidateOutput`, `DeclarationSqlRelocationRequiresEveryReplacement`, `InvalidDeclarationSqlOptionsAreDiagnosed`, `DeclarationSqlDoesNotBypassContracts` |
+  | Native text/binary values, SQL NULL, shaped arrays and same-backend error recovery | `ReplacementTypeSqlPreservesTextBinaryAndArrays`, `ReplacementTextOnlyTypePreservesJsonAndIdentity`, `ReplacementTypeBinaryReceiveUsesIndependentBytes`, `ReplacementTypeBinaryErrorsRollbackAndRecover`, `ReplacementTypeTextErrorsRecover`: independent CBOR/native payloads and complete COPY bytes; a malformed later row rolls back earlier received rows |
+  | Enum identity, labels and independent aggregate/helper policies | `ReplacementEnumSqlPreservesLabelsAndIdentity`, `ReplacementAggregateSqlRetainsIndependentHelpers`: exact labels/numbers, array shape/NULL, empty/all-NULL/nonempty aggregate results, helper identities, error cleanup and same-PID recovery |
+  | Retained disabled-family helpers and real replacement index classes | `DisabledFamilySqlRetainsExecutableHelpers`, `ReplacementFamilySqlRetainsHelpersAndExecutesIndexes`: absent default classes, successful retained calls, named B-tree/hash Index Scan with Index Cond, exact duplicate/collision rows, long Unicode names, failed inserts and successful REINDEX |
+  | Suppressed type exports remain usable | `DisabledTypeSqlPackageRetainsCallableIoExports`: LOAD before the type exists, empty extension membership, manual registration of actual I/O/typed exports, exact values/NULL/errors and objects still callable after extension drop |
+  | Installation atomicity, incremental package rebuild and ownership lifecycle | `DeclarationSqlPackageRelocatesRollsBackAndReinstalls`: failure after all declarations rolls back their catalogs; corrected attribute-only publication retains exports; 30 exact owned identities survive relocation, 12 unrelated shadow identities survive drop, and reinstall gives fresh working identities |
+
+  All 27 focused published Native AOT cases pass with zero failures/skips in
+  1m25.803s on Linux x64/PostgreSQL 18.6. The initial attempt stopped during
+  fixture publication on `CA1036`: two comparable test records needed relational
+  operators. Its 26 reported failures were initialization failures, with no test
+  bodies executed. Review also corrected two fixture assumptions: a text-array
+  NULL must invoke the configured rejecting input policy, while a typed array
+  preserves ordinary SQL NULL; PostgreSQL debug builds may invoke successful
+  constant input twice, so an exact parser counter uses an explicit I/O call.
+  The corrected fixtures test those distinct paths, including an added `22004`
+  text-array rejection case. No production correction was required.
+
+  Independent production/generator/backend review found no unresolved defect.
+  The first full suite passed 5,627/5,648 and reported 21 failures, all while
+  installing the shared fixture into existing LATIN1 test databases: its new
+  CJK type identifier cannot be represented in LATIN1 (`22P05`). The fixture's
+  Greek enum label has the same limitation. Fixture names now use accented
+  LATIN1-compatible text, preserving a 60-byte UTF-8 type identifier,
+  helper-name fallback and exact label mapping. The corrected focused scope
+  passes 27/27 with zero skips in 55.547s, including an existing failed enum
+  case and `DeclarationSqlLatin1InstallationPreservesTypesAndFamilies`. The new
+  regression installs the complete fixture into LATIN1, checks exact enum/native
+  I/O values and bytes, executes both long-name index classes, and recovers from
+  a failed indexed hash call in the same backend. The final complete unfiltered
+  `dotnet test` run passes 5,649/5,649 with zero skips in 3m43.579s on Linux
+  x64/PostgreSQL 18.6. The Release build passes with zero warnings/errors in
+  15.94s. API generation/freshness passes (142 pages, 1,414 members), as do
+  `pnpm build` (179 pages) and `pnpm check` (zero errors, warnings or hints).
+  Hosted declaration-control verification is pending the milestone push. Manual/raw mappings,
+  declared custom-type providers and the complete version/platform matrix remain
+  full-port requirements.

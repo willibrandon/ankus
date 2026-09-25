@@ -93,6 +93,12 @@ functions that accept or return them, including arrays. `PgEnum.Id` and
 public enum DeliveryStatus { Pending, Delivered }
 ```
 
+`PgEnum.Sql` replaces the enum's `CREATE TYPE` statement. `GenerateSql = false`
+omits that statement while retaining the managed label mapping and native
+conversions. Supply a compatible enum with the declared name, schema and labels
+when generated functions still consume it. SQL changes do not infer a new
+managed mapping. See [declaration SQL controls](/custom-sql/#replace-other-declarations).
+
 ## NULL, arrays and SPI
 
 `DeliveryStatus?` accepts SQL NULL. `DeliveryStatus[]`, `DeliveryStatus?[]`, and

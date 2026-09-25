@@ -24,8 +24,9 @@ internal static class DerivedOperatorDeclaration
     /// </summary>
     internal static bool Emit(INamedTypeSymbol type, Dictionary<string, SqlEntity> types, HashSet<string> functions,
         HashSet<string> relatedNames, Dictionary<string, SqlEntity> operators, SqlGraph graph, SourceProductionContext context,
-        bool ensureInitialized, StringBuilder managed, StringBuilder native, StringBuilder exports)
+        bool ensureInitialized, StringBuilder managed, StringBuilder native, StringBuilder exports, out bool relocatable)
     {
+        relocatable = true;
         AttributeData? equality = Attribute("Ankus.PgEqualityAttribute");
         AttributeData? ordering = Attribute("Ankus.PgOrderingAttribute");
         AttributeData? hashing = Attribute("Ankus.PgHashingAttribute");
@@ -111,6 +112,7 @@ internal static class DerivedOperatorDeclaration
                 "    OPERATOR 4 " + Operator(">=") + " (" + binaryArguments + "),\n" +
                 "    OPERATOR 5 " + Operator(">") + " (" + binaryArguments + "),\n" +
                 "    FUNCTION 1 " + Name("cmp") + "(" + binaryArguments + ");\n";
+            relocatable &= SqlGeneration.Apply(ordering, group, [], [("@COMPARISON_FUNCTION_SQL@", Name("cmp"))], graph);
         }
 
         if (hashing is not null)
@@ -126,6 +128,7 @@ internal static class DerivedOperatorDeclaration
                 "CREATE OPERATOR CLASS " + family + " DEFAULT FOR TYPE " + sqlType + " USING hash FAMILY " + family + " AS\n" +
                 "    OPERATOR 1 " + Operator("=") + " (" + binaryArguments + "),\n" +
                 "    FUNCTION 1 " + Name("hash") + "(" + sqlType + ");\n";
+            relocatable &= SqlGeneration.Apply(hashing, group, [], [("@HASH_FUNCTION_SQL@", Name("hash"))], graph);
         }
 
         return true;

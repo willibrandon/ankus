@@ -148,6 +148,11 @@ Set `PgFunction.Sql` to replace a function's installation SQL, or
 The same controls cover attached operators/casts and apply to trigger functions
 and aggregate helpers. See [custom SQL](docs/src/content/docs/custom-sql.md).
 
+Types, enums, aggregate declarations and generated ordering/hash families also
+provide these controls with their own declaration boundaries. Type replacements
+can use native I/O tokens; family replacements retain their support functions
+and operators.
+
 ## Querying PostgreSQL
 
 Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elements

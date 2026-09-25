@@ -32,6 +32,20 @@ public PgEnumAttribute()
 
 ## Properties
 
+<a id="member-4fbd986e0fb4e0c4"></a>
+
+### GenerateSql
+
+Gets or sets whether installation SQL is emitted for the enum's CREATE TYPE declaration.
+The default is true. False retains the managed enum mapping, native conversions and dependency identifier.
+Cannot be false when Sql contains a replacement, including an empty string.
+
+```csharp
+public bool GenerateSql { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-87d472d2ca2373bd"></a>
 
 ### Id
@@ -79,3 +93,33 @@ public string? Schema { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-1d5d28be4b3dba9a"></a>
+
+### Sql
+
+Gets or sets literal installation SQL replacing this enum's CREATE TYPE declaration.
+Null preserves generated SQL; empty text emits no statements for this declaration.
+
+```csharp
+public string? Sql { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+@MODULE_PATHNAME@ becomes MODULE_PATHNAME. Keep the declared type name, schema and labels compatible
+with the managed enum mapping. Consuming functions and operators remain generated.
+
+<a id="member-3551ac9a1898ef85"></a>
+
+### SqlRelocatable
+
+Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+The default is false. This option applies only to non-null Sql; fixed schemas and other
+non-relocatable declarations can still prevent relocation.
+
+```csharp
+public bool SqlRelocatable { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)

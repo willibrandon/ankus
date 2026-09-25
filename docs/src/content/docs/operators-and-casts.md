@@ -190,6 +190,15 @@ has `Id` and `Requires`: an equality ID identifies both equality operators, and
 an ordering or hashing ID identifies the completed family and class. Custom SQL
 can require these IDs when creating an index or another dependent object.
 
+`PgOrdering.Sql` and `PgHashing.Sql` replace only their operator family/class
+statements. `GenerateSql = false` omits those statements while retaining
+comparison/hash functions, relational operators and the equality dependency.
+Use `@COMPARISON_FUNCTION_SQL@` or `@HASH_FUNCTION_SQL@` directly in replacement
+SQL for the exact quoted support-function identifier, including long-name
+fallbacks. Replacement classes can choose their names and `DEFAULT` status.
+`PgEquality` has no SQL override controls. See
+[index-family SQL controls](/custom-sql/#replace-index-families).
+
 Ankus reports `ANKUS018` for invalid generated operator contracts and `ANKUS005`
 for duplicate signatures or invalid installation dependencies. Arbitrary custom
 SQL is validated by PostgreSQL during installation. Generated objects are

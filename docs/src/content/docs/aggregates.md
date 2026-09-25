@@ -57,6 +57,12 @@ must provide it if the aggregate still references it. These options apply to the
 helper independently; they do not suppress `CREATE AGGREGATE`. Shared helpers
 are emitted once. See [function SQL controls](/custom-sql/#replace-function-sql).
 
+The parent `PgAggregate.Sql` independently replaces `CREATE AGGREGATE`;
+`PgAggregate.GenerateSql = false` omits only that statement. Support functions
+remain generated with their own settings, so replacement SQL can use those
+helpers in a compatible aggregate declaration. See
+[declaration SQL controls](/custom-sql/#replace-other-declarations).
+
 `PgAggregateAttribute` configures the aggregate's name, schema, dependency ID,
 `Requires`/`Before` edges, `ParallelSafety`, `StateSize`, and `MovingStateSize`.
 `InitialCondition` and `MovingInitialCondition` are PostgreSQL input strings for

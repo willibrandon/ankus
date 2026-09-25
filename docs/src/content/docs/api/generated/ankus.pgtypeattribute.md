@@ -73,6 +73,20 @@ public Type? Codec { get; }
 
 Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
+<a id="member-ccda318088887b93"></a>
+
+### GenerateSql
+
+Gets or sets whether installation SQL is emitted for the type's shell, I/O functions and completed base-type declaration.
+The default is true. False retains the generated codec, native I/O entry points, type mapping and dependency identifier.
+Cannot be false when Sql contains a replacement, including an empty string.
+
+```csharp
+public bool GenerateSql { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-7330aebe805fbf57"></a>
 
 ### Id
@@ -154,6 +168,39 @@ public string? Schema { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-a3f2051784e78581"></a>
+
+### Sql
+
+Gets or sets literal installation SQL replacing this type's complete shell, I/O functions and completed base-type declaration.
+Null preserves generated SQL; empty text emits no statements for this declaration.
+
+```csharp
+public string? Sql { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+Supports @INPUT_FUNCTION_NAME@ and @OUTPUT_FUNCTION_NAME@ for native exports, plus
+@RECEIVE_FUNCTION_NAME@ and @SEND_FUNCTION_NAME@ when BinaryProtocol is true.
+Binary tokens are rejected when those callbacks are disabled. @MODULE_PATHNAME@ becomes MODULE_PATHNAME.
+Add SQL quotes around native export tokens. Keep the declared type name, schema and variable-length
+storage representation compatible with the generated codec and managed consumers.
+
+<a id="member-8e8c40f28f9cd0ab"></a>
+
+### SqlRelocatable
+
+Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+The default is false. This option applies only to non-null Sql; fixed schemas and other
+non-relocatable declarations can still prevent relocation.
+
+```csharp
+public bool SqlRelocatable { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 <a id="member-c489a45356245064"></a>
 

@@ -1,6 +1,6 @@
 ---
 title: Custom SQL
-description: Include installation SQL strings and files, replace function SQL, and order declarations with dependencies.
+description: Include installation SQL strings and files, replace generated declarations, and order dependencies.
 ---
 
 ## Include SQL text
@@ -86,11 +86,10 @@ sets `SqlRelocatable = true`. This is an assertion that the SQL supports moving
 the extension; it does not rewrite schema names. Fixed schemas and other custom
 SQL blocks can still prevent relocation.
 
-For pgrx users, these controls provide the function behavior of boolean/string
+For pgrx users, these controls provide the behavior of boolean/string
 `sql` options. C# string literals also supply the SQL that Rust can place in a
 `pgrxsql` documentation fence. Generation reads constants without executing
-extension code. Type, aggregate-declaration and generated operator-class SQL
-overrides are not yet exposed.
+extension code.
 
 ## Disable function SQL
 
@@ -110,6 +109,93 @@ entry points when a wrapper needs manual SQL registration.
 `GenerateSql = false` cannot be combined with a non-null `Sql`, including empty
 text. `SqlRelocatable` is consulted only for replacement strings; disabling SQL
 does not by itself prevent relocation.
+
+## Replace other declarations
+
+`PgType`, `PgEnum`, `PgAggregate`, `PgOrdering` and `PgHashing` expose the same
+`GenerateSql`, `Sql` and `SqlRelocatable` properties. Each controls its own SQL:
+
+| Attribute | SQL replaced or disabled | Retained declarations and contracts |
+|---|---|---|
+| `PgType` | Shell type, all enabled I/O functions and completed base type | Codec, native I/O exports, managed type mapping and consuming declarations |
+| `PgEnum` | `CREATE TYPE ... AS ENUM` | Managed labels, native conversions and consuming declarations |
+| `PgAggregate` | `CREATE AGGREGATE` | Support functions with their independent `PgFunction` controls |
+| `PgOrdering` | B-tree operator family and class | Comparison functions, relational operators and equality dependency |
+| `PgHashing` | Hash operator family and class | Hash support function and equality dependency |
+
+Defaults, empty strings, invalid text, relocation opt-in and dependency rules
+work as described for functions. Disabling a declaration keeps its graph ID and
+prerequisites. It does not disable its consumers or siblings. Supply compatible
+objects through ordered SQL when those declarations still need them. Existing
+codec, enum, aggregate and managed comparison/hash validation remains active.
+
+All replacement strings support `@MODULE_PATHNAME@`. Other substitutions apply
+only in the contexts below; unknown or out-of-context tokens remain literal.
+`PgEquality` has no SQL override options, matching pgrx's equality derive.
+
+## Replace base-type SQL
+
+A type replacement supplies the entire shell/I/O/completed-type sequence. Use
+these tokens for the generated native entry points, adding SQL string quotes:
+
+| Token in `PgType.Sql` | Native entry point |
+|---|---|
+| `@INPUT_FUNCTION_NAME@` | Text input |
+| `@OUTPUT_FUNCTION_NAME@` | Text output |
+| `@RECEIVE_FUNCTION_NAME@` | Binary receive; requires `BinaryProtocol = true` |
+| `@SEND_FUNCTION_NAME@` | Binary send; requires `BinaryProtocol = true` |
+
+For example, this type keeps generated JSON text and CBOR storage while choosing
+its SQL I/O function names:
+
+```csharp
+[PgType(Name = "stored_value", BinaryProtocol = true, SqlRelocatable = true, Sql = """
+    CREATE TYPE stored_value;
+    CREATE FUNCTION stored_value_input(cstring) RETURNS stored_value
+        AS '@MODULE_PATHNAME@', '@INPUT_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+    CREATE FUNCTION stored_value_output(stored_value) RETURNS cstring
+        AS '@MODULE_PATHNAME@', '@OUTPUT_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+    CREATE FUNCTION stored_value_receive(internal) RETURNS stored_value
+        AS '@MODULE_PATHNAME@', '@RECEIVE_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+    CREATE FUNCTION stored_value_send(stored_value) RETURNS bytea
+        AS '@MODULE_PATHNAME@', '@SEND_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+    CREATE TYPE stored_value (
+        INTERNALLENGTH = variable, INPUT = stored_value_input, OUTPUT = stored_value_output,
+        RECEIVE = stored_value_receive, SEND = stored_value_send, ALIGNMENT = int4, STORAGE = extended);
+    """)]
+public readonly record struct StoredValue(int Number);
+```
+
+When binary protocol is disabled, omit the receive/send declarations and clauses.
+Using either binary token then produces `ANKUS005`, including occurrences in
+comments. Enabling binary callbacks still emits both native exports even if the
+replacement does not register them in SQL.
+
+Preserve the declared type name and schema so generated consumers can resolve
+its identity. Preserve its by-reference, variable-length storage contract;
+`NativeLayout` changes the payload, not the PostgreSQL datum representation.
+This option does not map arbitrary fixed-length or by-value base types. A type
+with `NullInputErrorMessage` needs `CALLED ON NULL INPUT` on its text input
+declaration for that managed policy to execute. See [custom types](/custom-types/).
+
+## Replace index families
+
+Ordering and hashing replacements retain their generated support functions and
+operators. Two tokens give their exact SQL helper identifiers, including the
+hashed names used when a type name is too long for an ordinary suffix:
+
+| Context | Token | Expansion |
+|---|---|---|
+| `PgOrdering.Sql` | `@COMPARISON_FUNCTION_SQL@` | Quoted comparison function name |
+| `PgHashing.Sql` | `@HASH_FUNCTION_SQL@` | Quoted hash function name |
+
+Names are schema-qualified when a fixed schema is declared. These are SQL
+identifiers without argument lists. Use them directly, without
+string quotes, for example `FUNCTION 1 @COMPARISON_FUNCTION_SQL@(stored_value,
+stored_value)` in a B-tree class or `FUNCTION 1 @HASH_FUNCTION_SQL@(stored_value)`
+in a hash class. Replacement SQL chooses the family/class names and whether a
+class is `DEFAULT`. The original group ID still orders consumers after the
+complete family/class replacement. See [operators and casts](/operators-and-casts/).
 
 ## Include a file
 

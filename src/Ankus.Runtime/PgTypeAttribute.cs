@@ -66,6 +66,33 @@ public sealed class PgTypeAttribute(Type? codec = null) : Attribute
     public string[] Requires { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets whether installation SQL is emitted for the type's shell, I/O functions and completed base-type declaration.
+    /// The default is true. False retains the generated codec, native I/O entry points, type mapping and dependency identifier.
+    /// Cannot be false when Sql contains a replacement, including an empty string.
+    /// </summary>
+    public bool GenerateSql { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets literal installation SQL replacing this type's complete shell, I/O functions and completed base-type declaration.
+    /// Null preserves generated SQL; empty text emits no statements for this declaration.
+    /// </summary>
+    /// <remarks>
+    /// Supports @INPUT_FUNCTION_NAME@ and @OUTPUT_FUNCTION_NAME@ for native exports, plus
+    /// @RECEIVE_FUNCTION_NAME@ and @SEND_FUNCTION_NAME@ when BinaryProtocol is true.
+    /// Binary tokens are rejected when those callbacks are disabled. @MODULE_PATHNAME@ becomes MODULE_PATHNAME.
+    /// Add SQL quotes around native export tokens. Keep the declared type name, schema and variable-length
+    /// storage representation compatible with the generated codec and managed consumers.
+    /// </remarks>
+    public string? Sql { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+    /// The default is false. This option applies only to non-null Sql; fixed schemas and other
+    /// non-relocatable declarations can still prevent relocation.
+    /// </summary>
+    public bool SqlRelocatable { get; set; }
+
+    /// <summary>
     /// Gets or sets whether binary send and receive functions expose the codec's storage representation.
     /// </summary>
     public bool BinaryProtocol { get; set; }

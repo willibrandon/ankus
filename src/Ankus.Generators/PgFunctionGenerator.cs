@@ -309,6 +309,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             var entity = new SqlEntity("1:type:" + enumeration.Managed, enumeration.CreateSql(), type.Locations.FirstOrDefault());
             graph.Configure(entity, enumeration.Attribute);
+            fixedSchema |= !SqlGeneration.Apply(enumeration.Attribute, entity, [], [], graph);
             graph.Add(entity);
             if (!enumNames.Add(enumeration.Sql))
             {
@@ -401,6 +402,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             string typeSql = PgTypeEmitter.Emit(custom, ensureManagedReady, managed, native, exports);
             var entity = new SqlEntity("1:type:" + custom.Managed, typeSql, custom.Type.Locations.FirstOrDefault());
             graph.Configure(entity, custom.Attribute);
+            fixedSchema |= !SqlGeneration.Apply(custom.Attribute, entity, [],
+                [
+                    ("@INPUT_FUNCTION_NAME@", custom.NativeFunction("in")),
+                    ("@OUTPUT_FUNCTION_NAME@", custom.NativeFunction("out")),
+                    ("@RECEIVE_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("recv") : null),
+                    ("@SEND_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("send") : null),
+                ], graph);
             graph.Add(entity);
             if (!enumNames.Add(custom.Sql))
             {
@@ -546,7 +554,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             graph.Add(entity);
             List<SqlEntity> related = contextParameter ? [] :
                 OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context, operatorEntities);
-            fixedSchema |= !SqlGeneration.Apply(functionAttribute, entity, related, callback.Replace("ankus_managed_", "ankus_fn_"), graph);
+            fixedSchema |= !SqlGeneration.Apply(functionAttribute, entity, related,
+                [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
 
             IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
                 .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
@@ -584,7 +593,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
         {
             validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, names, relatedNames, operatorEntities, graph,
-                context, ensureManagedReady, managed, native, exports);
+                context, ensureManagedReady, managed, native, exports, out bool relocatable);
+            fixedSchema |= !relocatable;
         }
 
         if (!validOperators)
@@ -609,6 +619,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             var entity = new SqlEntity("2:aggregate:" + type.ToDisplayString(), PgAggregateEmitter.EmitAggregate(aggregate), type.Locations.FirstOrDefault());
             graph.Configure(entity, aggregate.Attribute);
+            fixedSchema |= !SqlGeneration.Apply(aggregate.Attribute, entity, [], [], graph);
             graph.Add(entity);
             AddSchemaDependency(entity, aggregate.Schema);
             foreach (AggregateHelper helper in aggregate.Helpers.Values)
@@ -636,7 +647,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
 
                 support.Requires.UnionWith(entity.Requires.Where(required => !support.Names.Contains(required)));
-                fixedSchema |= !SqlGeneration.Apply(function, support, [], callback.Replace("ankus_managed_", "ankus_fn_"), graph);
+                fixedSchema |= !SqlGeneration.Apply(function, support, [],
+                    [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
                 graph.Add(support);
                 supportFunctions.Add(helper.Signature, (helper.Method, support));
                 entity.Dependencies.Add(support);

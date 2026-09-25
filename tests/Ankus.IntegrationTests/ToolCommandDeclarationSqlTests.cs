@@ -1,0 +1,547 @@
+using System.Buffers.Binary;
+using System.Text.Json;
+using Ankus.PgConfig;
+using Ankus.Testing;
+using Npgsql;
+
+namespace Ankus.IntegrationTests;
+
+public sealed partial class ToolCommandTests
+{
+    /// <summary>
+    /// A disabled type package retains native I/O and typed callbacks that work after compatible manual registration.
+    /// </summary>
+    [TestMethod]
+    public async Task DisabledTypeSqlPackageRetainsCallableIoExports()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "DisabledDeclaration.csproj");
+        File.Copy(s_project, project);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Types.cs"), DisabledDeclarationSource, token);
+        string output = Path.Combine(directory, "published");
+        await PublishSqlControlsAsync(project, output, token);
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        string[] exports = await ReadSqlControlExportsAsync(directory, token);
+        string input = DeclarationExport(exports, "_type_in");
+        string format = DeclarationExport(exports, "_type_out");
+        string receive = DeclarationExport(exports, "_type_recv");
+        string send = DeclarationExport(exports, "_type_send");
+        string echo = DeclarationExport(exports, "_package_echo");
+        Assert.AreEqual("-- No installable objects declared.\n", (await File.ReadAllTextAsync(
+            Path.Combine(output, "extension", manifest.Sql), token)).ReplaceLineEndings("\n"));
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        int process = connection.ProcessID;
+        await ExecuteSqlPackageAsync(connection, $"LOAD '{manifest.Library}'; CREATE EXTENSION ankus_tool_probe");
+        Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, """
+            SELECT to_regtype('public.package_value') IS NULL
+                AND to_regprocedure('public.package_value_in(cstring)') IS NULL
+                AND NOT EXISTS(SELECT FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='package_echo')
+                AND NOT EXISTS(SELECT FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
+                    WHERE d.refclassid='pg_extension'::regclass AND e.extname='ankus_tool_probe' AND d.deptype='e')
+            """));
+        await ExecuteSqlPackageAsync(connection, $"""
+            CREATE TYPE public.package_value;
+            CREATE FUNCTION public.manual_input(cstring) RETURNS public.package_value
+                AS '{manifest.Library}','{input}' LANGUAGE c IMMUTABLE CALLED ON NULL INPUT;
+            CREATE FUNCTION public.manual_output(public.package_value) RETURNS cstring
+                AS '{manifest.Library}','{format}' LANGUAGE c IMMUTABLE STRICT;
+            CREATE FUNCTION public.manual_receive(internal) RETURNS public.package_value
+                AS '{manifest.Library}','{receive}' LANGUAGE c IMMUTABLE STRICT;
+            CREATE FUNCTION public.manual_send(public.package_value) RETURNS bytea
+                AS '{manifest.Library}','{send}' LANGUAGE c IMMUTABLE STRICT;
+            CREATE TYPE public.package_value(INTERNALLENGTH=variable,INPUT=public.manual_input,OUTPUT=public.manual_output,
+                RECEIVE=public.manual_receive,SEND=public.manual_send,ALIGNMENT=int4,STORAGE=extended);
+            CREATE FUNCTION public.manual_echo(public.package_value) RETURNS public.package_value
+                AS '{manifest.Library}','{echo}' LANGUAGE c IMMUTABLE STRICT;
+            CREATE TEMP TABLE declaration_binary(value public.package_value);
+            """);
+        uint type = await SqlPackageScalarAsync<uint>(connection, "SELECT 'public.package_value'::regtype::oid");
+        Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
+            SELECT typinput='public.manual_input(cstring)'::regprocedure
+                AND typoutput='public.manual_output(public.package_value)'::regprocedure
+                AND typreceive='public.manual_receive(internal)'::regprocedure
+                AND typsend='public.manual_send(public.package_value)'::regprocedure AND typlen=-1 AND NOT typbyval
+                AND (SELECT prosrc='{input}' AND NOT proisstrict FROM pg_proc WHERE oid=typinput)
+                AND (SELECT prosrc='{format}' FROM pg_proc WHERE oid=typoutput)
+                AND (SELECT prosrc='{receive}' FROM pg_proc WHERE oid=typreceive)
+                AND (SELECT prosrc='{send}' FROM pg_proc WHERE oid=typsend)
+            FROM pg_type WHERE oid='public.package_value'::regtype
+            """));
+        Assert.AreEqual("42|-2147483648|2147483647|42|true|0000002a|80000000|7fffffff", await SqlPackageScalarAsync<string>(connection, """
+            SELECT concat_ws('|',manual_output(manual_input('42'::cstring))::text,
+                '-2147483648'::package_value::text,'2147483647'::package_value::text,manual_echo('41')::text,
+                (manual_echo((SELECT value FROM declaration_binary WHERE false)) IS NULL)::text,encode(manual_send('42'),'hex'),
+                encode(manual_send('-2147483648'),'hex'),encode(manual_send('2147483647'),'hex'))
+            """));
+        PostgresException textError = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecuteSqlPackageAsync(connection, "SELECT 'invalid'::package_value"));
+        Assert.AreEqual("22P02", textError.SqlState);
+        Assert.AreEqual("Invalid declaration package text.", textError.MessageText);
+        PostgresException nullError = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecuteSqlPackageAsync(connection, "SELECT manual_input(NULL::cstring)"));
+        Assert.AreEqual("22004", nullError.SqlState);
+        Assert.AreEqual("Package input requires text.", nullError.MessageText);
+        byte[] binary = DeclarationCopy([1, 2, 3, 4]);
+        await ImportDeclarationCopy(connection, binary);
+        Assert.AreEqual("16909060", await SqlPackageScalarAsync<string>(connection, "SELECT value::text FROM declaration_binary"));
+        using var actual = new MemoryStream();
+        await using (Stream copy = await connection.BeginRawBinaryCopyAsync("COPY declaration_binary TO STDOUT (FORMAT BINARY)", token))
+        {
+            await copy.CopyToAsync(actual, token);
+        }
+
+        Assert.AreSequenceEqual(binary, actual.ToArray());
+        PostgresException binaryError = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ImportDeclarationCopy(connection, DeclarationCopy([1, 2, 3])));
+        Assert.AreEqual("22P03", binaryError.SqlState);
+        Assert.AreEqual("Invalid declaration package payload.", binaryError.MessageText);
+        Assert.AreEqual(1L, await SqlPackageScalarAsync<long>(connection, "SELECT count(*) FROM declaration_binary"));
+        await ImportDeclarationCopy(connection, DeclarationCopy([255, 255, 255, 255]));
+        Assert.AreEqual("-1,16909060", await SqlPackageScalarAsync<string>(connection,
+            "SELECT string_agg(value::text,',' ORDER BY value::text) FROM declaration_binary"));
+        Assert.AreEqual("43", await SqlPackageScalarAsync<string>(connection, "SELECT manual_echo('42')::text"));
+        Assert.AreEqual(process, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
+        await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_tool_probe");
+        Assert.AreEqual(type, await SqlPackageScalarAsync<uint>(connection, "SELECT 'public.package_value'::regtype::oid"));
+        Assert.AreEqual("44", await SqlPackageScalarAsync<string>(connection, "SELECT manual_echo('43')::text"));
+        Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, """
+            SELECT NOT EXISTS(SELECT FROM pg_extension WHERE extname='ankus_tool_probe')
+                AND (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace
+                    AND proname IN('manual_input','manual_output','manual_receive','manual_send','manual_echo'))=5
+            """));
+    }
+
+    /// <summary>
+    /// All five declaration replacements install atomically, retain identities across relocation and cleanly reinstall.
+    /// </summary>
+    [TestMethod]
+    public async Task DeclarationSqlPackageRelocatesRollsBackAndReinstalls()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "DeclarationLifecycle.csproj");
+        File.Copy(s_project, project);
+        string source = Path.Combine(directory, "Types.cs");
+        string output = Path.Combine(directory, "published");
+        await File.WriteAllTextAsync(source, DeclarationLifecycleSource(fail: true), token);
+        await PublishSqlControlsAsync(project, output, token);
+        PublishedExtension firstManifest = PublishedExtension.Read(output);
+        string firstSql = await File.ReadAllTextAsync(Path.Combine(output, "extension", firstManifest.Sql), token);
+        string[] originalExports = await ReadSqlControlExportsAsync(directory, token);
+        Assert.Contains("SELECT install_gate(-1);", firstSql);
+        await using (PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token))
+        await using (NpgsqlConnection connection = await cluster.OpenConnectionAsync(token))
+        {
+            int process = connection.ProcessID;
+            await ExecuteSqlPackageAsync(connection, "CREATE SCHEMA declaration_failed");
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+                ExecuteSqlPackageAsync(connection, "CREATE EXTENSION ankus_tool_probe WITH SCHEMA declaration_failed"));
+            Assert.AreEqual("P8221", error.SqlState);
+            Assert.AreEqual("Declaration installation rejected.", error.MessageText);
+            await AssertDeclarationSchemaEmpty(connection, "declaration_failed");
+            Assert.IsFalse(await SqlPackageScalarAsync<bool>(connection,
+                "SELECT EXISTS(SELECT FROM pg_extension WHERE extname='ankus_tool_probe')"));
+            string gate = DeclarationExport(originalExports, "_install_gate");
+            await ExecuteSqlPackageAsync(connection, $"""
+                CREATE FUNCTION public.recovery_gate(integer) RETURNS integer
+                    AS '{firstManifest.Library}','{gate}' LANGUAGE c STRICT;
+                """);
+            Assert.AreEqual(42, await SqlPackageScalarAsync<int>(connection, "SELECT public.recovery_gate(42)"));
+            Assert.AreEqual(process, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
+        }
+
+        await File.WriteAllTextAsync(source, DeclarationLifecycleSource(fail: false), token);
+        await PublishSqlControlsAsync(project, output, token);
+        PublishedExtension manifest = PublishedExtension.Read(output);
+        string finalSql = await File.ReadAllTextAsync(Path.Combine(output, "extension", manifest.Sql), token);
+        Assert.AreNotEqual(firstSql, finalSql);
+        Assert.DoesNotContain("SELECT install_gate(-1);", finalSql);
+        Assert.Contains("VALUES(2)", finalSql);
+        Assert.DoesNotContain("VALUES(1)", finalSql);
+        Assert.DoesNotContain("@MODULE_PATHNAME@", finalSql);
+        Assert.DoesNotContain("@INPUT_FUNCTION_NAME@", finalSql);
+        Assert.DoesNotContain("@OUTPUT_FUNCTION_NAME@", finalSql);
+        Assert.DoesNotContain("@RECEIVE_FUNCTION_NAME@", finalSql);
+        Assert.DoesNotContain("@SEND_FUNCTION_NAME@", finalSql);
+        Assert.DoesNotContain("@COMPARISON_FUNCTION_SQL@", finalSql);
+        Assert.DoesNotContain("@HASH_FUNCTION_SQL@", finalSql);
+        Assert.AreSequenceEqual(originalExports, await ReadSqlControlExportsAsync(directory, token));
+        Assert.Contains("relocatable = true", await File.ReadAllTextAsync(Path.Combine(output, "extension", manifest.Control), token));
+        await using PostgresTestCluster finalCluster = await StartPublishedClusterAsync(output, token);
+        await using NpgsqlConnection final = await finalCluster.OpenConnectionAsync(token);
+        await ExecuteSqlPackageAsync(final, DeclarationShadowSql);
+        uint[] shadow = await DeclarationShadowIdentities(final);
+        await ExecuteSqlPackageAsync(final, """
+            CREATE SCHEMA declaration_first; CREATE SCHEMA declaration_second;
+            SET search_path=declaration_shadow,pg_catalog;
+            CREATE EXTENSION ankus_tool_probe WITH SCHEMA declaration_first;
+            SET enable_seqscan=off; SET enable_bitmapscan=off;
+            """);
+        Dictionary<string, uint> original = await DeclarationMembers(final, "declaration_first");
+        await AssertDeclarationPackage(final, "declaration_first", originalExports, manifest.Library);
+        await ExecuteSqlPackageAsync(final, "ALTER EXTENSION ankus_tool_probe SET SCHEMA declaration_second");
+        Dictionary<string, uint> relocated = await DeclarationMembers(final, "declaration_second");
+        Assert.AreSequenceEqual(original.Keys, relocated.Keys);
+        foreach ((string name, uint oid) in original)
+        {
+            Assert.AreEqual(oid, relocated[name], name);
+        }
+
+        await AssertDeclarationSchemaEmpty(final, "declaration_first");
+        await AssertDeclarationPackage(final, "declaration_second", originalExports, manifest.Library);
+        await ExecuteSqlPackageAsync(final, "DROP EXTENSION ankus_tool_probe");
+        await AssertDeclarationSchemaEmpty(final, "declaration_second");
+        Assert.IsFalse(await SqlPackageScalarAsync<bool>(final,
+            "SELECT EXISTS(SELECT FROM pg_extension WHERE extname='ankus_tool_probe')"));
+        Assert.AreSequenceEqual(shadow, await DeclarationShadowIdentities(final));
+        Assert.AreEqual("shadow|Other|106|99", await SqlPackageScalarAsync<string>(final, """
+            SELECT concat_ws('|',(enum_range(NULL::declaration_shadow.package_value))[1]::text,
+                (enum_range(NULL::declaration_shadow.package_code))[1]::text,
+                (SELECT declaration_shadow.package_total(value) FROM(VALUES(1),(2),(3)) inputs(value)),
+                (SELECT revision FROM declaration_shadow.package_marker))
+            """));
+        const string shadowQuery = "SELECT revision FROM declaration_shadow.package_marker WHERE revision OPERATOR(declaration_shadow.=) 99";
+        await AssertDeclarationIndex(final, shadowQuery, "declaration_shadow_index");
+        Assert.AreEqual(99, await SqlPackageScalarAsync<int>(final, shadowQuery));
+        await ExecuteSqlPackageAsync(final, "CREATE EXTENSION ankus_tool_probe WITH SCHEMA declaration_first");
+        Dictionary<string, uint> reinstalled = await DeclarationMembers(final, "declaration_first");
+        Assert.AreSequenceEqual(original.Keys, reinstalled.Keys);
+        foreach ((string name, uint oid) in original)
+        {
+            Assert.AreNotEqual(oid, reinstalled[name], name);
+        }
+
+        await AssertDeclarationPackage(final, "declaration_first", originalExports, manifest.Library);
+        await ExecuteSqlPackageAsync(final, "DROP EXTENSION ankus_tool_probe");
+    }
+
+    /// <summary>
+    /// Resolves an actual exported callback and its finfo symbol without reproducing symbol hashes.
+    /// </summary>
+    private static string DeclarationExport(string[] exports, string suffix)
+    {
+        string symbol = Assert.ContainsSingle(exports.Where(value => value.StartsWith("ankus_fn_", StringComparison.Ordinal) &&
+            value.EndsWith(suffix, StringComparison.Ordinal)));
+        Assert.Contains("pg_finfo_" + symbol, exports);
+        return symbol;
+    }
+
+    /// <summary>
+    /// Checks exact I/O, enum, aggregate, index and error behavior after each lifecycle transition.
+    /// </summary>
+    private async Task AssertDeclarationPackage(NpgsqlConnection connection, string schema, string[] exports, string library)
+    {
+        int process = connection.ProcessID;
+        Assert.AreEqual("42|0000002a|-7|6|0|true|2", await SqlPackageScalarAsync<string>(connection, $"""
+            SELECT concat_ws('|',{schema}.package_echo('41')::text,encode({schema}.package_send('42'),'hex'),
+                {schema}.code_number('Last'),
+                (SELECT {schema}.package_total(value) FROM(VALUES(1),(NULL),(2),(3)) inputs(value)),
+                (SELECT {schema}.package_total(value) FROM(SELECT 1 value WHERE false) inputs),
+                ({schema}.package_echo(NULL::{schema}.package_value) IS NULL)::text,
+                (SELECT revision FROM {schema}.package_marker))
+            """));
+        Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
+            SELECT typinput='{schema}.package_read(cstring)'::regprocedure
+                AND typoutput='{schema}.package_write({schema}.package_value)'::regprocedure
+                AND typreceive='{schema}.package_receive(internal)'::regprocedure
+                AND typsend='{schema}.package_send({schema}.package_value)'::regprocedure
+                AND (SELECT prosrc='{DeclarationExport(exports, "_type_in")}' AND probin='{library}' FROM pg_proc WHERE oid=typinput)
+                AND (SELECT prosrc='{DeclarationExport(exports, "_type_out")}' FROM pg_proc WHERE oid=typoutput)
+                AND (SELECT prosrc='{DeclarationExport(exports, "_type_recv")}' FROM pg_proc WHERE oid=typreceive)
+                AND (SELECT prosrc='{DeclarationExport(exports, "_type_send")}' FROM pg_proc WHERE oid=typsend)
+                AND to_regprocedure('{schema}.package_value_in(cstring)') IS NULL
+                AND to_regprocedure('{schema}.declared_total(integer)') IS NULL
+                AND NOT EXISTS(SELECT FROM pg_opclass WHERE opcnamespace='{schema}'::regnamespace
+                    AND opcname IN('package_value_btree_ops','package_value_hash_ops'))
+            FROM pg_type WHERE oid='{schema}.package_value'::regtype
+            """));
+        Assert.AreEqual(2L, await SqlPackageScalarAsync<long>(connection, $"""
+            SELECT count(*) FROM pg_opclass c JOIN pg_opfamily f ON f.oid=c.opcfamily JOIN pg_am a ON a.oid=c.opcmethod
+            WHERE c.opcnamespace='{schema}'::regnamespace AND f.opfnamespace=c.opcnamespace
+                AND c.opcname=f.opfname AND c.opcintype='{schema}.package_value'::regtype AND c.opcdefault
+                AND ((c.opcname='custom_value_btree' AND a.amname='btree') OR(c.opcname='custom_value_hash' AND a.amname='hash'))
+            """));
+        await ExecuteSqlPackageAsync(connection, $"""
+            CREATE TEMP TABLE declaration_btree_probe(id integer,value {schema}.package_value);
+            INSERT INTO declaration_btree_probe VALUES(1,'-1'),(2,'2'),(3,'3'),(4,'3'),(5,NULL);
+            CREATE INDEX declaration_btree_index ON declaration_btree_probe(value {schema}.custom_value_btree);
+            CREATE TEMP TABLE declaration_hash_probe AS TABLE declaration_btree_probe;
+            CREATE INDEX declaration_hash_index ON declaration_hash_probe USING hash(value {schema}.custom_value_hash);
+            ANALYZE declaration_btree_probe; ANALYZE declaration_hash_probe;
+            """);
+        string btree = $"SELECT id FROM declaration_btree_probe WHERE value OPERATOR({schema}.>=) '2' ORDER BY id";
+        string hash = $"SELECT id FROM declaration_hash_probe WHERE value OPERATOR({schema}.=) '3' ORDER BY id";
+        await AssertDeclarationIndex(connection, btree, "declaration_btree_index");
+        await AssertDeclarationIndex(connection, hash, "declaration_hash_index");
+        Assert.AreSequenceEqual([2, 3, 4], await SqlPackageScalarAsync<int[]>(connection, $"SELECT ARRAY({btree})"));
+        Assert.AreSequenceEqual([3, 4], await SqlPackageScalarAsync<int[]>(connection, $"SELECT ARRAY({hash})"));
+        Assert.AreEqual(1L, await SqlPackageScalarAsync<long>(connection, "SELECT count(*) FROM declaration_btree_probe WHERE value IS NULL"));
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecuteSqlPackageAsync(connection, $"SELECT {schema}.install_gate(-1)"));
+        Assert.AreEqual("P8221", error.SqlState);
+        Assert.AreEqual("Declaration installation rejected.", error.MessageText);
+        Assert.AreEqual("43", await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_echo('42')::text"));
+        Assert.AreEqual(process, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
+        await ExecuteSqlPackageAsync(connection, "DROP TABLE declaration_btree_probe; DROP TABLE declaration_hash_probe");
+    }
+
+    /// <summary>
+    /// Pins every explicit declaration and retained helper to one exact extension-owned catalog identity.
+    /// </summary>
+    private async Task<Dictionary<string, uint>> DeclarationMembers(NpgsqlConnection connection, string schema)
+    {
+        string[] expected = ["class:custom_value_btree", "class:custom_value_hash", "family:custom_value_btree", "family:custom_value_hash",
+            "function:code_number", "function:install_gate", "function:package_echo", "function:package_read", "function:package_receive",
+            "function:package_send", "function:package_step", "function:package_total", "function:package_value_cmp", "function:package_value_eq",
+            "function:package_value_ge", "function:package_value_gt", "function:package_value_hash", "function:package_value_le",
+            "function:package_value_lt", "function:package_value_ne", "function:package_write", "operator:<", "operator:<=", "operator:<>",
+            "operator:=", "operator:>", "operator:>=", "table:package_marker", "type:package_code", "type:package_value"];
+        await using var command = new NpgsqlCommand($"""
+            WITH objects(label,classid,objid) AS (
+                SELECT 'type:'||typname,'pg_type'::regclass,oid FROM pg_type
+                    WHERE typnamespace='{schema}'::regnamespace AND typname IN('package_value','package_code')
+                UNION ALL SELECT 'function:'||proname,'pg_proc'::regclass,oid FROM pg_proc WHERE pronamespace='{schema}'::regnamespace
+                UNION ALL SELECT 'operator:'||oprname,'pg_operator'::regclass,oid FROM pg_operator WHERE oprnamespace='{schema}'::regnamespace
+                UNION ALL SELECT 'class:'||opcname,'pg_opclass'::regclass,oid FROM pg_opclass WHERE opcnamespace='{schema}'::regnamespace
+                UNION ALL SELECT 'family:'||opfname,'pg_opfamily'::regclass,oid FROM pg_opfamily WHERE opfnamespace='{schema}'::regnamespace
+                UNION ALL SELECT 'table:'||relname,'pg_class'::regclass,oid FROM pg_class WHERE relnamespace='{schema}'::regnamespace AND relkind='r')
+            SELECT label,objid,EXISTS(SELECT FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
+                WHERE d.classid=objects.classid AND d.objid=objects.objid AND d.refclassid='pg_extension'::regclass
+                    AND d.deptype='e' AND e.extname='ankus_tool_probe') FROM objects ORDER BY label COLLATE "C"
+            """, connection);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(context.CancellationToken);
+        var objects = new Dictionary<string, uint>(StringComparer.Ordinal);
+        while (await reader.ReadAsync(context.CancellationToken))
+        {
+            string name = reader.GetString(0);
+            Assert.IsTrue(reader.GetBoolean(2), name);
+            objects.Add(name, reader.GetFieldValue<uint>(1));
+        }
+
+        Assert.AreSequenceEqual(expected, objects.Keys);
+        return objects;
+    }
+
+    /// <summary>
+    /// Requires rollback or relocation/drop to remove all objects while retaining the independently created schema.
+    /// </summary>
+    private async Task AssertDeclarationSchemaEmpty(NpgsqlConnection connection, string schema)
+        => Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
+            SELECT NOT EXISTS(SELECT FROM pg_type WHERE typnamespace='{schema}'::regnamespace)
+                AND NOT EXISTS(SELECT FROM pg_proc WHERE pronamespace='{schema}'::regnamespace)
+                AND NOT EXISTS(SELECT FROM pg_operator WHERE oprnamespace='{schema}'::regnamespace)
+                AND NOT EXISTS(SELECT FROM pg_opclass WHERE opcnamespace='{schema}'::regnamespace)
+                AND NOT EXISTS(SELECT FROM pg_opfamily WHERE opfnamespace='{schema}'::regnamespace)
+                AND NOT EXISTS(SELECT FROM pg_class WHERE relnamespace='{schema}'::regnamespace)
+            """));
+
+    /// <summary>
+    /// Captures independently owned same-name objects, including a working index and aggregate.
+    /// </summary>
+    private Task<uint[]> DeclarationShadowIdentities(NpgsqlConnection connection)
+        => SqlPackageScalarAsync<uint[]>(connection, """
+            SELECT ARRAY['declaration_shadow.package_value'::regtype::oid,'declaration_shadow.package_code'::regtype::oid,
+                'declaration_shadow.package_value_cmp(integer,integer)'::regprocedure::oid,
+                'declaration_shadow.package_value_hash(integer)'::regprocedure::oid,
+                'declaration_shadow.package_total(integer)'::regprocedure::oid,
+                'declaration_shadow.=(integer,integer)'::regoperator::oid,
+                (SELECT oid FROM pg_opclass WHERE opcnamespace='declaration_shadow'::regnamespace AND opcname='custom_value_btree'),
+                (SELECT oid FROM pg_opclass WHERE opcnamespace='declaration_shadow'::regnamespace AND opcname='custom_value_hash'),
+                (SELECT oid FROM pg_opfamily WHERE opfnamespace='declaration_shadow'::regnamespace AND opfname='custom_value_btree'),
+                (SELECT oid FROM pg_opfamily WHERE opfnamespace='declaration_shadow'::regnamespace AND opfname='custom_value_hash'),
+                'declaration_shadow.package_marker'::regclass::oid,'declaration_shadow.declaration_shadow_index'::regclass::oid]
+            """);
+
+    /// <summary>
+    /// Requires an actual conditioned scan on the intended custom index, including when a sort wraps it.
+    /// </summary>
+    private async Task AssertDeclarationIndex(NpgsqlConnection connection, string sql, string index)
+    {
+        using JsonDocument plan = JsonDocument.Parse(await SqlPackageScalarAsync<string>(connection, "EXPLAIN (ANALYZE,FORMAT JSON) " + sql));
+        Assert.Contains(node => node.GetProperty("Node Type").GetString() == "Index Scan" &&
+            node.TryGetProperty("Index Name", out JsonElement name) && name.GetString() == index &&
+            node.TryGetProperty("Index Cond", out JsonElement condition) && !string.IsNullOrWhiteSpace(condition.GetString()),
+            DeclarationPlanNodes(plan.RootElement[0].GetProperty("Plan")), plan.RootElement.ToString());
+    }
+
+    /// <summary>
+    /// Enumerates all plan nodes without inferring index usage from planner settings.
+    /// </summary>
+    private static IEnumerable<JsonElement> DeclarationPlanNodes(JsonElement plan)
+    {
+        yield return plan;
+        if (plan.TryGetProperty("Plans", out JsonElement children))
+        {
+            foreach (JsonElement child in children.EnumerateArray())
+            {
+                foreach (JsonElement nested in DeclarationPlanNodes(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds a complete independent one-field COPY envelope for the literal four-byte codec payload.
+    /// </summary>
+    private static byte[] DeclarationCopy(byte[] payload)
+    {
+        byte[] copy = new byte[27 + payload.Length];
+        new byte[] { 80, 71, 67, 79, 80, 89, 10, 255, 13, 10, 0 }.CopyTo(copy, 0);
+        BinaryPrimitives.WriteInt16BigEndian(copy.AsSpan(19), 1);
+        BinaryPrimitives.WriteInt32BigEndian(copy.AsSpan(21), payload.Length);
+        payload.CopyTo(copy, 25);
+        BinaryPrimitives.WriteInt16BigEndian(copy.AsSpan(25 + payload.Length), -1);
+        return copy;
+    }
+
+    /// <summary>
+    /// Completes COPY so malformed receive data must surface before the recovery assertions.
+    /// </summary>
+    private async Task ImportDeclarationCopy(NpgsqlConnection connection, byte[] bytes)
+    {
+        await using Stream copy = await connection.BeginRawBinaryCopyAsync("COPY declaration_binary FROM STDIN (FORMAT BINARY)", context.CancellationToken);
+        await copy.WriteAsync(bytes, context.CancellationToken);
+    }
+
+    /// <summary>
+    /// Changes only the aggregate replacement literal between the failed and corrected package publications.
+    /// </summary>
+    private static string DeclarationLifecycleSource(bool fail)
+    {
+        string aggregate = "CREATE AGGREGATE package_total(integer)(SFUNC=package_step,STYPE=integer,INITCOND='0');\n" +
+            "CREATE TABLE package_marker(revision integer); INSERT INTO package_marker VALUES(" + (fail ? "1" : "2") + ");\n" +
+            (fail ? "SELECT install_gate(-1);\n" : string.Empty);
+        return $$"""
+            using Ankus;
+            [PgType(typeof(PackageCodec), Name="package_value", BinaryProtocol=true, Id="package-type",
+                Sql={{JsonSerializer.Serialize(DeclarationTypeSql)}}, SqlRelocatable=true)]
+            [PgEquality]
+            [PgOrdering(Id="package-ordering", Sql={{JsonSerializer.Serialize(DeclarationOrderingSql)}}, SqlRelocatable=true)]
+            [PgHashing(Id="package-hashing", Sql={{JsonSerializer.Serialize(DeclarationHashingSql)}}, SqlRelocatable=true)]
+            public readonly record struct PackageValue(int Number) : System.IComparable<PackageValue>, IPgHashable
+            {
+                public int CompareTo(PackageValue other) => Number.CompareTo(other.Number);
+                public int GetPostgresHashCode() => Number;
+            }
+            [PgEnum(Name="package_code", Id="package-enum", Sql="CREATE TYPE package_code AS ENUM('First','Last');", SqlRelocatable=true)]
+            public enum PackageCode { First=23, Last=-7 }
+            public static class Functions
+            {
+                [PgFunction] public static PackageValue? PackageEcho(PackageValue? value) => value is null ? null : new(checked(value.Value.Number+1));
+                [PgFunction] public static int CodeNumber(PackageCode value) => (int)value;
+                [PgFunction(Id="gate")] public static int InstallGate(int value)
+                    => value < 0 ? throw new PgException("P8221","Declaration installation rejected.") : value;
+            }
+            [PgAggregate(Name="declared_total", InitialCondition="0", Requires=new[]{"package-type","package-enum","package-ordering","package-hashing","gate"},
+                Sql={{JsonSerializer.Serialize(aggregate)}}, SqlRelocatable=true)]
+            public static class Total
+            {
+                [PgFunction(Name="package_step")] public static int Transition(int state,int value) => checked(state+value);
+            }
+            {{DeclarationCodecSource}}
+            """;
+    }
+
+    /// <summary>
+    /// Declares an entirely SQL-disabled type and typed function while retaining every compiled callback.
+    /// </summary>
+    private const string DisabledDeclarationSource = """
+        using Ankus;
+        [PgType(typeof(PackageCodec), Name="package_value", BinaryProtocol=true, GenerateSql=false,
+            NullInputErrorMessage="Package input requires text.")]
+        public readonly record struct PackageValue(int Number);
+        public static class Functions
+        {
+            [PgFunction(GenerateSql=false)] public static PackageValue? PackageEcho(PackageValue? value)
+                => value is null ? null : new(checked(value.Value.Number+1));
+        }
+        """ + DeclarationCodecSource;
+
+    /// <summary>
+    /// Uses a portable literal integer representation independent of generated serializers.
+    /// </summary>
+    private const string DeclarationCodecSource = """
+
+        public sealed class PackageCodec : Ankus.PgTypeCodec<PackageValue>
+        {
+            public override PackageValue Parse(string text)
+                => int.TryParse(text,System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out int value)
+                    ? new(value) : throw new Ankus.PgException("22P02","Invalid declaration package text.");
+            public override string Format(PackageValue value) => value.Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            public override PackageValue Read(System.ReadOnlySpan<byte> payload)
+                => payload.Length==4 ? new(System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(payload))
+                    : throw new Ankus.PgException("22P03","Invalid declaration package payload.");
+            public override void Write(PackageValue value,System.Buffers.IBufferWriter<byte> destination)
+            {
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(destination.GetSpan(4),value.Number);
+                destination.Advance(4);
+            }
+        }
+        """;
+
+    /// <summary>
+    /// Creates all type I/O declarations with consumer-chosen SQL names and opaque native export tokens.
+    /// </summary>
+    private const string DeclarationTypeSql = """
+        CREATE TYPE package_value;
+        CREATE FUNCTION package_read(cstring) RETURNS package_value AS '@MODULE_PATHNAME@','@INPUT_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+        CREATE FUNCTION package_write(package_value) RETURNS cstring AS '@MODULE_PATHNAME@','@OUTPUT_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+        CREATE FUNCTION package_receive(internal) RETURNS package_value AS '@MODULE_PATHNAME@','@RECEIVE_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+        CREATE FUNCTION package_send(package_value) RETURNS bytea AS '@MODULE_PATHNAME@','@SEND_FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT;
+        CREATE TYPE package_value(INTERNALLENGTH=variable,INPUT=package_read,OUTPUT=package_write,
+            RECEIVE=package_receive,SEND=package_send,ALIGNMENT=int4,STORAGE=extended);
+        """;
+
+    /// <summary>
+    /// Replaces only the B-tree family and class while referring to the retained comparison helper.
+    /// </summary>
+    private const string DeclarationOrderingSql = """
+        CREATE OPERATOR FAMILY custom_value_btree USING btree;
+        CREATE OPERATOR CLASS custom_value_btree DEFAULT FOR TYPE package_value USING btree FAMILY custom_value_btree AS
+            OPERATOR 1 <(package_value,package_value), OPERATOR 2 <=(package_value,package_value),
+            OPERATOR 3 =(package_value,package_value), OPERATOR 4 >=(package_value,package_value),
+            OPERATOR 5 >(package_value,package_value), FUNCTION 1 @COMPARISON_FUNCTION_SQL@(package_value,package_value);
+        """;
+
+    /// <summary>
+    /// Replaces only the hash family and class while retaining the generated hashing helper and equality.
+    /// </summary>
+    private const string DeclarationHashingSql = """
+        CREATE OPERATOR FAMILY custom_value_hash USING hash;
+        CREATE OPERATOR CLASS custom_value_hash DEFAULT FOR TYPE package_value USING hash FAMILY custom_value_hash AS
+            OPERATOR 1 =(package_value,package_value), FUNCTION 1 @HASH_FUNCTION_SQL@(package_value);
+        """;
+
+    /// <summary>
+    /// Creates independent same-name objects whose identities and indexed results must survive extension cleanup.
+    /// </summary>
+    private const string DeclarationShadowSql = """
+        CREATE SCHEMA declaration_shadow;
+        CREATE TYPE declaration_shadow.package_value AS ENUM('shadow');
+        CREATE TYPE declaration_shadow.package_code AS ENUM('Other');
+        CREATE FUNCTION declaration_shadow.package_value_cmp(integer,integer) RETURNS integer
+            LANGUAGE SQL IMMUTABLE STRICT AS 'SELECT pg_catalog.btint4cmp($1,$2)';
+        CREATE FUNCTION declaration_shadow.package_value_hash(integer) RETURNS integer
+            LANGUAGE SQL IMMUTABLE STRICT AS 'SELECT pg_catalog.hashint4($1)';
+        CREATE AGGREGATE declaration_shadow.package_total(integer)(SFUNC=pg_catalog.int4pl,STYPE=integer,INITCOND='100');
+        CREATE OPERATOR declaration_shadow.= (LEFTARG=integer,RIGHTARG=integer,FUNCTION=pg_catalog.int4eq);
+        CREATE OPERATOR FAMILY declaration_shadow.custom_value_btree USING btree;
+        CREATE OPERATOR CLASS declaration_shadow.custom_value_btree FOR TYPE integer USING btree
+            FAMILY declaration_shadow.custom_value_btree AS OPERATOR 1 pg_catalog.<(integer,integer),
+            OPERATOR 2 pg_catalog.<=(integer,integer),OPERATOR 3 declaration_shadow.=(integer,integer),
+            OPERATOR 4 pg_catalog.>=(integer,integer),OPERATOR 5 pg_catalog.>(integer,integer),
+            FUNCTION 1 declaration_shadow.package_value_cmp(integer,integer);
+        CREATE OPERATOR FAMILY declaration_shadow.custom_value_hash USING hash;
+        CREATE OPERATOR CLASS declaration_shadow.custom_value_hash FOR TYPE integer USING hash
+            FAMILY declaration_shadow.custom_value_hash AS OPERATOR 1 declaration_shadow.=(integer,integer),
+            FUNCTION 1 declaration_shadow.package_value_hash(integer);
+        CREATE TABLE declaration_shadow.package_marker(revision integer);
+        INSERT INTO declaration_shadow.package_marker VALUES(99);
+        CREATE INDEX declaration_shadow_index ON declaration_shadow.package_marker USING hash(revision declaration_shadow.custom_value_hash);
+        ANALYZE declaration_shadow.package_marker;
+        """;
+}

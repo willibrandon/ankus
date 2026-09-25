@@ -27,6 +27,30 @@ public sealed class PgAggregateAttribute : Attribute
     public string[] Requires { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets whether installation SQL is emitted for the aggregate's CREATE AGGREGATE declaration.
+    /// The default is true. False retains all support callbacks, their independent SQL policies and the dependency identifier.
+    /// Cannot be false when Sql contains a replacement, including an empty string.
+    /// </summary>
+    public bool GenerateSql { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets literal installation SQL replacing this aggregate's CREATE AGGREGATE declaration.
+    /// Null preserves generated SQL; empty text emits no statements for this declaration.
+    /// </summary>
+    /// <remarks>
+    /// @MODULE_PATHNAME@ becomes MODULE_PATHNAME. Support functions retain their own PgFunction SQL controls.
+    /// Replacement SQL must use helpers with compatible argument, state, result and NULL contracts.
+    /// </remarks>
+    public string? Sql { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+    /// The default is false. This option applies only to non-null Sql; fixed schemas and other
+    /// non-relocatable declarations can still prevent relocation.
+    /// </summary>
+    public bool SqlRelocatable { get; set; }
+
+    /// <summary>
     /// Gets or sets declarations that must follow this aggregate in installation SQL.
     /// </summary>
     public string[] Before { get; set; } = [];

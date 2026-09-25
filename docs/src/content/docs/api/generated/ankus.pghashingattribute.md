@@ -37,6 +37,20 @@ public PgHashingAttribute()
 
 ## Properties
 
+<a id="member-91302aa89575872f"></a>
+
+### GenerateSql
+
+Gets or sets whether installation SQL is emitted for the hash operator family and class.
+The default is true. False retains the hash support function, equality prerequisite and dependency identifier.
+Cannot be false when Sql contains a replacement, including an empty string.
+
+```csharp
+public bool GenerateSql { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-95807e1a1c9dce4e"></a>
 
 ### Id
@@ -60,3 +74,34 @@ public string[] Requires { get; set; }
 ```
 
 Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-852abb09b9664ad9"></a>
+
+### Sql
+
+Gets or sets literal installation SQL replacing the hash operator family and class.
+Null preserves generated SQL; empty text emits no statements for this declaration.
+
+```csharp
+public string? Sql { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+@HASH_FUNCTION_SQL@ becomes the retained hash helper's quoted SQL identifier, qualified when a fixed
+schema is declared, without an argument list. Do not add string quotes around this token.
+@MODULE_PATHNAME@ becomes MODULE_PATHNAME. The hash support function remains generated.
+
+<a id="member-3fbd8a20d9363ed4"></a>
+
+### SqlRelocatable
+
+Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+The default is false. This option applies only to non-null Sql; fixed schemas and other
+non-relocatable declarations can still prevent relocation.
+
+```csharp
+public bool SqlRelocatable { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)

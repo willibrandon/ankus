@@ -79,6 +79,12 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         => Qualify(Encoding.UTF8.GetByteCount(Name) + role.Length + 1 <= 63 ? Name + "_" + role : "ankus_" + Symbol + "_" + role);
 
     /// <summary>
+    /// Gets the native PostgreSQL entry point for an enabled I/O role.
+    /// </summary>
+    /// <param name="role">The input, output, receive or send role suffix.</param>
+    internal string NativeFunction(string role) => "ankus_fn_" + Symbol + "_type_" + role;
+
+    /// <summary>
     /// Quotes an identifier in the type's selected schema.
     /// </summary>
     private string Qualify(string identifier) => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(identifier);

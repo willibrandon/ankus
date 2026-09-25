@@ -36,7 +36,7 @@ internal static class PgTypeEmitter
         void EmitFunction(string role, string operation, FunctionType input, FunctionType result)
         {
             string callback = "ankus_managed_" + type.Symbol + "_type_" + role;
-            string symbol = "ankus_fn_" + type.Symbol + "_type_" + role;
+            string symbol = type.NativeFunction(role);
             EmitManaged(callback, operation, type, managed);
             PgFunctionEmitter.EmitNative(symbol, callback, [input], result, ensureInitialized, native);
             sql.AppendLine("CREATE FUNCTION " + type.Function(role) + "(" + input.Sql + ") RETURNS " + result.Sql +

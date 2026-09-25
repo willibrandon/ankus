@@ -103,6 +103,20 @@ public PgAggregateFinalModify FinalModify { get; set; }
 
 Value: [PgAggregateFinalModify](/api/ankus.pgaggregatefinalmodify/)
 
+<a id="member-0d877a4fecc660d6"></a>
+
+### GenerateSql
+
+Gets or sets whether installation SQL is emitted for the aggregate's CREATE AGGREGATE declaration.
+The default is true. False retains all support callbacks, their independent SQL policies and the dependency identifier.
+Cannot be false when Sql contains a replacement, including an empty string.
+
+```csharp
+public bool GenerateSql { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-ff0c9fc4c5a101e3"></a>
 
 ### Id
@@ -294,6 +308,36 @@ public string? SortOperator { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-f6aabbd1eb2cb354"></a>
+
+### Sql
+
+Gets or sets literal installation SQL replacing this aggregate's CREATE AGGREGATE declaration.
+Null preserves generated SQL; empty text emits no statements for this declaration.
+
+```csharp
+public string? Sql { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+@MODULE_PATHNAME@ becomes MODULE_PATHNAME. Support functions retain their own PgFunction SQL controls.
+Replacement SQL must use helpers with compatible argument, state, result and NULL contracts.
+
+<a id="member-3c28535b11b0a388"></a>
+
+### SqlRelocatable
+
+Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
+The default is false. This option applies only to non-null Sql; fixed schemas and other
+non-relocatable declarations can still prevent relocation.
+
+```csharp
+public bool SqlRelocatable { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
 
 <a id="member-45413afe5cfd7ef0"></a>
 

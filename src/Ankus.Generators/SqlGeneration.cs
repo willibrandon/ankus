@@ -8,16 +8,16 @@ namespace Ankus.Generators;
 internal static class SqlGeneration
 {
     /// <summary>
-    /// Applies a function's SQL policy to its declaration and attached operator or cast nodes.
+    /// Applies a declaration's SQL policy while retaining compiled contracts and dependency nodes.
     /// </summary>
-    /// <param name="attribute">The optional function attribute.</param>
-    /// <param name="function">The backing function's graph node.</param>
-    /// <param name="related">Attached operator and cast declarations.</param>
-    /// <param name="nativeName">The generated PostgreSQL entry point.</param>
+    /// <param name="attribute">The optional declaration attribute.</param>
+    /// <param name="entity">The declaration's graph node.</param>
+    /// <param name="related">Additional declarations owned by this replacement.</param>
+    /// <param name="substitutions">Context-specific tokens and their values; null marks an unavailable token.</param>
     /// <param name="graph">The installation graph and diagnostic sink.</param>
     /// <returns>Whether this policy permits schema relocation.</returns>
-    internal static bool Apply(AttributeData? attribute, SqlEntity function, IReadOnlyList<SqlEntity> related,
-        string nativeName, SqlGraph graph)
+    internal static bool Apply(AttributeData? attribute, SqlEntity entity, IReadOnlyList<SqlEntity> related,
+        IReadOnlyList<(string Token, string? Value)> substitutions, SqlGraph graph)
     {
         if (attribute is null)
         {
@@ -28,27 +28,41 @@ internal static class SqlGeneration
         string? sql = AttributeValues.Get<string?>(attribute, "Sql", null);
         if (!enabled && sql is not null)
         {
-            graph.Error(function.Location, "GenerateSql cannot be false when Sql supplies a replacement, including empty text.");
+            graph.Error(entity.Location, "GenerateSql cannot be false when Sql supplies a replacement, including empty text.");
             return false;
         }
 
         if (sql is not null && !SqlText.IsText(sql))
         {
-            graph.Error(function.Location, "A Sql replacement must contain valid Unicode without zero characters.");
+            graph.Error(entity.Location, "A Sql replacement must contain valid Unicode without zero characters.");
             return false;
         }
 
         if (!enabled)
         {
-            function.Sql = string.Empty;
-            foreach (SqlEntity entity in related)
+            entity.Sql = string.Empty;
+            foreach (SqlEntity member in related)
             {
-                entity.Sql = string.Empty;
+                member.Sql = string.Empty;
             }
         }
         else if (sql is not null)
         {
-            graph.Replace(function, sql.Replace("@FUNCTION_NAME@", nativeName).Replace("@MODULE_PATHNAME@", "MODULE_PATHNAME"), related);
+            sql = sql.Replace("@MODULE_PATHNAME@", "MODULE_PATHNAME");
+            foreach ((string token, string? value) in substitutions)
+            {
+                if (value is not null)
+                {
+                    sql = sql.Replace(token, value);
+                }
+                else if (sql.IndexOf(token, StringComparison.Ordinal) >= 0)
+                {
+                    graph.Error(entity.Location, "The Sql replacement token " + token + " requires BinaryProtocol = true.");
+                    return false;
+                }
+            }
+
+            graph.Replace(entity, sql, related);
             return AttributeValues.Get(attribute, "SqlRelocatable", false);
         }
 

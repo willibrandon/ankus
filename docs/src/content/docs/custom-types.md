@@ -383,6 +383,13 @@ Without a fixed schema, the type follows the extension's installation schema,
 including after relocation. Ankus creates types before functions that use them.
 `Id` and `Requires` order custom installation SQL around the type.
 
+`Sql` replaces the complete shell type, I/O functions and completed type SQL;
+`GenerateSql = false` retains the codec, native I/O exports and managed type
+mapping while omitting those declarations. Generated consumers still need a
+compatible type with the declared name and schema. The replacement supports
+native I/O tokens and must preserve the existing variable-length storage
+contract. See [base-type SQL controls](/custom-sql/#replace-base-type-sql).
+
 ## Storage and errors
 
 `Read` receives the complete payload without PostgreSQL's storage header.
