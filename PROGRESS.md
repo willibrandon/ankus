@@ -2618,7 +2618,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal, raw and custom-codec bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; heterogeneous ANY and full matrix remain required |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
-| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Pending |
+| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins and fresh-backend reuse. Manual raw mappings, SQL-generation overrides and the complete platform/version matrix remain required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend and shared-preload `[PgInitialize]` with retry/recursion handling; Linux x64 fork behavior verified, remaining platform/version matrix required |
@@ -2774,7 +2774,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] general raw aggregate signatures with checked type identity and state ownership
   - [x] strongly typed custom base-type aggregate signatures
   - [ ] heterogeneous ordered-set VARIADIC ANY
-  - [ ] generated equality/order/hash operator classes
+  - [x] generated equality/order/hash operator classes for declared types/enums (manual mappings and SQL overrides remain)
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
@@ -4247,5 +4247,69 @@ The phases track implementation of the complete pgrx feature surface.
   14.02s. API generation and freshness passed (137 pages, 1,383 members), as did
   `pnpm build` (174 pages) and `pnpm check` (zero errors, warnings or hints).
   Independent source/assertion review found no unresolved ownership defect.
-  Hosted validation of this milestone is pending; earlier platform evidence
-  does not validate this change.
+  Hosted [CI run 36089023397](https://github.com/willibrandon/ankus/actions/runs/36089023397)
+  and the documentation workflow passed for commit `bf34b7e`. The complete suite
+  passed on Linux x64/PostgreSQL 18.6 (5,365 passed, zero skipped), macOS
+  ARM64/PostgreSQL 18.6 (5,363 passed, two existing Linux-only skips), and Windows
+  x64/PostgreSQL 17.11 (5,363 passed, the same two skips). Platform jobs took
+  8m27s, 8m49s and 14m53s respectively; Windows exceeds the preferred ten-minute
+  feedback target but remains below the hard twenty-minute limit.
+
+- 2026-09-24 — Implemented generated custom-type operators. Added explicit
+  `PgEquality`, `PgOrdering` and `PgHashing` contracts, closed managed interface
+  dispatch, dependency-ordered operator families/classes, and `IPgHashable` for
+  stable database hashes. The callbacks reuse the existing scalar conversion and
+  error boundary. Enum opt-ins use underlying numeric order; unmarked enums keep
+  PostgreSQL label order. Manual same-schema equality can supply the equality
+  dependency, and non-boolean manual operators are rejected before SQL emission.
+
+  `PgHash` implements the SeaHash v4 byte-buffer algorithm with pgrx's frozen
+  seeds, explicit little-endian integer input and strict UTF-8 text. Independent
+  vectors from both official SeaHash 4.1.0 implementations agree; the focused
+  runtime scope passes 63 cases with zero failures/skips. The generator and
+  updated custom-types sample build with zero diagnostics. README, operator and
+  custom-type guides describe the API and stable normalization requirements.
+  The generator scope passes 30 cases with zero failures/skips in 2.544s, including
+  compiled execution of exact and inherited interfaces, signed/unsigned enum
+  boundaries, independent opt-ins, invalid contracts, graph edges/collisions,
+  source permutations and byte-limited Unicode names. Generated functions are
+  strict, immutable and parallel safe. Only comparison signs matter; a comparator
+  can return `int.MinValue` or `int.MaxValue`. Native-layout callbacks use copied
+  payloads and preserve live varlena aliases. Abstract tagged roots compare through
+  their declared interfaces while retaining concrete variant data.
+
+  | Required behavior | Direct evidence |
+  |---|---|
+  | Logical equality independent of identity, non-key metadata and stored bytes | `CustomOperatorHelpersExecuteExactValueContracts`, `CustomOperatorsPreserveLogicalEqualityAndExtremeSigns` |
+  | Exact SeaHash bytes, tails, UTF-8, invalid UTF-16 and fixed-width integer inputs | `ByteSequencesMatchSeaHashFourReferenceVectors`, `ZeroBytesRetainTheirOriginalLength`, `TextUsesExactUtf8ReferenceVectors`, `UnpairedUtf16SurrogatesAreRejected`, `UnsignedValuesUseEightLittleEndianBytes` |
+  | Nonstandard order, extreme comparator signs and every B-tree predicate strategy | `CustomOperatorHelpersExecuteExactValueContracts`, `CustomOperatorsUseNonstandardIndexedOrdering`, `CustomOperatorBtreeUsesEveryStrategy` |
+  | Independent opt-ins, exact interface contracts, graph IDs and collision diagnostics | `CustomOperatorOptionsAcceptManualEquality`, `InvalidCustomOperatorContractsAreDiagnosed`, `CustomOperatorManualEqualityMustReturnBoolean`, `CustomOperatorGroupIdsOrderCompleteFamilies`, `CustomOperatorGraphsDiagnoseInvalidDependencies`, `CustomOperatorLongNamesRemainDistinctAndDeterministic` |
+  | Actual default classes, catalog strategies/support functions, logical uniqueness and collisions | `CustomOperatorCatalogRetainsFamiliesAndPlannerContracts`, `CustomOperatorUniqueIndexUsesLogicalEquality`, `CustomOperatorHashIndexRechecksCollisions` |
+  | Sorted/hashed grouping, DISTINCT, Hash Join and Merge Join with exact results | `CustomOperatorGroupingPreservesEqualityAndNull`, `CustomOperatorFamiliesExecuteRealJoins` |
+  | Native/custom-base enums, codec/native/tagged storage, NULL bypass and alias preservation | `CustomOperatorEnumsKeepTheirDistinctStorageContracts`, `CustomOperatorStorageModesRetainValuesAndAliases`, `CustomOperatorTaggedRootsPreserveConcreteState`, `CustomOperatorNullsBypassManagedContracts` |
+  | Stable committed index reuse from distinct backends | `CustomOperatorHashesPersistAcrossFreshBackends` checks independent hash literals, distinct unpooled PIDs, collisions, mutations, reindex and constrained index results |
+  | Extension ownership, schema relocation, removal and reinstallation | `CustomOperatorSampleRelocatesAndReinstalls` checks 19 exact members, OID continuity through relocation, indexed queries/joins, cleanup, unrelated shadow objects and fresh installed identities |
+  | Exact errors, failed index builds/inserts and same-session recovery | `CustomOperatorErrorsRecoverInSameBackend`, `CustomOperatorIndexErrorsPreserveRowsAndRecovery` |
+
+  All 26 focused published Native AOT backend cases pass on Linux x64/PostgreSQL
+  18.6 with zero failures/skips in 31.440s. The first attempt stopped on four test
+  style diagnostics before any backend execution. The first executed run passed
+  23/26: two index-recovery fixtures incorrectly assumed deleting a row made it
+  physically absent from the next index build. PostgreSQL can visit recently dead
+  tuples. The fixture now checks the exact visible row after deletion, resets
+  physical storage with TRUNCATE, and retains failed-build/insert atomicity and
+  subsequent constrained-index/same-PID assertions. The lifecycle fixture needed
+  an explicit `oid[]` binding for its client-side catalog query. No production
+  changes were needed for these fixture corrections. Independent source and
+  assertion review found no unresolved defect in this bounded implementation.
+
+  The complete unfiltered `dotnet test` run passes 5,484/5,484 with zero skips in
+  3m11.785s on Linux x64/PostgreSQL 18.6. The Release build passes with zero
+  warnings/errors in 15.41s. API generation/freshness passes (142 pages, 1,396
+  members), as do `pnpm build` (179 pages) and `pnpm check` (zero errors, warnings
+  or hints). Hosted validation of this milestone is pending. Fresh backend reuse
+  does not establish postmaster restart or upgrade persistence. The public test
+  harness has no data-preserving restart operation.
+  The hash helper specifies exact byte encodings, not arbitrary Rust `Hash` value
+  feeds. Custom SQL generation override/disable hooks, manual raw base-type
+  mappings, and the full PostgreSQL-major/platform matrix remain full-port work.

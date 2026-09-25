@@ -7,6 +7,16 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed class FunctionType
 {
+    /// <summary>
+    /// Creates the non-null boolean result of a generated comparison.
+    /// </summary>
+    internal static FunctionType ComparisonResult() => new("bool", "boolean", "BOOL", "Bool", "Integral", false, false);
+
+    /// <summary>
+    /// Creates the non-null signed integer result of a generated index support function.
+    /// </summary>
+    internal static FunctionType IndexSupportResult() => new("int", "integer", "INT32", "Int32", "Integral", false, false);
+
     private FunctionType(string managed, string sql, string reader, string writer, string field, bool nullable, bool reference)
     {
         Managed = managed;

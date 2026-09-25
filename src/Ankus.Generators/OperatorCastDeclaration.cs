@@ -14,7 +14,7 @@ internal static class OperatorCastDeclaration
     /// Adds separately addressable operator and cast entities for an already validated function.
     /// </summary>
     internal static void Add(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function, SqlEntity dependency,
-        SqlGraph graph, HashSet<string> names, SourceProductionContext context)
+        SqlGraph graph, HashSet<string> names, SourceProductionContext context, Dictionary<string, SqlEntity> operators)
     {
         FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsInjected)];
         foreach (AttributeData attribute in method.GetAttributes())
@@ -54,6 +54,10 @@ internal static class OperatorCastDeclaration
             entity.Dependencies.Add(dependency);
             graph.Configure(entity, attribute);
             graph.Add(entity);
+            if (kind == "operator" && FunctionType.CreateResult(method)!.Sql == "boolean")
+            {
+                operators[declared.Signature] = entity;
+            }
         }
     }
 

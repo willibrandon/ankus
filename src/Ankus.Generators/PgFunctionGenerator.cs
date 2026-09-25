@@ -69,6 +69,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgTypeAttribute",
             static (node, _) => node is BaseTypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<INamedTypeSymbol> derivedOperators = context.SyntaxProvider.CreateSyntaxProvider(
+            static (node, _) => node is BaseTypeDeclarationSyntax { AttributeLists.Count: > 0 },
+            static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BaseTypeDeclarationSyntax)syntaxContext.Node, token))
+            .Where(static type => type is not null && type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute))
+            .Select(static (type, _) => type!);
         IncrementalValuesProvider<INamedTypeSymbol> schemas = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgSchemaAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
@@ -92,18 +97,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes).Combine(customTypes.Collect()),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Right,
-                input.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right,
-                input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()),
+            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Right,
+                input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
         ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties,
-        ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes)
+        ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty)
         {
             return;
         }
@@ -136,11 +141,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasGucHooks = gucs.Any(static guc => guc.HasHooks);
         bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
         bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
-        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty;
+        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || !derivedTypes.IsEmpty;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method));
+        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || !derivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(NativeMemoryBridge.CleanupBinding);
@@ -443,6 +448,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 hasGucHooks, registration.ToString(), managed, native, exports);
         }
 
+        var operatorEntities = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool hasVarlenaReader = false;
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
@@ -540,7 +546,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             graph.Add(entity);
             if (!contextParameter)
             {
-                OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context);
+                OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context, operatorEntities);
             }
 
             IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
@@ -572,6 +578,19 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     entity.Dependencies.Add(schema);
                 }
             }
+        }
+
+        bool validOperators = true;
+        foreach (INamedTypeSymbol type in derivedTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
+            .OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
+        {
+            validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, names, relatedNames, operatorEntities, graph,
+                context, ensureManagedReady, managed, native, exports);
+        }
+
+        if (!validOperators)
+        {
+            return;
         }
 
         var supportFunctions = new Dictionary<string, (IMethodSymbol Method, SqlEntity Entity)>(StringComparer.Ordinal);

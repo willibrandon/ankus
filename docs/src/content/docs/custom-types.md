@@ -367,6 +367,14 @@ casts, and SPI parameters and results. `Distance?` represents SQL NULL.
 `Distance?[]` supports nullable elements; `PgArray<Distance?>` also preserves
 dimensions and lower bounds. Sets and TABLE results use the same conversions.
 
+Add `[PgEquality]`, `[PgOrdering]`, and `[PgHashing]` to generate comparisons and
+default B-tree/hash operator classes from the type's managed value contracts.
+Use `IEquatable<T>` and `IComparable<T>` for equality and ordering, and
+`IPgHashable` for an explicitly stable database hash. These contracts operate on
+logical values independently of their stored representation. See
+[generated type operators](/operators-and-casts/#generated-type-operators) for
+requirements, stable hashing, enum ordering and installation dependencies.
+
 ## Names and installation
 
 The SQL name defaults to snake case. Use `Name` to change it and `Schema` to

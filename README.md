@@ -132,6 +132,12 @@ assignment, or implicit conversions. Both generate backing functions and
 dependency-ordered SQL. See [operators and casts](docs/src/content/docs/operators-and-casts.md)
 and the [operator sample](samples/Ankus.Examples.Operators/PriorityFunctions.cs).
 
+Add `[PgEquality]`, `[PgOrdering]`, and `[PgHashing]` to custom types to generate
+comparisons and default B-tree/hash index classes. Equality and ordering use
+`IEquatable<T>` and `IComparable<T>`; `IPgHashable` supplies a stable database hash,
+with `PgHash` available for explicitly normalized keys. See
+[generated operators](docs/src/content/docs/operators-and-casts.md#generated-type-operators).
+
 Add a `PgFunctionContext` parameter to inspect a call's collation, function and
 result type OIDs, and raw SQL arguments. It adds no SQL parameter.
 Its `GetOrCreateState` method caches managed state for each PostgreSQL call site

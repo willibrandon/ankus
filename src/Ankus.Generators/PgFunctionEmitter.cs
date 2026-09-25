@@ -39,6 +39,19 @@ internal static class PgFunctionEmitter
     private static void EmitManaged(
         IMethodSymbol method, string callback, FunctionParameter[] parameters, FunctionType result, StringBuilder source)
     {
+        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression(borrowVarlena: true));
+        string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
+        EmitManaged(callback, result, invocation, NumericConstraint.Rescale(method.GetReturnTypeAttributes()),
+            parameters.Any(static parameter => parameter.IsFunctionContext), source);
+    }
+
+    /// <summary>
+    /// Emits the shared managed exception and capability boundary around a statically bound invocation.
+    /// </summary>
+    internal static void EmitManaged(string callback, FunctionType result, string invocation, string numericSuffix,
+        bool hasFunctionContext, StringBuilder source)
+    {
         source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         source.AppendLine($"        EntryPoint = \"{callback}\",");
         source.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
@@ -53,15 +66,11 @@ internal static class PgFunctionEmitter
         source.AppendLine("        {");
         source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
-        if (parameters.Any(static parameter => parameter.IsFunctionContext))
+        if (hasFunctionContext)
         {
             source.AppendLine("            global::Ankus.PgFunctionContext functionContext = global::Ankus.NativeBackend.CaptureFunction(functionCall);");
         }
 
-        IEnumerable<string> arguments = parameters.Select(static parameter => parameter.ReadExpression(borrowVarlena: true));
-
-        string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
         if (result.Managed == "void")
         {
             source.AppendLine($"            {invocation};");
@@ -81,7 +90,7 @@ internal static class PgFunctionEmitter
                 source.AppendLine();
             }
 
-            source.AppendLine("            " + ManagedConversion.Write(result, value, "result", NumericConstraint.Rescale(method.GetReturnTypeAttributes())));
+            source.AppendLine("            " + ManagedConversion.Write(result, value, "result", numericSuffix));
         }
 
         source.AppendLine("            return 0;");

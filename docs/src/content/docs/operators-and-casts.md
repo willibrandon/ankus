@@ -83,8 +83,117 @@ installation dependency cycles.
 Planner options are semantic promises. A commutator must actually reverse the
 operands, a negator must complement the result, and equality/hash/sort behavior
 must agree. `Hashes` and `Merges` do not create operator classes or support
-functions. Declare compatible operator families using [custom SQL](/custom-sql/)
-when PostgreSQL needs them for joins or indexes.
+functions. Use the generated type operators below or declare compatible operator
+families using [custom SQL](/custom-sql/) when PostgreSQL needs them for joins or indexes.
+
+## Generated type operators
+
+Use `[PgEquality]`, `[PgOrdering]`, and `[PgHashing]` on a `[PgType]` declaration
+to expose its managed value semantics to PostgreSQL:
+
+```csharp
+[PgType]
+[PgEquality]
+[PgOrdering]
+[PgHashing]
+public sealed record ProductKey(string Value) : IComparable<ProductKey>, IPgHashable
+{
+    public int CompareTo(ProductKey? other)
+        => other is null ? 1 : string.CompareOrdinal(Value, other.Value);
+
+    public int GetPostgresHashCode() => PgHash.Compute(Value);
+}
+```
+
+The record supplies `IEquatable<ProductKey>`. Its equality is based on its string
+value, and its explicit ordering and database hash use the same value.
+
+```sql
+CREATE TABLE products (key product_key);
+CREATE INDEX products_ordered ON products USING btree (key);
+CREATE INDEX products_hashed ON products USING hash (key);
+SELECT key FROM products ORDER BY key;
+```
+
+| Attribute | Required managed contract | Generated PostgreSQL objects |
+| --- | --- | --- |
+| `PgEquality` | `IEquatable<T>` for the exact declared type | `=` and `<>`, backed by `<type>_eq` and `<type>_ne` |
+| `PgOrdering` | `IEquatable<T>` and `IComparable<T>` | `<`, `>`, `<=`, `>=`, `<type>_cmp`, and a default B-tree family/class `<type>_btree_ops` |
+| `PgHashing` | `IEquatable<T>` and `IPgHashable` | `<type>_hash` and a default hash family/class `<type>_hash_ops` |
+
+Each attribute is independent. Ordering and hashing require a compatible boolean
+`=` operator for the same SQL type in the same schema. `PgEquality` generates it;
+an explicitly declared `[PgOperator("=")]` can supply it instead. Manual equality
+must declare compatible planner options when used for joins. Ankus diagnoses a
+missing equality declaration during generation.
+
+Explicit interface implementations and inherited implementations are supported.
+The generated callbacks make statically bound calls compatible with Native AOT.
+They use the existing conversion, cleanup and exception boundary; a managed
+exception unwinds before PostgreSQL raises its error. All generated support
+functions are `IMMUTABLE`, `PARALLEL SAFE`, and `STRICT`. SQL NULL bypasses the
+managed implementation, including for reference types.
+
+Equality must be an equivalence relation, comparison must define a total order,
+and comparison must return zero exactly when equality is true. Any negative or
+positive `CompareTo` result works, including the minimum and maximum `int`.
+These contracts apply to logical values, independently of serialized storage.
+The attributes support generated CBOR, custom text, explicit codecs, tagged class
+hierarchies and packed native storage. Native-layout comparisons receive copied
+`T` values and preserve existing `PgVarlena<T>` aliases.
+
+### Stable database hashes
+
+PostgreSQL persists hash results in indexes. Implement
+`IPgHashable.GetPostgresHashCode()` so equal values produce equal hashes and
+the result stays identical across backend processes, platforms and extension
+versions. Do not forward to ordinary `object.GetHashCode()`, string or record
+hashes, or `System.HashCode`: those APIs do not promise that stability.
+
+`PgHash.Compute` uses the SeaHash v4 byte-buffer algorithm with pgrx's fixed seeds
+and returns the low 32 bits as a signed integer. Its overloads accept exact bytes,
+strict UTF-8 text without a BOM, or an unsigned integer encoded as eight
+little-endian bytes. Text retains embedded zero characters and rejects unpaired
+UTF-16 surrogates. The helper does not normalize text or reproduce Rust's
+type-specific `Hash` encoding.
+
+Choose a canonical equality key before hashing. For example, if equality ignores
+a stored description, exclude that description from the key. If equality treats
+different decimal scales, signed floating-point zeroes, or letter cases as equal,
+normalize those distinctions consistently for both hashing and comparison.
+Keep the normalization contract stable too: culture-dependent comparisons and
+changing Unicode tables can change persisted keys. The repository's
+`samples/Ankus.Examples.CustomTypes/OrderedKey.cs` demonstrates fixed ASCII case
+folding while retaining the original spelling in storage.
+
+Unequal values may have the same hash; PostgreSQL rechecks equality to distinguish
+collisions. Changing equality, ordering, normalization or hashing for indexed
+values requires a deliberate data/index migration and rebuilding affected indexes.
+
+### Enums, schemas and dependencies
+
+Both `[PgEnum]` and `[PgType]` enums can opt in. They use underlying numeric
+equality and ordering, and hash the numeric value converted to `ulong` in an
+unchecked context. A `[PgEnum]` without these attributes keeps PostgreSQL's label
+declaration order. **Adding `PgOrdering` explicitly selects numeric order for its
+concrete default B-tree class**, which can differ from label declaration order.
+Use the generated operator's schema in `search_path`, or call it with
+`OPERATOR(schema.<)` (and the corresponding token for other comparisons).
+Qualifying only the operand type does not control operator lookup; an unqualified
+enum comparison can otherwise resolve to PostgreSQL's built-in enum operator.
+
+Generated functions, operators, families and classes belong to the type's schema.
+Names use the SQL type name; when a suffix would exceed PostgreSQL's 63-byte
+identifier limit, Ankus uses a deterministic hashed name. Installation dependencies
+put completed types before support functions, operators and classes. Each attribute
+has `Id` and `Requires`: an equality ID identifies both equality operators, and
+an ordering or hashing ID identifies the completed family and class. Custom SQL
+can require these IDs when creating an index or another dependent object.
+
+Ankus reports `ANKUS018` for invalid generated operator contracts and `ANKUS005`
+for duplicate signatures or invalid installation dependencies. Arbitrary custom
+SQL is validated by PostgreSQL during installation. Generated objects are
+extension members and move with a relocatable extension.
 
 ## Casts
 

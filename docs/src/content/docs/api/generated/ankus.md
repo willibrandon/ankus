@@ -7,6 +7,10 @@ slug: api/ankus
 
 Assembly: `Ankus.Runtime.dll`
 
+## Interfaces
+
+- [IPgHashable](/api/ankus.ipghashable/)
+
 ## Classes
 
 - [PgAggregateAttribute](/api/ankus.pgaggregateattribute/)
@@ -29,6 +33,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgEnumInfo](/api/ankus.pgenuminfo/)
 - [PgEnumLabelAttribute](/api/ankus.pgenumlabelattribute/)
 - [PgEnums](/api/ankus.pgenums/)
+- [PgEqualityAttribute](/api/ankus.pgequalityattribute/)
 - [PgEventTriggerAttribute](/api/ankus.pgeventtriggerattribute/)
 - [PgEventTriggerContext](/api/ankus.pgeventtriggercontext/)
 - [PgException](/api/ankus.pgexception/)
@@ -47,6 +52,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgGucPrefixAttribute](/api/ankus.pggucprefixattribute/)
 - [PgGucRealAttribute](/api/ankus.pggucrealattribute/)
 - [PgGucStringAttribute](/api/ankus.pggucstringattribute/)
+- [PgHash](/api/ankus.pghash/)
+- [PgHashingAttribute](/api/ankus.pghashingattribute/)
 - [PgHeapTuple](/api/ankus.pgheaptuple/)
 - [PgInitializeAttribute](/api/ankus.pginitializeattribute/)
 - [PgInternal](/api/ankus.pginternal/)
@@ -58,6 +65,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgNativeReference&lt;T&gt;](/api/ankus.pgnativereference-1/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [PgOperatorAttribute](/api/ankus.pgoperatorattribute/)
+- [PgOrderingAttribute](/api/ankus.pgorderingattribute/)
 - [PgParameterAttribute](/api/ankus.pgparameterattribute/)
 - [PgPath](/api/ankus.pgpath/)
 - [PgPolygon](/api/ankus.pgpolygon/)

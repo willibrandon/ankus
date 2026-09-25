@@ -42,5 +42,17 @@ SELECT encode(packed_color_send('#12abef'::packed_color), 'hex'); -- 12abef
 ```
 
 Native layouts depend on field order and byte order. Changing a layout requires
-a data migration. Managed transport currently copies the value; borrowed
-PostgreSQL views and copy-on-write are not yet implemented.
+a data migration. Ordinary managed transport copies the value; `PgVarlena<T>`
+provides checked PostgreSQL borrowing and copy-on-write for native layouts.
+
+`OrderedKey` demonstrates generated equality, comparison and default B-tree/hash
+operator classes. It preserves the original spelling but folds ASCII letters to
+uppercase for equality, ordering and stable hashes. The fixed normalization
+does not depend on Unicode table or culture changes:
+
+```sql
+CREATE TABLE keys(value ordered_key);
+CREATE UNIQUE INDEX keys_unique ON keys(value);
+INSERT INTO keys VALUES ('{"Value":"hello"}');
+SELECT value = '{"Value":"HELLO"}'::ordered_key FROM keys; -- true
+```
