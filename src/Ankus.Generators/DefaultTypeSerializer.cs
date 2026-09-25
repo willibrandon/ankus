@@ -385,10 +385,11 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     /// <summary>
     /// Emits a private codec inside the generated dispatcher.
     /// </summary>
-    internal void Emit(string name, StringBuilder source)
+    internal void Emit(string name, StringBuilder source, string? textCodec = null)
     {
         string root = _ordered[0].Managed;
-        source.AppendLine("    private sealed class " + name + " : global::Ankus.PgSerializedTypeCodec<" + root + ">");
+        source.AppendLine("    private sealed class " + name + (textCodec is null ? string.Empty : "()") +
+            " : global::Ankus.PgSerializedTypeCodec<" + root + ">" + (textCodec is null ? string.Empty : "(static () => new " + textCodec + "())"));
         source.AppendLine("    {");
         source.AppendLine("        protected override " + root + " ReadValue(ref global::Ankus.PgTypeReader reader) => Read_0(ref reader);");
         source.AppendLine("        protected override void WriteValue(global::Ankus.PgTypeWriter writer, " + root + " value) => Write_0(writer, value);");

@@ -15,7 +15,7 @@ internal static class PgTypeEmitter
         FunctionType custom = FunctionType.Create(type.Type)!;
         FunctionType text = FunctionType.CreateIoBuffer("cstring", "cstring");
         var sql = new StringBuilder("CREATE TYPE " + type.Sql + ";\n");
-        EmitFunction("in", "Input", text, custom);
+        EmitFunction("in", "Input", FunctionType.CreateIoBuffer("cstring", "cstring", type.NullInputErrorMessage is not null), custom);
         EmitFunction("out", "Output", custom, text);
         if (type.BinaryProtocol)
         {
@@ -37,10 +37,11 @@ internal static class PgTypeEmitter
         {
             string callback = "ankus_managed_" + type.Symbol + "_type_" + role;
             string symbol = "ankus_fn_" + type.Symbol + "_type_" + role;
-            EmitManaged(callback, operation, type.Managed, managed);
+            EmitManaged(callback, operation, type, managed);
             PgFunctionEmitter.EmitNative(symbol, callback, [input], result, ensureInitialized, native);
             sql.AppendLine("CREATE FUNCTION " + type.Function(role) + "(" + input.Sql + ") RETURNS " + result.Sql +
-                " AS 'MODULE_PATHNAME', '" + symbol + "' LANGUAGE c IMMUTABLE STRICT PARALLEL SAFE;");
+                " AS 'MODULE_PATHNAME', '" + symbol + "' LANGUAGE c IMMUTABLE " +
+                (role == "in" && type.NullInputErrorMessage is not null ? "CALLED ON NULL INPUT" : "STRICT") + " PARALLEL SAFE;");
             exports.AppendLine(symbol);
             exports.AppendLine("pg_finfo_" + symbol);
         }
@@ -49,7 +50,7 @@ internal static class PgTypeEmitter
     /// <summary>
     /// Runs a closed codec operation with owned diagnostics and deterministic backend-scope restoration.
     /// </summary>
-    private static void EmitManaged(string callback, string operation, string type, StringBuilder source)
+    private static void EmitManaged(string callback, string operation, CustomTypeDeclaration type, StringBuilder source)
     {
         source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         source.AppendLine("        EntryPoint = \"" + callback + "\",");
@@ -64,7 +65,13 @@ internal static class PgTypeEmitter
         source.AppendLine("        {");
         source.AppendLine("            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);");
         source.AppendLine("            memoryEntered = true;");
-        source.AppendLine("            *result = global::Ankus.PgTypeRegistry." + operation + "<" + type + ">(arguments[0]);");
+        if (operation == "Input" && type.NullInputErrorMessage is { } nullMessage)
+        {
+            source.AppendLine("            if (arguments[0].IsNull != 0) throw new global::Ankus.PgException(\"22004\", " +
+                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(nullMessage, true) + ");");
+        }
+
+        source.AppendLine("            *result = global::Ankus.PgTypeRegistry." + operation + "<" + type.Managed + ">(arguments[0]);");
         source.AppendLine("            return 0;");
         source.AppendLine("        }");
         source.AppendLine("        catch (global::System.Exception exception)");

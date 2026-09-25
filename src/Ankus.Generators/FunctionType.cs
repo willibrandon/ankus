@@ -371,6 +371,6 @@ internal sealed class FunctionType
     /// <summary>
     /// Creates a native-only buffer conversion for generated type I/O functions.
     /// </summary>
-    internal static FunctionType CreateIoBuffer(string sql, string reader)
-        => new(string.Empty, sql, reader, reader, string.Empty, nullable: false, reference: true);
+    internal static FunctionType CreateIoBuffer(string sql, string reader, bool nullable = false)
+        => new(string.Empty, sql, reader, reader, string.Empty, nullable, reference: true);
 }

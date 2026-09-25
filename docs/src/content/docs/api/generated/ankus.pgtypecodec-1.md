@@ -12,7 +12,7 @@ Assembly: `Ankus.Runtime.dll`
 Defines the text and binary storage representations of a generated PostgreSQL base type.
 
 ```csharp
-public abstract class PgTypeCodec<T>
+public abstract class PgTypeCodec<T> : PgTypeTextCodec<T>
 ```
 
 Type parameters:
@@ -25,7 +25,7 @@ The generated mapping constructs one codec on first use inside the managed error
 input buffers or PostgreSQL call state. Storage bytes exclude PostgreSQL's variable-length header.
 Preserve the storage format across extension upgrades or provide an explicit data migration.
 
-Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
+Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), <code>PgTypeTextCodec&lt;T&gt;</code>
 
 ## Constructors
 
@@ -39,46 +39,6 @@ protected PgTypeCodec()
 
 
 ## Methods
-
-<a id="member-59e33566aa00e6df"></a>
-
-### Format(T)
-
-Formats a managed value for SQL text output.
-
-```csharp
-public abstract string Format(T value)
-```
-
-Parameters:
-
-`value` — <code>T</code>
-
-The present managed value.
-
-Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-The text representation without a zero terminator.
-
-<a id="member-8a6c26c6b07b8207"></a>
-
-### Parse(string)
-
-Parses the SQL text representation into an independent managed value.
-
-```csharp
-public abstract T Parse(string text)
-```
-
-Parameters:
-
-`text` — [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-The input converted from the database encoding.
-
-Returns: <code>T</code>
-
-The parsed value.
 
 <a id="member-1ca9bf65409f4723"></a>
 

@@ -1,6 +1,6 @@
 ---
 title: Custom types
-description: Declare PostgreSQL base types with generated CBOR storage and JSON text, or explicit codecs.
+description: Declare PostgreSQL base types with generated CBOR storage, JSON or custom text, and explicit storage codecs.
 ---
 
 Put `[PgType]` on a record, class, struct, or enum. Ankus generates a serializer,
@@ -116,6 +116,88 @@ runtime types, including subclasses of a registered variant, are errors.
 Fallback options that discard concrete type identity are diagnosed at compile
 time. A discriminator property cannot share a name with a serialized member.
 Changing registrations or discriminator values changes the persisted contract.
+
+## Custom text with generated storage
+
+Set `TextCodec` to a `PgTypeTextCodec<T>` when you want a custom SQL text format
+while retaining the generated CBOR contract. The codec supplies only `Parse` and
+`Format`; the generator still validates and serializes the type's members.
+
+```csharp
+using System.Globalization;
+using Ankus;
+
+[PgType(TextCodec = typeof(RgbColorTextCodec), BinaryProtocol = true)]
+public readonly record struct RgbColor(byte Red, byte Green, byte Blue);
+
+public sealed class RgbColorTextCodec : PgTypeTextCodec<RgbColor>
+{
+    public override RgbColor Parse(string text)
+    {
+        if (text.Length != 7 || text[0] != '#' ||
+            !byte.TryParse(text.AsSpan(1, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out byte red) ||
+            !byte.TryParse(text.AsSpan(3, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out byte green) ||
+            !byte.TryParse(text.AsSpan(5, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out byte blue))
+        {
+            throw new PgException("22P02", "Color must use #RRGGBB hexadecimal notation.");
+        }
+
+        return new(red, green, blue);
+    }
+
+    public override string Format(RgbColor value) =>
+        string.Create(CultureInfo.InvariantCulture, $"#{value.Red:X2}{value.Green:X2}{value.Blue:X2}");
+}
+```
+
+```sql
+SELECT '#12abef'::rgb_color::text; -- #12ABEF
+SELECT NULL::rgb_color;          -- SQL NULL
+```
+
+CBOR stores the `Red`, `Green`, and `Blue` members. Binary send/receive, managed
+function arguments, SPI, and arrays use that storage contract without calling
+the text codec. Nested values retain their structural contracts; a nested type's
+`TextCodec` does not replace its representation inside a containing object.
+Text codecs also work with generated enum and tagged-variant contracts.
+
+Ankus constructs one text codec lazily on its first text operation. Binary
+operations neither construct nor invoke it, even if its constructor has failed.
+Throw `PgException` to choose the SQLSTATE and diagnostics; other exceptions
+become `38000` after managed frames unwind. Returning null for a present value
+or returning null text is an error. Output must contain valid Unicode without
+zero characters.
+
+Both text and full storage codecs must be accessible, concrete types with an
+accessible parameterless constructor and an exact, non-nullable `T`. Closed
+generic codec types are supported. Constructors for codecs with C# `required`
+members need `[SetsRequiredMembers]`. `TextCodec` cannot be combined with the
+positional full storage codec option.
+
+## NULL input policy
+
+Generated input functions are `STRICT` by default. Set `NullInputErrorMessage`
+to make a direct NULL call to the text input function raise SQLSTATE `22004`:
+
+```csharp
+[PgType(TextCodec = typeof(RgbColorTextCodec),
+    NullInputErrorMessage = "Color input must not be NULL.")]
+public readonly record struct RgbColor(byte Red, byte Green, byte Blue);
+```
+
+```sql
+SELECT rgb_color_in(NULL); -- ERROR: Color input must not be NULL.
+SELECT NULL::rgb_color;    -- The same error during literal coercion.
+```
+
+The error occurs before codec construction. PostgreSQL invokes non-strict input
+functions when coercing untyped NULL literals, including inferred nullable
+function arguments, and for NULL elements in a text array or fields in text COPY.
+This option rejects all of those inputs. Already-typed SQL NULL values, such as
+a nullable managed function result, a stored NULL or a binary COPY NULL, still
+bypass the codec and can flow through nullable arguments and arrays.
+This option also applies to default JSON types and full storage codecs. Output,
+binary send, and binary receive functions remain strict.
 
 ## Explicit codecs
 

@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
+Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct|AttributeTargets.Enum, Inherited = false)]
@@ -29,7 +29,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgTypeAttribute(Type?)
 
-Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
+Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
 
 ```csharp
 public PgTypeAttribute(Type? codec = null)
@@ -97,6 +97,20 @@ public string? Name { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-77743b32f37b8983"></a>
+
+### NullInputErrorMessage
+
+Gets or sets the SQLSTATE 22004 message raised when the generated text input function receives SQL NULL.
+This includes untyped NULL literals coerced to this type, text array elements and text COPY fields.
+Null leaves the input function strict; already-typed SQL NULL values bypass the codec.
+
+```csharp
+public string? NullInputErrorMessage { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-9457244a2873e995"></a>
 
 ### Requires
@@ -120,3 +134,16 @@ public string? Schema { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-c489a45356245064"></a>
+
+### TextCodec
+
+Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR storage.
+Cannot be combined with an explicit storage codec.
+
+```csharp
+public Type? TextCodec { get; set; }
+```
+
+Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)

@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
+/// Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
 /// </summary>
 /// <remarks>
 /// Generated contracts support inherited members and explicitly tagged class variants declared with
@@ -17,6 +17,19 @@ public sealed class PgTypeAttribute(Type? codec = null) : Attribute
     /// Gets the statically constructed codec type, or null for generated serialization.
     /// </summary>
     public Type? Codec { get; } = codec;
+
+    /// <summary>
+    /// Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR storage.
+    /// Cannot be combined with an explicit storage codec.
+    /// </summary>
+    public Type? TextCodec { get; set; }
+
+    /// <summary>
+    /// Gets or sets the SQLSTATE 22004 message raised when the generated text input function receives SQL NULL.
+    /// This includes untyped NULL literals coerced to this type, text array elements and text COPY fields.
+    /// Null leaves the input function strict; already-typed SQL NULL values bypass the codec.
+    /// </summary>
+    public string? NullInputErrorMessage { get; set; }
 
     /// <summary>
     /// Gets or sets the SQL type name; the default is the managed type name in snake_case.

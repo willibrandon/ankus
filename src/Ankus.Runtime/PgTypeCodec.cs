@@ -11,22 +11,8 @@ namespace Ankus;
 /// Preserve the storage format across extension upgrades or provide an explicit data migration.
 /// </remarks>
 /// <typeparam name="T">The managed type carrying PgType.</typeparam>
-public abstract class PgTypeCodec<T>
+public abstract class PgTypeCodec<T> : PgTypeTextCodec<T>
 {
-    /// <summary>
-    /// Parses the SQL text representation into an independent managed value.
-    /// </summary>
-    /// <param name="text">The input converted from the database encoding.</param>
-    /// <returns>The parsed value.</returns>
-    public abstract T Parse(string text);
-
-    /// <summary>
-    /// Formats a managed value for SQL text output.
-    /// </summary>
-    /// <param name="value">The present managed value.</param>
-    /// <returns>The text representation without a zero terminator.</returns>
-    public abstract string Format(T value);
-
     /// <summary>
     /// Reads an independent managed value from the complete stored payload.
     /// </summary>

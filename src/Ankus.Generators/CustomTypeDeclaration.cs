@@ -8,7 +8,8 @@ namespace Ankus.Generators;
 /// <summary>
 /// Validates a generated base type and its statically constructed storage codec.
 /// </summary>
-internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, DefaultTypeSerializer? serializer, AttributeData attribute, string name, string? schema)
+internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, INamedTypeSymbol? textCodec,
+    DefaultTypeSerializer? serializer, AttributeData attribute, string name, string? schema)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -49,6 +50,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     internal bool BinaryProtocol => AttributeValues.Get(Attribute, "BinaryProtocol", false);
 
     /// <summary>
+    /// Gets the optional error raised by a NULL call to the text input function.
+    /// </summary>
+    internal string? NullInputErrorMessage => AttributeValues.Get<string?>(Attribute, "NullInputErrorMessage", null);
+
+    /// <summary>
     /// Gets a stable assembly-specific native symbol suffix.
     /// </summary>
     internal string Symbol
@@ -83,7 +89,26 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return null;
         }
 
-        INamedTypeSymbol? codec = attribute.ConstructorArguments.FirstOrDefault().Value as INamedTypeSymbol;
+        object? codecArgument = attribute.ConstructorArguments.FirstOrDefault().Value;
+        TypedConstant textArgument = attribute.NamedArguments.FirstOrDefault(static argument => argument.Key == "TextCodec").Value;
+        if (codecArgument is not null and not INamedTypeSymbol || textArgument.Kind == TypedConstantKind.Array ||
+            textArgument.Value is not null and not INamedTypeSymbol)
+        {
+            return Invalid("Codec options require an accessible, closed named codec type.");
+        }
+
+        var codec = codecArgument as INamedTypeSymbol;
+        var textCodec = textArgument.Value as INamedTypeSymbol;
+        if (codec is not null && textCodec is not null)
+        {
+            return Invalid("TextCodec selects generated CBOR storage and cannot be combined with an explicit storage codec.");
+        }
+
+        if (AttributeValues.Get<string?>(attribute, "NullInputErrorMessage", null) is { } nullMessage && !SqlText.IsText(nullMessage))
+        {
+            return Invalid("NullInputErrorMessage must contain valid Unicode without zero characters.");
+        }
+
         if (type.IsRefLikeType || type.IsStatic || type.IsAbstract && (codec is not null ||
             !type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute")) ||
             type.IsUnboundGenericType || !Accessible(type) ||
@@ -93,6 +118,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         }
 
         DefaultTypeSerializer? serializer = null;
+        if (textCodec is not null && ValidateCodec(textCodec, type, "PgTypeTextCodec") is { } textError)
+        {
+            return Invalid(textError);
+        }
+
         if (codec is null)
         {
             serializer = DefaultTypeSerializer.Create(type, out string? error);
@@ -101,25 +131,9 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
                 return Invalid(error!);
             }
         }
-        else
+        else if (ValidateCodec(codec, type, "PgTypeCodec") is { } codecError)
         {
-            if (!Accessible(codec) || codec.IsAbstract || codec.IsStatic ||
-                !codec.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0 &&
-                    constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal))
-            {
-                return Invalid("The codec must be accessible and concrete, with an accessible parameterless constructor.");
-            }
-
-            INamedTypeSymbol? contract = codec.BaseType;
-            while (contract is not null && !(contract.Name == "PgTypeCodec" && contract.Arity == 1 && contract.ContainingNamespace.ToDisplayString() == "Ankus"))
-            {
-                contract = contract.BaseType;
-            }
-
-            if (contract is null || !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type))
-            {
-                return Invalid("The codec must derive from PgTypeCodec<T> for this exact managed type.");
-            }
+            return Invalid(codecError);
         }
 
         string name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name));
@@ -142,13 +156,82 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("Type and schema names must be valid identifiers of at most 63 UTF-8 bytes.");
         }
 
-        return new(type, codec, serializer, attribute, name, schema);
+        return new(type, codec, textCodec, serializer, attribute, name, schema);
 
         CustomTypeDeclaration? Invalid(string message)
         {
             context?.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name, message));
             return null;
         }
+    }
+
+    /// <summary>
+    /// Validates direct codec construction and its exact non-null managed contract.
+    /// </summary>
+    private static string? ValidateCodec(INamedTypeSymbol codec, INamedTypeSymbol type, string baseName)
+    {
+        IMethodSymbol? constructor = codec.InstanceConstructors.FirstOrDefault(constructor => constructor.Parameters.Length == 0 &&
+            (constructor.DeclaredAccessibility == Accessibility.Public ||
+             constructor.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
+             codec.ContainingAssembly.GivesAccessTo(type.ContainingAssembly)));
+        if (!AccessibleCodec(codec, type.ContainingAssembly) || codec.IsAbstract || codec.IsStatic || constructor is null)
+        {
+            return "The codec must be accessible, closed and concrete, with an accessible parameterless constructor.";
+        }
+
+        bool required = false;
+        INamedTypeSymbol? contract = null;
+        for (INamedTypeSymbol? current = codec; current is not null; current = current.BaseType)
+        {
+            required |= current.GetMembers().Any(static member => member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true });
+            if (current.Name == baseName && current.Arity == 1 && current.ContainingNamespace.ToDisplayString() == "Ankus")
+            {
+                contract = current;
+            }
+        }
+
+        if (contract is null || !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type) ||
+            type.IsReferenceType && contract.TypeArguments[0].NullableAnnotation == NullableAnnotation.Annotated)
+        {
+            return "The codec must derive from " + baseName + "<T> for this exact non-nullable managed type.";
+        }
+
+        if (required && !constructor.GetAttributes().Any(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))
+        {
+            return "A codec with C# required members needs a parameterless constructor carrying SetsRequiredMembers.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Accepts statically closed codec types and verifies containing declarations and generic arguments.
+    /// </summary>
+    private static bool AccessibleCodec(ITypeSymbol type, IAssemblySymbol assembly)
+    {
+        if (type is IArrayTypeSymbol array)
+        {
+            return AccessibleCodec(array.ElementType, assembly);
+        }
+
+        if (type is not INamedTypeSymbol named || named.IsUnboundGenericType)
+        {
+            return false;
+        }
+
+        for (INamedTypeSymbol? current = named; current is not null; current = current.ContainingType)
+        {
+            if (current.IsFileLocal || !(current.DeclaredAccessibility == Accessibility.Public ||
+                current.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
+                current.ContainingAssembly.GivesAccessTo(assembly)) ||
+                current.TypeArguments.Any(argument => !AccessibleCodec(argument, assembly)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -181,7 +264,8 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Emits an owned serializer for a type without an explicit codec.
     /// </summary>
-    internal void EmitSerializer(StringBuilder source) => serializer?.Emit("Codec_" + Symbol, source);
+    internal void EmitSerializer(StringBuilder source) => serializer?.Emit("Codec_" + Symbol, source,
+        textCodec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
     /// <summary>
     /// Emits a catalog check that restricts native binary decoding to generated custom types.

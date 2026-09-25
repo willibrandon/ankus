@@ -53,6 +53,13 @@ internal static class NativeCustomTypeBridge
         ankus_read_cstring(Datum datum, AnkusValue *value, AnkusInputBuffer *owned)
         {
             char *text = DatumGetCString(datum);
+            /* InputFunctionCall passes a null pointer with args[0].isnull false for NULL fields. */
+            if (text == NULL)
+            {
+                value->is_null = true;
+                return;
+            }
+
             char *utf8 = pg_server_to_any(text, strlen(text), PG_UTF8);
             if (utf8 != text)
                 owned->converted = utf8;

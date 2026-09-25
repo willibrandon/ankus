@@ -80,7 +80,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
-| `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with CBOR storage and JSON text, or an explicit codec |
+| `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with CBOR storage and JSON or custom text, or an explicit storage codec |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
@@ -115,7 +115,8 @@ constructor/member access compatible with Native AOT. Nested records, nullable
 members, arrays, lists, and string-keyed dictionaries retain their declared shape.
 Use `[JsonDerivedType]` and optional `[JsonPolymorphic]` to declare tagged variants
 with their concrete types and inherited state preserved in both formats.
-Supply a `PgTypeCodec<T>` for a different storage or text format. See
+Set `TextCodec` to a `PgTypeTextCodec<T>` for custom SQL text with generated CBOR
+storage, or supply a `PgTypeCodec<T>` for both storage and text. See
 [custom types](docs/src/content/docs/custom-types.md).
 
 Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,

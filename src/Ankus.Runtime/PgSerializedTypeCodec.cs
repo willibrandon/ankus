@@ -9,9 +9,20 @@ namespace Ankus;
 /// Implements the format boundary for statically generated custom-type serializers.
 /// </summary>
 /// <typeparam name="T">The exact serialized contract.</typeparam>
+/// <param name="createTextCodec">The optional lazy custom text factory; null selects JSON text.</param>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public abstract class PgSerializedTypeCodec<T> : PgTypeCodec<T>
+public abstract class PgSerializedTypeCodec<T>(Func<PgTypeTextCodec<T>>? createTextCodec) : PgTypeCodec<T>
 {
+    private readonly Lazy<PgTypeTextCodec<T>>? _textCodec = createTextCodec is null ? null : new(() => createTextCodec() ??
+        throw new InvalidOperationException("A custom text codec factory returned null."));
+
+    /// <summary>
+    /// Selects generated JSON text input/output and CBOR storage.
+    /// </summary>
+    protected PgSerializedTypeCodec() : this(null)
+    {
+    }
+
     /// <summary>
     /// Reads one value through generated member and constructor access.
     /// </summary>
@@ -30,6 +41,11 @@ public abstract class PgSerializedTypeCodec<T> : PgTypeCodec<T>
     public sealed override T Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
+        if (_textCodec is not null)
+        {
+            return _textCodec.Value.Parse(text) ?? throw new InvalidOperationException("A custom text codec returned null for a present text input.");
+        }
+
         try
         {
             return Decode(PgSerializationText.Utf8.GetBytes(text), json: true);
@@ -43,6 +59,16 @@ public abstract class PgSerializedTypeCodec<T> : PgTypeCodec<T>
     /// <inheritdoc />
     public sealed override string Format(T value)
     {
+        if (_textCodec is not null)
+        {
+            if (value is null)
+            {
+                throw new InvalidOperationException("A present custom-type value cannot be null.");
+            }
+
+            return _textCodec.Value.Format(value) ?? throw new InvalidOperationException("A custom text codec returned null text for a present value.");
+        }
+
         var destination = new ArrayBufferWriter<byte>();
         using var writer = new PgTypeWriter(destination, json: true);
         WriteValue(writer, value);

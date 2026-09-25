@@ -2530,7 +2530,7 @@ The target architecture consists of:
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
-| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs and generated default CBOR/JSON contracts including tagged variants implemented; custom text with generated storage, additional shapes and zero-copy storage remain required |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, and custom text with generated storage implemented; additional shapes and zero-copy storage remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
@@ -2642,8 +2642,8 @@ alongside the source-level macro inventory.
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
-| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated CBOR/JSON contracts implemented for records/classes/structs/enums, tagged class variants, inherited members and nested collections; custom text with generated storage and additional shapes remain required |
-| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Explicit storage/text codecs implemented; custom text with generated storage and zero-copy layouts remain required |
+| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs, custom text with generated storage, and generated CBOR/JSON contracts implemented for records/classes/structs/enums, tagged class variants, inherited members and nested collections; additional shapes remain required |
+| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Explicit storage/text codecs, custom text with generated CBOR and optional NULL-input errors implemented; zero-copy layouts remain required |
 | `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Implemented for explicit and generated codecs; independent binary COPY and recovery evidence recorded below; full PostgreSQL/platform matrix remains required |
 | `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Explicit codecs, default records and tagged variants implemented; remaining storage paths and related derives remain required |
 
@@ -2778,6 +2778,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
+  - [x] custom SQL text with generated CBOR storage and optional NULL-input errors
   - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts and tagged variants implemented; additional shapes remain) and zero-copy storage
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
@@ -4051,7 +4052,67 @@ The phases track implementation of the complete pgrx feature surface.
   `pnpm build` (172 pages) and `pnpm check` passed without diagnostics.
   An earlier targeted attempt aborted in the Native AOT compiler while a separate
   check rebuilt a shared assembly; exclusive targeted and full-suite reruns passed.
-  Hosted validation of this new milestone is pending. Additional
+  Hosted [CI run 36080645199](https://github.com/willibrandon/ankus/actions/runs/36080645199)
+  at `89a74d2` passed the complete suite: Linux x64/PostgreSQL 18.6 passed
+  5,060 with zero skips; macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL
+  17.11 each passed 5,058 with the two explicitly Linux-only allocation cases
+  skipped. Quality, all runtime-package jobs and the documentation workflow
+  passed. At that milestone, additional
   framework/collection shapes, custom text with generated storage, zero-copy
   storage and the complete PostgreSQL/platform matrix remain required; the full
   port is not complete.
+
+- 2026-09-24 — Added custom SQL text with generated CBOR storage.
+  `PgTypeTextCodec<T>` supplies `Parse` and `Format`; selecting it through
+  `[PgType(TextCodec = typeof(...))]` retains Ankus's generated structural CBOR
+  contract. Existing full `PgTypeCodec<T>` implementations inherit the same
+  text API and continue to supply their own stored bytes. Records, structs,
+  enums and tagged abstract roots support the text option. Nested attributed
+  members retain the enclosing structural contract rather than invoking their
+  own SQL text or full storage codecs.
+
+  The generated serializer constructs a text codec lazily on first text use
+  inside the managed error boundary. CBOR reads/writes never invoke or construct
+  it, including after a cached constructor failure. User `PgException` diagnostics
+  remain intact, ordinary exceptions report `38000`, and null text results or
+  null parsed values are rejected. Codec validation requires an accessible,
+  closed, concrete type with a parameterless constructor and an exact non-nullable
+  managed contract. Closed generic codecs are supported; constructors with
+  required members must carry `SetsRequiredMembers`.
+
+  Optional `NullInputErrorMessage` makes only the generated text input function
+  `CALLED ON NULL INPUT`. A direct `_in(NULL)` raises `22004` before constructing
+  a codec. PostgreSQL also calls non-strict input when coercing untyped NULL
+  literals (including inferred nullable arguments), NULL text-array elements and
+  text COPY fields, so those inputs follow the same configured policy. Already-typed
+  SQL NULL values bypass the codec and retain NULL through storage, binary COPY,
+  nullable managed arguments/results and arrays. Backend tests
+  exposed PostgreSQL's null C-string pointer with an unset SQL null flag; the
+  native adapter now recognizes that pointer before encoding or measuring it.
+  Default JSON types, custom text types and full codecs share this policy.
+  Other I/O functions remain strict, and configuration rejects embedded zero
+  characters and invalid Unicode. The existing native wrapper transports owned
+  errors and raises PostgreSQL ERROR after managed frames unwind.
+
+  The README, public custom-type guide and compiled `RgbColor` sample describe
+  the separate text/storage contracts, binary protocol and NULL policy.
+
+  | Required behavior | Direct evidence |
+  |---|---|
+  | Independent text/CBOR contracts and lazy retained construction | `CustomTextCodecIsDeferredCachedAndSeparateFromBinary`, `CustomTextCodecConstructionIsDeferredAndCached`, `CustomTextAndGeneratedBinaryUseIndependentFormats` |
+  | Cached factory errors with continued binary operations and exact diagnostics | `CustomTextFactoryFailureDoesNotDisableBinaryStorage`, `CustomTextFactoryErrorsLeaveBinaryStorageUsable`, `CustomPgExceptionsRetainTheirIdentityAndDiagnostics` |
+  | Executed structs/enums/tagged variants and nested structural contracts | `CustomTextContractsExecute`, `CustomTextTaggedVariantsExecute`, `CustomTextNestedTypesRemainStructural`, `CustomTextNestedContractsRemainStructural` |
+  | Exact codec type, inherited required members, closed generics and friend accessibility | `InvalidCustomTextContractsAreDiagnosed`, `CustomCodecValidationRejectsNullableContracts`, `CustomCodecValidationExecutesInitializedRequiredMembers`, `CustomCodecValidationExecutesClosedGenericFullCodec`, `CustomCodecValidationHonorsFriendAssemblies` |
+  | Catalog strictness, direct/literal/text-array/COPY NULL input, typed NULL preservation and empty/Unicode messages | `CustomTextNullInputOptionsPreserveSqlNull`, `CustomTextNullInputPolicyAppliesToTextArraysAndCopy` |
+  | Native AOT SPI, arrays, sets, tuples, independent binary COPY, TOAST and sample relocation | `CustomTextValuesAndNullsCrossOwnershipPaths`, `CustomTextArraysSetsAndTuplePreserveValues`, `CustomTextBinaryCopyUsesIndependentFixture`, `CustomTextStorageSurvivesToast`, `CustomTypeOnlyExtensionTracksRelocationAndReinstallation` |
+  | Malformed input, failed COPY row preservation and same-backend recovery | `CustomTextCodecErrorsPreserveBackend`, `CustomTextBinaryErrorsPreserveBackendAndRows` |
+
+  Focused validation passed 100 runtime cases, 40 generator cases and 45
+  Native AOT PostgreSQL cases on PostgreSQL 18.6/Linux x64, without skips.
+  The final 12-case runtime refinement also passed. Final plain `dotnet test`
+  passed 5,156/5,156 with zero skips in 3m06.572s on that platform/version.
+  Release builds passed without warnings or errors. API freshness (136 pages,
+  1,374 members), `pnpm build` (173 pages) and `pnpm check` passed without
+  diagnostics. Hosted validation of this milestone is pending.
+  Additional framework/collection shapes, zero-copy storage and all unresolved
+  full-port/platform requirements remain required.
