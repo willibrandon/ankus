@@ -36,6 +36,7 @@ internal static class ManagedConversion
             "global::Ankus.PgJson" => slot + ".ReadJson()",
             "global::Ankus.PgJsonb" => slot + ".ReadJsonb()",
             "global::Ankus.PgNumeric" => numeric,
+            "global::Ankus.PgItemPointer" => slot + ".ReadItemPointer()",
             "global::Ankus.PgTransactionId" => slot + ".ReadTransactionId()",
             "decimal" => numeric + ".ToDecimal()",
             "bool" => slot + ".Integral != 0",
@@ -80,6 +81,7 @@ internal static class ManagedConversion
             "global::Ankus.PgJson" or "global::Ankus.PgJsonb" =>
                 $"*{target} = global::Ankus.NativeValue.FromString({value}.Text);",
             "global::Ankus.PgNumeric" or "decimal" => $"*{target} = global::Ankus.NativeValue.FromString({numericValue}.Text);",
+            "global::Ankus.PgItemPointer" => $"*{target} = global::Ankus.NativeValue.FromItemPointer({value});",
             "global::Ankus.PgTransactionId" => $"*{target} = global::Ankus.NativeValue.FromTransactionId({value});",
             "bool" => $"{target}->Integral = {value} ? 1 : 0;",
             "float" => $"{target}->Integral = global::System.BitConverter.SingleToInt32Bits({value});",

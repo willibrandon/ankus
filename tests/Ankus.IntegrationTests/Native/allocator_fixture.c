@@ -4,6 +4,7 @@
 #include "lib/stringinfo.h"
 #include "nodes/pg_list.h"
 #include "catalog/pg_type_d.h"
+#include "storage/itemptr.h"
 #include "executor/executor.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -11,6 +12,41 @@
 #include "utils/tuplestore.h"
 
 PG_MODULE_MAGIC;
+
+PG_FUNCTION_INFO_V1(ankus_test_item_pointer_describe);
+PGDLLEXPORT Datum
+ankus_test_item_pointer_describe(PG_FUNCTION_ARGS)
+{
+    ItemPointer pointer = (ItemPointer) (intptr_t) PG_GETARG_INT64(0);
+    MemoryContext owner = GetMemoryChunkContext(pointer);
+    PG_RETURN_TEXT_P(cstring_to_text(psprintf("%d|%u|%u|%u|%s", (int) sizeof(ItemPointerData),
+        pointer->ip_blkid.bi_hi, pointer->ip_blkid.bi_lo, pointer->ip_posid,
+        owner->ident == NULL ? owner->name : owner->ident)));
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_item_pointer_borrow);
+PGDLLEXPORT Datum
+ankus_test_item_pointer_borrow(PG_FUNCTION_ARGS)
+{
+    struct { uint16 before; ItemPointerData pointer; uint16 after; } storage;
+    storage.before = 0x1357;
+    storage.after = 0x2468;
+    ItemPointerSet(&storage.pointer, 0x12345678U, 0xabcd);
+    int mode = PG_GETARG_INT32(1);
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = PointerGetDatum(mode == 2 ? NULL : &storage.pointer);
+    call->args[1].isnull = false;
+    call->args[1].value = Int32GetDatum(mode);
+    Datum result = FunctionCallInvoke(call);
+    if (call->isnull || storage.before != 0x1357 || storage.after != 0x2468)
+        elog(ERROR, "item-pointer borrowing returned NULL or overwrote native storage boundaries");
+    PG_RETURN_TEXT_P(cstring_to_text(psprintf("%s|%u,%u,%u|guards", TextDatumGetCString(result),
+        storage.pointer.ip_blkid.bi_hi, storage.pointer.ip_blkid.bi_lo, storage.pointer.ip_posid)));
+}
 
 /* Independent native tag and union interpretation for list tests. */
 static text *

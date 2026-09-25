@@ -32,6 +32,11 @@ cells retain native integer, OID, transaction-ID or pointer identity. Container
 growth keeps the original context owner, and context cleanup invalidates both
 owned and borrowed handles. Pointer elements keep their independent ownership.
 
+[`PgNativeItemPointer`](/item-pointers/#native-storage-and-ownership) supplies
+checked native tuple-location storage whose fields use the selected server's
+`ItemPointerData` layout. It supports independent copies, borrowed views and raw
+ownership transfer under the context lifetime rules below.
+
 ## Context ownership
 
 `Current` resolves PostgreSQL's current context at the point of the call.

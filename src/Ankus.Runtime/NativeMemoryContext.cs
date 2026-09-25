@@ -255,6 +255,10 @@ internal enum NativeMemoryOperation
     /// Operates on an owned or exclusively borrowed typed PostgreSQL list.
     /// </summary>
     List = 30,
+    /// <summary>
+    /// Allocates or accesses a selected-header native item pointer through checked ownership or an external anchor.
+    /// </summary>
+    ItemPointer = 31,
 }
 
 /// <summary>

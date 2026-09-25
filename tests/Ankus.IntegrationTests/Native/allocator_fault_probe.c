@@ -318,6 +318,123 @@ ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(report));
 }
 
+PG_FUNCTION_INFO_V1(ankus_test_item_pointer_fault);
+PGDLLEXPORT Datum
+ankus_test_item_pointer_fault(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(0);
+    fault_require(mode >= 1 && mode <= 6, "unknown item-pointer scenario");
+    fault_require(fault_live_records == 0 && ankus_memory_allocations == NULL && ankus_memory_contexts == NULL,
+        "a previous item-pointer invocation retained registry storage");
+    MemoryContext caller = CurrentMemoryContext;
+    MemoryContext root = AllocSetContextCreate(caller, "Ankus item-pointer fault", ALLOCSET_SMALL_SIZES);
+    volatile uint64 saved_next = ankus_memory_next_allocation;
+    char *volatile report = NULL;
+    PG_TRY();
+    {
+        fault_owner = root;
+        AnkusMemoryApi api;
+        ankus_memory_initialize(&api);
+        uint64 owner = ankus_memory_context_id(root);
+        AnkusMemoryRequest request = {0};
+        AnkusMemoryResult result = {0};
+        AnkusError error = {0};
+        request.operation = ANKUS_MEMORY_ITEM_POINTER;
+        request.flags = 1;
+        request.context = (intptr_t) owner;
+        request.value = PG_UINT32_MAX;
+        request.length = PG_UINT16_MAX;
+        fault_storage_calls = 0;
+        fault_monitor_storage = true;
+        int before_live = fault_live_records;
+        int before_allocated = fault_successful_reservations;
+        int before_freed = fault_released_reservations;
+        if (mode <= 3)
+        {
+            fault_fail_calloc = mode == 1;
+            if (mode == 2) { ankus_memory_next_allocation = 0; }
+            fault_raise_storage_error = mode == 3;
+            int status = ankus_memory_invoke(&api, &request, &result, &error);
+            ankus_memory_next_allocation = saved_next;
+            fault_require(status == 1 && error.sqlstate == ERRCODE_OUT_OF_MEMORY,
+                "item-pointer creation did not transport native allocation failure");
+            fault_require(!fault_fail_calloc && !fault_raise_storage_error && result.pointer == 0 &&
+                fault_live_records == before_live && fault_published_count() == 0,
+                "failed item-pointer creation retained or published ownership");
+            int allocated = fault_successful_reservations - before_allocated;
+            int freed = fault_released_reservations - before_freed;
+            int calls = fault_storage_calls;
+            ankus_release_error(&error);
+            fault_require(CurrentMemoryContext == caller, "item-pointer failure changed the caller context");
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0,
+                "item-pointer allocation retry failed");
+            AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) result.pointer);
+            ItemPointer pointer = (ItemPointer) allocation->pointer;
+            fault_require(allocation->size == sizeof(ItemPointerData) && pointer->ip_blkid.bi_hi == 65535 &&
+                pointer->ip_blkid.bi_lo == 65535 && pointer->ip_posid == 65535,
+                "item-pointer retry lost native size or fields");
+            fault_invoke_success(&api, ANKUS_MEMORY_FREE, result.pointer, 0, 0);
+            fault_require(fault_live_records == before_live && fault_published_count() == 0,
+                "item-pointer retry free retained ownership");
+            report = psprintf("53200|%d|%d|%d|retry|0", allocated, freed, calls);
+        }
+        else
+        {
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0,
+                "item-pointer warmup failed");
+            fault_invoke_success(&api, ANKUS_MEMORY_FREE, result.pointer, 0, 0);
+            Size baseline = MemoryContextMemAllocated(root, false);
+            for (int index = 0; index < 4096; index++)
+            {
+                request.value = (intptr_t) (PG_UINT32_MAX - index);
+                request.length = index;
+                fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0,
+                    "repeated item-pointer creation failed");
+                AnkusMemoryAllocation *allocation = ankus_memory_allocation_by_id((uint64) result.pointer);
+                ItemPointer pointer = (ItemPointer) allocation->pointer;
+                fault_require(ItemPointerGetBlockNumberNoCheck(pointer) == PG_UINT32_MAX - index &&
+                    ItemPointerGetOffsetNumberNoCheck(pointer) == index && GetMemoryChunkContext(pointer) == root,
+                    "repeated native fields or owner changed");
+                if (mode == 4)
+                {
+                    fault_invoke_success(&api, ANKUS_MEMORY_FREE, result.pointer, 0, 0);
+                }
+                else if (mode == 5)
+                {
+                    fault_invoke_success(&api, ANKUS_MEMORY_RESET, (intptr_t) owner, 0, 0);
+                }
+                else
+                {
+                    AnkusMemoryResult detached = fault_invoke_success(&api, ANKUS_MEMORY_DETACH, result.pointer, 0, 0);
+                    fault_require(detached.pointer == (intptr_t) pointer, "item-pointer transfer changed the address");
+                    pfree((void *) detached.pointer);
+                }
+
+                fault_require(fault_published_count() == 0 && fault_live_records == before_live,
+                    "item-pointer release retained a registry record");
+            }
+
+            fault_require(MemoryContextMemAllocated(root, false) <= baseline,
+                "repeated item-pointer releases retained native storage");
+            report = psprintf("4096|exact|0|bounded");
+        }
+    }
+    PG_FINALLY();
+    {
+        fault_fail_calloc = false;
+        fault_raise_storage_error = false;
+        fault_monitor_storage = false;
+        fault_owner = NULL;
+        if (ankus_memory_next_allocation == 0) { ankus_memory_next_allocation = saved_next; }
+        MemoryContextSwitchTo(caller);
+        MemoryContextDelete(root);
+    }
+    PG_END_TRY();
+    fault_require(fault_live_records == 0 && ankus_memory_allocations == NULL && ankus_memory_contexts == NULL,
+        "item-pointer context deletion retained registry records");
+    PG_RETURN_TEXT_P(cstring_to_text(report));
+}
+
 PG_FUNCTION_INFO_V1(ankus_test_list_fault);
 PGDLLEXPORT Datum
 ankus_test_list_fault(PG_FUNCTION_ARGS)

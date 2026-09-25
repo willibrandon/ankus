@@ -67,6 +67,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `sbyte` | `"char"` (PostgreSQL's internal signed byte) |
 | `short`, `int`, `long` | `smallint`, `integer`, `bigint` |
 | `uint` | `oid` |
+| `PgItemPointer` | `tid` (physical tuple location) |
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
 | `byte[]` | `bytea` |
@@ -94,6 +95,10 @@ with only required SQL parameters are declared `STRICT`. For mixed signatures, a
 required argument returns SQL NULL without invoking the method; nullable arguments
 reach managed code. Nullable results become SQL NULL. Methods can share a SQL name
 when their PostgreSQL argument types differ.
+
+[`PgItemPointer`](docs/src/content/docs/item-pointers.md) preserves exact tuple
+locations, including non-NULL invalid values. `PgNativeItemPointer` supplies checked
+ownership and borrowing for native `ItemPointerData` storage.
 
 Temporal conversions preserve microseconds. `DateTime` requires `Kind.Unspecified`;
 `DateTimeOffset` represents a UTC instant. Full-range `Pg*` types support PostgreSQL

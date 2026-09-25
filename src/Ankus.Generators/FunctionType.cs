@@ -370,6 +370,11 @@ internal sealed class FunctionType
             return new(name, sql, sql, sql, string.Empty, nullable, reference: false);
         }
 
+        if (name == "global::Ankus.PgItemPointer")
+        {
+            return new(name, "tid", "tid", "tid", string.Empty, nullable, reference: false);
+        }
+
         if (name == "global::Ankus.PgTransactionId")
         {
             return new(name, "xid", "TRANSACTIONID", "TransactionId", "Integral", nullable, reference: false);

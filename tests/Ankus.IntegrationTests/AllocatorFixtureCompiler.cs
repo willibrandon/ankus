@@ -12,6 +12,10 @@ internal static class AllocatorFixtureCompiler
     /// Gets SQL that installs the native fixture functions in an existing tests schema.
     /// </summary>
     internal const string InstallationSql = """
+        CREATE FUNCTION tests.item_pointer_describe(bigint) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_item_pointer_describe' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.item_pointer_borrow(regprocedure, integer) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_item_pointer_borrow' LANGUAGE c STRICT;
         CREATE FUNCTION tests.function_address(regprocedure) RETURNS bigint
         AS 'Ankus.AllocatorFixture', 'ankus_test_function_address' LANGUAGE c STRICT;
         CREATE FUNCTION tests.native_nullable_sum(integer, integer) RETURNS integer

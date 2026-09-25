@@ -230,6 +230,7 @@ internal static class NativeSpiBridge
                 case INT4OID: return Int32GetDatum(value->integral);
                 case INT8OID: return Int64GetDatum(value->integral);
                 case OIDOID: return ObjectIdGetDatum(value->integral);
+                case TIDOID: return ankus_write_item_pointer(value);
                 case XIDOID: return TransactionIdGetDatum(value->integral);
                 case DATEOID:
                 case TIMEOID:
@@ -415,6 +416,7 @@ internal static class NativeSpiBridge
                 case INT4OID: value->integral = DatumGetInt32(datum); break;
                 case INT8OID: value->integral = DatumGetInt64(datum); break;
                 case OIDOID: value->integral = DatumGetObjectId(datum); break;
+                case TIDOID: ankus_read_item_pointer(datum, value); break;
                 case XIDOID: value->integral = DatumGetTransactionId(datum); break;
                 case DATEOID:
                 case TIMEOID:

@@ -98,6 +98,7 @@ export default defineConfig({
             { label: 'Custom SQL', slug: 'custom-sql' },
             { label: 'SPI queries', slug: 'spi' },
             { label: 'Transaction IDs', slug: 'transaction-ids' },
+            { label: 'Tuple locations', slug: 'item-pointers' },
             { label: 'Transaction callbacks', slug: 'transaction-callbacks' },
             { label: 'Memory contexts', slug: 'memory-contexts' },
             { label: 'StringInfo buffers', slug: 'stringinfo' },

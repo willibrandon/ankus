@@ -2661,8 +2661,8 @@ complete implementations. AOT serialization must use statically generated metada
 | `spi.rs`, `spi/{client,query,tuple,cursor}.rs` | Sessions; read-only/read-write queries; typed parameters/results; tuple mutation; owned/borrowed prepared plans; keep/free; cursors, fetch, detach/find by name; scalar helpers and quoting | Guarded commands, scoped sessions/plans, typed results, cursors, local tuple edits, quoting, JSON EXPLAIN, first-row pairs/triples, owned raw query/cursor results, explicit converters, raw parameter binding and generated custom-codec types implemented. The complete PostgreSQL/platform matrix remains required |
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
-| `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | StringInfo verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Typed lists, checked values/mutation/iteration, exclusive borrowing and container ownership implemented and verified on Linux x64/PostgreSQL 18.6; full version/platform evidence remains pending |
-| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Pending |
+| `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | StringInfo and typed lists, including checked mutation/iteration, exclusive borrowing and container ownership, verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform evidence remains pending |
+| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations implemented as exact `PgItemPointer` values and checked `PgNativeItemPointer` storage, including `tid` scalar/array/SPI/raw conversion; local Linux x64/PostgreSQL 18.6 focused tests pass. Remaining relation/catalog/namespace wrappers and complete version/platform evidence are pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
@@ -5433,3 +5433,65 @@ The phases track implementation of the complete pgrx feature surface.
   supported contracts and unsafe caller obligations. Hosted list CI, complete
   PostgreSQL 13–19/platform evidence, and the broader runtime/tooling inventory
   remain required.
+
+- 2026-09-25 — Hosted list milestone `ec6ce3a` passes complete CI run
+  [36157519749](https://github.com/willibrandon/ankus/actions/runs/36157519749).
+  Linux x64/PostgreSQL 18.6 passes 6,465 tests with zero failures/skips in an
+  11m23s test job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each pass 6,463 tests with zero failures and two existing Linux-only native
+  allocation measurements skipped; their test jobs finish in 12m13s and
+  18m57s respectively. All three jobs run the entire suite against a real
+  server. Runtime preparation uses cached fork builds, so this is not cold
+  runtime-build evidence. Quality and documentation deployment run
+  [36157519829](https://github.com/willibrandon/ankus/actions/runs/36157519829)
+  also pass. Windows retains its authorized 25-minute timeout. Complete
+  PostgreSQL 13–19/platform proof and the remaining port inventory stay open.
+
+- 2026-09-25 — Implemented pgrx `itemptr.rs` as immutable `PgItemPointer` values
+  and checked `PgNativeItemPointer` storage. Raw unsigned fields, invalid and
+  moved-partition markers, checked getters, exact equality/ordering and invariant
+  text preserve PostgreSQL tuple-location semantics. The pgrx sparse UInt64
+  codec remains distinct from PostgreSQL's dense index key. Checked decoders
+  reject lost bits; explicitly named truncating decoders retain the raw reference
+  behavior. Increment/decrement preserve full-field carries and saturated bounds.
+
+  Generated C reads/writes fields through selected-version ItemPointerData
+  headers instead of assuming a managed struct layout. `tid` and `tid[]` retain
+  their built-in identity; offset-zero values remain present and distinct from
+  SQL NULL. Scalar functions, nullable/shaped arrays, SPI, records, sets, raw and
+  domain reads, and typed/raw native function-address calls share the conversion.
+  Native ownership reuses the allocation registry. Managed ownership bookkeeping
+  is created before acquiring native storage. Checked borrows share owner
+  invalidation, external stack/interior pointers use an explicit reset generation,
+  and clone, disposal and transfer retain exact release obligations.
+
+  Reference review covered pgrx's complete item-pointer helpers and inline index
+  encoding witness; PostgreSQL headers for each major version 13–19, native tid
+  I/O, comparisons and index encoding; and existing memory/raw/array contracts.
+  This source review is not execution evidence for those versions.
+
+  Focused validation passes 15 runtime cases (0.927s), six generated-contract
+  cases (2.214s), and 37 published Native AOT backend cases (50.491s), with zero
+  failures/skips, on Linux x64/PostgreSQL 18.6. Independent native `tidsend` bytes
+  and C reads prove size, block halves, offsets and the actual owner. SQL operators
+  verify 81 ordering combinations. Actual heap `ctid`, independently queried
+  domain OIDs, stack guards, reset/delete/transaction/subtransaction expiry,
+  native ERROR/finally and same-session recovery provide observable boundaries.
+  Controlled registry/allocation failures compile the exact emitted bridge;
+  4,096 cycles each of free, reset and transfer verify every location, registry
+  cleanup and bounded native allocation bytes.
+
+  The first backend run exposed a missing native tid array allowlist entry;
+  it was fixed and the complete focused scope above passes. Static assertion
+  and public-outcome review strengthened domain identity, failed-transfer retry,
+  accepted maximum decoding and endpoint carry checks. No empirical mutation
+  or measured coverage claim is made. Plain `dotnet test` passes all 6,523 tests
+  with zero failures/skips in 294.973s on Linux x64/PostgreSQL 18.6.
+  The tuple-location guide, function type tables and memory guide describe
+  validity, encodings and unsafe caller obligations. The getter-only memory
+  context `Id` auto-property cleanup preserves the previous readonly-field
+  behavior and passes the same full suite. The non-incremental Release build
+  passes in 17.81s with zero warnings/errors. API generation and freshness pass
+  for 154 pages/1,815 members; `pnpm check` reports zero errors, warnings or hints,
+  and `pnpm build` produces 194 pages. Hosted validation, complete PostgreSQL
+  13–19/platform proof and the broader port inventory remain required.

@@ -64,6 +64,7 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `sbyte` | `"char"` (the internal signed byte type) |
 | `short`, `int`, `long` | `smallint`, `integer`, `bigint` |
 | `uint` | `oid` |
+| `PgItemPointer` | `tid` ([tuple location](/item-pointers/)) |
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
 | `byte[]` | `bytea` |

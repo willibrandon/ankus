@@ -18,6 +18,7 @@ static int fault_successful_reservations;
 static int fault_released_reservations;
 static bool fault_fail_calloc;
 static bool fault_return_null;
+static bool fault_raise_storage_error;
 static bool fault_monitor_storage;
 static int fault_storage_calls;
 static MemoryContext fault_owner;
@@ -167,6 +168,13 @@ fault_allocate(MemoryContext owner, Size size, int flags)
     if (fault_monitor_storage && owner == fault_owner)
     {
         fault_storage_calls++;
+        if (fault_raise_storage_error)
+        {
+            fault_raise_storage_error = false;
+            ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled item-pointer storage failure"),
+                errdetail("the unpublished allocation must be released"), errhint("retry after clearing the fault")));
+        }
+
         if (fault_return_null)
         {
             fault_return_null = false;

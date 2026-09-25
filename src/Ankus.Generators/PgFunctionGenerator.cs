@@ -180,6 +180,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeGeometryTypes.Source);
             native.AppendLine(NativeExtendedTypes.Source);
             native.AppendLine(NativeTemporalTypes.Source);
+            native.AppendLine(NativeItemPointerTypes.Source);
             native.AppendLine(NativeEnumBridge.Source);
             native.AppendLine(NativeCustomTypeBridge.Source);
             if (!customTypes.IsEmpty)

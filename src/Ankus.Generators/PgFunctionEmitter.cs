@@ -217,6 +217,10 @@ internal static class PgFunctionEmitter
             {
                 source.AppendLine($"{inputIndent}        ankus_read_tuple(PG_GETARG_DATUM({argument}), &arguments[{argument}], &owned[{argument}]);");
             }
+            else if (parameter.Reader == "tid")
+            {
+                source.AppendLine($"{inputIndent}        ankus_read_item_pointer(PG_GETARG_DATUM({argument}), &arguments[{argument}]);");
+            }
             else if (parameter.IsTemporal)
             {
                 source.AppendLine(
@@ -337,6 +341,10 @@ internal static class PgFunctionEmitter
         else if (result.Reader == "cstring")
         {
             source.AppendLine("        datum = ankus_write_cstring(&result);");
+        }
+        else if (result.Reader == "tid")
+        {
+            source.AppendLine("        datum = ankus_write_item_pointer(&result);");
         }
         else if (result.IsTemporal)
         {
