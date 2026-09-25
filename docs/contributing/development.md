@@ -122,6 +122,14 @@ The sample imports `src/Ankus.Sdk/Ankus.Sdk.targets`, which supplies the runtime
 generator, and build-tool references. Shared .NET settings come from
 `Directory.Build.props`.
 
+Both `dotnet build` and `dotnet publish` require the selected PostgreSQL server
+headers and a C compiler. Before compiling an extension, the SDK measures the
+native layouts and builds a generated companion assembly under the extension's
+intermediate directory. `AnkusPostgresMajor` selects the major (18 by default),
+and `AnkusPgConfigPath` selects an explicit installation. The same properties
+must apply to referenced extension projects. A requested runtime identifier
+that differs from the compiled probe's target fails explicitly.
+
 ## Build the packages
 
 Pack the solution into a local feed:

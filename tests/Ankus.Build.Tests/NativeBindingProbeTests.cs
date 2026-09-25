@@ -23,7 +23,7 @@ public sealed class NativeBindingProbeTests
         """;
 
     private const string Observations = """
-        header|1|180006|8|8|1|1
+        header|2|180006|8|8|1|1|linux-x64
         tag|T_Invalid|0
         tag|T_Leaf|7
         type|Child|4|4
@@ -44,20 +44,22 @@ public sealed class NativeBindingProbeTests
     /// <param name="nativeLong">The observed C long width.</param>
     /// <param name="charIsSigned">The observed plain-char signedness.</param>
     /// <param name="little">The observed byte order.</param>
+    /// <param name="runtimeIdentifier">The compiler target that supplies the observed primitive model.</param>
     [TestMethod]
-    [DataRow(4, 4, false, false)]
-    [DataRow(8, 4, true, true)]
-    [DataRow(8, 8, false, true)]
-    public void LayoutPreservesTargetPrimitivesEmbeddedValuesAndFlexiblePadding(int pointerSize, int nativeLong, bool charIsSigned, bool little)
+    [DataRow(4, 4, false, false, "linux-arm")]
+    [DataRow(8, 4, true, true, "win-x64")]
+    [DataRow(8, 8, false, true, "osx-arm64")]
+    public void LayoutPreservesTargetPrimitivesEmbeddedValuesAndFlexiblePadding(int pointerSize, int nativeLong, bool charIsSigned, bool little, string runtimeIdentifier)
     {
-        string output = Observations.Replace("header|1|180006|8|8|1|1",
-            $"header|1|180006|{pointerSize}|{nativeLong}|{(charIsSigned ? 1 : 0)}|{(little ? 1 : 0)}", StringComparison.Ordinal);
+        string output = Observations.Replace("header|2|180006|8|8|1|1|linux-x64",
+            $"header|2|180006|{pointerSize}|{nativeLong}|{(charIsSigned ? 1 : 0)}|{(little ? 1 : 0)}|{runtimeIdentifier}", StringComparison.Ordinal);
         NativeBindingLayout layout = NativeBindingProbe.Read(NativeBindingParser.Parse(Source, 18), output);
         Assert.AreEqual(180006, layout.PostgresVersion);
         Assert.AreEqual(pointerSize, layout.PointerSize);
         Assert.AreEqual(nativeLong, layout.LongSize);
         Assert.AreEqual(charIsSigned, layout.CharIsSigned);
         Assert.AreEqual(little, layout.IsLittleEndian);
+        Assert.AreEqual(runtimeIdentifier, layout.RuntimeIdentifier);
         Assert.AreSequenceEqual<string>(["Child", "Leaf", "Node"], layout.Types.Keys);
         Assert.AreEqual(16, layout.Types["Leaf"].Size);
         Assert.AreEqual(4, layout.Types["Leaf"].Alignment);
@@ -75,12 +77,18 @@ public sealed class NativeBindingProbeTests
     /// <param name="original">The valid record text to replace.</param>
     /// <param name="replacement">The malformed replacement.</param>
     [TestMethod]
-    [DataRow("header|1|", "header|2|")]
+    [DataRow("header|2|", "header|1|")]
     [DataRow("180006", "170011")]
     [DataRow("|8|8|1|1", "|2|8|1|1")]
     [DataRow("|8|8|1|1", "|8|2|1|1")]
     [DataRow("|8|8|1|1", "|8|8|2|1")]
     [DataRow("|8|8|1|1", "|8|8|1|2")]
+    [DataRow("linux-x64", "unknown-x64")]
+    [DataRow("linux-x64", "linux-unknown")]
+    [DataRow("linux-x64", "linux-x86")]
+    [DataRow("linux-x64", "linux")]
+    [DataRow("linux-x64", "")]
+    [DataRow("|8|8|1|1", "|8|8|1|0")]
     [DataRow("tag|T_Leaf|7", "tag|T_Leaf|8")]
     [DataRow("tag|T_Leaf|7", "tag|T_Absent|7")]
     [DataRow("tag|T_Leaf|7", "tag|T_Leaf|4294967296")]

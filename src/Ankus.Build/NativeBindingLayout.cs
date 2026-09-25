@@ -8,9 +8,19 @@ namespace Ankus.Build;
 /// <param name="LongSize">The native C long width in bytes.</param>
 /// <param name="CharIsSigned">Whether plain native char is signed.</param>
 /// <param name="IsLittleEndian">Whether the compiler target stores the least significant byte first.</param>
+/// <param name="RuntimeIdentifier">The compiler's measured operating-system and processor ABI.</param>
 /// <param name="Types">Exact sizes, alignments and field positions for the selected declarations.</param>
+/// <param name="Enums">Measured integer representations of embedded named enums.</param>
 internal sealed record NativeBindingLayout(int PostgresVersion, int PointerSize, int LongSize,
-    bool CharIsSigned, bool IsLittleEndian, IReadOnlyDictionary<string, NativeBindingTypeLayout> Types);
+    bool CharIsSigned, bool IsLittleEndian, string RuntimeIdentifier, IReadOnlyDictionary<string, NativeBindingTypeLayout> Types,
+    IReadOnlyDictionary<string, NativeBindingEnumLayout> Enums);
+
+/// <summary>
+/// Describes a named enum's native integer storage on the selected compiler target.
+/// </summary>
+/// <param name="Size">The native width in bytes.</param>
+/// <param name="IsSigned">Whether negative values are represented as signed integers.</param>
+internal sealed record NativeBindingEnumLayout(int Size, bool IsSigned);
 
 /// <summary>
 /// Describes one complete native value representation, including tail padding.

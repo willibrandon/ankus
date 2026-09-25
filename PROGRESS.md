@@ -5927,3 +5927,77 @@ The phases track implementation of the complete pgrx feature surface.
   modes, warning severities, suppressions, test skips or CI timeouts changed.
   Typed bindings, complete raw FFI and the remaining full-port/platform inventory
   remain open.
+
+- 2026-09-25 — Repair `947efd5` passes complete hosted
+  [CI 36194691946](https://github.com/willibrandon/ankus/actions/runs/36194691946)
+  and [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36194691928).
+  Linux x64/PostgreSQL 18.6 passes all 6,784 tests with zero failures/skips in
+  an 11m57s job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each pass 6,782 tests with zero failures and the two existing Linux-only
+  allocation measurements skipped, in 11m46s and 20m43s jobs. This includes
+  the complete port-contention cases and the installed SDK's selected-header
+  probe under MSVC. Quality and runtime preparation pass. Windows remains
+  within its existing 30-minute timeout; no limit or analyzer changes were needed.
+
+- 2026-09-25 — Generated selected-header native declarations through the SDK.
+  The native probe now
+  measures named enum widths/signedness and validates every constant's stored
+  bits. This accounts for MSVC enum storage that differs from Linux bindgen,
+  including high-bit constants represented by signed native storage, without
+  accepting truncated values. The internal `binding-sources` command emits
+  explicit C# layouts with mutable embedded fields and inline arrays, flexible
+  tail accessors, cast-tag contracts and a deterministic companion identity.
+  Against PostgreSQL 18.6/Linux x64 headers it measures 499 native values,
+  3,694 fields and 84 enums, then emits the managed declarations.
+
+  The narrow build-tool suite passes 113 cases with zero failures/skips in
+  2.211s. `CompiledProbeObservesAnonymousValuesAndFlexiblePadding` compiles and
+  executes both an independent C fixture and emitted C#, checking native sizes,
+  offsets, union overlap, direct array mutation, flexible tails and generated
+  tag predicates. `CompiledEnumAndPointerFieldsPreserveNativeValues` verifies
+  negative enum values, unsigned high bits, pointer bits and ABI identity.
+  `NativeBindingEnumTests` checks selection, completeness, exact constants and
+  signed/unsigned 64-bit boundaries. The native compiler now reports its target
+  identity, with explicit rejection of a requested runtime that differs from
+  the measured target. Generated assemblies also validate their host target,
+  pointer width and byte order before use.
+
+  SDK integration builds the declarations as an ordinary Microsoft.NET.Sdk
+  companion before extension compilation, using the content-based assembly
+  identity and resolved runtime reference. Managed and Native AOT sample builds
+  compile all 499 selected declarations with zero warnings/errors. CI quality
+  now installs the required PostgreSQL headers; platform builds pass the same
+  selected installation to both managed generation and native publication.
+  A cold installed-package test exposed reuse of MSBuild's pre-restore project
+  evaluation. Restore now uses a distinct evaluation so the first compilation
+  sees the restored imports. Companion outputs also participate in MSBuild's
+  project-reference protocol, allowing ordinary .NET projects to consume the
+  native declarations transitively. Three installed-package integration cases
+  pass with zero failures/skips in 140.657s on Linux x64/PostgreSQL 18.6. They
+  verify exact shared assembly identity/bytes, mutable native values across
+  project boundaries, repeat-build stability, clean/rebuild, plain managed
+  execution and Native AOT execution inside PostgreSQL, plus rejection of a
+  mismatched target. Generated packing now retains measured native alignment;
+  the independent C/C# fixture checks actual managed embedding after a byte.
+
+  Companion outputs remain inside each parent project's intermediate directory,
+  including with `--artifacts-path`; the development SDK uses the build tool's
+  resolved project output. The final `SdkSharesNativeTypesAcrossProjectsAndPublishesThem`
+  case also recompiles and executes a changed plain consumer using existing
+  project outputs, then verifies independent custom-artifact companions with
+  byte-identical assemblies. `PackagedBuildToolRejectsMismatchedBindingRuntime`
+  requires the exact target mismatch diagnostic and absence of managed outputs.
+
+  Final plain `dotnet test` passes all 6,824 tests with zero failures/skips in
+  421.277s on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes
+  with zero warnings/errors in 20.04s. The CI automation app compiles and its
+  metadata check passes. API generation/freshness pass for 168 pages/2,245
+  members; `pnpm check` reports zero errors/warnings/hints and `pnpm build`
+  produces 210 pages. The README, development guide, public raw-value guide and
+  engineering command reference describe the generated declarations and their
+  limits. No analyzer modes, severities, suppressions, skips or CI timeouts changed.
+
+  Hosted verification of this milestone remains pending. Complete typed
+  pointer/callback contracts, emitted alias/inheritance/legacy-value cast
+  validation, checked node allocation/casts/formatting, backend node ownership
+  tests, complete raw FFI and the full PostgreSQL/platform inventory remain open.

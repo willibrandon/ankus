@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Ankus.PgConfig;
 
@@ -15,13 +16,14 @@ internal static class NativeBindingLayoutCommand
     /// <summary>
     /// Compiles, executes and validates one complete native layout probe.
     /// </summary>
-    /// <param name="arguments">The major, pg_config path, output directory, optional compiler and Windows library paths.</param>
+    /// <param name="arguments">The major, pg_config path, output directory, optional compiler, Windows library paths, target RID and compiler triple.</param>
     /// <param name="cancellationToken">Cancels installation discovery and child processes.</param>
-    internal static async Task RunAsync(string[] arguments, CancellationToken cancellationToken = default)
+    /// <returns>The complete validated layout measured from the selected installation.</returns>
+    internal static async Task<NativeBindingLayout> RunAsync(string[] arguments, CancellationToken cancellationToken = default)
     {
-        if (arguments.Length is < 3 or > 5)
+        if (arguments.Length is < 3 or > 7)
         {
-            throw new ArgumentException("Expected binding-layouts <major> <pg_config> <output-directory> [compiler] [windows-library-directories].", nameof(arguments));
+            throw new ArgumentException("Expected binding-layouts <major> <pg_config> <output-directory> [compiler] [windows-library-directories] [runtime-identifier] [target-triple].", nameof(arguments));
         }
 
         int major = int.Parse(arguments[0], NumberStyles.None, CultureInfo.InvariantCulture);
@@ -39,11 +41,12 @@ internal static class NativeBindingLayoutCommand
         string source = Path.Combine(output, "native-layout.c");
         string executable = Path.Combine(output, OperatingSystem.IsWindows() ? "native-layout.exe" : "native-layout");
         await File.WriteAllTextAsync(source, NativeBindingProbe.GenerateSource(catalog, NativeBindingResources.ReadHeaders(major)), cancellationToken);
-        string compiler = arguments.Length >= 4 ? arguments[3] : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
+        string compiler = arguments.Length >= 4 && arguments[3].Length != 0 ? arguments[3] : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
+        string expectedRuntime = arguments.Length >= 6 && arguments[5].Length != 0 ? arguments[5] : RuntimeInformation.RuntimeIdentifier;
         var options = new List<string>();
         if (OperatingSystem.IsWindows())
         {
-            string libraries = arguments.Length == 5 ? arguments[4] : string.Empty;
+            string libraries = arguments.Length >= 5 ? arguments[4] : string.Empty;
             options.AddRange(["/nologo", "/O2", "/MD", "/WX", "/Fo" + Path.ChangeExtension(executable, ".obj"), "/Fe" + executable]);
             options.AddRange(["/I" + installation.ServerIncludeDirectory, "/I" + installation.IncludeDirectory,
                 "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"),
@@ -59,6 +62,8 @@ internal static class NativeBindingLayoutCommand
         else
         {
             options.AddRange(installation.PreprocessorArguments);
+            if (arguments.Length == 7 && arguments[6].Length != 0) { options.Add("--target=" + arguments[6]); }
+
             options.AddRange(["-O2", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
                 "-isystem", installation.IncludeDirectory, source, "-o", executable]);
         }
@@ -66,10 +71,16 @@ internal static class NativeBindingLayoutCommand
         await RunAsync(compiler, options, output, cancellationToken);
         string observations = await RunAsync(executable, [], output, cancellationToken);
         NativeBindingLayout layout = NativeBindingProbe.Read(catalog, observations);
+        if (layout.RuntimeIdentifier != expectedRuntime)
+        {
+            throw new InvalidOperationException($"Native bindings target {layout.RuntimeIdentifier}, but the requested runtime is {expectedRuntime}.");
+        }
+
         await File.WriteAllTextAsync(Path.Combine(output, "native-layout.txt"), observations, cancellationToken);
         string json = JsonSerializer.Serialize(layout, s_jsonOptions) + "\n";
         await File.WriteAllTextAsync(Path.Combine(output, "native-layout.json"), json, cancellationToken);
         Console.WriteLine($"PG{major}: measured {layout.Types.Count} native values and {layout.Types.Values.Sum(static type => type.Fields.Count)} fields.");
+        return layout;
     }
 
     private static async Task<string> RunAsync(string program, IEnumerable<string> arguments, string directory, CancellationToken cancellationToken)

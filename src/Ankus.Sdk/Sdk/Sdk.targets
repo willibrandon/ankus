@@ -6,6 +6,7 @@
     <PackageReference Include="Ankus.Runtime" Version="[$(AnkusVersion)]" IsImplicitlyDefined="true" />
     <PackageReference Include="Ankus.Generators" Version="[$(AnkusVersion)]" IsImplicitlyDefined="true" PrivateAssets="all" />
   </ItemGroup>
+  <Import Project="../targets/Ankus.Bindings.targets" />
   <Import Project="../targets/Ankus.Native.targets" />
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <Import Project="../targets/Ankus.NativeAot.targets" />

@@ -7,7 +7,7 @@ namespace Ankus.Build.Tests;
 /// </summary>
 /// <param name="context">The current test's cancellation context.</param>
 [TestClass]
-public sealed class NativeBindingNativeTests(TestContext context)
+public sealed partial class NativeBindingNativeTests(TestContext context)
 {
     /// <summary>
     /// The emitted program measures anonymous unions, array elements and flexible tail padding through actual C paths.
@@ -73,6 +73,53 @@ public sealed class NativeBindingNativeTests(TestContext context)
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 4, 4), layout.Types["Payload"].Fields["number"]);
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 2, 2), layout.Types["Payload"].Fields["pair"]);
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 4, 4), layout.Types["Node"].Fields["type_"]);
+            NativeBindingSource binding = NativeBindingCSharp.Generate(catalog, layout);
+            const string Harness = """
+                using System;
+                using Ankus;
+                using Ankus.Postgres;
+                public static class BindingAssertions
+                {
+                    public static unsafe long[] Run()
+                    {
+                        Leaf leaf = default;
+                        leaf.type = NodeTag.T_Leaf;
+                        leaf.values[0] = 11;
+                        leaf.values[2] = 33;
+                        leaf.meta.payload.pair[0] = 11;
+                        leaf.meta.payload.pair[1] = 22;
+                        AlignedLeaf aligned = new() { Prefix = 1, Value = leaf };
+                        byte* storage = stackalloc byte[19];
+                        Span<byte> tail = Leaf.Dangerous_tail((Leaf*)storage, 3);
+                        tail[0] = 90;
+                        tail[2] = 92;
+                        int negative = 0;
+                        int absent = 0;
+                        try { Leaf.Dangerous_tail((Leaf*)storage, -1); }
+                        catch (ArgumentOutOfRangeException) { negative = 1; }
+                        try { Leaf.Dangerous_tail(null, 0); }
+                        catch (ArgumentNullException) { absent = 1; }
+                        return [sizeof(Leaf), sizeof(Metadata), sizeof(Payload),
+                            (byte*)&leaf.meta - (byte*)&leaf, (byte*)&leaf.values - (byte*)&leaf,
+                            leaf.values[0], leaf.values[2], leaf.meta.payload.number,
+                            storage[14], storage[16], negative, absent,
+                            Leaf.Dangerous_tail((Leaf*)storage, 0).Length,
+                            Size<Leaf>(), Alignment<Leaf>(), Major<Leaf>(),
+                            Accepts<Leaf>(7), Accepts<Leaf>(0), Accepts<Node>(uint.MaxValue),
+                            SameIdentity<Leaf>(), (byte*)&aligned.Value - (byte*)&aligned];
+                    }
+                    private struct AlignedLeaf { public byte Prefix; public Leaf Value; }
+                    private static int Size<T>() where T : unmanaged, IPgNativeType => T.NativeSize;
+                    private static int Alignment<T>() where T : unmanaged, IPgNativeType => T.NativeAlignment;
+                    private static int Major<T>() where T : unmanaged, IPgNativeType => T.PostgresMajor;
+                    private static int Accepts<T>(uint tag) where T : unmanaged, IPgNativeNode => T.AcceptsTag(tag) ? 1 : 0;
+                    private static int SameIdentity<T>() where T : unmanaged, IPgNativeType => T.AbiIdentity == NativeBinding.Identity ? 1 : 0;
+                }
+                """;
+            long[] observed = GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken);
+            Assert.AreSequenceEqual<long>(
+                [16, 4, 4, 4, 8, 11, 33, BitConverter.IsLittleEndian ? 0x0016000B : 0x000B0016,
+                    90, 92, 1, 1, 0, 16, 4, 18, 1, 0, 1, 1, 4], observed);
         }
         finally
         {

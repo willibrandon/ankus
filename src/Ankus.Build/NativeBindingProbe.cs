@@ -30,18 +30,20 @@ internal static class NativeBindingProbe
         source.AppendLine("#else");
         source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof__(value)");
         source.AppendLine("#endif");
+        NativeBindingTarget.Write(source);
         source.AppendLine(CultureInfo.InvariantCulture, $"#if PG_VERSION_NUM / 10000 != {catalog.PostgresMajor}");
         source.AppendLine("#error PostgreSQL headers do not match the requested binding major");
         source.AppendLine("#endif");
         source.AppendLine("int main(void)");
         source.AppendLine("{");
         source.AppendLine("    unsigned int endian = 1;");
-        source.AppendLine("    printf(\"header|1|%d|%zu|%zu|%d|%d\\n\", PG_VERSION_NUM, sizeof(void*), sizeof(long), CHAR_MIN < 0, *((unsigned char*)&endian) == 1);");
+        source.AppendLine("    printf(\"header|2|%d|%zu|%zu|%d|%d|%s-%s\\n\", PG_VERSION_NUM, sizeof(void*), sizeof(long), CHAR_MIN < 0, *((unsigned char*)&endian) == 1, ANKUS_NATIVE_OS, ANKUS_NATIVE_ARCH);");
         foreach (string tag in catalog.Tags.Keys)
         {
             source.AppendLine(CultureInfo.InvariantCulture, $"    printf(\"tag|{tag}|%u\\n\", (unsigned){tag});");
         }
 
+        NativeBindingEnums.Write(source, catalog);
         foreach (NativeBindingSelectionEntry entry in NativeBindingSelection.Create(catalog))
         {
             string value = entry.Path.Length == 0 ? "*value" : $"value->{entry.Path}";
@@ -82,7 +84,7 @@ internal static class NativeBindingProbe
     {
         string[] lines = output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         string[] header = lines.Length == 0 ? [] : lines[0].Split('|');
-        if (header.Length != 7 || header[0] != "header" || header[1] != "1")
+        if (header.Length != 8 || header[0] != "header" || header[1] != "2")
         {
             throw new FormatException("Missing or unsupported native layout header.");
         }
@@ -91,11 +93,13 @@ internal static class NativeBindingProbe
         int pointer = Number(header[3]);
         int nativeLong = Number(header[4]);
         if (version / 10000 != catalog.PostgresMajor || pointer is not (4 or 8) || nativeLong is not (4 or 8) ||
-            header[5] is not ("0" or "1") || header[6] is not ("0" or "1"))
+            header[5] is not ("0" or "1") || header[6] is not ("0" or "1") ||
+            !NativeBindingTarget.IsValid(header[7], pointer, header[6] == "1"))
         {
             throw new FormatException("Native layout version or primitive representation does not match the supported contract.");
         }
 
+        IReadOnlyDictionary<string, NativeBindingEnumLayout> enums = NativeBindingEnums.Read(catalog, lines);
         Dictionary<string, NativeBindingType> expected = NativeBindingSelection.Create(catalog)
             .ToDictionary(static entry => entry.Type.Name, static entry => entry.Type, StringComparer.Ordinal);
         var tags = new HashSet<string>(StringComparer.Ordinal);
@@ -105,6 +109,9 @@ internal static class NativeBindingProbe
             string[] parts = line.Split('|');
             switch (parts[0])
             {
+                case "enum":
+                case "constant":
+                    break;
                 case "tag" when parts.Length == 3:
                     if (!catalog.Tags.TryGetValue(parts[1], out uint expectedTag) || !tags.Add(parts[1]) ||
                         !uint.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out uint tag) || tag != expectedTag)
@@ -170,8 +177,8 @@ internal static class NativeBindingProbe
             layouts.Add(name, new(size, alignment, new ReadOnlyDictionary<string, NativeBindingFieldLayout>(fields)));
         }
 
-        return new(version, pointer, nativeLong, header[5] == "1", header[6] == "1",
-            new ReadOnlyDictionary<string, NativeBindingTypeLayout>(layouts));
+        return new(version, pointer, nativeLong, header[5] == "1", header[6] == "1", header[7],
+            new ReadOnlyDictionary<string, NativeBindingTypeLayout>(layouts), enums);
     }
 
     private static bool IsAlignment(int value) => value > 0 && (value & (value - 1)) == 0;

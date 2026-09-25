@@ -14,10 +14,11 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false"
                       GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)../Ankus.Build/Ankus.Build.csproj"
-                      ReferenceOutputAssembly="false"
+                      ReferenceOutputAssembly="false" OutputItemType="_AnkusBuildToolAssembly"
                       GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />
   </ItemGroup>
 
+  <Import Project="targets/Ankus.Bindings.targets" />
   <Import Project="targets/Ankus.Native.targets" />
   <Import Project="targets/Ankus.NativeAot.targets" />
 </Project>

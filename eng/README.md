@@ -16,7 +16,7 @@ repository root with `dotnet run --file`.
 | --- | --- |
 | `metadata` | Validate and export the pinned runtime identity. |
 | `release-metadata` | Validate a release tag and export release metadata. |
-| `quality` | Build Ankus and validate generated API and site documentation. |
+| `quality` | Install PostgreSQL headers, build Ankus and validate generated API and site documentation. |
 | `runtime-build` | Build and stage one runtime for CI. |
 | `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
@@ -88,9 +88,22 @@ validated `native-layout.json`. It measures every node and its embedded value
 dependencies, including anonymous unions, arrays and flexible tails, and checks
 all node tags against the pinned major. Pointer and C long widths, plain-char
 signedness, byte order, sizes, alignments and field offsets come from the selected
-headers and compiler. The probe runs on the build host; it does not establish a
+headers and compiler. Named enum widths, signedness and every constant are also
+validated. The probe runs on the build host; it does not establish a
 cross-compilation ABI. An optional fourth argument selects the C compiler; on
 Windows a fifth argument supplies semicolon-separated native library directories.
+A sixth argument selects the expected runtime identifier and a seventh passes
+the compiler target triple. The actual compiler target must match the requested
+runtime identifier.
 
-Layout observations are build infrastructure. Managed node declarations, SDK
-compilation integration and checked backend node APIs remain separate port work.
+To emit managed declarations and their companion project, use `binding-sources`
+with the same arguments. The SDK invokes this command before C# compilation,
+builds the generated `Ankus.NativeBindings.csproj`, and references its assembly.
+The assembly name includes a hash of the measured declarations so consumers
+built against the same contract share native type identity. Generated source
+retains its timestamp when unchanged, and normal project clean removes the
+companion artifacts. Compiler/header inputs are measured again on each build.
+
+These declarations provide native fields, enums, embedded values, inline arrays
+and explicit flexible-tail access. Checked node ownership/casting/formatting APIs
+and typed pointer/callback fields remain separate port work.

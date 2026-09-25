@@ -3,6 +3,43 @@ title: Raw values and custom types
 description: Bind raw PostgreSQL values and write custom type input and output functions.
 ---
 
+## Native PostgreSQL declarations
+
+Extension projects using `Ankus.Sdk` receive generated node declarations in
+`Ankus.Postgres`. The SDK compiles a C probe against the selected PostgreSQL
+headers before compiling C#. Sizes, field offsets, enum representations, array
+strides and target identity come from that probe. Select the installation with
+`AnkusPostgresMajor` and `AnkusPgConfigPath`.
+
+Native declarations retain PostgreSQL names and mutable fields:
+
+```csharp
+using Ankus.Postgres;
+
+RangeTblRef reference = new() { type = NodeTag.T_RangeTblRef, rtindex = 9 };
+reference.rtindex++;
+```
+
+Embedded structs, unions and fixed arrays can be edited in place. Unions share
+storage exactly as they do in C; only read the active representation. Flexible
+arrays expose `Dangerous_<field>` methods that require a live native address and
+the actual number of trailing elements. Their storage is outside the fixed
+managed value.
+
+These are raw native representations. Pointer and callback fields currently
+hold `nint` addresses; they do not own or validate the pointed-to storage.
+Creating a managed struct does not allocate a PostgreSQL node, and setting its
+tag does not establish native ownership. Checked node casts, allocation and
+formatting APIs are still being implemented.
+
+Projects built against the same generated contract share a companion assembly
+and can exchange its native types directly. Use the same selected installation
+for projects that exchange these values. The generated contract rejects an
+incompatible runtime target; cross-compilation requires a probe that can execute
+on the build host. `dotnet clean` removes the generated companion artifacts.
+
+## Raw SQL values
+
 Use `PgDatum` with `[PgSqlType]` for a type without a built-in C# mapping:
 
 ```csharp

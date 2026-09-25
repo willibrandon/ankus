@@ -12,6 +12,8 @@ Assembly: `Ankus.Runtime.dll`
 - [IPgDatumReader&lt;T&gt;](/api/ankus.ipgdatumreader-1/)
 - [IPgDatumWriter&lt;T&gt;](/api/ankus.ipgdatumwriter-1/)
 - [IPgHashable](/api/ankus.ipghashable/)
+- [IPgNativeNode](/api/ankus.ipgnativenode/)
+- [IPgNativeType](/api/ankus.ipgnativetype/)
 
 ## Classes
 

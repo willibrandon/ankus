@@ -1,0 +1,91 @@
+<Project>
+  <PropertyGroup>
+    <AnkusResolveBindingsDependsOn>$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_PrepareAnkusBindingToolchain" Condition="'$(PublishAot)' == 'true'"
+          DependsOnTargets="SetupOSSpecificProps" />
+
+  <Target Name="_ResolveAnkusBindings" BeforeTargets="FindReferenceAssembliesForReferences"
+          DependsOnTargets="$(AnkusResolveBindingsDependsOn)">
+    <PropertyGroup>
+      <_AnkusBuildTool Condition="'@(_AnkusBuildToolAssembly)' != ''">@(_AnkusBuildToolAssembly->'%(FullPath)')</_AnkusBuildTool>
+      <_AnkusBindingsOutput>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ankus-bindings'))</_AnkusBindingsOutput>
+      <_AnkusBindingsDirectory>$(_AnkusBindingsOutput)/</_AnkusBindingsDirectory>
+      <_AnkusBindingsProject>$(_AnkusBindingsDirectory)Ankus.NativeBindings.csproj</_AnkusBindingsProject>
+      <_AnkusBindingsCompiler>$(CppLinker)</_AnkusBindingsCompiler>
+      <_AnkusBindingsCompiler Condition="'$(_targetOS)' == 'win'">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CppLinker)')), 'cl.exe'))</_AnkusBindingsCompiler>
+      <_AnkusBindingsLibraries>@(AdditionalNativeLibraryDirectories, ';')</_AnkusBindingsLibraries>
+      <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
+      <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(TargetTriple)&quot;</_AnkusBindingsCommand>
+      <_AnkusBindingsRemoveProperties>TargetFramework;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishAot;NativeLib;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;ProjectAssetsFile;MSBuildProjectExtensionsPath;ArtifactsPath;UseArtifactsOutput;ArtifactsProjectName;ArtifactsPivots;Version;AssemblyVersion;FileVersion;InformationalVersion</_AnkusBindingsRemoveProperties>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AnkusBindingRuntime Include="@(ReferencePath)" Condition="'%(Filename)' == 'Ankus.Runtime'" />
+    </ItemGroup>
+    <Error Condition="'@(_AnkusBindingRuntime)' == ''" Text="Native bindings require the resolved Ankus.Runtime assembly." />
+    <Exec Command="$(_AnkusBindingsCommand)" />
+    <ReadLinesFromFile File="$(_AnkusBindingsDirectory)native-binding.assembly-name">
+      <Output TaskParameter="Lines" PropertyName="_AnkusBindingAssemblyName" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <_AnkusBindingProperties>AnkusBindingTargetFramework=$(TargetFramework);AnkusBindingAssemblyName=$(_AnkusBindingAssemblyName);AnkusRuntimeAssembly=@(_AnkusBindingRuntime);Configuration=$(Configuration)</_AnkusBindingProperties>
+    </PropertyGroup>
+    <!-- Give restore a separate evaluation so Build sees the newly generated NuGet imports. -->
+    <MSBuild Projects="$(_AnkusBindingsProject)" Targets="Restore"
+             Properties="$(_AnkusBindingProperties);ExcludeRestorePackageImports=true" RemoveProperties="$(_AnkusBindingsRemoveProperties)" />
+    <MSBuild Projects="$(_AnkusBindingsProject)" Targets="Build"
+             Properties="$(_AnkusBindingProperties)" RemoveProperties="$(_AnkusBindingsRemoveProperties)">
+      <Output TaskParameter="TargetOutputs" ItemName="_AnkusBindingAssembly" />
+    </MSBuild>
+    <WriteLinesToFile File="$(_AnkusBindingsDirectory)native-binding.assembly-path"
+                      Lines="@(_AnkusBindingAssembly->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <!-- A referenced extension can already supply this exact companion contract. -->
+      <ReferencePath Remove="@(ReferencePath)" Condition="'%(Filename)' == '$(_AnkusBindingAssemblyName)'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == '$(_AnkusBindingAssemblyName)'" />
+      <ReferencePath Include="@(_AnkusBindingAssembly)">
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <CopyLocal>true</CopyLocal>
+        <Private>true</Private>
+      </ReferencePath>
+      <ReferenceCopyLocalPaths Include="@(_AnkusBindingAssembly)">
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <CopyLocal>true</CopyLocal>
+        <Private>true</Private>
+      </ReferenceCopyLocalPaths>
+      <TargetPathWithTargetPlatformMoniker Remove="@(TargetPathWithTargetPlatformMoniker)"
+                                           Condition="'%(AnkusBindingReference)' == 'true'" />
+      <TargetPathWithTargetPlatformMoniker Include="@(_AnkusBindingAssembly)">
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <AnkusBindingReference>true</AnkusBindingReference>
+      </TargetPathWithTargetPlatformMoniker>
+      <FileWrites Include="$(_AnkusBindingsDirectory)**/*" />
+    </ItemGroup>
+    <OnError ExecuteTargets="_RecordAnkusBindingFiles" />
+  </Target>
+
+  <!-- ProjectReference consumers also need the companion when requesting existing outputs. -->
+  <Target Name="_ReadAnkusBindingReference" AfterTargets="GetTargetPathWithTargetPlatformMoniker">
+    <PropertyGroup>
+      <_AnkusBindingReferenceFile>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ankus-bindings', 'native-binding.assembly-path'))</_AnkusBindingReferenceFile>
+    </PropertyGroup>
+    <ReadLinesFromFile File="$(_AnkusBindingReferenceFile)" Condition="Exists('$(_AnkusBindingReferenceFile)')">
+      <Output TaskParameter="Lines" ItemName="_AnkusExistingBindingReference" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="@(_AnkusExistingBindingReference)">
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <AnkusBindingReference>true</AnkusBindingReference>
+        <TargetFrameworkIdentifier>$(TargetFrameworkIdentifier)</TargetFrameworkIdentifier>
+        <TargetFrameworkVersion>$(TargetFrameworkVersion.TrimStart('vV'))</TargetFrameworkVersion>
+      </TargetPathWithTargetPlatformMoniker>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_RecordAnkusBindingFiles">
+    <ItemGroup>
+      <FileWrites Include="$(_AnkusBindingsDirectory)**/*" />
+    </ItemGroup>
+  </Target>
+</Project>

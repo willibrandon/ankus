@@ -37,6 +37,7 @@ try
 
         case "quality":
             ValidateRuntimeIdentity(repositoryRoot);
+            InstallPostgreSql(repositoryRoot, "18");
             Run(GetDotNetHost(), ["restore", "Ankus.slnx", "-m:1", "-p:PublishAot=false"]);
             Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "--no-incremental", "--no-restore", "-m:1", "-p:PublishAot=false"]);
             Run(GetDotNetHost(), ["run", "--project", "src/Ankus.DocGenerator", "--configuration", "Release", "--no-build", "--", "--check"]);
@@ -411,7 +412,7 @@ static void InstallPostgreSql(string repositoryRoot, string version)
     if (OperatingSystem.IsLinux())
     {
         InstallPostgreSqlLinux(repositoryRoot, version);
-        WriteEnvironment("ANKUS_TEST_PG_CONFIG", $"/usr/lib/postgresql/{version}/bin/pg_config");
+        SelectPostgreSql(version, $"/usr/lib/postgresql/{version}/bin/pg_config");
         return;
     }
 
@@ -423,7 +424,7 @@ static void InstallPostgreSql(string repositoryRoot, string version)
             ["HOMEBREW_NO_AUTO_UPDATE"] = "1",
         });
         string prefix = Capture("brew", ["--prefix", formula]);
-        WriteEnvironment("ANKUS_TEST_PG_CONFIG", Path.Combine(prefix, "bin", "pg_config"));
+        SelectPostgreSql(version, Path.Combine(prefix, "bin", "pg_config"));
         return;
     }
 
@@ -446,11 +447,18 @@ static void InstallPostgreSql(string repositoryRoot, string version)
         }
 
         Console.WriteLine($"Using preinstalled {actualVersion}.");
-        WriteEnvironment("ANKUS_TEST_PG_CONFIG", pgConfig);
+        SelectPostgreSql(version, pgConfig);
         return;
     }
 
     throw new PlatformNotSupportedException("PostgreSQL installation is not defined for this runner.");
+}
+
+static void SelectPostgreSql(string version, string pgConfig)
+{
+    WriteEnvironment("ANKUS_TEST_PG_CONFIG", pgConfig);
+    WriteEnvironment("AnkusPostgresMajor", version);
+    WriteEnvironment("AnkusPgConfigPath", pgConfig);
 }
 
 static void VerifyPostgreSqlVersion(string version)

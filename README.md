@@ -233,6 +233,13 @@ explicit reference cleanup, including arrays and iterators. See
 against an explicit or active PostgreSQL major version while preserving invalid,
 custom and built-in identity. `PgOid.ToDatum` maps the invalid tag to SQL NULL;
 ordinary `uint` values continue to preserve zero.
+
+The SDK generates `Ankus.Postgres` node declarations from the selected server
+headers, preserving native fields, enums, unions and arrays. Projects using the
+same measured contract share their native type identity. These are raw
+representations; checked node ownership and casting APIs remain in progress.
+See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
+
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
 arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also
