@@ -83,13 +83,15 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return null;
         }
 
-        if (type.IsRefLikeType || type.IsStatic || type.IsAbstract || type.IsUnboundGenericType || !Accessible(type) ||
+        INamedTypeSymbol? codec = attribute.ConstructorArguments.FirstOrDefault().Value as INamedTypeSymbol;
+        if (type.IsRefLikeType || type.IsStatic || type.IsAbstract && (codec is not null ||
+            !type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute")) ||
+            type.IsUnboundGenericType || !Accessible(type) ||
             type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute"))
         {
-            return Invalid("PgType requires an accessible, concrete, non-generic class, struct, or enum without PgEnum.");
+            return Invalid("PgType requires an accessible, non-generic class, struct, or enum without PgEnum. Abstract classes require generated serialization with declared concrete variants.");
         }
 
-        INamedTypeSymbol? codec = attribute.ConstructorArguments.FirstOrDefault().Value as INamedTypeSymbol;
         DefaultTypeSerializer? serializer = null;
         if (codec is null)
         {

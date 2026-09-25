@@ -13,6 +13,7 @@ public ref struct PgTypeReader
 {
     private Utf8JsonReader _json;
     private readonly CborReader? _cbor;
+    private readonly ReadOnlyMemory<byte> _binaryInput;
     private bool _hasJsonToken;
     private int _depth;
 
@@ -22,12 +23,80 @@ public ref struct PgTypeReader
     internal PgTypeReader(ReadOnlySpan<byte> input, bool json)
     {
         _json = json ? new Utf8JsonReader(input, new JsonReaderOptions { MaxDepth = 64 }) : default;
-        _cbor = json ? null : new CborReader(input.ToArray(), CborConformanceMode.Strict);
+        _binaryInput = json ? default : input.ToArray();
+        _cbor = json ? null : new CborReader(_binaryInput, CborConformanceMode.Strict);
         _hasJsonToken = json && _json.Read();
         if (input.IsEmpty || (json && !_hasJsonToken))
         {
             throw new FormatException("Expected one serialized value.");
         }
+    }
+
+    /// <summary>
+    /// Creates an independent binary cursor over already owned input at its enclosing contract depth.
+    /// </summary>
+    private PgTypeReader(ReadOnlyMemory<byte> input, int depth)
+    {
+        _binaryInput = input;
+        _cbor = new CborReader(input, CborConformanceMode.Strict);
+        _depth = depth;
+    }
+
+    /// <summary>
+    /// Inspects a complete object's discriminator without consuming the original cursor.
+    /// </summary>
+    /// <param name="name">The exact case-sensitive discriminator property name.</param>
+    /// <returns>The string or signed 32-bit integer discriminator, or null when the property is absent.</returns>
+    public readonly object? PeekDiscriminator(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        PgTypeReader probe = _cbor is null
+            ? this
+            : new PgTypeReader(_binaryInput.Slice(_binaryInput.Length - _cbor.BytesRemaining), _depth);
+        probe.ReadStartObject();
+        bool found = false;
+        object? discriminator = null;
+        while (probe.ReadPropertyName() is { } property)
+        {
+            if (!string.Equals(name, property, StringComparison.Ordinal))
+            {
+                probe.Skip();
+                continue;
+            }
+
+            if (found)
+            {
+                throw new FormatException("Duplicate custom-type discriminator property.");
+            }
+
+            found = true;
+            discriminator = probe.ReadDiscriminator();
+        }
+
+        return discriminator;
+    }
+
+    /// <summary>
+    /// Reads only the exact token kinds supported by declared polymorphic discriminators.
+    /// </summary>
+    private object ReadDiscriminator()
+    {
+        if (_cbor is null)
+        {
+            return _json.TokenType switch
+            {
+                JsonTokenType.String => ReadString(),
+                JsonTokenType.Number => checked((int)ReadInt64()),
+                _ => throw new FormatException("A custom-type discriminator must be a string or signed 32-bit integer."),
+            };
+        }
+
+        return _cbor.PeekState() switch
+        {
+            CborReaderState.TextString or CborReaderState.StartIndefiniteLengthTextString => ReadString(),
+            CborReaderState.UnsignedInteger or CborReaderState.NegativeInteger => checked((int)ReadInt64()),
+            _ => throw new FormatException("A custom-type discriminator must be a string or signed 32-bit integer."),
+        };
     }
 
     /// <summary>
@@ -420,6 +489,12 @@ public ref struct PgTypeReader
         CborReader reader = _cbor!;
         while (reader.PeekState() == CborReaderState.Tag)
         {
+            if (reader.PeekTag() == CborTag.DecimalFraction)
+            {
+                SkipCborDecimal(reader);
+                return;
+            }
+
             reader.ReadTag();
         }
 
@@ -457,6 +532,55 @@ public ref struct PgTypeReader
             default:
                 reader.SkipValue();
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Validates an unknown decimal fraction as one scalar without narrowing its exponent or mantissa.
+    /// </summary>
+    private static void SkipCborDecimal(CborReader reader)
+    {
+        reader.ReadTag();
+        int? length = reader.ReadStartArray();
+        if (length is not null and not 2)
+        {
+            throw new FormatException("Expected a CBOR decimal fraction with an exponent and mantissa.");
+        }
+
+        SkipCborInteger(reader);
+        if (reader.PeekState() == CborReaderState.Tag && reader.PeekTag() is CborTag.UnsignedBigNum or CborTag.NegativeBigNum)
+        {
+            reader.ReadTag();
+            if (reader.PeekState() is not (CborReaderState.ByteString or CborReaderState.StartIndefiniteLengthByteString))
+            {
+                throw new FormatException("Expected a byte string for the CBOR decimal mantissa.");
+            }
+
+            reader.SkipValue();
+        }
+        else
+        {
+            SkipCborInteger(reader);
+        }
+
+        reader.ReadEndArray();
+    }
+
+    /// <summary>
+    /// Consumes the full CBOR integer range without converting to a narrower signed representation.
+    /// </summary>
+    private static void SkipCborInteger(CborReader reader)
+    {
+        switch (reader.PeekState())
+        {
+            case CborReaderState.UnsignedInteger:
+                reader.ReadUInt64();
+                break;
+            case CborReaderState.NegativeInteger:
+                reader.ReadCborNegativeIntegerRepresentation();
+                break;
+            default:
+                throw new FormatException("Expected an integral CBOR decimal component.");
         }
     }
 

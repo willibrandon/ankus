@@ -2530,7 +2530,7 @@ The target architecture consists of:
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
-| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs and generated default CBOR/JSON contracts implemented; polymorphic unions, custom text with generated storage and zero-copy storage remain required |
+| `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs and generated default CBOR/JSON contracts including tagged variants implemented; custom text with generated storage, additional shapes and zero-copy storage remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
 | Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
@@ -2642,10 +2642,10 @@ alongside the source-level macro inventory.
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
-| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated CBOR/JSON contracts implemented for concrete records/classes/structs/enums and nested collections; union contracts and custom text with generated storage remain required |
-| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Pending |
-| `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Pending |
-| `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Pending |
+| `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs and generated CBOR/JSON contracts implemented for records/classes/structs/enums, tagged class variants, inherited members and nested collections; custom text with generated storage and additional shapes remain required |
+| `inoutfuncs`, `pgvarlena_inoutfuncs` type options | Custom textual representation, custom in-memory/on-disk layouts, alignment and manual datum conversion | Explicit storage/text codecs implemented; custom text with generated storage and zero-copy layouts remain required |
+| `pg_binary_protocol` | Generated send/receive functions, binary protocol/COPY round-trips and invalid-input diagnostics | Implemented for explicit and generated codecs; independent binary COPY and recovery evidence recorded below; full PostgreSQL/platform matrix remains required |
+| `postgres_type_variants` example/tests | All four custom-type paths, enum/struct variants, related derives and SQL override options | Explicit codecs, default records and tagged variants implemented; remaining storage paths and related derives remain required |
 
 Custom base types and PostgreSQL composite types have distinct storage and I/O contracts; both require
 complete implementations. AOT serialization must use statically generated metadata/converters.
@@ -2778,7 +2778,7 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] enum declarations, label/catalog helpers, nullable/scalar/array conversions and SQL dependencies
   - [x] owned named/anonymous composites, descriptors, nested arrays, SETOF/TABLE and SPI bindings
   - [x] generated custom base types with explicit storage/text codecs and binary send/receive
-  - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts implemented; unions and additional shapes remain) and zero-copy storage
+  - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts and tagged variants implemented; additional shapes remain) and zero-copy storage
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
   - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
@@ -3987,8 +3987,71 @@ The phases track implementation of the complete pgrx feature surface.
   x64, without skips. Final plain `dotnet test` passes 4,913/4,913 with zero skips
   in 3m11.777s on that platform/version. Release builds with zero warnings and
   errors in 2.59s. API freshness (135 pages, 1,371 members), `pnpm build`
-  (172 pages), and `pnpm check` pass without diagnostics. Hosted validation of
-  this milestone is pending; no new macOS or Windows evidence is claimed yet.
-  Polymorphic unions,
+  (172 pages), and `pnpm check` pass without diagnostics. Hosted
+  [CI run 36077748480](https://github.com/willibrandon/ankus/actions/runs/36077748480)
+  at `0b4b57a` subsequently passed the complete suite on Linux x64/PostgreSQL
+  18.6 (4,913 passed, zero skips), macOS ARM64/PostgreSQL 18.6 and Windows
+  x64/PostgreSQL 17.11 (4,911 passed and two explicitly Linux-only allocation
+  checks skipped on each). Quality, all runtime-package jobs and the documentation
+  workflow also passed. This is the recorded matrix, not PG13–19 parity.
+  At this milestone, polymorphic unions,
   additional framework/collection shapes, custom text with generated storage,
   zero-copy storage and the other full-port requirements remain visible.
+
+- 2026-09-24 — Added generated tagged variants and inherited custom-type state.
+  Standard `JsonDerivedType` registrations and optional `JsonPolymorphic`
+  discriminator naming now describe closed class/record unions, including abstract
+  roots, concrete base values and explicit self registrations. Discriminators
+  preserve string versus Int32 identity in JSON and CBOR; reads accept metadata
+  anywhere in the object and reject missing abstract-root tags, unknown or duplicate
+  tags, invalid token kinds, and numeric overflow. Writes reject unregistered exact
+  runtime types. Lossy fallback, ambiguous registrations, discriminator/member
+  collisions and hidden inherited state receive `ANKUS017`.
+
+  Constructors bind inherited members, virtual overrides appear once, and naming,
+  required-presence and ignore metadata follow the selected property. Ignored
+  overrides do not activate unsupported ancestor metadata. Nullable variants work
+  in arrays, lists, dictionaries and recursive graphs. JSON lookahead copies its
+  cursor; CBOR lookahead shares owned input with an independent cursor and retains
+  the enclosing depth. Decimal-fraction token arrays count as scalar implementation
+  details consistently in lookahead, reads and writes. Skipped decimal fractions
+  validate structure without narrowing unknown values to .NET decimal.
+
+  Backend testing exposed runtime-subtype selection in erased transports. SPI
+  parameters now retain their declared scalar and array codecs, shaped arrays use
+  their declared element codec, and composite cells select the codec matching the
+  descriptor's base OID. This preserves a tagged base even when its concrete
+  variant has a separate PostgreSQL type, including covariant CLR vectors and
+  vectors stored in erased tuple cells. Aggregate comparator parameters forward
+  the same declared mappings. Edited SPI rows materialize writable base-type
+  vectors independently of a narrower source container. Value-type vectors still
+  require exact runtime element identity: CLR enum/integer array compatibility
+  cannot reinterpret integers as a PostgreSQL custom enum. No runtime contract
+  reflection is introduced.
+
+  | Required behavior | Direct evidence |
+  |---|---|
+  | Exact typed tags, independent CBOR and concrete construction | `PolymorphicStringAndIntegerTagsPreserveExactVariants`, `PolymorphicConcreteBaseAndSelfRegistrationExecute` |
+  | Inherited state, constructor normalization and metadata | `PolymorphicInheritedConstructorsAndOverridesPreserveValues`, `OrdinaryInheritedMembersExecute` |
+  | Cursor ownership, nested offsets, depth and decimal scalar semantics | `DiscriminatorPositionPreservesOriginalFieldTraversal`, `NestedDiscriminatorUsesCurrentOffsetAndPreservesParentSiblings`, `DecimalScalarLookaheadSharesTheWriterDepthLimit`, `UnknownDecimalFractionsRequireExactlyTwoIntegralComponents` |
+  | Invalid declarations, discriminator errors, cycles and unknown subtypes | `InvalidPolymorphicContractsAreDiagnosed`, `PolymorphicDiscriminatorsRejectInvalidInput`, `PolymorphicUnknownRuntimeTypesAreRejected`, `PolymorphicRecursiveGraphsRespectDepthAndCycles` |
+  | Native AOT values, SQL NULL, SPI, shaped arrays and sets | `PolymorphicValuesAndNullsCrossOwnershipPaths`, `PolymorphicArraysAndSetsPreserveValues` |
+  | Distinct base/variant SQL identities through erased tuples and covariant vectors | `PolymorphicTupleCellsRetainDeclaredMappings`, `PolymorphicCovariantVectorsRetainDeclaredMappings` |
+  | Independently writable covariant vectors and strict custom-enum array identity | `PgTypeArrayConversionTests.CovariantCustomVectorsReturnIndependentWritableRootArrays`, `CustomEnumVectorsRejectUnderlyingIntegerArrays` |
+  | Independent binary COPY, row preservation and same-backend recovery | `PolymorphicBinaryCopyUsesIndependentFixture`, `PolymorphicBinaryErrorsPreserveBackendAndRows`, `PolymorphicInputErrorsPreserveBackend`, `PolymorphicWriteErrorsPreserveBackend` |
+  | Compressed/external storage and sample installation/relocation | `PolymorphicStorageSurvivesToast`, `CustomTypeOnlyExtensionTracksRelocationAndReinstallation` |
+
+  The README, custom-type guide, generated attribute API page and compiled
+  `Measurement` sample describe the supported contracts and persistence changes.
+  Focused validation passed 112 affected generator cases, 143 serializer/runtime
+  cases, two direct array-conversion cases and 51 PostgreSQL cases, with zero
+  skips. Final plain `dotnet test` passed 5,060/5,060 with zero skips in
+  3m10.400s on PostgreSQL 18.6/Linux x64. The Release build passed with zero
+  warnings and errors in 6.83s. API freshness (135 pages, 1,371 members),
+  `pnpm build` (172 pages) and `pnpm check` passed without diagnostics.
+  An earlier targeted attempt aborted in the Native AOT compiler while a separate
+  check rebuilt a shared assembly; exclusive targeted and full-suite reruns passed.
+  Hosted validation of this new milestone is pending. Additional
+  framework/collection shapes, custom text with generated storage, zero-copy
+  storage and the complete PostgreSQL/platform matrix remain required; the full
+  port is not complete.

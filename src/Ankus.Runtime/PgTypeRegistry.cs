@@ -104,6 +104,51 @@ public static class PgTypeRegistry
     internal static CustomTypeMapping? FindArray(Type type) => s_arrays.GetValueOrDefault(type);
 
     /// <summary>
+    /// Selects a tuple cell's declared SQL contract when its runtime value is a registered variant.
+    /// </summary>
+    internal static CustomTypeMapping? FindValue(object? value, uint oid)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        foreach (KeyValuePair<Type, CustomTypeMapping> registration in s_scalars)
+        {
+            CustomTypeMapping mapping = registration.Value;
+            if (mapping.Accepts(value) && mapping.GetOid(missingOk: true) == oid)
+            {
+                return mapping;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Selects the declared SQL element contract for an erased, possibly covariant tuple vector.
+    /// </summary>
+    internal static CustomTypeMapping? FindArrayValue(Array value, uint oid)
+    {
+        foreach (KeyValuePair<Type, CustomTypeMapping> registration in s_scalars)
+        {
+            CustomTypeMapping mapping = registration.Value;
+            if (!mapping.AcceptsArray(value))
+            {
+                continue;
+            }
+
+            uint elementOid = mapping.GetOid(missingOk: true);
+            if (elementOid != 0 && NativeBackend.EnumArrayOid(elementOid) == oid)
+            {
+                return mapping;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Requires an already generated mapping without invoking a backend operation.
     /// </summary>
     internal static CustomTypeMapping Require(Type type) => Find(type) ??

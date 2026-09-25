@@ -49,6 +49,7 @@ public unsafe partial struct NativeValue
 
     private static NativeValue FromArrayCore(IPgArray value)
     {
+        CustomTypeMapping? customMapping = PgTypeRegistry.FindArray(value.GetType());
         var buffer = new ArrayBufferWriter<byte>();
         WriteInt(buffer, value.Lengths.Length);
         WriteInt(buffer, value.Count);
@@ -61,7 +62,7 @@ public unsafe partial struct NativeValue
 
         for (int index = 0; index < value.Count; index++)
         {
-            NativeValue item = SpiType.ToNative(value.GetElement(index));
+            NativeValue item = SpiType.ToNative(value.GetElement(index), customMapping);
             try
             {
                 if ((long)buffer.WrittenCount + 28 + item._length > 0x3FFFFFFF - 4)
@@ -87,7 +88,7 @@ public unsafe partial struct NativeValue
 
         NativeValue result = FromBytes(buffer.WrittenSpan);
         result._auxiliary1 = -1;
-        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : PgTypeRegistry.FindArray(value.GetType()) is not null ? 3 :
+        result._auxiliary2 = value is PgArray<PgHeapTuple> ? 2 : customMapping is not null ? 3 :
             PgEnumRegistry.FindArray(value.GetType()) is null ? 0 : 1;
         if (value is PgArray<PgHeapTuple> tuples)
         {

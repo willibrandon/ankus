@@ -27,8 +27,9 @@ reflection-based serializer or separate JSON context is needed.
 
 The default serializer supports:
 
-- Public instance fields and properties of accessible concrete classes, structs,
-  and records, including immutable constructor-bound members.
+- Public instance fields and properties of accessible classes, structs,
+  and records, including inherited members, virtual overrides, and immutable
+  constructor-bound members. Abstract classes require declared concrete variants.
 - Booleans, signed and unsigned 8/16/32/64-bit integers, `float`, `double`,
   `decimal`, and Unicode strings. Decimal CBOR uses the decimal-fraction tag;
   decimal scale, including the scale of zero, is retained. JSON decimal input that would
@@ -63,11 +64,11 @@ Duplicate known members and duplicate dictionary keys are rejected. Unknown
 members are skipped with input validation, allowing readers to tolerate added
 fields. JSON names and dictionary keys are case-sensitive.
 
-Unsupported shapes and serialization attributes produce `ANKUS017`. Inheritance,
-polymorphic unions, arbitrary framework types, multidimensional arrays, and
-non-string dictionary keys currently require an explicit codec. Passing a runtime
-subclass to a generated object contract is rejected so additional state is not
-silently discarded. Nesting is limited to 64 containers; cyclic graphs fail at
+Unsupported shapes and serialization attributes produce `ANKUS017`. Hidden
+inherited members, arbitrary framework types, multidimensional arrays, and
+non-string dictionary keys currently require an explicit codec. Passing an
+undeclared runtime subclass is rejected so additional state is not silently
+discarded. Nesting is limited to 64 containers; cyclic graphs fail at
 that limit. CBOR preserves non-finite floating-point values; JSON output rejects
 them because JSON has no exact representation.
 
@@ -75,6 +76,46 @@ Malformed JSON input raises SQLSTATE `22P02`; malformed CBOR raises `22P03`.
 Trailing data, numeric overflow or underflow, required null values, and invalid Unicode are
 errors. Ankus deliberately reports invalid JSON instead of adopting pgrx's
 current default input wrapper's conversion of a parse failure to SQL NULL.
+
+## Tagged variants
+
+Use standard `System.Text.Json.Serialization` attributes to declare a closed set
+of variants, corresponding to tagged Rust enum variants:
+
+```csharp
+[PgType]
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(Measured), "measured")]
+[JsonDerivedType(typeof(Unavailable), "unavailable")]
+public abstract record Measurement(string Sensor);
+
+public sealed record Measured(string Sensor, decimal Value, string? Unit)
+    : Measurement(Sensor);
+public sealed record Unavailable(string Sensor, string Reason) : Measurement(Sensor);
+```
+
+```sql
+CREATE TABLE measurements(value measurement);
+INSERT INTO measurements VALUES
+    ('{"kind":"measured","Sensor":"outside","Value":19.125,"Unit":"°C"}'),
+    ('{"Sensor":"outside","Reason":"offline","kind":"unavailable"}');
+```
+
+Each registered type needs a unique string or signed 32-bit integer discriminator.
+Integer `7` and string `"7"` identify different variants. The property defaults to
+`$type` when `[JsonPolymorphic]` is omitted. Writers put the discriminator first;
+readers accept it anywhere in the object. Both JSON and CBOR store the same
+discriminator and all inherited serialized members. Variants can appear in
+nullable members, arrays, lists, dictionaries, and recursive contracts.
+
+An abstract base requires a discriminator on input. A concrete base also accepts
+an object without one and constructs the exact base type. Registering the base
+itself gives its output an explicit discriminator. Unknown, duplicate, null,
+incorrectly typed, and out-of-range discriminators are errors. Unregistered
+runtime types, including subclasses of a registered variant, are errors.
+Fallback options that discard concrete type identity are diagnosed at compile
+time. A discriminator property cannot share a name with a serialized member.
+Changing registrations or discriminator values changes the persisted contract.
 
 ## Explicit codecs
 

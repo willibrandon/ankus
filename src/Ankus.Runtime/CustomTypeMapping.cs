@@ -6,6 +6,11 @@ namespace Ankus;
 internal abstract class CustomTypeMapping(string name, string? schema)
 {
     /// <summary>
+    /// Gets whether the statically registered contract permits CLR reference-array covariance.
+    /// </summary>
+    internal abstract bool IsReferenceType { get; }
+
+    /// <summary>
     /// Resolves the current variable-length base-type identity.
     /// </summary>
     internal uint GetOid(bool missingOk = false) => NativeBackend.ResolveCustomType(name, schema, missingOk);
@@ -14,6 +19,16 @@ internal abstract class CustomTypeMapping(string name, string? schema)
     /// Resolves the current array identity through the guarded catalog lookup.
     /// </summary>
     internal uint GetArrayOid() => NativeBackend.EnumArrayOid(GetOid());
+
+    /// <summary>
+    /// Checks assignability using the statically generated managed contract.
+    /// </summary>
+    internal abstract bool Accepts(object value);
+
+    /// <summary>
+    /// Checks vector assignability using the statically generated element contracts.
+    /// </summary>
+    internal abstract bool AcceptsArray(Array value);
 
     /// <summary>
     /// Parses a present text input.

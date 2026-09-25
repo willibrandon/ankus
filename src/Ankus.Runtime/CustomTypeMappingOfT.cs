@@ -11,6 +11,16 @@ internal sealed class CustomTypeMapping<T, TOptional>(string name, string? schem
         throw new InvalidOperationException("A custom type codec factory returned null."));
 
     /// <inheritdoc />
+    internal override bool IsReferenceType => !typeof(T).IsValueType;
+
+    /// <inheritdoc />
+    internal override bool Accepts(object value) => value is T;
+
+    /// <inheritdoc />
+    internal override bool AcceptsArray(Array value) => IsReferenceType ? value is T[] :
+        value.GetType() == typeof(T[]) || value.GetType() == typeof(TOptional[]);
+
+    /// <inheritdoc />
     internal override object Parse(string text) => _codec.Value.Parse(text) ??
         throw new InvalidOperationException("A custom type codec returned null for a present text input.");
 
@@ -36,6 +46,7 @@ internal sealed class CustomTypeMapping<T, TOptional>(string name, string? schem
     /// <inheritdoc />
     internal override IPgArray Wrap(Array value) => value switch
     {
+        _ when !AcceptsArray(value) => throw new InvalidCastException($"Array cannot be converted to '{typeof(T)}' elements."),
         T[] items => new PgArray<T>(items),
         TOptional[] items => new PgArray<TOptional>(items),
         _ => throw new InvalidCastException($"Array cannot be converted to '{typeof(T)}' elements."),

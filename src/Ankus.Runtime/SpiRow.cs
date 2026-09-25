@@ -143,6 +143,11 @@ public sealed class SpiRow
                 throw new InvalidCastException("PostgreSQL mapped arrays and binary values have distinct type identities.");
             }
 
+            if (value is T && PgTypeRegistry.FindArray(typeof(T)) is { IsReferenceType: true } custom)
+            {
+                return (T)custom.Convert(custom.Wrap(source), typeof(T));
+            }
+
             return (T)SpiArray.Convert(SpiArray.Wrap(source), typeof(T));
         }
 

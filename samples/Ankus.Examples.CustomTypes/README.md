@@ -19,3 +19,14 @@ CREATE TABLE readings(value reading);
 INSERT INTO readings VALUES ('{"Sensor":"outside","Value":19.125,"Unit":"°C"}');
 SELECT value FROM readings;
 ```
+
+`Measurement` declares tagged variants with `JsonDerivedType`. Each variant
+retains its inherited sensor identifier and its own fields in JSON and CBOR:
+
+```sql
+CREATE TABLE results(value measurement);
+INSERT INTO results VALUES
+    ('{"kind":"measured","Sensor":"outside","Value":19.125,"Unit":"°C"}'),
+    ('{"Sensor":"outside","Reason":"offline","kind":"unavailable"}');
+SELECT value FROM results;
+```

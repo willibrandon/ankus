@@ -206,9 +206,9 @@ public static unsafe class NativeAggregate
         try
         {
             values[0]._typeOid = left.TypeOid;
-            values[0]._value = SpiType.ToNative(left.Value);
+            values[0]._value = SpiType.ToNative(left.Value, left.CustomMapping, left.CustomArrayMapping);
             values[1]._typeOid = right.TypeOid;
-            values[1]._value = SpiType.ToNative(right.Value);
+            values[1]._value = SpiType.ToNative(right.Value, right.CustomMapping, right.CustomArrayMapping);
             nint result = Invoke(context, 1, 0, 0, values, sortKey);
             if (result < int.MinValue || result > int.MaxValue)
             {

@@ -388,7 +388,6 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int A { get; set; } [System.Text.Json.Serialization.JsonPropertyName(\"same\")] public int B { get; set; } }")]
     [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public string? Text { get; set; } }")]
     [DataRow("[Ankus.PgType] public sealed class Value { [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString)] public int Number { get; set; } }")]
-    [DataRow("public class Base { public int Number { get; set; } } [Ankus.PgType] public sealed class Value : Base { }")]
     [DataRow("[Ankus.PgType] public sealed class Value { public Value(string text) { Text = text; } public string? Text { get; } }")]
     [DataRow("[Ankus.PgType] public enum Value { A = 1, B = 1 }")]
     [DataRow("[Ankus.PgType] public enum Value { [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] A, [System.Text.Json.Serialization.JsonStringEnumMemberName(\"same\")] B }")]

@@ -5,10 +5,12 @@ namespace Ankus;
 /// </summary>
 public readonly struct SpiParameter
 {
-    private SpiParameter(uint typeOid, object? value)
+    private SpiParameter(uint typeOid, object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null)
     {
         TypeOid = typeOid;
         Value = value;
+        CustomMapping = customMapping;
+        CustomArrayMapping = customArrayMapping;
     }
 
     /// <summary>
@@ -21,6 +23,16 @@ public readonly struct SpiParameter
     /// raw parameters carry their NULL flag in PgDatum.IsNull.
     /// </summary>
     public object? Value { get; }
+
+    /// <summary>
+    /// Gets the declared custom codec independently of a polymorphic value's runtime type.
+    /// </summary>
+    internal CustomTypeMapping? CustomMapping { get; }
+
+    /// <summary>
+    /// Gets the declared element codec independently of a covariant vector's runtime type.
+    /// </summary>
+    internal CustomTypeMapping? CustomArrayMapping { get; }
 
     /// <summary>
     /// Creates a type-only NULL envelope for a function's default argument lookup.
@@ -43,7 +55,7 @@ public readonly struct SpiParameter
             PgAnyElement element => Create(element.Datum),
             PgAnyArray array => Create(array.Datum),
             PgInternal state => new(2281, state),
-            _ => new(SpiType.GetOid(value), value),
+            _ => new(SpiType.GetOid(value), value, PgTypeRegistry.Find(typeof(T)), PgTypeRegistry.FindArray(typeof(T))),
         };
 
     /// <summary>

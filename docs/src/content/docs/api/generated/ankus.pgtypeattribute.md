@@ -16,6 +16,11 @@ Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit
 public sealed class PgTypeAttribute : Attribute
 ```
 
+Generated contracts support inherited members and explicitly tagged class variants declared with
+[JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
+[JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require concrete variants.
+Unknown runtime subtypes are rejected to preserve stored type identity.
+
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
 
 ## Constructors
@@ -35,6 +40,11 @@ Parameters:
 `codec` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
 An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.
+
+Generated contracts support inherited members and explicitly tagged class variants declared with
+[JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
+[JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require concrete variants.
+Unknown runtime subtypes are rejected to preserve stored type identity.
 
 
 ## Properties

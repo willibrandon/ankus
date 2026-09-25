@@ -113,6 +113,8 @@ Use `[PgType]` on a record, class, struct, or enum for a PostgreSQL base type.
 Ankus generates its own serializer with CBOR storage, JSON text I/O, and direct
 constructor/member access compatible with Native AOT. Nested records, nullable
 members, arrays, lists, and string-keyed dictionaries retain their declared shape.
+Use `[JsonDerivedType]` and optional `[JsonPolymorphic]` to declare tagged variants
+with their concrete types and inherited state preserved in both formats.
 Supply a `PgTypeCodec<T>` for a different storage or text format. See
 [custom types](docs/src/content/docs/custom-types.md).
 

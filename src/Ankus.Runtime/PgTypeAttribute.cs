@@ -3,6 +3,12 @@ namespace Ankus;
 /// <summary>
 /// Generates a PostgreSQL base type with CBOR storage and JSON text, or an explicit codec.
 /// </summary>
+/// <remarks>
+/// Generated contracts support inherited members and explicitly tagged class variants declared with
+/// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/> and
+/// <see cref="System.Text.Json.Serialization.JsonPolymorphicAttribute"/>. Abstract classes require concrete variants.
+/// Unknown runtime subtypes are rejected to preserve stored type identity.
+/// </remarks>
 /// <param name="codec">An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
 public sealed class PgTypeAttribute(Type? codec = null) : Attribute

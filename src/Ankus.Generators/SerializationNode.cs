@@ -40,6 +40,21 @@ internal sealed class SerializationNode(ITypeSymbol type, int index)
     internal SerializationNode? Element { get; set; }
 
     /// <summary>
+    /// Gets or sets the discriminator property for a closed polymorphic contract.
+    /// </summary>
+    internal string DiscriminatorName { get; set; } = "$type";
+
+    /// <summary>
+    /// Gets the explicitly registered concrete variants and their typed discriminators.
+    /// </summary>
+    internal List<(SerializationNode Shape, object Tag)> Variants { get; } = [];
+
+    /// <summary>
+    /// Gets or sets the concrete base shape used when no discriminator is present.
+    /// </summary>
+    internal SerializationNode? BaseShape { get; set; }
+
+    /// <summary>
     /// Gets whether null is part of this exact type contract.
     /// </summary>
     internal bool CanBeNull => Kind == "nullable" || Type.IsReferenceType && Type.NullableAnnotation != NullableAnnotation.NotAnnotated;

@@ -739,7 +739,7 @@ public static unsafe partial class NativeBackend
                 }
 
                 arguments[index]._typeOid = parameters[index].TypeOid;
-                arguments[index]._value = SpiType.ToNative(parameters[index].Value);
+                arguments[index]._value = SpiType.ToNative(parameters[index].Value, parameters[index].CustomMapping, parameters[index].CustomArrayMapping);
             }
 
             fixed (NativeSpiParameter* values = arguments)

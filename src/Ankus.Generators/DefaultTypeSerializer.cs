@@ -21,6 +21,15 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
         try
         {
             serializer.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
+            foreach (SerializationNode contract in serializer._ordered.Where(static node => node.Kind == "polymorphic"))
+            {
+                if (contract.Variants.Select(static variant => variant.Shape).Concat(contract.BaseShape is { } baseShape ? [baseShape] : [])
+                    .Any(shape => shape.Members.Any(member => member.SerializedName == contract.DiscriminatorName)))
+                {
+                    throw Unsupported(contract.Type, "the discriminator property must not collide with a serialized member");
+                }
+            }
+
             error = null;
             return serializer;
         }
@@ -34,10 +43,11 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     /// <summary>
     /// Creates a node before visiting its children so recursive contracts remain finite.
     /// </summary>
-    private SerializationNode Add(ITypeSymbol type)
+    private SerializationNode Add(ITypeSymbol type, bool objectShape = false)
     {
         string managed = Display(type);
-        if (_nodes.TryGetValue(managed, out SerializationNode? existing))
+        string key = objectShape ? "object:" + managed : managed;
+        if (_nodes.TryGetValue(key, out SerializationNode? existing))
         {
             return existing;
         }
@@ -48,7 +58,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
         }
 
         var node = new SerializationNode(type, _ordered.Count);
-        _nodes.Add(managed, node);
+        _nodes.Add(key, node);
         _ordered.Add(node);
         if (type is INamedTypeSymbol nullable && nullable.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
         {
@@ -81,13 +91,25 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
             return node;
         }
 
-        if (type is not INamedTypeSymbol named || named.IsRefLikeType || named.IsAbstract || named.IsStatic || named.IsUnboundGenericType ||
+        if (type is not INamedTypeSymbol named || named.IsRefLikeType || named.IsStatic || named.IsUnboundGenericType ||
             named.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Enum) || !Accessible(named, assembly))
         {
             throw Unsupported(type, "an accessible concrete value contract is required");
         }
 
         ValidateAttributes(named);
+        if (!objectShape && (Attribute(named, "JsonPolymorphicAttribute") is not null ||
+            Attribute(named, "JsonDerivedTypeAttribute") is not null))
+        {
+            AddPolymorphic(node, named);
+            return node;
+        }
+
+        if (named.IsAbstract)
+        {
+            throw Unsupported(type, "abstract contracts must declare concrete variants with JsonDerivedType");
+        }
+
         string definition = named.OriginalDefinition.ToDisplayString();
         if (definition is "System.Collections.Generic.List<T>" or "System.Collections.Generic.Dictionary<TKey, TValue>")
         {
@@ -122,17 +144,15 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
             return node;
         }
 
-        string namespaceName = named.ContainingNamespace.ToDisplayString();
-        if (named.SpecialType != SpecialType.None || namespaceName == "System" || namespaceName.StartsWith("System.", StringComparison.Ordinal) ||
-            named.BaseType is { SpecialType: not (SpecialType.System_Object or SpecialType.System_ValueType) })
+        if (named.SpecialType != SpecialType.None)
         {
-            throw Unsupported(type, "inheritance and framework-specific contracts require an explicit codec");
+            throw Unsupported(type, "framework-specific contracts require an explicit codec");
         }
 
         node.Kind = "object";
         var memberNames = new HashSet<string>(StringComparer.Ordinal);
         bool ignoredRequired = false;
-        foreach (ISymbol member in named.GetMembers())
+        foreach (ISymbol member in ObjectMembers(named))
         {
             if (member.IsStatic)
             {
@@ -245,6 +265,124 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     }
 
     /// <summary>
+    /// Resolves explicitly tagged concrete variants without permitting identity-losing fallback.
+    /// </summary>
+    private void AddPolymorphic(SerializationNode node, INamedTypeSymbol type)
+    {
+        if (type.TypeKind != TypeKind.Class)
+        {
+            throw Unsupported(type, "polymorphic contracts must be classes");
+        }
+
+        node.Kind = "polymorphic";
+        AttributeData? configuration = Attribute(type, "JsonPolymorphicAttribute");
+        if (configuration is not null)
+        {
+            node.DiscriminatorName = AttributeValues.Get(configuration, "TypeDiscriminatorPropertyName", "$type");
+            if (AttributeValues.Get(configuration, "IgnoreUnrecognizedTypeDiscriminators", false) ||
+                AttributeValues.Get(configuration, "UnknownDerivedTypeHandling", 0) != 0)
+            {
+                throw Unsupported(type, "polymorphic fallback loses concrete type identity; unknown discriminators and derived types must fail");
+            }
+        }
+
+        var tags = new HashSet<object>();
+        var types = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (AttributeData registration in type.GetAttributes().Where(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonDerivedTypeAttribute"))
+        {
+            if (registration.ConstructorArguments.Length != 2 ||
+                registration.ConstructorArguments[0].Value is not INamedTypeSymbol derived ||
+                registration.ConstructorArguments[1].Value is not (string or int))
+            {
+                throw Unsupported(type, "each JsonDerivedType must specify a concrete type and a string or Int32 discriminator");
+            }
+
+            object tag = registration.ConstructorArguments[1].Value!;
+            bool related = false;
+            for (INamedTypeSymbol? current = derived; current is not null; current = current.BaseType)
+            {
+                related |= SymbolEqualityComparer.Default.Equals(current, type);
+            }
+
+            if (!related || derived.IsAbstract || derived.IsStatic || derived.IsUnboundGenericType || !Accessible(derived, assembly))
+            {
+                throw Unsupported(type, "registered variants must be accessible, closed, concrete classes assignable to the declared base");
+            }
+
+            if (!types.Add(derived) || !tags.Add(tag))
+            {
+                throw Unsupported(type, "registered variant types and typed discriminators must be unique");
+            }
+
+            node.Variants.Add((Add(derived.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true), tag));
+        }
+
+        if (node.Variants.Count == 0)
+        {
+            throw Unsupported(type, "JsonPolymorphic requires explicit JsonDerivedType registrations");
+        }
+
+        if (!type.IsAbstract)
+        {
+            node.BaseShape = Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), true);
+        }
+    }
+
+    /// <summary>
+    /// Includes inherited state once, honoring overrides and rejecting hidden serialized members.
+    /// </summary>
+    private static IEnumerable<ISymbol> ObjectMembers(INamedTypeSymbol type)
+    {
+        var hiddenNames = new HashSet<string>(StringComparer.Ordinal);
+        var overridden = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        for (INamedTypeSymbol? current = type; current is not null &&
+            current.SpecialType is not (SpecialType.System_Object or SpecialType.System_ValueType); current = current.BaseType)
+        {
+            string namespaceName = current.ContainingNamespace.ToDisplayString();
+            if (current.SpecialType != SpecialType.None || namespaceName == "System" || namespaceName.StartsWith("System.", StringComparison.Ordinal))
+            {
+                throw Unsupported(type, "framework-specific contracts require an explicit codec");
+            }
+
+            ValidateAttributes(current);
+            foreach (ISymbol member in current.GetMembers())
+            {
+                if (overridden.Contains(member))
+                {
+                    continue;
+                }
+
+                if (member is IPropertySymbol property)
+                {
+                    bool ignored = Attribute(property, "JsonIgnoreAttribute") is { } propertyIgnore &&
+                        AttributeValues.Get(propertyIgnore, "Condition", 1) == 1;
+                    for (IPropertySymbol? parent = property.OverriddenProperty; parent is not null; parent = parent.OverriddenProperty)
+                    {
+                        if (!ignored)
+                        {
+                            ValidateAttributes(parent);
+                        }
+
+                        overridden.Add(parent);
+                    }
+                }
+
+                if (!member.IsStatic && member.DeclaredAccessibility == Accessibility.Public && member is IPropertySymbol or IFieldSymbol &&
+                    hiddenNames.Contains(member.Name) && !(Attribute(member, "JsonIgnoreAttribute") is { } ignore &&
+                    AttributeValues.Get(ignore, "Condition", 1) == 1))
+                {
+                    throw Unsupported(type, "hidden serialized members require an explicit codec");
+                }
+
+                yield return member;
+            }
+
+            hiddenNames.UnionWith(current.GetMembers().Select(static member => member.Name));
+        }
+    }
+
+    /// <summary>
     /// Emits a private codec inside the generated dispatcher.
     /// </summary>
     internal void Emit(string name, StringBuilder source)
@@ -316,6 +454,19 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
                 source.AppendLine("                if (!values.TryAdd(key, Read_" + node.Element.Index + "(ref reader))) throw new global::System.FormatException(\"Duplicate dictionary key.\");");
                 source.AppendLine("            }");
                 source.AppendLine("            return values;");
+                break;
+            case "polymorphic":
+                source.AppendLine("            return reader.PeekDiscriminator(" + Literal(node.DiscriminatorName) + ") switch");
+                source.AppendLine("            {");
+                foreach ((SerializationNode shape, object tag) in node.Variants)
+                {
+                    source.AppendLine("                " + DiscriminatorLiteral(tag) + " => Read_" + shape.Index + "(ref reader),");
+                }
+
+                source.AppendLine(node.BaseShape is { } baseShape ? "                null => Read_" + baseShape.Index + "(ref reader)," :
+                    "                null => throw new global::System.FormatException(\"Missing type discriminator.\"),");
+                source.AppendLine("                _ => throw new global::System.FormatException(\"Unknown type discriminator.\"),");
+                source.AppendLine("            };");
                 break;
             default:
                 EmitReadObject(node, source);
@@ -391,7 +542,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
             source.AppendLine("            if (value is null) throw new global::System.InvalidOperationException(\"A required value cannot be null.\");");
         }
 
-        if (node.Type.IsReferenceType && node.Kind != "primitive")
+        if (node.Type.IsReferenceType && node.Kind is not ("primitive" or "polymorphic"))
         {
             source.AppendLine("            if (value.GetType() != typeof(" + Display(node.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)) +
                 ")) throw new global::System.InvalidOperationException(\"Runtime subtypes require an explicit codec.\");");
@@ -431,15 +582,30 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
                 source.AppendLine("            }");
                 source.AppendLine("            writer.WriteEndObject();");
                 break;
-            default:
-                source.AppendLine("            writer.WriteStartObject(" + node.Members.Count.ToString(CultureInfo.InvariantCulture) + ");");
-                foreach (SerializationMember member in node.Members)
+            case "polymorphic":
+                foreach ((SerializationNode shape, object tag) in node.Variants)
                 {
-                    source.AppendLine("            writer.WritePropertyName(" + Literal(member.SerializedName) + ");");
-                    source.AppendLine("            Write_" + member.Value.Index + "(writer, value.@" + member.Name + ");");
+                    source.AppendLine("            if (value.GetType() == typeof(" + shape.Managed + "))");
+                    source.AppendLine("            {");
+                    source.AppendLine("                var variant = (" + shape.Managed + ")value;");
+                    EmitWriteObject(shape, source, "variant", "                ", node.DiscriminatorName, tag);
+                    source.AppendLine("                return;");
+                    source.AppendLine("            }");
                 }
 
-                source.AppendLine("            writer.WriteEndObject();");
+                if (node.BaseShape is { } baseShape && !node.Variants.Any(variant => variant.Shape == baseShape))
+                {
+                    source.AppendLine("            if (value.GetType() == typeof(" + baseShape.Managed + "))");
+                    source.AppendLine("            {");
+                    EmitWriteObject(baseShape, source, "value", "                ");
+                    source.AppendLine("                return;");
+                    source.AppendLine("            }");
+                }
+
+                source.AppendLine("            throw new global::System.InvalidOperationException(\"Unregistered runtime subtype.\");");
+                break;
+            default:
+                EmitWriteObject(node, source, "value", "            ");
                 break;
         }
 
@@ -447,10 +613,38 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
     }
 
     /// <summary>
+    /// Writes an exact object's state with an optional discriminator in the same map.
+    /// </summary>
+    private static void EmitWriteObject(SerializationNode node, StringBuilder source, string value, string indent,
+        string? discriminatorName = null, object? tag = null)
+    {
+        source.AppendLine(indent + "writer.WriteStartObject(" + (node.Members.Count + (tag is null ? 0 : 1)).ToString(CultureInfo.InvariantCulture) + ");");
+        if (tag is not null)
+        {
+            source.AppendLine(indent + "writer.WritePropertyName(" + Literal(discriminatorName!) + ");");
+            source.AppendLine(indent + "writer.Write" + (tag is string ? "String" : "Int64") + "(" + DiscriminatorLiteral(tag) + ");");
+        }
+
+        foreach (SerializationMember member in node.Members)
+        {
+            source.AppendLine(indent + "writer.WritePropertyName(" + Literal(member.SerializedName) + ");");
+            source.AppendLine(indent + "Write_" + member.Value.Index + "(writer, " + value + ".@" + member.Name + ");");
+        }
+
+        source.AppendLine(indent + "writer.WriteEndObject();");
+    }
+
+    /// <summary>
+    /// Emits a discriminator without conflating integer and string identities.
+    /// </summary>
+    private static string DiscriminatorLiteral(object tag) => tag is string text ? Literal(text) : ((int)tag).ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
     /// Finds standard serialization metadata without instantiating attributes.
     /// </summary>
     private static AttributeData? Attribute(ISymbol symbol, string name) => symbol.GetAttributes().FirstOrDefault(attribute =>
-        attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization." + name);
+        attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization." + name) ??
+        (symbol is IPropertySymbol { OverriddenProperty: { } parent } ? Attribute(parent, name) : null);
 
     /// <summary>
     /// Prevents silently ignoring customization that would change persisted meaning.
@@ -464,7 +658,7 @@ internal sealed class DefaultTypeSerializer(IAssemblySymbol assembly)
                 if (type.ContainingNamespace.ToDisplayString() == "System.Text.Json.Serialization")
                 {
                     if (type.Name is "JsonPropertyNameAttribute" or "JsonIgnoreAttribute" or "JsonConstructorAttribute" or
-                        "JsonRequiredAttribute" or "JsonStringEnumMemberNameAttribute")
+                        "JsonRequiredAttribute" or "JsonStringEnumMemberNameAttribute" or "JsonPolymorphicAttribute" or "JsonDerivedTypeAttribute")
                     {
                         break;
                     }

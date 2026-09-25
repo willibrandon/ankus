@@ -232,12 +232,16 @@ internal static class SpiType
     /// Copies a managed parameter into an owned native transport value.
     /// </summary>
     /// <param name="value">The managed value.</param>
+    /// <param name="customMapping">The declared custom-type mapping when the caller retains it.</param>
+    /// <param name="customArrayMapping">The declared custom element mapping for covariant vectors.</param>
     /// <returns>The native value, whose buffers must be released by the caller.</returns>
-    internal static NativeValue ToNative(object? value) => value switch
+    internal static NativeValue ToNative(object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null) => value switch
     {
         PgDatum datum => datum.ToNative(),
         PgInternal state => state.ToNative(),
         null => new NativeValue { IsNull = 1 },
+        _ when customMapping is not null => customMapping.Write(value),
+        Array array when customArrayMapping is not null => NativeValue.FromArray(customArrayMapping.Wrap(array)),
         _ when PgTypeRegistry.Find(value.GetType()) is { } custom => custom.Write(value),
         bool boolean => new NativeValue { Integral = boolean ? 1 : 0 },
         sbyte number => new NativeValue { Integral = number },
