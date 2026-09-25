@@ -302,8 +302,10 @@ For native addresses, `DangerousCall<T>` selects the registered reader; use
 `DangerousCallRaw` for an explicit native owner or delayed mapped read. The caller
 must supply an address whose actual result matches the mapping's SQL type and
 representation; native-address calls cannot check a catalog return declaration.
-Nested mapped arrays and different argument and result SQL spellings remain
-unsupported. A default generic declaration needs a selected closed root: an
+Nested mapped SQL array containers are rejected, as they are in pgrx. Use one
+`PgArray<T>` to retain multiple dimensions of mapped scalar elements. Different
+argument and result SQL spellings remain unsupported.
+A default generic declaration needs a selected closed root: an
 unused open template or a `PgDatum.Read<T>()` call in an arbitrary method body
 cannot create one by itself. Add an explicit closed declaration for a local
 raw-only root. Accessible closed nested CLR declarations are supported.

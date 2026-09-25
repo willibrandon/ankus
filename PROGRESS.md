@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic roots support default and explicit per-construction SQL metadata with supplied or statically inferred, constraint-checked closed converters. Nested mapped arrays, broader metadata, ordinary row/composite conversions and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic roots support default and explicit per-construction SQL metadata with supplied or statically inferred, constraint-checked closed converters. Nested SQL array containers are rejected, matching pgrx; multidimensional values use one shaped array. Broader metadata and mapped container contracts, ordinary row/composite conversions and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2772,7 +2772,9 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Mapped vectors and shaped arrays with exact element/array identity, independent conversion directions and guarded ownership
     - [x] Finite fully constructed generic mapped roots selected by signatures or exact managed providers, with fixed SQL identity and exact closed converters
     - [x] Explicit closed mapping declarations with independent SQL metadata and finite local raw-only registration
-    - [ ] Nested mapped arrays, broader generic mapping metadata, ordinary row/composite conversions and additional serialization/native shapes
+    - [x] Open converter templates closed from exact interfaces, with finite constraint-checked factories
+    - [x] Reject nested SQL array containers consistently with pgrx; preserve multidimensional values through one shaped array
+    - [ ] Broader SQL metadata and mapped container contracts, ordinary row/composite conversions and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -5127,9 +5129,48 @@ The phases track implementation of the complete pgrx feature surface.
   failures/skips in 286.276s on Linux x64/PostgreSQL 18.6. The non-incremental
   Release build passes in 10.04s with zero warnings/errors. API generation and
   freshness pass for 147 pages/1,431 members; `pnpm check` reports zero errors,
-  warnings or hints and `pnpm build` produces 184 pages. Hosted platform
-  validation remains pending.
+  warnings or hints and `pnpm build` produces 184 pages. Commit `bffacbb` passes
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36137204278) and
+  [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36137204255).
+  Each platform executed the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,317 | 0 | 10m29s |
+  | macOS ARM64 | 18.6 | 6,315 | 2 | 11m03s |
+  | Windows x64 | 17.11 | 6,315 | 2 | 19m23s |
+
+  All jobs had zero failures. The two non-Linux skips remain the existing
+  Linux-only native allocation measurements. Windows finished only 37 seconds
+  below its former twenty-minute limit and used the new 25-minute allowance.
+  The preferred ten-minute feedback target remains unmet. All runtime jobs
+  restored cached artifacts and skipped rebuilding the runtime; these timings
+  do not establish cold-runtime build performance or the full version matrix.
 
   Asymmetric argument/result SQL metadata, const-generic typmod forms, nested
   mapped SQL containers, ordinary row/composite conversion and the complete
   PostgreSQL/platform matrix remain full-port requirements.
+
+- 2026-09-25 — Corrected the mapping parity tracker after reviewing pgrx's
+  explicit nested-array contract. In the read-only reference at `70383e8`,
+  `array_argument_sql` and `array_return_sql` reject an existing array mapping
+  with `NestedArray`; `nested_vec_arrays_fail_fast`,
+  `nested_numeric_arrays_fail_fast`, and `nested_composite_arrays_fail_fast`
+  pin this behavior. See the
+  [reference metadata implementation and tests](https://github.com/pgcentralfoundation/pgrx/blob/70383e884582d1bcc7cd681d10886b995a2830cb/pgrx-sql-entity-graph/src/metadata/sql_translatable.rs).
+  Earlier entries incorrectly listed nested mapped arrays as unfinished port
+  implementation. Ankus already rejects those generated signatures through
+  `DatumMappingsRejectUnsupportedContainers`, with `ANKUS019` and no partial
+  artifacts. One `PgArray<T>` retains native multidimensional shape, bounds and
+  NULL cells; it is distinct from a nested managed array container.
+
+  This documentation correction does not remove ordinary detached row/composite
+  conversion, custom mapped container contracts, broader directional/typmod
+  metadata or full platform/version validation from the remaining scope.
+  Existing generator and backend coverage ran in `bffacbb`'s complete local suite
+  (6,317 passed, zero failures/skips on Linux x64/PostgreSQL 18.6). No runtime or
+  generator behavior changed in this audit. `pnpm check` reports zero errors,
+  warnings or hints; `pnpm build` regenerates the 147-page/1,431-member API and
+  builds 184 pages. The unchanged code retains the preceding 10.04s Release
+  build with zero warnings/errors and the complete hosted evidence recorded
+  for `bffacbb` above.

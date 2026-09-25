@@ -163,7 +163,9 @@ Mapped arrays work in scalar, variadic, SETOF, TABLE and aggregate signatures,
 and through sessions and prepared statements. Ordinary `SpiRow.Get<T>()` and
 `PgHeapTuple.Get<T>()` do not select mapped element converters; use an owned raw
 cell's `Read<T[]>()` or `Read<PgArray<T>>()`. Nested mapped arrays and rectangular
-CLR arrays remain unsupported.
+CLR arrays are rejected. This follows pgrx's rejection of nested SQL array
+containers: represent multiple PostgreSQL dimensions in one `PgArray<T>`, with
+the mapped scalar as `T`, rather than nesting `PgArray` or vector types.
 
 For `DangerousCall<T[]>` or `DangerousCall<PgArray<T>>`, the caller must prove
 that the native function returns the mapping's array type and representation.
