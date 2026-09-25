@@ -8,7 +8,7 @@ namespace Ankus.Generators;
 /// Validates a closed managed datum converter independently of generated storage codecs.
 /// </summary>
 internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol converter, string name, string? schema,
-    bool external, bool canRead, bool canWrite, bool inferred)
+    bool external, bool canRead, bool canWrite, bool inferred, DatumTypeDeclaration? rangeBound = null)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS019", "Invalid PostgreSQL datum mapping", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -49,6 +49,11 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     internal bool HasInferredConverter { get; } = inferred;
 
     /// <summary>
+    /// Gets the scalar conversion shared by a synthetic mapped range contract.
+    /// </summary>
+    internal DatumTypeDeclaration? RangeBound { get; } = rangeBound;
+
+    /// <summary>
     /// Gets the source format preserving nullable arguments inside a constructed managed identity.
     /// </summary>
     internal static SymbolDisplayFormat ManagedFormat { get; } = SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
@@ -82,6 +87,12 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         SourceProductionContext? context = null)
     {
         type = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        if (RangeTypeDeclaration.Bound(type) is { } bound)
+        {
+            DatumTypeDeclaration? scalar = Create(bound, assembly, context);
+            return scalar is not null && RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context) ? range : null;
+        }
+
         AttributeData[]? attributes = Declarations(type, context);
         if (attributes is null || attributes.Length == 0)
         {
@@ -190,10 +201,31 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Collects local, signature-referenced and explicitly provided closed mappings before emitting any artifacts.
     /// </summary>
     internal static List<DatumTypeDeclaration>? Discover(Compilation compilation, ImmutableArray<INamedTypeSymbol> local,
+        ImmutableArray<INamedTypeSymbol> rangeTypes,
         ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> aggregates, ImmutableArray<AttributeData> attributes,
         SourceProductionContext context)
     {
         var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
+        var requestedRanges = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
+        foreach (INamedTypeSymbol type in rangeTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
+        {
+            AttributeData[]? declared = RangeTypeDeclaration.Declarations(type, context);
+            if (declared is null)
+            {
+                return null;
+            }
+
+            if (IsClosed(type))
+            {
+                candidates.Add(type);
+            }
+
+            foreach (AttributeData attribute in declared.Where(static item => item.ConstructorArguments.Length == 2))
+            {
+                candidates.Add((INamedTypeSymbol)attribute.ConstructorArguments[0].Value!);
+            }
+        }
+
         foreach (INamedTypeSymbol type in local.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
         {
             AttributeData[]? declared = Declarations(type, context);
@@ -254,6 +286,36 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         }
 
         valid &= DatumConverterTemplate.Validate(compilation, declarations, context);
+        foreach (DatumTypeDeclaration scalar in declarations.ToArray())
+        {
+            if (!RangeTypeDeclaration.TryCreate(scalar, out DatumTypeDeclaration? range, context))
+            {
+                valid = false;
+            }
+            else if (range is not null)
+            {
+                if (!Resolves(range.Type))
+                {
+                    RangeTypeDeclaration.Error(scalar.Type, "The constructed range must resolve unambiguously through its global qualified name.", context);
+                    valid = false;
+                }
+                else
+                {
+                    declarations.Add(range);
+                }
+            }
+        }
+
+        foreach (INamedTypeSymbol requested in requestedRanges)
+        {
+            if (!declarations.Any(item => SymbolEqualityComparer.Default.Equals(item.Type, requested)))
+            {
+                RangeTypeDeclaration.Error(RangeTypeDeclaration.Bound(requested)!,
+                    "No valid PgRangeType declaration selects this exact closed scalar bound type.", context);
+                valid = false;
+            }
+        }
+
         foreach (IMethodSymbol method in signatures)
         {
             foreach (IParameterSymbol parameter in method.Parameters)
@@ -316,6 +378,11 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             }
             else if (type is INamedTypeSymbol named)
             {
+                if (RangeTypeDeclaration.Bound(named) is not null)
+                {
+                    requestedRanges.Add(named);
+                }
+
                 if (IsMapped(named))
                 {
                     candidates.Add(named);
@@ -370,7 +437,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 slot = optional.TypeArguments[0];
             }
 
-            if (slot is INamedTypeSymbol named && IsMapped(named))
+            if (slot is INamedTypeSymbol named && (IsMapped(named) || RangeTypeDeclaration.Bound(named) is not null))
             {
                 DatumTypeDeclaration? declaration = declarations.FirstOrDefault(item => SymbolEqualityComparer.Default.Equals(item.Type, named));
                 if (bindings.Any(static item => item.AttributeClass?.ToDisplayString() is "Ankus.PgSqlTypeAttribute" or "Ankus.PgCompositeTypeAttribute"))
@@ -448,13 +515,24 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Emits a lazy closed registration without resolving a backend catalog identity.
     /// </summary>
     internal void EmitRegistration(StringBuilder source)
-        => source.AppendLine("        global::Ankus.PgDatumRegistry.Register" + (Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
+    {
+        if (RangeBound is { } bound)
+        {
+            source.AppendLine("        global::Ankus.PgDatumRegistry.RegisterRange<" + bound.Managed + ">(" +
+                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
+                (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) +
+                ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension") + ");");
+            return;
+        }
+
+        source.AppendLine("        global::Ankus.PgDatumRegistry.Register" + (Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
             (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) +
             ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension") + ", typeof(" +
             Converter.ToDisplayString(ManagedFormat) + "), static () => new " +
             Converter.ToDisplayString(ManagedFormat) + "(), " +
             (CanRead ? "true" : "false") + ", " + (CanWrite ? "true" : "false") + ");");
+    }
 
     /// <summary>
     /// Reports a source-located invalid mapping contract.

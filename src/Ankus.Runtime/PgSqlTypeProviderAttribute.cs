@@ -1,11 +1,12 @@
 namespace Ankus;
 
 /// <summary>
-/// Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar identity.
+/// Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar or range identity.
 /// </summary>
 /// <remarks>
 /// Adds installation dependencies without parsing SQL or executing converters.
 /// A managed-type provider selects its referenced datum mapping for static registration.
+/// A PgRange&lt;T&gt; provider completes the declared range after its owned scalar bound provider.
 /// The block may declare a shell type when its completion is ordered separately.
 /// </remarks>
 /// <param name="sqlId">The dependency identifier of a PgSql or PgSqlFile block.</param>
@@ -17,7 +18,7 @@ public sealed class PgSqlTypeProviderAttribute(string sqlId, string name) : Attr
     /// Declares the SQL provider for one extension-owned managed datum mapping.
     /// </summary>
     /// <param name="sqlId">The dependency identifier of a PgSql or PgSqlFile block.</param>
-    /// <param name="managedType">The closed managed type carrying PgDatumType.</param>
+    /// <param name="managedType">The closed type carrying PgDatumType, or its PgRange&lt;T&gt; identity declared by PgRangeType.</param>
     public PgSqlTypeProviderAttribute(string sqlId, Type managedType) : this(sqlId, (string)null!) => ManagedType = managedType;
 
     /// <summary>

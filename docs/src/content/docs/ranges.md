@@ -127,3 +127,76 @@ PgRange<int>?[] ranges = Spi.ExecuteScalar<PgRange<int>?[]>(
 Use `PgArray<PgRange<T>?>` to preserve dimensions and lower bounds. NULL array
 elements, empty ranges, and unbounded ranges remain distinct. Returned values
 own their bounds and survive result, cursor, or session disposal.
+
+## Mapped bounds
+
+A value type with a [`PgDatumType` converter](/raw-values/#reusable-scalar-mappings)
+can also declare the SQL range that uses it as a subtype. The scalar and range
+have separate names, schemas and ownership:
+
+```csharp
+using Ankus;
+
+[assembly: PgSql("count-range", "CREATE TYPE count_range AS RANGE (subtype=integer);",
+    Relocatable = true)]
+[assembly: PgSqlTypeProvider("count-range", typeof(PgRange<Count>))]
+
+[PgDatumType("int4", typeof(CountConverter),
+    Origin = PgTypeOrigin.External, Schema = "pg_catalog")]
+[PgRangeType("count_range")]
+public readonly record struct Count(int Value);
+
+public sealed class CountConverter : IPgDatumReader<Count>, IPgDatumWriter<Count>
+{
+    public Count Read(PgDatum value) => new(value.Read<int>());
+
+    public PgDatum Write(Count value, uint typeOid, PgMemoryContext destination)
+        => PgDatum.DangerousCreate(unchecked((nuint)(nint)value.Value), typeOid, destination);
+}
+
+public static class Functions
+{
+    [PgFunction]
+    public static PgRange<Count> Window(int first, int last)
+        => new(new Count(first), new Count(last));
+}
+```
+
+`PgRangeType` registers conversion and SQL metadata. Supply the range's actual
+`CREATE TYPE ... AS RANGE` statement in its provider, including any canonical
+or subtype-difference function. The example has no canonical function, so its
+range retains continuous inclusion semantics even though its subtype is integer.
+For an existing range such as `int4range`, use
+`[PgRangeType("int4range", Origin = PgTypeOrigin.External, Schema = "pg_catalog")]`
+and omit the range provider.
+
+An owned range requires its own `PgSqlTypeProvider` naming `typeof(PgRange<Count>)`.
+If the bound is also owned, its completed provider precedes the range provider.
+Both can use one SQL block. Unqualified owned identities follow extension
+relocation; external identities remain fixed to their declared schemas. Every
+conversion checks the current range OID and its exact subtype OID, including
+whole SQL NULL and empty ranges. A domain subtype is distinct from its base type.
+
+The scalar converter is shared with range bounds. Empty ranges and infinite
+ends never invoke it. Readers receive temporary checked handles and must return
+independent managed data; those handles expire after range conversion. Writers
+receive temporary storage that remains live until the complete range is copied
+to its destination. A caller-owned datum returned by a writer keeps its original
+owner. A finite bound writer returning SQL NULL is rejected; use a null managed
+bound to request an infinite end. Reading stored domain bounds does not rerun
+CHECK constraints, while writing them enforces those constraints.
+
+Mapped ranges support the operations above, typed SPI scalar results, function
+calls, raw `PgDatum.Read<PgRange<Count>>()`, generated scalar/SETOF/TABLE/aggregate
+signatures, and arrays such as `PgArray<PgRange<Count>?>`. Each direction requires
+the corresponding scalar reader or writer; operations that write operands and
+read range results require both. For detached ordinary SPI rows or tuples, use
+raw cells and explicit mapped reads as described in the mapping guide.
+
+Generic bounds follow the same finite selection rules as scalar mappings.
+`PgRangeType(typeof(NumberBox<int>), "number_range")` selects an exact closed
+bound and overrides an optional default declaration. An exact local declaration
+also registers a raw-only root. Open converter definitions are inferred from
+the scalar contract. Invalid range metadata produces `ANKUS020` without partial
+generated output. Reference-type bounds, automatically derived range metadata
+for `PgType`/`PgEnum`, and multiranges are not supported.

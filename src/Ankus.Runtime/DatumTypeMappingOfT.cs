@@ -4,8 +4,8 @@ namespace Ankus;
 /// Shares one lazy instance between a mapped type's independently declared read and write directions.
 /// </summary>
 internal sealed class DatumTypeMapping<T>(string name, string? schema, PgTypeOrigin origin, Type converterType,
-    Func<object> createConverter, bool canRead, bool canWrite)
-    : DatumTypeMapping(name, schema, origin, converterType, canRead, canWrite)
+    Func<object> createConverter, bool canRead, bool canWrite, DatumTypeMapping? rangeBound = null)
+    : DatumTypeMapping(name, schema, origin, converterType, canRead, canWrite, rangeBound)
 {
     private readonly Lazy<object> _converter = new(() => createConverter() ??
         throw new InvalidOperationException("A datum converter factory returned null."));

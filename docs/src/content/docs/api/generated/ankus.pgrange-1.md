@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Owns the bounds of a built-in PostgreSQL range. A null reference is SQL NULL; a parameterless instance is empty.
+Owns the bounds of a built-in or explicitly mapped PostgreSQL range. A null reference is SQL NULL; a parameterless instance is empty.
 Construction retains the requested bounds. PostgreSQL validates and canonicalizes them on datum conversion.
 
 ```csharp
@@ -20,7 +20,7 @@ Type parameters:
 
 `T`
 
-Int32, Int64, PgNumeric/Decimal, PgDate/DateOnly, PgTimestamp/DateTime, or PgTimestampTz/DateTimeOffset.
+A supported built-in bound or a closed value type declaring both PgDatumType and PgRangeType.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 

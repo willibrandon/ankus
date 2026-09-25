@@ -1,10 +1,10 @@
 namespace Ankus;
 
 /// <summary>
-/// Owns the bounds of a built-in PostgreSQL range. A null reference is SQL NULL; a parameterless instance is empty.
+/// Owns the bounds of a built-in or explicitly mapped PostgreSQL range. A null reference is SQL NULL; a parameterless instance is empty.
 /// Construction retains the requested bounds. PostgreSQL validates and canonicalizes them on datum conversion.
 /// </summary>
-/// <typeparam name="T">Int32, Int64, PgNumeric/Decimal, PgDate/DateOnly, PgTimestamp/DateTime, or PgTimestampTz/DateTimeOffset.</typeparam>
+/// <typeparam name="T">A supported built-in bound or a closed value type declaring both PgDatumType and PgRangeType.</typeparam>
 public sealed class PgRange<T> : IEquatable<PgRange<T>>, IPgRange where T : struct
 {
     /// <summary>
@@ -12,7 +12,7 @@ public sealed class PgRange<T> : IEquatable<PgRange<T>>, IPgRange where T : stru
     /// </summary>
     public PgRange()
     {
-        _ = SpiRange.RangeOid(SpiType.GetOid<T>());
+        SpiRange.Require(typeof(PgRange<T>));
         IsEmpty = true;
     }
 
@@ -25,7 +25,7 @@ public sealed class PgRange<T> : IEquatable<PgRange<T>>, IPgRange where T : stru
     /// <param name="upperInclusive">Whether the upper value is included; ignored when unbounded.</param>
     public PgRange(T? lower, T? upper, bool lowerInclusive = true, bool upperInclusive = false)
     {
-        _ = SpiRange.RangeOid(SpiType.GetOid<T>());
+        SpiRange.Require(typeof(PgRange<T>));
         Lower = lower;
         Upper = upper;
         LowerInclusive = lower.HasValue && lowerInclusive;
@@ -153,7 +153,7 @@ public sealed class PgRange<T> : IEquatable<PgRange<T>>, IPgRange where T : stru
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(IsEmpty, Lower, Upper, LowerInclusive, UpperInclusive);
 
-    uint IPgRange.TypeOid => SpiRange.RangeOid(SpiType.GetOid<T>());
+    uint IPgRange.TypeOid => SpiRange.GetOid(typeof(PgRange<T>));
     object? IPgRange.LowerValue => Lower;
     object? IPgRange.UpperValue => Upper;
 

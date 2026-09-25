@@ -540,7 +540,8 @@ public static unsafe partial class NativeBackend
     /// <param name="parameters">The typed input operands.</param>
     /// <returns>The detached result.</returns>
     internal static T Range<T>(RangeOperation operation, ReadOnlySpan<SpiParameter> parameters)
-        => Scalar<T>(SpiOperation.Range, (int)operation, parameters);
+        => PgDatumRegistry.Find(typeof(T)) is { RangeBound: not null } mapping
+            ? MappedRangeScalar<T>(operation, parameters, mapping) : Scalar<T>(SpiOperation.Range, (int)operation, parameters);
 
     /// <summary>
     /// Resolves an enum in a fixed or current extension schema inside the native guard.

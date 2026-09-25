@@ -21,7 +21,23 @@ internal static class SpiRange
     /// </summary>
     /// <param name="type">The declared managed type.</param>
     /// <returns>The range OID, or zero when unsupported.</returns>
-    internal static uint GetOid(Type type) =>
+    internal static uint GetOid(Type type) => PgDatumRegistry.Find(type) is { RangeBound: not null } mapping ? mapping.GetOid() : BuiltInOid(type);
+
+    /// <summary>
+    /// Validates detached range construction without resolving a registered catalog identity.
+    /// </summary>
+    internal static void Require(Type type)
+    {
+        if (BuiltInOid(type) == 0 && PgDatumRegistry.Find(type) is not { RangeBound: not null })
+        {
+            throw new NotSupportedException($"Managed range type '{type}' has no supported bound mapping.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves only built-in range identities, without consulting backend-dependent registrations.
+    /// </summary>
+    private static uint BuiltInOid(Type type) =>
         type == typeof(PgRange<int>) ? 3904u : type == typeof(PgRange<long>) ? 3926u :
         type == typeof(PgRange<PgNumeric>) || type == typeof(PgRange<decimal>) ? 3906u :
         type == typeof(PgRange<PgDate>) || type == typeof(PgRange<DateOnly>) ? 3912u :

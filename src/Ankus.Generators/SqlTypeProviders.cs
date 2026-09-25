@@ -129,6 +129,13 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             {
                 graph.Error(mapping.Type.Locations.FirstOrDefault(), "Managed datum type '" + mapping.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
             }
+
+            if (!mapping.External && mapping.RangeBound is { External: false } bound &&
+                _managed.TryGetValue(mapping.Type, out SqlEntity? rangeProvider) &&
+                _managed.TryGetValue(bound.Type, out SqlEntity? boundProvider) && rangeProvider != boundProvider)
+            {
+                rangeProvider.Dependencies.Add(boundProvider);
+            }
         }
 
         return relocatable;

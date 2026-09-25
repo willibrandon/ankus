@@ -1461,7 +1461,9 @@ length, explicitly rejects negative lengths, and resolves from-end indices befor
 | Domains, packed and toasted storage | Detoast ownership before range deserialization, owned numeric bounds | `RangeDomainsAndToastedStorage` checks domain reads and 10,000-element compressed/external arrays; `LargeNumericRangeBoundsOwnDetoastedStorage` checks individually toasted 32,001-digit numeric bounds and display scales |
 | Native error unwinding and cleanup | Existing guarded subtransactions and allocator-matched output ownership | `RangeFailureRecoveryPreservesSession` verifies repeated parse/union/canonicalization failures, 40 managed finally executions, two retained writes, a usable prepared plan and zero retained-context growth |
 
-User-defined range subtype registration, multiranges and range-specific JSON converters remain pending.
+Mapped value-type range subtype registration is implemented in the 2026-09-25
+milestone below. Reference-type bounds, direct PgType/PgEnum range derivation,
+multiranges and range-specific JSON converters remain pending.
 
 Evidence: `artifacts/range-{runtime,generators,backend}-output.txt` records 18 detached, 14 generator and
 96 backend cases. `artifacts/range-all-output.txt` records 1422 passing tests with no failures/skips;
@@ -2641,7 +2643,7 @@ alongside the source-level macro inventory.
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
-| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections and six typed range families/operations implemented; dedicated geometric operation wrappers, custom range subtypes and multiranges pending |
+| `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections, six built-in range families and explicitly mapped value-type range bounds/operations implemented; dedicated geometric operation wrappers, broader range-bound forms and multiranges pending |
 | `heap_tuple.rs`, `htup.rs`, `tupdesc.rs`, `datum/tuples.rs` | Named/anonymous composites, tuple descriptors, access/mutation, dropped/null attributes, tuple ownership | Owned dynamic tuples and descriptors implemented with strict edits, physical slots, nested arrays, domains/typmods, SQL bindings, SETOF/TABLE and SPI; raw heap interfaces and the platform/version matrix remain required |
 | `PostgresEnum`, `enum_helper.rs` | Label/OID mappings, schema lookup, generated enum DDL, enums in containers | Implemented through attributes, closed generated mappings, guarded live catalog helpers and all supported array/SPI paths; composite fields and arrays validated; custom base-type containers and matrix validation remain required |
 | `PostgresType`, `inoutfuncs.rs` | Custom base types with default CBOR in-memory/on-disk serialization and JSON human-readable input/output | Explicit codecs, custom text with generated storage, and generated CBOR/JSON contracts implemented for records/classes/structs/enums, tagged class variants, inherited members and nested collections; additional shapes remain required |
@@ -5174,3 +5176,62 @@ The phases track implementation of the complete pgrx feature surface.
   builds 184 pages. The unchanged code retains the preceding 10.04s Release
   build with zero warnings/errors and the complete hosted evidence recorded
   for `bffacbb` above.
+
+  The documentation-only successor `ae228be` also passes
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36139710757) and
+  [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36139710686).
+  Linux x64/PostgreSQL 18.6 passes 6,317 tests with zero failures/skips in a
+  10m59s job; macOS ARM64/PostgreSQL 18.6 passes 6,315 with two existing
+  Linux-only allocation skips in 11m08s; Windows x64/PostgreSQL 17.11 passes
+  6,315 with the same two skips in 20m03s. The Windows job now exceeds its
+  former twenty-minute limit and succeeds within the authorized 25 minutes.
+  These cached-runtime jobs do not establish cold-build performance.
+
+- 2026-09-25 — Implemented explicit mapped range bounds through `PgRangeType`
+  on value types carrying `PgDatumType`. Default and exact closed generic
+  declarations select finite roots; scalar readers/writers and inferred
+  converter templates are shared by finite bounds. A range keeps independent
+  SQL identity, schema and ownership. Its owned provider completes after the
+  owned scalar provider, including relocation and reinstall. Invalid range
+  declarations report `ANKUS020` before generated artifacts.
+
+  Native deserialization copies finite raw bounds into checked temporary owners.
+  Empty and infinite bounds never call a scalar converter. Whole SQL NULL still
+  checks current range/subtype identity. Construction validates exact raw bound
+  envelopes, applies domain checks on assignment, invokes version-correct
+  `make_range`, and copies the completed value before temporary cleanup. A
+  finite writer returning SQL NULL is rejected. Native operations accept only
+  the established range signatures, using catalog subtype identities and raw
+  owned results for mapped range-valued operations. PostgreSQL ERROR remains
+  inside the existing native guard; no managed reflection or runtime code
+  generation is added.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | Finite metadata, SQL signatures and dependencies | `DatumRangesPreserveScalarSetTableAndArrayContracts`, `DatumRangesSelectExactGenericRootsAndConverterTemplates`, `DatumRangesOrderIndependentOwnedProviders`, `DatumRangesCompileAggregateRolesAndOperators`, `DatumRangesSelectReferencedMetadata`, `DatumRangesInvalidateMetadataInReusedDriver` compile generated C# and compare complete SQL contracts; negative cases reject missing, duplicate and invalid declarations, providers, directions and overrides |
+  | Detached values and native boundary validation | `RangeRegistrationAndConstructionRemainBackendFree`, `RangeReadsPreserveFlagsValuesAndTemporaryLifetimes`, `RangeReadsRejectMalformedNativeFlags`, `RangeNullChecksCurrentSubtypeAndCapturedRangeIdentity`, `RangeWritesPreserveBoundEnvelopesAndFinalOwner` verify exact values/flags, generation expiry, allocator release and current identities |
+  | NULL, empty, infinite and independently converted finite values | `MappedRangesConvertOnlyFiniteBoundsAndShareScalarFactory` checks independent native/logical values, canonical bounds and exact lazy reader/writer counts |
+  | Native range operations and custom domain semantics | `MappedRangesExecuteEveryNativeOperation` checks all predicates and range results, including containment boundaries and disjoint errors; `MappedDomainRangesKeepIdentityAndCheckOnlyAssignments` verifies custom input/output, predicates, union, malformed input and read-side CHECK nonexecution versus write-side enforcement |
+  | Native ownership and variable-size bounds | `MappedRangesPreserveSpiOwnershipAndArrayShape` verifies detached raw/typed SPI results and shaped NULL/empty arrays; `MappedRangesPreserveVariableLengthBoundsAndBorrowedWriters` checks large Unicode text bounds and continued caller ownership of returned writer aliases |
+  | Owned diagnostics and recovery | `MappedRangesRejectWrongRangeAndSubtypeBeforeConstruction` checks present and NULL mismatches before construction; `MappedRangeErrorsCleanUpAndPreserveDiagnostics` checks SQLSTATE/message/detail/hint, finite NULL writer rejection, expired handles and same-backend recovery |
+  | SQL lifecycle and stale parameters | `DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity` now includes an owned domain range and its array identity, relocation, drop/reinstall, changed OIDs, stale parameter rejection and untouched shadow types |
+
+  Focused checks pass 33 generator cases in 1.945s, 31 runtime/range cases in
+  1.025s, and nine published Native AOT backend/lifecycle cases in 76.418s, all
+  with zero failures/skips on Linux x64/PostgreSQL 18.6. The existing 96-case
+  built-in range backend scope also passes after the native dispatch change.
+  Initial runtime fixture failures exposed missing callback/generation responses;
+  the fixture now models deletion independently. The lifecycle inventory was
+  corrected to distinguish generated C callbacks from PostgreSQL's overloaded
+  range constructors. Static assertion and public-outcome pseudo-mutation
+  review is Strong for this bounded contract; no empirical mutation or measured
+  coverage claim is made. Plain `dotnet test` passes all 6,371 tests with zero
+  failures/skips in 285.539s on Linux x64/PostgreSQL 18.6. The non-incremental
+  Release build passes in 12.76s with zero warnings/errors. API generation and
+  freshness pass for 148 pages/1,437 members; `pnpm check` reports zero errors,
+  warnings or hints and `pnpm build` produces 185 pages. Hosted validation of
+  this range change remains pending.
+
+  Reference-type bounds, direct PgType/PgEnum range derivation, multiranges,
+  range JSON, ordinary detached row/composite mapping, broader directional/typmod
+  metadata and the complete PostgreSQL/platform matrix remain full-port work.

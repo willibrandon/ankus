@@ -133,6 +133,8 @@ internal static class NativeSpiBridge
         static Datum ankus_raw_parameter(const AnkusParameter *parameter);
         static Datum ankus_copy_raw_datum(Datum datum, Oid type, intptr_t context, uintptr_t generation);
         static MemoryContext ankus_datum_context(intptr_t identity, uintptr_t generation);
+        static void ankus_raw_range(AnkusRequest *request, AnkusResult *result, Datum datum, Oid type);
+        static void ankus_mapped_range(AnkusRequest *request, AnkusResult *result);
 
         static void
         ankus_release_result(AnkusResult *result)

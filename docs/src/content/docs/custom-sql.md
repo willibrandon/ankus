@@ -114,6 +114,12 @@ its SQL name matches a built-in type. A name-only provider does not satisfy that
 managed identity. An external mapping needs no provider and cannot be claimed by
 the managed overload.
 
+For a [`PgRangeType` declaration](/ranges/#mapped-bounds), name the range's
+managed identity: `PgSqlTypeProvider("range-definition", typeof(PgRange<Count>))`.
+It uses the range attribute's SQL metadata independently of the bound mapping.
+If both types are owned, the completed bound provider must precede the range
+provider. One block may provide both when its SQL creates them in that order.
+
 One SQL block can provide several CLR wrappers for the same catalog type. The
 existing name overload can also identify that same block for raw consumers.
 Duplicate claims for one managed identity, duplicate name-only claims, or

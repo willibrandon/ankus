@@ -73,6 +73,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgDatumTypeAttribute",
             static (node, _) => node is BaseTypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<INamedTypeSymbol> rangeTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgRangeTypeAttribute",
+            static (node, _) => node is BaseTypeDeclarationSyntax,
+            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<INamedTypeSymbol> derivedOperators = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is BaseTypeDeclarationSyntax { AttributeLists.Count: > 0 },
             static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BaseTypeDeclarationSyntax)syntaxContext.Node, token))
@@ -101,25 +105,25 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(context.CompilationProvider)),
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
-                input.Right.Left, input.Right.Right));
+                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right));
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
         ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
-        ImmutableArray<INamedTypeSymbol> datumTypes, Compilation compilation)
+        ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty)
+        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
         }
 
-        List<DatumTypeDeclaration>? mappings = DatumTypeDeclaration.Discover(compilation, datumTypes, methods, aggregateTypes, customSql, context);
+        List<DatumTypeDeclaration>? mappings = DatumTypeDeclaration.Discover(compilation, datumTypes, rangeTypes, methods, aggregateTypes, customSql, context);
         if (mappings is null)
         {
             return;
@@ -211,6 +215,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             native.AppendLine(NativeTransactionBridge.Source);
             native.AppendLine(NativeDatumBridge.Source);
+            native.AppendLine(NativeMappedRangeBridge.Source);
             native.AppendLine(NativeMappedArrayBridge.Source);
             native.AppendLine(NativeFunctionBridge.Source);
             native.AppendLine(NativeFunctionInvocation.Source);
@@ -370,7 +375,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (DatumTypeDeclaration mapping in mappings)
+        foreach (DatumTypeDeclaration mapping in mappings.OrderBy(static mapping => mapping.RangeBound is not null))
         {
             mapping.EmitRegistration(managed);
         }

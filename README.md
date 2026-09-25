@@ -133,6 +133,9 @@ type providers, or explicit `PgDatumType(typeof(ClosedType), name, converter)`
 declarations. Explicit constructions can have independent SQL types and converters.
 Open converter definitions such as `typeof(BoxConverter<>)` infer one closed,
 constraint-checked factory from their exact reader/writer interfaces at compile time.
+Value-type wrappers can also declare `[PgRangeType]` to use the same converter
+for finite `PgRange<T>` bounds, with independent range SQL identity and ownership.
+See [mapped range bounds](docs/src/content/docs/ranges.md#mapped-bounds).
 See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
 for provider ownership, supported paths, and lifetime requirements.
 

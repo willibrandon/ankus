@@ -7,7 +7,7 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
-    /// Owned scalar and array mappings resolve current extension identities through relocation and reinstall independently of external mappings.
+    /// Owned scalar, range and array mappings resolve current extension identities through relocation and reinstall independently of external mappings.
     /// </summary>
     [TestMethod]
     public async Task DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity()
@@ -35,6 +35,7 @@ public sealed partial class ToolCommandTests
             CREATE SCHEMA mapping_first; CREATE SCHEMA mapping_second; CREATE SCHEMA mapping_shadow;
             CREATE DOMAIN mapping_shadow.package_key AS bigint CHECK (VALUE < 0);
             CREATE DOMAIN mapping_shadow.int4 AS text CHECK (VALUE LIKE 'shadow%');
+            CREATE TYPE mapping_shadow.package_range AS RANGE (subtype=bigint);
             CREATE FUNCTION mapping_shadow.package_echo(mapping_shadow.package_key) RETURNS mapping_shadow.package_key
                 LANGUAGE SQL IMMUTABLE AS 'SELECT $1';
             SET search_path=mapping_shadow,pg_catalog;
@@ -47,6 +48,7 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(originalType, await SqlPackageScalarAsync<uint>(connection, "SELECT mapping_first.package_remember(42)"));
         Assert.AreEqual(1042, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_first.package_replay()"));
         Assert.AreEqual("1:0:1042,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_array_replay()"));
+        Assert.AreEqual("[42,44)", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_range_replay()"));
 
         await ExecuteSqlPackageAsync(connection, "ALTER EXTENSION ankus_tool_probe SET SCHEMA mapping_second");
         Dictionary<string, uint> moved = await DatumMappingPackageMembers(connection, "mapping_second");
@@ -60,6 +62,7 @@ public sealed partial class ToolCommandTests
         await AssertDatumMappingPackage(connection, "mapping_second", originalType);
         Assert.AreEqual(1042, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_second.package_replay()"));
         Assert.AreEqual("1:0:1042,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_second.package_array_replay()"));
+        Assert.AreEqual("[42,44)", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_second.package_range_replay()"));
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_tool_probe");
         await AssertDeclarationSchemaEmpty(connection, "mapping_second");
         Assert.IsFalse(await SqlPackageScalarAsync<bool>(connection,
@@ -85,11 +88,16 @@ public sealed partial class ToolCommandTests
             ExecuteSqlPackageAsync(connection, "SELECT mapping_first.package_array_replay()"));
         Assert.AreEqual("38000", staleArray.SqlState);
         Assert.AreEqual("The mapped PostgreSQL parameter type has changed since the parameter was created.", staleArray.MessageText);
+        PostgresException staleRange = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecuteSqlPackageAsync(connection, "SELECT mapping_first.package_range_replay()"));
+        Assert.AreEqual("38000", staleRange.SqlState);
+        Assert.AreEqual("The mapped PostgreSQL parameter type has changed since the parameter was created.", staleRange.MessageText);
         uint newType = reinstalled["type:package_key"];
         await AssertDatumMappingPackage(connection, "mapping_first", newType);
         Assert.AreEqual(newType, await SqlPackageScalarAsync<uint>(connection, "SELECT mapping_first.package_remember(7)"));
         Assert.AreEqual(1007, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_first.package_replay()"));
         Assert.AreEqual("1:0:1007,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_array_replay()"));
+        Assert.AreEqual("[7,9)", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_range_replay()"));
         Assert.AreEqual(process, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_tool_probe");
         await AssertDeclarationSchemaEmpty(connection, "mapping_first");
@@ -118,6 +126,14 @@ public sealed partial class ToolCommandTests
             SELECT concat_ws('|',{schema}.package_generic_wide_read(4294967313),
                 {schema}.package_generic_wide_echo(4294967313)::bigint,
                 ({schema}.package_generic_wide_echo(NULL::{schema}.package_wide_key) IS NULL)::text)
+            """));
+        Assert.AreEqual("[2,7)", await SqlPackageScalarAsync<string>(connection,
+            $"SELECT {schema}.package_range_echo('[2,7)')::text"));
+        Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
+            SELECT {schema}.package_range_echo(NULL) IS NULL
+                AND (SELECT rngsubtype='{schema}.package_key'::regtype FROM pg_range WHERE rngtypid='{schema}.package_range'::regtype)
+                AND (SELECT proargtypes[0]='{schema}.package_range'::regtype AND prorettype='{schema}.package_range'::regtype
+                    FROM pg_proc WHERE oid='{schema}.package_range_echo({schema}.package_range)'::regprocedure)
             """));
         Assert.AreEqual(FormattableString.Invariant($"{typeOid}|1042|True|True|23|2042"),
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_probe(42)"));
@@ -154,25 +170,27 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Captures both domains, their arrays and all fourteen generated callbacks with their exact extension ownership.
+    /// Captures both domains, their range, the corresponding arrays and every generated callback with exact extension ownership.
     /// </summary>
     private async Task<Dictionary<string, uint>> DatumMappingPackageMembers(NpgsqlConnection connection, string schema)
     {
-        string[] expected = ["array:package_key", "array:package_wide_key", "function:package_array_echo", "function:package_array_replay",
+        string[] expected = ["array:package_key", "array:package_range", "array:package_wide_key", "function:package_array_echo", "function:package_array_replay",
             "function:package_arrays", "function:package_echo", "function:package_external_echo",
             "function:package_generic_echo", "function:package_generic_read",
             "function:package_generic_wide_echo", "function:package_generic_wide_read",
-            "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay",
-            "function:package_typed", "type:package_key", "type:package_wide_key"];
+            "function:package_probe", "function:package_range_echo", "function:package_range_replay",
+            "function:package_read", "function:package_remember", "function:package_replay",
+            "function:package_typed", "type:package_key", "type:package_range", "type:package_wide_key"];
         await using var command = new NpgsqlCommand($"""
             WITH objects(label,classid,objid,ownerid) AS (
                 SELECT 'type:'||typname,'pg_type'::regclass,oid,oid FROM pg_type
-                    WHERE typnamespace='{schema}'::regnamespace AND typname IN ('package_key','package_wide_key')
+                    WHERE typnamespace='{schema}'::regnamespace AND typname IN ('package_key','package_range','package_wide_key')
                 UNION ALL SELECT 'array:'||t.typname,'pg_type'::regclass,a.oid,t.oid FROM pg_type t JOIN pg_type a
                     ON a.oid=t.typarray AND a.typelem=t.oid AND a.typnamespace=t.typnamespace
-                    WHERE t.typnamespace='{schema}'::regnamespace AND t.typname IN ('package_key','package_wide_key')
+                    WHERE t.typnamespace='{schema}'::regnamespace AND t.typname IN ('package_key','package_range','package_wide_key')
                 UNION ALL SELECT 'function:'||proname,'pg_proc'::regclass,oid,oid FROM pg_proc
-                    WHERE pronamespace='{schema}'::regnamespace)
+                    WHERE pronamespace='{schema}'::regnamespace
+                        AND prolang=(SELECT oid FROM pg_language WHERE lanname='c'))
             SELECT label,objid,EXISTS(SELECT FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
                 WHERE d.classid=objects.classid AND d.objid=objects.ownerid AND d.refclassid='pg_extension'::regclass
                     AND d.deptype='e' AND e.extname='ankus_tool_probe') FROM objects ORDER BY label COLLATE "C"
@@ -197,6 +215,7 @@ public sealed partial class ToolCommandTests
         => SqlPackageScalarAsync<uint[]>(connection, """
             SELECT ARRAY['mapping_shadow.package_key'::regtype::oid,'mapping_shadow.package_key[]'::regtype::oid,
                 'mapping_shadow.int4'::regtype::oid,'mapping_shadow.int4[]'::regtype::oid,
+                'mapping_shadow.package_range'::regtype::oid,'mapping_shadow.package_range[]'::regtype::oid,
                 'mapping_shadow.package_echo(mapping_shadow.package_key)'::regprocedure::oid]
             """);
 
@@ -205,6 +224,8 @@ public sealed partial class ToolCommandTests
     /// </summary>
     private const string DatumMappingPackageSource = """
         using Ankus;
+        [assembly: PgSql("a-mapping-range", "CREATE TYPE package_range AS RANGE (subtype=package_key);", Relocatable = true)]
+        [assembly: PgSqlTypeProvider("a-mapping-range", typeof(PgRange<GenericOwnedKey<int>>))]
         [assembly: PgSql("mapping-type", "CREATE DOMAIN package_key AS integer CHECK (VALUE >= 0);", Relocatable = true)]
         [assembly: PgSql("mapping-wide-type", "CREATE DOMAIN package_wide_key AS bigint CHECK (VALUE >= 0);", Relocatable = true)]
         [assembly: PgSqlTypeProvider("mapping-type", typeof(OwnedKey))]
@@ -220,6 +241,7 @@ public sealed partial class ToolCommandTests
         }
         [PgDatumType(typeof(GenericOwnedKey<int>), "package_key", typeof(GenericOwnedKeyConverter))]
         [PgDatumType(typeof(GenericOwnedKey<long>), "package_wide_key", typeof(GenericOwnedKeyConverter))]
+        [PgRangeType(typeof(GenericOwnedKey<int>), "package_range")]
         public readonly record struct GenericOwnedKey<T>(T Number);
         public sealed class GenericOwnedKeyConverter : IPgDatumReader<GenericOwnedKey<int>>, IPgDatumWriter<GenericOwnedKey<int>>,
             IPgDatumReader<GenericOwnedKey<long>>, IPgDatumWriter<GenericOwnedKey<long>>
@@ -243,6 +265,11 @@ public sealed partial class ToolCommandTests
         {
             private static SpiParameter s_remembered;
             private static SpiParameter s_rememberedArray;
+            private static SpiParameter s_rememberedRange;
+            [PgFunction(Name = "package_range_echo")]
+            public static PgRange<GenericOwnedKey<int>>? RangeEcho(PgRange<GenericOwnedKey<int>>? value) => value;
+            [PgFunction(Name = "package_range_replay")]
+            public static string RangeReplay() => Spi.ExecuteScalar<PgRange<GenericOwnedKey<int>>>("SELECT $1", s_rememberedRange).ToPostgresString();
             [PgFunction(Name = "package_echo")]
             public static OwnedKey? Echo(OwnedKey? value) => value is { } present ? new OwnedKey(present.Number + 1) : null;
             [PgFunction(Name = "package_read")]
@@ -273,6 +300,7 @@ public sealed partial class ToolCommandTests
             {
                 s_remembered = SpiParameter.Create(new OwnedKey(value + 1000));
                 s_rememberedArray = SpiParameter.Create(new PgArray<OwnedKey?>([new OwnedKey(value + 1000), null, new OwnedKey(1000)], [3], [0]));
+                s_rememberedRange = SpiParameter.Create(new PgRange<GenericOwnedKey<int>>(new(value + 1000), new(value + 1002)));
                 return s_remembered.TypeOid;
             }
             [PgFunction(Name = "package_replay")]

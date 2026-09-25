@@ -125,6 +125,12 @@ named/OID and native-address function-call results. A writer supports generated
 outputs and typed parameters. The same converter instance serves scalar and array conversions.
 No separate array converter or type provider is needed.
 
+A bound with [`PgRangeType`](/ranges/#mapped-bounds) also supports arrays of
+its ranges, including `PgRange<Count>?[]` and `PgArray<PgRange<Count>?>`.
+Their element identity is the declared range type. NULL cells, empty ranges,
+infinite ends and finite bounds stay distinct. The range provider supplies the
+range type; its array needs no additional provider.
+
 For example, with the `Count` reader from the mapping guide:
 
 ```csharp

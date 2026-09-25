@@ -46,6 +46,20 @@ public static class PgDatumRegistry
         bool canRead, bool canWrite) where T : class => Register<T>(name, schema, origin, converterType, createConverter, canRead, canWrite);
 
     /// <summary>
+    /// Registers a finite range and its arrays around an already registered scalar bound without backend access.
+    /// </summary>
+    /// <typeparam name="T">The closed mapped value-type bound.</typeparam>
+    /// <param name="name">The exact SQL range type name.</param>
+    /// <param name="schema">The fixed range schema or current extension schema.</param>
+    /// <param name="origin">The range's declared SQL ownership.</param>
+    public static void RegisterRange<T>(string name, string? schema, PgTypeOrigin origin) where T : struct
+    {
+        DatumTypeMapping bound = Require(typeof(T));
+        Register<PgRange<T>>(name, schema, origin, typeof(DatumRangeConverter<T>), () => new DatumRangeConverter<T>(bound),
+            bound.CanRead, bound.CanWrite, bound);
+    }
+
+    /// <summary>
     /// Finds only the requested managed scalar identity, never a first matching PostgreSQL OID.
     /// </summary>
     internal static DatumTypeMapping? Find(Type type) => s_mappings.GetValueOrDefault(type);
@@ -89,7 +103,7 @@ public static class PgDatumRegistry
     /// Validates metadata and atomically registers the root contract without constructing its converter.
     /// </summary>
     private static DatumTypeMapping<T> Register<T>(string name, string? schema, PgTypeOrigin origin, Type converterType, Func<object> createConverter,
-        bool canRead, bool canWrite)
+        bool canRead, bool canWrite, DatumTypeMapping? rangeBound = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(converterType);
@@ -119,9 +133,9 @@ public static class PgDatumRegistry
             throw new InvalidOperationException($"Type '{typeof(T)}' already has a generated PostgreSQL mapping.");
         }
 
-        var mapping = new DatumTypeMapping<T>(name, schema, origin, converterType, createConverter, canRead, canWrite);
+        var mapping = new DatumTypeMapping<T>(name, schema, origin, converterType, createConverter, canRead, canWrite, rangeBound);
         DatumTypeMapping registered = s_mappings.GetOrAdd(typeof(T), mapping);
-        if (!registered.Matches(name, schema, origin, converterType, canRead, canWrite))
+        if (!registered.Matches(name, schema, origin, converterType, canRead, canWrite, rangeBound))
         {
             throw new InvalidOperationException($"Type '{typeof(T)}' already has a different generated PostgreSQL datum mapping.");
         }

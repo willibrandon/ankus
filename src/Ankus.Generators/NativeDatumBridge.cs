@@ -153,7 +153,7 @@ internal static class NativeDatumBridge
         static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->scalar_operation < 0 || request->scalar_operation > 3)
+            if (request->scalar_operation < 0 || request->scalar_operation > 4)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));
             if (request->parameter_count != 1 || request->parameters == NULL)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Datum operations require one value")));
@@ -165,7 +165,7 @@ internal static class NativeDatumBridge
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid raw datum parameter envelope")));
             if (get_typtype(parameter->type_oid) == '\0')
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Parameter type OID %u does not exist", parameter->type_oid)));
-            if (request->scalar_operation == 2 || request->scalar_operation == 3)
+            if (request->scalar_operation >= 2)
                 ankus_datum_context(request->result_context, request->result_generation);
 
             /* Access existing storage without assigning it back through domain constraints. */
@@ -198,6 +198,9 @@ internal static class NativeDatumBridge
                     break;
                 case 3:
                     ankus_raw_array(request, result, datum, base);
+                    break;
+                case 4:
+                    ankus_raw_range(request, result, datum, base);
                     break;
                 default:
                     ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));

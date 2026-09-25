@@ -296,6 +296,12 @@ array keeps its existing owner. Writers construct the complete array before
 releasing temporary element storage. See [mapped array elements](/arrays/#mapped-elements)
 for shape, domain, NULL and ownership rules.
 
+Value-type mappings can add [`PgRangeType`](/ranges/#mapped-bounds) to reuse
+their converter for finite `PgRange<T>` bounds and arrays of those ranges.
+The range has its own SQL identity and provider. NULL ranges, empty ranges and
+infinite ends skip scalar conversion; a finite bound writer returning SQL NULL
+is rejected. The backend verifies the declared range's exact scalar subtype.
+
 Use raw result owners and `Read<T>()` for mapped row fields. `SpiRow.Get<T>` and
 `PgHeapTuple.Get<T>` do not convert canonical cells through these converters.
 For native addresses, `DangerousCall<T>` selects the registered reader; use

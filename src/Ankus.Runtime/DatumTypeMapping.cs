@@ -4,28 +4,58 @@ namespace Ankus;
 /// Retains a closed scalar mapping's metadata without resolving catalog identities or constructing user code.
 /// </summary>
 internal abstract class DatumTypeMapping(string name, string? schema, PgTypeOrigin origin, Type converterType,
-    bool canRead, bool canWrite)
+    bool canRead, bool canWrite, DatumTypeMapping? rangeBound = null)
 {
+    /// <summary>
+    /// Gets the scalar mapping whose catalog identity must match a registered range's subtype.
+    /// </summary>
+    internal DatumTypeMapping? RangeBound { get; } = rangeBound;
+
+    /// <summary>
+    /// Gets whether the exact mapping supports native inputs.
+    /// </summary>
+    internal bool CanRead { get; } = canRead;
+
+    /// <summary>
+    /// Gets whether the exact mapping supports native outputs.
+    /// </summary>
+    internal bool CanWrite { get; } = canWrite;
+
     /// <summary>
     /// Checks whether another generated registration describes this exact conversion contract.
     /// </summary>
     internal bool Matches(string candidateName, string? candidateSchema, PgTypeOrigin candidateOrigin,
-        Type candidateConverterType, bool candidateCanRead, bool candidateCanWrite)
+        Type candidateConverterType, bool candidateCanRead, bool candidateCanWrite, DatumTypeMapping? candidateRangeBound = null)
         => string.Equals(name, candidateName, StringComparison.Ordinal) &&
             string.Equals(schema, candidateSchema, StringComparison.Ordinal) && origin == candidateOrigin &&
-            converterType == candidateConverterType && canRead == candidateCanRead && canWrite == candidateCanWrite;
+            converterType == candidateConverterType && CanRead == candidateCanRead && CanWrite == candidateCanWrite &&
+            ReferenceEquals(RangeBound, candidateRangeBound);
 
     /// <summary>
     /// Resolves the concrete type in the current backend on every operation.
     /// </summary>
-    internal uint GetOid() => NativeBackend.ResolveDatumType(name, schema);
+    internal uint GetOid()
+    {
+        uint oid = NativeBackend.ResolveDatumType(name, schema);
+        if (RangeBound is { } bound)
+        {
+            uint subtype = NativeBackend.RangeSubtype(oid);
+            uint expected = bound.GetOid();
+            if (subtype != expected)
+            {
+                throw new InvalidCastException($"PostgreSQL range subtype OID {subtype} does not match mapped bound type OID {expected}.");
+            }
+        }
+
+        return oid;
+    }
 
     /// <summary>
     /// Rejects reading before invoking a factory or accessing native storage.
     /// </summary>
     internal void RequireRead()
     {
-        if (!canRead)
+        if (!CanRead)
         {
             throw new NotSupportedException("The mapped PostgreSQL type has no datum reader.");
         }
@@ -36,7 +66,7 @@ internal abstract class DatumTypeMapping(string name, string? schema, PgTypeOrig
     /// </summary>
     internal void RequireWrite()
     {
-        if (!canWrite)
+        if (!CanWrite)
         {
             throw new NotSupportedException("The mapped PostgreSQL type has no datum writer.");
         }

@@ -49,4 +49,12 @@ internal enum RangeOperation
     /// Computes a spanning range.
     /// </summary>
     Merge,
+    /// <summary>
+    /// Constructs a mapped range from exact raw finite bounds and inclusion flags.
+    /// </summary>
+    BuildMapped,
+    /// <summary>
+    /// Resolves the current scalar subtype of an exact catalog range identity.
+    /// </summary>
+    Subtype,
 }

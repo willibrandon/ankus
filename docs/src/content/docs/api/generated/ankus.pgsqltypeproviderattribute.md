@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar identity.
+Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar or range identity.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
@@ -18,6 +18,7 @@ public sealed class PgSqlTypeProviderAttribute : Attribute
 
 Adds installation dependencies without parsing SQL or executing converters.
 A managed-type provider selects its referenced datum mapping for static registration.
+A PgRange&lt;T&gt; provider completes the declared range after its owned scalar bound provider.
 The block may declare a shell type when its completion is ordered separately.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
@@ -28,7 +29,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgSqlTypeProviderAttribute(string, string)
 
-Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar identity.
+Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar or range identity.
 
 ```csharp
 public PgSqlTypeProviderAttribute(string sqlId, string name)
@@ -46,6 +47,7 @@ The exact, unquoted catalog type name, without a schema prefix.
 
 Adds installation dependencies without parsing SQL or executing converters.
 A managed-type provider selects its referenced datum mapping for static registration.
+A PgRange&lt;T&gt; provider completes the declared range after its owned scalar bound provider.
 The block may declare a shell type when its completion is ordered separately.
 
 <a id="member-633592a40ba36b4a"></a>
@@ -66,7 +68,7 @@ The dependency identifier of a PgSql or PgSqlFile block.
 
 `managedType` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
-The closed managed type carrying PgDatumType.
+The closed type carrying PgDatumType, or its PgRange&lt;T&gt; identity declared by PgRangeType.
 
 
 ## Properties

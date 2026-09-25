@@ -12,6 +12,11 @@ public unsafe partial struct NativeValue
     /// <returns>The owned range.</returns>
     public readonly PgRange<T> ReadRange<T>() where T : struct
     {
+        if (PgDatumRegistry.Find(typeof(PgRange<T>)) is { RangeBound: not null })
+        {
+            return ReadMapped<PgRange<T>>();
+        }
+
         if (_isNull != 0 || _auxiliary1 != -2 || _data == null || _length < 8)
         {
             throw new InvalidOperationException("Invalid native range header.");
@@ -71,6 +76,11 @@ public unsafe partial struct NativeValue
     internal static NativeValue FromRange(IPgRange value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (PgDatumRegistry.Find(value.GetType()) is { RangeBound: not null } mapping)
+        {
+            return mapping.Write(value);
+        }
+
         var buffer = new ArrayBufferWriter<byte>();
         WriteInt(buffer, checked((int)value.TypeOid));
         int flags = value.IsEmpty ? 1 : (value.LowerValue is null ? 8 : value.LowerInclusive ? 2 : 0) |

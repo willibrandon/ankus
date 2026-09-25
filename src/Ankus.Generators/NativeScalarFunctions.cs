@@ -19,6 +19,22 @@ internal static class NativeScalarFunctions
         } AnkusScalarFunction;
 
         static void
+        ankus_scalar_result(AnkusRequest *request, AnkusResult *result, Datum datum, bool is_null, Oid type)
+        {
+            result->text.is_null = is_null;
+            if (request->result_context != 0)
+            {
+                ankus_datum_context(request->result_context, request->result_generation);
+                result->result_type_oid = type;
+                if (!is_null)
+                    result->text.integral = (int64) (uintptr_t) ankus_copy_raw_datum(datum, type,
+                        request->result_context, request->result_generation);
+            }
+            else if (!is_null)
+                ankus_result_value(datum, type, &result->text);
+        }
+
+        static void
         ankus_call_scalar(const AnkusScalarFunction *functions, Size count, AnkusRequest *request, AnkusResult *result)
         {
             for (Size index = 0; index < count; index++)
@@ -35,6 +51,8 @@ internal static class NativeScalarFunctions
 
                 if (match)
                 {
+                    if (request->result_context != 0)
+                        ankus_datum_context(request->result_context, request->result_generation);
                     LOCAL_FCINFO(call, 7);
                     FmgrInfo info;
                     Datum datum;
@@ -50,9 +68,7 @@ internal static class NativeScalarFunctions
                     }
 
                     datum = FunctionCallInvoke(call);
-                    result->text.is_null = call->isnull;
-                    if (!call->isnull)
-                        ankus_result_value(datum, entry->result_type, &result->text);
+                    ankus_scalar_result(request, result, datum, call->isnull, entry->result_type);
                     return;
                 }
             }
