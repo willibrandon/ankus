@@ -458,8 +458,156 @@ public sealed unsafe class PgMappedArrayTests
         int[] ordinary = [1, 2];
         var row = new SpiRow([ordinary], [new SpiColumn("array", script.ArrayOid)]);
         Assert.ThrowsExactly<NotSupportedException>(() => row.Get<Kind[]>(0));
-        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<Number[]>(1, 0));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<WriteOnly[]>(1, 0));
         Assert.AreSequenceEqual<int>([1, 2], row.Get<int[]>(0));
+    }
+
+    /// <summary>
+    /// Native array results preserve independent cells and bounds while ending both temporary owners and retaining arguments.
+    /// </summary>
+    [TestMethod]
+    public void NativeArrayResultsPreserveShapesAndOwnerBoundaries()
+    {
+        using var script = new Script { Lengths = [2, 2], Bounds = [-2, 4], Cells = [new(0), new(7), new(0, true), new(19)] };
+        PgDatum argument = script.Array();
+        PgArray<Number?> result = PgFunctions.DangerousCall<PgArray<Number?>>(4567, 345, argument);
+        Assert.AreSequenceEqual<Number?>([new(100), new(107), null, new(119)], [.. result]);
+        Assert.AreSequenceEqual<int>([2, 2], result.Lengths.ToArray());
+        Assert.AreSequenceEqual<int>([-2, 4], result.LowerBounds.ToArray());
+        Assert.AreEqual(new Number(119), result.GetValue(-1, 5));
+        Assert.AreEqual(4567, script.CallPointer);
+        Assert.AreEqual(0, script.CallMode);
+        Assert.AreEqual(9002U, script.CallExpectedOid);
+        Assert.AreEqual(3, script.Reads);
+        Assert.AreEqual(1, script.Executions);
+        Assert.AreEqual(2, script.Creates);
+        Assert.AreEqual(2, script.Deletes);
+        Assert.AreEqual(2, script.Releases);
+        Assert.AreSequenceEqual<nint>([203, 202], script.Memory.Requests.Where(static request => request._operation == NativeMemoryOperation.Delete)
+            .Select(static request => request._context));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => script.Captured!.DangerousGetBits());
+        Assert.AreEqual((nuint)701, argument.DangerousGetBits());
+
+        script.Reads = 0;
+        Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.DangerousCall<Number?[]>(4567, 0));
+        Assert.AreEqual(0, script.Reads);
+        Assert.AreEqual(2, script.Executions);
+        Assert.AreEqual(4, script.Deletes);
+        script.Lengths = [2];
+        script.Bounds = [1];
+        script.Cells = [new(3), new(8)];
+        Assert.AreSequenceEqual<Alias>([new(1003), new(1008)], PgFunctions.DangerousCall<Alias[]>(4567, 0));
+        Assert.AreEqual(3, script.Executions);
+        Assert.AreEqual(6, script.Deletes);
+        Message[] messages = PgFunctions.DangerousCall<Message[]>(4567, 0);
+        Assert.AreEqual(typeof(Message[]), messages.GetType());
+        Assert.AreSequenceEqual<Message>([new NumericMessage(3), new NumericMessage(8)], messages);
+        Assert.AreEqual(4, script.Executions);
+        Assert.AreEqual(8, script.Deletes);
+    }
+
+    /// <summary>
+    /// Native whole NULL, empty arrays and all-NULL arrays remain distinct without creating absent element converters.
+    /// </summary>
+    [TestMethod]
+    public void NativeArrayAbsenceKeepsContainerAndElementNullability()
+    {
+        using var script = new Script { NativeResultNull = true };
+        Assert.IsNull(PgFunctions.DangerousCall<ReadOnly[]>(4567, 0));
+        Assert.AreEqual(0, script.Extractions);
+        Assert.AreEqual(1, script.Deletes);
+        script.NativeResultNull = false;
+        script.Cells = [];
+        script.Lengths = [];
+        script.Bounds = [];
+        Assert.IsEmpty(PgFunctions.DangerousCall<ReadOnly[]>(4567, 0));
+        script.Cells = [new(0, true), new(0, true)];
+        script.Lengths = [2];
+        script.Bounds = [1];
+        Assert.AreSequenceEqual<ReadOnly?>([null, null], PgFunctions.DangerousCall<ReadOnly?[]>(4567, 0));
+        Assert.AreSequenceEqual<Message?>([null, null], PgFunctions.DangerousCall<Message?[]>(4567, 0));
+        InvalidOperationException required = Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.DangerousCall<ReadOnly[]>(4567, 0));
+        Assert.AreEqual("SQL NULL cannot be read as a non-nullable managed value.", required.Message);
+        Assert.AreEqual(0, script.Reads);
+        Assert.AreEqual(5, script.Executions);
+        Assert.AreEqual(4, script.Extractions);
+        Assert.AreEqual(9, script.Deletes);
+        Assert.AreEqual(9, script.Releases);
+    }
+
+    /// <summary>
+    /// Native invocation cannot replace the captured array identity, even when no element reader would run.
+    /// </summary>
+    /// <param name="state">A present array, whole NULL, or present empty array.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    public void NativeArraysRevalidateIdentityBeforeExtraction(int state)
+    {
+        using var script = new Script { ChangeIdentityDuringCall = true, NativeResultNull = state == 1 };
+        if (state == 2)
+        {
+            script.Cells = [];
+            script.Lengths = [];
+            script.Bounds = [];
+        }
+
+        InvalidCastException failure = Assert.ThrowsExactly<InvalidCastException>(() => PgFunctions.DangerousCall<Number[]>(4567, 0));
+        Assert.AreEqual("PostgreSQL datum type OID 9002 does not match mapped array type OID 9012.", failure.Message);
+        Assert.AreEqual(9002U, script.CallExpectedOid);
+        Assert.AreEqual(0, script.CallMode);
+        Assert.AreEqual(0, script.Reads);
+        Assert.AreEqual(0, script.Extractions);
+        Assert.AreEqual(1, script.Executions);
+        Assert.AreEqual(1, script.Creates);
+        Assert.AreEqual(1, script.Deletes);
+        Assert.AreEqual(1, script.Releases);
+    }
+
+    /// <summary>
+    /// Inner array-reader and outer native-result cleanup both run without hiding the original reader failure.
+    /// </summary>
+    /// <param name="cleanupFailure">Whether both temporary owner deletions fail.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void NativeArrayCleanupPreservesNestedFailures(bool cleanupFailure)
+    {
+        var primary = new InvalidOperationException("second native array cell failed");
+        using var script = new Script { Failure = primary, FailDelete = cleanupFailure };
+        PgDatum argument = script.Array();
+        if (cleanupFailure)
+        {
+            AggregateException outer = Assert.ThrowsExactly<AggregateException>(() => PgFunctions.DangerousCall<Number[]>(4567, 0, argument));
+            Assert.HasCount(2, outer.InnerExceptions);
+            AggregateException inner = Assert.IsInstanceOfType<AggregateException>(outer.InnerExceptions[0]);
+            Assert.HasCount(2, inner.InnerExceptions);
+            Assert.AreSame(primary, inner.InnerExceptions[0]);
+            Exception[] cleanupFailures = [inner.InnerExceptions[1], outer.InnerExceptions[1]];
+            foreach (Exception exception in cleanupFailures)
+            {
+                PgException cleanup = Assert.IsInstanceOfType<PgException>(exception);
+                Assert.AreEqual("55006", cleanup.SqlState);
+                Assert.AreEqual("array cleanup failed", cleanup.Message);
+                Assert.AreEqual("cleanup detail", cleanup.Detail);
+            }
+
+            Assert.AreEqual((nuint)5, script.Captured!.DangerousGetBits());
+        }
+        else
+        {
+            Assert.AreSame(primary, Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.DangerousCall<Number[]>(4567, 0, argument)));
+            Assert.ThrowsExactly<ObjectDisposedException>(() => script.Captured!.DangerousGetBits());
+        }
+
+        Assert.AreEqual((nuint)701, argument.DangerousGetBits());
+        Assert.AreEqual(2, script.Reads);
+        Assert.AreEqual(1, script.Executions);
+        Assert.AreEqual(2, script.Deletes);
+        Assert.AreEqual(2, script.Releases);
+        Assert.AreSequenceEqual<nint>([203, 202], script.Memory.Requests.Where(static request => request._operation == NativeMemoryOperation.Delete)
+            .Select(static request => request._context));
     }
 
     /// <summary>
@@ -904,6 +1052,16 @@ public sealed unsafe class PgMappedArrayTests
         internal bool ChangeElementDuringConversion { get; set; }
 
         /// <summary>
+        /// Gets or sets whether a direct function reports SQL NULL rather than a present array.
+        /// </summary>
+        internal bool NativeResultNull { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether a direct call changes the mapping identity before returning its captured result.
+        /// </summary>
+        internal bool ChangeIdentityDuringCall { get; set; }
+
+        /// <summary>
         /// Gets or sets the latest reader input retained for lifetime assertions.
         /// </summary>
         internal PgDatum? Captured { get; set; }
@@ -1007,6 +1165,11 @@ public sealed unsafe class PgMappedArrayTests
         /// Gets the requested catalog return identity.
         /// </summary>
         internal uint CallExpectedOid { get; private set; }
+
+        /// <summary>
+        /// Gets the native address independently recorded from a direct invocation request.
+        /// </summary>
+        internal nint CallPointer { get; private set; }
 
         /// <summary>
         /// Creates a live raw array whose original owner is distinct from extraction storage.
@@ -1241,8 +1404,16 @@ public sealed unsafe class PgMappedArrayTests
             {
                 CallMode = request->_scalarOperation;
                 CallExpectedOid = request->_scalarResultOid;
+                CallPointer = request->_nativeFunction;
                 result->_resultTypeOid = ArrayOid;
                 result->_text.Integral = 701;
+                result->_text.IsNull = NativeResultNull ? (byte)1 : (byte)0;
+                if (CallPointer != 0 && ChangeIdentityDuringCall)
+                {
+                    ElementOid = 9011;
+                    ArrayOid = 9012;
+                }
+
                 return;
             }
 

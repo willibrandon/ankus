@@ -30,6 +30,12 @@ public sealed unsafe class PgMappedResultTests
                 Script.Current.FactoryCalls++;
                 throw Script.Current.Primary!;
             }, true, false);
+        PgDatumRegistry.RegisterValue<NativeFactoryFailure>("result", "fixed", PgTypeOrigin.External, typeof(UnusedReader<NativeFactoryFailure>),
+            static () =>
+            {
+                Script.Current.FactoryCalls++;
+                throw Script.Current.Primary!;
+            }, true, false);
     }
 
     /// <summary>
@@ -79,11 +85,148 @@ public sealed unsafe class PgMappedResultTests
         Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<WriteOnly?>(77));
         Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalars<Number, WriteOnly[]>("SELECT values"));
         Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<WriteOnly[]>("fixed.result"));
-        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<Number>(1, 0));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<WriteOnly>(1, 0));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<WriteOnly?>(1, 0));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<WriteOnly[]>(1, 0));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<PgArray<WriteOnly?>>(1, 0));
         Assert.AreEqual(0, script.Executions);
         Assert.AreEqual(0, script.Lookups);
         Assert.AreEqual(0, script.Creates);
         Assert.IsEmpty(script.Memory.Requests);
+    }
+
+    /// <summary>
+    /// Direct results select their reader and captured nominal identity while preserving raw arguments and builtin calls.
+    /// </summary>
+    [TestMethod]
+    public void NativeResultsSelectDeclaredReadersAndPreserveArguments()
+    {
+        using var script = new Script { NativeBits = 0 };
+        PgDatum zero = PgDatum.DangerousCreate(0, 23, PgMemoryContext.Current);
+        PgDatum absent = PgDatum.DangerousCreate(nuint.MaxValue, 9001, PgMemoryContext.Current, isNull: true);
+        script.Memory.Current = 111;
+        Assert.AreEqual(new Number(100), PgFunctions.DangerousCall<Number>(4567, 345, zero, absent));
+        Assert.AreEqual(4567, script.NativeFunction);
+        Assert.AreEqual(345U, script.Collation);
+        Assert.AreEqual(0, script.CallMode);
+        Assert.AreEqual(9001U, script.ExpectedOid);
+        Assert.AreEqual(0U, script.FunctionOid);
+        Assert.AreEqual(101, script.ParentContext);
+        Assert.AreEqual(111, script.Memory.Current);
+        Assert.AreEqual(202, script.ResultContext);
+        Assert.AreEqual((nuint)901, script.ResultGeneration);
+        Assert.AreSequenceEqual<RawArgument>([new(23, 0, false, 101, 901), new(9001, nuint.MaxValue, true, 101, 901)], script.Arguments);
+        Assert.IsEmpty(script.Defaults);
+        Assert.AreEqual(9001U, script.Captured!.TypeOid);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => script.Captured.DangerousGetBits());
+        Assert.AreEqual((nuint)0, zero.DangerousGetBits());
+        Assert.AreEqual(nuint.MaxValue, absent.DangerousGetBits());
+        Assert.AreEqual(new Alias(200), PgFunctions.DangerousCall<Alias>(4567, 0));
+        Assert.AreEqual(9001U, script.ExpectedOid);
+
+        script.NativeBits = 2147483447;
+        script.Oid = 9011;
+        Assert.AreEqual(new Alias(2147483647), PgFunctions.DangerousCall<Alias>(4567, 0));
+        Assert.AreEqual(9011U, script.ExpectedOid);
+        Assert.AreEqual(3, script.Reads);
+        Assert.AreEqual(3, script.Creates);
+        Assert.AreEqual(3, script.Deletes);
+
+        script.NativeBits = 17;
+        Assert.AreEqual(17, PgFunctions.DangerousCall<int>(4567, 0));
+        Assert.AreEqual(23U, script.ExpectedOid);
+        Assert.AreEqual(0, script.ResultContext);
+        Assert.AreEqual(0, script.CallMode);
+        Assert.AreEqual(3, script.Creates);
+        Assert.AreEqual(4, script.Executions);
+        Assert.AreEqual(4, script.ResultReleases);
+    }
+
+    /// <summary>
+    /// Missing native identities and expired raw arguments fail before the address executes without consuming other owners.
+    /// </summary>
+    [TestMethod]
+    public void NativeInvalidInputsRejectBeforeInvocation()
+    {
+        using var script = new Script();
+        Assert.AreEqual("function", Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PgFunctions.DangerousCall<Number>(0, 0)).ParamName);
+        Assert.AreEqual("function", Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PgFunctions.DangerousCall<Number[]>(0, 0)).ParamName);
+        Assert.AreEqual(0, script.Lookups);
+        Assert.AreEqual(0, script.Creates);
+        script.FailLookup = true;
+        PgException missing = Assert.ThrowsExactly<PgException>(() => PgFunctions.DangerousCall<Number>(4567, 0));
+        Assert.AreEqual("42704", missing.SqlState);
+        Assert.AreEqual("mapped result type is missing", missing.Message);
+        Assert.AreEqual(0, script.Creates);
+        script.FailLookup = false;
+        PgDatum live = PgDatum.DangerousCreate(7, 23, PgMemoryContext.Current);
+        using PgMemoryContext owner = PgMemoryContext.Create("expired direct argument");
+        PgDatum stale = PgDatum.DangerousCreate(9, 23, owner);
+        owner.Dispose();
+        Assert.ThrowsExactly<ObjectDisposedException>(() => PgFunctions.DangerousCall<Number>(4567, 0, stale));
+        Assert.AreEqual((nuint)7, live.DangerousGetBits());
+        Assert.AreEqual(0, script.Executions);
+        Assert.AreEqual(0, script.ResultReleases);
+        Assert.AreEqual(2, script.Creates);
+        Assert.AreEqual(2, script.Deletes);
+    }
+
+    /// <summary>
+    /// Native NULL bypasses factories only after invocation and still rejects required scalar targets.
+    /// </summary>
+    [TestMethod]
+    public void NativeNullResultsPreserveAbsenceWithoutConstructingReaders()
+    {
+        using var script = new Script { IsNull = true };
+        Assert.IsNull(PgFunctions.DangerousCall<Absent?>(4567, 0));
+        Assert.IsNull(PgFunctions.DangerousCall<AbsentReference>(4567, 0));
+        InvalidOperationException required = Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.DangerousCall<Absent>(4567, 0));
+        Assert.AreEqual("SQL NULL cannot be read as a non-nullable managed value.", required.Message);
+        Assert.AreEqual(0, script.Reads);
+        Assert.AreEqual(3, script.Executions);
+        Assert.AreEqual(3, script.Deletes);
+        Assert.AreEqual(3, script.ResultReleases);
+    }
+
+    /// <summary>
+    /// A native callback cannot relabel its captured result with a replacement mapping identity, including SQL NULL.
+    /// </summary>
+    /// <param name="isNull">Whether the native result has no payload.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void NativeResultsRevalidateCurrentIdentityAfterInvocation(bool isNull)
+    {
+        using var script = new Script { IsNull = isNull, ChangeOidDuringCall = true };
+        InvalidCastException failure = Assert.ThrowsExactly<InvalidCastException>(() => PgFunctions.DangerousCall<Number?>(4567, 0));
+        Assert.AreEqual("PostgreSQL datum type OID 9001 does not match mapped type OID 9011.", failure.Message);
+        Assert.AreEqual(9001U, script.ExpectedOid);
+        Assert.AreEqual(0, script.CallMode);
+        Assert.AreEqual(0, script.Reads);
+        Assert.AreEqual(1, script.Executions);
+        Assert.AreEqual(1, script.Deletes);
+        Assert.AreEqual(1, script.ResultReleases);
+    }
+
+    /// <summary>
+    /// Factories run after direct native execution, cache their failure, and remain bypassed by later SQL NULL.
+    /// </summary>
+    [TestMethod]
+    public void NativeFactoryFailureIsLazyAndCachedAfterExecution()
+    {
+        var primary = new PgException("P8503", "native reader factory failed", detail: "reader detail", hint: "reader hint");
+        using var script = new Script { Primary = primary, IsNull = true, NativeBits = 0 };
+        Assert.IsNull(PgFunctions.DangerousCall<NativeFactoryFailure?>(4567, 0));
+        Assert.AreEqual(0, script.FactoryCalls);
+        script.IsNull = false;
+        Assert.AreSame(primary, Assert.ThrowsExactly<PgException>(() => PgFunctions.DangerousCall<NativeFactoryFailure>(4567, 0)));
+        Assert.AreSame(primary, Assert.ThrowsExactly<PgException>(() => PgFunctions.DangerousCall<NativeFactoryFailure>(4567, 0)));
+        script.IsNull = true;
+        Assert.IsNull(PgFunctions.DangerousCall<NativeFactoryFailure?>(4567, 0));
+        Assert.AreEqual(1, script.FactoryCalls);
+        Assert.AreEqual(4, script.Executions);
+        Assert.AreEqual(4, script.Deletes);
+        Assert.AreEqual(4, script.ResultReleases);
     }
 
     /// <summary>
@@ -215,21 +358,29 @@ public sealed unsafe class PgMappedResultTests
     /// <summary>
     /// Reader-only, cleanup-only and combined failures preserve the correct primary and release native transport.
     /// </summary>
-    /// <param name="catalog">Whether the temporary owner belongs to a catalog call rather than SPI.</param>
+    /// <param name="source">SPI, catalog invocation, or native-address invocation.</param>
     /// <param name="readerFailure">Whether the reader fails.</param>
     /// <param name="cleanupFailure">Whether deleting the owner fails.</param>
     [TestMethod]
-    [DataRow(false, true, false)]
-    [DataRow(false, false, true)]
-    [DataRow(false, true, true)]
-    [DataRow(true, true, false)]
-    [DataRow(true, false, true)]
-    [DataRow(true, true, true)]
-    public void ConversionAndCleanupFailuresPreserveTheirOrdering(bool catalog, bool readerFailure, bool cleanupFailure)
+    [DataRow(0, true, false)]
+    [DataRow(0, false, true)]
+    [DataRow(0, true, true)]
+    [DataRow(1, true, false)]
+    [DataRow(1, false, true)]
+    [DataRow(1, true, true)]
+    [DataRow(2, true, false)]
+    [DataRow(2, false, true)]
+    [DataRow(2, true, true)]
+    public void ConversionAndCleanupFailuresPreserveTheirOrdering(int source, bool readerFailure, bool cleanupFailure)
     {
         var primary = new InvalidOperationException("reader failed");
         using var script = new Script { Primary = readerFailure ? primary : null, FailDelete = cleanupFailure };
-        Action read = catalog ? () => PgFunctions.Call<Number>("fixed.result") : () => Spi.ExecuteScalar<Number>("SELECT value");
+        Action read = source switch
+        {
+            0 => () => Spi.ExecuteScalar<Number>("SELECT value"),
+            1 => () => PgFunctions.Call<Number>("fixed.result"),
+            _ => () => PgFunctions.DangerousCall<Number>(4567, 0),
+        };
         if (readerFailure && cleanupFailure)
         {
             AggregateException failure = Assert.ThrowsExactly<AggregateException>(read);
@@ -271,19 +422,23 @@ public sealed unsafe class PgMappedResultTests
     }
 
     /// <summary>
-    /// A raw SPI acquisition error survives owner cleanup, with both diagnostics retained if deletion also fails.
+    /// A raw acquisition error survives owner cleanup, with both diagnostics retained if deletion also fails.
     /// </summary>
+    /// <param name="native">Whether to acquire a direct native result rather than a SPI result.</param>
     /// <param name="cleanupFailure">Whether deleting the newly acquired owner also fails.</param>
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public void RawAcquisitionErrorsPreserveNativeDiagnosticsAndCleanup(bool cleanupFailure)
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public void RawAcquisitionErrorsPreserveNativeDiagnosticsAndCleanup(bool native, bool cleanupFailure)
     {
         using var script = new Script { FailExecution = true, FailDelete = cleanupFailure };
+        Action read = native ? () => PgFunctions.DangerousCall<Number>(4567, 0) : () => Spi.ExecuteScalar<Number>("SELECT failure");
         PgException primary;
         if (cleanupFailure)
         {
-            AggregateException failure = Assert.ThrowsExactly<AggregateException>(() => Spi.ExecuteScalar<Number>("SELECT failure"));
+            AggregateException failure = Assert.ThrowsExactly<AggregateException>(read);
             Assert.HasCount(2, failure.InnerExceptions);
             primary = Assert.IsInstanceOfType<PgException>(failure.InnerExceptions[0]);
             PgException cleanup = Assert.IsInstanceOfType<PgException>(failure.InnerExceptions[1]);
@@ -293,7 +448,7 @@ public sealed unsafe class PgMappedResultTests
         }
         else
         {
-            primary = Assert.ThrowsExactly<PgException>(() => Spi.ExecuteScalar<Number>("SELECT failure"));
+            primary = Assert.ThrowsExactly<PgException>(read);
         }
 
         Assert.AreEqual("P8501", primary.SqlState);
@@ -492,6 +647,21 @@ public sealed unsafe class PgMappedResultTests
         internal bool FailExecution { get; set; }
 
         /// <summary>
+        /// Gets or sets whether current catalog identity resolution fails before execution.
+        /// </summary>
+        internal bool FailLookup { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether invocation replaces the current mapping identity before managed reading.
+        /// </summary>
+        internal bool ChangeOidDuringCall { get; set; }
+
+        /// <summary>
+        /// Gets or sets the independently supplied direct result word.
+        /// </summary>
+        internal long NativeBits { get; set; } = 42;
+
+        /// <summary>
         /// Gets or sets the original managed reader or factory failure.
         /// </summary>
         internal Exception? Primary { get; set; }
@@ -555,6 +725,26 @@ public sealed unsafe class PgMappedResultTests
         /// Gets the explicit catalog function identity.
         /// </summary>
         internal uint FunctionOid { get; private set; }
+
+        /// <summary>
+        /// Gets the caller-supplied native address.
+        /// </summary>
+        internal nint NativeFunction { get; private set; }
+
+        /// <summary>
+        /// Gets the caller's explicit collation.
+        /// </summary>
+        internal uint Collation { get; private set; }
+
+        /// <summary>
+        /// Gets the captured result owner generation.
+        /// </summary>
+        internal nuint ResultGeneration { get; private set; }
+
+        /// <summary>
+        /// Gets the raw direct arguments independently decoded from their envelopes.
+        /// </summary>
+        internal RawArgument[] Arguments { get; private set; } = [];
 
         /// <summary>
         /// Gets the parent of the most recently created owner.
@@ -656,6 +846,11 @@ public sealed unsafe class PgMappedResultTests
             if (request->_operation == SpiOperation.DatumType)
             {
                 Lookups++;
+                if (FailLookup)
+                {
+                    throw new PgException("42704", "mapped result type is missing");
+                }
+
                 result->_text.Integral = Oid;
                 return;
             }
@@ -704,10 +899,30 @@ public sealed unsafe class PgMappedResultTests
                 ExpectedOid = request->_scalarResultOid;
                 FunctionOid = request->_functionOid;
                 ResultContext = request->_resultContext;
-                Defaults = new ReadOnlySpan<byte>(request->_argumentDefaults, request->_parameterCount).ToArray();
+                NativeFunction = request->_nativeFunction;
+                Collation = request->_collationOid;
+                ResultGeneration = request->_resultGeneration;
+                Defaults = request->_argumentDefaults == null ? [] : [.. new ReadOnlySpan<byte>(request->_argumentDefaults, request->_parameterCount)];
+                if (NativeFunction != 0)
+                {
+                    Arguments = new RawArgument[request->_parameterCount];
+                    for (int index = 0; index < Arguments.Length; index++)
+                    {
+                        NativeSpiParameter argument = request->_parameters[index];
+                        NativeDatumReference reference = MemoryMarshal.Read<NativeDatumReference>(argument._value.ReadBytes());
+                        Arguments[index] = new RawArgument(argument._typeOid, reference._bits, argument._value.IsNull != 0,
+                            reference._context, reference._generation);
+                    }
+
+                    if (ChangeOidDuringCall)
+                    {
+                        Oid = 9011;
+                    }
+                }
+
                 result->_resultTypeOid = ResultOid;
                 result->_rowsAffected = 23;
-                result->_text = new NativeValue { Integral = 42, IsNull = IsNull ? (byte)1 : (byte)0 };
+                result->_text = new NativeValue { Integral = NativeFunction != 0 ? NativeBits : 42, IsNull = IsNull ? (byte)1 : (byte)0 };
                 return;
             }
 
@@ -759,6 +974,11 @@ public sealed unsafe class PgMappedResultTests
     private readonly record struct Cell(uint Oid, long Bits, bool IsNull = false);
 
     /// <summary>
+    /// Records raw parameter identity, NULL state and original owner independently from result conversion.
+    /// </summary>
+    private readonly record struct RawArgument(uint Oid, nuint Bits, bool IsNull, nint Context, nuint Generation);
+
+    /// <summary>
     /// Represents the primary reader-only scalar.
     /// </summary>
     private readonly record struct Number(int Value);
@@ -787,4 +1007,9 @@ public sealed unsafe class PgMappedResultTests
     /// Isolates the cached failing factory.
     /// </summary>
     private readonly record struct FactoryFailure;
+
+    /// <summary>
+    /// Isolates a lazy native-result factory failure from other test methods.
+    /// </summary>
+    private readonly record struct NativeFactoryFailure;
 }

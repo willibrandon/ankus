@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths. Nested/generic mapping forms, ordinary row/composite conversions, unsafe native-address typed results, broader metadata forms and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Nested/generic mapping forms, ordinary row/composite conversions, broader metadata forms and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -4831,7 +4831,68 @@ The phases track implementation of the complete pgrx feature surface.
   in 17.42s with zero warnings/errors. API generation and freshness pass for
   147 pages/1,429 members; `pnpm check` reports zero errors/warnings/hints and
   `pnpm build` produces 184 pages. Native publication and Release/documentation
-  builds ran sequentially. Hosted validation for this correction is pending.
+  builds ran sequentially. Commit `caf6887` passes
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36115969341) and
+  [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36115969361).
+  Every platform ran the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,131 | 0 | 10m30s |
+  | macOS ARM64 | 18.6 | 6,129 | 2 | 10m03s |
+  | Windows x64 | 17.11 | 6,129 | 2 | 15m52s |
+
+  All jobs had zero failures. The two non-Linux skips remain the existing
+  Linux-only native allocation measurements. Each job exceeded the preferred
+  ten-minute target and stayed within twenty minutes. These runs do not establish
+  cold-runtime build performance.
   Private malformed request guards receive source review only; no forwarding
   shim, empirical mutation or coverage percentage is claimed. Raw composite
   layout provenance and the remaining full-port requirements remain open.
+
+- 2026-09-25 — Enabled registered scalar and one-layer array readers for
+  `PgFunctions.DangerousCall<T>` results. As with pgrx's direct-function-call
+  helper, the requested managed type selects the reader; no independent catalog
+  result declaration is discovered. The caller retains responsibility for the
+  address, ABI, actual SQL result type and native layout/pointee validity.
+
+  The managed dispatcher requires read capability before lookup, allocation or
+  invocation, captures the current nominal type, and reuses the guarded raw call
+  under a temporary child of the callback context. Reading completes before
+  deterministic cleanup. Captured identities are never relabeled after a call;
+  current mapping identity is checked before conversion, including NULL. Existing
+  raw argument ownership, assignment checks, native error guards and ordinary
+  result paths remain unchanged. No native ABI, serializer, registration rule or
+  public API was added.
+
+  The final direct scope passes 92 tests with zero failures/skips in 944ms,
+  including 18 new cases and 74 regressions. The selected real backend scope
+  passes 164 tests with zero failures/skips in 57.598s on Linux x64/PostgreSQL
+  18.6, including 17 new cases and 147 regressions. The initial backend attempt
+  stopped during publication on CA2219 in two fixture assertions inside `finally`;
+  no PostgreSQL test body executed. Moving those checks into ordinary flow while
+  preserving primary errors fixed the fixture without suppressing warnings.
+
+  | Requirement | Named evidence |
+  | --- | --- |
+  | Requested scalar/array readers and exact values | `NativeResultsSelectDeclaredReadersAndPreserveArguments`, `MappedNativeScalarsSelectRequestedReadersAndPreserveNull`, `MappedNativeVectorsSelectExactElementReaders`, `MappedNativeArrayShapesRemainExact`: distinct aliases, zero/extrema, true array identity, NULL cells, rank and lower bounds |
+  | Lazy factories and capability preflight | `MappedNativeNullAndEmptyResultsBypassLazyFactories`, `MappedNativeArraysRequireReadersBeforeConversion`: whole NULL, empty and all-NULL arrays bypass lazy factories; writer-only targets reject; direct tests pin rejection before lookup/owner/invocation |
+  | Native ownership and error recovery | `MappedNativeTextResultsOutliveSourceAndOperationOwners`, `MappedNativeReferenceArraysOutliveTheirOriginalStorage`, `MappedNativeTextReaderErrorsReleaseOwnersAndRecover`, `MappedNativeArrayReaderErrorsReleaseEveryCapturedElement`: complete Unicode/TOAST values, input preservation, expired captured handles, exact diagnostics and same-backend recovery |
+  | Completed native effects survive caught conversion failures | `MappedNativeManagedFailuresRetainCompletedCatalogWrites`: exact transactional large-object identities, unchanged preexisting metadata and sentinel bytes, no repeated invocation, valid retries and cleanup restricted to owned objects |
+  | Current identities and native call contract | `MappedNativeArrayResultsRefreshCurrentExternalIdentities`, `MappedNativeCallsForwardCollationAndRecoverFromNativeErrors`: actual domain replacement, native collation and division-error recovery; direct tests separately pin during-call identity changes, original captured type, callback-parent selection and ordered primary/cleanup failures |
+
+  Independent source and assertion reviews found no unresolved selected-scope
+  issue. Direct tests establish immediate owner-deletion wiring; later backend
+  capture checks establish post-callback expiry. Existing catalog write-then-error
+  and native-pointer error tests provide compositional guard evidence, not a new
+  pointer target that writes and then raises. No empirical mutation or coverage
+  percentage is claimed. README, source XML and the function-call, raw-value and
+  array guides document the capability and its unsafe caller obligations.
+  Plain `dotnet test` passes all 6,166 tests with zero failures/skips in 244.676s
+  on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes in 18.03s
+  with zero warnings/errors. API generation and freshness pass for 147 pages/
+  1,429 members; `pnpm check` reports zero errors/warnings/hints and `pnpm build`
+  produces 184 pages. Native publication and Release/documentation builds ran
+  sequentially. Full hosted platform validation follows the commit. Ordinary
+  row/composite mappings, generic/nested forms, derived families, raw composite
+  layout provenance and full-port validation remain open.

@@ -121,8 +121,8 @@ those inner byte arrays.
 A [`PgDatumType` mapping](/raw-values/#reusable-scalar-mappings) supplies the
 element conversion for `T[]`, `T?[]`, `PgArray<T>`, and `PgArray<T?>`. A reader
 supports generated inputs, explicit raw reads, SPI scalar-result helpers, and
-named/OID function-call results. A writer supports generated outputs and typed
-parameters. The same converter instance serves scalar and array conversions.
+named/OID and native-address function-call results. A writer supports generated
+outputs and typed parameters. The same converter instance serves scalar and array conversions.
 No separate array converter or type provider is needed.
 
 For example, with the `Count` reader from the mapping guide:
@@ -164,6 +164,11 @@ and through sessions and prepared statements. Ordinary `SpiRow.Get<T>()` and
 `PgHeapTuple.Get<T>()` do not select mapped element converters; use an owned raw
 cell's `Read<T[]>()` or `Read<PgArray<T>>()`. Nested mapped arrays and rectangular
 CLR arrays remain unsupported.
+
+For `DangerousCall<T[]>` or `DangerousCall<PgArray<T>>`, the caller must prove
+that the native function returns the mapping's array type and representation.
+The address provides no catalog return declaration. See
+[native entry points](/calling-functions/#native-entry-points) for that contract.
 
 ## Variadic functions
 

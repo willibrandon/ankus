@@ -8,11 +8,12 @@ namespace Ankus;
 /// Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
 /// Registered datum readers use an exact declared result OID check before invoking a catalog function
 /// and return independent managed values before temporary native storage is released.
+/// Native-address calls use the selected mapping as the caller's asserted result type without catalog declaration proof.
 /// </remarks>
 public static class PgFunctions
 {
     /// <summary>
-    /// Calls a native PostgreSQL version-1 entry point and copies a supported managed result.
+    /// Calls a native PostgreSQL version-1 entry point and copies a supported result or invokes its registered reader.
     /// </summary>
     /// <typeparam name="T">The entry point's actual result type.</typeparam>
     /// <param name="function">The valid native function address.</param>
@@ -22,6 +23,8 @@ public static class PgFunctions
     /// <remarks>
     /// The caller must prove the address and argument/result representations are correct. The native
     /// call has no FmgrInfo, context, or resultinfo; use catalog calls for functions needing those fields.
+    /// Registered scalar and array readers return independent managed data before temporary result storage is released.
+    /// Their current mapped type is the caller's result contract; the address supplies no catalog return declaration.
     /// PostgreSQL errors remain guarded, but invalid pointers or ABI contracts can crash the backend.
     /// </remarks>
     public static T DangerousCall<T>(nint function, uint collationOid, params ReadOnlySpan<PgDatum> arguments)

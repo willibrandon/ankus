@@ -209,6 +209,8 @@ accept `PgAnyElement` and `PgAnyArray` results for types determined at runtime. 
 [calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
 `[PgDatumType]` readers also support `Call<T>` and SPI scalar-result helpers,
 with exact mapped type identity and detached managed results.
+`DangerousCall<T>` accepts mapped results when the caller supplies a valid native
+address with the matching result type and ABI.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.

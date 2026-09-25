@@ -232,7 +232,10 @@ for shape, domain, NULL and ownership rules.
 
 Use raw result owners and `Read<T>()` for mapped row fields. `SpiRow.Get<T>` and
 `PgHeapTuple.Get<T>` do not convert canonical cells through these converters.
-For native addresses, use `DangerousCallRaw` and an explicit mapped read.
+For native addresses, `DangerousCall<T>` selects the registered reader; use
+`DangerousCallRaw` for an explicit native owner or delayed mapped read. The caller
+must supply an address whose actual result matches the mapping's SQL type and
+representation; native-address calls cannot check a catalog return declaration.
 Nested mapped arrays, generic wrapper declarations, automatic equality/order/hash
 families, and different argument and result SQL spellings remain unsupported.
 The generator rejects unsupported mapped signatures with `ANKUS019`.

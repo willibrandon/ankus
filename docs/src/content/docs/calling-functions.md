@@ -93,7 +93,7 @@ with an explicit composite descriptor, use `PgFunctionArgument.Create(parameter)
 
 ## Errors and permissions
 
-Calls use the current role and honor `EXECUTE` permissions, security-definer
+Calls by name or OID use the current role and honor `EXECUTE` permissions, security-definer
 functions, and function-local settings. A PostgreSQL error during native execution
 becomes a `PgException`; the failed call's transactional database changes roll
 back, and the caller can catch the error and continue. Managed results are copied
@@ -114,5 +114,16 @@ function. Use name or OID calls when the function needs catalog metadata.
 Copying a pointer-bearing value such as `internal` preserves its pointer; it
 does not copy the pointed-to object or extend that object's lifetime.
 
-For `[PgDatumType]` results from a native address, use `DangerousCallRaw` and
-`Read<T>()`. `DangerousCall<T>` does not select mapped readers.
+`DangerousCall<T>` also selects registered scalar readers and their `T[]` or
+`PgArray<T>` forms. Only a reader is required; a missing reader is rejected before
+invocation. The current mapping supplies the result type you assert the address
+returns. There is no independent catalog declaration to check. Array extraction
+checks the physical element type and shape, while the actual nominal SQL type
+and representation remain your responsibility.
+
+The reader returns detached managed data before temporary native storage is
+released. Whole SQL NULL skips the reader and its factory, after current mapping
+identity and nullability checks. A caught reader or factory error occurs after
+the native call has completed and does not undo its completed database changes.
+Use `DangerousCallRaw` and `Read<T>()` when you want an explicit result owner or
+delayed conversion.

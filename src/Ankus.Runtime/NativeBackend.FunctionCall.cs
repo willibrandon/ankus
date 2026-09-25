@@ -15,6 +15,20 @@ public static unsafe partial class NativeBackend
     /// <returns>The independent result.</returns>
     internal static T CallNativeFunction<T>(nint function, uint collation, ReadOnlySpan<PgDatum> arguments)
     {
+        if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
+        {
+            mapping.RequireRead();
+            ArgumentOutOfRangeException.ThrowIfZero(function);
+            return CallMappedNativeFunction<T>(function, mapping.GetOid(), collation, arguments);
+        }
+
+        if (PgDatumRegistry.FindArray(typeof(T)) is { } array)
+        {
+            array.RequireRead();
+            ArgumentOutOfRangeException.ThrowIfZero(function);
+            return CallMappedNativeFunction<T>(function, array.GetOid(), collation, arguments);
+        }
+
         PgDatumRegistry.RejectOrdinaryResult<T>();
         return RunNativeFunction(function, SpiType.GetOid<T>(), null, collation, arguments, static result =>
         {
@@ -24,6 +38,34 @@ public static unsafe partial class NativeBackend
                 : SpiType.FromNative(result._text, type);
             return SpiRow.Convert<T>(value);
         });
+    }
+
+    /// <summary>
+    /// Reads a caller-asserted native result before releasing its temporary callback-owned storage.
+    /// </summary>
+    /// <typeparam name="T">The registered reader's detached result type.</typeparam>
+    /// <param name="function">The native address whose representation contract the caller supplies.</param>
+    /// <param name="type">The captured current mapped result OID, without catalog proof of the entry point's result.</param>
+    /// <param name="collation">The input collation.</param>
+    /// <param name="arguments">The borrowed raw arguments.</param>
+    /// <returns>The detached managed result.</returns>
+    private static T CallMappedNativeFunction<T>(nint function, uint type, uint collation, ReadOnlySpan<PgDatum> arguments)
+    {
+        PgMemoryContext owner = PgMemoryContext.Create("Ankus mapped native result", PgMemoryContext.Callback);
+        Exception? primary = null;
+        try
+        {
+            return CallRawNativeFunction(function, type, owner, collation, arguments).Read<T>();
+        }
+        catch (Exception exception)
+        {
+            primary = exception;
+            throw;
+        }
+        finally
+        {
+            PgResultCleanup.Dispose(owner, primary);
+        }
     }
 
     /// <summary>

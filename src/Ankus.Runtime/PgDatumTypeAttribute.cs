@@ -7,9 +7,10 @@ namespace Ankus;
 /// This declaration generates conversion registration, not type definitions or input/output functions.
 /// The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
 /// Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
-/// parameters, typed SPI scalar and catalog-call results, and explicit PgDatum.Read&lt;T&gt; calls.
+/// parameters, typed SPI scalar and catalog/native-address function results, and explicit PgDatum.Read&lt;T&gt; calls.
 /// One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
-/// Ordinary SPI/tuple row conversions and typed native-address mapped results are not supported.
+/// Native-address calls retain the caller's responsibility for the actual result type and representation.
+/// Ordinary SPI/tuple row conversions are not supported.
 /// A reader must return independent managed data; retaining a checked PgDatum does not detach its storage.
 /// </remarks>
 /// <param name="name">The exact unquoted PostgreSQL type identifier.</param>

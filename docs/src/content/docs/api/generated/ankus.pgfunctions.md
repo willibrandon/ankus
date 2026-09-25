@@ -19,6 +19,7 @@ Catalog calls support PgAnyElement and PgAnyArray results owned by the current c
 Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
 Registered datum readers use an exact declared result OID check before invoking a catalog function
 and return independent managed values before temporary native storage is released.
+Native-address calls use the selected mapping as the caller's asserted result type without catalog declaration proof.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -403,7 +404,7 @@ Pointer-bearing types such as internal retain their bits; copying them does not 
 
 ### DangerousCall&lt;T&gt;(nint, uint, params ReadOnlySpan&lt;PgDatum&gt;)
 
-Calls a native PostgreSQL version-1 entry point and copies a supported managed result.
+Calls a native PostgreSQL version-1 entry point and copies a supported result or invokes its registered reader.
 
 ```csharp
 public static T DangerousCall<T>(nint function, uint collationOid, params ReadOnlySpan<PgDatum> arguments)
@@ -435,4 +436,6 @@ The copied managed result, including SQL NULL for nullable types.
 
 The caller must prove the address and argument/result representations are correct. The native
 call has no FmgrInfo, context, or resultinfo; use catalog calls for functions needing those fields.
+Registered scalar and array readers return independent managed data before temporary result storage is released.
+Their current mapped type is the caller's result contract; the address supplies no catalog return declaration.
 PostgreSQL errors remain guarded, but invalid pointers or ABI contracts can crash the backend.
