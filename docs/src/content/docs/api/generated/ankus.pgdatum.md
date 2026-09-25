@@ -98,7 +98,7 @@ This does not extend native storage lifetime. Check IsNull separately before int
 
 ### Read&lt;T&gt;()
 
-Reads a supported managed type with the ordinary SPI exact-type and NULL checks.
+Reads a supported managed type with the ordinary SPI checks, or invokes its registered scalar datum reader.
 
 ```csharp
 public T Read<T>()
@@ -113,6 +113,9 @@ The desired managed type.
 Returns: <code>T</code>
 
 An independent managed value, or a polymorphic wrapper sharing this datum's lifetime.
+
+Registered datum readers require the exact current mapped type and a live owner, including for SQL NULL.
+Their user-supplied conversion must return independent managed data for a present value.
 
 <a id="member-2a2b71e7e909187c"></a>
 

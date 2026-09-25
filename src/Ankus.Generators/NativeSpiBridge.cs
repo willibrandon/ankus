@@ -54,7 +54,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_DATUM,
             ANKUS_SPI_FUNCTION_CONTEXT,
             ANKUS_SPI_FUNCTION_CALL,
-            ANKUS_SPI_CUSTOM_TYPE
+            ANKUS_SPI_CUSTOM_TYPE,
+            ANKUS_SPI_DATUM_TYPE
         };
 
         typedef struct AnkusRequest

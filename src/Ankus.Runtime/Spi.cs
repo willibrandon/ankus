@@ -178,7 +178,7 @@ public static class Spi
     /// <returns>The scalar result.</returns>
     public static T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>());
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
         return result.Get<T>(0, allowMissing: true);
     }
 
@@ -197,7 +197,7 @@ public static class Spi
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
-            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>());
+            SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>());
         return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
@@ -217,7 +217,7 @@ public static class Spi
         string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
-            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>());
+            SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>());
         return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 }

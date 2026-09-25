@@ -97,6 +97,36 @@ Alternatively, declare the shell block as the provider. Consumers needing the
 completed type must then explicitly require the completion block. Declaring a
 provider never means that Ankus can infer the contents of the SQL.
 
+### Providers for managed scalar mappings
+
+For a reusable `[PgDatumType]` mapping, identify the managed type explicitly:
+
+```csharp
+[assembly: PgSql("my-type", "CREATE DOMAIN positive AS integer CHECK(VALUE > 0);",
+    Relocatable = true)]
+[assembly: PgSqlTypeProvider("my-type", typeof(Positive))]
+```
+
+Here `Positive` declares `[PgDatumType("positive", typeof(PositiveConverter))]`.
+The managed overload uses that mapping's exact SQL name, schema, and ownership.
+Every registered extension-owned mapping needs one managed provider, even when
+its SQL name matches a built-in type. A name-only provider does not satisfy that
+managed identity. An external mapping needs no provider and cannot be claimed by
+the managed overload.
+
+One SQL block can provide several CLR wrappers for the same catalog type. The
+existing name overload can also identify that same block for raw consumers.
+Duplicate claims for one managed identity, duplicate name-only claims, or
+different blocks claiming the same catalog identity are errors. Generated
+`PgType`/`PgEnum` identities remain reserved, including when their SQL is replaced
+or disabled.
+
+Managed providers follow the same shell/completion, explicit reverse-path,
+schema, file-tracking, and hard-cycle rules above. Provider metadata never
+inspects SQL or constructs converters. See
+[reusable scalar mappings](../raw-values/#reusable-scalar-mappings) for reader,
+writer, lifetime, and supported-path contracts.
+
 ## Replace function SQL
 
 Set `PgFunction.Sql` to replace a function's installation declaration with a

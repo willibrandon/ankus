@@ -20,3 +20,4 @@ ANKUS015 | Ankus | Error | Invalid PostgreSQL configuration prefix
 ANKUS016 | Ankus | Error | Invalid raw PostgreSQL type or TABLE column binding
 ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
+ANKUS019 | Ankus | Error | Invalid reusable PostgreSQL datum mapping

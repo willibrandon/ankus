@@ -44,10 +44,14 @@ public sealed class PgDatum
     internal PgDatumLifetime Lifetime => _lifetime;
 
     /// <summary>
-    /// Reads a supported managed type with the ordinary SPI exact-type and NULL checks.
+    /// Reads a supported managed type with the ordinary SPI checks, or invokes its registered scalar datum reader.
     /// </summary>
     /// <typeparam name="T">The desired managed type.</typeparam>
     /// <returns>An independent managed value, or a polymorphic wrapper sharing this datum's lifetime.</returns>
+    /// <remarks>
+    /// Registered datum readers require the exact current mapped type and a live owner, including for SQL NULL.
+    /// Their user-supplied conversion must return independent managed data for a present value.
+    /// </remarks>
     public T Read<T>() => NativeBackend.ReadDatum<T>(this);
 
     /// <summary>

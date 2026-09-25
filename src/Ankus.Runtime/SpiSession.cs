@@ -105,7 +105,7 @@ public sealed class SpiSession
     public T ExecuteScalar<T>(string commandText, params ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
-        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>(), this);
+        using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>(), this);
         return result.Get<T>(0, allowMissing: true);
     }
 
@@ -125,7 +125,7 @@ public sealed class SpiSession
     {
         CheckAccess();
         using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Pair,
-            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>(), this);
+            SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>(), this);
         return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
@@ -146,7 +146,7 @@ public sealed class SpiSession
     {
         CheckAccess();
         using SpiScalarResult result = SpiScalarResult.Run(commandText, parameters, SpiResultMode.Triple,
-            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>(), this);
+            SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>(), this);
         return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 

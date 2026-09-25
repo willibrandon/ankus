@@ -81,6 +81,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `TimeSpan`, `PgInterval` | `interval` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with CBOR, packed native storage, or an explicit storage codec |
+| `[PgDatumType]` classes, structs, and enums | An existing SQL scalar representation with an explicit datum reader and/or writer |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
@@ -121,6 +122,12 @@ custom text and exact native bytes. Use `PgVarlena<T>` to borrow native-layout
 inputs with checked lifetimes, copy-on-write mutation, explicit cloning and datum
 transfer, or supply a `PgTypeCodec<T>` for both storage and text. See
 [custom types](docs/src/content/docs/custom-types.md).
+
+Use `[PgDatumType]` for a reusable scalar wrapper over manual native storage or an
+external SQL type. Its converter implements `IPgDatumReader<T>`,
+`IPgDatumWriter<T>`, or both; generated callbacks and raw `PgDatum.Read<T>()`
+select the declared CLR type. See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
+for provider ownership, supported paths, and lifetime requirements.
 
 Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,
 including nullable values, arrays, typed SPI queries and schema dependencies.
@@ -199,6 +206,8 @@ arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also
 accept `PgAnyElement` and `PgAnyArray` results for types determined at runtime. See
 [calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
+Read `[PgDatumType]` results with `CallRaw(...).Read<T>()`; ordinary typed result
+APIs do not yet support these mappings.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 
 Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.

@@ -194,6 +194,11 @@ internal static class SpiType
             return 1186;
         }
 
+        if (PgDatumRegistry.Find(type) is { } datum)
+        {
+            return datum.GetOid();
+        }
+
         CustomTypeMapping? custom = PgTypeRegistry.Find(type);
         if (custom is not null)
         {
@@ -234,9 +239,13 @@ internal static class SpiType
     /// <param name="value">The managed value.</param>
     /// <param name="customMapping">The declared custom-type mapping when the caller retains it.</param>
     /// <param name="customArrayMapping">The declared custom element mapping for covariant vectors.</param>
+    /// <param name="datumMapping">The declared raw converter when binding a mapped scalar parameter.</param>
+    /// <param name="datumTypeOid">The parameter's captured identity, checked against the current mapped type.</param>
     /// <returns>The native value, whose buffers must be released by the caller.</returns>
-    internal static NativeValue ToNative(object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null) => value switch
+    internal static NativeValue ToNative(object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null,
+        DatumTypeMapping? datumMapping = null, uint datumTypeOid = 0) => value switch
     {
+        _ when datumMapping is not null => datumMapping.Write(value, datumTypeOid),
         PgDatum datum => datum.ToNative(),
         PgInternal state => state.ToNative(),
         null => new NativeValue { IsNull = 1 },

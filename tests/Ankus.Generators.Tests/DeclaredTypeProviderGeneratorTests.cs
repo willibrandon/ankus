@@ -383,7 +383,7 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\\ud800\", \"item\")]", ProviderBlockError)]
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"missing\", \"item\")]", "Type provider 'missing' must name a PgSql or PgSqlFile block.")]
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"Types\", \"item\")]", "Type provider 'Types' must name a PgSql or PgSqlFile block.")]
-    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", null!)]", ProviderNameError)]
+    [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", (string)null!)]", ProviderNameError)]
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\")]", ProviderNameError)]
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"x\\0y\")]", ProviderNameError)]
     [DataRow("[assembly: Ankus.PgSqlTypeProvider(\"types\", \"\\ud800\")]", ProviderNameError)]

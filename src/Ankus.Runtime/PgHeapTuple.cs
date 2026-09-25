@@ -71,7 +71,11 @@ public sealed class PgHeapTuple
     /// <typeparam name="T">The requested managed type.</typeparam>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
     /// <returns>The converted cell.</returns>
-    public T Get<T>(int ordinal) => SpiRow.Convert<T>(this[ordinal]);
+    public T Get<T>(int ordinal)
+    {
+        PgDatumRegistry.RejectOrdinaryResult<T>();
+        return SpiRow.Convert<T>(this[ordinal]);
+    }
 
     /// <summary>
     /// Reads the first live attribute with the exact name using strict managed conversion.

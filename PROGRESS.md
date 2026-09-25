@@ -2531,11 +2531,11 @@ The target architecture consists of:
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal, raw and custom-codec signatures implemented; heterogeneous variadic ANY remains required; verification recorded below |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
-| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation and catalog-name providers for raw/composite bindings implemented; reusable managed-identity providers and standalone extraction remain required |
+| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation, catalog-name providers and owned managed scalar identity providers implemented; broader mapping forms and standalone extraction remain required |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-in typed conversions, declared enum/custom-codec mappings and explicit raw PgDatum bindings are implemented for their documented value families. Reusable manual CLR-to-SQL mappings and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable scalar PgDatumType readers/writers are implemented for documented paths. Mapped containers, ordinary row/composite conversions, typed generic results, broader metadata forms and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2610,7 +2610,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw PgDatum/PgSqlType and internal callback bindings implemented. Reusable managed-to-SQL mappings and the full platform/version matrix remain required. |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar callback slots implemented. Mapped containers, broader mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages and declared catalog-type providers implemented. Providers order existing raw/composite signatures and support explicitly ordered shell/I/O/completion sequences. Reusable managed-identity providers and standalone declared-entity extraction remain required. |
@@ -2767,7 +2767,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Explicit raw datum bindings in scalar, SETOF, TABLE and aggregate signatures
     - [x] Strongly typed custom codecs and generated base-type declarations
     - [x] Generated default custom-type serialization, tagged variants, custom text and packed native storage for documented shapes
-    - [ ] Remaining reusable managed datum mappings and additional serialization/native shapes
+    - [x] Reusable scalar datum readers/writers and owned managed-identity SQL providers for documented paths
+    - [ ] Mapped containers, ordinary result conversions, broader mapping metadata and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -4513,8 +4514,15 @@ The phases track implementation of the complete pgrx feature surface.
   Linux x64/PostgreSQL 18.6, including 86 new generator cases and 15 new native/
   package cases. The Release build passes with zero warnings/errors in 15.80s.
   API generation/freshness passes (143 pages, 1,418 members), as do `pnpm build`
-  (180 pages) and `pnpm check` (zero errors, warnings or hints). Hosted provider
-  validation is pending the milestone push.
+  (180 pages) and `pnpm check` (zero errors, warnings or hints). Commit `f185f15`
+  passes hosted CI run 36101031328: Linux x64/PostgreSQL 18.6 passes all 5,750
+  tests with zero skips (10m11s platform job); macOS ARM64/PostgreSQL 18.6 passes
+  5,748 with the two existing Linux-only allocation tests skipped (12m31s);
+  Windows x64/PostgreSQL 17.11 passes 5,748 with the same two skips (16m53s).
+  Quality and all runtime preparation jobs pass; runtime cache hits do not
+  establish a cold-runtime build baseline. Documentation run 36101031362 passes,
+  including deployment. All platform jobs remain within the hard twenty-minute
+  timeout, though macOS and Windows exceed the preferred ten-minute target.
 
   This catalog-name feature is a bounded step toward pgrx's declared providers.
   The pinned reference matches reusable `SqlTranslatable.TYPE_IDENT` identities
@@ -4522,3 +4530,85 @@ The phases track implementation of the complete pgrx feature surface.
   Reusable managed mappings, ownership-aware identity providers, manual mapped
   derived operators, standalone schema extraction and the complete
   PostgreSQL/platform matrix remain full-port requirements.
+
+- 2026-09-24 — Implemented reusable scalar datum mapping contracts with
+  `PgDatumType`, independent `IPgDatumReader<T>`/`IPgDatumWriter<T>` directions,
+  and explicit `PgTypeOrigin`. Requested CLR identity selects conversion even
+  when several wrappers share a catalog OID. The generator registers closed
+  converters lazily, including local raw/SPI-only roots and referenced roots
+  used by signatures or managed providers. Matching registrations from a
+  generated library and consumer share one instance; conflicting converter
+  identity, name, schema, origin or directions fail without constructing user
+  code. No runtime code generation or unbounded reflection is introduced.
+
+  `PgSqlTypeProvider(sqlId, typeof(T))` supplies extension-owned managed identity
+  independently of SQL spelling. Owned mappings require that provider even for
+  built-in names; external mappings require an explicit schema and acquire no
+  provider dependency. Multiple wrappers and a raw name alias can share one
+  block. Conflicting providers, generated identity collisions and unsupported
+  mappings fail without partial artifacts. Schema, shell/completion, hard-cycle,
+  relocation and tracked-file rules remain active. `ANKUS019` diagnoses invalid
+  mapped declarations, directions, containers and signature overrides.
+
+  Supported paths are scalar/nullable generated arguments and results,
+  SETOF/TABLE outputs, aggregate helpers, manual operators/casts,
+  `PgDatum.Read<T>`, typed SPI parameters and function arguments/defaults.
+  Readers must detach managed values; writers receive the current exact OID and
+  destination context. SQL NULL skips user conversion, while present managed
+  values may deliberately produce a live typed SQL NULL. Exact OIDs, owner
+  generations and PostgreSQL domain checks still apply. Saved typed parameters
+  reject replacement OIDs after DDL before invoking their writer.
+
+  Independent review identified and closed three production gaps: duplicate
+  registration across generated assemblies, canonical fallback for excluded
+  raw mapped arrays (including NULL and CLR enum/underlying-array equivalence),
+  and named/OID function calls bypassing domain validation for NULL arguments.
+  Actual NULL arguments now pass through guarded conversion; default-argument
+  placeholders remain unevaluated until PostgreSQL expands their expressions.
+  Ordinary typed result APIs reject mapped scalar and array targets before SQL
+  execution; typed arrays are not enabled by these rejection guards.
+
+  The focused runtime scope passes 26 tests with zero failures/skips in 929ms;
+  the focused generator scope passes 185 in 3.147s, including 99 new cases and
+  86 provider regressions. Earlier attempts stopped on enforced analyzer rules
+  (concrete helper return type, collection assertions, cancellation propagation
+  and diagnostic release tracking), or the existing null-name fixture's newly
+  ambiguous overload. The fixture now explicitly selects the name overload,
+  and a separate null-managed-type case checks the new overload.
+
+  Its initial native fixture publication stopped on
+  an unnecessary using directive before any test body executed. After removing
+  it, 67 of 69 focused backend/package/function-call cases passed. Two catalog
+  assertion queries needed correction: explicitly cast `pg_type.typstorage` to
+  text, and inspect shell metadata by namespace/name instead of a `regtype`
+  conversion that rejects shell types. The corrected complete focused scope
+  passes all 69 cases with zero failures/skips in 1m19.265s on Linux x64/
+  PostgreSQL 18.6, including existing function-call regressions. Independent
+  static production/assertion review is Strong; no empirical mutation or
+  coverage claim is made.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | Closed lazy registration and generated assembly composition | `RegistrationDefersUserCodeAndCatalogAccess`, `ReadWriteAdaptersShareFactoryAndResolveEveryOperation`, `DatumMappingRegistrationRemainsLazyForSpiOnlyRoots`, `DatumMappingsInitializeGeneratedDependenciesAndConsumersTogether`: zero construction/backend access at module initialization, shared instance and conflicting metadata rejection |
+  | Exact CLR identity, directions and every selected generated position | `DeclaredManagedIdentitySelectsConverterInsteadOfRuntimeTypeOrOid`, `DatumMappingsSelectExactInterfacesFromSharedConverters`, `DatumMappingsPreserveEveryScalarSetAndTableContract`, `DatumMappingsCompileAggregateRolesOperatorsAndCasts`, `MappedDirectionsAndDeclaredParametersUseTheirOwnConverters`: independent converters for one SQL type, declared base-class parameters, CLR enums and type-only defaults |
+  | Owned provider identity, exact names and graph constraints | `DatumMappingProvidersRejectInvalidOwnership`, `DatumMappingProvidersShareOneCatalogDeclaration`, `DatumMappingProvidersPreserveGeneratedReservations`, `DatumMappingProvidersPreserveExplicitShellOrdering`, `DatumMappingProvidersVisitIndependentTableAndAggregateResults`, `DatumMappingIdentifiersUseExactUtf8Boundaries`, `DatumMappingFilesAndMetadataInvalidateIncrementalOutput` |
+  | Datum bits, SQL NULL, domain identity and native owners | `MappedRegistrationAndNullsDoNotInvokeConverters`, `MappedByValueTypesKeepBitsAndManagedIdentity`, `MappedFixedStoragePreservesEveryComponentAndOwner`, `MappedDomainsRejectSiblingAndBaseIdentity`, `MappedWritersValidatePresentAndNullResults`: zero/extrema, independent alias conversion, exact double words, sibling/base domain rejection and stale present/NULL handles |
+  | Detached values, deferred sets and aggregate state | `MappedReferenceValuesOutliveToastedSources`, `MappedSetsAndTablesKeepValuesAndCleanup`, `MappedAggregateStateRetainsDetachedValues`, `MappedConverterErrorsRecoverInTheSameSession`: deleted storage sources, complete large values, normal/early/error cleanup, empty/all-NULL groups and exact diagnostics with same-backend recovery |
+  | Typed NULL still receives all native checks | `MappedSetWritersPreserveAndValidateTypedNull`, `MappedAggregateWriterValidatesTypedNullResults`, `MappedWriterNullsCannotBypassDomainConstraints`, `MappedFunctionArgumentsValidateNullDomainsBeforeStrictTargets`: scalar/stream/materialized/TABLE/final paths, wrong/stale NULL envelopes, exact 23502 and valid named/OID default requests |
+  | Unsupported conversion cannot execute SQL or reinterpret arrays | `OrdinaryMappedResultsFailBeforeBackendExecution`, `UnsupportedMappedResultsFailBeforeSqlSideEffects`, `UnsupportedMappedArrayReadsNeverBypassConverters`: nontransactional sequence state, direct NULL/present enum-array rejection, preserved ordinary integer arrays; generator diagnostics cover unavailable directions and containers |
+  | Catalog changes and extension lifecycle | `MappedConcreteResolverRejectsPseudotypes`, `MappedExternalIdentityTracksDdlWithoutRebindingOldParameters`, `DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity`: missing/shell/pseudo denial, retained-parameter rejection, one package publication, eight owned identities stable on relocation/fresh on reinstall and five unrelated shadow identities preserved |
+
+  Final local verification on Linux x64/PostgreSQL 18.6: plain `dotnet test`
+  passes all 5,906 tests, with zero failures/skips, in 4m25.007s. The Release
+  build passes in 12.92s and the full non-incremental Release build in 16.21s,
+  both with zero warnings/errors. API generation and freshness pass with
+  147 pages/1,429 members; `pnpm check` reports zero errors, warnings or hints,
+  and `pnpm build` produces 184 pages. Native fixture publication and these
+  Release/documentation builds ran sequentially. Hosted platform evidence for
+  this milestone remains pending.
+
+  Typed mapped arrays, ordinary SPI-row/composite-field conversions, typed
+  generic result APIs, automatic derived operator families, generic wrapper
+  declarations, asymmetric SQL spellings, standalone extraction and the full
+  PostgreSQL-major/platform matrix remain required. This scalar foundation is
+  not complete `FromDatum`/`IntoDatum` parity.

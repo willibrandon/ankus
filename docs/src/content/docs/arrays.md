@@ -7,6 +7,10 @@ Use `T[]` for one-dimensional arrays with the usual PostgreSQL lower bound of on
 Use `PgArray<T>` when dimensions or lower bounds matter. Both support the scalar
 types listed in [Write a function](/getting-started/functions/#types).
 
+Reusable scalar mappings declared with `[PgDatumType]` do not yet support typed
+arrays. Read individual raw elements with
+[`PgDatum.Read<T>()`](/raw-values/#reusable-scalar-mappings).
+
 [Composite arrays](/composites/#arrays-sets-and-spi) use `PgHeapTuple?[]` or
 `PgArray<PgHeapTuple?>`. `PgCompositeType` binds named function signatures;
 `PgTupleDescriptor.CreateArray` retains an explicit element identity even for

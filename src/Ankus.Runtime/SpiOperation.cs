@@ -163,4 +163,9 @@ internal enum SpiOperation : byte
     /// Resolves the current identity of a generated variable-length base type.
     /// </summary>
     CustomType,
+
+    /// <summary>
+    /// Resolves the current identity of a concrete manually mapped PostgreSQL type.
+    /// </summary>
+    DatumType,
 }

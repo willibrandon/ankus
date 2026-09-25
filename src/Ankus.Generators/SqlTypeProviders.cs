@@ -10,6 +10,7 @@ namespace Ankus.Generators;
 internal sealed class SqlTypeProviders(SqlGraph graph)
 {
     private readonly Dictionary<(string? Schema, string Name), (SqlEntity Entity, bool Custom)> _providers = [];
+    private readonly Dictionary<INamedTypeSymbol, SqlEntity> _managed = new(SymbolEqualityComparer.Default);
 
     /// <summary>
     /// Reserves a generated type identity, including declarations whose SQL is disabled or replaced.
@@ -31,11 +32,13 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <param name="attributes">The tracked assembly SQL and provider attributes.</param>
     /// <param name="blocks">Valid inline and file SQL blocks.</param>
     /// <param name="schemas">Declared schema nodes.</param>
+    /// <param name="mappings">Validated closed mappings requiring managed provider identities.</param>
     /// <returns>Whether all provider names are independent of a fixed schema.</returns>
     internal bool Add(ImmutableArray<AttributeData> attributes, IReadOnlyDictionary<string, SqlEntity> blocks,
-        IReadOnlyDictionary<string, SqlEntity> schemas)
+        IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeDeclaration> mappings)
     {
         bool relocatable = true;
+        var namedClaims = new HashSet<(string? Schema, string Name)>();
         foreach (AttributeData attribute in attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() ==
             "Ankus.PgSqlTypeProviderAttribute"))
         {
@@ -43,10 +46,38 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             string? sqlId = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[0].Value as string : null;
             string? name = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[1].Value as string : null;
             string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
+            bool managed = attribute.AttributeConstructor is { Parameters.Length: 2 } constructor &&
+                constructor.Parameters[1].Type.ToDisplayString() == "System.Type";
+            DatumTypeDeclaration? mapping = null;
             if (string.IsNullOrWhiteSpace(sqlId) || !SqlText.IsText(sqlId!))
             {
                 graph.Error(location, "A type provider requires a nonempty SQL block identifier with valid Unicode and no zero characters.");
                 continue;
+            }
+
+            if (managed)
+            {
+                mapping = mappings.FirstOrDefault(item => SymbolEqualityComparer.Default.Equals(item.Type, attribute.ConstructorArguments[1].Value as ITypeSymbol));
+                if (mapping is null)
+                {
+                    graph.Error(location, "A managed type provider must name a registered PgDatumType mapping.");
+                    continue;
+                }
+
+                if (mapping.External)
+                {
+                    graph.Error(location, "External datum mappings cannot have an extension type provider.");
+                    continue;
+                }
+
+                if (attribute.NamedArguments.Any(static item => item.Key == "Schema"))
+                {
+                    graph.Error(location, "A managed type provider obtains its schema from PgDatumType and cannot specify Schema.");
+                    continue;
+                }
+
+                name = mapping.Name;
+                schema = mapping.Schema;
             }
 
             if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
@@ -61,14 +92,27 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 continue;
             }
 
-            if (_providers.ContainsKey((schema, name!)))
+            if (mapping is not null && _managed.ContainsKey(mapping.Type))
+            {
+                graph.Error(location, "Managed datum type '" + mapping.Managed + "' has more than one provider.");
+                continue;
+            }
+
+            if ((!managed && !namedClaims.Add((schema, name!))) ||
+                _providers.TryGetValue((schema, name!), out (SqlEntity Entity, bool Custom) existing) &&
+                (!existing.Custom || existing.Entity != block))
             {
                 string identity = new SqlTypeReference(name!, schema).Sql;
                 graph.Error(location, $"PostgreSQL type {identity} has more than one provider, including generated type or enum declarations.");
                 continue;
             }
 
-            _providers.Add((schema, name!), (block, true));
+            _providers[(schema, name!)] = (block, true);
+            if (mapping is not null)
+            {
+                _managed.Add(mapping.Type, block);
+            }
+
             if (schema is not null)
             {
                 relocatable = false;
@@ -76,6 +120,14 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 {
                     block.Dependencies.Add(dependency);
                 }
+            }
+        }
+
+        foreach (DatumTypeDeclaration mapping in mappings)
+        {
+            if (!mapping.External && !_managed.ContainsKey(mapping.Type))
+            {
+                graph.Error(mapping.Type.Locations.FirstOrDefault(), "Managed datum type '" + mapping.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
             }
         }
 
@@ -89,6 +141,17 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <param name="contract">The scalar, array or output-column contract.</param>
     internal void Require(SqlEntity consumer, FunctionType? contract)
     {
+        DatumTypeDeclaration? mapping = (contract?.Element ?? contract)?.DatumType;
+        if (mapping is not null)
+        {
+            if (!mapping.External && _managed.TryGetValue(mapping.Type, out SqlEntity? managed))
+            {
+                consumer.TypeDependencies.Add(managed);
+            }
+
+            return;
+        }
+
         SqlTypeReference? binding = (contract?.Element ?? contract)?.Binding;
         if (binding is not null && _providers.TryGetValue((binding.Schema, binding.Name), out (SqlEntity Entity, bool Custom) provider))
         {

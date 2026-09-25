@@ -13,6 +13,7 @@ internal static class ManagedConversion
         string numeric = slot + ".ReadNumeric()" + numericSuffix;
         string value = type.Managed switch
         {
+            _ when type.DatumType is not null => slot + ".ReadMapped<" + type.Managed + ">()",
             _ when type.IsVarlena => slot + (borrowVarlena ? ".ReadVarlena<" : ".ReadOwnedVarlena<") + type.CustomType!.Managed + ">()",
             _ when type.CustomType is not null => slot + ".ReadCustom<" + type.Managed + ">()",
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
@@ -58,6 +59,7 @@ internal static class ManagedConversion
             + numericSuffix;
         return result.Managed switch
         {
+            _ when result.DatumType is not null => $"*{target} = global::Ankus.NativeValue.FromMapped<{result.Managed}>({value});",
             _ when result.CustomType is not null => $"*{target} = global::Ankus.NativeValue.FromCustom({value});",
             _ when result.IsRaw => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value});",
             _ when result.IsInternal => $"*{target} = global::Ankus.NativeValue.FromInternal({value});",

@@ -37,6 +37,12 @@ public static unsafe partial class NativeBackend
     /// <returns>The managed copy or checked polymorphic wrapper.</returns>
     internal static T ReadDatum<T>(PgDatum value)
     {
+        if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
+        {
+            return SpiRow.Convert<T>(mapping.Read(value));
+        }
+
+        PgDatumRegistry.RejectOrdinaryResult<T>();
         if (typeof(T) == typeof(PgInternal))
         {
             value.Lifetime.Validate();

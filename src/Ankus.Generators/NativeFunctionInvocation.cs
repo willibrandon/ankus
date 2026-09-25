@@ -192,8 +192,9 @@ internal static class NativeFunctionInvocation
                 int16 length;
                 bool by_value;
                 get_typlenbyval(parameter->type_oid, &length, &by_value);
-                bool is_null = request->argument_defaults[index] || parameter->value.is_null;
-                Datum value = is_null ? (Datum) 0 : ankus_parameter_datum(parameter);
+                bool is_default = request->argument_defaults[index];
+                bool is_null = is_default || parameter->value.is_null;
+                Datum value = is_default ? (Datum) 0 : ankus_parameter_datum(parameter);
                 arguments = lappend(arguments, makeConst(parameter->type_oid, -1, get_typcollation(parameter->type_oid),
                     length, value, is_null, by_value));
             }

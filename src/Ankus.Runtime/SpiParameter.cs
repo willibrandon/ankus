@@ -5,12 +5,14 @@ namespace Ankus;
 /// </summary>
 public readonly struct SpiParameter
 {
-    private SpiParameter(uint typeOid, object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null)
+    private SpiParameter(uint typeOid, object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null,
+        DatumTypeMapping? datumMapping = null)
     {
         TypeOid = typeOid;
         Value = value;
         CustomMapping = customMapping;
         CustomArrayMapping = customArrayMapping;
+        DatumMapping = datumMapping;
     }
 
     /// <summary>
@@ -35,6 +37,11 @@ public readonly struct SpiParameter
     internal CustomTypeMapping? CustomArrayMapping { get; }
 
     /// <summary>
+    /// Gets the declared raw converter independently of a value's runtime type and current catalog OID.
+    /// </summary>
+    internal DatumTypeMapping? DatumMapping { get; }
+
+    /// <summary>
     /// Creates a type-only NULL envelope for a function's default argument lookup.
     /// </summary>
     /// <param name="typeOid">The validated type identity.</param>
@@ -49,7 +56,14 @@ public readonly struct SpiParameter
     /// <param name="value">The parameter value.</param>
     /// <returns>A typed parameter.</returns>
     public static SpiParameter Create<T>(T value)
-        => value switch
+    {
+        if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
+        {
+            mapping.RequireWrite();
+            return new SpiParameter(mapping.GetOid(), value, datumMapping: mapping);
+        }
+
+        return value switch
         {
             PgDatum datum => Create(datum),
             PgAnyElement element => Create(element.Datum),
@@ -57,6 +71,7 @@ public readonly struct SpiParameter
             PgInternal state => new(2281, state),
             _ => new(SpiType.GetOid(value), value, PgTypeRegistry.Find(typeof(T)), PgTypeRegistry.FindArray(typeof(T))),
         };
+    }
 
     /// <summary>
     /// Binds a raw datum with its exact declared PostgreSQL type and SQL NULL flag.

@@ -84,6 +84,11 @@ internal sealed class FunctionType
     internal CustomTypeDeclaration? CustomType { get; private set; }
 
     /// <summary>
+    /// Gets the reusable raw datum conversion contract for this managed scalar.
+    /// </summary>
+    internal DatumTypeDeclaration? DatumType { get; private set; }
+
+    /// <summary>
     /// Gets the optional named binding for a composite or raw scalar.
     /// </summary>
     internal SqlTypeReference? Binding { get; private set; }
@@ -111,7 +116,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
     /// </summary>
-    internal bool UsesRawTransport => IsRaw || IsPolymorphic;
+    internal bool UsesRawTransport => IsRaw || IsPolymorphic || DatumType is not null;
 
     /// <summary>
     /// Gets whether the SQL declaration uses a polymorphic type, including an explicit raw binding.
@@ -239,6 +244,14 @@ internal sealed class FunctionType
             return new("global::Ankus.PgVarlena<" + layout.Managed + ">", layout.Sql, "varlena", "custom", string.Empty, nullable, reference: true)
             {
                 CustomType = layout,
+            };
+        }
+
+        if (type is INamedTypeSymbol mapped && DatumTypeDeclaration.Create(mapped) is { } datum)
+        {
+            return new(datum.Managed, datum.Sql, "mapped", "mapped", string.Empty, nullable, type.IsReferenceType)
+            {
+                DatumType = datum,
             };
         }
 

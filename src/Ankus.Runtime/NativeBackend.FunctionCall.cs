@@ -14,7 +14,9 @@ public static unsafe partial class NativeBackend
     /// <param name="arguments">Checked raw values.</param>
     /// <returns>The independent result.</returns>
     internal static T CallNativeFunction<T>(nint function, uint collation, ReadOnlySpan<PgDatum> arguments)
-        => RunNativeFunction(function, SpiType.GetOid<T>(), null, collation, arguments, static result =>
+    {
+        PgDatumRegistry.RejectOrdinaryResult<T>();
+        return RunNativeFunction(function, SpiType.GetOid<T>(), null, collation, arguments, static result =>
         {
             uint type = checked((uint)result._rowsAffected);
             object? value = result._text.IsEnum && result._text.IsNull == 0
@@ -22,6 +24,7 @@ public static unsafe partial class NativeBackend
                 : SpiType.FromNative(result._text, type);
             return SpiRow.Convert<T>(value);
         });
+    }
 
     /// <summary>
     /// Calls a native entry point with a separately owned raw result.
@@ -97,6 +100,7 @@ public static unsafe partial class NativeBackend
     /// <returns>The managed copy or callback-owned polymorphic result.</returns>
     internal static T CallFunction<T>(string? name, uint oid, PgFunctionCallOptions? options, ReadOnlySpan<PgFunctionArgument> arguments)
     {
+        PgDatumRegistry.RejectOrdinaryResult<T>();
         if (PgPolymorphic.Is<T>())
         {
             var lifetime = new PgDatumLifetime(PgMemoryContext.Callback);

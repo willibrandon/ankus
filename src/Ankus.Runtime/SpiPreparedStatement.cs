@@ -160,7 +160,7 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <returns>The scalar value.</returns>
     public T ExecuteScalar<T>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Scalar, PgPolymorphic.Is<T>());
+        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Scalar, SpiScalarResult.RequiresRaw<T>());
         return result.Get<T>(0, allowMissing: true);
     }
 
@@ -176,7 +176,7 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <exception cref="InvalidCastException">A column cannot be read as its requested managed type.</exception>
     public (TFirst First, TSecond Second) ExecuteScalars<TFirst, TSecond>(params ReadOnlySpan<SpiParameter> parameters)
     {
-        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Pair, PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>());
+        using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Pair, SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>());
         return (result.Get<TFirst>(0), result.Get<TSecond>(1));
     }
 
@@ -195,7 +195,7 @@ public sealed class SpiPreparedStatement : IDisposable
         params ReadOnlySpan<SpiParameter> parameters)
     {
         using SpiScalarResult result = RunScalars(parameters, SpiResultMode.Triple,
-            PgPolymorphic.Is<TFirst>() || PgPolymorphic.Is<TSecond>() || PgPolymorphic.Is<TThird>());
+            SpiScalarResult.RequiresRaw<TFirst>() | SpiScalarResult.RequiresRaw<TSecond>() | SpiScalarResult.RequiresRaw<TThird>());
         return (result.Get<TFirst>(0), result.Get<TSecond>(1), result.Get<TThird>(2));
     }
 

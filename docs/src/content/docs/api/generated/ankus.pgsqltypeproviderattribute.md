@@ -9,14 +9,15 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Declares the SQL block that supplies a catalog type used by raw or composite function bindings.
+Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar identity.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
 public sealed class PgSqlTypeProviderAttribute : Attribute
 ```
 
-Adds installation dependencies without parsing SQL or registering managed value conversions.
+Adds installation dependencies without parsing SQL or executing converters.
+A managed-type provider selects its referenced datum mapping for static registration.
 The block may declare a shell type when its completion is ordered separately.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
@@ -27,7 +28,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgSqlTypeProviderAttribute(string, string)
 
-Declares the SQL block that supplies a catalog type used by raw or composite function bindings.
+Declares the SQL block that supplies a catalog type for raw or composite bindings, or an owned mapped scalar identity.
 
 ```csharp
 public PgSqlTypeProviderAttribute(string sqlId, string name)
@@ -43,20 +44,53 @@ The dependency identifier of a PgSql or PgSqlFile block.
 
 The exact, unquoted catalog type name, without a schema prefix.
 
-Adds installation dependencies without parsing SQL or registering managed value conversions.
+Adds installation dependencies without parsing SQL or executing converters.
+A managed-type provider selects its referenced datum mapping for static registration.
 The block may declare a shell type when its completion is ordered separately.
+
+<a id="member-633592a40ba36b4a"></a>
+
+### PgSqlTypeProviderAttribute(string, Type)
+
+Declares the SQL provider for one extension-owned managed datum mapping.
+
+```csharp
+public PgSqlTypeProviderAttribute(string sqlId, Type managedType)
+```
+
+Parameters:
+
+`sqlId` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The dependency identifier of a PgSql or PgSqlFile block.
+
+`managedType` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
+
+The closed managed type carrying PgDatumType.
 
 
 ## Properties
+
+<a id="member-3a5f2649ea0d687d"></a>
+
+### ManagedType
+
+Gets the exact managed mapping identity, or null for a catalog-name provider.
+
+```csharp
+public Type? ManagedType { get; }
+```
+
+Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
 <a id="member-5fe39aa080475dfe"></a>
 
 ### Name
 
-Gets the exact catalog name of the supplied type, or array element type.
+Gets the exact catalog name of the supplied type or array element, or null for a managed-type provider.
 
 ```csharp
-public string Name { get; }
+public string? Name { get; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
@@ -65,8 +99,9 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 ### Schema
 
-Gets or sets the fixed type schema. Null matches only bindings that omit their schema.
-A fixed schema prevents extension schema relocation.
+Gets or sets the fixed schema for the catalog-name overload. Null matches only bindings that omit their schema.
+A managed-type provider uses its mapping's schema and rejects an explicitly assigned Schema.
+A fixed owned schema prevents extension schema relocation.
 
 ```csharp
 public string? Schema { get; set; }

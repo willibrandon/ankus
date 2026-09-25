@@ -97,7 +97,11 @@ public sealed class SpiRow
     /// <typeparam name="T">The expected managed type.</typeparam>
     /// <param name="ordinal">The zero-based column ordinal.</param>
     /// <returns>The cell value.</returns>
-    public T Get<T>(int ordinal) => Convert<T>(_values[ordinal]);
+    public T Get<T>(int ordinal)
+    {
+        PgDatumRegistry.RejectOrdinaryResult<T>();
+        return Convert<T>(_values[ordinal]);
+    }
 
     /// <summary>
     /// Gets a typed cell by an exact, case-sensitive column name. Duplicate names resolve to the first column.

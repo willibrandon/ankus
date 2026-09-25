@@ -23,6 +23,10 @@ Microsoft's `System.Formats.Cbor` and `System.Text.Json` provide token readers a
 writers. Generated code calls constructors and accesses members directly. No
 reflection-based serializer or separate JSON context is needed.
 
+For a manually declared SQL type or an existing external type, use
+[`PgDatumType` with reader and writer converters](/raw-values/#reusable-scalar-mappings)
+to control scalar storage conversion independently of type DDL and serialization.
+
 ## Generated contracts
 
 The default serializer supports:

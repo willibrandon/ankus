@@ -89,3 +89,128 @@ functions needed to define the type. Additional consumers do not need to repeat
 `DangerousCreate` requires a representation that matches the SQL type. For a
 pointer-based value, its native storage must remain valid for the chosen owner.
 Creating a handle does not copy that storage or take ownership of it.
+
+## Reusable scalar mappings
+
+Use `[PgDatumType]` when several functions should share a managed representation
+and converter. For the `u24` SQL type above:
+
+```csharp
+[assembly: PgSqlTypeProvider("u24-type", typeof(Unsigned24))]
+
+[PgDatumType("u24", typeof(Unsigned24Converter))]
+public readonly record struct Unsigned24(uint Value);
+
+public sealed class Unsigned24Converter :
+    IPgDatumReader<Unsigned24>, IPgDatumWriter<Unsigned24>
+{
+    public Unsigned24 Read(PgDatum value)
+        => new(checked((uint)value.DangerousGetBits()));
+
+    public PgDatum Write(Unsigned24 value, uint typeOid, PgMemoryContext destination)
+    {
+        if (value.Value > 0xFFFFFF)
+        {
+            throw new PgException("22003", "Value exceeds 24 bits.");
+        }
+
+        return PgDatum.DangerousCreate(value.Value, typeOid, destination);
+    }
+}
+
+public static class MappedFunctions
+{
+    [PgFunction]
+    public static Unsigned24? EchoMapped(Unsigned24? value) => value;
+}
+```
+
+The mapping supplies conversion and SQL signature metadata. The existing SQL
+block and input/output functions still define the type. A converter can read or
+write by-value, fixed-size by-reference, or variable-length storage; it must
+follow that SQL type's actual representation. It has an accessible parameterless
+constructor and implements either interface or both for the exact managed type.
+Ankus creates one converter lazily when a present value needs it. Registration
+does not construct user code or access PostgreSQL catalogs.
+
+`IPgDatumReader<T>` converts SQL inputs into detached managed values. Copy native
+data before returning; storing the input `PgDatum` in a field does not extend its
+lifetime. `IPgDatumWriter<T>` receives the current target OID and an operation's
+destination context. Allocate or copy pointer-based results into that context,
+and keep their storage live until PostgreSQL consumes the returned datum. Do not
+cache the OID or context in the converter. Ankus validates exact OIDs and native
+owners before reading or writing, including typed NULL handles.
+
+Nullable CLR absence bypasses the converter. A present zero remains present.
+A reader must return a non-null managed value for a present SQL input. A writer
+may deliberately return SQL NULL using a live `PgDatum` with `isNull: true` and
+the supplied OID; returning a null handle is an error. PostgreSQL still checks
+domain constraints when consuming the result. Converter exceptions unwind
+through the managed boundary before PostgreSQL raises ERROR.
+
+### Ownership and external types
+
+The default `Origin = PgTypeOrigin.ThisExtension` requires one
+`PgSqlTypeProvider` declaration for the exact managed type. An unqualified owned
+mapping resolves through the invoking function's owning extension schema,
+including after extension relocation. Set `Schema` for a fixed schema; owned
+fixed schemas prevent relocation. Type and schema names are exact, unquoted
+catalog identifiers, with a maximum of 63 UTF-8 bytes.
+
+For an existing SQL type, set `Origin = PgTypeOrigin.External` and an explicit
+schema:
+
+```csharp
+[PgDatumType("int4", typeof(CountReader),
+    Origin = PgTypeOrigin.External, Schema = "pg_catalog")]
+public readonly record struct Count(int Value);
+
+public sealed class CountReader : IPgDatumReader<Count>
+{
+    public Count Read(PgDatum value) => new(value.Read<int>());
+}
+```
+
+This read-only mapping can appear in function inputs or `PgDatum.Read<Count>()`.
+A managed result or typed parameter needs a writer. `PgFunctionArgument.Default<Count>()`
+only supplies a type for PostgreSQL's default expression and needs no writer.
+`SpiParameter.Create<Count?>(null)` still requires a writer even though SQL NULL
+skips its invocation.
+
+External mappings have no provider dependency and their fixed schemas do not
+prevent extension relocation. Multiple CLR wrappers can share one SQL type;
+the requested CLR type selects the converter. Domains keep their own identity:
+a sibling domain or its base type cannot be read through a domain mapping.
+Catalog lookups use current OIDs. A retained typed parameter cannot silently
+switch to a replacement type after its original type is dropped.
+
+### Supported conversion paths
+
+Mapped scalars work in ordinary function arguments/results, nullable values,
+SETOF/TABLE outputs, aggregate support methods, and manual operator/cast functions.
+They also work in `SpiParameter.Create<T>`, `PgFunctionArgument.Create<T>` and
+direct raw reads:
+
+```csharp
+Unsigned24 value;
+using (SpiRawResult result = Spi.QueryRaw("SELECT '42'::u24"))
+{
+    value = result[0][0].Read<Unsigned24>();
+}
+// value is detached and remains usable after result disposal.
+```
+
+Use raw result owners and `Read<T>()` for mapped query results. Ordinary typed
+`PgFunctions.Call<T>` and SPI scalar-result APIs currently reject mapped results
+before executing SQL. `SpiRow.Get<T>` and `PgHeapTuple.Get<T>` do not convert
+canonical cells through these converters. Mapped arrays, generic wrapper
+declarations, automatic equality/order/hash families, and different argument and
+result SQL spellings remain unsupported. The generator rejects unsupported
+mapped signatures with `ANKUS019`.
+
+Local annotated types are registered even when only used by raw APIs. An
+annotated type from a referenced assembly must occur in a supported generated
+signature or an owned managed-type provider declaration to become a registration
+root. Ambiguous externally aliased names are rejected. A type cannot combine
+`PgDatumType` with `PgType` or `PgEnum`, and mapped slots do not use per-parameter
+`PgSqlType` or `PgCompositeType` overrides.

@@ -8,6 +8,15 @@ namespace Ankus;
 internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) : IDisposable
 {
     /// <summary>
+    /// Validates a supported ordinary result type before SQL execution and selects raw polymorphic transport.
+    /// </summary>
+    internal static bool RequiresRaw<T>()
+    {
+        PgDatumRegistry.RejectOrdinaryResult<T>();
+        return PgPolymorphic.Is<T>();
+    }
+
+    /// <summary>
     /// Executes SQL using the result representation required by the requested scalar types.
     /// </summary>
     /// <param name="command">The SQL commands.</param>

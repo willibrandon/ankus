@@ -86,14 +86,23 @@ internal static class NativeEnumBridge
 
             type = GetSysCacheOid2(TYPENAMENSP, Anum_pg_type_oid,
                 CStringGetDatum(type_name), ObjectIdGetDatum(namespace_oid));
-            if (!OidIsValid(type) || get_typtype(type) != kind ||
-                (kind == TYPTYPE_BASE && get_typlen(type) != -1))
+            HeapTuple type_tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type));
+            bool valid = HeapTupleIsValid(type_tuple);
+            if (valid)
+            {
+                Form_pg_type entry = (Form_pg_type) GETSTRUCT(type_tuple);
+                valid = kind == '\0' ? entry->typisdefined && entry->typtype != TYPTYPE_PSEUDO :
+                    entry->typtype == kind && (kind != TYPTYPE_BASE || entry->typlen == -1);
+                ReleaseSysCache(type_tuple);
+            }
+
+            if (!valid)
             {
                 if (missing_ok)
                     return InvalidOid;
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT),
                     errmsg("PostgreSQL %s type \"%s\" does not exist in the declared schema",
-                        kind == TYPTYPE_ENUM ? "enum" : "variable-length base", type_name)));
+                        kind == TYPTYPE_ENUM ? "enum" : kind == TYPTYPE_BASE ? "variable-length base" : "concrete defined", type_name)));
             }
 
             return type;
