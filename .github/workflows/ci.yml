@@ -118,7 +118,7 @@ jobs:
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
-            timeout: 25
+            timeout: 30
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.timeout }}
     steps:

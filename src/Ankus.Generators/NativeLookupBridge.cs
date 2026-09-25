@@ -15,6 +15,12 @@ internal static class NativeLookupBridge
         static void
         ankus_lookup_operation(AnkusRequest *request, AnkusResult *result)
         {
+            if (request->scalar_operation == 2 && request->parameter_count == 0)
+            {
+                result->text.integral = PG_VERSION_NUM / 10000;
+                return;
+            }
+
             if (request->scalar_operation == 0 && request->parameter_count == 1)
             {
                 result->text.integral = DatumGetObjectId(DirectFunctionCall1(regtypein,

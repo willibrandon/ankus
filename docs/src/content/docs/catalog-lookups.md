@@ -1,12 +1,74 @@
 ---
-title: Catalog name lookups
-description: Resolve PostgreSQL type syntax and exact operator names through the native catalog rules.
+title: Catalog lookups and OIDs
+description: Use versioned OID constants and resolve PostgreSQL type syntax and exact operator names.
 ---
 
 `PgTypes` and `PgQualifiedNameBuilder` resolve current catalog identities inside
 an extension callback. PostgreSQL performs the lookup, including search-path
 selection, schema permissions and native error reporting. Results are copied
 unsigned OIDs; lookups do not retain catalog pins or cache identities across DDL.
+
+## OID values and built-in constants
+
+PostgreSQL `oid` values use `uint` in Ankus. All 32 bits, including zero, remain
+distinct from SQL NULL. OIDs identify objects within a particular catalog;
+the same number can identify different objects in different catalogs. See
+[PostgreSQL's object identifier documentation](https://www.postgresql.org/docs/18/datatype-oid.html).
+
+`PgBuiltInOid` provides typed numeric constants from pgrx's PostgreSQL 13–18
+and 19 beta catalogs. Cast a member to `uint` when an API needs a raw OID:
+
+```csharp
+uint integerType = (uint)PgBuiltInOid.Int4Oid; // 23
+PgOid classified = PgOid.FromValue(integerType);
+// classified.Kind == PgOidKind.BuiltIn
+string? nativeName = PgBuiltInOids.GetNativeName(classified.BuiltIn!.Value);
+// "INT4OID"
+```
+
+`PgOid` corresponds to pgrx's tagged `PgOid` helper. It retains `Invalid`,
+`Custom` or `BuiltIn` alongside the exact number. `FromValue(0)` returns
+`Invalid`; an unlisted nonzero value becomes `Custom`. Classification uses the
+active PostgreSQL headers' major version and requires the calling backend thread.
+It does not query catalogs for existence or permissions.
+
+Each helper also accepts an explicit `postgresMajor` from 13 through 19 for use
+outside PostgreSQL. `PgBuiltInOids.GetValues(major)` returns an immutable,
+numerically ordered snapshot. `GetNativeName(member, major)` returns the exact
+native spelling for that version, or null if the value is unlisted. For example,
+the `MoneyOid` member has value 790: its native name is `CASHOID` in PostgreSQL 13
+and `MONEYOID` from PostgreSQL 14. Enum names use the newest reference spelling;
+the enum's presence alone does not establish availability on every version.
+
+`PgBuiltInOids.TryFromValue` accepts an unsigned `ulong`, so a native datum word
+can be checked without truncation. It reports `Invalid` for zero, `Ambiguous`
+for an unlisted 32-bit value, and `TooBig` above `uint.MaxValue`. A successful
+conversion reports `None` and the typed member. `PgOid.FromBuiltIn` rejects
+undefined or unavailable members instead of accepting arbitrary enum casts.
+
+The catalog deliberately retains pgrx's constant-name heuristic. It includes
+types, relations, selected functions and other constants, including some that
+are not catalog object identifiers. It also omits many real built-in objects.
+Use catalog lookup when existence or object category matters. A classified
+custom value need not belong to an extension or even exist.
+
+`PgOid.Custom(value)` explicitly retains its tag even for zero or a recognized
+number. Equality includes both tag and value, so `Custom(23)` is distinct from
+the classified built-in integer OID. To pass the tagged value as a raw datum,
+use `ToDatum` with an explicit memory-context lifetime:
+
+```csharp
+PgDatum missing = PgOid.Invalid.ToDatum(PgMemoryContext.Current); // SQL NULL, type oid
+PgDatum zero = PgOid.Custom(0).ToDatum(PgMemoryContext.Current);   // present zero, type oid
+uint result = Spi.ExecuteScalar<uint>("SELECT $1::oid", SpiParameter.Create(zero));
+```
+
+Only the `Invalid` tag maps to SQL NULL, matching pgrx's `PgOid` datum conversion.
+The ordinary `uint` mapping keeps zero present. For pgrx-style invalid-OID-to-NULL
+output, classify the number and call `ToDatum`. These by-value datums use the
+same checked context lifetime as other [raw values](/raw-values/); reset or
+deletion invalidates native access. The classifier itself is a detached managed
+value and has no native owner.
 
 ## Type syntax
 

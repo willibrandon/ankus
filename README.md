@@ -224,6 +224,10 @@ See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result row
 Use `PgTypes.GetOid` for native type-name resolution and `PgQualifiedNameBuilder`
 for exact operator lookup. See [catalog name lookups](docs/src/content/docs/catalog-lookups.md)
 for search paths, permissions and current catalog identities.
+`PgBuiltInOid` supplies typed native constants, and `PgOid` classifies values
+against an explicit or active PostgreSQL major version while preserving invalid,
+custom and built-in identity. `PgOid.ToDatum` maps the invalid tag to SQL NULL;
+ordinary `uint` values continue to preserve zero.
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
 arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also

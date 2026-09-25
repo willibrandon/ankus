@@ -7,6 +7,7 @@ repository root with `dotnet run --file`.
 | --- | --- |
 | `Ankus.Ci.cs` | Validate, build, test, pack, and publish Ankus and its pinned Native AOT runtime. |
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
+| `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
 
 `Ankus.Ci.cs` provides these commands:
 
@@ -44,3 +45,16 @@ The app reads `src/backend/utils/errcodes.txt` at the pinned PostgreSQL 13–18 
 the reference checkout. The generated union retains native aliases and names
 removed from newer server versions. Update the tag list when refreshing the
 catalog, then regenerate the API documentation from its XML comments.
+
+Regenerate built-in OID values and native names from an existing read-only pgrx checkout:
+
+```text
+dotnet run --file ./eng/Ankus.Oids.cs -- /path/to/pgrx
+dotnet run --file ./eng/Ankus.Oids.cs -- /path/to/pgrx --check
+```
+
+The app reads PostgreSQL 13–19 catalogs at the pgrx commit pinned in its source.
+It preserves per-version membership and native renames; one enum member represents
+each numeric value. These catalogs follow pgrx's constant-name heuristic and are
+not a list of every built-in database object. The app makes no network requests
+and does not modify the reference checkout.

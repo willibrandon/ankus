@@ -163,6 +163,50 @@ public sealed class CatalogLookupTests
     }
 
     /// <summary>
+    /// Active OID classification reads the native header major without arguments, honors guards and releases failed results.
+    /// </summary>
+    [TestMethod]
+    public void ActiveOidVersionRequestsAreGuarded()
+    {
+        using var script = new Script { Result = 13 };
+        Assert.AreEqual("CASHOID", PgBuiltInOids.GetNativeName(PgBuiltInOid.MoneyOid));
+        Assert.AreEqual((byte)34, script.Operation);
+        Assert.AreEqual(2, script.Suboperation);
+        Assert.AreEqual(23U, script.ResultOid);
+        Assert.IsEmpty(script.Types);
+        Assert.IsEmpty(script.Values);
+        Assert.HasCount(263, PgBuiltInOids.GetValues());
+        Assert.AreEqual(PgOidKind.Custom, PgOid.FromValue(4451).Kind);
+        script.Result = 14;
+        Assert.IsTrue(PgBuiltInOids.TryFromValue(4451, out PgBuiltInOid member, out PgOidLookupError error));
+        Assert.AreEqual(PgBuiltInOid.Int4MultirangeOid, member);
+        Assert.AreEqual(PgOidLookupError.None, error);
+        Assert.AreEqual(PgOid.FromBuiltIn(member, 14), PgOid.FromBuiltIn(member));
+        script.Fail = true;
+        Assert.AreEqual("42501", Assert.ThrowsExactly<PgException>(() => PgOid.FromValue(16)).SqlState);
+        Assert.AreEqual(3, script.ErrorReleases);
+        Assert.AreEqual(6, script.ResultReleases);
+        script.Fail = false;
+        script.Result = 18;
+        Assert.AreEqual(PgOid.FromBuiltIn(PgBuiltInOid.BoolOid, 18), PgOid.FromValue(16));
+        nint previous = NativeBackend.Enter(Script.Pointer, abortCleanup: true);
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => PgBuiltInOids.GetValues());
+            Assert.AreEqual(7, script.Executions);
+        }
+        finally
+        {
+            NativeBackend.Exit(previous, abortCleanup: true);
+        }
+
+        script.Result = 20;
+        Assert.AreEqual("postgresMajor", Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PgOid.FromValue(16)).ParamName);
+        Assert.AreEqual(8, script.ResultReleases);
+        Assert.AreEqual(0, script.ParameterReleases);
+    }
+
+    /// <summary>
     /// Supplies a nested CLR name without a SQL mapping.
     /// </summary>
     private sealed class LookupName;

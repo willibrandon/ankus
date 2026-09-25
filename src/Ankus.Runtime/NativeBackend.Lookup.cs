@@ -7,6 +7,11 @@ public static partial class NativeBackend
     private static readonly UTF8Encoding s_lookupEncoding = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>
+    /// Reads the major version from the selected native PostgreSQL headers under the backend guard.
+    /// </summary>
+    internal static int GetPostgresMajor() => Scalar<int>(SpiOperation.Lookup, 2, []);
+
+    /// <summary>
     /// Rejects string content that would lose identity when transported as a native C string.
     /// </summary>
     internal static void ValidateLookupName(string value, string parameterName)

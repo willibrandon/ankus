@@ -2546,7 +2546,7 @@ The target architecture consists of:
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgIndex` | ☐ |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
 | `callbacks` (transaction/subtransaction callbacks) | `PgTransaction` outer/subtransaction registration with cancellable receipts | Partial: all event mappings, typed subtransaction IDs and callback lifetimes implemented; commit/abort/savepoint behavior verified on PostgreSQL 18.6/Linux x64; two-phase, parallel-worker and matrix execution pending |
-| `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | ☐ |
+| `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | Versioned built-in constants and tagged OID conversion implemented; type/operator lookup implemented; pinned function-catalog and relation APIs remain required |
 | `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | ☐ |
 | `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | ☐ |
@@ -2662,7 +2662,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `memcx.rs`, `memcxt.rs`, `palloc.rs`, `palloc/`, `pgbox.rs`, `layout.rs` | Context selection/creation/switch/reset/delete; allocation/reallocation; context-bound cleanup; owned/borrowed server pointers | Partial: checked typed/aligned allocation, virtual context parameters, sized native boxes/context values/borrowed references, exact copies, raw transfer, transient sizing, reset/delete invalidation, cancellable cleanup, borrowed allocator kinds, controlled native failures, guarded recovery and actual huge-size AllocSet allocation/resize implemented; datum/node integration, custom release policies, remaining native resource boundaries and full matrix remain required |
 | `fcinfo.rs`, `callconv.rs`, `fn_call.rs` | Function call context, collation, argument types/nulls, cached state, direct/named calls and result ownership | Injected contexts and cached state implemented; scalar name/OID calls, explicit native entry-point calls, defaults, collation, polymorphic argument resolution, and owned managed/raw results implemented. Complete raw bindings and version/platform validation remain required |
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | StringInfo and typed lists, including checked mutation/iteration, exclusive borrowing and container ownership, verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform evidence remains pending |
-| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations and checked native storage verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Native type-syntax and qualified operator lookup helpers implemented with local Linux x64/PostgreSQL 18.6 focused evidence. Relation/function catalog wrappers and complete version/platform evidence remain pending |
+| `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations, checked native storage, native type-syntax and qualified operator lookup helpers verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Relation/function catalog wrappers and complete version/platform evidence remain pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
@@ -2674,7 +2674,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
-| `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | Partial: selected scalar OID mappings |
+| `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
 `pgrx-bindgen` and the per-major `pgrx-pg-sys/src/include/pg13.rs` through `pg19.rs` are required input
@@ -5552,3 +5552,63 @@ The phases track implementation of the complete pgrx feature surface.
   produces 197 pages. Hosted lookup validation, relation/function catalog and
   node APIs, the complete PostgreSQL/platform matrix, and the broader port
   inventory remain required.
+
+- 2026-09-25 — Hosted lookup milestone `5900d77` passes complete CI run
+  [36166435027](https://github.com/willibrandon/ankus/actions/runs/36166435027).
+  Linux x64/PostgreSQL 18.6 passes 6,564 tests with zero failures/skips in an
+  11m17s test job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each pass 6,562 tests with zero failures and the two existing Linux-only
+  allocation measurements skipped, in 12m55s and 24m17s jobs respectively.
+  Each platform executes the entire suite against a real server. Quality and
+  runtime preparation pass; documentation deployment
+  [36166435119](https://github.com/willibrandon/ankus/actions/runs/36166435119)
+  also passes. Windows completed only 43 seconds below its 25-minute cap, so
+  its next CI run uses the user's authorized 30-minute timeout. Linux and macOS
+  retain 20 minutes. This is not cold runtime-build or full version-matrix proof.
+
+- 2026-09-25 — Added typed built-in OID constants and tagged OID helpers from
+  pgrx's complete PostgreSQL 13–18 and 19 beta catalogs. The reproducible
+  `eng/Ankus.Oids.cs` app reads pinned reference files without modifying them.
+  `PgBuiltInOid` retains 305 distinct unsigned values; `PgBuiltInOids` preserves
+  all 315 native names and each version's membership, including historical
+  renames, added multirange/OID8/regdatabase constants and removed names.
+  Explicit-version operations work detached; active operations read the selected
+  native headers' major version through the existing backend guard. The pgrx
+  constant-name heuristic is preserved, including non-object constants, without
+  treating membership as proof of catalog existence or object category.
+
+  `PgOid` preserves invalid, custom and built-in tags independently of its raw
+  unsigned number. Equality retains the tag, and explicit custom zero remains
+  distinct from invalid zero. Built-in conversion distinguishes invalid zero,
+  unlisted 32-bit values and oversized unsigned datum words without truncation.
+  `ToDatum` preserves pgrx's Invalid-to-NULL versus Custom(0)-to-present-zero
+  behavior with exact `oid` type identity and a checked explicit context lifetime.
+  Ordinary `uint` SQL transport continues to preserve zero. This port introduces
+  no runtime-generated code, unbounded reflection or new NuGet dependency.
+
+  Focused runtime validation passes 26 cases with zero failures/skips in 0.978s.
+  Independently captured complete reference-manifest hashes verify every native
+  name/value pair for all seven majors; tests also check conversion outcomes,
+  all unlisted values through 65,536, native renames, version boundaries,
+  immutable snapshots, tagged equality, owned diagnostics and abort restrictions.
+  Five published Native AOT backend cases pass with zero failures/skips in
+  38.840s on Linux x64/PostgreSQL 18.6. They compare the entire active catalog
+  with the actual server major and verify independently queried type, array,
+  relation, procedure, access-method, collation, operator-class and operator-family
+  OIDs. Native datum results and SPI parameters preserve NULL/zero/maximum values;
+  actual context reset rejects expired access, and managed catch/finally plus
+  same-session SQL demonstrate recovery. The first backend run exposed a test
+  expectation using `true` instead of native Boolean output `t`; the corrected
+  complete focused scope passes. Static assertion/public-outcome review makes
+  no empirical mutation or measured coverage claim.
+
+  The catalog guide and README document classification, version selection,
+  numeric representation and explicit sentinel-to-NULL conversion. Plain
+  `dotnet test` passes all 6,595 tests with zero failures/skips in 285.675s on
+  Linux x64/PostgreSQL 18.6. The non-incremental Release build passes in 20.16s
+  with zero warnings/errors. Catalog regeneration/freshness passes for all 315
+  native names; API generation/freshness passes for 161 pages/2,157 members.
+  `pnpm check` reports zero errors, warnings or hints, and `pnpm build` produces
+  202 pages. Hosted OID evidence, function/relation and node APIs, complete
+  PostgreSQL/platform execution, and the broader full-port inventory remain
+  required.
