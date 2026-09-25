@@ -13,5 +13,9 @@ public interface IPgDatumWriter<T>
     /// <param name="typeOid">The current exact PostgreSQL target type OID.</param>
     /// <param name="destination">The destination for native storage needed by this operation.</param>
     /// <returns>A live datum with exactly typeOid, including for SQL NULL; never a null handle.</returns>
+    /// <remarks>
+    /// Array element writers receive temporary storage that remains live through complete array construction.
+    /// Returning a checked datum owned elsewhere does not transfer or dispose its original owner.
+    /// </remarks>
     PgDatum Write(T value, uint typeOid, PgMemoryContext destination);
 }

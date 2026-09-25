@@ -199,6 +199,11 @@ internal static class SpiType
             return datum.GetOid();
         }
 
+        if (PgDatumRegistry.FindArray(type) is { } datumArray)
+        {
+            return datumArray.GetOid();
+        }
+
         CustomTypeMapping? custom = PgTypeRegistry.Find(type);
         if (custom is not null)
         {
@@ -240,12 +245,16 @@ internal static class SpiType
     /// <param name="customMapping">The declared custom-type mapping when the caller retains it.</param>
     /// <param name="customArrayMapping">The declared custom element mapping for covariant vectors.</param>
     /// <param name="datumMapping">The declared raw converter when binding a mapped scalar parameter.</param>
+    /// <param name="datumArrayMapping">The declared mapped array element converter.</param>
     /// <param name="datumTypeOid">The parameter's captured identity, checked against the current mapped type.</param>
     /// <returns>The native value, whose buffers must be released by the caller.</returns>
     internal static NativeValue ToNative(object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null,
-        DatumTypeMapping? datumMapping = null, uint datumTypeOid = 0) => value switch
+        DatumTypeMapping? datumMapping = null, uint datumTypeOid = 0, DatumArrayMapping? datumArrayMapping = null) => value switch
     {
         _ when datumMapping is not null => datumMapping.Write(value, datumTypeOid),
+        _ when datumArrayMapping is not null => datumArrayMapping.Write(value, datumTypeOid),
+        _ when customArrayMapping is null && value is not null && PgDatumRegistry.FindArray(value.GetType()) is not null =>
+            throw new NotSupportedException("Mapped datum arrays require a declared mapped parameter or generated array slot."),
         PgDatum datum => datum.ToNative(),
         PgInternal state => state.ToNative(),
         null => new NativeValue { IsNull = 1 },

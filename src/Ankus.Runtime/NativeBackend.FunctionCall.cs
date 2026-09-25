@@ -103,7 +103,13 @@ public static unsafe partial class NativeBackend
         if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
         {
             mapping.RequireRead();
-            return CallMappedFunction<T>(name, oid, options, arguments, mapping);
+            return CallMappedFunction<T>(name, oid, options, arguments, mapping.GetOid());
+        }
+
+        if (PgDatumRegistry.FindArray(typeof(T)) is { } array)
+        {
+            array.RequireRead();
+            return CallMappedFunction<T>(name, oid, options, arguments, array.GetOid());
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
@@ -134,12 +140,11 @@ public static unsafe partial class NativeBackend
     /// <param name="oid">The catalog function OID, or zero for name lookup.</param>
     /// <param name="options">The optional call settings.</param>
     /// <param name="arguments">The borrowed typed arguments and defaults.</param>
-    /// <param name="mapping">The preflighted scalar reader contract.</param>
+    /// <param name="expected">The current exact result OID of the preflighted reader contract.</param>
     /// <returns>The detached managed value.</returns>
     private static T CallMappedFunction<T>(string? name, uint oid, PgFunctionCallOptions? options,
-        ReadOnlySpan<PgFunctionArgument> arguments, DatumTypeMapping mapping)
+        ReadOnlySpan<PgFunctionArgument> arguments, uint expected)
     {
-        uint expected = mapping.GetOid();
         PgMemoryContext owner = PgMemoryContext.Create("Ankus mapped function result", PgMemoryContext.Callback);
         Exception? primary = null;
         try

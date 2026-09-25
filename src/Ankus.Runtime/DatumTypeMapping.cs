@@ -71,10 +71,32 @@ internal abstract class DatumTypeMapping(string name, string? schema, PgTypeOrig
             return new NativeValue { IsNull = 1 };
         }
 
-        PgDatum datum = WritePresent(value, oid, PgMemoryContext.Current);
+        return NativeValue.FromPolymorphic(WriteChecked(value, oid, PgMemoryContext.Current));
+    }
+
+    /// <summary>
+    /// Writes a present array element into an explicitly supplied owner without consuming returned aliases.
+    /// </summary>
+    internal PgDatum WriteDatum(object value, uint expectedOid, PgMemoryContext destination)
+    {
+        RequireWrite();
+        if (GetOid() != expectedOid)
+        {
+            throw new InvalidOperationException("The mapped PostgreSQL element type changed during array construction.");
+        }
+
+        return WriteChecked(value, expectedOid, destination);
+    }
+
+    /// <summary>
+    /// Checks the present writer's exact identity and lifetime, including a returned SQL NULL datum.
+    /// </summary>
+    private PgDatum WriteChecked(object value, uint oid, PgMemoryContext destination)
+    {
+        PgDatum datum = WritePresent(value, oid, destination);
         datum.Lifetime.Validate();
         ValidateIdentity(datum, oid);
-        return NativeValue.FromPolymorphic(datum);
+        return datum;
     }
 
     /// <summary>

@@ -215,13 +215,20 @@ executes. A caught managed reader error does not roll back SQL that already
 completed. See [SPI queries](/spi/#scalar-values) and
 [calling PostgreSQL functions](/calling-functions/).
 
+The same scalar reader/writer contracts compose into `T[]` and `PgArray<T>`,
+including nullable value elements. Each array retains the exact current mapped
+element type and its corresponding array type, even when empty or all-NULL.
+Raw array reads detach their elements under a temporary owner; the original raw
+array keeps its existing owner. Writers construct the complete array before
+releasing temporary element storage. See [mapped array elements](/arrays/#mapped-elements)
+for shape, domain, NULL and ownership rules.
+
 Use raw result owners and `Read<T>()` for mapped row fields. `SpiRow.Get<T>` and
 `PgHeapTuple.Get<T>` do not convert canonical cells through these converters.
 For native addresses, use `DangerousCallRaw` and an explicit mapped read.
-Mapped arrays, generic wrapper declarations, automatic equality/order/hash
+Nested mapped arrays, generic wrapper declarations, automatic equality/order/hash
 families, and different argument and result SQL spellings remain unsupported.
-The generator rejects unsupported
-mapped signatures with `ANKUS019`.
+The generator rejects unsupported mapped signatures with `ANKUS019`.
 
 Local annotated types are registered even when only used by raw APIs. An
 annotated type from a referenced assembly must occur in a supported generated

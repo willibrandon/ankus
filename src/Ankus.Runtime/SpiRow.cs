@@ -50,6 +50,12 @@ public sealed class SpiRow
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, Count);
+        PgDatumRegistry.RejectOrdinaryArray(typeof(T));
+        if (value is not null)
+        {
+            PgDatumRegistry.RejectOrdinaryArray(value.GetType());
+        }
+
         uint typeOid;
         object? managedValue;
         if (value is PgDatum datum)
@@ -138,6 +144,12 @@ public sealed class SpiRow
     /// <returns>The typed value.</returns>
     internal static T Convert<T>(object? value)
     {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(T));
+        if (value is not null)
+        {
+            PgDatumRegistry.RejectOrdinaryArray(value.GetType());
+        }
+
         if (value is Array source && typeof(T).IsArray && source.GetType() != typeof(T) &&
             (PgEnumRegistry.FindArray(source.GetType()) is not null || PgEnumRegistry.FindArray(typeof(T)) is not null ||
              PgTypeRegistry.FindArray(source.GetType()) is not null || PgTypeRegistry.FindArray(typeof(T)) is not null))

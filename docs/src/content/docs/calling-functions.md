@@ -39,6 +39,9 @@ default expressions; a domain's base type and sibling domains are distinct.
 Nullable results retain that identity check even when SQL returns NULL. The
 reader returns a detached managed value before temporary native storage is
 disposed. A mapping without a reader is rejected before the call executes.
+This also applies to mapped `T[]` and `PgArray<T>` results: the declared return
+type must be the exact array type belonging to the mapped element. Element
+conversion preserves SQL NULL and rejects lossy vector shapes.
 
 ## Default arguments
 

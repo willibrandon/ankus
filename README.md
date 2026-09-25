@@ -126,7 +126,8 @@ transfer, or supply a `PgTypeCodec<T>` for both storage and text. See
 Use `[PgDatumType]` for a reusable scalar wrapper over manual native storage or an
 external SQL type. Its converter implements `IPgDatumReader<T>`,
 `IPgDatumWriter<T>`, or both; generated callbacks and raw `PgDatum.Read<T>()`
-select the declared CLR type. See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
+select the declared CLR type. Its `T[]` and `PgArray<T>` forms reuse that converter
+with exact element identity and checked array shape. See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
 for provider ownership, supported paths, and lifetime requirements.
 
 Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,

@@ -151,8 +151,8 @@ internal static class NativeEnumBridge
             else if (request->scalar_operation == 2)
             {
                 oid = get_array_type((Oid) request->parameters[0].value.integral);
-                if (!OidIsValid(oid))
-                    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Enum array type does not exist")));
+                if (!OidIsValid(oid) || get_element_type(oid) != (Oid) request->parameters[0].value.integral)
+                    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("PostgreSQL array type does not exist")));
             }
             else
                 oid = ankus_resolve_enum(&request->parameters[0].value, &request->parameters[1].value,

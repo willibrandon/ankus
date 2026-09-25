@@ -18,6 +18,7 @@ public unsafe partial struct NativeValue
     /// <returns>The converted array. SQL NULL elements require reference or nullable value types.</returns>
     public readonly PgArray<T> ReadArray<T>()
     {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
         uint oid = ReadArrayElementOid();
         if (typeof(T) == typeof(PgHeapTuple) ? _auxiliary2 != 2 : SpiType.GetOid<T>() != oid)
         {
@@ -43,6 +44,7 @@ public unsafe partial struct NativeValue
     internal static NativeValue FromArray(IPgArray value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        PgDatumRegistry.RejectOrdinaryArray(value.GetType());
         RuntimeHelpers.EnsureSufficientExecutionStack();
         return FromArrayCore(value);
     }
@@ -124,6 +126,7 @@ public unsafe partial struct NativeValue
     /// </summary>
     internal readonly PgArray<T> ReadArrayData<T>(uint oid, EnumMapping? enumeration = null)
     {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
         RuntimeHelpers.EnsureSufficientExecutionStack();
         return ReadArrayDataCore<T>(oid, enumeration);
     }

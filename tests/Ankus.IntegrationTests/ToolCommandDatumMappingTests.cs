@@ -7,7 +7,7 @@ namespace Ankus.IntegrationTests;
 public sealed partial class ToolCommandTests
 {
     /// <summary>
-    /// Owned scalar mappings resolve current extension identities through relocation and reinstall independently of external mappings.
+    /// Owned scalar and array mappings resolve current extension identities through relocation and reinstall independently of external mappings.
     /// </summary>
     [TestMethod]
     public async Task DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity()
@@ -24,8 +24,10 @@ public sealed partial class ToolCommandTests
         Assert.Contains("relocatable = true", await File.ReadAllTextAsync(Path.Combine(output, "extension", manifest.Control), token));
         int provider = sql.IndexOf("CREATE DOMAIN package_key", StringComparison.Ordinal);
         int consumer = sql.IndexOf("CREATE FUNCTION \"package_echo\"", StringComparison.Ordinal);
+        int arrayConsumer = sql.IndexOf("CREATE FUNCTION \"package_array_echo\"", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, provider);
         Assert.IsGreaterThan(provider, consumer);
+        Assert.IsGreaterThan(provider, arrayConsumer);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         int process = connection.ProcessID;
@@ -44,6 +46,7 @@ public sealed partial class ToolCommandTests
         await AssertDatumMappingPackage(connection, "mapping_first", originalType);
         Assert.AreEqual(originalType, await SqlPackageScalarAsync<uint>(connection, "SELECT mapping_first.package_remember(42)"));
         Assert.AreEqual(1042, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_first.package_replay()"));
+        Assert.AreEqual("1:0:1042,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_array_replay()"));
 
         await ExecuteSqlPackageAsync(connection, "ALTER EXTENSION ankus_tool_probe SET SCHEMA mapping_second");
         Dictionary<string, uint> moved = await DatumMappingPackageMembers(connection, "mapping_second");
@@ -56,6 +59,7 @@ public sealed partial class ToolCommandTests
         await AssertDeclarationSchemaEmpty(connection, "mapping_first");
         await AssertDatumMappingPackage(connection, "mapping_second", originalType);
         Assert.AreEqual(1042, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_second.package_replay()"));
+        Assert.AreEqual("1:0:1042,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_second.package_array_replay()"));
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_tool_probe");
         await AssertDeclarationSchemaEmpty(connection, "mapping_second");
         Assert.IsFalse(await SqlPackageScalarAsync<bool>(connection,
@@ -77,10 +81,15 @@ public sealed partial class ToolCommandTests
             ExecuteSqlPackageAsync(connection, "SELECT mapping_first.package_replay()"));
         Assert.AreEqual("38000", stale.SqlState);
         Assert.AreEqual("The mapped PostgreSQL parameter type has changed since the parameter was created.", stale.MessageText);
+        PostgresException staleArray = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecuteSqlPackageAsync(connection, "SELECT mapping_first.package_array_replay()"));
+        Assert.AreEqual("38000", staleArray.SqlState);
+        Assert.AreEqual("The mapped PostgreSQL parameter type has changed since the parameter was created.", staleArray.MessageText);
         uint newType = reinstalled["type:package_key"];
         await AssertDatumMappingPackage(connection, "mapping_first", newType);
         Assert.AreEqual(newType, await SqlPackageScalarAsync<uint>(connection, "SELECT mapping_first.package_remember(7)"));
         Assert.AreEqual(1007, await SqlPackageScalarAsync<int>(connection, "SELECT mapping_first.package_replay()"));
+        Assert.AreEqual("1:0:1007,NULL,1000", await SqlPackageScalarAsync<string>(connection, "SELECT mapping_first.package_array_replay()"));
         Assert.AreEqual(process, await SqlPackageScalarAsync<int>(connection, "SELECT pg_backend_pid()"));
         await ExecuteSqlPackageAsync(connection, "DROP EXTENSION ankus_tool_probe");
         await AssertDeclarationSchemaEmpty(connection, "mapping_first");
@@ -104,12 +113,21 @@ public sealed partial class ToolCommandTests
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_probe(42)"));
         Assert.AreEqual("1042|1043|1043|2042|True|True",
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_typed()"));
+        Assert.AreEqual("1:0:1042,NULL,1000|1:0:1043,NULL,1001|1:0:1043,NULL,1001|2000,2042|True|True",
+            await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_arrays()"));
+        Assert.AreEqual("[0:2]={43,NULL,1}", await SqlPackageScalarAsync<string>(connection,
+            $"SELECT {schema}.package_array_echo('[0:2]={{42,NULL,0}}'::{schema}.package_key[])::text"));
+        Assert.AreEqual("{}", await SqlPackageScalarAsync<string>(connection,
+            $"SELECT {schema}.package_array_echo(ARRAY[]::{schema}.package_key[])::text"));
         Assert.IsTrue(await SqlPackageScalarAsync<bool>(connection, $"""
             SELECT (SELECT proargtypes[0]='{schema}.package_key'::regtype
                     AND prorettype='{schema}.package_key'::regtype AND NOT proisstrict
                     FROM pg_proc WHERE oid='{schema}.package_echo({schema}.package_key)'::regprocedure)
                 AND (SELECT proargtypes[0]=23 AND prorettype=23 AND proisstrict
                     FROM pg_proc WHERE oid='{schema}.package_external_echo(integer)'::regprocedure)
+                AND (SELECT proargtypes[0]='{schema}.package_key[]'::regtype
+                    AND prorettype='{schema}.package_key[]'::regtype AND NOT proisstrict
+                    FROM pg_proc WHERE oid='{schema}.package_array_echo({schema}.package_key[])'::regprocedure)
                 AND (SELECT typtype='d' AND typbasetype=23 AND typlen=4 AND typbyval
                     FROM pg_type WHERE oid='{schema}.package_key'::regtype)
             """));
@@ -123,11 +141,12 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Captures the domain, its array and all seven generated callbacks with their exact extension ownership.
+    /// Captures the domain, its array and all ten generated callbacks with their exact extension ownership.
     /// </summary>
     private async Task<Dictionary<string, uint>> DatumMappingPackageMembers(NpgsqlConnection connection, string schema)
     {
-        string[] expected = ["array:package_key", "function:package_echo", "function:package_external_echo",
+        string[] expected = ["array:package_key", "function:package_array_echo", "function:package_array_replay",
+            "function:package_arrays", "function:package_echo", "function:package_external_echo",
             "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay",
             "function:package_typed", "type:package_key"];
         await using var command = new NpgsqlCommand($"""
@@ -192,6 +211,7 @@ public sealed partial class ToolCommandTests
         public static class Functions
         {
             private static SpiParameter s_remembered;
+            private static SpiParameter s_rememberedArray;
             [PgFunction(Name = "package_echo")]
             public static OwnedKey? Echo(OwnedKey? value) => value is { } present ? new OwnedKey(present.Number + 1) : null;
             [PgFunction(Name = "package_read")]
@@ -213,11 +233,39 @@ public sealed partial class ToolCommandTests
             public static uint Remember(int value)
             {
                 s_remembered = SpiParameter.Create(new OwnedKey(value + 1000));
+                s_rememberedArray = SpiParameter.Create(new PgArray<OwnedKey?>([new OwnedKey(value + 1000), null, new OwnedKey(1000)], [3], [0]));
                 return s_remembered.TypeOid;
             }
             [PgFunction(Name = "package_replay")]
             public static int Replay()
                 => Spi.ExecuteScalar<OwnedKey>("SELECT $1", s_remembered).Number;
+            [PgFunction(Name = "package_array_replay")]
+            public static string ReplayArray()
+                => FormatArray(Spi.ExecuteScalar<PgArray<OwnedKey?>>("SELECT $1", s_rememberedArray));
+            [PgFunction(Name = "package_array_echo")]
+            public static PgArray<OwnedKey?>? EchoArray(PgArray<OwnedKey?>? values)
+                => values is null ? null : new PgArray<OwnedKey?>(
+                    values.Select(value => value is { } present ? (OwnedKey?)new OwnedKey(present.Number + 1) : null).ToArray(),
+                    values.Lengths, values.LowerBounds);
+            [PgFunction(Name = "package_arrays")]
+            public static string Arrays(PgFunctionContext call)
+            {
+                string schema = Spi.ExecuteScalar<string>(
+                    "SELECT n.nspname::text FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.oid=$1",
+                    SpiParameter.Create(call.FunctionOid));
+                string type = Spi.QuoteQualifiedIdentifier(schema, "package_key");
+                string function = Spi.QuoteQualifiedIdentifier(schema, "package_array_echo");
+                uint oid = Spi.ExecuteScalar<uint>("SELECT $1::regprocedure::oid", SpiParameter.Create($"{function}({type}[])"));
+                PgArray<OwnedKey?> queried = Spi.ExecuteScalar<PgArray<OwnedKey?>>($"SELECT '[0:2]={{42,NULL,0}}'::{type}[]");
+                PgArray<OwnedKey?> named = PgFunctions.Call<PgArray<OwnedKey?>>(function, PgFunctionArgument.Create(queried));
+                PgArray<OwnedKey?> identified = PgFunctions.Call<PgArray<OwnedKey?>>(oid, PgFunctionArgument.Create(queried));
+                ExternalKey[] external = Spi.ExecuteScalar<ExternalKey[]>("SELECT ARRAY[0,42]");
+                bool queryNull = Spi.ExecuteScalar<PgArray<OwnedKey?>?>($"SELECT NULL::{type}[]") is null;
+                bool callNull = PgFunctions.Call<PgArray<OwnedKey?>?>(function, PgFunctionArgument.Create<PgArray<OwnedKey?>?>(null)) is null;
+                return $"{FormatArray(queried)}|{FormatArray(named)}|{FormatArray(identified)}|{string.Join(',', external.Select(value => value.Number))}|{queryNull}|{callNull}";
+            }
+            private static string FormatArray(PgArray<OwnedKey?> values)
+                => $"{values.Rank}:{string.Join(',', values.LowerBounds.ToArray())}:{string.Join(',', values.Select(value => value?.Number.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "NULL"))}";
             [PgFunction(Name = "package_typed")]
             public static string Typed(PgFunctionContext call)
             {

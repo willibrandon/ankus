@@ -10,7 +10,7 @@ namespace Ankus.Runtime.Tests;
 public sealed unsafe class PgDatumMappingTests
 {
     /// <summary>
-    /// Registration captures metadata and nullable identity without a backend, converter or array mapping.
+    /// Registration captures scalar, nullable and array identities without a backend lookup or converter.
     /// </summary>
     [TestMethod]
     public void RegistrationDefersUserCodeAndCatalogAccess()
@@ -27,7 +27,8 @@ public sealed unsafe class PgDatumMappingTests
         Assert.AreSame(PgDatumRegistry.Require(typeof(RegistrationValue)), PgDatumRegistry.Require(typeof(RegistrationValue?)));
         Assert.IsNull(PgDatumRegistry.Find(typeof(RegistrationValue[])));
         Assert.IsNull(PgDatumRegistry.Find(typeof(PgArray<RegistrationValue>)));
-        Assert.ThrowsExactly<NotSupportedException>(() => SpiType.GetOid<RegistrationValue[]>());
+        Assert.IsNotNull(PgDatumRegistry.FindArray(typeof(RegistrationValue[])));
+        Assert.ThrowsExactly<InvalidOperationException>(() => SpiType.GetOid<RegistrationValue[]>());
         DatumTypeMapping first = PgDatumRegistry.Require(typeof(RegistrationValue));
         PgDatumRegistry.RegisterValue<RegistrationValue>("registered", null, PgTypeOrigin.ThisExtension,
             typeof(Reader<RegistrationValue>), static () => throw new InvalidOperationException("Duplicate factory must not run."), true, false);
@@ -392,7 +393,7 @@ public sealed unsafe class PgDatumMappingTests
             static () => throw new InvalidOperationException("No converter should be created."), false, true);
         PgDatumRegistry.RegisterReference<UnsupportedMessage>("unsupported", "fixed", PgTypeOrigin.External,
             typeof(Converter<UnsupportedMessage>),
-            static () => throw new InvalidOperationException("No reference converter should be created."), true, true);
+            static () => throw new InvalidOperationException("No reference converter should be created."), false, true);
         using var backend = new BackendScope();
         Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalar<UnsupportedValue>("SELECT 1"));
         Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalar<UnsupportedValue[]>("SELECT ARRAY[1]"));
@@ -414,19 +415,19 @@ public sealed unsafe class PgDatumMappingTests
     }
 
     /// <summary>
-    /// Unsupported mapped arrays reject before raw decoding, including NULL and CLR-compatible enum arrays.
+    /// Writer-only arrays reject before raw decoding, while ordinary rows retain CLR array identity guards.
     /// </summary>
     [TestMethod]
-    public void RawMappedArrayResultsRejectBeforeDecodingOrClrArrayCasts()
+    public void WriterOnlyArraysRejectBeforeDecodingOrClrArrayCasts()
     {
         using var memory = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         using var backend = new BackendScope();
         PgDatumRegistry.RegisterValue<ArrayKind>("int4", "pg_catalog", PgTypeOrigin.External,
-            typeof(Reader<ArrayKind>), static () => throw new InvalidOperationException("Array conversion must not construct a reader."), true, false);
+            typeof(Writer<ArrayKind>), static () => throw new InvalidOperationException("Array conversion must not construct a writer."), false, true);
         PgDatum present = PgDatum.DangerousCreate(0, 1007, PgMemoryContext.Current);
         PgDatum absent = PgDatum.DangerousCreate(0, 1007, PgMemoryContext.Current, isNull: true);
-        const string message = "Mapped datum arrays are not supported; read individual raw elements explicitly.";
+        const string message = "The mapped PostgreSQL type has no datum reader.";
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => present.Read<ArrayKind[]>()).Message);
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<ArrayKind[]>()).Message);
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => present.Read<PgArray<ArrayKind>>()).Message);
@@ -435,7 +436,8 @@ public sealed unsafe class PgDatumMappingTests
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<PgArray<ArrayKind?>>()).Message);
         int[] underlying = [0, 1];
         var row = new SpiRow([underlying], [new SpiColumn("value", 1007)]);
-        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => row.Get<ArrayKind[]>(0)).Message);
+        Assert.AreEqual("Mapped datum arrays require PgDatum.Read<T>(); ordinary array conversion is not supported.",
+            Assert.ThrowsExactly<NotSupportedException>(() => row.Get<ArrayKind[]>(0)).Message);
         Assert.AreSame(underlying, row.Get<int[]>(0));
         Assert.AreSequenceEqual<int>([0, 1], underlying);
         Assert.IsEmpty(backend.Operations);

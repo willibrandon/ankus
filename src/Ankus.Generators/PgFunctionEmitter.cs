@@ -273,7 +273,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("        ankus_raise_error(&error);");
         source.AppendLine("    }");
         source.AppendLine();
-        source.AppendLine("    if (result.is_null" + (result.IsRaw || result.DatumType is not null ? " && result.data == NULL" : string.Empty) + ")");
+        source.AppendLine("    if (result.is_null" + (result.IsRaw || result.IsMapped ? " && result.data == NULL" : string.Empty) + ")");
         source.AppendLine("    {");
         if (result.IsComposite || result.UsesRawTransport)
         {
@@ -369,7 +369,7 @@ internal static class PgFunctionEmitter
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("    PG_END_TRY();");
-        if (result.IsRaw || result.DatumType is not null)
+        if (result.IsRaw || result.IsMapped)
         {
             source.AppendLine("    if (result.is_null)");
             source.AppendLine("        PG_RETURN_NULL();");

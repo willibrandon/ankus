@@ -9,11 +9,17 @@ public static unsafe partial class NativeBackend
     /// Captures exact array shape and raw cells without requiring managed element mappings.
     /// </summary>
     /// <param name="datum">The live array datum.</param>
+    /// <param name="destination">The optional independent extraction owner; otherwise the source owner is retained.</param>
     /// <returns>The element identity, shape, bounds, and nullable cells.</returns>
-    internal static (uint Element, int[] Dimensions, int[] LowerBounds, PgAnyElement?[] Values) ReadPolymorphicArray(PgDatum datum)
-        => RunDatum(datum, 3, datum.Lifetime, result =>
+    internal static (uint Element, int[] Dimensions, int[] LowerBounds, PgAnyElement?[] Values) ReadPolymorphicArray(PgDatum datum, PgDatumLifetime? destination = null)
+        => RunDatum(datum, 3, destination ?? datum.Lifetime, result =>
         {
             byte[] shape = result._text.ReadBytes();
+            if (shape.Length % 8 != 0 || shape.Length > 48)
+            {
+                throw new InvalidOperationException("Invalid raw array dimensions.");
+            }
+
             ReadOnlySpan<int> dimensionsAndBounds = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(shape);
             int rank = dimensionsAndBounds.Length / 2;
             var values = new PgAnyElement?[result._rowCount];
@@ -22,7 +28,7 @@ public static unsafe partial class NativeBackend
                 NativeValue cell = result._values[index];
                 if (cell.IsNull == 0)
                 {
-                    values[index] = new PgAnyElement(new PgDatum(unchecked((nuint)cell.Integral), result._resultTypeOid, false, datum.Lifetime));
+                    values[index] = new PgAnyElement(new PgDatum(unchecked((nuint)cell.Integral), result._resultTypeOid, false, destination ?? datum.Lifetime));
                 }
             }
 
@@ -40,6 +46,11 @@ public static unsafe partial class NativeBackend
         if (PgDatumRegistry.Find(typeof(T)) is { } mapping)
         {
             return SpiRow.Convert<T>(mapping.Read(value));
+        }
+
+        if (PgDatumRegistry.FindArray(typeof(T)) is { } array)
+        {
+            return (T)array.Read(value, typeof(T))!;
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();

@@ -127,7 +127,7 @@ public static class MappedResultFunctions
                 Read<ResultInt?, PgAnyElement?, WriteMappedInt?>(surface, sql);
                 break;
             default:
-                Read<ResultInt?, PgAnyElement?, ResultInt[]?>(surface, sql);
+                Read<ResultInt?, PgAnyElement?, WriteMappedInt[]?>(surface, sql);
                 break;
         }
 

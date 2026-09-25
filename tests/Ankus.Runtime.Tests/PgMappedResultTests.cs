@@ -77,8 +77,8 @@ public sealed unsafe class PgMappedResultTests
         Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalars<PgAnyElement, Number, WriteOnly>("SELECT values"));
         Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<WriteOnly>("fixed.result"));
         Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<WriteOnly?>(77));
-        Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalars<Number, Number[]>("SELECT values"));
-        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<Number[]>("fixed.result"));
+        Assert.ThrowsExactly<NotSupportedException>(() => Spi.ExecuteScalars<Number, WriteOnly[]>("SELECT values"));
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.Call<WriteOnly[]>("fixed.result"));
         Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<Number>(1, 0));
         Assert.AreEqual(0, script.Executions);
         Assert.AreEqual(0, script.Lookups);

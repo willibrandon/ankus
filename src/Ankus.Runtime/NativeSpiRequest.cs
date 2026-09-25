@@ -90,7 +90,7 @@ internal unsafe struct NativeSpiRequest
     internal int _scalarOperation;
 
     /// <summary>
-    /// Contains the expected scalar result type, validated by the native dispatcher.
+    /// Contains the expected scalar result type, or the exact array type for a raw array constructor.
     /// </summary>
     internal uint _scalarResultOid;
 

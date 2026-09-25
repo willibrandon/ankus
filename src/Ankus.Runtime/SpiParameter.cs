@@ -6,13 +6,14 @@ namespace Ankus;
 public readonly struct SpiParameter
 {
     private SpiParameter(uint typeOid, object? value, CustomTypeMapping? customMapping = null, CustomTypeMapping? customArrayMapping = null,
-        DatumTypeMapping? datumMapping = null)
+        DatumTypeMapping? datumMapping = null, DatumArrayMapping? datumArrayMapping = null)
     {
         TypeOid = typeOid;
         Value = value;
         CustomMapping = customMapping;
         CustomArrayMapping = customArrayMapping;
         DatumMapping = datumMapping;
+        DatumArrayMapping = datumArrayMapping;
     }
 
     /// <summary>
@@ -42,6 +43,11 @@ public readonly struct SpiParameter
     internal DatumTypeMapping? DatumMapping { get; }
 
     /// <summary>
+    /// Gets the declared mapped array contract independently of covariant runtime element types.
+    /// </summary>
+    internal DatumArrayMapping? DatumArrayMapping { get; }
+
+    /// <summary>
     /// Creates a type-only NULL envelope for a function's default argument lookup.
     /// </summary>
     /// <param name="typeOid">The validated type identity.</param>
@@ -61,6 +67,12 @@ public readonly struct SpiParameter
         {
             mapping.RequireWrite();
             return new SpiParameter(mapping.GetOid(), value, datumMapping: mapping);
+        }
+
+        if (PgDatumRegistry.FindArray(typeof(T)) is { } arrayMapping)
+        {
+            arrayMapping.RequireWrite();
+            return new SpiParameter(arrayMapping.GetOid(), value, datumArrayMapping: arrayMapping);
         }
 
         return value switch

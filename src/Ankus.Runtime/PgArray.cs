@@ -7,7 +7,7 @@ namespace Ankus;
 /// Use nullable value types for SQL NULL elements and nullable annotations for reference elements.
 /// A null array reference represents SQL NULL.
 /// </summary>
-/// <typeparam name="T">A supported scalar element type, such as int?, string, or PgNumeric.</typeparam>
+/// <typeparam name="T">A supported scalar element type, such as int?, string, PgNumeric, or a registered datum mapping.</typeparam>
 public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
 {
     private readonly T[] _values;
@@ -39,7 +39,12 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
     public PgArray(IEnumerable<T> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        if (PgEnumRegistry.Find(typeof(T)) is null && PgTypeRegistry.Find(typeof(T)) is null)
+        if (values is Array source && typeof(T).IsValueType && PgDatumRegistry.Find(typeof(T)) is not null && source.GetType() != typeof(T[]))
+        {
+            throw new InvalidCastException("A mapped value array must have its exact declared managed array type.");
+        }
+
+        if (PgEnumRegistry.Find(typeof(T)) is null && PgTypeRegistry.Find(typeof(T)) is null && PgDatumRegistry.Find(typeof(T)) is null)
         {
             _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
         }
@@ -57,7 +62,7 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
     /// <param name="lowerBounds">One lower bound per dimension, or an empty span to use one for every dimension.</param>
     public PgArray(ReadOnlySpan<T> values, ReadOnlySpan<int> lengths, ReadOnlySpan<int> lowerBounds = default)
     {
-        if (PgEnumRegistry.Find(typeof(T)) is null && PgTypeRegistry.Find(typeof(T)) is null)
+        if (PgEnumRegistry.Find(typeof(T)) is null && PgTypeRegistry.Find(typeof(T)) is null && PgDatumRegistry.Find(typeof(T)) is null)
         {
             _ = SpiArray.ArrayOid(SpiType.GetOid<T>());
         }
@@ -80,7 +85,7 @@ public sealed class PgArray<T> : IReadOnlyList<T>, IPgArray
 
     /// <summary>
     /// Gets the PostgreSQL element identity, including the named composite identity of an empty or all-null array.
-    /// Enum and custom type identities are resolved in the current backend when requested.
+    /// Enum, custom type and registered datum identities are resolved in the current backend when requested.
     /// </summary>
     public uint ElementTypeOid => _elementOid != 0 ? _elementOid : SpiType.GetOid<T>();
 

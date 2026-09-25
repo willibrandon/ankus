@@ -301,8 +301,7 @@ public sealed class DatumMappingTests(TestContext context)
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection,
             $"SELECT datum_mappings.unsupported_result({mode})"));
         Assert.AreEqual("38000", error.SqlState);
-        Assert.AreEqual(mode < 5 ? "The mapped PostgreSQL type has no datum reader."
-            : "Mapped datum arrays are not supported; read individual raw elements explicitly.", error.MessageText);
+        Assert.AreEqual("The mapped PostgreSQL type has no datum reader.", error.MessageText);
         Assert.IsFalse(await Scalar<bool>(connection, "SELECT is_called FROM mapped_effect"));
         Assert.AreEqual("recovered", await Scalar<string>(connection, "SELECT datum_mappings.text_echo('recovered')"));
         Assert.AreEqual(process, await Scalar<int>(connection, "SELECT pg_backend_pid()"));
@@ -322,7 +321,7 @@ public sealed class DatumMappingTests(TestContext context)
     }
 
     /// <summary>
-    /// Raw mapped enum-array reads reject underlying integer-array equivalence and absent values alike.
+    /// Raw mapped enum arrays select their declared converter and preserve unnamed enum values and SQL NULL.
     /// </summary>
     /// <param name="absent">Whether the input is SQL NULL.</param>
     /// <param name="shaped">Whether the target is a shaped array.</param>
@@ -331,13 +330,11 @@ public sealed class DatumMappingTests(TestContext context)
     [DataRow(true, false)]
     [DataRow(false, true)]
     [DataRow(true, true)]
-    public async Task UnsupportedMappedArrayReadsNeverBypassConverters(bool absent, bool shaped)
+    public async Task MappedArrayReadsPreserveDeclaredEnumValuesAndSqlNull(bool absent, bool shaped)
     {
         await using NpgsqlConnection connection = await Open();
-        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection,
+        Assert.AreEqual(absent ? "NULL" : "-1|0|1|42", await Scalar<string>(connection,
             $"SELECT datum_mappings.read_mapped_array({absent},{shaped})"));
-        Assert.AreEqual("38000", error.SqlState);
-        Assert.AreEqual("Mapped datum arrays are not supported; read individual raw elements explicitly.", error.MessageText);
         Assert.AreEqual(42, await Scalar<int>(connection, "SELECT datum_mappings.sign_echo(42)"));
     }
 

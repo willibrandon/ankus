@@ -114,9 +114,14 @@ internal sealed class FunctionType
     internal bool IsVarlena => Reader == "varlena";
 
     /// <summary>
+    /// Gets whether the requested scalar or array uses a registered datum converter.
+    /// </summary>
+    internal bool IsMapped => DatumType is not null || Element?.DatumType is not null;
+
+    /// <summary>
     /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
     /// </summary>
-    internal bool UsesRawTransport => IsRaw || IsPolymorphic || DatumType is not null;
+    internal bool UsesRawTransport => IsRaw || IsPolymorphic || IsMapped;
 
     /// <summary>
     /// Gets whether the SQL declaration uses a polymorphic type, including an explicit raw binding.
@@ -217,7 +222,8 @@ internal sealed class FunctionType
         if (elementType is not null)
         {
             FunctionType? element = Create(elementType, binding);
-            if (element is null || element.Element is not null || element.UsesRawTransport || element.IsInternal || element.Managed == "void")
+            if (element is null || element.Element is not null || element.UsesRawTransport && element.DatumType is null ||
+                element.IsInternal || element.Managed == "void")
             {
                 return null;
             }

@@ -85,6 +85,7 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `T[]`, `PgArray<T>` | Array of the corresponding scalar SQL type |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
+| `[PgDatumType]` classes, structs and enums | The converter's declared existing SQL type, also usable as an array element |
 | `void` result | `void` |
 
 Text and binary inputs are managed copies. They remain valid after PostgreSQL
@@ -104,6 +105,10 @@ checked .NET bound types.
 
 See [arrays](/arrays/) for dimensions, lower bounds, nullable elements, and
 variadic functions. `byte[]` is scalar `bytea`; `byte[][]` is `bytea[]`.
+
+Use [reusable datum mappings](/raw-values/#reusable-scalar-mappings) for an existing
+SQL representation. Function inputs need a reader; outputs need a writer. Array
+signatures use the same element converter and type provider.
 
 ## SQL NULL
 

@@ -98,7 +98,7 @@ This does not extend native storage lifetime. Check IsNull separately before int
 
 ### Read&lt;T&gt;()
 
-Reads a supported managed type with the ordinary SPI checks, or invokes its registered scalar datum reader.
+Reads a supported managed type with the ordinary SPI checks, or invokes registered scalar or array element readers.
 
 ```csharp
 public T Read<T>()
@@ -116,6 +116,7 @@ An independent managed value, or a polymorphic wrapper sharing this datum's life
 
 Registered datum readers require the exact current mapped type and a live owner, including for SQL NULL.
 Their user-supplied conversion must return independent managed data for a present value.
+Mapped array elements use a temporary native owner that ends after conversion; this source datum remains owned by its original context.
 
 <a id="member-2a2b71e7e909187c"></a>
 

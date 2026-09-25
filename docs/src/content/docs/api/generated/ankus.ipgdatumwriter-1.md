@@ -50,3 +50,6 @@ The destination for native storage needed by this operation.
 Returns: [PgDatum](/api/ankus.pgdatum/)
 
 A live datum with exactly typeOid, including for SQL NULL; never a null handle.
+
+Array element writers receive temporary storage that remains live through complete array construction.
+Returning a checked datum owned elsewhere does not transfer or dispose its original owner.

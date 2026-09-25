@@ -439,16 +439,17 @@ public static class DatumMappingFunctions
     }
 
     /// <summary>
-    /// Attempts an excluded mapped enum-array conversion on a raw present or NULL array.
+    /// Reads a mapped enum array through its selected converter, including unnamed values and SQL NULL.
     /// </summary>
     /// <param name="absent">Whether to read SQL NULL.</param>
     /// <param name="shaped">Whether to request a shaped array.</param>
-    /// <returns>A length only if the excluded conversion incorrectly succeeds.</returns>
+    /// <returns>Every underlying enum value, or the whole-array NULL marker.</returns>
     [PgFunction(Name = "read_mapped_array")]
-    public static int ReadMappedArray(bool absent, bool shaped)
+    public static string ReadMappedArray(bool absent, bool shaped)
     {
-        using SpiRawResult result = Spi.QueryRaw(absent ? "SELECT NULL::integer[]" : "SELECT ARRAY[-1,0,1]");
-        return shaped ? result[0][0].Read<PgArray<MappedSign>?>()?.Count ?? -1 : result[0][0].Read<MappedSign[]?>()?.Length ?? -1;
+        using SpiRawResult result = Spi.QueryRaw(absent ? "SELECT NULL::integer[]" : "SELECT ARRAY[-1,0,1,42]");
+        IEnumerable<MappedSign>? values = shaped ? result[0][0].Read<PgArray<MappedSign>?>() : result[0][0].Read<MappedSign[]?>();
+        return values is null ? "NULL" : string.Join('|', values.Select(static value => ((int)value).ToString(CultureInfo.InvariantCulture)));
     }
 
     /// <summary>
@@ -513,10 +514,10 @@ public static class DatumMappingFunctions
 
                 break;
             case 5:
-                Spi.ExecuteScalar<MappedText[]>(scalar);
+                Spi.ExecuteScalar<WriteMappedInt[]>(scalar);
                 break;
             case 6:
-                Spi.ExecuteScalar<PgArray<MappedText>>(scalar);
+                Spi.ExecuteScalar<PgArray<WriteMappedInt>>(scalar);
                 break;
             default:
                 PgFunctions.Call<WriteMappedInt>("pg_temp.mapped_effect");

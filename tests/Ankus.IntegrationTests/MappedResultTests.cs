@@ -121,8 +121,7 @@ public sealed class MappedResultTests(TestContext context)
                 PostgresException denied = await Assert.ThrowsExactlyAsync<PostgresException>(() => Scalar<int>(connection,
                     $"SELECT mapped_results.denied({surface},{width},{Literal(sql)})"));
                 Assert.AreEqual("38000", denied.SqlState);
-                Assert.AreEqual(width < 4 ? "The mapped PostgreSQL type has no datum reader."
-                    : "Mapped datum arrays are not supported; read individual raw elements explicitly.", denied.MessageText);
+                Assert.AreEqual("The mapped PostgreSQL type has no datum reader.", denied.MessageText);
                 Assert.IsFalse(await Scalar<bool>(connection, "SELECT is_called FROM mapped_result_effect"));
                 Assert.AreEqual("0|0|0|0|0|0", await Counts(connection));
             }

@@ -144,19 +144,19 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Arrays and other generic containers cannot fall through to codec or built-in element transport.
+    /// Nested arrays and other generic containers cannot fall through to codec or built-in element transport.
     /// </summary>
     /// <param name="method">The unsupported signature.</param>
     [TestMethod]
-    [DataRow("public static int Read(Value[] value) => 0;")]
-    [DataRow("public static Value?[] Read() => [];")]
-    [DataRow("public static int Read(Ankus.PgArray<Value?> value) => 0;")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<Value[]> Read() => [];")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<(int First, Ankus.PgArray<Value> Second)> Read() => [];")]
+    [DataRow("public static int Read(Value[][] value) => 0;")]
+    [DataRow("public static Value?[,] Read() => new Value?[0, 0];")]
+    [DataRow("public static int Read(Ankus.PgArray<Value?[]> value) => 0;")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgArray<Ankus.PgArray<Value>>> Read() => [];")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<(int First, System.Collections.Generic.List<Value> Second)> Read() => [];")]
     [DataRow("public static int Read(System.Collections.Generic.List<Value> value) => 0;")]
     public void DatumMappingsRejectUnsupportedContainers(string method)
         => AssertDatumMappingError(DatumMappingSource() + "public static class Functions { [Ankus.PgFunction] " + method + " }",
-            "ANKUS019", "typed arrays and other containers are unsupported");
+            "ANKUS019", "nested arrays and other containers are unsupported");
 
     /// <summary>
     /// Per-slot SQL metadata cannot override a reusable mapping, including renamed TABLE columns.

@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable scalar PgDatumType readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths. Mapped containers, ordinary row/composite conversions, unsafe native-address typed results, broader metadata forms and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths. Nested/generic mapping forms, ordinary row/composite conversions, unsafe native-address typed results, broader metadata forms and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2610,10 +2610,10 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar callback slots implemented. Mapped containers, broader mapping forms and the full platform/version matrix remain required. |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented. Nested/generic and broader mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
-| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar/array signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
 | `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; full hosted suites pass on Linux x64/PG18.6, macOS ARM64/PG18.6 and Windows x64/PG17.11. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
@@ -2768,8 +2768,9 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Strongly typed custom codecs and generated base-type declarations
     - [x] Generated default custom-type serialization, tagged variants, custom text and packed native storage for documented shapes
     - [x] Reusable scalar datum readers/writers and owned managed-identity SQL providers for documented paths
-    - [x] Typed mapped scalar results in SPI conveniences and named/OID catalog calls, with focused local evidence
-    - [ ] Mapped containers, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
+    - [x] Typed mapped scalar results in SPI conveniences and named/OID catalog calls, with full local evidence
+    - [x] Mapped vectors and shaped arrays with exact element/array identity, independent conversion directions and guarded ownership
+    - [ ] Nested/generic mappings, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -4688,6 +4689,94 @@ The phases track implementation of the complete pgrx feature surface.
   API generation and freshness pass (147 pages, 1,429 members); `pnpm check`
   reports zero errors, warnings or hints, and `pnpm build` produces 184 pages.
   Native fixture publication and Release/documentation builds ran sequentially.
-  Hosted platform validation is pending. Mapped arrays, ordinary row/composite
-  conversion, unsafe native-address typed results, broader declaration forms and
-  full platform/version parity remain open.
+  Commit `1b5d6cb` passes [full CI](https://github.com/willibrandon/ankus/actions/runs/36108254178)
+  and [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36108254145).
+  Each platform executed the complete suite against PostgreSQL:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 5,976 | 0 | 10m38s |
+  | macOS ARM64 | 18.6 | 5,974 | 2 | 7m15s |
+  | Windows x64 | 17.11 | 5,974 | 2 | 16m56s |
+
+  All jobs had zero failures. The two non-Linux skips are the existing
+  Linux-only native allocation measurement cases. Runtime cache hits do not
+  establish cold-runtime build performance. Linux and Windows exceeded the
+  preferred ten-minute target; all jobs remained within twenty minutes. Mapped
+  arrays, ordinary row/composite conversion, unsafe native-address typed results,
+  broader declaration forms and full platform/version parity remain open.
+
+- 2026-09-25 — Implemented mapped arrays after reviewing the pgrx array
+  conversion contracts, PostgreSQL array construction and the existing scalar
+  mapping paths. The selected scope composes one `T[]` or `PgArray<T>`
+  layer around a registered scalar converter, preserving exact current element
+  and array identity, NULL and shape. Generated scalar/variadic/set/TABLE/
+  aggregate slots, typed parameters, raw reads and typed SPI/catalog results are
+  included; ordinary erased row/tuple conversions remain a separate requirement.
+
+  The design uses temporary extraction storage for detached reads and eager
+  guarded construction for writes. Every written element, including framework
+  and writer-produced SQL NULL, receives PostgreSQL domain validation before the
+  completed array is copied into its destination. Independent review identified
+  an additional physical element-header check before native deconstruction and
+  destination revalidation after callback-capable domain checks. These guards
+  are part of the selected implementation. The focused generator scope passes
+  235 cases with zero failures/skips in 3.545s, including 50 new array cases.
+  Its initial attempt stopped before execution on an unused using directive in
+  the new test file; removing it satisfied IDE0005.
+
+  Review also identified canonical conversion paths that could reinterpret CLR
+  mapped enum arrays or accept empty/all-NULL mapped shapes without selecting
+  their converter. Explicit source/target guards close those erased paths.
+  Supported scalar helpers preserve no-row absence, and declared custom-array
+  codecs retain precedence over separately mapped runtime subtypes. The focused
+  runtime scope passes 95 cases with zero failures/skips in 977ms, including 34
+  new array cases. Those verify exact transport bytes, source survival and
+  temporary-owner expiry, primary/cleanup error preservation, erased-path
+  rejection, and stopping before the next converter when a callback changes
+  catalog identity. Its earlier attempts found test-style diagnostics and one
+  obsolete unsupported-array expectation; both were corrected. Independent
+  production, generator and direct assertion reviews are complete.
+
+  Exact array-of-domain identity remains distinct from base/sibling arrays and
+  domains over the whole array, including NULL, empty and all-NULL values.
+  Per-element converters share the scalar's lazy instance. Value/enum CLR
+  arrays require their actual declared type; reference covariance uses the
+  declared converter and reads produce a writable base array. Retained typed
+  parameters reject changed array OIDs before writers; detached managed arrays
+  resolve the current element identity when rebound. Type-only defaults and
+  prepared metadata require neither a writer nor converter construction.
+
+  Focused Native AOT/PostgreSQL 18.6 validation on Linux x64 passes all 49 new
+  backend cases in 56.732s. The preceding broader run passed all 567 selected
+  regression/package cases and 32 new cases; its remaining 17 failures came
+  from the new test client's untyped nullable-array decoding. Selecting the
+  requested type through `GetFieldValueAsync<T>` corrected the helper, without
+  production changes. Initial attempts stopped on enforced analyzer diagnostics
+  before backend bodies executed. Independent assertion review is complete.
+
+  | Requirement | Named evidence |
+  | --- | --- |
+  | Closed registration, directions and independent converter selection | `RegistrationSharesLazyConverterAndAllowsOfflineShapes`, `DatumArraysAcceptIndependentDirections`, `DatumArraysRejectUnavailableAggregateDirections`, `MappedArraysSelectDeclaredAliasesAcrossOwners`, `MappedArrayDirectionsAreCheckedBeforeSqlAndFactory`: lazy/shared converter, distinct alias values, byte enum identity, all four SPI owners and untouched sequence state |
+  | Exact identity, NULL and shape | `NullEmptyAndRequiredCellsKeepTheirDistinctContracts`, `MappedArrayNominalIdentityIncludesNullEmptyAndAllNull`, `MappedArrayHeaderIdentityIsValidatedBeforeDeconstruction`, `MappedArrayShapesUsePostgresBoundsAndRejectLossyVectorsEarly`: real physical-header mismatch, exact domain arrays, row-major values, rank six and lower bounds, vector rejection before readers |
+  | Storage, constraints and ownership | `WriterBuildsExactTransportBeforeDeletingElementStorage`, `ArrayOwnersPreservePrimaryAndCleanupErrors`, `NativeArrayFailuresPreserveDiagnosticsAndCleanup`, `MappedArrayReadOwnershipReleasesTemporaryElementsOnly`, `MappedArrayStoragePreservesIndependentFixedAndToastedValues`, `MappedArrayNullWritersCannotBypassDomainConstraints`: literal transport/bit values, full TOAST text, both NULL sources checked by domains, temporary expiry and caller-source survival |
+  | Reentrancy and eager failure boundaries | `ReentrantCatalogChangesStopBeforeTheNextElement`, `MappedArrayLaterWriterErrorsPreserveCleanupAndPreExecutionTiming`, `MappedArrayCatalogMismatchPreventsCalleeAndDefaultEffects`: current per-element identity, later owner reset, exact diagnostics, no target/default/callee effects on pre-execution failure |
+  | Generated and deferred behavior | `DatumArraysPreserveEveryScalarSetAndTableContract`, `MappedArrayManualOperatorAndCastUseExactLeafIdentity`, `MappedArrayDeferredSetsAndTablesRetainValuesAndDispose`, `MappedArrayAggregatesRetainInputsAndMovingStates`: full generated SQL contracts, actual operator/cast catalog identities, streaming/materialized arrays/TABLE, early/error cleanup, retained and moving states |
+  | Typed SPI/catalog behavior and completed SQL effects | `MappedArraysCrossEveryTypedSpiOwnerAndSelectedPosition`, `MappedArrayManagedErrorsRetainCompletedSqlEffects`, `MappedArrayCaughtCatalogErrorsRetainCompletedWrites`: every selected width/owner, mixed results, no-row/utility absence, complete independent row sets retained when managed conversion fails after SQL |
+  | Catalog lifecycle and preserved boundaries | `MappedArraysRefreshExternalIdentityWithoutRebindingSavedParameters`, `DatumMappingPackageRelocatesAndReinstallsWithCurrentTypeIdentity`, `DeclaredCustomArrayConverterPrecedesRuntimeDatumMapping`, `ErasedArrayPathsRejectPresentEmptyAndNullWithoutChangingOwners`: live E/A replacement, stale parameters, twelve owned package identities across relocation/reinstall, unchanged shadows, declared codec precedence and rejected erased writes |
+
+  Combine transport is executed by a test-local aggregate using the generated
+  Combine helper as its transition function under a valid aggregate context;
+  this does not claim parallel-worker execution. Private malformed constructor
+  frames have defensive source review only; no malformed-frame execution,
+  empirical mutation or coverage percentage is claimed. README and the public
+  arrays, raw-values, SPI, function-call and function-signature guides describe
+  these contracts. Plain `dotnet test` passes all 6,109 tests with zero failures
+  or skips in 245.509s on Linux x64/PostgreSQL 18.6. The non-incremental Release
+  build passes in 17.19s with zero warnings/errors. API generation and freshness
+  checks pass for 147 pages/1,429 members; `pnpm check` reports zero
+  errors/warnings/hints and `pnpm build` produces 184 pages. Hosted validation
+  for this milestone is pending.
+  Ordinary row/composite conversion, nested/generic mapping declarations,
+  unsafe native-address typed results, automatic derived families and full
+  platform/version parity remain open.

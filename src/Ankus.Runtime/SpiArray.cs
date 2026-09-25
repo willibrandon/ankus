@@ -113,6 +113,16 @@ internal static class SpiArray
     /// <param name="type">The requested vector or shape-preserving array type.</param>
     /// <returns>The typed array, reusing the source when its type already matches.</returns>
     internal static object Convert(IPgArray array, Type type)
+    {
+        PgDatumRegistry.RejectOrdinaryArray(array.GetType());
+        PgDatumRegistry.RejectOrdinaryArray(type);
+        return ConvertCore(array, type);
+    }
+
+    /// <summary>
+    /// Applies ordinary statically closed conversions after rejecting datum-mapped containers.
+    /// </summary>
+    private static object ConvertCore(IPgArray array, Type type)
         => PgTypeRegistry.FindArray(type)?.Convert(array, type) ?? PgEnumRegistry.FindArray(type)?.Convert(array, type) ??
            Convert<PgHeapTuple>(array, type) ?? Convert<PgRange<int>>(array, type) ?? Convert<PgRange<long>>(array, type) ?? Convert<PgRange<PgNumeric>>(array, type) ?? Convert<PgRange<decimal>>(array, type) ??
            Convert<PgRange<PgDate>>(array, type) ?? Convert<PgRange<DateOnly>>(array, type) ?? Convert<PgRange<PgTimestamp>>(array, type) ??
@@ -143,7 +153,16 @@ internal static class SpiArray
     /// </summary>
     /// <param name="value">The vector; binary elements remain managed byte-array references.</param>
     /// <returns>The shape-preserving array, with rank zero for an empty vector.</returns>
-    internal static IPgArray Wrap(Array value) => PgTypeRegistry.FindArray(value.GetType())?.Wrap(value) ?? PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
+    internal static IPgArray Wrap(Array value)
+    {
+        PgDatumRegistry.RejectOrdinaryArray(value.GetType());
+        return WrapCore(value);
+    }
+
+    /// <summary>
+    /// Selects ordinary array representations after checking their actual closed managed identity.
+    /// </summary>
+    private static IPgArray WrapCore(Array value) => PgTypeRegistry.FindArray(value.GetType())?.Wrap(value) ?? PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
         PgHeapTuple[] items => new PgArray<PgHeapTuple>(items),
         PgRange<int>[] items => new PgArray<PgRange<int>>(items), PgRange<long>[] items => new PgArray<PgRange<long>>(items),
@@ -198,6 +217,8 @@ internal static class SpiArray
     /// <returns>The original array when its type matches, otherwise a new typed copy.</returns>
     internal static PgArray<T> Cast<T>(IPgArray array)
     {
+        PgDatumRegistry.RejectOrdinaryArray(array.GetType());
+        PgDatumRegistry.RejectOrdinaryArray(typeof(PgArray<T>));
         if (array is PgArray<T> typed)
         {
             return typed;

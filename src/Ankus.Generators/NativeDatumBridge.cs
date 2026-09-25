@@ -118,7 +118,11 @@ internal static class NativeDatumBridge
                 ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("The polymorphic value is not an array")));
             ankus_datum_context(request->result_context, request->result_generation);
             ArrayType *array = DatumGetArrayTypeP(datum);
+            if (ARR_ELEMTYPE(array) != element)
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Array header element type does not match its declared type")));
             int rank = ARR_NDIM(array);
+            if (rank < 0 || rank > MAXDIM)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Array header has an invalid dimension count")));
             int shape[MAXDIM * 2];
             memcpy(shape, ARR_DIMS(array), rank * sizeof(int));
             memcpy(shape + rank, ARR_LBOUND(array), rank * sizeof(int));

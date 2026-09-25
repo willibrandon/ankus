@@ -18,9 +18,10 @@ public sealed class PgDatumTypeAttribute : Attribute
 
 This declaration generates conversion registration, not type definitions or input/output functions.
 The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
-Supported paths are scalar generated callbacks, scalar set/TABLE and aggregate slots, declared SPI/function
+Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 parameters, typed SPI scalar and catalog-call results, and explicit PgDatum.Read&lt;T&gt; calls.
-Mapped arrays, ordinary SPI/tuple row conversions and typed native-address mapped results are not supported.
+One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
+Ordinary SPI/tuple row conversions and typed native-address mapped results are not supported.
 A reader must return independent managed data; retaining a checked PgDatum does not detach its storage.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Attribute](https://learn.microsoft.com/dotnet/api/system.attribute)
@@ -49,9 +50,10 @@ The closed converter type with an accessible parameterless constructor.
 
 This declaration generates conversion registration, not type definitions or input/output functions.
 The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
-Supported paths are scalar generated callbacks, scalar set/TABLE and aggregate slots, declared SPI/function
+Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 parameters, typed SPI scalar and catalog-call results, and explicit PgDatum.Read&lt;T&gt; calls.
-Mapped arrays, ordinary SPI/tuple row conversions and typed native-address mapped results are not supported.
+One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
+Ordinary SPI/tuple row conversions and typed native-address mapped results are not supported.
 A reader must return independent managed data; retaining a checked PgDatum does not detach its storage.
 
 

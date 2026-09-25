@@ -10,10 +10,10 @@ namespace Ankus;
 public static class PgDatumRegistry
 {
     private static readonly ConcurrentDictionary<Type, DatumTypeMapping> s_mappings = new();
-    private static readonly ConcurrentDictionary<Type, byte> s_deferredArrayResults = new();
+    private static readonly ConcurrentDictionary<Type, DatumArrayMapping> s_arrays = new();
 
     /// <summary>
-    /// Registers a value type and its nullable scalar representation.
+    /// Registers a value type, its nullable representation and closed array conversions.
     /// </summary>
     /// <typeparam name="T">The closed mapped value type.</typeparam>
     /// <param name="name">The exact SQL type name.</param>
@@ -28,11 +28,11 @@ public static class PgDatumRegistry
     {
         DatumTypeMapping<T> mapping = Register<T>(name, schema, origin, converterType, createConverter, canRead, canWrite);
         s_mappings[typeof(T?)] = mapping;
-        RegisterDeferredArrays<T?>();
+        RegisterArrays<T?>(mapping);
     }
 
     /// <summary>
-    /// Registers a reference type without selecting its runtime derived types as alternate mappings.
+    /// Registers a reference type and its closed arrays without selecting runtime derived types as alternate mappings.
     /// </summary>
     /// <typeparam name="T">The closed mapped reference type.</typeparam>
     /// <param name="name">The exact SQL type name.</param>
@@ -51,6 +51,22 @@ public static class PgDatumRegistry
     internal static DatumTypeMapping? Find(Type type) => s_mappings.GetValueOrDefault(type);
 
     /// <summary>
+    /// Finds the closed target-directed vector or shaped array descriptor.
+    /// </summary>
+    internal static DatumArrayMapping? FindArray(Type type) => s_arrays.GetValueOrDefault(type);
+
+    /// <summary>
+    /// Rejects a mapped array at a boundary that has discarded its declared converter.
+    /// </summary>
+    internal static void RejectOrdinaryArray(Type type)
+    {
+        if (FindArray(type) is not null)
+        {
+            throw new NotSupportedException("Mapped datum arrays require PgDatum.Read<T>(); ordinary array conversion is not supported.");
+        }
+    }
+
+    /// <summary>
     /// Requires the generated mapping for a requested scalar type.
     /// </summary>
     internal static DatumTypeMapping Require(Type type) => Find(type) ??
@@ -61,10 +77,7 @@ public static class PgDatumRegistry
     /// </summary>
     internal static void RejectOrdinaryResult<T>()
     {
-        if (s_deferredArrayResults.ContainsKey(typeof(T)))
-        {
-            throw new NotSupportedException("Mapped datum arrays are not supported; read individual raw elements explicitly.");
-        }
+        RejectOrdinaryArray(typeof(T));
 
         if (Find(typeof(T)) is not null)
         {
@@ -113,16 +126,17 @@ public static class PgDatumRegistry
             throw new InvalidOperationException($"Type '{typeof(T)}' already has a different generated PostgreSQL datum mapping.");
         }
 
-        RegisterDeferredArrays<T>();
+        RegisterArrays<T>(registered);
         return (DatumTypeMapping<T>)registered;
     }
 
     /// <summary>
-    /// Records unsupported closed array result identities without creating conversions or inspecting types at runtime.
+    /// Closes target-directed array conversions around the first registered scalar converter.
     /// </summary>
-    private static void RegisterDeferredArrays<T>()
+    private static void RegisterArrays<T>(DatumTypeMapping scalar)
     {
-        s_deferredArrayResults[typeof(T[])] = 0;
-        s_deferredArrayResults[typeof(PgArray<T>)] = 0;
+        var mapping = new DatumArrayMapping<T>(scalar);
+        s_arrays.TryAdd(typeof(T[]), mapping);
+        s_arrays.TryAdd(typeof(PgArray<T>), mapping);
     }
 }

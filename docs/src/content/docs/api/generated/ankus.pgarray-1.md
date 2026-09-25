@@ -21,7 +21,7 @@ Type parameters:
 
 `T`
 
-A supported scalar element type, such as int?, string, or PgNumeric.
+A supported scalar element type, such as int?, string, PgNumeric, or a registered datum mapping.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
@@ -89,7 +89,7 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 ### ElementTypeOid
 
 Gets the PostgreSQL element identity, including the named composite identity of an empty or all-null array.
-Enum and custom type identities are resolved in the current backend when requested.
+Enum, custom type and registered datum identities are resolved in the current backend when requested.
 
 ```csharp
 public uint ElementTypeOid { get; }

@@ -7,9 +7,10 @@ Use `T[]` for one-dimensional arrays with the usual PostgreSQL lower bound of on
 Use `PgArray<T>` when dimensions or lower bounds matter. Both support the scalar
 types listed in [Write a function](/getting-started/functions/#types).
 
-Reusable scalar mappings declared with `[PgDatumType]` do not yet support typed
-arrays. Read individual raw elements with
-[`PgDatum.Read<T>()`](/raw-values/#reusable-scalar-mappings).
+Reusable scalar mappings declared with `[PgDatumType]` also support these array
+forms, including nullable elements. They use the declared element's reader or
+writer and preserve its exact PostgreSQL identity. See
+[mapped elements](#mapped-elements).
 
 [Composite arrays](/composites/#arrays-sets-and-spi) use `PgHeapTuple?[]` or
 `PgArray<PgHeapTuple?>`. `PgCompositeType` binds named function signatures;
@@ -114,6 +115,50 @@ conversion. Domains use their underlying scalar conversion; `varchar[]` and
 Results own their managed storage and survive later SPI calls. Binary elements
 are ordinary managed byte arrays. Copying an element sequence does not clone
 those inner byte arrays.
+
+## Mapped elements
+
+A [`PgDatumType` mapping](/raw-values/#reusable-scalar-mappings) supplies the
+element conversion for `T[]`, `T?[]`, `PgArray<T>`, and `PgArray<T?>`. A reader
+supports generated inputs, explicit raw reads, SPI scalar-result helpers, and
+named/OID function-call results. A writer supports generated outputs and typed
+parameters. The same converter instance serves scalar and array conversions.
+No separate array converter or type provider is needed.
+
+For example, with the `Count` reader from the mapping guide:
+
+```csharp
+Count?[] values = Spi.ExecuteScalar<Count?[]>("SELECT ARRAY[7,NULL,11]");
+PgArray<Count?> shaped = Spi.ExecuteScalar<PgArray<Count?>>(
+    "SELECT '[0:2]={7,NULL,11}'::integer[]");
+```
+
+Arrays use the current exact array type belonging to the mapped element. If the
+element maps to a domain, its array differs from the base-type array and from
+sibling-domain arrays. A domain over the entire array is also a distinct type;
+declare a separate scalar mapping when that is the representation you need.
+Identity checks still apply to whole-array NULL, empty arrays and all-NULL arrays.
+
+Whole-array NULL skips element conversion. A NULL element skips its reader or
+writer, but still receives PostgreSQL's domain validation when written. A present
+element writer may return a typed SQL NULL; its type and native lifetime are
+checked as well. A NOT NULL element domain rejects either source of NULL.
+The required conversion direction is checked even for NULL or empty arrays;
+type-only defaults and prepared-statement metadata do not require a writer.
+
+Readers receive temporary native elements and must return detached managed
+values. Those element handles expire after the array read; an explicitly owned
+raw source array remains usable. Array writers receive a temporary destination
+that stays live until the complete array is constructed and copied to its
+destination. Returning a datum owned by the caller does not transfer that owner
+to Ankus. Copying the managed array container does not clone user reference
+objects returned by an element reader.
+
+Mapped arrays work in scalar, variadic, SETOF, TABLE and aggregate signatures,
+and through sessions and prepared statements. Ordinary `SpiRow.Get<T>()` and
+`PgHeapTuple.Get<T>()` do not select mapped element converters; use an owned raw
+cell's `Read<T[]>()` or `Read<PgArray<T>>()`. Nested mapped arrays and rectangular
+CLR arrays remain unsupported.
 
 ## Variadic functions
 

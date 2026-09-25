@@ -295,6 +295,13 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 return;
             }
 
+            slot = slot switch
+            {
+                IArrayTypeSymbol { Rank: 1, IsSZArray: true } array => array.ElementType,
+                INamedTypeSymbol { Name: "PgArray", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
+                    => array.TypeArguments[0],
+                _ => slot,
+            };
             if (slot is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } optional)
             {
                 slot = optional.TypeArguments[0];
@@ -318,7 +325,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             }
             else if (ContainsMapping(slot))
             {
-                Error(owner, "Mapped datum types support scalar signatures only; typed arrays and other containers are unsupported.", context);
+                Error(owner, "Mapped datum types support scalar signatures and one array layer; nested arrays and other containers are unsupported.", context);
                 valid = false;
             }
         }

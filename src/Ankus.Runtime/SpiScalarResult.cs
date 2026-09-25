@@ -18,6 +18,12 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) 
             return true;
         }
 
+        if (PgDatumRegistry.FindArray(typeof(T)) is { } array)
+        {
+            array.RequireRead();
+            return true;
+        }
+
         PgDatumRegistry.RejectOrdinaryResult<T>();
         return PgPolymorphic.Is<T>();
     }
@@ -79,7 +85,7 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw) 
 
         if (raw.Count == 0 || (allowMissing && raw.Columns.Count == 0))
         {
-            return SpiRow.Convert<T>(null);
+            return PgDatumRegistry.FindArray(typeof(T)) is not null ? default! : SpiRow.Convert<T>(null);
         }
 
         if (ordinal >= raw.Columns.Count)

@@ -95,6 +95,12 @@ public sealed class PgHeapTuple
     /// <param name="value">The replacement cell.</param>
     public void Set<T>(int ordinal, T value)
     {
+        PgDatumRegistry.RejectOrdinaryArray(typeof(T));
+        if (value is not null)
+        {
+            PgDatumRegistry.RejectOrdinaryArray(value.GetType());
+        }
+
         PgTupleAttributeInfo attribute = Descriptor.Attributes[ValidateOrdinal(ordinal)];
         ValidateAvailable(ordinal);
         if (attribute.IsDropped)
@@ -122,7 +128,11 @@ public sealed class PgHeapTuple
     /// </summary>
     /// <param name="ordinal">The zero-based physical ordinal.</param>
     /// <param name="value">The typed replacement.</param>
-    public void Set(int ordinal, SpiParameter value) => SetCore(ordinal, value.TypeOid, value.Value);
+    public void Set(int ordinal, SpiParameter value)
+    {
+        RejectMappedArray(value);
+        SetCore(ordinal, value.TypeOid, value.Value);
+    }
 
     /// <summary>
     /// Replaces a named cell using an explicit parameter identity.
@@ -153,6 +163,7 @@ public sealed class PgHeapTuple
         for (int index = 0; index < fields.Length; index++)
         {
             (string name, SpiParameter value) = fields[index];
+            RejectMappedArray(value);
             ArgumentException.ThrowIfNullOrEmpty(name);
             if (name.Contains('\0', StringComparison.Ordinal) || Encoding.UTF8.GetByteCount(name) > 63)
             {
@@ -165,6 +176,22 @@ public sealed class PgHeapTuple
         }
 
         return NativeBackend.CreateTuple(new PgHeapTuple(new PgTupleDescriptor(2249, -1, attributes), values));
+    }
+
+    /// <summary>
+    /// Keeps typed mapped array parameters out of the ordinary tuple materialization path.
+    /// </summary>
+    private static void RejectMappedArray(SpiParameter value)
+    {
+        if (value.DatumArrayMapping is not null)
+        {
+            throw new NotSupportedException("Mapped datum array parameters cannot be stored in ordinary managed tuples.");
+        }
+
+        if (value.Value is not null)
+        {
+            PgDatumRegistry.RejectOrdinaryArray(value.Value.GetType());
+        }
     }
 
     private void SetCore(int ordinal, uint oid, object? value)

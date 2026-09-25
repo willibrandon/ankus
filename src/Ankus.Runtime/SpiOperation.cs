@@ -168,4 +168,9 @@ internal enum SpiOperation : byte
     /// Resolves the current identity of a concrete manually mapped PostgreSQL type.
     /// </summary>
     DatumType,
+
+    /// <summary>
+    /// Constructs an exactly typed raw array from shape metadata and checked element datums.
+    /// </summary>
+    Array,
 }

@@ -74,6 +74,9 @@ disposed. No writer is required for a result. A mapping without a reader is
 rejected before execution, including in later tuple columns and queries that
 would return no rows. Present and NULL cells must have the exact mapped SQL type;
 a domain's base type or sibling domain is not interchangeable.
+Mapped vectors and `PgArray<T>` use the same helpers and exact identity rules.
+Their element readers return detached values; use `PgArray<T>` when dimensions
+or lower bounds cannot be represented by a vector. See [mapped array elements](/arrays/#mapped-elements).
 
 Use `PgAnyElement` or `PgAnyArray` as the result type to keep the actual PostgreSQL
 type, including types without a C# mapping. SQL NULL becomes a null wrapper.
