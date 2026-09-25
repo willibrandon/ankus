@@ -30,3 +30,17 @@ INSERT INTO results VALUES
     ('{"Sensor":"outside","Reason":"offline","kind":"unavailable"}');
 SELECT value FROM results;
 ```
+
+`RgbColor` uses hexadecimal SQL text with generated CBOR storage. `PackedColor`
+uses the same text convention and an explicit sequential, one-byte-packed layout
+that stores three payload bytes. Its binary protocol exposes those exact bytes:
+
+```sql
+SELECT '#12abef'::rgb_color::text;
+SELECT '#12abef'::packed_color::text;
+SELECT encode(packed_color_send('#12abef'::packed_color), 'hex'); -- 12abef
+```
+
+Native layouts depend on field order and byte order. Changing a layout requires
+a data migration. Managed transport currently copies the value; borrowed
+PostgreSQL views and copy-on-write are not yet implemented.

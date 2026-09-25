@@ -253,6 +253,9 @@ public sealed class CustomTypeTests(TestContext context)
         uint before = await Scalar<uint>(connection, "SELECT 'custom_first.distance'::regtype::oid");
         uint measurementBefore = await Scalar<uint>(connection, "SELECT 'custom_first.measurement'::regtype::oid");
         uint colorBefore = await Scalar<uint>(connection, "SELECT 'custom_first.rgb_color'::regtype::oid");
+        uint packedBefore = await Scalar<uint>(connection, "SELECT 'custom_first.packed_color'::regtype::oid");
+        Assert.AreEqual("#12ABEF", await Scalar<string>(connection, "SELECT '#12abef'::custom_first.packed_color::text"));
+        Assert.AreEqual("12abef", await Scalar<string>(connection, "SELECT encode(custom_first.packed_color_send('#12abef'),'hex')"));
         Assert.AreEqual("#12ABEF", await Scalar<string>(connection, "SELECT '#12abef'::custom_first.rgb_color::text"));
         Assert.AreEqual("125mm", await Scalar<string>(connection, "SELECT '125mm'::custom_first.distance::text"));
         Assert.IsTrue(await Scalar<bool>(connection, """
@@ -272,6 +275,9 @@ public sealed class CustomTypeTests(TestContext context)
         Assert.AreEqual(before, await Scalar<uint>(connection, "SELECT 'custom_second.distance'::regtype::oid"));
         Assert.AreEqual(measurementBefore, await Scalar<uint>(connection, "SELECT 'custom_second.measurement'::regtype::oid"));
         Assert.AreEqual(colorBefore, await Scalar<uint>(connection, "SELECT 'custom_second.rgb_color'::regtype::oid"));
+        Assert.AreEqual(packedBefore, await Scalar<uint>(connection, "SELECT 'custom_second.packed_color'::regtype::oid"));
+        Assert.AreEqual("#0000FF", await Scalar<string>(connection, "SELECT '#0000ff'::custom_second.packed_color::text"));
+        Assert.AreEqual("0000ff", await Scalar<string>(connection, "SELECT encode(custom_second.packed_color_send('#0000ff'),'hex')"));
         Assert.AreEqual("#0000FF", await Scalar<string>(connection, "SELECT '#0000ff'::custom_second.rgb_color::text"));
         Assert.IsTrue(await Scalar<bool>(connection, """
             SELECT '{"kind":"unavailable","Sensor":"inside","Reason":"offline"}'::custom_second.measurement::text::jsonb =
@@ -281,6 +287,9 @@ public sealed class CustomTypeTests(TestContext context)
         Assert.AreNotEqual(before, await Scalar<uint>(connection, "SELECT 'custom_first.distance'::regtype::oid"));
         Assert.AreNotEqual(measurementBefore, await Scalar<uint>(connection, "SELECT 'custom_first.measurement'::regtype::oid"));
         Assert.AreNotEqual(colorBefore, await Scalar<uint>(connection, "SELECT 'custom_first.rgb_color'::regtype::oid"));
+        Assert.AreNotEqual(packedBefore, await Scalar<uint>(connection, "SELECT 'custom_first.packed_color'::regtype::oid"));
+        Assert.AreEqual("#FFFFFF", await Scalar<string>(connection, "SELECT '#ffffff'::custom_first.packed_color::text"));
+        Assert.AreEqual("ffffff", await Scalar<string>(connection, "SELECT encode(custom_first.packed_color_send('#ffffff'),'hex')"));
         Assert.AreEqual("#FFFFFF", await Scalar<string>(connection, "SELECT '#ffffff'::custom_first.rgb_color::text"));
         Assert.AreEqual("0mm", await Scalar<string>(connection, "SELECT '0mm'::custom_first.distance::text"));
         Assert.IsTrue(await Scalar<bool>(connection, """

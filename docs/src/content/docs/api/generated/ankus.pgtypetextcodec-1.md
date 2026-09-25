@@ -21,7 +21,8 @@ Type parameters:
 
 The exact managed type carrying PgType.
 
-Select this codec through [TextCodec](/api/ankus.pgtypeattribute/#member-c489a45356245064) to retain generated CBOR storage.
+Select this codec through [TextCodec](/api/ankus.pgtypeattribute/#member-c489a45356245064) to retain generated storage:
+CBOR by default, or packed native bytes with [NativeLayout](/api/ankus.pgtypeattribute/#member-c9314382a002fa65).
 Ankus constructs one instance on first text use inside the managed error boundary. Binary operations
 do not construct or invoke the text codec. Do not retain PostgreSQL call state in the instance.
 Throw [PgException](/api/ankus.pgexception/) to supply a PostgreSQL SQLSTATE and owned error diagnostics.

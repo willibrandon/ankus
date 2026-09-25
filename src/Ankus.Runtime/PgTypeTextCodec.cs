@@ -4,7 +4,8 @@ namespace Ankus;
 /// Defines the SQL text representation of a PostgreSQL base type independently of its storage format.
 /// </summary>
 /// <remarks>
-/// Select this codec through <see cref="PgTypeAttribute.TextCodec"/> to retain generated CBOR storage.
+/// Select this codec through <see cref="PgTypeAttribute.TextCodec"/> to retain generated storage:
+/// CBOR by default, or packed native bytes with <see cref="PgTypeAttribute.NativeLayout"/>.
 /// Ankus constructs one instance on first text use inside the managed error boundary. Binary operations
 /// do not construct or invoke the text codec. Do not retain PostgreSQL call state in the instance.
 /// Throw <see cref="PgException"/> to supply a PostgreSQL SQLSTATE and owned error diagnostics.

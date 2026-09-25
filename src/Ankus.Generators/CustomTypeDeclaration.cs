@@ -9,7 +9,7 @@ namespace Ankus.Generators;
 /// Validates a generated base type and its statically constructed storage codec.
 /// </summary>
 internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, INamedTypeSymbol? textCodec,
-    DefaultTypeSerializer? serializer, AttributeData attribute, string name, string? schema)
+    DefaultTypeSerializer? serializer, int nativeSize, AttributeData attribute, string name, string? schema)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -99,9 +99,15 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
 
         var codec = codecArgument as INamedTypeSymbol;
         var textCodec = textArgument.Value as INamedTypeSymbol;
+        bool nativeLayout = AttributeValues.Get(attribute, "NativeLayout", false);
         if (codec is not null && textCodec is not null)
         {
-            return Invalid("TextCodec selects generated CBOR storage and cannot be combined with an explicit storage codec.");
+            return Invalid("TextCodec selects generated storage and cannot be combined with an explicit storage codec.");
+        }
+
+        if (nativeLayout && (codec is not null || textCodec is null))
+        {
+            return Invalid("NativeLayout requires TextCodec and cannot be combined with an explicit storage codec.");
         }
 
         if (AttributeValues.Get<string?>(attribute, "NullInputErrorMessage", null) is { } nullMessage && !SqlText.IsText(nullMessage))
@@ -123,7 +129,16 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid(textError);
         }
 
-        if (codec is null)
+        int nativeSize = 0;
+        if (nativeLayout)
+        {
+            nativeSize = NativeTypeLayout.Validate(type, out string? error);
+            if (error is not null)
+            {
+                return Invalid(error);
+            }
+        }
+        else if (codec is null)
         {
             serializer = DefaultTypeSerializer.Create(type, out string? error);
             if (serializer is null)
@@ -156,7 +171,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("Type and schema names must be valid identifiers of at most 63 UTF-8 bytes.");
         }
 
-        return new(type, codec, textCodec, serializer, attribute, name, schema);
+        return new(type, codec, textCodec, serializer, nativeSize, attribute, name, schema);
 
         CustomTypeDeclaration? Invalid(string message)
         {
@@ -264,8 +279,25 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Emits an owned serializer for a type without an explicit codec.
     /// </summary>
-    internal void EmitSerializer(StringBuilder source) => serializer?.Emit("Codec_" + Symbol, source,
-        textCodec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    internal void EmitSerializer(StringBuilder source)
+    {
+        if (nativeSize != 0)
+        {
+            source.AppendLine("    private sealed class Codec_" + Symbol + " : global::Ankus.PgTypeCodec<" + Managed + ">");
+            source.AppendLine("    {");
+            source.AppendLine("        private readonly global::Ankus.PgNativeTypeCodec<" + Managed + "> _codec = new(" +
+                nativeSize.ToString(CultureInfo.InvariantCulture) + ", static () => new " + textCodec!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "());");
+            source.AppendLine("        public override " + Managed + " Parse(string text) => _codec.Parse(text);");
+            source.AppendLine("        public override string Format(" + Managed + " value) => _codec.Format(value);");
+            source.AppendLine("        public override " + Managed + " Read(global::System.ReadOnlySpan<byte> payload) => _codec.Read(payload);");
+            source.AppendLine("        public override void Write(" + Managed + " value, global::System.Buffers.IBufferWriter<byte> destination) => _codec.Write(value, destination);");
+            source.AppendLine("    }");
+        }
+        else
+        {
+            serializer?.Emit("Codec_" + Symbol, source, textCodec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+    }
 
     /// <summary>
     /// Emits a catalog check that restricts native binary decoding to generated custom types.

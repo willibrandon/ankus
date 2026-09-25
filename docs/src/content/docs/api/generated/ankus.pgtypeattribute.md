@@ -9,14 +9,14 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
+Generates a PostgreSQL base type with CBOR, packed native storage, or an explicit storage codec.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct|AttributeTargets.Enum, Inherited = false)]
 public sealed class PgTypeAttribute : Attribute
 ```
 
-Generated contracts support inherited members and explicitly tagged class variants declared with
+Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 [JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
 [JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require concrete variants.
 Unknown runtime subtypes are rejected to preserve stored type identity.
@@ -29,7 +29,7 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [At
 
 ### PgTypeAttribute(Type?)
 
-Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
+Generates a PostgreSQL base type with CBOR, packed native storage, or an explicit storage codec.
 
 ```csharp
 public PgTypeAttribute(Type? codec = null)
@@ -39,9 +39,9 @@ Parameters:
 
 `codec` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
 
-An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.
+An explicit PgTypeCodec with an accessible parameterless constructor; omit to use generated storage and the selected text options.
 
-Generated contracts support inherited members and explicitly tagged class variants declared with
+Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 [JsonDerivedTypeAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonderivedtypeattribute) and
 [JsonPolymorphicAttribute](https://learn.microsoft.com/dotnet/api/system.text.json.serialization.jsonpolymorphicattribute). Abstract classes require concrete variants.
 Unknown runtime subtypes are rejected to preserve stored type identity.
@@ -97,6 +97,25 @@ public string? Name { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-c9314382a002fa65"></a>
+
+### NativeLayout
+
+Gets or sets whether storage uses the exact native representation of a densely packed unmanaged struct.
+Requires TextCodec and explicit sequential layout with Pack = 1 on the root and nested structs.
+Only fixed-width numeric fields, enums, nested packed structs and fixed buffers of numeric fields are supported.
+
+```csharp
+public bool NativeLayout { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Native storage depends on field order and host byte order. BinaryProtocol exposes this same representation.
+Changing the layout requires a data migration. Booleans, characters, pointers, platform-sized integers,
+explicit layouts, padding, empty structs and framework value types are rejected by the generator.
+Values use ordinary copied managed transport; this option does not provide a borrowed PostgreSQL view.
+
 <a id="member-77743b32f37b8983"></a>
 
 ### NullInputErrorMessage
@@ -139,7 +158,7 @@ Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 ### TextCodec
 
-Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR storage.
+Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR or packed native storage.
 Cannot be combined with an explicit storage codec.
 
 ```csharp

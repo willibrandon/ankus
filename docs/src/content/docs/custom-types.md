@@ -1,6 +1,6 @@
 ---
 title: Custom types
-description: Declare PostgreSQL base types with generated CBOR storage, JSON or custom text, and explicit storage codecs.
+description: Declare PostgreSQL base types with CBOR, packed native storage, or explicit codecs.
 ---
 
 Put `[PgType]` on a record, class, struct, or enum. Ankus generates a serializer,
@@ -173,6 +173,64 @@ accessible parameterless constructor and an exact, non-nullable `T`. Closed
 generic codec types are supported. Constructors for codecs with C# `required`
 members need `[SetsRequiredMembers]`. `TextCodec` cannot be combined with the
 positional full storage codec option.
+
+## Packed native storage
+
+Use `NativeLayout = true` with `TextCodec` when the stored value should be a
+densely packed unmanaged struct. Every struct in the layout must explicitly
+declare `[StructLayout(LayoutKind.Sequential, Pack = 1)]`. For example, this
+variant of the color above stores exactly three payload bytes:
+
+```csharp
+using System.Runtime.InteropServices;
+using Ankus;
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+[PgType(NativeLayout = true, TextCodec = typeof(PackedColorTextCodec), BinaryProtocol = true)]
+public readonly record struct PackedColor(byte Red, byte Green, byte Blue);
+
+public sealed class PackedColorTextCodec : PgTypeTextCodec<PackedColor>
+{
+    private readonly RgbColorTextCodec _text = new();
+
+    public override PackedColor Parse(string text)
+    {
+        RgbColor value = _text.Parse(text);
+        return new(value.Red, value.Green, value.Blue);
+    }
+
+    public override string Format(PackedColor value) =>
+        _text.Format(new(value.Red, value.Green, value.Blue));
+}
+```
+
+```sql
+SELECT encode(packed_color_send('#12abef'::packed_color), 'hex'); -- 12abef
+```
+
+Supported fields are `byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`,
+`ulong`, `float`, `double`, enums, nested packed structs declared in the same
+assembly, and fixed buffers of these numeric primitives. All instance fields
+participate, including private fields and auto-property backing fields; JSON
+member attributes do not change the layout. Empty structs, reference fields,
+booleans, characters, pointers, native-sized integers, generic structs, opaque
+framework or external structs, explicit layouts, size overrides and inline
+arrays are rejected. These constraints exclude padding and process-dependent
+values from copied managed transport.
+
+Storage uses field order and the host's native byte order. Floating-point bit
+patterns and unnamed enum values are retained without text conversion. Binary
+send/receive, when enabled, exposes the same bytes; this is not the generated
+CBOR wire format. The payload excludes PostgreSQL's varlena header. Input must
+have exactly the generated size or it raises SQLSTATE `22P03`. Text conversion
+can enforce domain rules, but binary input validates size only; use an explicit
+storage codec if you need additional binary validation.
+
+Changing field order, field types, packing or byte order requires a data
+migration. Ordinary function, SPI, array and set transports copy values into
+managed structs. This storage option does not yet implement pgrx's borrowed
+`PgVarlena<T>` views or copy-on-write ownership. See the compiled
+[custom-type sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomTypes).
 
 ## NULL input policy
 

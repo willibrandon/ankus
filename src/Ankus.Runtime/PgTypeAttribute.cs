@@ -1,15 +1,15 @@
 namespace Ankus;
 
 /// <summary>
-/// Generates a PostgreSQL base type with CBOR storage, JSON or custom text, or an explicit storage codec.
+/// Generates a PostgreSQL base type with CBOR, packed native storage, or an explicit storage codec.
 /// </summary>
 /// <remarks>
-/// Generated contracts support inherited members and explicitly tagged class variants declared with
+/// Generated CBOR contracts support inherited members and explicitly tagged class variants declared with
 /// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/> and
 /// <see cref="System.Text.Json.Serialization.JsonPolymorphicAttribute"/>. Abstract classes require concrete variants.
 /// Unknown runtime subtypes are rejected to preserve stored type identity.
 /// </remarks>
-/// <param name="codec">An explicit PgTypeCodec with an accessible parameterless constructor; omit for generated CBOR storage and JSON text.</param>
+/// <param name="codec">An explicit PgTypeCodec with an accessible parameterless constructor; omit to use generated storage and the selected text options.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
 public sealed class PgTypeAttribute(Type? codec = null) : Attribute
 {
@@ -19,10 +19,23 @@ public sealed class PgTypeAttribute(Type? codec = null) : Attribute
     public Type? Codec { get; } = codec;
 
     /// <summary>
-    /// Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR storage.
+    /// Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR or packed native storage.
     /// Cannot be combined with an explicit storage codec.
     /// </summary>
     public Type? TextCodec { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether storage uses the exact native representation of a densely packed unmanaged struct.
+    /// Requires TextCodec and explicit sequential layout with Pack = 1 on the root and nested structs.
+    /// Only fixed-width numeric fields, enums, nested packed structs and fixed buffers of numeric fields are supported.
+    /// </summary>
+    /// <remarks>
+    /// Native storage depends on field order and host byte order. BinaryProtocol exposes this same representation.
+    /// Changing the layout requires a data migration. Booleans, characters, pointers, platform-sized integers,
+    /// explicit layouts, padding, empty structs and framework value types are rejected by the generator.
+    /// Values use ordinary copied managed transport; this option does not provide a borrowed PostgreSQL view.
+    /// </remarks>
+    public bool NativeLayout { get; set; }
 
     /// <summary>
     /// Gets or sets the SQLSTATE 22004 message raised when the generated text input function receives SQL NULL.
