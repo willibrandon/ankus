@@ -104,7 +104,7 @@ public sealed class PgDiagnostic
     /// Creates an ERROR exception preserving every diagnostic field, defaulting an unspecified SQLSTATE to XX000.
     /// </summary>
     /// <returns>The exception to unwind through managed code before native reporting.</returns>
-    internal PgException ToException() => new(SqlState ?? "XX000", Message, Detail, Hint)
+    internal PgException ToException() => new(SqlState ?? PgSqlStates.InternalError, Message, Detail, Hint)
     {
         Context = Context,
         SchemaName = SchemaName,

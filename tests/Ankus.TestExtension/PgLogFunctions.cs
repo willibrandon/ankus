@@ -37,7 +37,7 @@ public static class PgLogFunctions
         {
             PgLog.Write(PgLogLevel.Warning, new PgDiagnostic(message)
             {
-                SqlState = "01P01",
+                SqlState = PgSqlStates.WarningDeprecatedFeature,
                 Detail = "client détail",
                 DetailLog = "server-only détail",
                 Hint = "retry 🐘",
@@ -66,7 +66,7 @@ public static class PgLogFunctions
     {
         try
         {
-            PgLog.Write(PgLogLevel.Error, new PgDiagnostic("caught error") { SqlState = "22023", Detail = "detail", Hint = "hint" });
+            PgLog.Write(PgLogLevel.Error, new PgDiagnostic("caught error") { SqlState = PgSqlStates.InvalidParameterValue, Detail = "detail", Hint = "hint" });
         }
         catch (PgException error)
         {
@@ -89,7 +89,7 @@ public static class PgLogFunctions
             Spi.Connect(session =>
             {
                 session.Execute("INSERT INTO log_rollback VALUES (99)");
-                PgLog.Write((PgLogLevel)level, new PgDiagnostic(marker) { SqlState = "P0001", Detail = "terminal detail" });
+                PgLog.Write((PgLogLevel)level, new PgDiagnostic(marker) { SqlState = PgSqlStates.RaiseException, Detail = "terminal detail" });
             });
         }
         finally

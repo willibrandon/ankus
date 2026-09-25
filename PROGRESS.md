@@ -2672,7 +2672,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
-| `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; named SQLSTATE catalog pending |
+| `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | Partial: selected scalar OID mappings |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
@@ -5275,5 +5275,55 @@ The phases track implementation of the complete pgrx feature surface.
   freshness pass for 148 pages/1,437 members; `pnpm check` reports zero errors,
   warnings or hints and `pnpm build` produces 185 pages. Static assertion and
   public-outcome pseudo-mutation review is Strong for this example contract;
-  no empirical mutation or measured coverage claim is made. Hosted validation
-  of this sample milestone remains pending.
+  no empirical mutation or measured coverage claim is made. Commit `2914219`
+  passes [full CI](https://github.com/willibrandon/ankus/actions/runs/36145489482)
+  and [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36145489500).
+  Each platform executed the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,375 | 0 | 11m27s |
+  | macOS ARM64 | 18.6 | 6,373 | 2 | 11m24s |
+  | Windows x64 | 17.11 | 6,373 | 2 | 18m23s |
+
+  All jobs had zero failures. The non-Linux skips remain the existing two
+  Linux-only native allocation measurements. Windows completed within its
+  25-minute allowance. The preferred ten-minute feedback target remains unmet;
+  cached runtime preparation does not establish cold-runtime build performance.
+
+- 2026-09-25 — Added `PgSqlStates`, a named string catalog compatible with the
+  existing `PgException`, `PgDiagnostic` and exception-filter APIs. It includes
+  every native macro in the union of PostgreSQL 13–18 and 19 beta source
+  catalogs: 269 names, 263 distinct values, including all six native aliases.
+  All 257 named entries in the pinned pgrx `PgSqlErrorCode` match this union.
+  The older `SnapshotTooOld` name is retained; XML comments identify codes
+  present only in particular version catalogs. Conditions shared by warning,
+  data and routine classes have distinct C# names. Custom strings retain their
+  exact values through the existing transport; no enum fallback, runtime
+  reflection or code generation is introduced into consumers.
+
+  `eng/Ankus.SqlStates.cs` reads the pinned source tags from a read-only local
+  PostgreSQL checkout and regenerates the documented constants. It rejects
+  malformed entries, conflicting definitions and generated-name collisions.
+  Generation and freshness checks pass; an intentionally stale private output
+  is rejected without being replaced. An independent audit compares every
+  compiled public constant and its documented macro with separately parsed
+  upstream records, including all aliases and exact version differences.
+  These catalog checks are source evidence, not execution of every PostgreSQL
+  version or every condition that can produce an error.
+
+  Existing Native AOT diagnostic and logging probes now use named codes while
+  retaining independent client SQLSTATE assertions. The 37-case published
+  backend scope passes with zero failures/skips in 69.938s on Linux x64/
+  PostgreSQL 18.6, covering named errors, warnings, native catch filters,
+  full diagnostics, encoding, managed unwind, cleanup and same-session recovery.
+  The affected runtime scope passes 62 cases with zero failures/skips in 3.464s.
+  Plain `dotnet test` passes all 6,375 tests with zero failures/skips in 260.431s
+  on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes in
+  12.12s with zero warnings/errors. API generation and freshness pass for 149
+  pages/1,706 members; `pnpm check` reports zero errors, warnings or hints and
+  `pnpm build` produces 186 pages. Static assertion and public-outcome
+  pseudo-mutation review is Strong for the catalog and existing diagnostic
+  boundaries; no empirical mutation or measured coverage claim is made.
+  Hosted validation of this catalog milestone remains pending. Remaining
+  guard/raw APIs and complete PostgreSQL/platform validation remain required.

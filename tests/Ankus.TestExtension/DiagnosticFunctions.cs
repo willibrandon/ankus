@@ -84,7 +84,7 @@ public static class DiagnosticFunctions
     /// <param name="text">Text used in the primary and secondary diagnostics.</param>
     [PgFunction]
     public static void DiagnosticReport(string text)
-        => throw new PgException("22023", text, "detail " + text, "hint " + text)
+        => throw new PgException(PgSqlStates.InvalidParameterValue, text, "detail " + text, "hint " + text)
         {
             Context = "context " + text,
             SchemaName = "schéma",
@@ -108,7 +108,7 @@ public static class DiagnosticFunctions
     /// <param name="incompatible">Whether to include a character that LATIN1 cannot represent.</param>
     [PgFunction]
     public static void DiagnosticEncoding(bool incompatible)
-        => throw new PgException("22023", "message café", "détail", "réessayer")
+        => throw new PgException(PgSqlStates.InvalidParameterValue, "message café", "détail", "réessayer")
         {
             Context = incompatible ? "context 🐘" : "context café",
             SchemaName = "schéma",
@@ -136,7 +136,7 @@ public static class DiagnosticFunctions
             {
                 Spi.Execute("SELECT 1 / 0");
             }
-            catch (PgException error) when (error.SqlState == "22012" && error.Routine == "int4div")
+            catch (PgException error) when (error.SqlState == PgSqlStates.DivisionByZero && error.Routine == "int4div")
             {
                 recovered++;
             }

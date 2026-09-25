@@ -78,6 +78,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
+- [PgSqlStates](/api/ankus.pgsqlstates/)
 - [PgSqlTypeAttribute](/api/ankus.pgsqltypeattribute/)
 - [PgSqlTypeProviderAttribute](/api/ankus.pgsqltypeproviderattribute/)
 - [PgSubtransactionCallback](/api/ankus.pgsubtransactioncallback/)

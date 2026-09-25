@@ -42,7 +42,7 @@ Messages are literal text. Percent signs have no special meaning.
 ```csharp
 PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("Entry has expired.")
 {
-    SqlState = "01000",
+    SqlState = PgSqlStates.Warning,
     Detail = "The entry was last refreshed yesterday.",
     Hint = "Refresh it before the next query.",
     TableName = "cached_entries",
@@ -66,8 +66,27 @@ managed method and its `finally` blocks have finished.
 Throwing `PgException` directly is also supported:
 
 ```csharp
-throw new PgException("22023", "Count must be positive.", hint: "Pass a count greater than zero.");
+throw new PgException(PgSqlStates.InvalidParameterValue, "Count must be positive.", hint: "Pass a count greater than zero.");
 ```
+
+`PgSqlStates` provides named strings for every SQLSTATE in the PostgreSQL 13–18
+and 19 beta source catalogs, including native aliases and retired names. Use
+them directly with `PgException`, `PgDiagnostic.SqlState`, and exception filters:
+
+```csharp
+catch (PgException error) when (error.SqlState == PgSqlStates.UniqueViolation)
+{
+    PgLog.Write(PgLogLevel.Notice, "The entry already exists.");
+}
+```
+
+Names distinguish conditions that share wording across classes, such as
+`WarningStringDataRightTruncation` (`01004`) and `StringDataRightTruncation`
+(`22001`). A constant does not imply that its server feature exists in every
+version: for example, `TransactionTimeout` was added in PostgreSQL 17, while
+`SnapshotTooOld` belongs to PostgreSQL 13–16. The API reference records version
+differences. Custom codes remain ordinary strings and retain their exact value;
+they do not need registration or a catalog entry.
 
 `Fatal` and `Panic` also unwind managed code before reporting at the native
 boundary. Let these exceptions propagate. `Fatal` ends the backend connection.

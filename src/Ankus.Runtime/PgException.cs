@@ -25,7 +25,7 @@ public sealed class PgException : Exception
     /// </summary>
     /// <param name="message">The primary error message.</param>
     /// <param name="innerException">The original managed error.</param>
-    public PgException(string message, Exception? innerException) : this("38000", message, innerException: innerException)
+    public PgException(string message, Exception? innerException) : this(PgSqlStates.ExternalRoutineException, message, innerException: innerException)
     {
     }
 

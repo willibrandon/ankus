@@ -226,6 +226,8 @@ with exact mapped type identity and detached managed results.
 `DangerousCall<T>` accepts mapped results when the caller supplies a valid native
 address with the matching result type and ABI.
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
+`PgSqlStates` supplies named SQLSTATE strings for reporting errors and writing
+exception filters, while preserving support for extension-specific codes.
 
 Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.
 It works in generated functions, SPI, and arrays, and can expand an `xid` with
