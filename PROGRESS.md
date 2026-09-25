@@ -2531,11 +2531,11 @@ The target architecture consists of:
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal, raw and custom-codec signatures implemented; heterogeneous variadic ANY remains required; verification recorded below |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
-| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named graph dependencies | Inline/file SQL, ordering, bootstrap/final and relocation implemented; declared type-provider integration pending |
+| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation and catalog-name providers for raw/composite bindings implemented; reusable managed-identity providers and standalone extraction remain required |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | `Datum` converters for built-in and user-defined SQL types | Partial: scalars, xid, text/bytea/UUID/JSON, nullable forms |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-in typed conversions, declared enum/custom-codec mappings and explicit raw PgDatum bindings are implemented for their documented value families. Reusable manual CLR-to-SQL mappings and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2610,11 +2610,11 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous scalar/array/enum types, SETOF/TABLE, names, fixed schemas, overloads, explicit/inferred strictness, named/defaulted arguments, variadics, and anyelement/anyarray signatures implemented; general raw/internal bindings remain pending |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw PgDatum/PgSqlType and internal callback bindings implemented. Reusable managed-to-SQL mappings and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
-| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation and SQL-only native packages implemented; declared created-type providers pending |
-| `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; declaration-control hosted validation is pending. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages and declared catalog-type providers implemented. Providers order existing raw/composite signatures and support explicitly ordered shell/I/O/completion sequences. Reusable managed-identity providers and standalone declared-entity extraction remain required. |
+| `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; full hosted suites pass on Linux x64/PG18.6, macOS ARM64/PG18.6 and Windows x64/PG17.11. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
@@ -2766,7 +2766,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] General `internal` state in scalar, SETOF, TABLE and aggregate callbacks
     - [x] Explicit raw datum bindings in scalar, SETOF, TABLE and aggregate signatures
     - [x] Strongly typed custom codecs and generated base-type declarations
-    - [ ] Remaining datum mappings and default custom-type serialization
+    - [x] Generated default custom-type serialization, tagged variants, custom text and packed native storage for documented shapes
+    - [ ] Remaining reusable managed datum mappings and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -4446,6 +4447,78 @@ The phases track implementation of the complete pgrx feature surface.
   x64/PostgreSQL 18.6. The Release build passes with zero warnings/errors in
   15.94s. API generation/freshness passes (142 pages, 1,414 members), as do
   `pnpm build` (179 pages) and `pnpm check` (zero errors, warnings or hints).
-  Hosted declaration-control verification is pending the milestone push. Manual/raw mappings,
-  declared custom-type providers and the complete version/platform matrix remain
-  full-port requirements.
+  Commit `47ee3c7` passed [CI run 36098297661](https://github.com/willibrandon/ankus/actions/runs/36098297661):
+  Linux x64/PostgreSQL 18.6 passed 5,649 cases with zero skips in a 9m55s job;
+  macOS ARM64/PostgreSQL 18.6 passed 5,647 with two existing Linux-only allocation
+  skips in 8m57s; Windows x64/PostgreSQL 17.11 passed 5,647 with those same two
+  skips in 17m47s. Every new declaration-control case executed. Runtime preparation,
+  quality checks and [documentation deployment](https://github.com/willibrandon/ankus/actions/runs/36098297659)
+  also passed. These runtime-cache-hit jobs do not establish a cold-runtime-build
+  baseline. Windows remains above the preferred ten-minute budget and below the
+  hard twenty-minute timeout. Reusable managed-to-SQL mappings, declared type
+  providers and the complete version/platform matrix remain full-port requirements;
+  explicit raw datum and internal callback bindings are already implemented.
+
+- 2026-09-24 — Added declared catalog-type providers for existing raw and named
+  composite bindings. `[assembly: PgSqlTypeProvider("block-id", "type-name")]`
+  identifies one inline/file SQL block and an exact catalog name with an optional
+  fixed schema. It adds automatic dependencies for parameters, scalar/SETOF/TABLE
+  results, arrays and aggregate helpers; operators and casts retain their backing
+  function dependencies. Known provider schemas are prerequisites, and fixed
+  schemas prevent relocation. Metadata does not parse SQL or register a converter.
+
+  Generated type/enum identities remain reserved under default, disabled and
+  replacement SQL policies. Duplicate providers, invalid identifiers and missing
+  or wrong-kind SQL block references produce `ANKUS005` without partial artifacts.
+  Catalog identity uses exact case-sensitive names and nullable schemas, with
+  array bindings referring to their element provider. Unqualified bindings do
+  not inherit a function schema or match every fixed schema; external types
+  continue to work without a provider.
+
+  A separate inferred-edge set supports manual shell → I/O → completion ordering.
+  Only an explicit `Requires`/`Before` path that already places the consumer before
+  its completed provider can defer that inferred type edge. Generated, schema and
+  bootstrap/final edges cannot authorize deferral; hard and unresolved cycles
+  remain errors. A shell block can instead be the provider, with completion still
+  an explicit prerequisite of ordinary consumers.
+
+  The focused generator scope passes 246 cases with zero failures/skips in
+  3.585s. Its first run passed 238/246: eight fixtures expected spaces where the
+  SQL emitter places a newline before `RETURNS`. Exact expected strings were
+  corrected, including a later final-helper assertion; no production change was
+  required. The first native attempt stopped at fixture publication on `ANKUS004`
+  because a TABLE fixture reused output names for inputs. Renaming only those
+  inputs preserves its contract; the 15 reported initialization failures executed
+  no test bodies. The next run passed all 14 shared-backend cases but failed the
+  package fixture's missing-type message expectation: PostgreSQL's function
+  declaration path reports `type package_code does not exist` without identifier
+  quotes. The exact expectation now matches the verified backend diagnostic.
+  The corrected focused run passes all 15 cases with zero failures/skips in
+  1m28.276s on Linux x64/PostgreSQL 18.6.
+
+  | Requirement | Concrete evidence |
+  |---|---|
+  | Exact catalog identity, external bindings and tracked files | `DeclaredTypeProvidersMatchExactLeafIdentity`, `DeclaredTypeProvidersKeepSchemaPlacementAndMultipleClaimsIndependent`, `DeclaredTypeProvidersLeaveExistingExternalBindingsAndNativeContractsUnchanged`, `DeclaredTypeProviderFilesAndMetadataInvalidateIncrementalOutput`, `DeclaredTypeProviderOrderingIsDeterministicAcrossInlineAndFileInputs` |
+  | Every signature slot contributes its own prerequisite | `DeclaredTypeProvidersOrderEveryBoundSignature`, `DeclaredTypeProvidersOrderEveryIndependentTableColumn`, `DeclaredTypeProvidersOrderIndependentAggregateInputAndFinalResult`: separate output-only providers prevent another argument or column from masking a missing edge |
+  | Reserved generated identities and precise validation | `DeclaredTypeProvidersRecognizeReservedGeneratedIdentities`, `DeclaredTypeProvidersRejectGeneratedIdentityCollisions`, `InvalidDeclaredTypeProvidersSuppressAllArtifacts`, `DeclaredTypeProviderIdentifiersUseUtf8Boundaries`: disabled/replaced anchors, exact diagnostics, 63/64 UTF-8-byte boundaries and no partial artifacts |
+  | Shell/completed ordering, hard cycles, schemas and replacement bundles | `DeclaredTypeProvidersDeferOnlyExplicitReversePaths`, `DeclaredTypeProvidersAllowShellProvidersWithoutInferringCompletion`, `DeclaredTypeProvidersPreserveHardAndUnjustifiedCycles`, `DeclaredTypeProvidersComposeWithBundlesAndBoundaries`, `DeclaredTypeProviderSchemasOrderCreationAndConstrainRelocation`: the schema itself waits for a late prerequisite so lexical sorting cannot mask its edge |
+  | Actual catalog signatures, manual storage, values/NULL and array/domain identity | `DeclaredProvidersInstallEveryBoundSignature`, `CompleteProviderPreservesManualByValueStorage`, `DeclaredProvidersPreserveCompositeAndArrayIdentity`, `DeclaredDomainConstraintsRecover`: exact OIDs, four-byte by-value U24, zero/max values, real operators/casts, shape/lower bounds, distinct equal-shaped types, exact errors and same-PID recovery |
+  | Deferred values and ownership | `DeclaredSetAndTableProvidersRetainValues`, `DeclaredProviderCopiesOutliveSourceStorage`, `DeclaredProviderRejectsInvalidOutputs`, `DeclaredProviderAggregateRetainsFirstValue`: complete large values, normal/early/error cleanup, deleted source storage, wrong/stale present and typed-NULL outputs, retained aggregate state and empty/all-NULL groups |
+  | File-only package rebuild, atomic failure and ownership lifecycle | `DeclaredProviderPackageRelocatesReinstallsAndRollsBack`: three publications with unchanged C#/exports; exact enum/revision changes; false claim leaves empty catalogs, retained native callback recovers in the failed-installation backend; eight identities survive relocation and are fresh after reinstall, while four unrelated shadow identities survive drop |
+
+  Independent static production/generator/backend review found no unresolved
+  defect or concrete assertion gap; package assertions received separate root
+  review. No empirical mutation or coverage claim is made. The completed
+  unfiltered `dotnet test` run passes 5,750/5,750 with zero skips in 4m19.622s on
+  Linux x64/PostgreSQL 18.6, including 86 new generator cases and 15 new native/
+  package cases. The Release build passes with zero warnings/errors in 15.80s.
+  API generation/freshness passes (143 pages, 1,418 members), as do `pnpm build`
+  (180 pages) and `pnpm check` (zero errors, warnings or hints). Hosted provider
+  validation is pending the milestone push.
+
+  This catalog-name feature is a bounded step toward pgrx's declared providers.
+  The pinned reference matches reusable `SqlTranslatable.TYPE_IDENT` identities
+  with explicit ownership, independently of SQL spelling and datum conversion.
+  Reusable managed mappings, ownership-aware identity providers, manual mapped
+  derived operators, standalone schema extraction and the complete
+  PostgreSQL/platform matrix remain full-port requirements.

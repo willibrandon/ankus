@@ -30,6 +30,73 @@ declarations. SQL is trusted extension source: PostgreSQL executes it when
 PostgreSQL records objects created by the script as extension members. A failed
 installation rolls back its objects and data changes.
 
+## Declare supplied types
+
+Use `PgSqlTypeProvider` to identify a type created by a `PgSql` or `PgSqlFile`
+block. Functions using that exact `PgSqlType` or `PgCompositeType` binding then
+depend on the block automatically:
+
+```csharp
+using Ankus;
+
+[assembly: PgSql("pair-definition", """
+    CREATE TYPE reporting.pair AS (number integer, label text);
+    """)]
+[assembly: PgSqlTypeProvider("pair-definition", "pair", Schema = "reporting")]
+
+[PgSchema("reporting")]
+public static class Pairs
+{
+    [PgFunction]
+    [return: PgCompositeType("pair", Schema = "reporting")]
+    public static PgHeapTuple Echo(
+        [PgCompositeType("pair", Schema = "reporting")] PgHeapTuple value) => value;
+}
+```
+
+The provider block also follows a matching declared schema. Repeat the attribute
+when one block supplies several types. Its first argument must name a SQL block,
+including a tracked SQL file, rather than a function or schema dependency alias.
+
+Type and schema names are exact, unquoted catalog identifiers. A dot or quote
+inside `Name` is part of that one identifier. Matching is case-sensitive and
+does not normalize aliases such as `integer` and `int4`. Omitting `Schema`
+matches only bindings that also omit it, using the installation search path;
+it does not inherit the consuming function's schema. A fixed provider schema
+prevents relocation. Unqualified providers still need the SQL block's
+`Relocatable = true` assertion to permit relocation.
+
+Scalar parameters and results, SETOF results, individual TABLE columns,
+aggregate helpers, operators and casts receive these dependencies. Raw whole
+arrays and composite arrays use the element type's provider. Existing external
+types need no provider. Generated `PgType` and `PgEnum` declarations already
+supply their catalog identities, even when their SQL is disabled or replaced;
+claiming the same identity again is an error. To supply a disabled declaration,
+keep its explicit `Requires` dependency on the supplying SQL block.
+
+Provider metadata describes ordering. It does not parse the SQL, generate a
+managed conversion, or verify the type's native storage layout. PostgreSQL
+validates the objects when the extension installs. Keep explicit dependencies
+for SQL routines, default expressions and other objects used by custom SQL.
+
+### Shell types and completion
+
+A manual base type often needs a shell declaration, native input/output
+functions, then a completed type declaration. The completed block can be the
+provider when it explicitly requires those functions, and the functions
+explicitly require the shell. Ankus preserves that order and places ordinary
+consumers after completion. See the [raw type example](../raw-values/).
+
+An inferred type dependency is deferred only when an explicit `Requires` or
+`Before` path already orders the consumer before the provider. The early consumer
+must be valid with the objects created by those prerequisites. Bootstrap/final
+positioning alone cannot authorize this deferral. Explicit dependency cycles
+and unresolved cycles still produce `ANKUS005` with no installation manifest.
+
+Alternatively, declare the shell block as the provider. Consumers needing the
+completed type must then explicitly require the completion block. Declaring a
+provider never means that Ankus can infer the contents of the SQL.
+
 ## Replace function SQL
 
 Set `PgFunction.Sql` to replace a function's installation declaration with a

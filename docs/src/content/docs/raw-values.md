@@ -32,6 +32,11 @@ Ankus checks both before using their native storage. These bindings also work
 in aggregate support methods, operators, casts, and `IEnumerable<PgDatum?>`
 sets. For TABLE results, set `Column` to each raw column's SQL name.
 
+When your extension creates the bound type, declare its SQL block with
+`PgSqlTypeProvider` to order these signatures automatically. Type names and
+optional schemas match exactly; a provider does not change datum conversion or
+ownership. See [custom SQL](../custom-sql/#declare-supplied-types).
+
 ## Custom type representation
 
 Create the SQL type and supply its input/output functions. This example stores
@@ -45,6 +50,7 @@ using System.Globalization;
 [assembly: PgSql("u24-type",
     "CREATE TYPE u24 (INPUT=u24_in, OUTPUT=u24_out, LIKE=int4);",
     Requires = ["u24-in", "u24-out"])]
+[assembly: PgSqlTypeProvider("u24-type", "u24")]
 
 public static class U24
 {
@@ -74,6 +80,11 @@ public static class U24
 ```sql
 SELECT '16777215'::u24; -- 16777215
 ```
+
+The provider places other `u24` signatures after the completed type. Its explicit
+requirements preserve shell → input/output → completion ordering for the two
+functions needed to define the type. Additional consumers do not need to repeat
+`Requires = ["u24-type"]`.
 
 `DangerousCreate` requires a representation that matches the SQL type. For a
 pointer-based value, its native storage must remain valid for the chosen owner.

@@ -21,12 +21,12 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     /// <summary>
     /// Gets whether the binding names PostgreSQL's internal callback type.
     /// </summary>
-    internal bool IsInternal => IsBuiltin && name == "internal";
+    internal bool IsInternal => IsBuiltin && Name == "internal";
 
     /// <summary>
     /// Gets whether a built-in binding needs a polymorphic input to resolve its output type.
     /// </summary>
-    internal bool IsPolymorphic => IsBuiltin && name is "anyelement" or "anyarray" or "anynonarray" or "anyenum" or
+    internal bool IsPolymorphic => IsBuiltin && Name is "anyelement" or "anyarray" or "anynonarray" or "anyenum" or
         "anyrange" or "anymultirange" or "anycompatible" or "anycompatiblearray" or "anycompatiblenonarray" or
         "anycompatiblerange" or "anycompatiblemultirange";
 
@@ -46,9 +46,14 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     internal string? Schema { get; } = schema;
 
     /// <summary>
+    /// Gets the unquoted catalog name independently of array shape.
+    /// </summary>
+    internal string Name { get; } = name;
+
+    /// <summary>
     /// Gets the quoted SQL type identifier with its optional schema.
     /// </summary>
-    internal string Sql => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(name) +
+    internal string Sql => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(Name) +
         (array ? "[]" : string.Empty);
 
     /// <summary>

@@ -15,12 +15,16 @@ internal static class CustomSql
     /// <param name="files">AdditionalFiles paths and their tracked content.</param>
     /// <param name="projectDirectory">The compiler-visible project directory.</param>
     /// <param name="graph">The installation dependency graph.</param>
+    /// <param name="blocks">The successfully read SQL blocks, indexed by dependency identifier.</param>
     /// <returns>Whether every custom block explicitly permits relocation.</returns>
     internal static bool Add(ImmutableArray<AttributeData> attributes,
-        ImmutableArray<(string Path, string? Text)> files, string projectDirectory, SqlGraph graph)
+        ImmutableArray<(string Path, string? Text)> files, string projectDirectory, SqlGraph graph,
+        out Dictionary<string, SqlEntity> blocks)
     {
+        blocks = new(StringComparer.Ordinal);
         bool relocatable = true;
-        foreach (AttributeData attribute in attributes)
+        foreach (AttributeData attribute in attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
+            "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute"))
         {
             Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
             if (attribute.ConstructorArguments.Length != 2)
@@ -62,6 +66,11 @@ internal static class CustomSql
             var entity = new SqlEntity("2:sql:" + name, sql!, location) { Order = order };
             graph.Configure(entity, attribute, name);
             graph.Add(entity);
+            if (!blocks.ContainsKey(name!))
+            {
+                blocks.Add(name!, entity);
+            }
+
             relocatable &= AttributeValues.Get(attribute, "Relocatable", false);
         }
 

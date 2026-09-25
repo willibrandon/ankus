@@ -153,6 +153,10 @@ provide these controls with their own declaration boundaries. Type replacements
 can use native I/O tokens; family replacements retain their support functions
 and operators.
 
+Use `[assembly: PgSqlTypeProvider]` to declare types supplied by inline or file
+SQL. Raw and composite signatures then follow their supplying blocks, including
+manual shell/input/output/completion sequences with explicit prerequisites.
+
 ## Querying PostgreSQL
 
 Return `IEnumerable<T>` from `[PgFunction]` for `SETOF T`, or named tuple elements

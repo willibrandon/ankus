@@ -56,6 +56,11 @@ internal sealed class SqlEntity
     internal HashSet<SqlEntity> Dependencies { get; } = [];
 
     /// <summary>
+    /// Gets inferred custom SQL type prerequisites that may follow an explicitly ordered shell-type consumer.
+    /// </summary>
+    internal HashSet<SqlEntity> TypeDependencies { get; } = [];
+
+    /// <summary>
     /// Gets or sets the normal, bootstrap, or final positioning discriminator.
     /// </summary>
     internal int Order { get; set; }

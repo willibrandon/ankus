@@ -119,6 +119,8 @@ internal sealed class SqlGraph
             }
         }
 
+        Dictionary<SqlEntity, HashSet<SqlEntity>> explicitDependencies = _entities.ToDictionary(
+            static entity => entity, static _ => new HashSet<SqlEntity>());
         foreach (SqlEntity entity in _entities)
         {
             _context.CancellationToken.ThrowIfCancellationRequested();
@@ -136,10 +138,12 @@ internal sealed class SqlGraph
                     else if (before)
                     {
                         dependency.Dependencies.Add(entity);
+                        explicitDependencies[dependency].Add(entity);
                     }
                     else
                     {
                         entity.Dependencies.Add(dependency);
+                        explicitDependencies[entity].Add(dependency);
                     }
                 }
             }
@@ -150,6 +154,17 @@ internal sealed class SqlGraph
         if (_invalid)
         {
             return null;
+        }
+
+        foreach (SqlEntity entity in _entities)
+        {
+            foreach (SqlEntity provider in entity.TypeDependencies)
+            {
+                if (!ExplicitlyFollows(provider, entity))
+                {
+                    entity.Dependencies.Add(provider);
+                }
+            }
         }
 
         foreach ((SqlEntity entry, HashSet<SqlEntity> members) in _replacements)
@@ -218,6 +233,34 @@ internal sealed class SqlGraph
         }
 
         return result.ToString();
+
+        bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)
+        {
+            var pending = new Stack<SqlEntity>();
+            var visited = new HashSet<SqlEntity>();
+            pending.Push(provider);
+            while (pending.Count != 0)
+            {
+                _context.CancellationToken.ThrowIfCancellationRequested();
+                SqlEntity current = pending.Pop();
+                if (!visited.Add(current))
+                {
+                    continue;
+                }
+
+                foreach (SqlEntity dependency in explicitDependencies[current])
+                {
+                    if (dependency == consumer)
+                    {
+                        return true;
+                    }
+
+                    pending.Push(dependency);
+                }
+            }
+
+            return false;
+        }
 
         void AddBoundary(int order)
         {
