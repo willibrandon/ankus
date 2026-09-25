@@ -2,6 +2,7 @@
 #include "fmgr.h"
 #include "funcapi.h"
 #include "lib/stringinfo.h"
+#include "nodes/pg_list.h"
 #include "catalog/pg_type_d.h"
 #include "executor/executor.h"
 #include "utils/builtins.h"
@@ -10,6 +11,71 @@
 #include "utils/tuplestore.h"
 
 PG_MODULE_MAGIC;
+
+/* Independent native tag and union interpretation for list tests. */
+static text *
+list_fixture_describe(List *list)
+{
+    StringInfoData result;
+    initStringInfo(&result);
+    if (list == NIL)
+    {
+        appendStringInfoString(&result, "NIL");
+    }
+    else
+    {
+        const char *kind = list->type == T_List ? "ptr" : list->type == T_IntList ? "int" :
+            list->type == T_OidList ? "oid" : "unknown";
+#if PG_VERSION_NUM >= 160000
+        if (list->type == T_XidList) { kind = "xid"; }
+#endif
+        appendStringInfo(&result, "%s:", kind);
+        for (int index = 0; index < list_length(list); index++)
+        {
+            if (index != 0) { appendStringInfoChar(&result, ','); }
+            if (list->type == T_IntList) { appendStringInfo(&result, "%d", list_nth_int(list, index)); }
+            else if (list->type == T_OidList) { appendStringInfo(&result, "%u", list_nth_oid(list, index)); }
+#if PG_VERSION_NUM >= 160000
+            else if (list->type == T_XidList) { appendStringInfo(&result, "%u", list_nth_cell(list, index)->xid_value); }
+#endif
+            else if (list->type == T_List) { appendStringInfo(&result, UINT64_FORMAT, (uint64) (uintptr_t) list_nth(list, index)); }
+            else { elog(ERROR, "unexpected native list tag"); }
+        }
+    }
+
+    text *value = cstring_to_text(result.data);
+    pfree(result.data);
+    return value;
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_list_describe);
+PGDLLEXPORT Datum
+ankus_test_list_describe(PG_FUNCTION_ARGS)
+{
+    PG_RETURN_TEXT_P(list_fixture_describe((List *) (intptr_t) PG_GETARG_INT64(0)));
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_list_borrow);
+PGDLLEXPORT Datum
+ankus_test_list_borrow(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(1);
+    List *list = mode == 1 ? NIL : list_make2_int(1, 2);
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(PG_GETARG_OID(0), &function);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].isnull = false;
+    call->args[0].value = PointerGetDatum(list);
+    call->args[1].isnull = false;
+    call->args[1].value = Int32GetDatum(mode);
+    Datum result = FunctionCallInvoke(call);
+    if (call->isnull) { elog(ERROR, "list borrow returned NULL"); }
+    list = (List *) (intptr_t) DatumGetInt64(result);
+    text *description = list_fixture_describe(list);
+    list_free(list);
+    PG_RETURN_TEXT_P(description);
+}
 
 /* Native access deliberately uses the selected header's layout, never a managed copy. */
 PG_FUNCTION_INFO_V1(ankus_test_stringinfo_cursor);

@@ -27,6 +27,11 @@ For a growable PostgreSQL binary buffer, use
 [`PgStringInfoStream`](/stringinfo/). It supports ordinary stream writes, strict
 UTF-8 text, checked byte copies, and explicit native ownership transfers.
 
+For native PostgreSQL `List` containers, use [`PgList<T>`](/lists/). Its typed
+cells retain native integer, OID, transaction-ID or pointer identity. Container
+growth keeps the original context owner, and context cleanup invalidates both
+owned and borrowed handles. Pointer elements keep their independent ownership.
+
 ## Context ownership
 
 `Current` resolves PostgreSQL's current context at the point of the call.

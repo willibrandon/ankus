@@ -5,6 +5,10 @@
 #undef initStringInfo
 #undef enlargeStringInfo
 #undef pfree
+#undef list_make1_impl
+#undef MemoryContextAlloc
+#undef repalloc
+#undef list_free
 
 static void
 fault_require(bool condition, const char *message)
@@ -311,5 +315,183 @@ ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
     PG_END_TRY();
     fault_require(fault_live_records == 0 && ankus_stringinfos == NULL && ankus_memory_contexts == NULL,
         "StringInfo context deletion retained registry storage");
+    PG_RETURN_TEXT_P(cstring_to_text(report));
+}
+
+PG_FUNCTION_INFO_V1(ankus_test_list_fault);
+PGDLLEXPORT Datum
+ankus_test_list_fault(PG_FUNCTION_ARGS)
+{
+    int mode = PG_GETARG_INT32(0);
+    fault_require(mode >= 1 && mode <= 13, "unknown list fault scenario");
+    fault_require(fault_live_records == 0 && ankus_lists == NULL && ankus_memory_contexts == NULL,
+        "a previous list invocation retained registry storage");
+    MemoryContext caller = CurrentMemoryContext;
+    MemoryContext root = AllocSetContextCreate(caller, "Ankus list fault", ALLOCSET_SMALL_SIZES);
+    uint64 saved_next = ankus_list_next_id;
+    char *volatile report = NULL;
+    PG_TRY();
+    {
+        fault_owner = root;
+        AnkusMemoryApi api;
+        ankus_memory_initialize(&api);
+        uint64 owner = ankus_memory_context_id(root);
+        uint64 cells[128];
+        for (int index = 0; index < 128; index++) { cells[index] = (uint64) (uint32) (index - 64); }
+        AnkusMemoryRequest request = {0};
+        AnkusMemoryResult result = {0};
+        AnkusError error = {0};
+        request.operation = ANKUS_MEMORY_LIST;
+        request.flags = ANKUS_LIST_CREATE;
+        request.context = (intptr_t) owner;
+        request.alignment = 2;
+        request.data = (intptr_t) cells;
+        request.length = 128;
+        int before_live = fault_live_records;
+        int before_allocated = fault_successful_reservations;
+        int before_freed = fault_released_reservations;
+        fault_list_frees = 0;
+        fault_list_monitor = true;
+        if (mode <= 4 || mode >= 12)
+        {
+            if (mode >= 12)
+            {
+                MemoryContext special = mode == 12 ? BumpContextCreate(root, "Ankus list bump", ALLOCSET_SMALL_SIZES) :
+                    SlabContextCreate(root, "Ankus list slab", 8192, 64);
+                request.context = (intptr_t) ankus_memory_context_id(special);
+                before_live = fault_live_records;
+                before_allocated = fault_successful_reservations;
+                before_freed = fault_released_reservations;
+            }
+
+            fault_list_stage = mode <= 2 ? mode : 0;
+            fault_fail_calloc = mode == 3;
+            if (mode == 4) { ankus_list_next_id = 0; }
+            int status = ankus_memory_invoke(&api, &request, &result, &error);
+            ankus_list_next_id = saved_next;
+            fault_require(status == 1 && error.sqlstate == (mode >= 12 ? ERRCODE_INTERNAL_ERROR : ERRCODE_OUT_OF_MEMORY),
+                "list acquisition did not return the expected native error");
+            fault_require(result.pointer == 0 && ankus_lists == NULL && fault_live_records == before_live,
+                "partial list acquisition published or retained a registry record");
+            fault_require(fault_list_stage == 0 && !fault_fail_calloc, "list acquisition fault did not execute");
+            int allocations = fault_successful_reservations - before_allocated;
+            int frees = fault_released_reservations - before_freed;
+            int chunks = fault_list_frees;
+            ankus_release_error(&error);
+            fault_require(CurrentMemoryContext == caller, "list acquisition changed the caller's context");
+            request.context = (intptr_t) owner;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "list retry failed");
+            AnkusList *entry = ankus_list_find((uint64) result.pointer);
+            fault_require(entry != NULL && list_length(entry->list) == 128 && list_nth_int(entry->list, 0) == -64 &&
+                list_nth_int(entry->list, 127) == 63, "list retry lost its values");
+            request.context = result.pointer;
+            request.flags = ANKUS_LIST_DISPOSE;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "list retry release failed");
+            report = psprintf("%s|%d|%d|%d|retry|%d", mode >= 12 ? "XX000" : "53200",
+                allocations, frees, chunks, fault_live_records - before_live);
+        }
+        else if (mode <= 6)
+        {
+            request.length = mode == 5 ? 1 : 128;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "list growth setup failed");
+            uint64 handle = (uint64) result.pointer;
+            AnkusList *entry = ankus_list_find(handle);
+            List *original = entry->list;
+            ListCell *storage = original->elements;
+            int length = original->length;
+            int capacity = original->max_length;
+            request.flags = ANKUS_LIST_RESERVE;
+            request.context = (intptr_t) handle;
+            request.length = 4096;
+            fault_list_stage = mode == 5 ? 2 : 3;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 1 && error.sqlstate == ERRCODE_OUT_OF_MEMORY,
+                "list reserve did not report its controlled error");
+            fault_require(fault_list_stage == 0 && entry->list == original && original->elements == storage &&
+                original->length == length && original->max_length == capacity, "failed growth changed native storage or metadata");
+            for (int index = 0; index < length; index++)
+            {
+                fault_require(list_nth_int(original, index) == index - 64, "failed growth changed a cell");
+            }
+
+            ankus_release_error(&error);
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0 && result.value == 1,
+                "list reserve retry failed");
+            fault_require(entry->list->max_length >= length + 4096, "list reserve did not count additional cells");
+            request.flags = ANKUS_LIST_DISPOSE;
+            fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "grown list disposal failed");
+            report = psprintf("53200|%d|preserved|%d|%d", length, fault_list_frees, fault_live_records - before_live);
+        }
+        else
+        {
+            for (int iteration = 0; iteration < 128; iteration++)
+            {
+                request.flags = ANKUS_LIST_CREATE;
+                request.context = (intptr_t) ankus_memory_context_id(root);
+                request.length = 128;
+                request.data = (intptr_t) cells;
+                fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "repeated list creation failed");
+                uint64 handle = (uint64) result.pointer;
+                AnkusList *entry = ankus_list_find(handle);
+                request.context = (intptr_t) handle;
+                request.flags = ANKUS_LIST_RESERVE;
+                request.length = 131072;
+                fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "large list reserve failed");
+                fault_require(list_nth_int(entry->list, 0) == -64 && list_nth_int(entry->list, 127) == 63,
+                    "large list reserve corrupted its endpoint values");
+                if (mode == 8)
+                {
+                    MemoryContextReset(root);
+                }
+                else
+                {
+                    request.flags = mode == 7 ? ANKUS_LIST_DISPOSE : mode == 9 ? ANKUS_LIST_DETACH :
+                        mode == 10 ? ANKUS_LIST_CLEAR : ANKUS_LIST_DRAIN;
+                    uint64 drained[128];
+                    request.length = 128;
+                    request.value = 0;
+                    request.data = (intptr_t) drained;
+                    fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "repeated list release failed");
+                    if (mode == 9)
+                    {
+                        List *detached = (List *) result.pointer;
+                        fault_require(list_nth_int(detached, 0) == -64 && list_nth_int(detached, 127) == 63,
+                            "list transfer freed or changed cells");
+                        list_free(detached);
+                    }
+                    else if (mode >= 10)
+                    {
+                        fault_require(entry->list == NIL && result.pointer == 0 && result.length == 0,
+                            "empty list retained a non-NIL header");
+                        if (mode == 11)
+                        {
+                            fault_require(memcmp(drained, cells, sizeof(cells)) == 0, "drain changed removed cell values");
+                        }
+
+                        request.flags = ANKUS_LIST_DISPOSE;
+                        fault_require(ankus_memory_invoke(&api, &request, &result, &error) == 0, "empty list disposal failed");
+                    }
+                }
+
+                ankus_release_error(&error);
+                fault_require(ankus_lists == NULL, "repeated list release retained registry records");
+                fault_require(MemoryContextMemAllocated(root, false) < 1048576, "list release retained a large cell buffer");
+            }
+
+            report = psprintf("128|exact|%d|empty", fault_list_frees);
+        }
+    }
+    PG_FINALLY();
+    {
+        fault_list_stage = 0;
+        fault_list_monitor = false;
+        fault_fail_calloc = false;
+        fault_owner = NULL;
+        if (ankus_list_next_id == 0) { ankus_list_next_id = saved_next; }
+        MemoryContextSwitchTo(caller);
+        MemoryContextDelete(root);
+    }
+    PG_END_TRY();
+    fault_require(fault_live_records == 0 && ankus_lists == NULL && ankus_memory_contexts == NULL,
+        "list context deletion retained native registry storage");
     PG_RETURN_TEXT_P(cstring_to_text(report));
 }

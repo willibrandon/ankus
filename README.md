@@ -260,6 +260,11 @@ stream writes, strict UTF-8 text, exact binary copies, checked context lifetimes
 and explicit native ownership transfer. See
 [StringInfo buffers](docs/src/content/docs/stringinfo.md).
 
+Use `PgList<T>` for typed native PostgreSQL lists with ordinary collection
+operations, checked context lifetimes, eager draining and explicit native
+borrowing. Integer, OID, transaction-ID and opaque pointer cells preserve their
+native identity. See [PostgreSQL lists](docs/src/content/docs/lists.md).
+
 Use `[PgInitialize]` on one static method to initialize the extension when its
 library loads in a backend. Initialization supports guarded database access,
 owned error diagnostics, retries after failure, and managed shared preload.

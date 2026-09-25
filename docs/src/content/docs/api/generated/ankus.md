@@ -60,6 +60,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgHeapTuple](/api/ankus.pgheaptuple/)
 - [PgInitializeAttribute](/api/ankus.pginitializeattribute/)
 - [PgInternal](/api/ankus.pginternal/)
+- [PgList](/api/ankus.pglist/)
+- [PgList&lt;T&gt;](/api/ankus.pglist-1/)
 - [PgLog](/api/ankus.pglog/)
 - [PgMemoryCallback](/api/ankus.pgmemorycallback/)
 - [PgMemoryContext](/api/ankus.pgmemorycontext/)

@@ -58,7 +58,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_WRITE_REFERENCE = 26,
             ANKUS_MEMORY_CALLBACK = 27,
             ANKUS_MEMORY_ALLOCATE_VARLENA = 28,
-            ANKUS_MEMORY_STRINGINFO = 29
+            ANKUS_MEMORY_STRINGINFO = 29,
+            ANKUS_MEMORY_LIST = 30
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -290,11 +291,13 @@ internal static class NativeMemoryBridge
         }
 
         static void ankus_stringinfo_remove_context(uint64 context_id);
+        static void ankus_list_remove_context(uint64 context_id);
 
         static void
         ankus_memory_remove_allocations(uint64 context_id)
         {
             ankus_stringinfo_remove_context(context_id);
+            ankus_list_remove_context(context_id);
             AnkusMemoryAllocation **slot = &ankus_memory_allocations;
             while (*slot != NULL)
             {
@@ -907,7 +910,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -953,6 +956,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_STRINGINFO:
                     ankus_stringinfo_execute(request, result);
+                    break;
+                case ANKUS_MEMORY_LIST:
+                    ankus_list_execute(request, result);
                     break;
                 case ANKUS_MEMORY_PARENT:
                 {

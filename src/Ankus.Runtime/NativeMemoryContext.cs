@@ -251,6 +251,10 @@ internal enum NativeMemoryOperation
     /// Operates on an owned or explicitly anchored PostgreSQL StringInfo buffer.
     /// </summary>
     StringInfo = 29,
+    /// <summary>
+    /// Operates on an owned or exclusively borrowed typed PostgreSQL list.
+    /// </summary>
+    List = 30,
 }
 
 /// <summary>

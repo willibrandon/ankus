@@ -16,6 +16,8 @@ internal static class AllocatorFaultFixtureCompiler
         AS 'Ankus.AllocatorFaultFixture', 'ankus_test_allocator_registry_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.stringinfo_fault(integer) RETURNS text
         AS 'Ankus.AllocatorFaultFixture', 'ankus_test_stringinfo_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.list_fault(integer) RETURNS text
+        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_list_fault' LANGUAGE c STRICT;
         """;
 
     /// <summary>

@@ -6,6 +6,7 @@
 #include "utils/palloc.h"
 #include "nodes/memnodes.h"
 #include "lib/stringinfo.h"
+#include "nodes/pg_list.h"
 #if PG_VERSION_NUM >= 160000
 #include "utils/memutils_internal.h"
 #include "utils/memutils_memorychunk.h"
@@ -23,6 +24,56 @@ static MemoryContext fault_owner;
 static int fault_stringinfo_stage;
 static int fault_stringinfo_frees;
 static bool fault_stringinfo_monitor;
+static int fault_list_stage;
+static int fault_list_frees;
+static bool fault_list_monitor;
+
+static List *
+fault_list_make(NodeTag tag, ListCell cell)
+{
+    if (fault_list_stage == 1)
+    {
+        fault_list_stage = 0;
+        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled list header allocation failure")));
+    }
+
+    return list_make1_impl(tag, cell);
+}
+
+static void *
+fault_list_alloc(MemoryContext context, Size size)
+{
+    if (fault_list_stage == 2 && context == fault_owner)
+    {
+        fault_list_stage = 0;
+        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled list cell allocation failure")));
+    }
+
+    return MemoryContextAlloc(context, size);
+}
+
+static void *
+fault_list_realloc(void *pointer, Size size)
+{
+    if (fault_list_stage == 3 && GetMemoryChunkContext(pointer) == fault_owner)
+    {
+        fault_list_stage = 0;
+        ereport(ERROR, (errcode(ERRCODE_OUT_OF_MEMORY), errmsg("controlled list cell reallocation failure")));
+    }
+
+    return repalloc(pointer, size);
+}
+
+static void
+fault_list_free(List *list)
+{
+    if (fault_list_monitor && list != NIL && GetMemoryChunkContext(list) == fault_owner)
+    {
+        fault_list_frees += list->elements == list->initial_elements ? 1 : 2;
+    }
+
+    list_free(list);
+}
 
 static void
 fault_init_stringinfo(StringInfo buffer)
@@ -137,3 +188,7 @@ fault_allocate(MemoryContext owner, Size size, int flags)
 #define initStringInfo fault_init_stringinfo
 #define enlargeStringInfo fault_enlarge_stringinfo
 #define pfree fault_pfree
+#define list_make1_impl fault_list_make
+#define MemoryContextAlloc fault_list_alloc
+#define repalloc fault_list_realloc
+#define list_free fault_list_free

@@ -30,6 +30,10 @@ internal static class AllocatorFixtureCompiler
         AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_cursor' LANGUAGE c STRICT;
         CREATE FUNCTION tests.stringinfo_borrow(regprocedure, integer) RETURNS text
         AS 'Ankus.AllocatorFixture', 'ankus_test_stringinfo_borrow' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.list_describe(bigint) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_list_describe' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.list_borrow(regprocedure, integer) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_list_borrow' LANGUAGE c STRICT;
         """;
 
     /// <summary>
