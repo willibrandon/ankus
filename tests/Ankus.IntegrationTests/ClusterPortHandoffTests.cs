@@ -6,7 +6,7 @@ using Npgsql;
 namespace Ankus.IntegrationTests;
 
 /// <summary>
-/// Forces real TCP reservation handoff races and checks PostgreSQL startup, cleanup and failure boundaries.
+/// Retains real TCP listeners during handoff and checks PostgreSQL startup, cleanup and failure boundaries.
 /// </summary>
 /// <param name="context">The per-test context.</param>
 [TestClass]
@@ -23,10 +23,10 @@ public sealed class ClusterPortHandoffTests(TestContext context)
         TcpListener? competitor = null;
         try
         {
-            await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, attempt =>
+            await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, (attempt, reservation) =>
             {
                 attempts.Add(attempt);
-                if (attempts.Count == 1) { competitor = Occupy(attempt.Port); }
+                if (attempts.Count == 1) { competitor = reservation.TakeListener(); }
             }, context.CancellationToken);
 
             Assert.HasCount(2, attempts);
@@ -64,13 +64,13 @@ public sealed class ClusterPortHandoffTests(TestContext context)
         try
         {
             InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-                PostgresTestCluster.StartAsync(options, attempt =>
+                PostgresTestCluster.StartAsync(options, (attempt, reservation) =>
                 {
                     attempts.Add(attempt);
-                    competitors.Add(Occupy(attempt.Port));
+                    competitors.Add(reservation.TakeListener());
                 }, context.CancellationToken));
 
-            Assert.HasCount(3, attempts);
+            Assert.HasCount(3, attempts, error.ToString());
             Assert.HasCount(3, attempts.Select(static attempt => attempt.Port).Distinct());
             Assert.Contains("could not create any TCP/IP sockets", error.Message);
             Assert.Contains(attempts[^1].LogFilePath, error.Message);
@@ -102,12 +102,12 @@ public sealed class ClusterPortHandoffTests(TestContext context)
         try
         {
             InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-                PostgresTestCluster.StartAsync(options, attempt =>
+                PostgresTestCluster.StartAsync(options, (attempt, reservation) =>
                 {
                     attempts.Add(attempt);
                     if (attempts.Count == 1)
                     {
-                        competitor = Occupy(attempt.Port);
+                        competitor = reservation.TakeListener();
                     }
                     else
                     {
@@ -115,7 +115,8 @@ public sealed class ClusterPortHandoffTests(TestContext context)
                     }
                 }, context.CancellationToken));
 
-            Assert.HasCount(2, attempts);
+            Assert.HasCount(2, attempts, error.ToString());
+            Assert.Contains("could not create any TCP/IP sockets", attempts[0].ReadServerLog());
             Assert.Contains("ankus_invalid_configuration", error.Message);
             Assert.DoesNotContain("could not create any TCP/IP sockets", error.Message);
             foreach (PostgresTestCluster attempt in attempts)
@@ -142,7 +143,7 @@ public sealed class ClusterPortHandoffTests(TestContext context)
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
         var attempts = new List<PostgresTestCluster>();
-        await Assert.ThrowsAsync<OperationCanceledException>(() => PostgresTestCluster.StartAsync(options, attempt =>
+        await Assert.ThrowsAsync<OperationCanceledException>(() => PostgresTestCluster.StartAsync(options, (attempt, _) =>
         {
             attempts.Add(attempt);
             cancellation.Cancel();
@@ -152,13 +153,6 @@ public sealed class ClusterPortHandoffTests(TestContext context)
         Assert.IsFalse(Directory.Exists(failed.DataDirectory));
         Assert.IsFalse(Directory.Exists(failed.SocketDirectory));
         Assert.IsFalse(File.Exists(failed.LogFilePath));
-    }
-
-    private static TcpListener Occupy(int port)
-    {
-        var listener = new TcpListener(IPAddress.Loopback, port) { ExclusiveAddressUse = true };
-        listener.Start();
-        return listener;
     }
 
     private async Task AssertListenerAliveAsync(TcpListener listener)

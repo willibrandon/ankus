@@ -76,12 +76,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// Starts a cluster with a per-invocation handoff callback for deterministic startup contention tests.
     /// </summary>
     /// <param name="options">The installation and invocation settings.</param>
-    /// <param name="beforeStart">Runs after releasing each reservation, before starting its postmaster.</param>
+    /// <param name="beforeStart">Runs before releasing each reservation, allowing tests to take ownership of its listener.</param>
     /// <param name="cancellationToken">Cancels the complete initialization and readiness operation.</param>
     /// <returns>The ready cluster, owned by the caller.</returns>
     internal static async Task<PostgresTestCluster> StartAsync(
         PostgresTestClusterOptions options,
-        Action<PostgresTestCluster>? beforeStart,
+        Action<PostgresTestCluster, PortReservation>? beforeStart,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -246,7 +246,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
     }
 
-    private async Task InitializeAsync(PortReservation reservation, Action<PostgresTestCluster>? beforeStart, CancellationToken cancellationToken)
+    private async Task InitializeAsync(PortReservation reservation, Action<PostgresTestCluster, PortReservation>? beforeStart, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DataDirectory)!);
         Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
@@ -286,8 +286,8 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         await File.WriteAllTextAsync(
             Path.Combine(DataDirectory, "postgresql.auto.conf"), configuration.ToString(), cancellationToken).ConfigureAwait(false);
 
+        beforeStart?.Invoke(this, reservation);
         reservation.Dispose();
-        beforeStart?.Invoke(this);
         cancellationToken.ThrowIfCancellationRequested();
         _startAttempted = true;
         await ProcessRunner.RunCheckedAsync(

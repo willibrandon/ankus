@@ -26,7 +26,7 @@ internal static class NativeBindingProbe
         source.AppendLine("#undef malloc");
         source.AppendLine("#undef free");
         source.AppendLine("#if defined(_MSC_VER)");
-        source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof(value)");
+        source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof(__typeof__(value))");
         source.AppendLine("#else");
         source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof__(value)");
         source.AppendLine("#endif");

@@ -5898,3 +5898,32 @@ The phases track implementation of the complete pgrx feature surface.
   declarations, SDK compilation integration, checked casting/ownership/backend
   node tests, complete raw FFI and the broader full-port/platform inventory
   remain required. `eng/README.md` documents the command and host-only scope.
+
+- 2026-09-25 — Repaired two failures from selected-header layout
+  [CI 36192015621](https://github.com/willibrandon/ankus/actions/runs/36192015621).
+  Windows x64/PostgreSQL 17.11 rejected the probe's expression operand to
+  MSVC `__alignof`; the emitter now supplies its native type through
+  `__typeof__`. The development guide records the Visual Studio 17.9 minimum
+  for that compiler feature. The packaged-tool integration test continues to
+  compile against real selected headers with MSVC and warnings as errors.
+
+  The macOS ARM64/PostgreSQL 18.6 configuration-after-collision test stopped
+  after one handoff, without a corresponding PostgreSQL bind failure in the
+  retained logs. Its assertion hid the original exception. The test had a
+  second port-allocation race while binding its competing listener after the
+  reservation was released. Contention tests now take ownership of the
+  already-bound reservation listener before handoff. They still exercise real
+  PostgreSQL bind failures, retry limits, isolated cleanup and preservation of
+  the competing listener. Attempt-count failures now include the original
+  exception, and the configuration case explicitly checks the first native
+  collision log. Production startup retains its existing retry policy.
+
+  All four focused handoff cases pass on Linux x64/PostgreSQL 18.6, and all
+  75 build-tool tests pass. Plain `dotnet test` passes all 6,784 tests with zero
+  failures/skips in 259.547s. The non-incremental Release build passes with
+  zero warnings/errors in 17.46s. API generation/freshness pass for 166 pages
+  and 2,239 members; `pnpm check` reports zero errors/warnings/hints and
+  `pnpm build` produces 208 pages. Hosted verification is pending. No analyzer
+  modes, warning severities, suppressions, test skips or CI timeouts changed.
+  Typed bindings, complete raw FFI and the remaining full-port/platform inventory
+  remain open.

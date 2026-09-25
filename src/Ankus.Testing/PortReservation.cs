@@ -9,7 +9,7 @@ namespace Ankus.Testing;
 /// </summary>
 internal sealed class PortReservation : IDisposable
 {
-    private readonly TcpListener _listener;
+    private TcpListener? _listener;
 
     private PortReservation(TcpListener listener, int port)
     {
@@ -35,10 +35,24 @@ internal sealed class PortReservation : IDisposable
     }
 
     /// <summary>
-    /// Releases the listening socket so PostgreSQL can bind the reserved port.
+    /// Transfers the bound listener to a contention test without reopening a port-allocation race.
+    /// </summary>
+    /// <returns>The listener, which the caller must stop after the competing startup completes.</returns>
+    internal TcpListener TakeListener()
+    {
+        ObjectDisposedException.ThrowIf(_listener is null, this);
+        TcpListener listener = _listener;
+        _listener = null;
+        return listener;
+    }
+
+    /// <summary>
+    /// Releases the owned listening socket so PostgreSQL can bind the reserved port.
+    /// A transferred listener remains owned by its recipient.
     /// </summary>
     public void Dispose()
     {
-        _listener.Stop();
+        _listener?.Stop();
+        _listener = null;
     }
 }
