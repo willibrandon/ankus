@@ -12,15 +12,18 @@ Assembly: `Ankus.Runtime.dll`
 Maps a managed type to an existing PostgreSQL representation through an explicit datum converter.
 
 ```csharp
-[AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct|AttributeTargets.Enum, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct|AttributeTargets.Enum, AllowMultiple = true, Inherited = false)]
 public sealed class PgDatumTypeAttribute : Attribute
 ```
 
 This declaration generates conversion registration, not type definitions or input/output functions.
 The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
-A generic declaration is a template: only fully constructed roots in supported generated signatures or
-exact managed PgSqlTypeProvider declarations are registered. Every construction uses the same fixed SQL
-identity and must have an exact reader or writer interface on the supplied closed converter.
+A default generic declaration is a template selected by fully constructed roots in supported generated
+signatures or exact managed PgSqlTypeProvider declarations. Each selected construction must have an
+exact reader or writer interface on its supplied closed converter.
+An explicit managed-type declaration selects one closed construction and registers a local root even
+without a generated signature. It takes precedence over the optional default declaration on that type.
+Exact declarations can assign distinct SQL identities and converters to different closed constructions.
 Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 parameters, typed SPI scalar and catalog/native-address function results, and explicit PgDatum.Read&lt;T&gt; calls.
 One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
@@ -55,9 +58,12 @@ The closed converter type with an accessible parameterless constructor.
 
 This declaration generates conversion registration, not type definitions or input/output functions.
 The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
-A generic declaration is a template: only fully constructed roots in supported generated signatures or
-exact managed PgSqlTypeProvider declarations are registered. Every construction uses the same fixed SQL
-identity and must have an exact reader or writer interface on the supplied closed converter.
+A default generic declaration is a template selected by fully constructed roots in supported generated
+signatures or exact managed PgSqlTypeProvider declarations. Each selected construction must have an
+exact reader or writer interface on its supplied closed converter.
+An explicit managed-type declaration selects one closed construction and registers a local root even
+without a generated signature. It takes precedence over the optional default declaration on that type.
+Exact declarations can assign distinct SQL identities and converters to different closed constructions.
 Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 parameters, typed SPI scalar and catalog/native-address function results, and explicit PgDatum.Read&lt;T&gt; calls.
 One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
@@ -65,6 +71,30 @@ Readable mappings may declare PgEquality, PgOrdering and PgHashing; generated he
 Native-address calls retain the caller's responsibility for the actual result type and representation.
 Ordinary SPI/tuple row conversions are not supported.
 A reader must return independent managed data; retaining a checked PgDatum does not detach its storage.
+
+<a id="member-97a73785f738cf45"></a>
+
+### PgDatumTypeAttribute(Type, string, Type)
+
+Maps one exact closed construction of the annotated type independently of its other constructions.
+
+```csharp
+public PgDatumTypeAttribute(Type managedType, string name, Type converter)
+```
+
+Parameters:
+
+`managedType` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
+
+The closed managed type whose definition carries this attribute.
+
+`name` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The exact unquoted PostgreSQL type identifier.
+
+`converter` — [Type](https://learn.microsoft.com/dotnet/api/system.type)
+
+The closed converter type with an accessible parameterless constructor.
 
 
 ## Properties
@@ -77,6 +107,18 @@ Gets the statically instantiated reader or writer type.
 
 ```csharp
 public Type Converter { get; }
+```
+
+Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)
+
+<a id="member-3fdc01402bf4e0a6"></a>
+
+### ManagedType
+
+Gets the exact closed managed identity, or null for the annotated type's default mapping.
+
+```csharp
+public Type? ManagedType { get; }
 ```
 
 Value: [Type](https://learn.microsoft.com/dotnet/api/system.type)

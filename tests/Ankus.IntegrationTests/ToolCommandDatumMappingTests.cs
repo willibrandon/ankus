@@ -114,6 +114,11 @@ public sealed partial class ToolCommandTests
                 {schema}.package_generic_echo(42)::integer,
                 ({schema}.package_generic_echo(NULL::{schema}.package_key) IS NULL)::text)
             """));
+        Assert.AreEqual("14294967313|4294967313|true", await SqlPackageScalarAsync<string>(connection, $"""
+            SELECT concat_ws('|',{schema}.package_generic_wide_read(4294967313),
+                {schema}.package_generic_wide_echo(4294967313)::bigint,
+                ({schema}.package_generic_wide_echo(NULL::{schema}.package_wide_key) IS NULL)::text)
+            """));
         Assert.AreEqual(FormattableString.Invariant($"{typeOid}|1042|True|True|23|2042"),
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_probe(42)"));
         Assert.AreEqual("1042|1043|1043|2042|True|True",
@@ -133,6 +138,9 @@ public sealed partial class ToolCommandTests
                 AND (SELECT proargtypes[0]='{schema}.package_key[]'::regtype
                     AND prorettype='{schema}.package_key[]'::regtype AND NOT proisstrict
                     FROM pg_proc WHERE oid='{schema}.package_array_echo({schema}.package_key[])'::regprocedure)
+                AND (SELECT proargtypes[0]='{schema}.package_wide_key'::regtype
+                    AND prorettype='{schema}.package_wide_key'::regtype AND NOT proisstrict
+                    FROM pg_proc WHERE oid='{schema}.package_generic_wide_echo({schema}.package_wide_key)'::regprocedure)
                 AND (SELECT typtype='d' AND typbasetype=23 AND typlen=4 AND typbyval
                     FROM pg_type WHERE oid='{schema}.package_key'::regtype)
             """));
@@ -146,22 +154,23 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Captures the domain, its array and all twelve generated callbacks with their exact extension ownership.
+    /// Captures both domains, their arrays and all fourteen generated callbacks with their exact extension ownership.
     /// </summary>
     private async Task<Dictionary<string, uint>> DatumMappingPackageMembers(NpgsqlConnection connection, string schema)
     {
-        string[] expected = ["array:package_key", "function:package_array_echo", "function:package_array_replay",
+        string[] expected = ["array:package_key", "array:package_wide_key", "function:package_array_echo", "function:package_array_replay",
             "function:package_arrays", "function:package_echo", "function:package_external_echo",
             "function:package_generic_echo", "function:package_generic_read",
+            "function:package_generic_wide_echo", "function:package_generic_wide_read",
             "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay",
-            "function:package_typed", "type:package_key"];
+            "function:package_typed", "type:package_key", "type:package_wide_key"];
         await using var command = new NpgsqlCommand($"""
             WITH objects(label,classid,objid,ownerid) AS (
                 SELECT 'type:'||typname,'pg_type'::regclass,oid,oid FROM pg_type
-                    WHERE typnamespace='{schema}'::regnamespace AND typname='package_key'
+                    WHERE typnamespace='{schema}'::regnamespace AND typname IN ('package_key','package_wide_key')
                 UNION ALL SELECT 'array:'||t.typname,'pg_type'::regclass,a.oid,t.oid FROM pg_type t JOIN pg_type a
                     ON a.oid=t.typarray AND a.typelem=t.oid AND a.typnamespace=t.typnamespace
-                    WHERE t.typnamespace='{schema}'::regnamespace AND t.typname='package_key'
+                    WHERE t.typnamespace='{schema}'::regnamespace AND t.typname IN ('package_key','package_wide_key')
                 UNION ALL SELECT 'function:'||proname,'pg_proc'::regclass,oid,oid FROM pg_proc
                     WHERE pronamespace='{schema}'::regnamespace)
             SELECT label,objid,EXISTS(SELECT FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
@@ -197,8 +206,10 @@ public sealed partial class ToolCommandTests
     private const string DatumMappingPackageSource = """
         using Ankus;
         [assembly: PgSql("mapping-type", "CREATE DOMAIN package_key AS integer CHECK (VALUE >= 0);", Relocatable = true)]
+        [assembly: PgSql("mapping-wide-type", "CREATE DOMAIN package_wide_key AS bigint CHECK (VALUE >= 0);", Relocatable = true)]
         [assembly: PgSqlTypeProvider("mapping-type", typeof(OwnedKey))]
         [assembly: PgSqlTypeProvider("mapping-type", typeof(GenericOwnedKey<int>))]
+        [assembly: PgSqlTypeProvider("mapping-wide-type", typeof(GenericOwnedKey<long>))]
         [PgDatumType("package_key", typeof(OwnedKeyConverter))]
         public readonly record struct OwnedKey(int Number);
         public sealed class OwnedKeyConverter : IPgDatumReader<OwnedKey>, IPgDatumWriter<OwnedKey>
@@ -207,13 +218,18 @@ public sealed partial class ToolCommandTests
             public PgDatum Write(OwnedKey value, uint typeOid, PgMemoryContext destination)
                 => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
         }
-        [PgDatumType("package_key", typeof(GenericOwnedKeyConverter))]
-        public readonly record struct GenericOwnedKey<T>(int Number);
-        public sealed class GenericOwnedKeyConverter : IPgDatumReader<GenericOwnedKey<int>>, IPgDatumWriter<GenericOwnedKey<int>>
+        [PgDatumType(typeof(GenericOwnedKey<int>), "package_key", typeof(GenericOwnedKeyConverter))]
+        [PgDatumType(typeof(GenericOwnedKey<long>), "package_wide_key", typeof(GenericOwnedKeyConverter))]
+        public readonly record struct GenericOwnedKey<T>(T Number);
+        public sealed class GenericOwnedKeyConverter : IPgDatumReader<GenericOwnedKey<int>>, IPgDatumWriter<GenericOwnedKey<int>>,
+            IPgDatumReader<GenericOwnedKey<long>>, IPgDatumWriter<GenericOwnedKey<long>>
         {
-            public GenericOwnedKey<int> Read(PgDatum value) => new(value.Read<int>() + 1000);
+            GenericOwnedKey<int> IPgDatumReader<GenericOwnedKey<int>>.Read(PgDatum value) => new(value.Read<int>() + 1000);
+            GenericOwnedKey<long> IPgDatumReader<GenericOwnedKey<long>>.Read(PgDatum value) => new(value.Read<long>() + 10000000000L);
             public PgDatum Write(GenericOwnedKey<int> value, uint typeOid, PgMemoryContext destination)
                 => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+            public PgDatum Write(GenericOwnedKey<long> value, uint typeOid, PgMemoryContext destination)
+                => PgDatum.DangerousCreate(unchecked((nuint)(value.Number - 10000000000L)), typeOid, destination);
         }
         [PgDatumType("int4", typeof(ExternalKeyConverter), Schema = "pg_catalog", Origin = PgTypeOrigin.External)]
         public readonly record struct ExternalKey(int Number);
@@ -235,6 +251,10 @@ public sealed partial class ToolCommandTests
             public static GenericOwnedKey<int>? GenericEcho(GenericOwnedKey<int>? value) => value;
             [PgFunction(Name = "package_generic_read")]
             public static int GenericRead(GenericOwnedKey<int> value) => value.Number;
+            [PgFunction(Name = "package_generic_wide_echo")]
+            public static GenericOwnedKey<long>? GenericWideEcho(GenericOwnedKey<long>? value) => value;
+            [PgFunction(Name = "package_generic_wide_read")]
+            public static long GenericWideRead(GenericOwnedKey<long> value) => value.Number;
             [PgFunction(Name = "package_external_echo")]
             public static ExternalKey ExternalEcho(ExternalKey value) => new(value.Number + 1);
             [PgFunction(Name = "package_probe")]

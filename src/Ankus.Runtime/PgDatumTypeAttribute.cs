@@ -6,9 +6,12 @@ namespace Ankus;
 /// <remarks>
 /// This declaration generates conversion registration, not type definitions or input/output functions.
 /// The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
-/// A generic declaration is a template: only fully constructed roots in supported generated signatures or
-/// exact managed PgSqlTypeProvider declarations are registered. Every construction uses the same fixed SQL
-/// identity and must have an exact reader or writer interface on the supplied closed converter.
+/// A default generic declaration is a template selected by fully constructed roots in supported generated
+/// signatures or exact managed PgSqlTypeProvider declarations. Each selected construction must have an
+/// exact reader or writer interface on its supplied closed converter.
+/// An explicit managed-type declaration selects one closed construction and registers a local root even
+/// without a generated signature. It takes precedence over the optional default declaration on that type.
+/// Exact declarations can assign distinct SQL identities and converters to different closed constructions.
 /// Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 /// parameters, typed SPI scalar and catalog/native-address function results, and explicit PgDatum.Read&lt;T&gt; calls.
 /// One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
@@ -19,9 +22,22 @@ namespace Ankus;
 /// </remarks>
 /// <param name="name">The exact unquoted PostgreSQL type identifier.</param>
 /// <param name="converter">The closed converter type with an accessible parameterless constructor.</param>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, AllowMultiple = true, Inherited = false)]
 public sealed class PgDatumTypeAttribute(string name, Type converter) : Attribute
 {
+    /// <summary>
+    /// Maps one exact closed construction of the annotated type independently of its other constructions.
+    /// </summary>
+    /// <param name="managedType">The closed managed type whose definition carries this attribute.</param>
+    /// <param name="name">The exact unquoted PostgreSQL type identifier.</param>
+    /// <param name="converter">The closed converter type with an accessible parameterless constructor.</param>
+    public PgDatumTypeAttribute(Type managedType, string name, Type converter) : this(name, converter) => ManagedType = managedType;
+
+    /// <summary>
+    /// Gets the exact closed managed identity, or null for the annotated type's default mapping.
+    /// </summary>
+    public Type? ManagedType { get; }
+
     /// <summary>
     /// Gets the exact catalog type identifier.
     /// </summary>

@@ -128,8 +128,9 @@ external SQL type. Its converter implements `IPgDatumReader<T>`,
 `IPgDatumWriter<T>`, or both; generated callbacks and raw `PgDatum.Read<T>()`
 select the declared CLR type. Its `T[]` and `PgArray<T>` forms reuse that converter
 with exact element identity and checked array shape. Generic declarations register
-only finite, fully constructed types selected by generated signatures or exact
-managed type providers; each construction uses the declaration's fixed SQL type.
+finite, fully constructed types selected by generated signatures, exact managed
+type providers, or explicit `PgDatumType(typeof(ClosedType), name, converter)`
+declarations. Explicit constructions can have independent SQL types and converters.
 See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
 for provider ownership, supported paths, and lifetime requirements.
 

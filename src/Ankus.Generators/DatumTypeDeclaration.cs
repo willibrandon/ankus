@@ -70,9 +70,8 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
         SourceProductionContext? context = null)
     {
-        AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item =>
-            item.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute");
-        if (attribute is null)
+        AttributeData[]? attributes = Declarations(type, context);
+        if (attributes is null || attributes.Length == 0)
         {
             return null;
         }
@@ -85,7 +84,16 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             return Invalid("PgDatumType requires an accessible, closed, concrete class, struct, or enum without PgType or PgEnum.");
         }
 
-        string? name = attribute.ConstructorArguments.FirstOrDefault().Value as string;
+        AttributeData? attribute = attributes.FirstOrDefault(item => item.ConstructorArguments.Length == 3 &&
+            SymbolEqualityComparer.Default.Equals(item.ConstructorArguments[0].Value as ITypeSymbol, type)) ??
+            attributes.FirstOrDefault(static item => item.ConstructorArguments.Length == 2);
+        if (attribute is null)
+        {
+            return Invalid("No PgDatumType declaration selects this exact closed managed type.");
+        }
+
+        int offset = attribute.ConstructorArguments.Length == 3 ? 1 : 0;
+        string? name = attribute.ConstructorArguments[offset].Value as string;
         string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
         if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
         {
@@ -103,7 +111,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
             return Invalid("External datum mappings require an explicit Schema.");
         }
 
-        if (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not INamedTypeSymbol converter ||
+        if (attribute.ConstructorArguments[offset + 1].Value is not INamedTypeSymbol converter ||
             !Accessible(converter, assembly) || converter.IsAbstract || converter.IsStatic || converter.IsRefLikeType)
         {
             return Invalid("The converter must be accessible, closed and concrete, with an accessible parameterless constructor.");
@@ -157,7 +165,26 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> aggregates, ImmutableArray<AttributeData> attributes,
         SourceProductionContext context)
     {
-        var candidates = new HashSet<INamedTypeSymbol>(local.Where(IsClosed), SymbolEqualityComparer.Default);
+        var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        foreach (INamedTypeSymbol type in local.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
+        {
+            AttributeData[]? declared = Declarations(type, context);
+            if (declared is null)
+            {
+                return null;
+            }
+
+            if (IsClosed(type))
+            {
+                candidates.Add(type);
+            }
+
+            foreach (AttributeData attribute in declared.Where(static item => item.ConstructorArguments.Length == 3))
+            {
+                candidates.Add((INamedTypeSymbol)attribute.ConstructorArguments[0].Value!);
+            }
+        }
+
         IMethodSymbol[] signatures = [.. methods.Concat(aggregates.SelectMany(AggregateDeclaration.SelectedMethods))
             .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)];
         foreach (IMethodSymbol method in signatures)
@@ -341,6 +368,51 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Gets the statically constructible converter identity.
     /// </summary>
     private INamedTypeSymbol Converter { get; } = converter;
+
+    /// <summary>
+    /// Validates deterministic exact and default declarations without instantiating open generic roots.
+    /// </summary>
+    private static AttributeData[]? Declarations(INamedTypeSymbol type, SourceProductionContext? context)
+    {
+        AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
+            item.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute")];
+        var targets = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        bool hasDefault = false;
+        foreach (AttributeData attribute in attributes)
+        {
+            if (attribute.ConstructorArguments.Length == 2)
+            {
+                if (hasDefault)
+                {
+                    return Invalid("A managed type may have only one default PgDatumType declaration.");
+                }
+
+                hasDefault = true;
+            }
+            else if (attribute.ConstructorArguments.Length != 3 ||
+                attribute.ConstructorArguments[0].Value is not INamedTypeSymbol target || !IsClosed(target) ||
+                !SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, type.OriginalDefinition))
+            {
+                return Invalid("An explicit PgDatumType target must be a closed construction of the annotated managed type.");
+            }
+            else if (!targets.Add(target))
+            {
+                return Invalid("A closed managed type may have only one exact PgDatumType declaration.");
+            }
+        }
+
+        return attributes;
+
+        AttributeData[]? Invalid(string message)
+        {
+            if (context is { } output)
+            {
+                Error(type, message, output);
+            }
+
+            return null;
+        }
+    }
 
     /// <summary>
     /// Emits a lazy closed registration without resolving a backend catalog identity.
