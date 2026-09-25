@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>PostgreSQL range construction, bounds and stored values using ordinary C# methods.</Description>
+    <AnkusExtensionName>ankus_ranges</AnkusExtensionName>
+  </PropertyGroup>
+
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+
+</Project>

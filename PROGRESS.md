@@ -2693,8 +2693,9 @@ All example directories in `pgrx-examples/` require a corresponding working .NET
 - Build/tooling/constraints: `bad_ideas`, `benching`, `custom_libname`, `nostd`, `versioned_custom_libname_so`,
   `versioned_so`. Rust-specific mechanisms require an explicit idiomatic .NET capability mapping and tests.
 
-The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators`, `samples/Ankus.Examples.Sets` and `samples/Ankus.Examples.Composites`
-samples are validated. Full example parity is pending.
+The `samples/Ankus.Examples.Hello`, `samples/Ankus.Examples.Enums`, `samples/Ankus.Examples.Operators`,
+`samples/Ankus.Examples.Sets`, `samples/Ankus.Examples.Composites` and
+`samples/Ankus.Examples.Ranges` samples are validated. Full example parity is pending.
 
 Required test-source inventory:
 
@@ -2775,6 +2776,7 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Finite fully constructed generic mapped roots selected by signatures or exact managed providers, with fixed SQL identity and exact closed converters
     - [x] Explicit closed mapping declarations with independent SQL metadata and finite local raw-only registration
     - [x] Open converter templates closed from exact interfaces, with finite constraint-checked factories
+    - [x] Explicit mapped value-type range bounds with independent SQL identities, finite scalar conversion, native operations and range arrays
     - [x] Reject nested SQL array containers consistently with pgrx; preserve multidimensional values through one shaped array
     - [ ] Broader SQL metadata and mapped container contracts, ordinary row/composite conversions and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
@@ -2822,6 +2824,7 @@ The phases track implementation of the complete pgrx feature surface.
      - [x] Package-based setup guide, validated with isolated NuGet consumers
      - [ ] Public hosting and canonical site URL/sitemap
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
+    - [x] Published range example mirroring pgrx's nine constructors/comparison functions and stored-range sequence
     - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
     - [ ] Complete getting-started, API, deployment, and ported-feature documentation
     - [x] Generated public API reference from XML comments, following the `Dotsider.DocGenerator` design
@@ -5229,9 +5232,48 @@ The phases track implementation of the complete pgrx feature surface.
   failures/skips in 285.539s on Linux x64/PostgreSQL 18.6. The non-incremental
   Release build passes in 12.76s with zero warnings/errors. API generation and
   freshness pass for 148 pages/1,437 members; `pnpm check` reports zero errors,
-  warnings or hints and `pnpm build` produces 185 pages. Hosted validation of
-  this range change remains pending.
+  warnings or hints and `pnpm build` produces 185 pages. Commit `4aef0ee` passes
+  [full CI](https://github.com/willibrandon/ankus/actions/runs/36143177033) and
+  [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36143177185).
+  Each platform executed the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,371 | 0 | 9m11s |
+  | macOS ARM64 | 18.6 | 6,369 | 2 | 11m24s |
+  | Windows x64 | 17.11 | 6,369 | 2 | 18m57s |
+
+  All jobs had zero failures. The two non-Linux skips remain the existing
+  Linux-only native allocation measurements. Windows completed within its
+  authorized 25-minute allowance. All runtime preparation jobs restored cached
+  artifacts, so these timings do not establish cold-runtime build performance.
 
   Reference-type bounds, direct PgType/PgEnum range derivation, multiranges,
   range JSON, ordinary detached row/composite mapping, broader directional/typmod
   metadata and the complete PostgreSQL/platform matrix remain full-port work.
+
+- 2026-09-25 — Ported the public pgrx range example to
+  `samples/Ankus.Examples.Ranges`. Its nine ordinary C# functions cover bounded,
+  lower/upper-unbounded, inclusive, fully unbounded and empty ranges plus detached
+  representation comparison. The sample declares immutable, parallel-safe SQL
+  functions and ships a runnable project with constructor and storage examples.
+  Solution discovery, integration project references and Native AOT sample
+  publishing include it.
+
+  `RangeSampleRelocatesAndReinstalls` executes all nine functions with independent
+  expected SQL values, strict NULL behavior, equal ends, negative bounds and
+  integer extremes. It checks exact argument/result OIDs, function options,
+  extension ownership and stable identities on relocation versus fresh identities
+  on reinstall. All 101 values from pgrx's stored-range sequence are checked after
+  relocation and after extension removal; their caller-owned table survives.
+  `RangeSampleRejectsInvalidBoundsAndRecovers` verifies reversed bounds and both
+  inclusive-upper overflow paths with SQLSTATE and same-session recovery.
+  These four published backend cases pass with zero failures/skips in 62.660s
+  on Linux x64/PostgreSQL 18.6. Plain `dotnet test` passes all 6,375 tests with
+  zero failures/skips in 258.642s on that platform/server. The non-incremental
+  Release build passes in 11.90s with zero warnings/errors. API generation and
+  freshness pass for 148 pages/1,437 members; `pnpm check` reports zero errors,
+  warnings or hints and `pnpm build` produces 185 pages. Static assertion and
+  public-outcome pseudo-mutation review is Strong for this example contract;
+  no empirical mutation or measured coverage claim is made. Hosted validation
+  of this sample milestone remains pending.

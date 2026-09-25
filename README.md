@@ -79,6 +79,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `DateTime`, `PgTimestamp` | `timestamp` |
 | `DateTimeOffset`, `PgTimestampTz` | `timestamptz` |
 | `TimeSpan`, `PgInterval` | `interval` |
+| `PgRange<T>` | The supported built-in or explicitly mapped range type |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `[PgType]` classes, structs, and enums | Generated PostgreSQL base types with CBOR, packed native storage, or an explicit storage codec |
 | `[PgDatumType]` classes, structs, and enums | An existing SQL scalar representation with an explicit datum reader and/or writer |
@@ -138,6 +139,9 @@ for finite `PgRange<T>` bounds, with independent range SQL identity and ownershi
 See [mapped range bounds](docs/src/content/docs/ranges.md#mapped-bounds).
 See [reusable scalar mappings](docs/src/content/docs/raw-values.md#reusable-scalar-mappings)
 for provider ownership, supported paths, and lifetime requirements.
+
+The [range sample](samples/Ankus.Examples.Ranges/README.md) ports pgrx's range
+constructors and stored-value example, including empty and unbounded ranges.
 
 Use `[PgEnum]` and optional `[PgEnumLabel]` attributes for PostgreSQL enums,
 including nullable values, arrays, typed SPI queries and schema dependencies.

@@ -9,6 +9,7 @@
     <Project Path="samples/Ankus.Examples.Hello/Ankus.Examples.Hello.csproj" />
     <Project Path="samples/Ankus.Examples.Initialization/Ankus.Examples.Initialization.csproj" />
     <Project Path="samples/Ankus.Examples.Operators/Ankus.Examples.Operators.csproj" />
+    <Project Path="samples/Ankus.Examples.Ranges/Ankus.Examples.Ranges.csproj" />
     <Project Path="samples/Ankus.Examples.Sets/Ankus.Examples.Sets.csproj" />
     <Project Path="samples/Ankus.Examples.Triggers/Ankus.Examples.Triggers.csproj" />
   </Folder>
