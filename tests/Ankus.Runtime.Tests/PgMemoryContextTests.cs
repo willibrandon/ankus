@@ -332,7 +332,9 @@ public sealed class PgMemoryContextTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgMemoryContext context = PgMemoryContext.Current;
-        Assert.AreEqual(303, context.Parent?.Id);
+        PgMemoryContext? parent = context.Parent;
+        Assert.IsNotNull(parent);
+        Assert.AreEqual(303, parent.Id);
         fixture.Handler = request => request._operation switch
         {
             NativeMemoryOperation.Parent => default,

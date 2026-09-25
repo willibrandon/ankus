@@ -8,6 +8,7 @@ repository root with `dotnet run --file`.
 | `Ankus.Ci.cs` | Validate, build, test, pack, and publish Ankus and its pinned Native AOT runtime. |
 | `Ankus.SqlStates.cs` | Regenerate or check the named SQLSTATE catalog from pinned PostgreSQL source tags. |
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
+| `Ankus.Bindings.cs` | Regenerate or check per-major native declarations and node cast graphs from pinned pgrx bindings. |
 
 `Ankus.Ci.cs` provides these commands:
 
@@ -19,7 +20,7 @@ repository root with `dotnet run --file`.
 | `runtime-build` | Build and stage one runtime for CI. |
 | `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
-| `unit-test` | Build and run the four unit test modules. |
+| `unit-test` | Build and run the five unit test modules. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack one platform runtime package. |
 | `publish` | Validate and publish the complete NuGet package set. |
@@ -58,3 +59,16 @@ It preserves per-version membership and native renames; one enum member represen
 each numeric value. These catalogs follow pgrx's constant-name heuristic and are
 not a list of every built-in database object. The app makes no network requests
 and does not modify the reference checkout.
+
+Regenerate the native declaration catalogs using the same read-only checkout:
+
+```text
+dotnet run --file ./eng/Ankus.Bindings.cs -- /path/to/pgrx
+dotnet run --file ./eng/Ankus.Bindings.cs -- /path/to/pgrx --check
+```
+
+The catalogs retain fields, typedefs, enums and pgrx's node inheritance/alias
+rules for PostgreSQL 13–19. They contain no assumed platform layouts; native
+sizes and offsets must be established using the selected server headers.
+The app invokes the `Ankus.Build binding-catalogs` command; parsing and catalog
+generation stay inside the build tool without exposing its internals.

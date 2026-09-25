@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <RootNamespace>Ankus.PgConfig.Tests</RootNamespace>
-    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
   </PropertyGroup>
 

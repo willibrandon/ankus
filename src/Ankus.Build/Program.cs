@@ -6,6 +6,12 @@ using Ankus.PgConfig;
 
 try
 {
+    if (args.Length > 0 && args[0] == "binding-catalogs")
+    {
+        await NativeBindingCatalogCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
     if (args.Length != 11)
     {
         throw new ArgumentException(

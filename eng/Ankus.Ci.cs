@@ -522,6 +522,7 @@ static void RunUnitTestModules(string repositoryRoot)
 {
     string[] testModules =
     [
+        "tests/Ankus.Build.Tests/bin/Release/net10.0/Ankus.Build.Tests.dll",
         "tests/Ankus.Examples.Hello.Tests/bin/Release/net10.0/Ankus.Examples.Hello.Tests.dll",
         "tests/Ankus.Generators.Tests/bin/Release/net10.0/Ankus.Generators.Tests.dll",
         "tests/Ankus.PgConfig.Tests/bin/Release/net10.0/Ankus.PgConfig.Tests.dll",

@@ -367,6 +367,8 @@ public sealed class AllocatorContextTests(TestContext context)
         Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         command.CommandText = "SELECT 42";
         Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
-        Assert.AreEqual(backend, command.Connection?.ProcessID);
+        NpgsqlConnection? connection = command.Connection;
+        Assert.IsNotNull(connection);
+        Assert.AreEqual(backend, connection.ProcessID);
     }
 }

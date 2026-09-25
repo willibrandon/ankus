@@ -68,8 +68,28 @@ public sealed class PgDatumRangeTests
         Register();
         PgDatum source = PgDatum.DangerousCreate(501, 9002, PgMemoryContext.Current);
         PgRange<Bound> value = source.Read<PgRange<Bound>>();
-        Assert.AreEqual(lower, value.Lower?.Number);
-        Assert.AreEqual(upper, value.Upper?.Number);
+        Bound? actualLower = value.Lower;
+        if (lower.HasValue)
+        {
+            Assert.IsNotNull(actualLower);
+            Assert.AreEqual(lower.Value, actualLower.Value.Number);
+        }
+        else
+        {
+            Assert.IsNull(actualLower);
+        }
+
+        Bound? actualUpper = value.Upper;
+        if (upper.HasValue)
+        {
+            Assert.IsNotNull(actualUpper);
+            Assert.AreEqual(upper.Value, actualUpper.Value.Number);
+        }
+        else
+        {
+            Assert.IsNull(actualUpper);
+        }
+
         Assert.AreEqual(flags == 1, value.IsEmpty);
         Assert.AreEqual((flags & 2) != 0, value.LowerInclusive);
         Assert.AreEqual((flags & 4) != 0, value.UpperInclusive);

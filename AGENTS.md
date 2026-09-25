@@ -50,6 +50,12 @@ before changing an area.
   throughout the repository.
 - Never disable warnings. Fix the underlying issue without warning pragmas,
   suppression attributes, `NoWarn`, or reducing an enforced diagnostic's severity.
+- Keep `MSTestAnalysisMode` set to `All` for every repository project, with
+  warnings treated as errors. Never relax analyzer standards or modes; fix every
+  diagnostic without suppression.
+- Use `InternalsVisibleTo` only for test assemblies. Give production tools a
+  deliberate command or API boundary instead of access to another assembly's
+  internals.
 - Do not leave an extra blank line immediately after an opening brace.
 - Leave a blank line after a closing block brace before the next statement or
   declaration. Keep connected `else`, `catch`, and `finally` clauses together;
@@ -76,7 +82,7 @@ before changing an area.
 - Verify observable boundaries, errors, ownership, and same-session recovery;
   test counts and generated-source substrings alone do not prove parity.
 - Keep CI feedback under 10 minutes where possible, with a default 20-minute
-  timeout per job. Jobs approaching that limit may use 25 or 30 minutes. Run
+  timeout per job. Increase timeouts when needed, but never exceed 40 minutes. Run
   independent platform checks in parallel, measure cold-cache builds, and cancel
   superseded runs. Do not hide missing validation to meet the budget.
 - Run the complete test suite in each platform job; do not shard it. CI runs on

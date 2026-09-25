@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <RootNamespace>Ankus.IntegrationTests</RootNamespace>
-    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
   </PropertyGroup>
 

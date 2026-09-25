@@ -5745,3 +5745,52 @@ The phases track implementation of the complete pgrx feature surface.
   the ownership and locking contracts. Hosted evidence for this milestone is
   pending. Raw RelationData/node bindings, complete PostgreSQL/platform evidence
   and the wider full-port inventory remain required.
+
+- 2026-09-25 — Relation milestone `2677e2f` passes complete hosted CI
+  [36181839807](https://github.com/willibrandon/ankus/actions/runs/36181839807)
+  and documentation deployment
+  [36181839751](https://github.com/willibrandon/ankus/actions/runs/36181839751).
+  Linux x64/PostgreSQL 18.6 passes 6,703 tests with zero failures/skips in a
+  12m22s job. macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+  each pass 6,701 tests with zero failures and the two existing Linux-only
+  allocation measurements skipped, in 10m46s and 20m07s jobs respectively.
+  Every platform executes the complete suite against a real server. Quality and
+  runtime preparation also pass; the Windows job stays within its authorized
+  30-minute cap. Cached runtime preparation does not establish cold runtime-build
+  performance or the remaining complete PostgreSQL/platform matrix.
+
+- 2026-09-25 — Centralized `MSTestAnalysisMode=All` beside
+  `TreatWarningsAsErrors=true` in `Directory.Build.props` and removed every
+  project-local `Recommended` override. All 35 repository projects evaluate to
+  `All` with warnings treated as errors. Fixed all eight newly reported
+  `MSTEST0026` findings using explicit null/presence assertions followed by exact
+  range-bound, parent-context and backend-process identity checks. No suppression
+  or severity reduction was introduced. `AGENTS.md` now explicitly preserves
+  these standards and restricts `InternalsVisibleTo` to test assemblies.
+
+  Native declaration catalog generation now runs through the
+  `Ankus.Build binding-catalogs` command. The file-based automation app invokes
+  that command without an assembly reference or access to internal parser/model
+  types. The PostgreSQL 13–19 catalogs record native tags, struct/union fields,
+  typedefs, enum representations and pgrx's node cast sets from pinned pgrx commit
+  `70383e884582d1bcc7cd681d10886b995a2830cb`. Sixteen parser cases cover prefix
+  inheritance, typedef aliases, union directionality, legacy Value tags,
+  nested callbacks/arrays, native identifier escaping, trivia and invalid input.
+  Fresh command output matches all seven catalogs byte for byte, freshness
+  checks pass, and missing catalogs or invalid arguments fail explicitly.
+  The build-tool test project participates in solution discovery and every
+  platform's complete CI suite.
+
+  Focused assertion validation passes 35 tests with zero failures/skips in
+  0.891s. Plain `dotnet test` passes all 6,719 tests with zero failures/skips in
+  302.013s on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes
+  with zero warnings/errors in 23.92s. API generation and freshness pass for
+  166 pages/2,239 members; `pnpm check` reports zero errors, warnings or hints,
+  and `pnpm build` produces 208 pages. Hosted validation of this change remains
+  pending. These catalogs establish declarations only: selected-header physical
+  layouts, typed managed node APIs and their backend ownership/casting tests,
+  the complete raw FFI and the wider full-port/platform inventory remain required.
+
+  CI timeouts may increase when needed, with an absolute 40-minute maximum per
+  job. This authorization is recorded in `AGENTS.md`; current platform test caps
+  remain 20 minutes for Linux/macOS and 30 minutes for Windows.

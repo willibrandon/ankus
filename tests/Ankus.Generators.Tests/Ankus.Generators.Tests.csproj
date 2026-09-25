@@ -1,6 +1,5 @@
 <Project Sdk="MSTest.Sdk">
   <PropertyGroup>
-    <MSTestAnalysisMode>Recommended</MSTestAnalysisMode>
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
   </PropertyGroup>
   <ItemGroup>

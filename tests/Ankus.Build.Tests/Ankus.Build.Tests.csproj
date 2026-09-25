@@ -1,0 +1,8 @@
+<Project Sdk="MSTest.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Ankus.Build\Ankus.Build.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>
+  </PropertyGroup>
+</Project>
