@@ -109,6 +109,11 @@ public sealed partial class ToolCommandTests
                 {schema}.package_read(42),({schema}.package_echo(NULL::{schema}.package_key) IS NULL)::text,
                 {schema}.package_external_echo(7))
             """));
+        Assert.AreEqual("1042|42|true", await SqlPackageScalarAsync<string>(connection, $"""
+            SELECT concat_ws('|',{schema}.package_generic_read(42),
+                {schema}.package_generic_echo(42)::integer,
+                ({schema}.package_generic_echo(NULL::{schema}.package_key) IS NULL)::text)
+            """));
         Assert.AreEqual(FormattableString.Invariant($"{typeOid}|1042|True|True|23|2042"),
             await SqlPackageScalarAsync<string>(connection, $"SELECT {schema}.package_probe(42)"));
         Assert.AreEqual("1042|1043|1043|2042|True|True",
@@ -141,12 +146,13 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Captures the domain, its array and all ten generated callbacks with their exact extension ownership.
+    /// Captures the domain, its array and all twelve generated callbacks with their exact extension ownership.
     /// </summary>
     private async Task<Dictionary<string, uint>> DatumMappingPackageMembers(NpgsqlConnection connection, string schema)
     {
         string[] expected = ["array:package_key", "function:package_array_echo", "function:package_array_replay",
             "function:package_arrays", "function:package_echo", "function:package_external_echo",
+            "function:package_generic_echo", "function:package_generic_read",
             "function:package_probe", "function:package_read", "function:package_remember", "function:package_replay",
             "function:package_typed", "type:package_key"];
         await using var command = new NpgsqlCommand($"""
@@ -192,12 +198,21 @@ public sealed partial class ToolCommandTests
         using Ankus;
         [assembly: PgSql("mapping-type", "CREATE DOMAIN package_key AS integer CHECK (VALUE >= 0);", Relocatable = true)]
         [assembly: PgSqlTypeProvider("mapping-type", typeof(OwnedKey))]
+        [assembly: PgSqlTypeProvider("mapping-type", typeof(GenericOwnedKey<int>))]
         [PgDatumType("package_key", typeof(OwnedKeyConverter))]
         public readonly record struct OwnedKey(int Number);
         public sealed class OwnedKeyConverter : IPgDatumReader<OwnedKey>, IPgDatumWriter<OwnedKey>
         {
             public OwnedKey Read(PgDatum value) => new(value.Read<int>() + 1000);
             public PgDatum Write(OwnedKey value, uint typeOid, PgMemoryContext destination)
+                => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
+        }
+        [PgDatumType("package_key", typeof(GenericOwnedKeyConverter))]
+        public readonly record struct GenericOwnedKey<T>(int Number);
+        public sealed class GenericOwnedKeyConverter : IPgDatumReader<GenericOwnedKey<int>>, IPgDatumWriter<GenericOwnedKey<int>>
+        {
+            public GenericOwnedKey<int> Read(PgDatum value) => new(value.Read<int>() + 1000);
+            public PgDatum Write(GenericOwnedKey<int> value, uint typeOid, PgMemoryContext destination)
                 => PgDatum.DangerousCreate(unchecked((nuint)(nint)(value.Number - 1000)), typeOid, destination);
         }
         [PgDatumType("int4", typeof(ExternalKeyConverter), Schema = "pg_catalog", Origin = PgTypeOrigin.External)]
@@ -216,6 +231,10 @@ public sealed partial class ToolCommandTests
             public static OwnedKey? Echo(OwnedKey? value) => value is { } present ? new OwnedKey(present.Number + 1) : null;
             [PgFunction(Name = "package_read")]
             public static int ReadKey(OwnedKey value) => value.Number;
+            [PgFunction(Name = "package_generic_echo")]
+            public static GenericOwnedKey<int>? GenericEcho(GenericOwnedKey<int>? value) => value;
+            [PgFunction(Name = "package_generic_read")]
+            public static int GenericRead(GenericOwnedKey<int> value) => value.Number;
             [PgFunction(Name = "package_external_echo")]
             public static ExternalKey ExternalEcho(ExternalKey value) => new(value.Number + 1);
             [PgFunction(Name = "package_probe")]

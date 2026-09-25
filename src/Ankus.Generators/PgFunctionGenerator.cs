@@ -125,6 +125,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             return;
         }
 
+        INamedTypeSymbol[] selectedDerivedTypes = [.. derivedTypes.Where(static type =>
+                !DatumTypeDeclaration.IsMapped(type) || DatumTypeDeclaration.IsClosed(type))
+            .Concat(mappings.Select(static mapping => mapping.Type).Where(static type =>
+                type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute)))
+            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)];
+
         var names = new HashSet<string>(StringComparer.Ordinal);
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
@@ -153,11 +159,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasGucHooks = gucs.Any(static guc => guc.HasHooks);
         bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
         bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
-        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || !derivedTypes.IsEmpty;
+        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || !derivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method));
+        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(method));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(NativeMemoryBridge.CleanupBinding);
@@ -209,7 +215,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionBridge.Source);
             native.AppendLine(NativeFunctionInvocation.Source);
 
-            if (!aggregateTypes.IsEmpty || derivedTypes.Any(DatumTypeDeclaration.IsMapped) ||
+            if (!aggregateTypes.IsEmpty || selectedDerivedTypes.Any(DatumTypeDeclaration.IsMapped) ||
                 methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
                 FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true)))
             {
@@ -614,7 +620,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         bool validOperators = true;
-        foreach (INamedTypeSymbol type in derivedTypes.Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
+        foreach (INamedTypeSymbol type in selectedDerivedTypes
             .OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
         {
             validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, typeProviders, schemas, names, relatedNames, operatorEntities, graph,

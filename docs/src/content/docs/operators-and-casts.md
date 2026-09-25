@@ -163,6 +163,11 @@ the generated support functions and families. Ordinary input/output functions
 can follow a shell type; a completed family cannot precede its type provider.
 Multiple CLR wrappers may share one SQL type, but conflicting generated SQL
 signatures are rejected rather than choosing one wrapper's reader.
+For a generic datum mapping, only fully constructed roots selected by a
+generated signature or exact managed type provider can emit derived helpers.
+Distinct constructions inherit the same fixed SQL identity from their generic
+declaration, so selecting two with the same generated family attributes causes
+a SQL-object collision diagnostic.
 
 External mappings can also opt in. Helpers, operators and families use the mapped
 SQL type's schema and belong to the extension; the external type remains

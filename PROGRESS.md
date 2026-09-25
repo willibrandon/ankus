@@ -2535,7 +2535,7 @@ The target architecture consists of:
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
-| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Nested mapped arrays, generic mapped roots, ordinary row/composite conversions, broader metadata forms and complete matrix validation remain required. |
+| Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic mapped roots share fixed SQL metadata and exact closed converters. Nested mapped arrays, broader generic metadata, ordinary row/composite conversions and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
@@ -2610,7 +2610,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented. Nested/generic and broader mapping forms and the full platform/version matrix remain required. |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented, including finite fully constructed generic mapped roots. Nested SQL containers, broader generic mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar/array signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
@@ -2770,7 +2770,8 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Reusable scalar datum readers/writers and owned managed-identity SQL providers for documented paths
     - [x] Typed mapped scalar results in SPI conveniences and named/OID catalog calls, with full local evidence
     - [x] Mapped vectors and shaped arrays with exact element/array identity, independent conversion directions and guarded ownership
-    - [ ] Nested mapped arrays, generic mapped roots, ordinary row/composite conversions, broader mapping metadata and additional serialization/native shapes
+    - [x] Finite fully constructed generic mapped roots selected by signatures or exact managed providers, with fixed SQL identity and exact closed converters
+    - [ ] Nested mapped arrays, broader generic mapping metadata, ordinary row/composite conversions and additional serialization/native shapes
   - [ ] `.ankusc` metadata section (JSON) embedded in the `.so`; `ankus schema`
 - [ ] **P3 — Extension features**
   - [x] custom installation SQL, binary/prefix operators and explicit/assignment/implicit casts
@@ -4945,6 +4946,67 @@ The phases track implementation of the complete pgrx feature surface.
   non-incremental Release build passes in 16.25s with zero warnings/errors.
   API generation and freshness pass for 147 pages and 1,429 members; `pnpm check`
   reports zero errors/warnings/hints and `pnpm build` produces 184 pages.
-  Hosted validation remains pending. Accessible non-generic nested CLR mappings
-  already work; generic mapped roots, nested mapped arrays, ordinary row/composite
+  Commit `86c6de3` passes [documentation build/deployment](https://github.com/willibrandon/ankus/actions/runs/36127621131)
+  and [full CI](https://github.com/willibrandon/ankus/actions/runs/36127621091).
+  Every platform ran the complete suite against a real PostgreSQL server:
+
+  | Platform | PostgreSQL | Passed | Skipped | Platform job |
+  |---|---|---:|---:|---|
+  | Linux x64 | 18.6 | 6,222 | 0 | 9m25s |
+  | macOS ARM64 | 18.6 | 6,220 | 2 | 10m26s |
+  | Windows x64 | 17.11 | 6,220 | 2 | 18m38s |
+
+  All jobs had zero failures. The two non-Linux skips are the existing
+  Linux-only native allocation measurements. macOS and Windows exceeded the
+  preferred ten-minute target; every job stayed within the then-current
+  twenty-minute timeout. Runtime cache hits do not establish a cold-runtime
+  build baseline. Accessible non-generic nested CLR mappings already work;
+  generic mapped roots, nested mapped arrays, ordinary row/composite
   conversions and full-port validation remain open.
+
+- 2026-09-25 — Added finite closed constructions for type-level `PgDatumType`
+  declarations. Local generic definitions are templates; only exact fully
+  constructed roots selected by supported function/aggregate signatures or
+  managed `PgSqlTypeProvider` type arguments register. Constructed containing
+  types preserve their full CLR identity. Each selected construction retains
+  the declaration's fixed SQL name/schema/origin and requires an exact reader
+  and/or writer interface on its already closed converter. No open registration,
+  inferred converter construction, runtime reflection or native generic export
+  is introduced. Managed generic arguments used only as tags do not acquire
+  unrelated SQL provider dependencies. Owned constructions each require an
+  exact provider, though they may share a completed SQL type block. Readable
+  selected constructions can emit finite derived operator families; duplicate
+  fixed-SQL families are rejected before generating artifacts.
+
+  Generator tests cover two independent closed views of one SQL type,
+  constructed containing identities, unused templates, wrong interfaces and
+  conversion directions, exact owned providers, completed ordering and derived
+  SQL collisions. Final review found and corrected a filter that also skipped
+  invalid, unmapped generic derives; a regression now preserves `ANKUS018`.
+  Another test proves exact managed-provider-only roots register without a
+  callback. The affected generator scope passes 165 cases with zero
+  failures/skips in 3.352s. Published Native AOT/PostgreSQL 18.6 tests on Linux x64 pass
+  four focused cases with zero failures/skips: exact int/long readers and
+  writers, per-construction lazy factories, present zero versus SQL NULL,
+  array bounds/NULL cells/type, nested raw and typed SPI reads, expired native
+  owners, owned diagnostics and same-backend recovery. The owned manual domain
+  package test passes one focused relocation/drop/reinstall case with its exact
+  closed managed provider and unchanged shadow objects.
+
+  The first complete local run passed 6,234 tests. After the diagnostic correction
+  and two additional cases, plain `dotnet test` passes all 6,236 tests with zero
+  failures/skips in 281.680s on Linux x64/PostgreSQL 18.6. Static assertion and
+  pseudo-mutation review is Strong for the finite fixed-SQL contract; no
+  empirical mutation or coverage result is claimed. The non-incremental Release
+  build passes in 18.23s with zero warnings/errors. API generation and freshness
+  pass for 147 pages/1,429 members; `pnpm check` reports zero errors, warnings or
+  hints and `pnpm build` produces 184 pages. Hosted platform validation for this
+  milestone is pending.
+
+  This remains a fixed-metadata subset of generic mapping parity. A root used
+  only inside an arbitrary raw method body needs another supported registration
+  route; different SQL identities per construction, open converter templates,
+  nested mapped SQL containers, ordinary row/composite conversion, broader
+  metadata and full PostgreSQL/platform validation remain open. The previous
+  complete Windows job took 18m38s under a twenty-minute limit, so this
+  milestone gives Windows 25 minutes while Linux and macOS retain 20 minutes.

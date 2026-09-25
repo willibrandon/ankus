@@ -75,9 +75,10 @@ before changing an area.
   for prerequisites and fixture behavior.
 - Verify observable boundaries, errors, ownership, and same-session recovery;
   test counts and generated-source substrings alone do not prove parity.
-- Keep CI feedback under 10 minutes where possible, with a hard 20-minute timeout
-  per job. Run independent platform checks in parallel, measure cold-cache builds,
-  and cancel superseded runs. Do not hide missing validation to meet the budget.
+- Keep CI feedback under 10 minutes where possible, with a default 20-minute
+  timeout per job. Jobs approaching that limit may use 25 or 30 minutes. Run
+  independent platform checks in parallel, measure cold-cache builds, and cancel
+  superseded runs. Do not hide missing validation to meet the budget.
 - Run the complete test suite in each platform job; do not shard it. CI runs on
   Linux x64, macOS ARM64, and Windows x64. Releases also include macOS x64.
 - CI platform evidence must run the full test suite against a real PostgreSQL

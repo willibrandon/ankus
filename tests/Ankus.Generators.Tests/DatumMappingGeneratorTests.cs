@@ -211,25 +211,23 @@ public sealed partial class PgFunctionGeneratorTests
             converter, "ANKUS019", reason);
 
     /// <summary>
-    /// Wrapper shapes, conflicting metadata and non-named/open converter selections fail at their declarations.
+    /// Unsupported wrapper shapes, conflicting metadata and non-named/open converter selections fail at their declarations.
     /// </summary>
     /// <param name="declaration">The invalid root declaration.</param>
     /// <param name="converterType">The attribute's converter type expression.</param>
     [TestMethod]
     [DataRow("public abstract class Value { }", "Converter")]
     [DataRow("public ref struct Value { }", "Converter")]
-    [DataRow("public struct Value<T> { }", "Converter")]
-    [DataRow("public class Parent<T> { [Ankus.PgDatumType(\"item\", typeof(Converter))] public struct Value { } }", "nested")]
     [DataRow("[Ankus.PgType] public struct Value { public int Number; }", "Converter")]
     [DataRow("[Ankus.PgEnum] public enum Value { First }", "Converter")]
     [DataRow("public struct Value { }", "Converter[]")]
     [DataRow("public struct Value { }", "GenericConverter<>")]
     public void DatumMappingsRejectUnsupportedRootContracts(string declaration, string converterType)
     {
-        string source = converterType == "nested" ? declaration : "[Ankus.PgDatumType(\"item\", typeof(" + converterType + "))] " + declaration;
+        string source = "[Ankus.PgDatumType(\"item\", typeof(" + converterType + "))] " + declaration;
         source += " public class Converter { } public class GenericConverter<T> { }";
         AssertDatumMappingError(source, "ANKUS019", converterType is "Converter[]" or "GenericConverter<>" ?
-            "accessible parameterless constructor" : "non-generic, concrete");
+            "accessible parameterless constructor" : "closed, concrete");
     }
 
     /// <summary>

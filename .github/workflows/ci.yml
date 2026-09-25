@@ -110,14 +110,17 @@ jobs:
           - runner: ubuntu-24.04
             rid: linux-x64
             postgresql: 18
+            timeout: 20
           - runner: macos-15
             rid: osx-arm64
             postgresql: 18
+            timeout: 20
           - runner: windows-2025
             rid: win-x64
             postgresql: 17
+            timeout: 25
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout }}
     steps:
       - uses: actions/checkout@v5
 

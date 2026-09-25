@@ -140,6 +140,19 @@ constructor and implements either interface or both for the exact managed type.
 Ankus creates one converter lazily when a present value needs it. Registration
 does not construct user code or access PostgreSQL catalogs.
 
+A generic declaration such as `Box<T>` can provide finite managed views of one
+SQL type. The generator registers only fully constructed roots found in
+supported function or aggregate signatures, or in an exact managed
+`PgSqlTypeProvider` declaration. For example, `Box<int>` and `Box<long>` can
+share the fixed name, schema and origin on `Box<T>` while a closed converter
+implements `IPgDatumReader<Box<int>>` and `IPgDatumReader<Box<long>>` separately.
+Each requested CLR construction selects its own lazy registration; an unused
+`Box<T>` declaration creates none. A constructed containing type, such as
+`Outer<int>.Value`, also retains its exact managed identity. For an owned SQL
+type, declare a provider for **each** closed construction that uses it, even if
+the providers name the same completion block. The attribute's converter must
+already be a closed type; Ankus does not close generic converter templates.
+
 `IPgDatumReader<T>` converts SQL inputs into detached managed values. Copy native
 data before returning; storing the input `PgDatum` in a field does not extend its
 lifetime. `IPgDatumWriter<T>` receives the current target OID and an operation's
@@ -240,14 +253,15 @@ For native addresses, `DangerousCall<T>` selects the registered reader; use
 `DangerousCallRaw` for an explicit native owner or delayed mapped read. The caller
 must supply an address whose actual result matches the mapping's SQL type and
 representation; native-address calls cannot check a catalog return declaration.
-Nested mapped arrays, generic wrapper declarations, and different argument and
-result SQL spellings remain unsupported. Accessible non-generic nested CLR
-declarations are supported.
+Nested mapped arrays and different argument and result SQL spellings remain
+unsupported. A generic declaration needs a selected closed root: an unused open
+template or a `PgDatum.Read<T>()` call in an arbitrary method body cannot create
+one by itself. Accessible closed nested CLR declarations are supported.
 The generator rejects unsupported mapped signatures with `ANKUS019`.
 
-Local annotated types are registered even when only used by raw APIs. An
-annotated type from a referenced assembly must occur in a supported generated
-signature or an owned managed-type provider declaration to become a registration
-root. Ambiguous externally aliased names are rejected. A type cannot combine
+Local non-generic annotated types are registered even when only used by raw APIs.
+Generic local declarations and types from a referenced assembly must occur in a
+supported generated signature or an exact managed-type provider declaration to
+become registration roots. Ambiguous externally aliased names are rejected. A type cannot combine
 `PgDatumType` with `PgType` or `PgEnum`, and mapped slots do not use per-parameter
 `PgSqlType` or `PgCompositeType` overrides.

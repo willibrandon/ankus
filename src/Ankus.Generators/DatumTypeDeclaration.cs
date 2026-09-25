@@ -60,6 +60,11 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         attribute.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute");
 
     /// <summary>
+    /// Distinguishes a finite constructed root from an open annotated generic definition.
+    /// </summary>
+    internal static bool IsClosed(INamedTypeSymbol type) => !ContainsTypeParameter(type);
+
+    /// <summary>
     /// Resolves an attributed type and optionally reports its invalid contract.
     /// </summary>
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
@@ -74,10 +79,10 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
 
         assembly ??= type.ContainingAssembly;
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Enum) || type.IsStatic || type.IsAbstract ||
-            type.IsRefLikeType || !Accessible(type, assembly) || Containers(type).Any(static item => item.IsGenericType) ||
+            type.IsRefLikeType || !IsClosed(type) || !Accessible(type, assembly) ||
             type.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() is "Ankus.PgTypeAttribute" or "Ankus.PgEnumAttribute"))
         {
-            return Invalid("PgDatumType requires an accessible, non-generic, concrete class, struct, or enum without PgType or PgEnum.");
+            return Invalid("PgDatumType requires an accessible, closed, concrete class, struct, or enum without PgType or PgEnum.");
         }
 
         string? name = attribute.ConstructorArguments.FirstOrDefault().Value as string;
@@ -152,7 +157,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> aggregates, ImmutableArray<AttributeData> attributes,
         SourceProductionContext context)
     {
-        var candidates = new HashSet<INamedTypeSymbol>(local, SymbolEqualityComparer.Default);
+        var candidates = new HashSet<INamedTypeSymbol>(local.Where(IsClosed), SymbolEqualityComparer.Default);
         IMethodSymbol[] signatures = [.. methods.Concat(aggregates.SelectMany(AggregateDeclaration.SelectedMethods))
             .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)];
         foreach (IMethodSymbol method in signatures)
@@ -257,6 +262,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 if (IsMapped(named))
                 {
                     candidates.Add(named);
+                    return;
                 }
 
                 foreach (ITypeSymbol argument in named.TypeArguments)
@@ -362,6 +368,19 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
         IArrayTypeSymbol array => ContainsMapping(array.ElementType),
         IPointerTypeSymbol pointer => ContainsMapping(pointer.PointedAtType),
         INamedTypeSymbol named => IsMapped(named) || named.TypeArguments.Any(ContainsMapping),
+        _ => false,
+    };
+
+    /// <summary>
+    /// Finds unbound parameters in a root, its arguments or any constructed containing type.
+    /// </summary>
+    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => true,
+        IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
+        IPointerTypeSymbol pointer => ContainsTypeParameter(pointer.PointedAtType),
+        INamedTypeSymbol named => named.IsUnboundGenericType || named.TypeArguments.Any(ContainsTypeParameter) ||
+            named.ContainingType is not null && ContainsTypeParameter(named.ContainingType),
         _ => false,
     };
 

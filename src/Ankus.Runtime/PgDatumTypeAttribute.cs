@@ -1,11 +1,14 @@
 namespace Ankus;
 
 /// <summary>
-/// Maps a closed managed type to an existing PostgreSQL representation through an explicit datum converter.
+/// Maps a managed type to an existing PostgreSQL representation through an explicit datum converter.
 /// </summary>
 /// <remarks>
 /// This declaration generates conversion registration, not type definitions or input/output functions.
 /// The converter implements IPgDatumReader&lt;T&gt;, IPgDatumWriter&lt;T&gt;, or both for this exact managed type.
+/// A generic declaration is a template: only fully constructed roots in supported generated signatures or
+/// exact managed PgSqlTypeProvider declarations are registered. Every construction uses the same fixed SQL
+/// identity and must have an exact reader or writer interface on the supplied closed converter.
 /// Supported paths are scalar and array generated callbacks, set/TABLE and aggregate slots, declared SPI/function
 /// parameters, typed SPI scalar and catalog/native-address function results, and explicit PgDatum.Read&lt;T&gt; calls.
 /// One array layer uses the scalar converter with exact element and array identity, preserving NULL and shape.
