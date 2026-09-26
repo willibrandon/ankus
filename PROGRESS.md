@@ -6990,7 +6990,11 @@ The phases track implementation of the complete pgrx feature surface.
   Clang 20.1.8. Documentation deployment passes. Ubuntu's five other modules
   pass, but its integration run is cancelled at the 20-minute job timeout while
   a packaged extension build is still running; its log reports no test failure
-  before cancellation. Windows hosted validation is still running.
+  before cancellation. Windows Server 2025 x64/PostgreSQL 17.11 completes its
+  31m 46s job with 7,457 passed, one failed and two existing platform skips.
+  `NewSolutionRunsManagedAndBackendTests` fails during binding generation for
+  its nested project path; all other tests pass. The failure is repaired in the
+  subsequent compiler-staging milestone below.
 
   General typed native calls, active signature/export selection, aligned native
   call storage, callback lifetimes, atomic operations, variadics, globals/hooks,
@@ -7058,3 +7062,38 @@ The phases track implementation of the complete pgrx feature surface.
   aligned call storage, compiler-specific inline/macro shims, callbacks,
   variadics, global/hook access, remaining feature inventories and the full
   PostgreSQL/platform matrix remain required for the complete port.
+
+- 2026-09-26 — Repaired the Windows generated-solution CI failure from
+  run 36245904717. Nesting the node compiler's temporary directory beneath a
+  long project output path exceeded Windows' process working-directory limit.
+  A local Windows x64/PostgreSQL 17.7 reproduction failed to start Clang with
+  Win32 error 267, then passed after moving staging into a uniquely owned system
+  temporary directory. The final companion still goes to the requested output
+  path. Compiler and worker completion precede cleanup on success and failure.
+
+  `PackagedNodeBindingFailurePreservesCompanionAndRecovers` now uses a 220-character
+  output path and a separate temporary root selected only for its child process.
+  It verifies staging cleanup after success, a failed libclang load and recovery;
+  all four companion artifacts remain byte-identical, and an unrelated temporary
+  sentinel survives. The same success/failure/recovery sequence passes directly
+  on Windows x64/PostgreSQL 17.7 with Clang 21.1.7 and MSVC. These local Windows
+  checks exercise the compiler command, not the complete backend suite.
+
+  Generated-solution build logs now survive test-project cleanup under the CI
+  artifact directory, so a future outer MSBuild failure retains its underlying
+  diagnostic. Contributor documentation records this behavior. The public-guide
+  audit finds only extension-author commands; maintainer commands remain in
+  contributor documentation and `eng/README.md`.
+
+  Four focused build-command tests pass, and both affected integration tests pass
+  against PostgreSQL 18.6 on Linux x64 in 2m 44.185s, including the generated
+  solution's Native AOT/backend tests. The final Release build has zero warnings
+  and errors in 16.78s. API freshness retains 170 pages/2,254 members; the site
+  builds 212 pages and checks with zero errors, warnings or hints.
+  Plain root `dotnet test` passes all six modules against PostgreSQL 18.6 on Linux
+  x64: 7,462 passed, zero failed and one existing Windows-only cleanup skip in
+  10m 29.539s. Hosted verification follows the completed local gates.
+
+  General typed consumer calls, active signature/export selection, aligned call
+  storage, compiler-specific shims, callbacks, variadics, globals/hooks, remaining
+  feature inventories and the full PostgreSQL/platform matrix remain required.

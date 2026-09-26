@@ -734,8 +734,10 @@ public sealed partial class ToolCommandTests(TestContext context)
             s_environment, token, workingDirectory: output);
         Assert.Contains("Acme.HTTPProbe.Tests.csproj", listing.StandardOutput);
 
+        string logs = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs", "generated-solution");
+        Directory.CreateDirectory(logs);
         ProcessResult tests = await ProcessRunner.RunAsync("dotnet",
-            ["test", "--report-trx", "-bl:generated-tests-{}.binlog", "-p:AnkusPostgresMajor=" + MajorText()],
+            ["test", "--report-trx", "-bl:" + Path.Combine(logs, "generated-tests-{}.binlog"), "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         tests.EnsureSuccess("dotnet", ["test"]);
         string trx = Directory.GetFiles(output, "*.trx", SearchOption.AllDirectories).Single();
@@ -767,7 +769,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         string text = await File.ReadAllTextAsync(functions, token);
         await File.WriteAllTextAsync(functions, text.Replace("checked(left + right)", "checked(left - right)", StringComparison.Ordinal), token);
         ProcessResult changed = await ProcessRunner.RunAsync("dotnet",
-            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:changed-tests-{}.binlog",
+            ["test", "--filter", "FullyQualifiedName~FunctionsExecuteInPostgres", "-bl:" + Path.Combine(logs, "changed-tests-{}.binlog"),
                 "-p:AnkusPostgresMajor=" + MajorText()],
             s_environment, token, workingDirectory: output);
         Assert.AreNotEqual(0, changed.ExitCode);

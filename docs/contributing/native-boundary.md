@@ -726,9 +726,12 @@ named and anonymous node/value identities. Independently executed layout probes
 must agree with Clang on node sizes, offsets, array strides and named enum
 representations/constants. Packed field placement does not change the required
 alignment of the field's type. Node cast rules, concrete allocation metadata and
-typed flexible-tail accessors retain their existing contracts. Large temporary
-AST files are removed after compiler/worker completion. General selected native
-functions, globals and hooks still require further SDK and runtime integration.
+typed flexible-tail accessors retain their existing contracts. Compiler staging
+uses a unique system temporary directory so long project output paths do not
+exceed Windows' process working-directory limit. Large temporary AST files are
+removed after compiler/worker completion, including failed collection. General
+selected native functions, globals and hooks still require further SDK and
+runtime integration.
 
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove

@@ -20,8 +20,8 @@ internal static class NativeBindingNodeRecordCommand
             : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
         string compiler = arguments.Length >= 8 && arguments[7].Length != 0 ? arguments[7]
             : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
-        string directory = Path.Combine(Path.GetFullPath(arguments[2]), "node-records-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
+        // Windows process working directories cannot exceed MAX_PATH, even when managed file APIs support longer paths.
+        string directory = Directory.CreateTempSubdirectory("ankus-node-").FullName;
         try
         {
             NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(major));

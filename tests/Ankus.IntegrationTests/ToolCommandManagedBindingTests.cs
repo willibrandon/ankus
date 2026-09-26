@@ -196,21 +196,43 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// A failed compiler-library load preserves the prior complete companion, cleans large AST files and permits deterministic recovery.
+    /// Long output paths retain a complete companion, clean temporary ASTs after success and failure, and permit deterministic recovery.
     /// </summary>
     [TestMethod]
     public async Task PackagedNodeBindingFailurePreservesCompanionAndRecovers()
     {
         CancellationToken token = context.CancellationToken;
         string helper = await ReadPackagedBuildToolAsync();
-        string output = Path.Combine(CreateBindingDirectory(), "measured bindings");
+        string root = CreateBindingDirectory();
+        // Reproduce a valid output path whose former nested compiler working directory exceeded Windows MAX_PATH.
+        string output = Path.Combine(root, new string('p', Math.Max(1, 220 - root.Length - 1)));
+        string temporary = Directory.CreateTempSubdirectory("ankus-node-test-").FullName;
+        try
+        {
+            await VerifyNodeBindingRecoveryAsync(helper, output, temporary, token);
+        }
+        finally { Directory.Delete(temporary, recursive: true); }
+    }
+
+    private static async Task VerifyNodeBindingRecoveryAsync(string helper, string output, string temporary, CancellationToken token)
+    {
+        var environment = new Dictionary<string, string?>(s_environment)
+        {
+            ["TMPDIR"] = temporary,
+            ["TMP"] = temporary,
+            ["TEMP"] = temporary,
+        };
+        string sentinel = Path.Combine(temporary, "unrelated.txt");
+        await File.WriteAllTextAsync(sentinel, "preserve unrelated temporary files", token);
         string[] command = [helper, "binding-sources", MajorText(), s_installation.PgConfigPath, output];
-        (await RunDotnetAsync(command, token)).EnsureSuccess("dotnet", command);
+        (await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", command);
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj"];
         var expected = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (string name in names) { expected.Add(name, await File.ReadAllBytesAsync(Path.Combine(output, name), token)); }
 
-        ProcessResult rejected = await RunDotnetAsync([.. command, "", "", "", "", "", Path.Combine(output, "missing-libclang")], token);
+        ProcessResult rejected = await ProcessRunner.RunAsync("dotnet",
+            [.. command, "", "", "", "", "", Path.Combine(output, "missing-libclang")], environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, rejected.ExitCode);
         Assert.Contains("Native record worker exited", rejected.StandardError);
         foreach (string name in names)
@@ -218,14 +240,15 @@ public sealed partial class ToolCommandTests
             Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
         }
 
-        Assert.IsEmpty(Directory.GetDirectories(output, "node-records-*"));
-        (await RunDotnetAsync(command, token)).EnsureSuccess("dotnet", command);
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
+        (await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root)).EnsureSuccess("dotnet", command);
         foreach (string name in names)
         {
             Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
         }
 
-        Assert.IsEmpty(Directory.GetDirectories(output, "node-records-*"));
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
+        Assert.AreEqual("preserve unrelated temporary files", await File.ReadAllTextAsync(sentinel, token));
     }
 
     private static string CreateBindingDirectory()

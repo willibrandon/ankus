@@ -74,6 +74,8 @@ PostgreSQL session log.
 Each fixture extension publish also writes a uniquely named MSBuild binary log
 under `artifacts/test-logs/publish`. CI includes these files in its failed-job
 artifact, including when Native AOT compilation fails before cluster startup.
+Generated-solution test builds retain their binary logs in
+`artifacts/test-logs/generated-solution`, outside the disposable test projects.
 
 Native binding probes remove their temporary directories after the compiler and
 probe processes exit. On Windows, cleanup retries file-release errors for a
