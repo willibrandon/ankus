@@ -108,6 +108,11 @@ storage. A separate Clang-based developer command collects the selected headers'
 actual C types, preserving typedef identity, qualifiers, callback prototypes and
 array-parameter adjustment. It recompiles the reconstructed declarations to check
 compatibility. These checks do not yet expose managed imports or hook registration.
+Its storage probe measures fixed parameters, results and global objects with
+native sizes, alignments and integer signedness. An incomplete array retains
+its element stride and an unknown total extent; an opaque record or enum retains
+unknown object size and alignment. These facts do not determine a managed calling
+convention or make an incomplete native object readable by value.
 Reference constants in that inventory
 come from pgrx's build platform; they do not describe the extension's target ABI.
 Future calls must retain the native error guard and explicit lifetime contracts.

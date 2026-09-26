@@ -33,12 +33,35 @@ internal static class NativeBindingHeaderCommand
             : await PostgresInstallation.CreateAsync(arguments[2], cancellationToken);
         if (installation.Version.Major != major) { throw new InvalidOperationException("The selected installation has the wrong PostgreSQL major."); }
 
-        string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
         string output = Path.GetFullPath(arguments[3]);
         Directory.CreateDirectory(output);
         string file = Path.Combine(output, "native-header-types.c");
         string ast = Path.Combine(output, "native-header-types.ast.json");
         await File.WriteAllTextAsync(file, source, cancellationToken);
+        await InspectAsync(installation, arguments, file, ast, output, cancellationToken);
+        await using FileStream stream = File.OpenRead(ast);
+        using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
+        IReadOnlyDictionary<string, NativeHeaderSymbol> symbols = NativeBindingHeaderParser.Read(document.RootElement, requests);
+        NativeHeaderTarget target = NativeBindingHeaderTarget.Read(document.RootElement, major);
+        string runtime = arguments.Length >= 7 && arguments[6].Length != 0 ? arguments[6] : RuntimeInformation.RuntimeIdentifier;
+        if (target.RuntimeIdentifier != runtime) { throw new InvalidOperationException("Native header types do not match the requested runtime ABI."); }
+
+        string checks = Path.Combine(output, "native-header-checks.c");
+        await File.WriteAllTextAsync(checks, NativeBindingHeaderParser.GenerateChecks(NativeBindingResources.ReadHeaders(major), symbols), cancellationToken);
+        await InspectAsync(installation, arguments, checks, Path.Combine(output, "native-header-checks.txt"), output, cancellationToken, dumpAst: false);
+        var catalog = new NativeHeaderCatalog(target, symbols);
+        await File.WriteAllTextAsync(Path.Combine(output, "native-header-types.json"), JsonSerializer.Serialize(catalog, s_jsonOptions) + "\n", cancellationToken);
+        Console.WriteLine($"PG{major}: collected {symbols.Count} native header symbol types with Clang {target.ClangMajor} for {target.RuntimeIdentifier}.");
+        return catalog;
+    }
+
+    /// <summary>
+    /// Inspects declarations and constants using the selected header command's exact frontend arguments.
+    /// </summary>
+    internal static Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
+        string output, CancellationToken cancellationToken, bool dumpAst = true)
+    {
+        string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
         var options = new List<string>();
         if (OperatingSystem.IsWindows())
         {
@@ -56,21 +79,9 @@ internal static class NativeBindingHeaderCommand
 
         if (arguments.Length == 8 && arguments[7].Length != 0) { options.Add("--target=" + arguments[7]); }
 
-        await CompileAsync(compiler, [.. options, "-Xclang", "-ast-dump=json", file], ast, output, cancellationToken);
-        await using FileStream stream = File.OpenRead(ast);
-        using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
-        IReadOnlyDictionary<string, NativeHeaderSymbol> symbols = NativeBindingHeaderParser.Read(document.RootElement, requests);
-        NativeHeaderTarget target = NativeBindingHeaderTarget.Read(document.RootElement, major);
-        string runtime = arguments.Length >= 7 && arguments[6].Length != 0 ? arguments[6] : RuntimeInformation.RuntimeIdentifier;
-        if (target.RuntimeIdentifier != runtime) { throw new InvalidOperationException("Native header types do not match the requested runtime ABI."); }
+        if (dumpAst) { options.AddRange(["-Xclang", "-ast-dump=json"]); }
 
-        string checks = Path.Combine(output, "native-header-checks.c");
-        await File.WriteAllTextAsync(checks, NativeBindingHeaderParser.GenerateChecks(NativeBindingResources.ReadHeaders(major), symbols), cancellationToken);
-        await CompileAsync(compiler, [.. options, checks], Path.Combine(output, "native-header-checks.txt"), output, cancellationToken);
-        var catalog = new NativeHeaderCatalog(target, symbols);
-        await File.WriteAllTextAsync(Path.Combine(output, "native-header-types.json"), JsonSerializer.Serialize(catalog, s_jsonOptions) + "\n", cancellationToken);
-        Console.WriteLine($"PG{major}: collected {symbols.Count} native header symbol types with Clang {target.ClangMajor} for {target.RuntimeIdentifier}.");
-        return catalog;
+        return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken);
     }
 
     /// <summary>
@@ -85,6 +96,10 @@ internal static class NativeBindingHeaderCommand
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
+        // This frontend inspects declarations and constant expressions, not implementations.
+        // PostgreSQL inline bodies can depend on the server's original compiler dialect.
+        start.ArgumentList.Add("-Xclang");
+        start.ArgumentList.Add("-skip-function-bodies");
         foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
 
         cancellationToken.ThrowIfCancellationRequested();

@@ -161,8 +161,12 @@ qualifiers at each pointer level, fixed/incomplete arrays, both written and
 adjusted parameter types, callbacks, variadic/prototype distinctions and no-return
 metadata. Functions also retain parameter names and linkage; globals retain
 their declared types and thread-local status.
+Records and enums retain whether a complete declaration is available; implicit
+compiler tags without an exposed declaration keep that state unknown.
 
-Clang compiles the reconstructed declarations against the same headers before
+Clang inspects declarations and constant expressions without compiling inline
+implementation bodies, which can depend on the server's original compiler dialect.
+Warnings remain errors. It checks reconstructed declarations against the same headers before
 the command writes the final contract. Unsupported type kinds/calling conventions,
 invalid observations, target mismatches and compiler errors fail explicitly.
 Existing final contracts survive failures before that final write; intermediate
@@ -175,6 +179,39 @@ symbol availability, managed calling conventions, pointer ownership or backend
 error guards. Integrating these facts with layout measurement, managed call
 generation, global access and hook registration remains port work. The consumer
 SDK's existing node layout generation is unchanged.
+
+To measure storage from those authoritative types, run:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-storage symbols.txt 18 /path/to/pg_config artifacts/binding-storage/pg18
+```
+
+This command accepts the same optional Clang/toolchain arguments as
+`binding-header-types`, collects the semantic contract, then evaluates constants in
+`native-storage.c` with the same frontend. It does not execute a target program.
+Unevaluated prototype checks and storage expressions do not call PostgreSQL
+functions or require backend exports. The observed PostgreSQL version, runtime, pointer width, byte order and
+Clang major must exactly match the collected contract.
+
+`native-storage.ast.json` retains the compiler output and `native-storage.txt`
+contains the normalized observations. The validated
+`native-storage.json` retains the header contract and ordered measurements for
+fixed parameters, non-void results and globals. Each value records byte size,
+alignment, array element stride and integer/enum signedness where applicable.
+Alignment can exceed a typedef's size. Incomplete arrays have a null total size
+with measured alignment and stride. Opaque records/enums have null size and
+alignment; they are not represented as zero-sized objects. A pointer to an opaque
+type still has measured pointer storage. A non-void opaque result remains a
+result entry with unknown storage, distinct from a void result.
+Large selections use batches of 256 symbols with numbered C/AST diagnostic files;
+every batch retains the same 512 MiB compiler-output limit and must independently
+match the selected target before the final combined contract is written.
+
+Missing, duplicate, extra, contradictory or malformed observations fail before
+the final storage contract is written. Intermediate type/diagnostic artifacts may
+be replaced. These measurements do not classify a managed aggregate ABI, supply
+record fields, establish pointer ownership, promote variadic call-site arguments,
+or implement guarded calls and hooks.
 
 These declarations provide native fields, enums, embedded values, inline arrays
 and explicit flexible-tail access. Checked node ownership/casting/formatting APIs

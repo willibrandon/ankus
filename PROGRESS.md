@@ -6388,8 +6388,16 @@ The phases track implementation of the complete pgrx feature surface.
   170 pages/2,254 members; the site builds 212 pages and its check reports zero
   errors, warnings or hints. Final plain `dotnet test` passes all 7,126 cases
   with zero failures/skips on Linux x64/PostgreSQL 18.6 in 440.662s; the
-  integration suite takes 439.645s. Hosted validation for this new milestone
-  is pending.
+  integration suite takes 439.645s. Hosted CI `36221061418` for `cfa6e6b`
+  passes on Ubuntu 24.04 x64/PostgreSQL 18.6 (7,126 passed, no skips,
+  16m35s job) and macOS 15 ARM64/PostgreSQL 18.6 (7,124 passed and the two
+  existing Linux-only memory-measurement skips, 21m36s job). Windows Server
+  2025 x64/PostgreSQL 17.11 passes 7,122 cases with two failures and the same
+  two skips in 26m31s. Both failures are in the new header command: Clang
+  diagnoses PostgreSQL's inline MSVC atomic-pointer conversions and deprecated
+  CRT calls before inspecting the requested declarations. This is not a timeout.
+  Quality, runtime checks and documentation deployment pass; the Windows repair
+  is recorded in the next entry.
 
   | Requirement | Concrete witnesses |
   |---|---|
@@ -6404,5 +6412,80 @@ The phases track implementation of the complete pgrx feature surface.
   argument/result ownership, variadic call-site promotion, global access, hook
   registration/chaining and the complete version/platform matrix remain required.
   Parser fixtures for other targets do not establish real platform validation.
+  No analyzer settings, suppressions, production friend assemblies or CI limits
+  change.
+
+- 2026-09-25 — Added selected-header storage measurement through the build
+  tool's `binding-storage` command. It collects authoritative Clang types, then
+  asks the same frontend to evaluate size, alignment, array stride and integer
+  signedness for every fixed parameter, non-void result and requested global.
+  Function/global linkage, parameter adjustment, qualifiers, callbacks,
+  variadics and no-return metadata remain part of the contract. No target
+  executable, PostgreSQL function call or backend export is needed.
+
+  Header inspection now uses Clang's declaration-only frontend mode. It retains
+  inline function signatures and compiler-evaluated constants without compiling
+  implementation bodies that depend on PostgreSQL's original compiler dialect.
+  This addresses the Windows failures above without suppressions or reduced
+  warning enforcement. A native regression retains an inline declaration with
+  a compiler-specific body, rejects a changed parameter through the reconstructed
+  prototype assertion, and separately proves a declaration warning remains fatal.
+  This command verifies declaration contracts; it does not validate PostgreSQL's
+  implementation bodies.
+
+  Record/enum completeness distinguishes complete definitions, opaque forward
+  declarations and unavailable implicit compiler declarations. Incomplete arrays
+  retain unknown total size with measured alignment/stride. Opaque records/enums
+  retain unknown size/alignment instead of invented zero-sized storage; pointers
+  to them still have measured pointer storage. An opaque result remains distinct
+  from void. Over-aligned typedefs retain alignment greater than their byte size.
+  Invalid, missing, extra, duplicate and contradictory constants or target facts
+  fail before the final storage contract is written. Large selections use
+  256-symbol batches, each subject to the existing 512 MiB compiler-output bound
+  and complete target validation before the combined contract is published.
+
+  Linux x64/PostgreSQL 18.6/Clang 21 measures all 9,224 inventoried symbols and
+  22,821 parameter/result/global entries. Thirty incomplete arrays retain unknown
+  total extent; three AIO globals retain unknown object size/alignment because
+  the selected pgrx header manifest exposes only their forward declarations.
+  The normalized result is exactly equal to an independently executed native
+  measurement prototype for all 9,224 symbols and all 22,821 entries. Local
+  Windows 11 x64 (build 26200.9457)/Clang 21 also collects and measures eight
+  real-header signatures/globals against PostgreSQL 17.7 and 18.1. Those are
+  compiler checks, not new Windows backend-suite evidence.
+
+  Focused binding tests pass 417 cases with no failures/skips in 3.560s. The
+  declaration/constant regressions also pass 19 cases on Windows x64 in 352ms;
+  the independent native fixture preserves the Microsoft ABI's four-byte enum
+  representation and the Unix fixture's packed one-byte representation. The
+  non-incremental Release build passes with zero warnings/errors in 19.02s.
+  API freshness retains 170 pages/2,254 members; the site builds 212 pages and
+  its check reports zero errors, warnings or hints. The final full root suite
+  passes all 7,212 cases with zero failures/skips in 447.435s on Linux x64/
+  PostgreSQL 18.6; integration takes 446.881s. Hosted CI for this milestone
+  remains pending.
+
+  The first full local run hit temporary-filesystem exhaustion during isolated
+  package restore, causing 40 failures. The package fixture now respects the
+  platform temporary-directory setting instead of selecting a hardcoded local
+  directory. The complete suite passed with sufficient temporary storage, as
+  recorded above; the failed run is not counted as passing evidence. The Release
+  build after this fixture correction also passes with zero warnings/errors
+  in 16.28s.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Sizes, alignment, array adjustment/stride and signedness | `CompleteHeaderStorageRetainsNativeShapes`, `CollectedHeaderStorageMatchesIndependentNativeTypes`, the complete PostgreSQL 18 comparison described above |
+  | Opaque versus complete/unavailable tags, void versus opaque results | `OpaqueTagsRetainUnknownStorage`, `UnavailableCompilerTagsRetainUnknownCompleteness`, `CollectedHeaderStorageMatchesIndependentNativeTypes` |
+  | Exact constants, target identity and malformed/partial observation rejection | `CompilerConstantsRetainExactStorage`, `EmptyCompilerStorageRetainsTarget`, `InvalidCompilerStorageFailsExplicitly`, `InvalidStorageObservationsFailExplicitly`, `StorageTargetMustMatchCollectedHeaders` |
+  | Integer boundaries, exact array extents and representation-specific signedness | `ArrayStorageMustRetainExactExtent`, `SignednessMatchesNativeValueKind`, `StorageBoundsAndPointerWidthAreExact` |
+  | Declaration inspection with fatal warnings and incompatible-prototype rejection | `HeaderFrontendChecksDeclarationsWithoutCompilingBodies`, the Windows PostgreSQL 17.7/18.1 commands described above |
+  | Installed command and failure preserving prior final contracts | `PackagedBuildToolMeasuresCollectedHeaderStorage`, `PackagedBuildToolPreservesStorageOnRuntimeMismatch`, `InvalidStorageSelectionsPreserveContract` |
+
+  These measurements do not classify a managed aggregate ABI or establish
+  transitive native record fields, export availability, pointer ownership,
+  guarded calls, callback transport, variadic promotion, global access or hook
+  registration/chaining. Consumer SDK node generation is unchanged. Those
+  requirements and the complete PostgreSQL-major/platform matrix remain open.
   No analyzer settings, suppressions, production friend assemblies or CI limits
   change.

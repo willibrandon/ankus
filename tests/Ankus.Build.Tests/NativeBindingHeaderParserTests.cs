@@ -172,4 +172,34 @@ public sealed class NativeBindingHeaderParserTests
             Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderParser.Read(json, [new("call", "native_call", true)]));
         }
     }
+
+    /// <summary>
+    /// A compiler tag without an exposed declaration retains unknown completeness rather than a guessed opaque or complete state.
+    /// </summary>
+    /// <param name="enumeration">Whether the missing declaration describes an enum.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void UnavailableCompilerTagsRetainUnknownCompleteness(bool enumeration)
+    {
+        JsonNode root = JsonNode.Parse(Ast)!;
+        var tag = new JsonObject
+        {
+            ["kind"] = enumeration ? "EnumType" : "RecordType",
+            ["decl"] = new JsonObject
+            {
+                ["id"] = "compiler-builtin",
+                ["kind"] = enumeration ? "EnumDecl" : "RecordDecl",
+                ["name"] = "Implicit",
+            },
+            ["type"] = new JsonObject { ["qualType"] = enumeration ? "enum Implicit" : "struct Implicit" },
+        };
+        root["inner"]![1]!["inner"]![0]!["inner"]![1]!["inner"]![1]!["inner"]![0]!["inner"]![0] = tag;
+        NativeHeaderFunction function = Assert.IsInstanceOfType<NativeHeaderFunction>(
+            NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)])["call"].Type);
+        NativeHeaderQualified qualified = Assert.IsInstanceOfType<NativeHeaderQualified>(
+            Assert.IsInstanceOfType<NativeHeaderPointer>(Assert.ContainsSingle(function.Parameters)).Element);
+        NativeHeaderType expected = enumeration ? new NativeHeaderEnum("Implicit", null) : new NativeHeaderRecord("Implicit", false, null);
+        Assert.AreEqual(expected, qualified.Underlying);
+    }
 }

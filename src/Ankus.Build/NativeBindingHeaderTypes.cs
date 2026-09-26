@@ -89,7 +89,8 @@ internal sealed record NativeHeaderScalar(string Name) : NativeHeaderType
 /// </summary>
 /// <param name="Name">The native tag, or an empty string for an anonymous record.</param>
 /// <param name="IsUnion">Whether the declaration is a union.</param>
-internal sealed record NativeHeaderRecord(string Name, bool IsUnion) : NativeHeaderType
+/// <param name="IsComplete">Whether a complete definition is available, or null for an implicit compiler tag without a declaration.</param>
+internal sealed record NativeHeaderRecord(string Name, bool IsUnion, bool? IsComplete = null) : NativeHeaderType
 {
     internal override string Format(string declarator, NativeHeaderQualifiers qualifiers)
         => Name.Length == 0 ? throw new InvalidOperationException("An anonymous native record requires its owning typedef.")
@@ -100,7 +101,8 @@ internal sealed record NativeHeaderRecord(string Name, bool IsUnion) : NativeHea
 /// Retains a native enum tag independently of any enclosing typedef.
 /// </summary>
 /// <param name="Name">The native tag, or an empty string for an anonymous enum.</param>
-internal sealed record NativeHeaderEnum(string Name) : NativeHeaderType
+/// <param name="IsComplete">Whether its definition or fixed underlying type is available, or null for an unavailable compiler declaration.</param>
+internal sealed record NativeHeaderEnum(string Name, bool? IsComplete = null) : NativeHeaderType
 {
     internal override string Format(string declarator, NativeHeaderQualifiers qualifiers)
         => Name.Length == 0 ? throw new InvalidOperationException("An anonymous native enum requires its owning typedef.")

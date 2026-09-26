@@ -39,8 +39,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
-        string temporary = Directory.Exists("/tmp/opencode") ? "/tmp/opencode" : Path.GetTempPath();
-        s_root = Path.Combine(temporary, "ankus package tests " + Guid.NewGuid().ToString("N"));
+        s_root = Path.Combine(Path.GetTempPath(), "ankus package tests " + Guid.NewGuid().ToString("N"));
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
         s_installation = (await IntegrationEnvironment.CreateOptionsAsync(token)).Installation;

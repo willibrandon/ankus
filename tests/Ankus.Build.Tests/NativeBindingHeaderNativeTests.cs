@@ -85,7 +85,7 @@ public sealed partial class NativeBindingNativeTests
             NativeHeaderQualified current = Assert.IsInstanceOfType<NativeHeaderQualified>(symbols["current"].Type);
             Assert.AreEqual(NativeHeaderQualifiers.Volatile, current.Modifiers);
             NativeHeaderAlias anonymous = Assert.IsInstanceOfType<NativeHeaderAlias>(current.Underlying);
-            Assert.AreEqual(new NativeHeaderRecord("", false), anonymous.Underlying);
+            Assert.AreEqual(new NativeHeaderRecord("", false, true), anonymous.Underlying);
             Assert.AreEqual("volatile Anonymous state", current.Declare("state"));
             Assert.AreEqual("extern", symbols["current"].StorageClass);
             Assert.IsFalse(symbols["current"].IsThreadLocal);
@@ -114,8 +114,8 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreEqual("int native_va(const char *ankus_arg0, va_list ankus_arg1)", symbols["native_va"].Type.Declare("native_va"));
             Assert.IsFalse(Assert.IsInstanceOfType<NativeHeaderFunction>(symbols["unspecified"].Type).HasPrototype);
             NativeHeaderFunction pick = Assert.IsInstanceOfType<NativeHeaderFunction>(symbols["pick"].Type);
-            Assert.AreEqual(new NativeHeaderRecord("NativeUnion", true), pick.Result);
-            Assert.AreEqual(new NativeHeaderEnum(""), Assert.IsInstanceOfType<NativeHeaderAlias>(pick.Parameters[0]).Underlying);
+            Assert.AreEqual(new NativeHeaderRecord("NativeUnion", true, true), pick.Result);
+            Assert.AreEqual(new NativeHeaderEnum("", true), Assert.IsInstanceOfType<NativeHeaderAlias>(pick.Parameters[0]).Underlying);
 
             var source = new StringBuilder(NativeBindingHeaderParser.GenerateChecks(Headers, symbols));
             source.Append("typedef ").Append(adjusted.Declare("AdjustedValues")).AppendLine(";");

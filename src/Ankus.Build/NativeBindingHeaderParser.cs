@@ -177,18 +177,24 @@ internal static class NativeBindingHeaderParser
                     string recordName = Text(recordReference, "name");
                     if (recordName.Length != 0) { NativeBindingCDeclaration.ValidateName(recordName); }
 
-                    if (kind == "EnumType") { return new NativeHeaderEnum(recordName); }
-
                     bool foundRecord = declarations.TryGetValue(Text(recordReference, "id"), out JsonElement record);
-                    if (foundRecord && (Text(record, "kind") != "RecordDecl" || (OptionalText(record, "name") ?? "") != recordName))
+                    if (foundRecord && (Text(record, "kind") != Text(recordReference, "kind") || (OptionalText(record, "name") ?? "") != recordName))
                     {
-                        throw Invalid("Native record identity does not match its declaration.");
+                        throw Invalid("Native tag identity does not match its declaration.");
+                    }
+
+                    if (kind == "EnumType")
+                    {
+                        return new NativeHeaderEnum(recordName, foundRecord
+                            ? record.TryGetProperty("fixedUnderlyingType", out _) ||
+                                Children(record).Any(static child => Text(child, "kind") == "EnumConstantDecl")
+                            : null);
                     }
 
                     string tag = foundRecord ? Text(record, "tagUsed") : Text(Object(node, "type"), "qualType").Split(' ')[0];
                     if (tag is not ("struct" or "union")) { throw Invalid("Missing native record tag information."); }
 
-                    return new NativeHeaderRecord(recordName, tag == "union");
+                    return new NativeHeaderRecord(recordName, tag == "union", foundRecord ? Boolean(record, "completeDefinition") : null);
                 case "TypedefType":
                     RequireChildren(inner, 1);
                     string alias = Text(Object(node, "decl"), "name");

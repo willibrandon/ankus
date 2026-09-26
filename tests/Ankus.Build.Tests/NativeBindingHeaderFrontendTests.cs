@@ -1,0 +1,60 @@
+using System.Text.Json;
+
+namespace Ankus.Build.Tests;
+
+public sealed partial class NativeBindingNativeTests
+{
+    /// <summary>
+    /// Header inspection retains inline signatures without compiling implementation bodies, and still rejects invalid declarations.
+    /// </summary>
+    [TestMethod]
+    public async Task HeaderFrontendChecksDeclarationsWithoutCompilingBodies()
+    {
+        const string Headers = """
+            static inline unsigned long native_inline(unsigned long value)
+            {
+                return server_compiler_intrinsic(value);
+            }
+            unsigned long (*native_inline_reference)(unsigned long) = native_inline;
+            """;
+        NativeHeaderRequest[] requests = [new("native_inline", "native_inline", true)];
+        string directory = Path.Combine(Path.GetTempPath(), $"ankus-header-frontend-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string file = Path.Combine(directory, "types.c");
+            string ast = Path.Combine(directory, "types.ast.json");
+            string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
+            string[] frontend = OperatingSystem.IsWindows()
+                ? ["/nologo", "/std:c11", "/W4", "/WX", "/Zs", "-Xclang", "-ast-dump=json", file]
+                : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", "-Xclang", "-ast-dump=json", file];
+            await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateSource(Headers, requests), context.CancellationToken);
+            await NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken);
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(ast, context.CancellationToken));
+            IReadOnlyDictionary<string, NativeHeaderSymbol> symbols = NativeBindingHeaderParser.Read(document.RootElement, requests);
+            NativeHeaderSymbol symbol = symbols["native_inline"];
+            Assert.AreEqual("unsigned long invoke(unsigned long ankus_arg0)", symbol.Type.Declare("invoke"));
+            Assert.AreEqual("static", symbol.StorageClass);
+            Assert.AreSequenceEqual<string>(["value"], symbol.ParameterNames);
+            string checks = NativeBindingHeaderParser.GenerateChecks(Headers, symbols);
+            await File.WriteAllTextAsync(file, checks, context.CancellationToken);
+            await NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken);
+
+            string changed = Headers.Replace("unsigned long value", "unsigned int value", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateChecks(changed, symbols), context.CancellationToken);
+            InvalidOperationException mismatch = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken));
+            Assert.Contains("incompatible reconstructed native type: native_inline", mismatch.Message);
+
+            await File.WriteAllTextAsync(file, checks + "\nint *invalid_pointer = (unsigned int *)0;\n", context.CancellationToken);
+            InvalidOperationException diagnostic = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken));
+            Assert.Contains("-Werror", diagnostic.Message);
+            Assert.Contains("invalid_pointer", diagnostic.Message);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+}
