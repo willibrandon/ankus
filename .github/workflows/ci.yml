@@ -114,7 +114,7 @@ jobs:
           - runner: macos-15
             rid: osx-arm64
             postgresql: 18
-            timeout: 20
+            timeout: 25
           - runner: windows-2025
             rid: win-x64
             postgresql: 17

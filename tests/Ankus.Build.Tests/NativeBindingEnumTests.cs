@@ -30,13 +30,13 @@ public sealed class NativeBindingEnumTests
         }
         """;
 
-    private const string Observations = """
+    private static readonly string s_observations = """
         enum|Flags|1|0
         constant|Flags|FLAGS_HIGH|255
         enum|Kind|4|1
         constant|Kind|KIND_NEGATIVE|-1
         constant|Kind|KIND_LAST|7
-        """;
+        """.ReplaceLineEndings("\n");
 
     /// <summary>
     /// Aliases and fixed arrays retain named enum identity while indirect fields do not expand the value graph.
@@ -63,7 +63,7 @@ public sealed class NativeBindingEnumTests
     public void ObservationsRetainSelectedCompilerStorage(int size)
     {
         NativeBindingCatalog catalog = NativeBindingParser.Parse(Source, 18);
-        string output = Observations.Replace("enum|Kind|4|1", $"enum|Kind|{size}|1", StringComparison.Ordinal);
+        string output = s_observations.Replace("enum|Kind|4|1", $"enum|Kind|{size}|1", StringComparison.Ordinal);
         IReadOnlyDictionary<string, NativeBindingEnumLayout> layouts = NativeBindingEnums.Read(catalog, output.Split('\n'));
         Assert.HasCount(2, layouts);
         Assert.AreEqual(new NativeBindingEnumLayout(size, true), layouts["Kind"]);
@@ -77,7 +77,7 @@ public sealed class NativeBindingEnumTests
     public void SignedStoragePreservesUnsignedHighBits()
     {
         NativeBindingCatalog catalog = NativeBindingParser.Parse(Source, 18);
-        string output = Observations.Replace("enum|Flags|1|0", "enum|Flags|1|1", StringComparison.Ordinal)
+        string output = s_observations.Replace("enum|Flags|1|0", "enum|Flags|1|1", StringComparison.Ordinal)
             .Replace("constant|Flags|FLAGS_HIGH|255", "constant|Flags|FLAGS_HIGH|-1", StringComparison.Ordinal);
         IReadOnlyDictionary<string, NativeBindingEnumLayout> layouts = NativeBindingEnums.Read(catalog, output.Split('\n'));
         Assert.AreEqual(new NativeBindingEnumLayout(1, true), layouts["Flags"]);
@@ -110,7 +110,7 @@ public sealed class NativeBindingEnumTests
     public void InvalidObservationsAreRejected(string original, string replacement)
     {
         NativeBindingCatalog catalog = NativeBindingParser.Parse(Source, 18);
-        string output = Observations.Replace(original, replacement, StringComparison.Ordinal);
+        string output = s_observations.Replace(original, replacement, StringComparison.Ordinal);
         Assert.ThrowsExactly<FormatException>(() => NativeBindingEnums.Read(catalog, output.Split('\n')));
     }
 
@@ -132,7 +132,7 @@ public sealed class NativeBindingEnumTests
     public void WideIntegerBoundariesAreExact(bool isSigned, string value, bool valid)
     {
         string declarations = Source.Replace("255", value, StringComparison.Ordinal);
-        string output = Observations.Replace("enum|Flags|1|0", $"enum|Flags|8|{(isSigned ? 1 : 0)}", StringComparison.Ordinal)
+        string output = s_observations.Replace("enum|Flags|1|0", $"enum|Flags|8|{(isSigned ? 1 : 0)}", StringComparison.Ordinal)
             .Replace("constant|Flags|FLAGS_HIGH|255", $"constant|Flags|FLAGS_HIGH|{value}", StringComparison.Ordinal);
         NativeBindingCatalog catalog = NativeBindingParser.Parse(declarations, 18);
         if (valid)

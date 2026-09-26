@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Xml.Linq;
 using Ankus.Testing;
 using Npgsql;
@@ -8,6 +9,34 @@ namespace Ankus.IntegrationTests;
 
 public sealed partial class ToolCommandTests
 {
+    /// <summary>
+    /// Binding discovery builds its companion without capturing native linker inputs before the extension is compiled.
+    /// </summary>
+    [TestMethod]
+    public async Task SdkBindingDiscoveryLeavesNativeLinkInputsDeferred()
+    {
+        string root = CreateBindingDirectory();
+        string project = Path.Combine(root, "BindingDiscovery.csproj");
+        File.Copy(s_project, project);
+        ProcessResult result = await RunDotnetAsync(
+            ["msbuild", project, "-restore", "-target:_ResolveAnkusBindings", "-verbosity:quiet",
+                "-property:Configuration=Release", "-property:RuntimeIdentifier=" + RuntimeInformation.RuntimeIdentifier,
+                "-property:AnkusPostgresMajor=" + MajorText(), "-property:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+                "-getItem:ManagedBinary,LinkerArg,NativeLibrary,_AnkusBindingAssembly",
+                "-bl:" + Path.Combine(root, "binding-discovery-{}.binlog")], context.CancellationToken);
+        result.EnsureSuccess("dotnet", ["msbuild"]);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        JsonElement items = document.RootElement.GetProperty("Items");
+        Assert.AreEqual(0, items.GetProperty("ManagedBinary").GetArrayLength());
+        Assert.AreEqual(0, items.GetProperty("LinkerArg").GetArrayLength());
+        Assert.AreEqual(0, items.GetProperty("NativeLibrary").GetArrayLength());
+        JsonElement companion = Assert.ContainsSingle(items.GetProperty("_AnkusBindingAssembly").EnumerateArray());
+        string? assembly = companion.GetProperty("FullPath").GetString();
+        Assert.IsNotNull(assembly);
+        Assert.IsTrue(File.Exists(assembly));
+        Assert.StartsWith("Ankus.Postgres.Pg", Path.GetFileName(assembly));
+    }
+
     /// <summary>
     /// Separate SDK projects exchange the same native types and retain them through Native AOT publication, rebuild and clean.
     /// </summary>

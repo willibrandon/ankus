@@ -6071,3 +6071,33 @@ The phases track implementation of the complete pgrx feature surface.
   its check reports zero errors/warnings/hints. Hosted validation of the root
   correction remains pending. Analyzer settings, test assertions and CI
   timeouts are unchanged.
+
+- 2026-09-25 — Separate binding compiler discovery from Native AOT linker setup.
+  Windows in [CI 36204730752](https://github.com/willibrandon/ankus/actions/runs/36204730752)
+  now completes the managed build. Its full test execution exposes nine enum
+  fixtures retaining CRLF endings and a Native AOT SourceLink input captured
+  before `ManagedBinary` exists. Enum fixtures now normalize their line endings
+  before supplying records to the strict reader; production probe parsing and
+  every value/error assertion are retained. The build-tool suite passes all 122
+  cases with zero failures/skips in 2.769s.
+
+  Compiler discovery runs the SDK's native setup in a separate MSBuild project
+  instance and returns only the compiler, library directories and target triple.
+  The parent retains Native AOT's normal compile/input/setup order, including
+  SourceLink and debug symbols. Before/after MSBuild observations reproduce the
+  premature linker inputs and prove they remain deferred after the fix.
+  `SdkBindingDiscoveryLeavesNativeLinkInputsDeferred` requires an actual built
+  companion with no premature managed/native linker inputs. It and the full
+  installed-SDK shared-type/publication scenario pass with zero failures/skips
+  in 138.182s on Linux x64/PostgreSQL 18.6. The final unfiltered `dotnet test`
+  run passes all 6,834 cases with zero failures/skips in 442.602s on that
+  platform/server. The non-incremental Release build passes with zero
+  warnings/errors in 40.77s. API freshness passes for 168 pages/2,245 members;
+  the site builds 210 pages and its check reports zero errors/warnings/hints.
+  Repaired hosted checks remain pending.
+
+  The preceding hosted Linux job passes all 6,833 tests with zero failures/skips.
+  Its macOS job passes in 17m 24s, so the macOS test timeout increases from
+  20 to 25 minutes under the authorized 40-minute ceiling. Linux remains at 20
+  and Windows at 30 minutes; every platform still runs the complete suite.
+  Analyzer modes, severities and suppressions are unchanged.

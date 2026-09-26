@@ -3,8 +3,29 @@
     <AnkusResolveBindingsDependsOn>$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
   </PropertyGroup>
 
-  <Target Name="_PrepareAnkusBindingToolchain" Condition="'$(PublishAot)' == 'true'"
-          DependsOnTargets="SetupOSSpecificProps" />
+  <Target Name="_PrepareAnkusBindingToolchain" Condition="'$(PublishAot)' == 'true'">
+    <!-- Native AOT setup also captures linker inputs that do not exist before compilation.
+         Discover its compiler in a separate project instance and return only the toolchain. -->
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_GetAnkusBindingToolchain"
+             Properties="_AnkusBindingToolchainEvaluation=true">
+      <Output TaskParameter="TargetOutputs" ItemName="_AnkusBindingToolchain" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="_GetAnkusBindingToolchain" DependsOnTargets="ResolveFrameworkReferences;SetupOSSpecificProps"
+          Returns="@(_AnkusDiscoveredBindingToolchain)">
+    <PropertyGroup>
+      <_AnkusDiscoveredCompiler>$(CppLinker)</_AnkusDiscoveredCompiler>
+      <_AnkusDiscoveredCompiler Condition="'$(_targetOS)' == 'win'">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CppLinker)')), 'cl.exe'))</_AnkusDiscoveredCompiler>
+    </PropertyGroup>
+    <ItemGroup>
+      <_AnkusDiscoveredBindingToolchain Include="NativeCompiler">
+        <Compiler>$(_AnkusDiscoveredCompiler)</Compiler>
+        <LibraryDirectories>@(AdditionalNativeLibraryDirectories, ';')</LibraryDirectories>
+        <TargetTriple>$(TargetTriple)</TargetTriple>
+      </_AnkusDiscoveredBindingToolchain>
+    </ItemGroup>
+  </Target>
 
   <Target Name="_ResolveAnkusBindings" BeforeTargets="FindReferenceAssembliesForReferences"
           DependsOnTargets="$(AnkusResolveBindingsDependsOn)">
@@ -13,11 +34,11 @@
       <_AnkusBindingsOutput>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ankus-bindings'))</_AnkusBindingsOutput>
       <_AnkusBindingsDirectory>$(_AnkusBindingsOutput)/</_AnkusBindingsDirectory>
       <_AnkusBindingsProject>$(_AnkusBindingsDirectory)Ankus.NativeBindings.csproj</_AnkusBindingsProject>
-      <_AnkusBindingsCompiler>$(CppLinker)</_AnkusBindingsCompiler>
-      <_AnkusBindingsCompiler Condition="'$(_targetOS)' == 'win'">$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('$(CppLinker)')), 'cl.exe'))</_AnkusBindingsCompiler>
-      <_AnkusBindingsLibraries>@(AdditionalNativeLibraryDirectories, ';')</_AnkusBindingsLibraries>
+      <_AnkusBindingsCompiler>@(_AnkusBindingToolchain->'%(Compiler)')</_AnkusBindingsCompiler>
+      <_AnkusBindingsLibraries>@(_AnkusBindingToolchain->'%(LibraryDirectories)')</_AnkusBindingsLibraries>
+      <_AnkusBindingsTargetTriple>@(_AnkusBindingToolchain->'%(TargetTriple)')</_AnkusBindingsTargetTriple>
       <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
-      <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(TargetTriple)&quot;</_AnkusBindingsCommand>
+      <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(_AnkusBindingsTargetTriple)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsRemoveProperties>TargetFramework;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishAot;NativeLib;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;ProjectAssetsFile;MSBuildProjectExtensionsPath;ArtifactsPath;UseArtifactsOutput;ArtifactsProjectName;ArtifactsPivots;Version;AssemblyVersion;FileVersion;InformationalVersion</_AnkusBindingsRemoveProperties>
     </PropertyGroup>
     <ItemGroup>
