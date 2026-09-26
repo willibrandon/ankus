@@ -7357,3 +7357,73 @@ The phases track implementation of the complete pgrx feature surface.
   integration, other compiler shims, callbacks, variadics, globals/hooks, complete
   feature inventories and the PostgreSQL/platform matrix. Contributor docs record
   the internal command and these limits; no unsupported consumer API is advertised.
+
+- 2026-09-26 — Added typed managed native-call generation beside the complete
+  measured record/enum graph. C bodies and C# methods share one validated fixed
+  call model, preserving declared storage, native parameter adjustment and true
+  void results. Companion identity includes the complete header catalog's native
+  names, linker aliases and metadata as well as the target and record graph.
+  Graph-only/node generation retains its existing identities. Invalid selections
+  and corrupt unselected roots reject even when no methods are requested.
+
+  Each method revalidates the active binding before importing a pure native body
+  address, then invokes the existing guarded raw-call boundary. Descriptors and
+  exact argument bytes share independently aligned storage. Frames up to 4 KiB
+  use bounded stack storage; larger frames use checked native allocation lengths
+  and allocator-matched `finally` cleanup. Native zero-size objects retain distinct
+  logical CLR values while transporting zero bytes; true void uses no result
+  destination. Pointer and callback lifetime obligations remain explicit.
+
+  Executable boundary tests found and fixed unnecessary C# member hiding and an
+  intermediate overflow that rejected the final representable frame length.
+  Windows compiler execution also exposed MSVC's function-conditional `typeof`
+  decay behavior. Adjusted function storage now addresses the original written
+  function type directly, retaining its typedef identity; array adjustment still
+  preserves otherwise inaccessible native typedef storage. Empty-record tests
+  retain the native ABI's actual zero/nonzero storage on each target.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Full native/linker identity, deterministic selection, shared declarations and complete validation | `ManagedCallIdentityPreservesNativeSymbols`, `ManagedCallIdentityIgnoresDictionaryOrder`, `ManagedCallsRetainCompleteValidation` |
+  | Exact records, integer extrema, enums, Boolean values, addresses and extended floating bytes | `ManagedCallsPreserveNativeValues` |
+  | Written array/function adjustment and actual native callback execution | `ManagedCallsPreserveAdjustedArguments` |
+  | Actual 64-byte alignment for stack and heap frames; stack boundaries and 300 arguments | `ManagedCallsAlignNativeFrames`, `ManagedCallsBoundStackStorage`, `ManagedCallsBoundManyArguments` |
+  | Final representable 32/64-bit lengths reject only the first overflowing byte | `ManagedCallFramesRejectUnrepresentableStorage` |
+  | True void, distinct empty objects and C#/accessor name collisions | `ManagedCallsPreserveEmptyValues`, `ManagedCallsPreserveMemberNames` |
+  | Missing/nested wrong bindings reject before lookup; native errors and allocation failure preserve cleanup and recovery | `ManagedCallsValidateActiveBinding`, `ManagedCallsRevalidateNestedBinding`, `ManagedCallsRecoverFromNativeErrors`, `ManagedCallsRecoverFromAllocationFailure` |
+  | Real LibraryImport generation, Native AOT linking, exact execution and removal of unavailable unused imports | `PublishedManagedCallsUseNativeAccessors` |
+
+  The Native AOT witness publishes and runs a standalone executable, then reads
+  its actual ILC object and checks that only the two used accessors select native
+  bodies. Native function execution and exact results are real; error transport
+  uses a scoped public-ABI test provider, not PostgreSQL ERROR/backend execution.
+  Counting allocator collaborators in the focused compiler tests still allocate
+  and free real native bytes, making omitted or mismatched cleanup observable.
+
+  The build module passes 759 cases with zero failures and two existing
+  Windows-only skips on Linux x64 in 7.187s. All 82 focused native call cases pass
+  on Windows x64 with .NET 10.0.12 in 6.169s, including the standalone Native AOT
+  executable. The milestone adds 24 cases. Release passes with zero warnings and
+  errors in 37.28s; API freshness retains 170 pages/2,254 members. The site builds
+  212 pages in 2.85s and checks with zero errors, warnings or hints. Plain root
+  `dotnet test` passes all six modules against PostgreSQL 18.6/Linux x64:
+  7,599 passed, zero failed and two existing Windows-only skips in 9m 52.994s,
+  including the published Native AOT/backend paths already in the suite.
+
+  Prior-commit CI was checked while development continued: `1234b75` CI run
+  36262971887 and documentation run 36262971802 both succeeded. Complete platform
+  jobs passed on PostgreSQL 18.6/Linux x64 (7,575 passed, zero failed, two existing
+  Windows-only skips; 22m30s), PostgreSQL 18.6/macOS ARM64 (7,573 passed, zero
+  failed, four existing platform skips; 18m03s), and PostgreSQL 17.11/Windows x64
+  (7,575 passed, zero failed, two existing platform skips; 36m56s). Quality and
+  all runtime jobs also passed. Timeouts remain Linux 30, macOS 25 and Windows
+  40 minutes; no job exceeds the user's hard 40-minute limit.
+  The final pre-commit recheck confirms every job and both runs remain successful.
+
+  Contributor documentation records this internal emitter. Automatic combined
+  node/call companion generation, independent complete record verification,
+  active-extension exports, SDK post-ILC native compilation/linking and published
+  PostgreSQL execution of these generated methods remain required. Compiler
+  shims, callback/lifetime APIs, variadics, globals/hooks, complete feature
+  inventories and the PostgreSQL 13–19/platform matrix also remain unfinished.
+  General raw bindings are not yet advertised as a supported consumer API.

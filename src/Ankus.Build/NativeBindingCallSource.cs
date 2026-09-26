@@ -31,17 +31,8 @@ internal static class NativeBindingCallSource
     {
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(headers);
-        ArgumentNullException.ThrowIfNull(names);
-        NativeBindingSignatureValidation.Validate(records);
-        var selected = new SortedDictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal);
-        foreach (string name in names)
-        {
-            if (!records.Headers.Symbols.TryGetValue(name, out NativeHeaderSymbol? symbol) || !selected.TryAdd(name, symbol))
-            {
-                throw new FormatException($"Unknown or duplicate native call selection '{name}'.");
-            }
-        }
-
+        IReadOnlyList<NativeBindingCall> calls = NativeBindingCallModel.Select(records, names);
+        Dictionary<string, NativeHeaderSymbol> selected = calls.ToDictionary(static call => call.Name, static call => call.Symbol, StringComparer.Ordinal);
         var source = new StringBuilder(NativeBindingHeaderParser.GenerateChecks(headers, selected));
         source.AppendLine("#include <stddef.h>");
         source.AppendLine("#include <stdint.h>");
@@ -50,61 +41,21 @@ internal static class NativeBindingCallSource
         source.AppendLine("/* These bodies require a native error guard; they must never be called directly from managed code. */");
         source.AppendLine("typedef struct AnkusNativeCallArgument { const void *data; size_t size; } AnkusNativeCallArgument;");
         source.AppendLine("enum AnkusNativeCallStatus { ANKUS_CALL_OK, ANKUS_CALL_COUNT, ANKUS_CALL_ARGUMENTS, ANKUS_CALL_RESULT, ANKUS_CALL_STORAGE, ANKUS_CALL_ALIGNMENT };");
-        foreach ((string name, NativeHeaderSymbol symbol) in selected)
+        foreach (NativeBindingCall contract in calls)
         {
-            NativeBindingCDeclaration.ValidateName(name);
-            NativeBindingCDeclaration.ValidateName(symbol.NativeName);
-            NativeRecordGraph graph = records.Graph;
-            NativeRecordType root = graph.Types[graph.Types[graph.Roots[name]].Canonical];
-            if (!symbol.IsFunction || Canonical(symbol.Type) is not NativeHeaderFunction function || root.Function is not NativeRecordFunction shape)
-            {
-                throw new FormatException($"Native call {name} requires a function declaration.");
-            }
-
-            if (!function.HasPrototype || !shape.HasPrototype || function.IsVariadic || shape.IsVariadic)
-            {
-                throw new FormatException($"Native call {name} requires a fixed prototype; variadic and unprototyped calls need explicit call-site types.");
-            }
-
-            int declaredIndex = graph.Roots[name];
-            var visited = new HashSet<int>();
-            NativeRecordType declared = graph.Types[declaredIndex];
-            while (declared.Function is null && declared.Element is int element)
-            {
-                if (!visited.Add(declaredIndex)) { throw new FormatException($"Native call {name} has a cyclic function alias."); }
-
-                declaredIndex = element;
-                declared = graph.Types[element];
-            }
-
-            if (declared.Function is not NativeRecordFunction written || function.Parameters.Count != shape.Parameters.Count ||
-                function.Parameters.Count != written.Parameters.Count)
-            {
-                throw new FormatException($"Native call {name} has inconsistent parameter shapes.");
-            }
-
+            string name = contract.Name;
             string prefix = "ankus_native_call_" + name;
             var aliases = new List<string>();
-            for (int index = 0; index < function.Parameters.Count; index++)
+            for (int index = 0; index < contract.Parameters.Count; index++)
             {
                 string alias = prefix + "_argument_" + index.ToString(CultureInfo.InvariantCulture);
-                NativeRecordType storage = graph.Types[written.Parameters[index]];
-                if (graph.Types[storage.Canonical].Kind is "array" or "function") { storage = graph.Types[shape.Parameters[index]]; }
-
-                WriteType(source, function.Parameters[index], storage, alias);
+                WriteType(source, records.Graph, contract.Parameters[index], alias);
                 aliases.Add(alias);
             }
 
-            bool hasResult = Canonical(function.Result) is not NativeHeaderScalar { Name: "void" };
-            NativeRecordType result = graph.Types[written.Result];
-            NativeRecordType canonicalResult = graph.Types[result.Canonical];
-            if (hasResult != (canonicalResult.Kind != "scalar" || canonicalResult.Name != "void"))
-            {
-                throw new FormatException($"Native call {name} has inconsistent result shapes.");
-            }
-
+            bool hasResult = contract.Result is not null;
             string resultAlias = prefix + "_result";
-            if (hasResult) { WriteType(source, function.Result, result, resultAlias); }
+            if (contract.Result is NativeBindingCallValue result) { WriteType(source, records.Graph, result, resultAlias); }
 
             source.AppendLine("#if !defined(_WIN32)\n__attribute__((visibility(\"hidden\")))\n#endif");
             source.AppendLine(CultureInfo.InvariantCulture,
@@ -127,7 +78,7 @@ internal static class NativeBindingCallSource
             // Each typedef already retains the native qualifiers; an extra const duplicates qualified arguments on MSVC.
             string arguments = string.Join(", ", aliases.Select(static (alias, index) =>
                 string.Create(CultureInfo.InvariantCulture, $"*({alias} *) arguments[{index}].data")));
-            string call = "(" + NativeBindingCompilerShims.Reference(symbol) + ")(" + arguments + ")";
+            string call = "(" + NativeBindingCompilerShims.Reference(contract.Symbol) + ")(" + arguments + ")";
             source.AppendLine(hasResult ? $"    {resultAlias} value = {call};" : $"    {call};");
             if (hasResult) { source.AppendLine("    memcpy(result, &value, sizeof(value));"); }
 
@@ -138,30 +89,11 @@ internal static class NativeBindingCallSource
         return source.ToString().ReplaceLineEndings("\n");
     }
 
-    private static void WriteType(StringBuilder source, NativeHeaderType type, NativeRecordType storage, string alias)
+    private static void WriteType(StringBuilder source, NativeRecordGraph graph, NativeBindingCallValue value, string alias)
     {
-        if (storage.Size is not long size || size < 0 || storage.Alignment is not long alignment || alignment <= 0 ||
-            storage.Kind is "array" or "function" || Canonical(type) is NativeHeaderArray or NativeHeaderFunction)
-        {
-            throw new FormatException($"Native call value {alias} requires a complete object representation.");
-        }
-
-        source.Append("typedef ").Append(type.Declare(alias)).AppendLine(";");
+        NativeRecordType storage = graph.Types[value.StorageType];
+        source.Append("typedef ").Append(value.Type.Declare(alias)).AppendLine(";");
         source.AppendLine(CultureInfo.InvariantCulture,
-            $"_Static_assert(sizeof({alias}) == {size} && _Alignof({alias}) == {alignment}, \"Native call storage changed: {alias}\");");
-    }
-
-    private static NativeHeaderType Canonical(NativeHeaderType type)
-    {
-        while (true)
-        {
-            switch (type)
-            {
-                case NativeHeaderAlias alias: type = alias.Underlying; break;
-                case NativeHeaderQualified qualified: type = qualified.Underlying; break;
-                case NativeHeaderAdjusted adjusted: type = adjusted.Adjusted; break;
-                default: return type;
-            }
-        }
+            $"_Static_assert(sizeof({alias}) == {storage.Size!.Value} && _Alignof({alias}) == {storage.Alignment!.Value}, \"Native call storage changed: {alias}\");");
     }
 }

@@ -753,8 +753,30 @@ reads reject malformed tables and selected names with invalid UTF-8.
 The emitted accessors only return body addresses; obtaining one does not enter
 PostgreSQL. Both bodies and accessors use hidden visibility on Unix and are not
 exported on Windows. Invocation still requires the native error guard.
-This selector is a build-tool prerequisite; typed managed methods and the SDK's
-post-ILC compilation/link steps are not connected to it yet.
+The internal record emitter can now generate typed `NativeMethods` beside the
+complete graph's shared record and enum declarations. Its companion identity
+includes the full native declaration metadata, including native/linker names,
+as well as storage and target observations. Reordering selected functions or
+dictionaries does not change that identity. Every call validates the active binding before
+obtaining its pure native body address; `LibraryImport` imports only that address
+accessor, with an explicit C calling convention.
+
+Managed wrappers copy exact argument bytes into independently aligned storage.
+Descriptors and values share a frame bounded to 4 KiB on the stack; larger frames
+use checked native allocation lengths and release their allocation in `finally`.
+C parameter adjustment determines array/function argument storage. Zero-size
+native records have distinct logical CLR tokens that transport zero bytes,
+while actual void results have no destination. Native bodies copy returned bytes,
+so the result buffer does not assume CLR or native result alignment. Borrowed
+addresses and callbacks keep their caller-supplied ownership obligations.
+
+Compiler/executable tests check exact values, alignment, allocation boundaries,
+cleanup and scoped binding rejection. A standalone Native AOT executable uses
+real generated imports and native accessors; inspecting its ILC object verifies
+that an unused unavailable function is trimmed. The test's public memory ABI
+harness models guarded error transport; it does not execute PostgreSQL ERROR.
+The SDK's general companion composition and post-ILC compilation/link steps are
+not connected to this emitter and selector yet.
 
 Raw calls require the active backend thread. They remain available for native
 resource release during iterator disposal, including query-abort cleanup, as
@@ -768,8 +790,9 @@ holdoffs; the caller remains responsible for balancing them. Raw calls do not
 open an SPI subtransaction or infer pointer ownership, callback lifetime, or the
 validity of an arbitrary address. A C body may reenter managed code only through
 a callback boundary that finishes managed unwinding before raising PostgreSQL
-ERROR. Typed companion methods, signature identity and export/link selection
-remain required before general raw bindings are a consumer API.
+ERROR. Automatic companion integration, active-extension export/link selection
+and published PostgreSQL execution of these typed methods remain required before
+general raw bindings are a consumer API.
 
 The internal selected-header record emitter consumes the independently validated
 transitive type graph. It emits exact-offset records and unions, nested inline

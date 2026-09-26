@@ -172,7 +172,7 @@ internal sealed record NativeHeaderAdjusted(NativeHeaderType Written, NativeHead
 {
     internal override string Format(string declarator, NativeHeaderQualifiers qualifiers)
     {
-        // Conditional operands apply C array/function conversion without evaluating either operand.
+        // Conditional operands apply C array conversion without evaluating either operand.
         // Using the written typedef also avoids inventing inaccessible compiler tags such as __va_list_tag.
         // Restore the adjusted pointer's top-level qualifiers, which conditional conversion discards.
         NativeHeaderType adjusted = Adjusted;
@@ -181,6 +181,15 @@ internal sealed record NativeHeaderAdjusted(NativeHeaderType Written, NativeHead
             qualifiers |= qualified.Modifiers;
             adjusted = qualified.Underlying;
         }
+
+        NativeHeaderType written = Written;
+        while (written is NativeHeaderAlias or NativeHeaderQualified)
+        {
+            written = written is NativeHeaderAlias alias ? alias.Underlying : ((NativeHeaderQualified)written).Underlying;
+        }
+
+        // MSVC's typeof does not reliably decay a function conditional. Its written type can be addressed directly.
+        if (written is NativeHeaderFunction) { return new NativeHeaderPointer(Written).Format(declarator, qualifiers); }
 
         NativeHeaderType storage = Written is NativeHeaderArray array
             ? array with { HasMinimumExtent = false, IndexQualifiers = NativeHeaderQualifiers.None } : Written;
