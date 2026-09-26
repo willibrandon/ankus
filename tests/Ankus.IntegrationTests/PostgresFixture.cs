@@ -25,6 +25,7 @@ internal static class PostgresFixture
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(context.CancellationToken);
         await AllocatorFixtureCompiler.BuildAsync(options.Installation, context.CancellationToken);
         await AllocatorFaultFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
+        await NativeRawCallFixtureCompiler.CompileAsync(options.Installation, context.CancellationToken);
         s_cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
         try
         {
@@ -39,7 +40,8 @@ internal static class PostgresFixture
                     'INSERT INTO tests.rollback_probe VALUES (42)';
                 CREATE FUNCTION tests.fail_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1 / 0';
                 """;
-            await using var command = new NpgsqlCommand(sql + AllocatorFixtureCompiler.InstallationSql + AllocatorFaultFixtureCompiler.InstallationSql, connection);
+            await using var command = new NpgsqlCommand(sql + AllocatorFixtureCompiler.InstallationSql + AllocatorFaultFixtureCompiler.InstallationSql +
+                NativeRawCallFixtureCompiler.InstallationSql, connection);
             await command.ExecuteNonQueryAsync(context.CancellationToken);
         }
         catch

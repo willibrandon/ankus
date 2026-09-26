@@ -267,6 +267,10 @@ internal enum NativeMemoryOperation
     /// Formats a complete native node through its original checked allocation or raw lifetime anchor.
     /// </summary>
     FormatNode = 33,
+    /// <summary>
+    /// Executes a generated C call body beneath the callback's native error guard.
+    /// </summary>
+    NativeCall = 34,
 }
 
 /// <summary>

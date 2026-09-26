@@ -95,8 +95,8 @@ internal static class NativeSetBridge
                 ankus_set_release_row(state);
             if (state->iterator == NULL)
                 return;
-            /* The executor skips expression callbacks on abort. Managed cleanup still runs,
-             * but cannot enter a backend that may already be dismantling its transaction. */
+            /* The executor skips expression callbacks on abort. Managed cleanup still runs;
+             * SPI queries are unavailable while the backend dismantles its transaction. */
             status = ankus_set_call(state, 3, NULL, &error, true, NULL);
             ankus_release_error(&error);
             if (status != 0)

@@ -62,7 +62,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_LIST = 30,
             ANKUS_MEMORY_ITEM_POINTER = 31,
             ANKUS_MEMORY_NATIVE_BINDING = 32,
-            ANKUS_MEMORY_FORMAT_NODE = 33
+            ANKUS_MEMORY_FORMAT_NODE = 33,
+            ANKUS_MEMORY_NATIVE_CALL = 34
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -913,7 +914,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeNodeBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -968,6 +969,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_FORMAT_NODE:
                     ankus_memory_format_node(request);
+                    break;
+                case ANKUS_MEMORY_NATIVE_CALL:
+                    ankus_memory_native_call(request, result);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);
@@ -1364,8 +1368,12 @@ internal static class NativeMemoryBridge
                 PG_END_TRY();
             }
             PG_END_TRY();
-            InterruptHoldoffCount = interrupt_holdoff;
-            QueryCancelHoldoffCount = cancel_holdoff;
+            if (status != 0 || request->operation != ANKUS_MEMORY_NATIVE_CALL)
+            {
+                InterruptHoldoffCount = interrupt_holdoff;
+                QueryCancelHoldoffCount = cancel_holdoff;
+            }
+
             return status;
         }
 

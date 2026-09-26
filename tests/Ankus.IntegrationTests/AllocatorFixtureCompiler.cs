@@ -75,6 +75,17 @@ internal static class AllocatorFixtureCompiler
     /// <param name="outputPath">The resulting shared library path.</param>
     /// <param name="cancellationToken">Cancels compilation.</param>
     internal static async Task CompileModuleAsync(PostgresInstallation installation, string source, string outputPath, CancellationToken cancellationToken)
+        => await CompileModuleAsync(installation, source, outputPath, false, cancellationToken);
+
+    /// <summary>
+    /// Compiles a native fixture with an explicit C11 mode when generated contracts require it.
+    /// </summary>
+    /// <param name="installation">The selected backend installation.</param>
+    /// <param name="source">The C translation unit.</param>
+    /// <param name="outputPath">The resulting module.</param>
+    /// <param name="useC11">Whether to enable the compiler's C11 language mode.</param>
+    /// <param name="cancellationToken">Cancels compilation.</param>
+    internal static async Task CompileModuleAsync(PostgresInstallation installation, string source, string outputPath, bool useC11, CancellationToken cancellationToken)
     {
         string output = Path.GetDirectoryName(outputPath) ?? throw new ArgumentException("The module needs an output directory.", nameof(outputPath));
         Directory.CreateDirectory(output);
@@ -110,6 +121,8 @@ internal static class AllocatorFixtureCompiler
 
             arguments.AddRange(["-o", outputPath, source]);
         }
+
+        if (useC11) { arguments.Insert(0, OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11"); }
 
         await ProcessRunner.RunCheckedAsync(compiler, arguments, new Dictionary<string, string?>(), cancellationToken,
             workingDirectory: output);

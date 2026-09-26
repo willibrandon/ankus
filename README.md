@@ -48,12 +48,6 @@ The SDK includes matching runtime and source-generator packages plus the native
 build helper. See [package setup](docs/contributing/development.md#build-the-packages)
 for the local NuGet feed; public publication is pending.
 
-From the repository root:
-
-```console
-dotnet test
-```
-
 See [development and testing](docs/contributing/development.md) for prerequisites,
 PostgreSQL discovery, and the integration harness.
 

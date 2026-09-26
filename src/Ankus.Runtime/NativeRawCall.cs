@@ -1,0 +1,100 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+namespace Ankus;
+
+/// <summary>
+/// Borrows one exact native argument representation for a generated C call body.
+/// </summary>
+/// <param name="Address">The live, correctly aligned address of the argument's C object representation.</param>
+/// <param name="Size">The exact native byte size of that representation.</param>
+[EditorBrowsable(EditorBrowsableState.Never)]
+[StructLayout(LayoutKind.Sequential)]
+public readonly record struct NativeCallArgument(nint Address, nuint Size);
+
+/// <summary>
+/// Invokes generated native call bodies beneath the active callback's PostgreSQL error guard.
+/// </summary>
+/// <remarks>
+/// This is a generated-code contract. The body must be an actual native C function
+/// with the generated storage-frame signature, compiled for the active backend.
+/// It must never be a managed function or a thunk that enters managed code without
+/// a separate callback error boundary. All argument objects and referenced native
+/// storage must remain valid for the entire call. The result address must designate
+/// writable storage of the supplied length. This API cannot validate raw addresses
+/// or establish pointer ownership and callback lifetimes. The caller must satisfy
+/// the native function's transaction and cleanup-state preconditions, including
+/// during disposal while PostgreSQL unwinds a query.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public static unsafe class NativeRawCall
+{
+    /// <summary>
+    /// Executes one C body and converts native diagnostics only after its guarded native frames return.
+    /// </summary>
+    /// <param name="body">The native generated C body address.</param>
+    /// <param name="arguments">The borrowed native argument representations.</param>
+    /// <param name="result">The native result destination, or zero for a void call.</param>
+    /// <param name="resultSize">The exact result representation size, or zero for a void call.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The body address is zero.</exception>
+    /// <exception cref="InvalidOperationException">No usable callback is active, or the generated body rejects its storage contract.</exception>
+    /// <exception cref="PgException">PostgreSQL raises an error inside the native body.</exception>
+    public static void Invoke(nint body, ReadOnlySpan<NativeCallArgument> arguments, nint result, nuint resultSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(body);
+        _ = NativeMemoryContext.Provider;
+        fixed (NativeCallArgument* values = arguments)
+        {
+            var frame = new NativeCallFrame
+            {
+                _arguments = values,
+                _count = (nuint)arguments.Length,
+                _result = result,
+                _resultSize = resultSize,
+            };
+            var request = new NativeMemoryRequest
+            {
+                _operation = NativeMemoryOperation.NativeCall,
+                _pointer = body,
+                _data = (nint)(&frame),
+            };
+            NativeMemoryContext.Invoke(ref request, out NativeMemoryResult response);
+            if (response._value == 0) { return; }
+
+            string reason = response._value switch
+            {
+                1 => "argument count",
+                2 => "argument array",
+                3 => "result storage",
+                4 => "argument storage",
+                5 => "argument alignment",
+                _ => "unknown status",
+            };
+            throw new InvalidOperationException($"The generated native call rejected its {reason} (status {response._value}).");
+        }
+    }
+}
+
+/// <summary>
+/// Borrows a complete frame while the native guard invokes its generated C body.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct NativeCallFrame
+{
+    /// <summary>
+    /// Points to the pinned argument representations.
+    /// </summary>
+    internal NativeCallArgument* _arguments;
+    /// <summary>
+    /// Counts argument representations rather than bytes.
+    /// </summary>
+    internal nuint _count;
+    /// <summary>
+    /// Borrows the result destination without assuming its alignment.
+    /// </summary>
+    internal nint _result;
+    /// <summary>
+    /// Carries the complete native result byte length.
+    /// </summary>
+    internal nuint _resultSize;
+}

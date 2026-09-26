@@ -6718,4 +6718,66 @@ The phases track implementation of the complete pgrx feature surface.
   directly callable managed API. Engineering usage stays in `eng/README.md`.
   Consumer guides retain their current supported capabilities and limitations.
   `AGENTS.md` now records that internal maintenance commands belong in engineering
-  or contributor documentation. Hosted validation for this milestone is pending.
+  or contributor documentation. Hosted CI
+  [36235088328](https://github.com/willibrandon/ankus/actions/runs/36235088328)
+  passes for `d21a8c1`. All six modules run against real servers with Clang
+  20.1.8: Ubuntu 24.04 x64/PostgreSQL 18.6 passes 7,283 cases with one existing
+  Windows-only skip in a 14m 04s job; macOS 15 ARM64/PostgreSQL 18.6 passes
+  7,281 with three existing platform skips in 19m 31s; Windows Server 2025
+  x64/PostgreSQL 17.11 passes 7,282 with two existing Linux-only skips in
+  17m 57s. CI quality also passes. No timeout changes were needed.
+
+- 2026-09-26 — Connected generated native call bodies to the existing
+  callback-scoped PostgreSQL error guard. A hidden generated-code transport pins
+  argument descriptors and carries exact native result storage through the
+  established native memory capability. The C body executes entirely beneath
+  `PG_TRY`; owned diagnostics return to managed code after the native frames
+  unwind. Calls require an active backend thread and retain native release access
+  during iterator cleanup, matching pgrx's raw `pfree` use in `PgBox` destruction.
+  The transport does not infer raw pointer validity, ownership,
+  callback lifetime or ABI identity from an address.
+
+  Successful raw calls preserve their deliberate native state changes, including
+  interrupt holdoffs. Failed calls restore the entry context and holdoff values.
+
+  Ten focused runtime cases pass for exact frame values, empty/void storage,
+  full-width lengths, every native status category, absent/ended/masked/nested and
+  off-thread scopes, cleanup access, diagnostic buffer release and subsequent
+  recovery: Linux x64 completes in 929ms and Windows x64/.NET 10.0.12 in 148ms.
+  Seventeen focused backend cases pass against PostgreSQL 18.6 on Linux x64 in
+  82.690s with zero failures/skips. They compile actual `binding-call-sources`
+  output into a test-only native module and invoke it through the published
+  Native AOT extension. Abort disposal releases detached storage through the
+  generated `pfree` body once, preserves the original query error, emits no
+  cleanup warning, and permits another query on the same backend. The final
+  fixture also compiles and links against local Windows x64/PostgreSQL 17.7
+  using Clang 21.1.7 metadata and MSVC. This compiler
+  evidence does not stand in for Windows backend execution.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Exact storage-frame ABI, native-width fields, empty/void values and native status handling | `RawCallsPreserveFrameAndResult`, `RawCallStatusesRejectInvalidContractsAndRecover` |
+  | Active/nested/ended/masked callback scopes, backend-thread affinity and cleanup access | `RawCallsRequireActiveBackendScope`, `GeneratedRawCallsRejectWorkerThreads`, `GeneratedRawCallsReleaseStorageDuringQueryAbort` |
+  | Owned native diagnostics are copied, released once and retained after recovery | `RawCallErrorsReleaseDiagnosticsAndRecover` |
+  | Real selected-header aggregate and void calls, malformed storage with unchanged output and later success | `GeneratedRawCallsPreserveNativeValues`, `GeneratedRawCallsRejectStorageAndRecover` |
+  | PostgreSQL ERROR preserves the failed result, restores entry native state and allows same-session recovery | `GeneratedRawCallsRecoverFromPostgresErrors` |
+  | Nested managed callbacks reenter the raw guard, unwind before PostgreSQL ERROR and recover | `GeneratedRawCallsSupportNestedCallbackRecovery` |
+  | Successful native state changes remain observable until explicitly reversed | `GeneratedRawCallsPreserveSuccessfulNativeStateChanges`, `GeneratedRawCallsPreserveSuccessfulContextSwitches` |
+
+  The Release build passes with zero warnings/errors in 10.45s. API freshness
+  retains 170 pages/2,254 members; docs build 212 pages and check with zero
+  errors, warnings or hints. Plain root `dotnet test` passes all six modules
+  against PostgreSQL 18.6 on Linux x64: 7,310 passed, zero failed and one existing
+  Windows-only cleanup skip in 7m 12.253s. Contributor documentation describes
+  the protocol and the successful-call state contract. Hosted CI for this
+  milestone remains pending.
+
+  This transport remains a generated-code prerequisite. Typed companion methods,
+  complete native type generation, signature identity, export/link selection,
+  managed callback guards/lifetimes, variadic calls, globals, hooks and the full
+  supported PostgreSQL-major/platform matrix remain required. The existing
+  memory guard rejects calls during ErrorContext reset; supporting raw native
+  release there without recursively resetting PostgreSQL error state remains
+  unresolved. Public guides retain the currently supported APIs and limitations.
+  The README also links to contributor instructions instead of repeating the
+  repository-root test command; extension-author test commands remain in place.

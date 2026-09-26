@@ -673,6 +673,29 @@ interrupt holdoff section. A caught allocation error leaves ordinary selected
 contexts and their original chunks intact; storage under `ErrorContext` follows
 PostgreSQL's error-flush lifetime.
 
+Generated raw C call bodies use a separate operation in this same native guard.
+The hidden `NativeRawCall` contract pins an array of argument-address/size pairs
+and borrows an exact result destination. The native guard calls the generated C
+body directly; no managed adapter sits between that body and `PG_TRY`. Argument
+and result validation runs before the underlying native function, and generated
+bodies publish result bytes only after it returns. Native failures use the
+existing owned diagnostic transport and allocator-matched release.
+
+Raw calls require the active backend thread. They remain available for native
+resource release during iterator disposal, including query-abort cleanup, as
+pgrx's raw `pfree` calls do during `PgBox` destruction. The caller must satisfy
+each native function's transaction and cleanup-state preconditions; raw calls
+do not inherit SPI's blanket query restriction. The native error guard retains
+its `ErrorContext` cleanup restriction.
+On error it restores the entry memory context and interrupt holdoffs. On success,
+raw functions retain their deliberate native state changes, including interrupt
+holdoffs; the caller remains responsible for balancing them. Raw calls do not
+open an SPI subtransaction or infer pointer ownership, callback lifetime, or the
+validity of an arbitrary address. A C body may reenter managed code only through
+a callback boundary that finishes managed unwinding before raising PostgreSQL
+ERROR. Typed companion methods, signature identity and export/link selection
+remain required before general raw bindings are a consumer API.
+
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove
 allocation records before native storage can be reused; monotonically increasing
