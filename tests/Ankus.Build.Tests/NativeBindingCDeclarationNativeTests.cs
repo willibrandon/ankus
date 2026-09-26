@@ -61,7 +61,7 @@ public sealed partial class NativeBindingNativeTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            await DeleteDirectoryAsync(directory);
         }
     }
 
@@ -140,7 +140,7 @@ public sealed partial class NativeBindingNativeTests
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            await DeleteDirectoryAsync(directory);
         }
     }
 }

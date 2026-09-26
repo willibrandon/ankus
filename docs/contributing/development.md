@@ -65,6 +65,10 @@ Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
 
+Native binding probes remove their temporary directories after the compiler and
+probe processes exit. On Windows, cleanup retries file-release errors for a
+bounded period; persistent access or deletion errors still fail the test.
+
 If another process takes the reserved TCP port before PostgreSQL binds it, the
 cluster harness retries with fresh data, socket and log paths and a new port.
 It allows at most three attempts within one `StartupTimeout`, cleans each failed

@@ -6529,8 +6529,44 @@ The phases track implementation of the complete pgrx feature surface.
   affected Release test projects build successfully, including the integration
   project with zero warnings/errors in 16.71s. The final plain root suite passes
   all 7,212 tests with zero failures/skips in 443.417s on Linux x64/PostgreSQL
-  18.6; integration takes 442.804s. Replacement hosted CI evidence remains
-  pending. No analyzer enforcement, warning suppression,
+  18.6; integration takes 442.804s. Replacement run `36226493533` passes quality,
+  all runtime jobs and docs. Ubuntu 24.04 x64/PostgreSQL 18.6/Clang 20.1.8 passes
+  all 7,212 tests without skips in a 17m54s job; macOS 15 ARM64/PostgreSQL 18.6/
+  Clang 20.1.8 passes 7,210 with the two documented Linux-only skips in 12m54s.
+  Windows Server 2025 x64/PostgreSQL 17.11 passes all integration cases (3,289
+  passes and two Linux-only skips), including both corrected header assertions,
+  but one build-tool test fails during temporary executable deletion. The four
+  remaining unit modules do not run after that failure. The following entry
+  records its repair. No analyzer enforcement, warning suppression,
   production friend assembly changes are part of this repair. The Windows job's
   timeout increases from 30 to 35 minutes after the observed 28m20s run; every
   job remains below the user's 40-minute maximum, with full suites unsharded.
+
+- 2026-09-26 — Make native probe cleanup tolerate Windows file-release races.
+  Run `36226493533` fails `CompiledValueTagsPreserveVersionedUnionRules (15)`
+  because recursive cleanup cannot delete `probe.exe` after its process exits.
+  The failure is `UnauthorizedAccessException` from `Directory.Delete`, rather
+  than a native layout or generated-value assertion. The Windows job completes
+  in 25m07s; no timeout or analyzer enforcement changes are needed.
+
+  Native binding fixtures now share bounded deletion retries for Windows access,
+  sharing, lock and directory-not-empty errors. Other failures propagate
+  immediately, and persistent deletion failures still fail the test. Cancellation
+  also waits for the killed probe process to exit before cleanup starts.
+  Cleanup continues independently of the canceled test token and removes only
+  the fixture's own directory. No failed assertion is retried or suppressed.
+
+  `NativeProbeCleanupWaitsForReleasedFile` holds a real file handle that denies
+  deletion on Windows, releases it, and requires the entire directory to be
+  removed. `NativeProbeCleanupDoesNotHideAccessDenial` retains a Windows read-only
+  file through retry exhaustion and verifies that the error and file contents
+  survive; it then explicitly restores and removes the fixture.
+  `NativeProbeCleanupRejectsMissingDirectory` requires a missing-path error.
+  The affected native class passes all 19 cases on Windows x64/.NET 10.0.12/
+  Clang 21.1.7 in 3.358s; Linux passes 18 with the Windows-only access-denial
+  case skipped in 3.475s. The non-incremental Release build passes with zero
+  warnings/errors in 69.11s. API freshness retains 170 pages/2,254 members;
+  docs build 212 pages and check with zero errors, warnings or hints.
+  The final plain root suite passes 7,214 cases with zero failures and the one
+  Windows-only cleanup case skipped in 451.232s on Linux x64/PostgreSQL 18.6;
+  integration takes 450.400s. Replacement hosted CI remains pending.

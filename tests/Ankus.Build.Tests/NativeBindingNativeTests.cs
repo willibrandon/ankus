@@ -123,7 +123,7 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            await DeleteDirectoryAsync(directory);
         }
     }
 
@@ -148,6 +148,8 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
         catch
         {
             if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+
+            await process.WaitForExitAsync(CancellationToken.None);
 
             throw;
         }
