@@ -100,22 +100,7 @@ Planner/executor integration, broader raw bindings and complete version/platform
 validation remain in progress.
 
 `Ankus.Postgres` does not yet expose general native functions, global variables
-or backend hook registration. The build tool retains their PostgreSQL 13–19
-declarations, including version-specific callback signatures and pgrx's native
-shim names, for ongoing binding generation. Its signature probe can check requested
-functions against selected headers and measure their native argument/result
-storage. A separate developer command requires Clang 20 or later and collects the selected headers'
-actual C types, preserving typedef identity, qualifiers, callback prototypes and
-array-parameter adjustment. It recompiles the reconstructed declarations to check
-compatibility. These checks do not yet expose managed imports or hook registration.
-Its storage probe measures fixed parameters, results and global objects with
-native sizes, alignments and integer signedness. An incomplete array retains
-its element stride and an unknown total extent; an opaque record or enum retains
-unknown object size and alignment. These facts do not determine a managed calling
-convention or make an incomplete native object readable by value.
-Reference constants in that inventory
-come from pgrx's build platform; they do not describe the extension's target ABI.
-Future calls must retain the native error guard and explicit lifetime contracts.
+or backend hook registration.
 
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation

@@ -500,7 +500,7 @@ static void ConfigureHeaderFrontend(string repositoryRoot)
         Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/llvm.gpg", keyPath]);
         Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/llvm.list"]);
         Run("sudo", ["apt-get", "update"]);
-        Run("sudo", ["apt-get", "install", "--yes", "--no-install-recommends", "clang-20"]);
+        Run("sudo", ["apt-get", "install", "--yes", "--no-install-recommends", "clang-20", "libclang-20-dev"]);
         directory = "/usr/lib/llvm-20/bin";
     }
     else if (OperatingSystem.IsMacOS())

@@ -6569,4 +6569,89 @@ The phases track implementation of the complete pgrx feature surface.
   docs build 212 pages and check with zero errors, warnings or hints.
   The final plain root suite passes 7,214 cases with zero failures and the one
   Windows-only cleanup case skipped in 451.232s on Linux x64/PostgreSQL 18.6;
-  integration takes 450.400s. Replacement hosted CI remains pending.
+  integration takes 450.400s. Replacement hosted run `36228628463` for
+  `a38b6f0` passes every job, and its docs run `36228628442` passes. Ubuntu
+  24.04 x64/PostgreSQL 18.6 passes 7,214 tests with the Windows-only cleanup
+  case skipped in a 17m40s job. macOS 15 ARM64/PostgreSQL 18.6 passes 7,212
+  with that cleanup case and the two Linux-only cases skipped in 18m59s.
+  Windows Server 2025 x64/PostgreSQL 17.11 passes 7,213 with the two Linux-only
+  cases skipped in 27m13s, including all 420 build-tool tests and all 3,289
+  applicable integration cases. Every platform uses Clang 20.1.8 and runs all
+  six test modules against its real PostgreSQL installation. The Windows job
+  stays within its existing 35-minute limit; analyzer enforcement and the
+  user's 40-minute maximum remain unchanged.
+
+- 2026-09-26 — Added transitive selected-header record collection through the
+  build tool's `binding-records` command. It retains the validated semantic
+  function/global catalog and adds an indexed graph of declared and canonical
+  types, struct/union/enum identities, ordered physical fields, bit offsets and
+  widths, array/vector extents, native size/alignment and exact enum constants.
+  Canonical cursor identity preserves recursive pointers and distinct anonymous
+  records. Anonymous typedefs retain their aliases without inventing C tag names;
+  unnamed bitfields and anonymous containers remain distinct. Opaque declarations
+  have unknown storage, while pointers to them retain measured pointer storage.
+
+  The selected compiler serializes a declaration-only AST using the same driver,
+  includes, target and fatal-warning settings as signature validation. An isolated
+  worker loads it with the matching libclang C API; this avoids changing clang-cl
+  into a different driver mode or reinterpreting its predefines. Compiler shims
+  resolve their library through the selected compiler's resource directory.
+  Native resources use matching disposal and explicit C calling conventions;
+  managed callback exceptions unwind only after native traversal returns.
+  Windows keeps the LLVM module loaded for the worker's lifetime because LLVM
+  20/21 release builds retain a thread-exit callback after unloading; translation
+  units, indexes, strings, diagnostics and printing policies still release normally.
+  Worker streams and graphs have finite bounds, cancellation terminates and joins
+  the worker, and failed collection preserves the previous final record artifact.
+
+  Declared function parameters and canonical function parameters retain their
+  distinct array/pointer shapes. Unprototyped functions retain that state, with
+  zero fixed parameters. Callback annotations and non-default calling conventions
+  remain visible alongside the richer existing signature contract. Padded vectors
+  and over-aligned typedefs retain their actual storage. Enum constants wider than
+  the native C API's 64-bit accessors fail explicitly before narrowing. Invalid
+  graph edges, contradictory storage, missing roots, unreachable observations and
+  malformed enum/protocol values fail before publication.
+
+  Linux x64/PostgreSQL 18.6/Clang 21 collects all 9,224 selected symbols into
+  14,828 types and 1,038 declarations: 851 structs/unions and 187 enums, with
+  5,863 physical fields and 1,914 enum constants. Seventy-one declarations remain
+  opaque and 23 fields retain bitfield widths. GCC 14.2 independently accepts
+  8,710 generated size/alignment/ordinary-field-offset and enum-value assertions
+  with warnings as errors. Those assertions cover nameable declarations and enum
+  constants; native fixtures separately execute bitfield storage and anonymous
+  container checks. Local Windows x64/Clang 21.1.7 also collects eight real-header
+  symbols against PostgreSQL 17.7 and 18.1. These compiler checks are not full
+  Windows backend-suite evidence.
+
+  The focused Linux binding suite passes 467 cases with the existing Windows-only
+  cleanup case skipped in 3.474s. All 48 new focused cases pass on Windows x64/
+  .NET 10.0.12/Clang 21.1.7 in 1.019s. Both packaged-command integration tests pass
+  against PostgreSQL 18.6 in 109.886s, including a library-load failure that leaves
+  the prior final contract intact. The non-incremental Release build passes with
+  zero warnings/errors in 75.68s; the final focused Release build also passes.
+  API freshness retains 170 pages/2,254 members; docs build 212 pages and check
+  with zero errors, warnings or hints. Plain root `dotnet test` passes all six
+  modules against PostgreSQL 18.6 on Linux x64: 7,264 passed, zero failed and the
+  existing Windows-only cleanup case skipped in 7m 36.924s. Hosted CI validation
+  remains pending for this milestone.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Exact fields, recursion, anonymous identity, flexible tails, bitfield bytes and parameter adjustment | `CollectedRecordsPreservePhysicalFieldsAndIdentity`, the independent GCC assertions described above |
+  | Enum limits, typedef annotations, padded vectors, atomic/complex fields and alternate callback ABI | `CollectedRecordsRetainEnumsAndAnnotatedTypes`, `CollectedRecordsRejectEnumWiderThan64Bits` |
+  | Complete graph/target/protocol validation and empty selection | `InvalidRecordGraphsFailExplicitly`, `InvalidRecordEnumConstantsFailExplicitly`, `NativeRecordProtocolRejectsIncompleteJson`, `EmptyRecordSelectionRetainsOnlyTarget` |
+  | Worker failure/recovery, cancellation and preserved final output | `NativeRecordWorkerRejectsInvalidArtifactsAndRecovers`, `InvalidRecordCommandAritiesFailExplicitly`, `InvalidRecordSelectionsPreserveOutput`, `PackagedBuildToolPreservesRecordsOnLibraryFailure` |
+  | Installed command and real selected PostgreSQL identity/layout | `PackagedBuildToolCollectsTransitiveHeaderRecords`, the Linux/Windows header commands described above |
+
+  Engineering and contributor docs describe the command and matching-library
+  prerequisite. The public raw-value guide and README retain consumer-facing
+  capabilities and limitations without internal command or probe instructions.
+  Linux CI explicitly installs the LLVM 20 development package;
+  macOS and Windows LLVM installations already provide the library. No analyzer
+  settings, warning suppressions, production friend assemblies or CI timeouts
+  change. These records do not yet classify managed aggregate calls or establish
+  export availability, pointer ownership, callback error transport, variadic
+  promotion, raw globals or hook registration/chaining. Consumer SDK node
+  generation and the unresolved complete PostgreSQL-major/platform matrix remain
+  separate port work.

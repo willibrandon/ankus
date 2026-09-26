@@ -24,6 +24,12 @@ CI selects LLVM 20 on Linux/macOS and verifies the preinstalled Windows LLVM
 frontend before running the suite. On macOS, Homebrew's `llvm@20` formula supplies
 the required compiler; put its `bin` directory on `PATH` for the test process.
 Linux packages are available from [LLVM's package repository](https://apt.llvm.org/).
+The transitive record collector also needs the matching `libclang` library;
+install `libclang-20-dev` beside `clang-20` on Linux. Homebrew's LLVM formula and
+the Windows LLVM installer include it. The collector uses the compiler's reported
+resource directory to find its library, including when the compiler is a shim.
+It loads a serialized declaration AST from that exact compiler in a separate
+worker process; incompatible compiler/library builds fail explicitly.
 The `header-frontend-check` engineering command checks a compiler's version and
 required option without modifying the machine; see [engineering apps](../../eng/README.md).
 

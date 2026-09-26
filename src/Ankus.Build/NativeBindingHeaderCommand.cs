@@ -59,8 +59,10 @@ internal static class NativeBindingHeaderCommand
     /// Inspects declarations and constants using the selected header command's exact frontend arguments.
     /// </summary>
     internal static Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
-        string output, CancellationToken cancellationToken, bool dumpAst = true)
+        string output, CancellationToken cancellationToken, bool dumpAst = true, string? serializedAst = null)
     {
+        if (dumpAst && serializedAst is not null) { throw new ArgumentException("Select one native AST output format.", nameof(serializedAst)); }
+
         string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
         var options = new List<string>();
         if (OperatingSystem.IsWindows())
@@ -80,6 +82,8 @@ internal static class NativeBindingHeaderCommand
         if (arguments.Length == 8 && arguments[7].Length != 0) { options.Add("--target=" + arguments[7]); }
 
         if (dumpAst) { options.AddRange(["-Xclang", "-ast-dump=json"]); }
+
+        if (serializedAst is not null) { options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]); }
 
         return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken);
     }

@@ -234,6 +234,48 @@ be replaced. These measurements do not classify a managed aggregate ABI, supply
 record fields, establish pointer ownership, promote variadic call-site arguments,
 or implement guarded calls and hooks.
 
+To collect the complete transitive record graph for selected symbols, run:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-records symbols.txt 18 /path/to/pg_config artifacts/binding-records/pg18
+```
+
+It accepts the same optional compiler, Windows library directories, runtime and
+target arguments as `binding-header-types`, followed by an optional absolute
+`libclang` library path. Empty strings retain the defaults for earlier optional
+arguments. Install the matching library with the compiler: `libclang-20-dev`
+beside `clang-20` on Linux, Homebrew `llvm@20` on macOS, or the Windows LLVM
+installer. Automatic discovery uses the selected compiler's resource directory,
+so compiler shims retain their selected toolchain. A library from an incompatible
+compiler build cannot read its serialized AST and fails explicitly.
+
+The command first validates the semantic symbol contract, then saves
+`native-header-records.ast` using exactly the same compiler driver, includes,
+target and warning settings. A separate process loads that AST and collects
+record metadata; it does not reinterpret the headers with different compiler
+options. Cancellation terminates the worker and waits for its exit. The AST and
+worker request/observation files are diagnostic artifacts that can contain local
+paths. The final `native-records.json` couples the existing symbol signatures with
+a validated graph whose identities are numeric indices, not native addresses or
+source paths. A failed operation preserves the previous final record contract.
+
+The graph retains declared and canonical types, typedef annotations, exact native
+size/alignment, array/vector extents, function ABI shapes, struct/union/enum
+identity, ordered physical fields, anonymous containers, bit offsets and widths,
+flexible arrays and exact signed/unsigned enum values up to 64 bits. Unsupported
+enum representations fail instead of truncating values. Anonymous typedefs do
+not acquire fabricated C tag names. Padded vectors and over-aligned typedefs
+retain their actual storage. Incomplete declarations have unknown storage;
+pointers to them still have measured pointer storage. Callback ABI observations
+and compiler-printed annotations accompany the richer existing signature
+contracts; they do not replace written parameter and declaration metadata.
+
+These facts do not yet classify managed aggregate calls, establish exports or
+ownership, transport callbacks across error boundaries, generate promoted
+variadic arguments, or implement raw globals and hooks. The consumer SDK's node
+generation is unchanged; the complete PostgreSQL-major/platform matrix remains
+required port work.
+
 These declarations provide native fields, enums, embedded values, inline arrays
 and explicit flexible-tail access. Checked node ownership/casting/formatting APIs
 are available through the runtime; typed pointer/callback fields remain port work.

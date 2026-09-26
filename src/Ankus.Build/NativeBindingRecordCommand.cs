@@ -1,0 +1,140 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Ankus.PgConfig;
+
+namespace Ankus.Build;
+
+/// <summary>
+/// Collects transitive record layouts beside the selected headers' validated signature contracts.
+/// </summary>
+internal static class NativeBindingRecordCommand
+{
+    /// <summary>
+    /// Publishes a complete record contract from the selected compiler's serialized declaration AST.
+    /// </summary>
+    internal static async Task<NativeHeaderRecords> RunAsync(string[] arguments, CancellationToken cancellationToken = default)
+    {
+        if (arguments.Length is < 4 or > 9)
+        {
+            throw new ArgumentException("Expected binding-records <symbol-list> <major> <pg_config> <output-directory> [clang] [windows-library-directories] [runtime-identifier] [target-triple] [libclang].", nameof(arguments));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        string[] headerArguments = arguments.Length == 9 ? arguments[..8] : arguments;
+        NativeHeaderCatalog headers = await NativeBindingHeaderCommand.RunAsync(headerArguments, cancellationToken);
+        int major = headers.Target.PostgresVersion / 10000;
+        PostgresInstallation installation = arguments[2].Length == 0
+            ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
+            : await PostgresInstallation.CreateAsync(arguments[2], cancellationToken);
+        string compiler = FindCompiler(arguments.Length >= 5 && arguments[4].Length != 0
+            ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang");
+        string library = arguments.Length == 9 && arguments[8].Length != 0 ? Path.GetFullPath(arguments[8])
+            : await FindLibraryAsync(compiler, headers.Target.ClangMajor, cancellationToken);
+        string output = Path.GetFullPath(arguments[3]);
+        string ast = Path.Combine(output, "native-header-records.ast");
+        await NativeBindingHeaderCommand.InspectAsync(installation, headerArguments, Path.Combine(output, "native-header-types.c"),
+            Path.Combine(output, "native-header-records.txt"), output, cancellationToken, dumpAst: false, serializedAst: ast);
+        var symbols = headers.Symbols.ToDictionary(static pair => pair.Key,
+            static pair => new NativeHeaderRequest(pair.Key, pair.Value.NativeName, pair.Value.IsFunction), StringComparer.Ordinal);
+        var request = new NativeRecordRequest(ast, library, headers.Target, symbols);
+        NativeRecordGraph graph = await NativeBindingRecordWorker.InspectAsync(request, output, cancellationToken);
+        var records = new NativeHeaderRecords(headers, graph);
+        string temporary = Path.Combine(output, "native-records-" + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            await using (FileStream stream = File.Create(temporary))
+            {
+                await JsonSerializer.SerializeAsync(stream, records, NativeBindingRecordWorker.JsonOptions, cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(temporary, Path.Combine(output, "native-records.json"), overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) { File.Delete(temporary); }
+        }
+
+        Console.WriteLine($"PG{major}: collected {graph.Declarations.Count} transitive native declarations and {graph.Types.Count} types for {graph.Roots.Count} symbols.");
+        return records;
+    }
+
+    /// <summary>
+    /// Resolves the same explicitly selected compiler or PATH entry before choosing its adjacent library.
+    /// </summary>
+    internal static string FindCompiler(string compiler)
+    {
+        if (compiler.Contains(Path.DirectorySeparatorChar) || compiler.Contains(Path.AltDirectorySeparatorChar) || Path.IsPathRooted(compiler))
+        {
+            return Resolve(compiler);
+        }
+
+        string name = OperatingSystem.IsWindows() && !compiler.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? compiler + ".exe" : compiler;
+        foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string candidate = Path.Combine(directory, name);
+            if (File.Exists(candidate)) { return Resolve(candidate); }
+        }
+
+        throw new FileNotFoundException("Cannot locate the selected Clang executable.", compiler);
+
+        static string Resolve(string path)
+        {
+            var file = new FileInfo(Path.GetFullPath(path));
+            if (!file.Exists) { throw new FileNotFoundException("Cannot locate the selected Clang executable.", file.FullName); }
+
+            return file.FullName;
+        }
+    }
+
+    /// <summary>
+    /// Requires libclang from the selected compiler installation rather than an unrelated system library.
+    /// </summary>
+    internal static async Task<string> FindLibraryAsync(string compiler, int major, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var start = new ProcessStartInfo(compiler)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add("-print-resource-dir");
+        using Process process = Process.Start(start) ?? throw new InvalidOperationException("Cannot query the selected Clang installation.");
+        using var output = new MemoryStream();
+        using var errors = new MemoryStream();
+        Task copy = NativeBindingHeaderCommand.CopyAsync(process.StandardOutput.BaseStream, output, 64 * 1024, cancellationToken);
+        Task diagnostics = NativeBindingHeaderCommand.CopyAsync(process.StandardError.BaseStream, errors, 64 * 1024, cancellationToken);
+        Task exit = process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            var pending = new List<Task> { copy, diagnostics, exit };
+            while (pending.Count != 0)
+            {
+                Task completed = await Task.WhenAny(pending);
+                await completed;
+                pending.Remove(completed);
+            }
+
+            if (process.ExitCode != 0) { throw new InvalidOperationException("Cannot query Clang resources: " + System.Text.Encoding.UTF8.GetString(errors.ToArray())); }
+        }
+        catch
+        {
+            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+
+            await process.WaitForExitAsync(CancellationToken.None);
+            await Task.WhenAll(copy, diagnostics);
+            throw;
+        }
+
+        string resources = System.Text.Encoding.UTF8.GetString(output.ToArray()).Trim();
+        if (!Path.IsPathFullyQualified(resources) || !Directory.Exists(resources)) { throw new InvalidOperationException("Clang did not report its absolute resource directory."); }
+
+        string lib = Path.GetFullPath(Path.Combine(resources, "..", ".."));
+        string bin = Path.GetFullPath(Path.Combine(lib, "..", "bin"));
+        string[] candidates = OperatingSystem.IsWindows() ? [Path.Combine(bin, "libclang.dll")]
+            : OperatingSystem.IsMacOS() ? [Path.Combine(lib, "libclang.dylib")]
+            : [Path.Combine(lib, "libclang.so"), Path.Combine(lib, "libclang.so.1"), Path.Combine(lib, $"libclang-{major}.so.1"), Path.Combine(lib, $"libclang.so.{major}")];
+        return candidates.FirstOrDefault(File.Exists) ?? throw new FileNotFoundException("A matching libclang library was not found beside the selected compiler. Supply its explicit path.");
+    }
+}

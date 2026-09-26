@@ -42,6 +42,18 @@ try
         return 0;
     }
 
+    if (args.Length > 0 && args[0] == "binding-records")
+    {
+        await NativeBindingRecordCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
+    if (args.Length > 0 && args[0] == "binding-records-worker")
+    {
+        await NativeBindingRecordWorker.RunAsync(args[1..]);
+        return 0;
+    }
+
     if (args.Length != 11)
     {
         throw new ArgumentException(
