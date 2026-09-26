@@ -205,11 +205,14 @@ internal static class IntegrationEnvironment
         PostgresInstallation installation, bool buildProjectReferences, CancellationToken cancellationToken)
     {
         string project = Path.Combine(RepositoryRoot, directory, name, name + ".csproj");
+        string logs = Path.Combine(RepositoryRoot, "artifacts", "test-logs", "publish");
+        Directory.CreateDirectory(logs);
         List<string> arguments = ["publish", project, "--configuration", "Release", "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", output,
             "-p:BuildProjectReferences=" + buildProjectReferences.ToString(CultureInfo.InvariantCulture).ToLowerInvariant(),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
-            "-p:AnkusPgConfigPath=" + installation.PgConfigPath];
+            "-p:AnkusPgConfigPath=" + installation.PgConfigPath,
+            "-bl:" + Path.Combine(logs, name + "-{}.binlog")];
 
         await ProcessRunner.RunCheckedAsync(
             "dotnet",

@@ -71,6 +71,10 @@ Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
 
+Each fixture extension publish also writes a uniquely named MSBuild binary log
+under `artifacts/test-logs/publish`. CI includes these files in its failed-job
+artifact, including when Native AOT compilation fails before cluster startup.
+
 Native binding probes remove their temporary directories after the compiler and
 probe processes exit. On Windows, cleanup retries file-release errors for a
 bounded period; persistent access or deletion errors still fail the test.

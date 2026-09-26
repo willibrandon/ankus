@@ -6822,11 +6822,35 @@ The phases track implementation of the complete pgrx feature surface.
   2,254 members; the site builds 212 pages and checks with zero errors, warnings
   or hints. Plain root `dotnet test` passes all six modules against PostgreSQL
   18.6 on Linux x64: 7,384 passed, zero failed and one existing Windows-only
-  cleanup skip in 7m 32.510s. Hosted platform CI for this numeric-model change
-  remains pending.
+  cleanup skip in 7m 32.510s. Hosted CI
+  [36239866856](https://github.com/willibrandon/ankus/actions/runs/36239866856)
+  passes the quality job and Linux Build module (558 passed, one existing skip),
+  but its Ubuntu integration fixture fails before backend execution: Native AOT
+  10.0.11 throws `IndexOutOfRangeException` in
+  `ILCompiler.LazyGenericsSupport.GraphBuilder.WalkMethod` while compiling
+  `RuntimeExports.RhUnbox` during the Operators sample publish. The same sample
+  publishes locally, and eight repeated direct compiler invocations with four
+  workers pass. A further publish using the exact Linux runtime artifact
+  downloaded from this hosted run also passes. These observations do not establish
+  the hosted failure's cause or resolution. The macOS 15 ARM64/PostgreSQL 18.6
+  full suite passes 7,382 cases with three existing platform skips in a 16m 40s
+  job. Windows Server 2025 x64/PostgreSQL 17.11 passes 7,383 cases with two
+  existing platform skips in 29m 11s. Both platforms use Clang 20.1.8.
 
   Engineering documentation describes the numeric contract and required
   observation regeneration. Public guides retain the currently supported APIs.
   Complete managed native declarations, typed companion calls, active-extension
   signature/export selection, native alignment, managed callback lifetimes,
   variadics, globals, hooks and the full version/platform matrix remain required.
+
+- 2026-09-26 — Retaining a separate, uniquely named MSBuild binary log for
+  every integration-fixture extension publish. Previously, an assembly-startup
+  compiler failure could leave no files for the existing CI failure-artifact
+  upload. Logs now go into that artifact's publish subdirectory before backend
+  startup. Contributor documentation describes the evidence location; user guides
+  are unchanged. The Release build passes with zero warnings/errors in 38.01s;
+  root `dotnet test` passes all six modules against PostgreSQL 18.6 on Linux x64:
+  7,384 passed, zero failed, one existing Windows-only skip in 7m 30.016s.
+  API freshness retains 170 pages/2,254 members; the site builds 212 pages and
+  checks with zero errors, warnings or hints. The hosted compiler failure remains
+  under investigation.
