@@ -28,12 +28,16 @@ internal static class NativeBindingCatalogCommand
             string path = Path.Combine(arguments[1], $"pg{major}.json");
             string content = JsonSerializer.Serialize(catalog, options) + "\n";
             await WriteAsync(path, content, arguments.Length == 3);
+            NativeBindingRawCatalog raw = NativeBindingRawParser.Parse(source, major) with { SourceRevision = Revision };
+            await WriteAsync(Path.Combine(arguments[1], $"pg{major}.raw.json"),
+                JsonSerializer.Serialize(raw, options) + "\n", arguments.Length == 3);
             string headers = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/include/pg{major}.h");
             headers = string.Join('\n', headers.Split('\n').Select(static line => line.TrimEnd()));
             await WriteAsync(Path.Combine(arguments[1], $"pg{major}.h"), headers, arguments.Length == 3);
 
             NativeBindingType[] nodes = [.. catalog.Types.Values.Where(static type => type.IsNode)];
-            Console.WriteLine($"PG{major}: {catalog.Tags.Count} tags, {nodes.Length} nodes, {nodes.Sum(static type => type.Fields.Count)} node fields.");
+            Console.WriteLine($"PG{major}: {catalog.Tags.Count} tags, {nodes.Length} nodes, {nodes.Sum(static type => type.Fields.Count)} node fields, " +
+                $"{raw.Functions.Count} functions, {raw.Globals.Count} globals, {raw.ReferenceConstants.Count} reference constants.");
         }
 
         string license = await ReadSourceAsync(arguments[0], Revision, "LICENSE");

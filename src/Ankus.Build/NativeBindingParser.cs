@@ -190,7 +190,7 @@ internal static partial class NativeBindingParser
     /// <summary>
     /// Reads a top-level delimiter while respecting nested type and callback expressions.
     /// </summary>
-    private static int ReadUntil(string code, int start, char delimiter)
+    internal static int ReadUntil(string code, int start, char delimiter, bool trackAngles = true)
     {
         var closes = new Stack<char>();
         for (int index = start; index < code.Length; index++)
@@ -198,11 +198,11 @@ internal static partial class NativeBindingParser
             char character = code[index];
             if (closes.Count == 0 && character == delimiter) { return index; }
 
-            if (character is '(' or '[' or '{' or '<')
+            if (character is '(' or '[' or '{' || trackAngles && character == '<')
             {
                 closes.Push(character switch { '(' => ')', '[' => ']', '{' => '}', _ => '>' });
             }
-            else if (character is ')' or ']' or '}' or '>')
+            else if (character is ')' or ']' or '}' || trackAngles && character == '>')
             {
                 if (character == '>' && index != 0 && code[index - 1] == '-') { continue; }
 

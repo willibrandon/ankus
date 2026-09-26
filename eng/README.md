@@ -68,10 +68,16 @@ dotnet run --file ./eng/Ankus.Bindings.cs -- /path/to/pgrx --check
 ```
 
 The catalogs retain fields, typedefs, enums and pgrx's node inheritance/alias
-rules for PostgreSQL 13–19. They contain no assumed platform layouts; native
-sizes and offsets must be established using the selected server headers.
+rules for PostgreSQL 13–19. Separate raw catalogs retain foreign function
+signatures, global mutability, callback aliases, variadic arguments and original
+linkage, including pgrx-specific C shims. The raw catalogs also retain unevaluated
+reference constants; these include platform-dependent values and must not be
+used as target measurements. Native sizes, offsets and target constants must
+be established using the selected server headers.
 The app invokes the `Ankus.Build binding-catalogs` command; parsing and catalog
 generation stay inside the build tool without exposing its internals.
+See the [catalog inventory](../src/Ankus.Build/Bindings/README.md) for the pinned
+declaration counts and remaining runtime binding scope.
 
 The same command refreshes each major's pgrx header include manifest and the
 upstream license notice. These inputs are packaged with the build tool so an

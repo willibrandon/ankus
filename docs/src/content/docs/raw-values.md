@@ -99,6 +99,13 @@ traverses native pointers; ordinary debugger display does not perform that work.
 Planner/executor integration, broader raw bindings and complete version/platform
 validation remain in progress.
 
+`Ankus.Postgres` does not yet expose general native functions, global variables
+or backend hook registration. The build tool retains their PostgreSQL 13–19
+declarations, including version-specific callback signatures and pgrx's native
+shim names, for ongoing binding generation. Reference constants in that inventory
+come from pgrx's build platform; they do not describe the extension's target ABI.
+Future calls must retain the native error guard and explicit lifetime contracts.
+
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation
 for projects that exchange these values. The generated contract rejects an

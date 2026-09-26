@@ -37,3 +37,41 @@ internal sealed record NativeBindingField(string Name, string NativeName, string
 /// <param name="Storage">The bindgen integer storage representation.</param>
 /// <param name="Values">Native member names and complete constant expressions.</param>
 internal sealed record NativeBindingEnum(string Storage, IReadOnlyDictionary<string, string> Values);
+
+/// <summary>
+/// Retains a foreign function's complete signature without exposing an unguarded managed call.
+/// </summary>
+/// <param name="NativeSymbol">The link_name value, or the unchanged bindgen identifier when absent.</param>
+/// <param name="Abi">The declared foreign ABI.</param>
+/// <param name="Parameters">Named fixed parameters in declaration order.</param>
+/// <param name="ReturnType">The complete return representation, including unit for no result.</param>
+/// <param name="IsVariadic">Whether additional C arguments follow the fixed parameters.</param>
+/// <param name="Attributes">Original declaration attributes, including any native linkage override.</param>
+internal sealed record NativeBindingFunction(string NativeSymbol, string Abi,
+    IReadOnlyList<NativeBindingParameter> Parameters, string ReturnType, bool IsVariadic,
+    IReadOnlyList<string> Attributes);
+
+/// <summary>
+/// Retains a parameter's bindgen identifier and complete type expression.
+/// </summary>
+/// <param name="Name">The parameter identifier.</param>
+/// <param name="Representation">The complete Rust type expression.</param>
+internal sealed record NativeBindingParameter(string Name, string Representation);
+
+/// <summary>
+/// Describes foreign storage without assuming its address, lifetime or target representation.
+/// </summary>
+/// <param name="NativeSymbol">The declared native linkage name.</param>
+/// <param name="Abi">The ABI of the containing foreign block.</param>
+/// <param name="Representation">The complete Rust type expression, including callback aliases.</param>
+/// <param name="IsMutable">Whether the foreign declaration allows mutation.</param>
+/// <param name="Attributes">Original declaration attributes.</param>
+internal sealed record NativeBindingGlobal(string NativeSymbol, string Abi, string Representation,
+    bool IsMutable, IReadOnlyList<string> Attributes);
+
+/// <summary>
+/// Records a constant expression from the reference build; selected headers must supply target values.
+/// </summary>
+/// <param name="Representation">The declared Rust type.</param>
+/// <param name="Expression">The original, unevaluated reference expression.</param>
+internal sealed record NativeBindingConstant(string Representation, string Expression);

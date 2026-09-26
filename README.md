@@ -241,6 +241,8 @@ checked views over native storage, with tag-based casts that retain the original
 bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
 boundary and returns owned text.
+General native functions, globals and hooks remain in progress; their PostgreSQL
+13–19 declarations are inventoried for further binding generation.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed

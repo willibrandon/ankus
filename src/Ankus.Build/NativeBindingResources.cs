@@ -23,6 +23,21 @@ internal static class NativeBindingResources
     }
 
     /// <summary>
+    /// Loads a major's raw declaration inventory separately from the node layout dependency graph.
+    /// </summary>
+    /// <param name="major">The selected PostgreSQL major.</param>
+    /// <returns>Reference declarations, without selected-target ABI or runtime call guarantees.</returns>
+    internal static NativeBindingRawCatalog ReadRawCatalog(int major)
+    {
+        using Stream source = Open(major, "raw.json");
+        NativeBindingRawCatalog catalog = JsonSerializer.Deserialize<NativeBindingRawCatalog>(source)
+            ?? throw new FormatException("The embedded raw declaration catalog is empty.");
+        if (catalog.PostgresMajor != major) { throw new FormatException("The embedded raw declaration catalog has the wrong major."); }
+
+        return catalog;
+    }
+
+    /// <summary>
     /// Reads the matching header manifest to compile against the user's actual installation.
     /// </summary>
     /// <param name="major">The selected PostgreSQL major.</param>

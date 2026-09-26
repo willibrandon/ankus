@@ -2673,7 +2673,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Pending: full raw API; only targeted generated native calls exist |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 declaration inventories retain foreign signatures, globals, reference constants, callback types and shim linkage alongside the type graph. General selected-header raw calls, global/hook access, remaining shims and string utilities still need implementation and backend evidence |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -6238,3 +6238,49 @@ The phases track implementation of the complete pgrx feature surface.
   site build produces 212 pages, and `pnpm check` reports zero errors, warnings
   or hints. The non-incremental Release build passes with zero warnings/errors
   in 73.50s. No analyzer settings, suppressions, runtime behavior or CI limits change.
+
+- 2026-09-25 — Added the PostgreSQL 13–19 foreign-declaration inventory from
+  pinned pgrx commit `70383e884582d1bcc7cd681d10886b995a2830cb`. Separate raw
+  catalogs retain 7,349–8,799 functions, 475–591 globals and 4,968–6,159 top-level
+  reference constants per major. Functions preserve ordered parameters, nested
+  callbacks and arrays, return representations, variadics, declared ABI and
+  original linkage attributes. Globals retain mutability and callback aliases.
+  pgrx-specific C shim symbols remain distinct from PostgreSQL exports.
+
+  Reference constants remain unevaluated expressions from the reference build;
+  their platform-dependent values cannot substitute for selected-header probes.
+  Node layout generation loads its existing type graph independently of the raw
+  inventory. The existing type catalogs remain byte-for-byte unchanged. Direct
+  tests pin `ExecutorRun`'s PostgreSQL 18 argument removal, the PostgreSQL 13/14
+  parse-hook parameter change and PostgreSQL 19's const-qualified hook parameter.
+  Inventory counts come from an independent scan of all seven pinned sources.
+
+  Focused tests pass 53 cases with no failures/skips in 3.602s. Parser tests
+  assert exact declarations, exclusion of Rust helpers/nested items/trivia,
+  malformed and duplicate input rejection, ordinal ordering and serialization
+  independent of declaration order. All seven catalogs and header manifests pass
+  exact freshness checks. A separate command-level check verifies identical
+  regeneration, successful fresh checks, rejection of stale and missing raw
+  files without writes, and recovery by explicit regeneration.
+
+  Final plain `dotnet test` passes all 6,971 cases with zero failures/skips in
+  439.030s on Linux x64/PostgreSQL 18.6; the integration suite takes 438.453s.
+  The non-incremental Release build reports zero warnings/errors in 63.87s.
+  API generation retains 170 pages/2,254 members, the documentation site builds
+  212 pages, and its check reports zero errors/warnings/hints. README, the public
+  raw-value guide and contributor/catalog documentation state the current scope.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Exact function signatures, linkage, variadics and callback returns | `ForeignFunctionsPreserveSignaturesAndLinkage`, `PackagedRawDeclarationsRetainVersionedContracts` |
+  | Global mutability, declared ABI and versioned hook aliases | `ForeignGlobalsRetainMutabilityAndCallbacks`, `RawHooksResolveTheSelectedMajorsCallbackContract` |
+  | Unevaluated reference expressions and exclusion of non-foreign helpers | `ReferenceConstantsPreserveExpressions`, `RawInventoryExcludesHelpersAndTrivia` |
+  | Deterministic ordering and explicit invalid-input/version rejection | `RawCatalogOrderingIsStable`, `MalformedRawDeclarationsFailExplicitly`, `EmptyInventoriesAndArgumentBoundariesAreExplicit`, `UnsupportedRawCatalogMajorsAreRejected` |
+  | Packaged per-major inventory and reproducible command output | `PackagedRawDeclarationsRetainVersionedContracts`, `Ankus.Bindings.cs --check`, the isolated stale/missing-file command checks described above |
+
+  This is declaration inventory, not callable raw API parity. General native
+  function generation, selected-header validation of those signatures, global
+  access, guarded callback/hook registration and chaining, remaining native shims
+  and the full PostgreSQL-major/platform matrix remain required. No runtime API,
+  analyzer mode/severity, suppression, production friend assembly or CI timeout
+  changes. Hosted verification of this inventory milestone is pending.
