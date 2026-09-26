@@ -7092,8 +7092,55 @@ The phases track implementation of the complete pgrx feature surface.
   builds 212 pages and checks with zero errors, warnings or hints.
   Plain root `dotnet test` passes all six modules against PostgreSQL 18.6 on Linux
   x64: 7,462 passed, zero failed and one existing Windows-only cleanup skip in
-  10m 29.539s. Hosted verification follows the completed local gates.
+  10m 29.539s. Hosted CI run 36249125032 for `eacf84b` also passes all three
+  complete platform suites: Ubuntu 24.04 x64/PostgreSQL 18.6 has 7,462 passed
+  and one platform skip in a 23m 24s job; Windows Server 2025 x64/PostgreSQL
+  17.11 has 7,461 passed and two platform skips in 23m 20s; macOS 15
+  ARM64/PostgreSQL 18.6 has 7,460 passed and three platform skips in 22m 52s.
+  Quality, runtime and documentation jobs pass too. Every job stays below its
+  configured timeout and the authorized 40-minute maximum.
 
   General typed consumer calls, active signature/export selection, aligned call
   storage, compiler-specific shims, callbacks, variadics, globals/hooks, remaining
   feature inventories and the full PostgreSQL/platform matrix remain required.
+
+- 2026-09-26 — Added the internal native-object import selector needed to compile
+  only referenced raw call bodies from one complete shared declaration graph.
+  It reads relocatable ELF, COFF/BigObj and Mach-O metadata, retains undefined
+  generated accessor names, normalizes platform C-name decoration and verifies
+  object format, architecture and byte order against the selected header target.
+  Bounded table reads reject malformed metadata and invalid UTF-8 in selected
+  names. Definitions, local symbols, common storage and unused declarations do
+  not select bodies. The resulting immutable import set is deterministic.
+
+  The selector validates the entire graph, including unselected roots, before
+  emitting the selected fixed bodies and pure address accessors. Globals,
+  variadics, unprototyped functions and unknown names still fail explicitly.
+  Obtaining an address does not execute PostgreSQL; invoking its body still
+  requires the existing native error guard. Bodies and accessors have hidden
+  visibility on Unix and no Windows export annotation.
+
+  Independent compiler objects cover ELF, COFF and Mach-O, 32/64-bit targets,
+  weak/hidden imports, empty selections and MSVC's forced BigObj output.
+  Independently encoded fixtures exercise auxiliary records, extended ELF
+  section indices, byte order, duplicate names, malformed tables, every fixture
+  truncation, unchanged inputs and valid recovery. A real consumer object links
+  against the selected generated C and executes exact results and call counts;
+  unused bodies need no link target. Actual Linux and Windows Native AOT objects
+  also retain the exact imports independently reported by LLVM's symbol reader.
+  These object and standalone C checks do not establish PostgreSQL backend
+  behavior or a general managed consumer API.
+
+  All build-tool tests pass on Linux: 672 passed, zero failed and two Windows-only
+  skips in 5.627s. All 65 focused native-call/import cases pass on Windows x64
+  in 1.983s. The Release build has zero warnings and errors in 25.83s; API
+  freshness retains 170 pages/2,254 members, and the site builds 212 pages and
+  checks with zero errors, warnings or hints. Plain root `dotnet test` passes
+  all six modules against PostgreSQL 18.6 on Linux x64: 7,499 passed, zero failed
+  and two Windows-only skips in 10m 26.724s.
+
+  Contributor documentation records the internal boundary. Typed companion
+  methods, active signature/export selection, aligned call storage and SDK
+  post-ILC integration remain required, alongside compiler-specific shims,
+  callbacks, variadics, globals/hooks, remaining feature inventories and the
+  complete PostgreSQL/platform matrix. Public guides retain supported APIs.

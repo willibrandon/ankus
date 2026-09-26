@@ -691,6 +691,18 @@ Argument typedefs retain the original native qualifiers. Reads through those
 types avoid adding a second `const`, which MSVC rejects for already-qualified
 parameters; pointee qualification and volatile reads remain part of the contract.
 
+The internal import selector reads undefined generated accessor names from a
+relocatable ELF, COFF (including BigObj), or Mach-O object. It checks the object
+format, architecture and byte order against the selected headers before lowering
+the referenced functions from the complete graph. Definitions, local symbols,
+common storage and unused declarations do not select bodies. Bounded metadata
+reads reject malformed tables and selected names with invalid UTF-8.
+The emitted accessors only return body addresses; obtaining one does not enter
+PostgreSQL. Both bodies and accessors use hidden visibility on Unix and are not
+exported on Windows. Invocation still requires the native error guard.
+This selector is a build-tool prerequisite; typed managed methods and the SDK's
+post-ILC compilation/link steps are not connected to it yet.
+
 Raw calls require the active backend thread. They remain available for native
 resource release during iterator disposal, including query-abort cleanup, as
 pgrx's raw `pfree` calls do during `PgBox` destruction. The caller must satisfy

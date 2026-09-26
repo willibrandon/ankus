@@ -106,6 +106,7 @@ internal static class NativeBindingCallSource
             string resultAlias = prefix + "_result";
             if (hasResult) { WriteType(source, function.Result, result, resultAlias); }
 
+            source.AppendLine("#if !defined(_WIN32)\n__attribute__((visibility(\"hidden\")))\n#endif");
             source.AppendLine(CultureInfo.InvariantCulture,
                 $"int {prefix}(const AnkusNativeCallArgument *arguments, size_t count, void *result, size_t result_size)");
             source.AppendLine("{");
