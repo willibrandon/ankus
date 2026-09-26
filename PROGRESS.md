@@ -6001,3 +6001,56 @@ The phases track implementation of the complete pgrx feature surface.
   pointer/callback contracts, emitted alias/inheritance/legacy-value cast
   validation, checked node allocation/casts/formatting, backend node ownership
   tests, complete raw FFI and the full PostgreSQL/platform inventory remain open.
+
+- 2026-09-25 — Repair selected-header integer typedef widths and native field
+  names. The Windows job for `a43c448` in
+  [CI 36200868194](https://github.com/willibrandon/ankus/actions/runs/36200868194)
+  exposed a Linux bindgen typedef assumption: `uint64` resolves to `c_ulong`
+  in the pinned declarations, but Windows uses eight-byte storage while C
+  `unsigned long` is four bytes. Managed emission now uses each selected-header
+  field's measured width for these signed/unsigned integer representations.
+  Nested array elements retain their measured extents instead of inheriting
+  the build target's `long` width. Unsupported representations still fail.
+
+  `CompiledTargetSizedAliasesPreserveNativeWidths` compiles independent C
+  declarations and emitted C# with both 32-bit and 64-bit signed/unsigned
+  typedefs, then checks negative boundaries, high bits, fixed arrays and nested
+  strides. `CompiledNodesPreserveCastInheritanceAndAliases` executes root,
+  parent and descendant views, alias tags, unrelated/invalid tag rejection,
+  shared addresses and payload mutation. `CompiledValueTagsPreserveVersionedUnionRules`
+  checks all five legacy Value tags and later tagged union members for the
+  PostgreSQL 13–19 declaration rules, retaining integer and pointer payloads
+  while rejecting downcasts to an untagged union. These independent declaration
+  fixtures do not establish live-server coverage for all those versions.
+
+  The legacy fixture caught bindgen's escaped `str_` field being used as a C
+  member name. The parser now restores `str`, as declared in PostgreSQL 13/14
+  `Value.val`; all seven catalogs were regenerated from the pinned read-only
+  pgrx commit. The narrow build-tool suite passes 122 tests with zero failures
+  or skips in 2.681s. The initial full suite passes all 6,833 tests with zero
+  failures/skips in 446.144s on Linux x64/PostgreSQL 18.6.
+
+  The same hosted run passes all 6,824 Linux tests but exposes a separate macOS
+  companion-reproducibility failure. A local reproduction through symbolic-link
+  directories produces different DLL hashes from identical declarations:
+  the compiler's physical source paths escaped the logical project path map.
+  Generated projects now map both physical and logical directories to the same
+  stable compiler path, with compiler/MSBuild/XML escaping. The independent
+  reproduction now produces byte-identical DLLs with zero warnings/errors.
+  The installed SDK's shared-type test also links its companion intermediate
+  directories on Unix, retaining its exact DLL, clean/rebuild, custom-output
+  and Native AOT assertions on every platform. Parent project roots are
+  canonical: a separate reproduction with ordinary Microsoft.NET.Sdk projects
+  exposed an upstream dependency-manifest omission when project references mix
+  physical and symbolic paths. The complete installed-SDK regression passes in
+  131.349s. The final narrow suite passes 122 tests with zero failures/skips in
+  2.742s. Final plain `dotnet test` passes all 6,833 tests with zero failures/skips
+  in 438.205s on Linux x64/PostgreSQL 18.6. The non-incremental Release build
+  passes with zero warnings/errors in 20.48s. All seven native catalogs are
+  current against the pinned pgrx declarations; API freshness passes for 168
+  pages/2,245 members. The documentation check reports zero errors/warnings/hints,
+  and the site build produces 210 pages. Repaired hosted verification remains pending.
+  No diagnostic modes, severities, suppressions, skips or timeouts changed.
+  Checked node ownership/casts/formatting, typed
+  pointer/callback contracts, complete raw FFI and the remaining platform and
+  PostgreSQL version inventory are still open.

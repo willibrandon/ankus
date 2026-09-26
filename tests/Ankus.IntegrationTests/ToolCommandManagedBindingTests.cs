@@ -15,11 +15,13 @@ public sealed partial class ToolCommandTests
     public async Task SdkSharesNativeTypesAcrossProjectsAndPublishesThem()
     {
         CancellationToken token = context.CancellationToken;
-        string root = CreateDirectory();
+        string root = CreateBindingDirectory();
         string provider = Path.Combine(root, "provider");
         string consumer = Path.Combine(root, "consumer");
         Directory.CreateDirectory(provider);
         Directory.CreateDirectory(consumer);
+        LinkBindingIntermediates(provider);
+        LinkBindingIntermediates(consumer);
         string providerProject = Path.Combine(provider, "BindingProvider.csproj");
         string consumerProject = Path.Combine(consumer, "BindingConsumer.csproj");
         File.Copy(s_project, providerProject);
@@ -152,5 +154,27 @@ public sealed partial class ToolCommandTests
         Assert.Contains($"requested runtime is {otherRuntime}", result.StandardError);
         Assert.IsFalse(File.Exists(Path.Combine(output, "native-binding.g.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(output, "Ankus.NativeBindings.csproj")));
+    }
+
+    private static string CreateBindingDirectory()
+        => PhysicalBindingDirectory(new DirectoryInfo(CreateDirectory()));
+
+    private static string PhysicalBindingDirectory(DirectoryInfo directory)
+    {
+        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
+        return resolved.Parent is DirectoryInfo parent
+            ? Path.Combine(PhysicalBindingDirectory(parent), resolved.Name)
+            : resolved.FullName;
+    }
+
+    private static void LinkBindingIntermediates(string project)
+    {
+        if (OperatingSystem.IsWindows()) { return; }
+
+        string intermediate = Path.Combine(project, "obj", "Release", "net10.0", RuntimeInformation.RuntimeIdentifier);
+        string physical = Path.Combine(intermediate, "physical bindings");
+        Directory.CreateDirectory(physical);
+        string linked = Path.Combine(intermediate, "ankus-bindings");
+        Directory.CreateSymbolicLink(linked, physical);
     }
 }

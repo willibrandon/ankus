@@ -10317,7 +10317,7 @@
       "Fields": [
         {
           "Name": "str_",
-          "NativeName": "str_",
+          "NativeName": "str",
           "Representation": "StringInfo"
         },
         {
@@ -41856,7 +41856,7 @@
         },
         {
           "Name": "str_",
-          "NativeName": "str_",
+          "NativeName": "str",
           "Representation": "*mut ::core::ffi::c_char"
         }
       ],
@@ -45389,7 +45389,7 @@
         },
         {
           "Name": "str_",
-          "NativeName": "str_",
+          "NativeName": "str",
           "Representation": "*mut ::core::ffi::c_char"
         },
         {

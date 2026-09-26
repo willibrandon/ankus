@@ -271,7 +271,7 @@ internal static partial class NativeBindingParser
     }
 
     private static string NativeIdentifier(string name)
-        => name.EndsWith('_') && RustKeyword().IsMatch(name[..^1]) ? name[..^1] : name;
+        => name.EndsWith('_') && RustReservedName().IsMatch(name[..^1]) ? name[..^1] : name;
 
     [GeneratedRegex(@"(?m)^pub enum NodeTag\s*\{")]
     private static partial Regex TagDeclaration();
@@ -300,6 +300,6 @@ internal static partial class NativeBindingParser
     [GeneratedRegex(@"^(?:::)?\w+(?:::\w+)*$")]
     private static partial Regex DirectTypePattern();
 
-    [GeneratedRegex(@"^(?:as|break|const|continue|crate|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|true|type|unsafe|use|where|while|async|await|dyn|abstract|become|box|do|final|macro|override|priv|typeof|unsized|virtual|yield|try|gen)$")]
-    private static partial Regex RustKeyword();
+    [GeneratedRegex(@"^(?:as|break|const|continue|crate|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|true|type|unsafe|use|where|while|async|await|dyn|abstract|become|box|do|final|macro|override|priv|typeof|unsized|virtual|yield|try|gen|str)$")]
+    private static partial Regex RustReservedName();
 }

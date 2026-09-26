@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Security;
+using System.Text;
+
 namespace Ankus.Build;
 
 /// <summary>
@@ -31,7 +35,7 @@ internal static class NativeBindingSourceCommand
             <Version>1.0.0</Version>
             <AssemblyVersion>1.0.0.0</AssemblyVersion>
             <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-            <PathMap>$(MSBuildProjectDirectory)=/_/Ankus.Postgres</PathMap>
+            <PathMap>__ANKUS_PATH_MAP__</PathMap>
           </PropertyGroup>
           <ItemGroup>
             <Compile Include="native-binding.g.cs" />
@@ -58,8 +62,38 @@ internal static class NativeBindingSourceCommand
         await WriteIfChangedAsync(Path.Combine(output, "native-binding.g.cs"), binding.Source, cancellationToken);
         await WriteIfChangedAsync(Path.Combine(output, "native-binding.assembly-name"), binding.AssemblyName + "\n", cancellationToken);
         await WriteIfChangedAsync(Path.Combine(output, "native-binding.identity"), binding.AbiIdentity + "\n", cancellationToken);
-        await WriteIfChangedAsync(Path.Combine(output, "Ankus.NativeBindings.csproj"), Project.ReplaceLineEndings("\n") + "\n", cancellationToken);
+        string pathMap = string.Join(',', new[] { output, PhysicalDirectory(new DirectoryInfo(output)) }
+            .Distinct(StringComparer.Ordinal).Select(static path => path.Replace(",", ",,", StringComparison.Ordinal)
+                .Replace("=", "==", StringComparison.Ordinal) + "=/_/Ankus.Postgres"));
+        string project = Project.Replace("__ANKUS_PATH_MAP__", SecurityElement.Escape(EscapeProperty(pathMap)), StringComparison.Ordinal);
+        await WriteIfChangedAsync(Path.Combine(output, "Ankus.NativeBindings.csproj"), project.ReplaceLineEndings("\n") + "\n", cancellationToken);
         Console.WriteLine($"Managed bindings: {binding.AssemblyName}");
+    }
+
+    private static string PhysicalDirectory(DirectoryInfo directory)
+    {
+        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
+        return resolved.Parent is DirectoryInfo parent
+            ? Path.Combine(PhysicalDirectory(parent), resolved.Name)
+            : resolved.FullName;
+    }
+
+    private static string EscapeProperty(string value)
+    {
+        var escaped = new StringBuilder();
+        foreach (char character in value)
+        {
+            if (character is '%' or '$' or '@' or ';' or '\'' or '(' or ')' or '*' or '?')
+            {
+                escaped.Append('%').Append(((int)character).ToString("X2", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                escaped.Append(character);
+            }
+        }
+
+        return escaped.ToString();
     }
 
     private static async Task WriteIfChangedAsync(string path, string value, CancellationToken cancellationToken)

@@ -166,7 +166,7 @@ internal static class NativeBindingCSharp
                     throw new FormatException($"The nested native array requires additional measured strides: {representation}.");
                 }
 
-                Value item = Map(element, elementSize ?? NaturalSize(element), null);
+                Value item = Map(element, elementSize ?? ArrayElementSize(resolved, size), null);
                 if (size == 0 || size % item.Size != 0) { throw new FormatException($"Invalid native array extent for {representation}."); }
 
                 int count = size / item.Size;
@@ -194,7 +194,7 @@ internal static class NativeBindingCSharp
             }
             else
             {
-                value = resolved == "NodeTag" ? new("NodeTag", 4) : Scalar(resolved);
+                value = resolved == "NodeTag" ? new("NodeTag", 4) : Scalar(resolved, size);
             }
 
             if (value.Size != size) { throw new FormatException($"Managed representation of {representation} has {value.Size} bytes; native field has {size}."); }
@@ -202,17 +202,17 @@ internal static class NativeBindingCSharp
             return value;
         }
 
-        private int NaturalSize(string representation)
+        private static int ArrayElementSize(string representation, int size)
         {
-            string resolved = NativeBindingSelection.ResolveAlias(catalog, representation);
-            if (layout.Types.TryGetValue(resolved, out NativeBindingTypeLayout? native)) { return native.Size; }
+            string extent = representation[(representation.LastIndexOf(';') + 1)..^1].Trim();
+            if (extent.EndsWith("usize", StringComparison.Ordinal)) { extent = extent[..^5]; }
 
-            if (resolved.EndsWith("::Type", StringComparison.Ordinal) && catalog.Enums.TryGetValue(resolved[..^6], out NativeBindingEnum? enumeration))
+            if (!int.TryParse(extent, NumberStyles.None, CultureInfo.InvariantCulture, out int count) || count <= 0 || size % count != 0)
             {
-                return EnumStorage(resolved[..^6]).Size;
+                throw new FormatException($"Invalid native array extent for {representation}.");
             }
 
-            return resolved == "NodeTag" ? 4 : Scalar(resolved).Size;
+            return size / count;
         }
 
         private Value EnumStorage(string name)
@@ -229,7 +229,7 @@ internal static class NativeBindingCSharp
             return new(code, native.Size);
         }
 
-        private Value Scalar(string representation)
+        private Value Scalar(string representation, int measuredSize)
         {
             string resolved = NativeBindingSelection.ResolveAlias(catalog, representation);
             if (resolved.StartsWith("*mut ", StringComparison.Ordinal) || resolved.StartsWith("*const ", StringComparison.Ordinal) ||
@@ -250,8 +250,10 @@ internal static class NativeBindingCSharp
                 "u32" or "::core::ffi::c_uint" or "Oid" or "TransactionId" or "MultiXactId" => new("uint", 4),
                 "i64" or "::core::ffi::c_longlong" => new("long", 8),
                 "u64" or "::core::ffi::c_ulonglong" => new("ulong", 8),
-                "::core::ffi::c_long" => new(layout.LongSize == 8 ? "long" : "int", layout.LongSize),
-                "::core::ffi::c_ulong" => new(layout.LongSize == 8 ? "ulong" : "uint", layout.LongSize),
+                // Bindgen typedefs use their source target's primitive, e.g. uint64 becomes c_ulong
+                // on Linux but unsigned long long on Windows. The selected field supplies its width.
+                "::core::ffi::c_long" when measuredSize is 4 or 8 => new(measuredSize == 8 ? "long" : "int", measuredSize),
+                "::core::ffi::c_ulong" when measuredSize is 4 or 8 => new(measuredSize == 8 ? "ulong" : "uint", measuredSize),
                 "isize" => new("nint", layout.PointerSize),
                 "usize" or "Datum" => new("nuint", layout.PointerSize),
                 "f32" or "::core::ffi::c_float" => new("float", 4),
