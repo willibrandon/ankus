@@ -703,6 +703,14 @@ pointers, array extents, tag kind/completeness, qualifiers and function prototyp
 and calling conventions. Equal sizes alone cannot establish type compatibility.
 The comparison preserves C parameter adjustment and compiler Boolean spelling;
 anonymous typedefs must refer consistently to the same measured declaration.
+Nested `typeof` and `typeof_unqual` use the compiler's resolved type rather than
+evaluating an operand. The structured header catalog retains written typedefs;
+libclang represents a `typeof` wrapper through its canonical type. Their comparison
+uses that exact resolved contract at the wrapper boundary, preserving written
+parameter qualifiers, pointee qualifiers, record identity and function shape.
+Removing top-level qualifiers with `typeof_unqual` does not remove pointee
+qualification. The native compiler and executable checks still verify the
+reconstructed declarations and physical representation.
 These signature checks are supplemented by the separate `binding-record-checks`
 build-tool command. Given a collected `native-records.json`, it reconstructs the
 complete type graph against the selected PostgreSQL headers, checks every named

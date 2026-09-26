@@ -7427,3 +7427,65 @@ The phases track implementation of the complete pgrx feature surface.
   shims, callback/lifetime APIs, variadics, globals/hooks, complete feature
   inventories and the PostgreSQL 13–19/platform matrix also remain unfinished.
   General raw bindings are not yet advertised as a supported consumer API.
+
+- 2026-09-26 — Preserved nested native `typeof` contracts while preparing the
+  combined node/function companion. Structured Clang type collection now follows
+  both expression and type operands to their compiler-resolved types, retaining
+  typedefs, qualifiers, array shape and function prototypes. `typeof_unqual`
+  removes top-level qualification while preserving pointee qualification.
+
+  The libclang reader recognizes the original wrapper spelling: asking for an
+  unqualified type first can desugar a qualified operand and hide the wrapper.
+  Signature comparison reconciles libclang's canonical `typeof` resolution with
+  the structured AST's written typedefs at that boundary. Written parameter
+  qualification remains checked; canonical prototype adjustment cannot silently
+  accept a lost `const`. No diagnostic or analyzer enforcement was relaxed.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Nested type/expression operands preserve aliases, top-level versus pointee qualification, arrays and prototypes | `HeaderTypesPreserveTypeofSemantics`; generated checks compile and execute with Clang and MSVC, and a changed native qualifier fails compilation |
+  | Same-size but incompatible qualifiers, scalars, records, arrays and callbacks reject | Nine compiler-produced pairs in `TypeofSignaturesRejectChangedContracts`; original contracts validate after rejection |
+  | Written parameter qualification survives canonical comparison | `TypeofParametersRetainWrittenQualification` rejects removal of the observed qualifier |
+  | Generated C#/C calls preserve exact aggregate bytes without evaluating type operands | `ManagedCallsPreserveTypeofArguments` checks high-bit values and unchanged input through real native execution; the referenced type operand remains an undefined extern |
+
+  Research collection now combines every available raw inventory root with every
+  required node root in one actual compiler graph. Complete native compiler and
+  executable record checks pass on PostgreSQL 18.6/Linux x64 (9,724 roots and
+  1,335 declarations) and PostgreSQL 17.7/Windows x64 (9,340 roots and 1,284
+  declarations). Managed projection of those observations compiles without
+  warnings or errors, retaining 8,629 and 8,289 fixed methods respectively.
+  Actual top-level header discovery independently reproduces both existing raw
+  selections: all 9,224 inventory entries on Linux, and 8,848 available entries
+  plus 37 explicitly absent entries on the installed Windows headers. These are
+  compiler observations, not new backend/platform parity claims.
+
+  The isolated full managed projection is approximately 19 MB and took 15–25s
+  to compile locally with warm NuGet/compiler caches. This is not a cold-machine
+  or hosted CI baseline. Shared, content-verified compiled artifacts and measured
+  invalidation/concurrency behavior remain necessary before expanding every SDK
+  consumer's companion. Research scripts and staging stay outside tracked source;
+  owned large ASTs are removed after observation and verification.
+
+  This milestone adds 12 test cases. All 99 focused native call/typeof cases pass
+  on Windows x64 with .NET 10.0.12 in 9.539s. Final Release passes with zero
+  warnings/errors in 13.86s. API freshness retains 170 pages/2,254 members; the
+  site builds 212 pages in 3.30s and checks with zero errors, warnings or hints.
+  Plain root `dotnet test` passes all six modules against PostgreSQL 18.6/Linux
+  x64: 7,611 passed, zero failed and two existing Windows-only skips in
+  10m 13.963s, including the published Native AOT/backend paths in the suite.
+
+  The pre-commit CI audit confirms `a2e0ab1` CI run 36266240042 and documentation
+  run 36266240028 succeeded while development continued. All quality/runtime
+  jobs passed. Complete backend platform jobs passed on PostgreSQL 18.6/Linux
+  x64 (7,599 passed, zero failed, two existing Windows-only skips; 18m56s),
+  PostgreSQL 18.6/macOS ARM64 (7,597 passed, zero failed, four existing platform
+  skips; 20m00s), and PostgreSQL 17.11/Windows x64 (7,599 passed, zero failed,
+  two existing platform skips; 33m16s). Timeouts remain Linux 30, macOS 25 and
+  Windows 40 minutes; no job exceeds the user's hard 40-minute limit.
+
+  Contributor documentation describes the compiler boundary. Production combined
+  collection, explicit target availability, verified artifact sharing, SDK
+  post-ILC native compilation/linking and typed calls under the real PostgreSQL
+  guard remain open. The complete feature inventory, compiler shims, callbacks,
+  variadics, globals/hooks and PostgreSQL 13–19/platform matrix remain required;
+  this prerequisite does not close the full raw-binding or faithful-port scope.

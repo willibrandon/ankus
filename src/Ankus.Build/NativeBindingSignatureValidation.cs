@@ -63,7 +63,16 @@ internal static class NativeBindingSignatureValidation
                     continue;
                 }
 
-                if (type.Kind is "elaborated" or "attributed" or "typeof")
+                if (type.Kind == "typeof")
+                {
+                    // libclang exposes only the canonical resolution of typeof. The JSON AST
+                    // retains written typedefs, so compare their exact resolved native contract here.
+                    Compare(header, type.Element!.Value, path, canonical: true, parameter: false, depth,
+                        headerQualifiers, graphQualifiers | type.Qualifiers);
+                    return;
+                }
+
+                if (type.Kind is "elaborated" or "attributed")
                 {
                     graphQualifiers |= type.Qualifiers;
                     type = graph.Types[type.Element!.Value];

@@ -203,8 +203,14 @@ internal static class NativeBindingHeaderParser
                     return new NativeHeaderAlias(alias, ReadType(inner[0], depth + 1));
                 case "ElaboratedType":
                 case "ParenType":
+                case "TypeOfType":
                     RequireChildren(inner, 1);
                     return ReadType(inner[0], depth + 1);
+                case "TypeOfExprType":
+                    RequireChildren(inner, 2);
+                    // The compiler supplies the unevaluated expression followed by its resolved type.
+                    // That type also reflects typeof_unqual's removal of top-level qualifiers.
+                    return ReadType(inner[1], depth + 1);
                 case "QualType":
                     RequireChildren(inner, 1);
                     NativeHeaderQualifiers qualifiers = ReadQualifiers(Text(node, "qualifiers"));

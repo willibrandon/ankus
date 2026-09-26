@@ -95,9 +95,7 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         string? source = null;
         switch (type.Kind)
         {
-            case 1 when library.PrintType(library.Transform(type, "clang_getUnqualifiedType"), root) is string unqualified &&
-                (unqualified.StartsWith("typeof(", StringComparison.Ordinal) || unqualified.StartsWith("typeof (", StringComparison.Ordinal) ||
-                    unqualified.StartsWith("__typeof__(", StringComparison.Ordinal) || unqualified.StartsWith("__typeof__ (", StringComparison.Ordinal)):
+            case 1 when IsTypeOf(spelling):
                 if (canonical == TypeId(type)) { throw new FormatException("A native typeof expression has no resolved canonical type."); }
 
                 kind = "typeof";
@@ -196,6 +194,26 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         long? size = nonObject ? null : Layout(type, "clang_Type_getSizeOf");
         long? alignment = nonObject ? null : Layout(type, "clang_Type_getAlignOf");
         return new(kind, canonical, spelling, qualifiers, size, alignment, name, element, declaration, count, function, source);
+    }
+
+    /// <summary>
+    /// Recognizes an unexposed typeof wrapper without stripping qualifiers through its resolved type.
+    /// </summary>
+    private static bool IsTypeOf(string spelling)
+    {
+        // clang_getUnqualifiedType can desugar typeof when its operand carries a qualifier.
+        // Inspect the original spelling instead; canonical type data still supplies its representation.
+        ReadOnlySpan<char> remaining = spelling.AsSpan();
+        while (true)
+        {
+            int end = remaining.IndexOf(' ');
+            if (end < 0 || remaining[..end] is not ("const" or "volatile" or "restrict")) { break; }
+
+            remaining = remaining[(end + 1)..].TrimStart();
+        }
+
+        int opening = remaining.IndexOf('(');
+        return opening >= 0 && remaining[..opening].TrimEnd() is "typeof" or "__typeof__" or "typeof_unqual" or "__typeof_unqual__";
     }
 
     private NativeRecordDeclaration ReadDeclaration(NativeClangCursor cursor, NativeClangType type)
