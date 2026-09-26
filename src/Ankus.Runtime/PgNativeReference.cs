@@ -168,6 +168,24 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
             : new PgNativeReference<TTarget>(_provider, _context, _generation, _address, available);
     }
 
+    /// <summary>
+    /// Retains the original storage identity and lifetime in a checked native node operation.
+    /// </summary>
+    /// <returns>The allocation range or original raw address, extent and reset generation.</returns>
+    internal NativeMemoryRequest CreateNodeRequest()
+    {
+        if (_allocation is not null)
+        {
+            return _allocation.CreateReferenceRequest(_offset, (nuint)sizeof(T));
+        }
+
+        InvokeRaw(NativeMemoryOperation.ReadReference, 0, 0);
+        return new NativeMemoryRequest
+        {
+            _context = _context, _other = _generation, _pointer = _address, _length = _availableLength,
+        };
+    }
+
     private void ReadBytes(Span<byte> destination)
     {
         if (_allocation is not null)

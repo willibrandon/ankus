@@ -5,7 +5,7 @@ namespace Ankus.TestExtension;
 /// <summary>
 /// Exercises generated native node casts and their original PostgreSQL storage lifetimes.
 /// </summary>
-public static unsafe class NodeFunctions
+public static unsafe partial class NodeFunctions
 {
     /// <summary>
     /// Repeats pgrx's RangeTblRef roundtrip over owned or explicitly bounded raw native storage.

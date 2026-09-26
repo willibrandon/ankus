@@ -263,6 +263,10 @@ internal enum NativeMemoryOperation
     /// Validates a generated native binding against the active extension's selected-header ABI.
     /// </summary>
     NativeBinding = 32,
+    /// <summary>
+    /// Formats a complete native node through its original checked allocation or raw lifetime anchor.
+    /// </summary>
+    FormatNode = 33,
 }
 
 /// <summary>

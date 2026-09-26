@@ -2668,7 +2668,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
-| `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations and checked tag/cast views with ABI, bounds and original-lifetime validation; node-specific allocation, native formatting, planner/executor integration and the full version/platform matrix remain required |
+| `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
@@ -6157,3 +6157,62 @@ The phases track implementation of the complete pgrx feature surface.
   executor integration, complete raw FFI and the full PostgreSQL/platform matrix
   remain required. Analyzer modes and severities are unchanged, with no added
   suppressions or production friend assemblies.
+
+- 2026-09-25 — Checked node views in `b510a08` pass all seven jobs in
+  [CI 36210282542](https://github.com/willibrandon/ankus/actions/runs/36210282542)
+  and the separate documentation deployment. Linux x64/Ubuntu 24.04/PostgreSQL
+  18.6 passes 6,876 tests with zero failures/skips in a 17m 29s job. macOS
+  ARM64/macOS 15/PostgreSQL 18.6 passes 6,874 tests with no failures and the two
+  existing Linux-only memory-measurement skips in 16m 30s. Windows x64/Windows
+  Server 2025/PostgreSQL 17.11 passes 6,874 tests with no failures and those
+  same two skips in 26m 58s. Quality and all runtime preparation jobs pass.
+  The existing Linux 20/macOS 25/Windows 30-minute limits remain sufficient.
+
+- 2026-09-25 — Added zeroed tagged node allocation and guarded native formatting.
+  `PgNodes.DangerousAllocate<T>` uses the measured representation's alignment,
+  zeroes its complete storage and writes the exact caller tag without invoking a
+  constructor. Existing boxes retain individual ownership or transfer release
+  rights to their context. As in pgrx's unsafe `alloc_node`, callers choose the
+  correct complete representation and initialize required fields; inheritance
+  acceptance alone does not prove that a base node can store a descendant.
+
+  `PgNodeReference<T>.DangerousToNativeString()` calls PostgreSQL's `nodeToString`
+  below the native memory error guard. Generated companions retain concrete
+  tag sizes/alignments, including typedefs, list-family aliases and PostgreSQL
+  13/14's shared Value representation, in their content identity. The formatter
+  revalidates allocation identity/offset/current extent or the original raw
+  address/extent/reset generation. It checks the actual concrete root layout
+  before traversal, protects its context during formatting and deletes the
+  temporary formatting context on success and error. Its Unicode result owns
+  an allocator-matched copy independently of the node's lifetime. The caller
+  still guarantees valid, unchanged pointer members and variable-length tails
+  throughout traversal, including reentrant callbacks. Unknown tags retain
+  PostgreSQL's WARNING and fallback output.
+
+  Focused verification passes six concrete-layout cases, 15 generator cases,
+  32 runtime node cases and 24 real PostgreSQL node cases, with no failures or
+  skips. Backend execution uses Linux x64/PostgreSQL 18.6 and takes 66.101s.
+  UTF8 and LATIN1 databases preserve native escaping and distinguish null from
+  empty names. Repeated valid-address cycles raise native stack-depth errors;
+  each leaves no retained formatting context and permits a successful nested
+  traversal in the same backend. Final plain `dotnet test` passes all 6,918
+  cases with zero failures/skips in 413.287s on Linux x64/PostgreSQL 18.6.
+  The non-incremental Release build reports zero warnings/errors in 40.60s.
+  The regenerated API reference is current at 170 pages/2,254 members; the site
+  builds 212 pages and its check reports zero errors/warnings/hints. Hosted
+  validation of this allocation/formatting milestone remains pending.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Measured concrete layouts, typedef/list aliases and legacy Value | `ConcreteNodeLayoutsPreserveAliasesAndListFamilies`, `ConcreteValueLayoutsRespectSelectedMajor`, `NativeNodeCapabilityRejectsMalformedLayoutMetadata` |
+  | Zeroed allocation, exact caller tag, ABI ordering and ownership | `NodeAllocationPreservesZeroPolicyTagAndOwnership`, `NodeAllocationValidatesBeforeAllocating`, `NodeAllocationFailurePreservesCleanupErrors`, `NodeAllocationZeroesPayloadAndFormattedTextOutlivesOwner` |
+  | Original offset/extent/generation and concrete root bounds/alignment | `NodeFormattingRetainsAllocationOffsetAndCurrentExtent`, `NativeNodeFormattingPreservesInteriorStorage`, `NativeNodeFormattingRejectsIncompleteRootsAndRecovers`, `NativeNodeFormattingRejectsMisalignedConcreteRoot`, `NativeNodeFormattingRetainsRawAnchorGeneration` |
+  | Exact native output, list families, nested pointers, warnings and encoding | `NativeNodeFormattingUsesIntegerListLayout`, `NativeNodeFormattingTraversesNestedValues`, `NativeNodeFormattingPreservesUnknownTagWarning`, `NativeNodeFormattingConvertsServerEncoding` |
+  | Output release, native ERROR containment and same-session cleanup/recovery | `NodeFormattingRetainsRawGenerationAndReleasesOutput`, `NativeNodeFormattingRecoversFromRecursiveErrorWithoutRetainingContexts` |
+
+  This is not full node or pgrx parity. Planner/executor integration, complete
+  raw FFI and callback surfaces, further native ownership/error boundaries and
+  the full PostgreSQL-major/platform matrix remain required. README and the
+  public raw-value guide now describe allocation, explicit formatting and the
+  caller's graph lifetime obligations. Analyzer modes, warnings, suppressions,
+  production assembly boundaries and CI timeouts are unchanged.

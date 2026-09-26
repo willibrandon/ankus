@@ -238,7 +238,9 @@ The SDK generates `Ankus.Postgres` node declarations from the selected server
 headers, preserving native fields, enums, unions and arrays. Projects using the
 same measured contract share their native type identity. `PgNodes.Borrow` adds
 checked views over native storage, with tag-based casts that retain the original
-bounds and lifetime. Node-specific allocation and native formatting remain in progress.
+bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
+`DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
+boundary and returns owned text.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed

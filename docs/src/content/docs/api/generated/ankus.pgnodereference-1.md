@@ -29,6 +29,25 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Methods
 
+<a id="member-16d3e72af702e88c"></a>
+
+### DangerousToNativeString()
+
+Copies PostgreSQL's native nodeToString output into an independently owned managed string.
+
+```csharp
+public string DangerousToNativeString()
+```
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The exact native representation converted from the server encoding to Unicode.
+
+The root's ABI, concrete tag bounds, alignment and lifetime are checked. The caller must
+guarantee that all pointer members and variable-length tails form a valid native graph and
+remain alive and unchanged throughout native formatting, including reentrant callbacks.
+PostgreSQL errors return through the guarded boundary after native temporary storage is reclaimed.
+
 <a id="member-48a3b76bcf9311a1"></a>
 
 ### IsA(uint)

@@ -60,8 +60,44 @@ base-node address whose complete object is larger, pass the explicitly proven
 extent to `context.DangerousBorrow<Node>(address, byteLength)`.
 
 These checks do not establish that native pointer members form valid objects.
-Keep their storage and external resources alive for every use. Node-specific
-zeroed allocation and native formatting are still being implemented.
+Keep their storage and external resources alive for every use.
+
+To follow PostgreSQL's zeroed-node allocation pattern:
+
+```csharp
+using PgNativeBox<RangeTblRef> storage = PgNodes.DangerousAllocate<RangeTblRef>(
+    (uint)NodeTag.T_RangeTblRef, owner);
+RangeTblRef value = storage.Value; // The payload and padding start at zero.
+value.rtindex = 9;
+storage.Value = value;
+PgNodeReference<Node> root = PgNodes.Borrow(storage.Borrow()).TryCast<Node>()!;
+string description = root.DangerousToNativeString();
+// {RANGETBLREF :rtindex 9}
+```
+
+The allocation uses the generated representation's complete measured size and
+alignment, writes the supplied tag, and runs no C# constructor. The caller must
+choose the correct tag and initialize fields required by subsequent native
+operations. A base `Node` or `Expr` accepting a descendant's tag is not large
+enough to allocate that descendant. Omit `owner` to use the current context.
+Dispose the box to free the allocation, or call `ReleaseToContext()` to transfer
+individual release rights to its context; the normal allocator restrictions apply.
+
+`DangerousToNativeString()` calls PostgreSQL's `nodeToString`. It checks the
+root's actual tag size and alignment against the original extent, including
+after an upcast or allocation resize. The caller guarantees valid pointer
+members and variable-length tails throughout traversal, including any reentrant
+native callbacks. Keep that graph alive and unchanged until formatting returns.
+Root checks cannot prove those pointer and graph contracts.
+
+The returned string owns its text independently of the node's lifetime. Ankus
+converts the server encoding to Unicode and releases native formatting buffers
+on success and error. PostgreSQL errors return through the native guard before
+becoming managed exceptions. Unknown tags retain PostgreSQL's warning and
+fallback output. Formatting is explicit because it accesses a live backend and
+traverses native pointers; ordinary debugger display does not perform that work.
+Planner/executor integration, broader raw bindings and complete version/platform
+validation remain in progress.
 
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation

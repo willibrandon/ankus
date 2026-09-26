@@ -7,7 +7,7 @@ namespace Ankus.Runtime.Tests;
 /// Checks node view ABI validation, exact tag decisions and failure ordering before raw storage access.
 /// </summary>
 [TestClass]
-public sealed unsafe class NodeReferenceTests
+public sealed unsafe partial class NodeReferenceTests
 {
     private const string ExpectedIdentity = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -94,6 +94,7 @@ public sealed unsafe class NodeReferenceTests
     [DataRow(3)]
     [DataRow(4)]
     [DataRow(5)]
+    [DataRow(6)]
     public void RetainedNodeViewsRevalidateAbiBeforeEveryAccess(int operation)
     {
         using var contract = new Contract();
@@ -114,6 +115,7 @@ public sealed unsafe class NodeReferenceTests
             3 => () => { _ = node.LifetimeContext; },
             4 => () => { _ = node.TryCast<NodeHeader>(); },
             5 => () => { _ = node.DangerousGetPointer(); },
+            6 => () => { _ = node.DangerousToNativeString(); },
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
         PgException error = Assert.ThrowsExactly<PgException>(access);

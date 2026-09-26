@@ -6,6 +6,43 @@ namespace Ankus;
 public static class PgNodes
 {
     /// <summary>
+    /// Allocates a zeroed native node and writes its caller-supplied tag without invoking a constructor.
+    /// </summary>
+    /// <typeparam name="T">The complete generated native representation.</typeparam>
+    /// <param name="tag">The exact tag appropriate for this complete representation.</param>
+    /// <param name="context">The allocation owner, or null for the current context.</param>
+    /// <returns>An individually owned box, which can transfer ownership to its context.</returns>
+    /// <remarks>
+    /// The caller must choose a tag whose complete native representation fits T and initialize all
+    /// fields required by subsequent native operations. A base node's accepted cast tags do not
+    /// make it large enough to allocate its descendants. Pointer fields retain native lifetime obligations.
+    /// Native allocator restrictions apply to individual disposal and ownership transfer.
+    /// </remarks>
+    public static PgNativeBox<T> DangerousAllocate<T>(uint tag, PgMemoryContext? context = null) where T : unmanaged, IPgNativeNode
+    {
+        nuint alignment = NativeNode.Validate<T>();
+        PgAllocation allocation = (context ?? PgMemoryContext.Current).AllocateZeroed<T>(alignment: alignment);
+        try
+        {
+            allocation.Write(tag);
+            return new PgNativeBox<T>(allocation);
+        }
+        catch (Exception primary)
+        {
+            try
+            {
+                allocation.Dispose();
+            }
+            catch (Exception cleanup)
+            {
+                throw new AggregateException("Initializing a PostgreSQL node and releasing its allocation failed.", primary, cleanup);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Borrows a node view while retaining the reference's original storage bounds and lifetime anchor.
     /// </summary>
     /// <typeparam name="T">The generated native node representation.</typeparam>

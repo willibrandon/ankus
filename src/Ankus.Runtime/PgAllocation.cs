@@ -292,6 +292,18 @@ public sealed unsafe class PgAllocation : IDisposable
         Invoke(ref request);
     }
 
+    /// <summary>
+    /// Projects a current checked allocation range into a native operation without caching its address.
+    /// </summary>
+    /// <param name="offset">The first view byte.</param>
+    /// <param name="length">The complete source view size.</param>
+    /// <returns>The allocation identity, offset and currently accessible extent.</returns>
+    internal NativeMemoryRequest CreateReferenceRequest(nuint offset, nuint length)
+    {
+        ValidateAccess(offset, length);
+        return new NativeMemoryRequest { _context = _id, _value = (nint)offset, _length = _length - offset };
+    }
+
     private void EnsureLive()
     {
         ObjectDisposedException.ThrowIf(_id == 0, nameof(PgAllocation));

@@ -46,6 +46,10 @@ internal static class NativeBindingCSharp
             source.AppendLine("    /// </summary>");
             source.AppendLine(CultureInfo.InvariantCulture, $"    public const string RuntimeIdentifier = \"{layout.RuntimeIdentifier}\";");
             source.AppendLine("    /// <summary>");
+            source.AppendLine("    /// Encodes measured concrete node tag sizes and alignments for the native boundary.");
+            source.AppendLine("    /// </summary>");
+            source.AppendLine(CultureInfo.InvariantCulture, $"    public const string NodeLayouts = \"{NativeBindingNodeLayouts.Encode(catalog, layout)}\";");
+            source.AppendLine("    /// <summary>");
             source.AppendLine("    /// Rejects host primitive representations incompatible with these measured declarations.");
             source.AppendLine("    /// </summary>");
             source.AppendLine("    [global::System.Runtime.CompilerServices.ModuleInitializer]");

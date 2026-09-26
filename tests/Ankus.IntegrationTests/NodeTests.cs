@@ -7,7 +7,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The test's cancellation context.</param>
 [TestClass]
-public sealed class NodeTests(TestContext context)
+public sealed partial class NodeTests(TestContext context)
 {
     /// <summary>
     /// pgrx's RangeTblRef roundtrip preserves the original address, tag, index and shared mutation.

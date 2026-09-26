@@ -61,7 +61,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_STRINGINFO = 29,
             ANKUS_MEMORY_LIST = 30,
             ANKUS_MEMORY_ITEM_POINTER = 31,
-            ANKUS_MEMORY_NATIVE_BINDING = 32
+            ANKUS_MEMORY_NATIVE_BINDING = 32,
+            ANKUS_MEMORY_FORMAT_NODE = 33
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -964,6 +965,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_NATIVE_BINDING:
                     ankus_memory_native_binding(request);
+                    break;
+                case ANKUS_MEMORY_FORMAT_NODE:
+                    ankus_memory_format_node(request);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);

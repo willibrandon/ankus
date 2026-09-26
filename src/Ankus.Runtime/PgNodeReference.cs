@@ -71,6 +71,34 @@ public sealed unsafe class PgNodeReference<T> where T : unmanaged, IPgNativeNode
     public bool IsA(uint tag) => Tag == tag;
 
     /// <summary>
+    /// Copies PostgreSQL's native nodeToString output into an independently owned managed string.
+    /// </summary>
+    /// <returns>The exact native representation converted from the server encoding to Unicode.</returns>
+    /// <remarks>
+    /// The root's ABI, concrete tag bounds, alignment and lifetime are checked. The caller must
+    /// guarantee that all pointer members and variable-length tails form a valid native graph and
+    /// remain alive and unchanged throughout native formatting, including reentrant callbacks.
+    /// PostgreSQL errors return through the guarded boundary after native temporary storage is reclaimed.
+    /// </remarks>
+    public string DangerousToNativeString()
+    {
+        Validate();
+        NativeMemoryRequest request = _reference.CreateNodeRequest();
+        request._operation = NativeMemoryOperation.FormatNode;
+        NativeValue output = default;
+        request._data = (nint)(&output);
+        try
+        {
+            NativeMemoryContext.Invoke(ref request, out _);
+            return output.ReadString();
+        }
+        finally
+        {
+            output.Release();
+        }
+    }
+
+    /// <summary>
     /// Tries a generated node cast while retaining the complete original storage extent and lifetime.
     /// </summary>
     /// <typeparam name="TTarget">The generated target node representation.</typeparam>

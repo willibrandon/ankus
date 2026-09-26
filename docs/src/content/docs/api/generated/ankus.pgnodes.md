@@ -48,3 +48,38 @@ A node view without allocation or release rights.
 The representation's complete size, alignment and selected-header ABI are checked. The caller
 remains responsible for the validity and lifetime of native pointer members. A tag does not
 prove that those members refer to valid objects.
+
+<a id="member-4529cc66e6d643f5"></a>
+
+### DangerousAllocate&lt;T&gt;(uint, PgMemoryContext?)
+
+Allocates a zeroed native node and writes its caller-supplied tag without invoking a constructor.
+
+```csharp
+public static PgNativeBox<T> DangerousAllocate<T>(uint tag, PgMemoryContext? context = null) where T : unmanaged, IPgNativeNode
+```
+
+Type parameters:
+
+`T`
+
+The complete generated native representation.
+
+Parameters:
+
+`tag` — [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
+
+The exact tag appropriate for this complete representation.
+
+`context` — [PgMemoryContext](/api/ankus.pgmemorycontext/)
+
+The allocation owner, or null for the current context.
+
+Returns: <code>PgNativeBox&lt;T&gt;</code>
+
+An individually owned box, which can transfer ownership to its context.
+
+The caller must choose a tag whose complete native representation fits T and initialize all
+fields required by subsequent native operations. A base node's accepted cast tags do not
+make it large enough to allocate its descendants. Pointer fields retain native lifetime obligations.
+Native allocator restrictions apply to individual disposal and ownership transfer.
