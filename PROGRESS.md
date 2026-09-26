@@ -6463,7 +6463,7 @@ The phases track implementation of the complete pgrx feature surface.
   its check reports zero errors, warnings or hints. The final full root suite
   passes all 7,212 cases with zero failures/skips in 447.435s on Linux x64/
   PostgreSQL 18.6; integration takes 446.881s. Hosted CI for this milestone
-  remains pending.
+  failed as detailed in the following repair entry.
 
   The first full local run hit temporary-filesystem exhaustion during isolated
   package restore, causing 40 failures. The package fixture now respects the
@@ -6489,3 +6489,48 @@ The phases track implementation of the complete pgrx feature surface.
   requirements and the complete PostgreSQL-major/platform matrix remain open.
   No analyzer settings, suppressions, production friend assemblies or CI limits
   change.
+
+- 2026-09-26 — Repair the header collector's CI toolchain prerequisite.
+  Hosted run `36224258434` for `cf8c5bc` failed on Ubuntu 24.04 x64 and
+  macOS 15 ARM64 because their default Clang frontends do not recognize
+  `-skip-function-bodies`. Both jobs report three build-tool failures and four
+  integration failures from that missing option; the remaining unit modules did
+  not run after the first module failed. This is not passing platform evidence.
+  LLVM introduced the command-line option in Clang 20; the preceding local
+  declaration-only checks used Clang 21.
+
+  The same run's Windows Server 2025 x64/PostgreSQL 17.11 job completed in
+  28m20s with 7,208 passes, two failures and two Linux-only skips. Compilation
+  and all 417 build-tool tests pass there. Its two failing integration assertions
+  assumed `proc_exit` carried a no-return annotation on every target. PostgreSQL
+  17's MSVC headers actually expand `pg_attribute_noreturn()` to nothing;
+  PostgreSQL 18 uses C11 `_Noreturn`. The collector correctly preserves the
+  absence/presence. Both packaged-command tests now assert the exact major and
+  compiler-family contract, with no fabricated native metadata. A native frontend
+  regression distinguishes unannotated exit bodies from declared `_Noreturn`.
+
+  The .NET CI app now installs/selects LLVM 20 from LLVM's signed package
+  repository on Linux and Homebrew on macOS, and explicitly selects the Windows
+  runner's LLVM installation. A capability check prints the compiler identity
+  and requires the declaration-only option before building/running the suites.
+  The same `header-frontend-check` command can validate a local compiler without
+  installing anything. It succeeds for Linux Clang 21.0 and Windows Clang 21.1.7,
+  and rejects Linux Clang 19.1.7 with a clear prerequisite diagnostic.
+  Developer and public raw-binding documentation now states the Clang 20 minimum.
+
+  `HeaderFrontendChecksDeclarationsWithoutCompilingBodies` passes locally,
+  retaining exact inline signatures, rejecting an incompatible prototype and
+  keeping declaration warnings fatal. Its final annotation regression also
+  passes on Windows x64/Clang 21.1.7 in 371ms. The non-incremental Release build passes
+  with zero warnings/errors in 74.66s using one MSBuild worker; the first parallel
+  attempt lost two MSBuild workers and is not counted as passing evidence.
+  API freshness retains 170 pages/2,254 members; docs build 212 pages and check
+  with zero errors, warnings or hints. After the final test corrections, the
+  affected Release test projects build successfully, including the integration
+  project with zero warnings/errors in 16.71s. The final plain root suite passes
+  all 7,212 tests with zero failures/skips in 443.417s on Linux x64/PostgreSQL
+  18.6; integration takes 442.804s. Replacement hosted CI evidence remains
+  pending. No analyzer enforcement, warning suppression,
+  production friend assembly changes are part of this repair. The Windows job's
+  timeout increases from 30 to 35 minutes after the observed 28m20s run; every
+  job remains below the user's 40-minute maximum, with full suites unsharded.

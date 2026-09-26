@@ -20,6 +20,7 @@ repository root with `dotnet run --file`.
 | `runtime-build` | Build and stage one runtime for CI. |
 | `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
+| `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
 | `unit-test` | Build and run the five unit test modules. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack one platform runtime package. |
@@ -29,6 +30,16 @@ Use `--` before command arguments:
 
 ```text
 dotnet run --file ./eng/Ankus.Ci.cs -- metadata
+```
+
+`runtime-test` installs and selects LLVM 20 on Linux and macOS, and selects the
+Windows runner's LLVM installation. It prints the compiler version and verifies
+`-skip-function-bodies` support before building or running tests. The platform
+default Clang can be too old even when Native AOT compilation works. Check a local
+compiler without installing or changing anything:
+
+```text
+dotnet run --file ./eng/Ankus.Ci.cs -- header-frontend-check /path/to/clang
 ```
 
 See the [.NET file-based app documentation](https://learn.microsoft.com/dotnet/core/sdk/file-based-apps)
@@ -150,6 +161,10 @@ order. Windows uses the Visual Studio and SDK include directories. Collection
 uses a frontend only, without linking or running target code; matching headers,
 compiler includes and target configuration are still required.
 
+Header collection requires Clang 20 or later with the declaration-only
+`-skip-function-bodies` frontend option. Select that compiler explicitly or put
+it on `PATH`; an older platform-default Clang does not support this command.
+
 The command writes `native-header-types.c`, the compiler's
 `native-header-types.ast.json`, reconstructed `native-header-checks.c`, compiler
 output in `native-header-checks.txt`, and a normalized `native-header-types.json`.
@@ -179,6 +194,12 @@ symbol availability, managed calling conventions, pointer ownership or backend
 error guards. Integrating these facts with layout measurement, managed call
 generation, global access and hook registration remains port work. The consumer
 SDK's existing node layout generation is unchanged.
+
+No-return metadata reports an annotation in the selected declaration or type.
+It is not inferred from a function's name or implementation. For example,
+PostgreSQL 17's MSVC headers omit the `proc_exit` annotation, while PostgreSQL 18
+declares it with C11 `_Noreturn`. An absent annotation does not prove that the
+function returns.
 
 To measure storage from those authoritative types, run:
 

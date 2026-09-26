@@ -16,8 +16,18 @@ public sealed partial class NativeBindingNativeTests
                 return server_compiler_intrinsic(value);
             }
             unsigned long (*native_inline_reference)(unsigned long) = native_inline;
+            static inline void native_unannotated_exit(void)
+            {
+                __builtin_unreachable();
+            }
+            void (*native_exit_reference)(void) = native_unannotated_exit;
+            extern _Noreturn void native_declared_exit(void);
             """;
-        NativeHeaderRequest[] requests = [new("native_inline", "native_inline", true)];
+        NativeHeaderRequest[] requests =
+        [
+            new("native_inline", "native_inline", true), new("native_unannotated_exit", "native_unannotated_exit", true),
+            new("native_declared_exit", "native_declared_exit", true),
+        ];
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-header-frontend-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
@@ -36,6 +46,12 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreEqual("unsigned long invoke(unsigned long ankus_arg0)", symbol.Type.Declare("invoke"));
             Assert.AreEqual("static", symbol.StorageClass);
             Assert.AreSequenceEqual<string>(["value"], symbol.ParameterNames);
+            NativeHeaderSymbol unannotated = symbols["native_unannotated_exit"];
+            Assert.IsFalse(unannotated.DoesNotReturn);
+            Assert.IsFalse(Assert.IsInstanceOfType<NativeHeaderFunction>(unannotated.Type).DoesNotReturn);
+            Assert.IsEmpty(unannotated.Attributes);
+            Assert.IsTrue(symbols["native_declared_exit"].DoesNotReturn);
+            Assert.Contains("C11NoReturnAttr", symbols["native_declared_exit"].Attributes);
             string checks = NativeBindingHeaderParser.GenerateChecks(Headers, symbols);
             await File.WriteAllTextAsync(file, checks, context.CancellationToken);
             await NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken);

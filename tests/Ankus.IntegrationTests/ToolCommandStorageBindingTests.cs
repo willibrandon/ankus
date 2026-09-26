@@ -53,7 +53,9 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(JsonValueKind.Null, symbols.GetProperty("proc_exit").GetProperty("Result").ValueKind);
         AssertStorageValue(Assert.ContainsSingle(symbols.GetProperty("proc_exit").GetProperty("Parameters").EnumerateArray()),
             4, 4, null, true);
-        Assert.IsTrue(headers.GetProperty("Symbols").GetProperty("proc_exit").GetProperty("DoesNotReturn").GetBoolean());
+        // PG17 and earlier omit this annotation under MSVC; PG18 uses C11 _Noreturn.
+        bool noReturn = s_installation.Version.Major >= 18 || !OperatingSystem.IsWindows();
+        Assert.AreEqual(noReturn, headers.GetProperty("Symbols").GetProperty("proc_exit").GetProperty("DoesNotReturn").GetBoolean());
         AssertStorageValue(symbols.GetProperty("CreateStatistics").GetProperty("Result"), 12, 4, null, null);
     }
 

@@ -9,7 +9,9 @@ ICU support.
 Build-tool tests compile standalone C layout and signature probes, including
 deliberately incompatible prototypes which must fail compilation. Header-type
 collection also uses Clang's structured AST and checks the packaged command against
-the selected PostgreSQL installation. Make both `cc` and `clang` on Linux/macOS or
+the selected PostgreSQL installation. Header collection requires LLVM Clang 20
+or later with the `-skip-function-bodies` frontend option; the platform's default
+Clang may be older. Make both `cc` and a supported `clang` on Linux/macOS or
 `clang-cl.exe` on Windows available on `PATH`. Windows also uses `cl.exe` from
 Visual Studio 2022 17.9 or later for the selected PostgreSQL header probe. Its
 [`__typeof__` support](https://learn.microsoft.com/cpp/c-language/typeof-c)
@@ -17,6 +19,13 @@ lets the probe measure anonymous native values with a type operand to MSVC's
 alignment operator. A Visual Studio Developer Command Prompt supplies headers
 and libraries. Install the Visual Studio Clang tools or LLVM for the independent
 standard C fixture and the header-type collector.
+
+CI selects LLVM 20 on Linux/macOS and verifies the preinstalled Windows LLVM
+frontend before running the suite. On macOS, Homebrew's `llvm@20` formula supplies
+the required compiler; put its `bin` directory on `PATH` for the test process.
+Linux packages are available from [LLVM's package repository](https://apt.llvm.org/).
+The `header-frontend-check` engineering command checks a compiler's version and
+required option without modifying the machine; see [engineering apps](../../eng/README.md).
 
 ## PostgreSQL discovery
 

@@ -75,7 +75,13 @@ try
             ValidateRuntimeIdentity(repositoryRoot);
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
+            ConfigureHeaderFrontend(repositoryRoot);
             RunRuntimeTests(repositoryRoot);
+            break;
+
+        case "header-frontend-check":
+            RequireArguments(args, 2);
+            VerifyHeaderFrontend(args[1]);
             break;
 
         case "unit-test":
@@ -466,6 +472,69 @@ static void VerifyPostgreSqlVersion(string version)
     if (version is not ("15" or "16" or "17" or "18"))
     {
         throw new ArgumentOutOfRangeException(nameof(version), version, "PostgreSQL 15 through 18 are supported.");
+    }
+}
+
+static void ConfigureHeaderFrontend(string repositoryRoot)
+{
+    string directory;
+    if (OperatingSystem.IsLinux())
+    {
+        Dictionary<string, string> operatingSystem = File.ReadAllLines("/etc/os-release")
+            .Select(static line => line.Split('=', 2))
+            .Where(static parts => parts.Length == 2)
+            .ToDictionary(static parts => parts[0], static parts => parts[1].Trim('"'), StringComparer.Ordinal);
+        string codeName = operatingSystem.GetValueOrDefault("VERSION_CODENAME")
+            ?? throw new InvalidOperationException("VERSION_CODENAME is missing from /etc/os-release.");
+        string temporaryDirectory = Path.Combine(repositoryRoot, "artifacts", "ci");
+        Directory.CreateDirectory(temporaryDirectory);
+        string keyPath = Path.Combine(temporaryDirectory, "llvm.asc");
+        string sourcePath = Path.Combine(temporaryDirectory, "llvm.list");
+        using (HttpClient client = new())
+        {
+            File.WriteAllBytes(keyPath, client.GetByteArrayAsync("https://apt.llvm.org/llvm-snapshot.gpg.key").GetAwaiter().GetResult());
+        }
+
+        File.WriteAllText(sourcePath,
+            $"deb [signed-by=/usr/share/keyrings/llvm.gpg] https://apt.llvm.org/{codeName}/ llvm-toolchain-{codeName}-20 main{Environment.NewLine}");
+        Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/llvm.gpg", keyPath]);
+        Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/llvm.list"]);
+        Run("sudo", ["apt-get", "update"]);
+        Run("sudo", ["apt-get", "install", "--yes", "--no-install-recommends", "clang-20"]);
+        directory = "/usr/lib/llvm-20/bin";
+    }
+    else if (OperatingSystem.IsMacOS())
+    {
+        Run("brew", ["install", "llvm@20"], environment: new Dictionary<string, string?>
+        {
+            ["HOMEBREW_NO_AUTO_UPDATE"] = "1",
+        });
+        directory = Path.Combine(Capture("brew", ["--prefix", "llvm@20"]), "bin");
+    }
+    else if (OperatingSystem.IsWindows())
+    {
+        directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "LLVM", "bin");
+    }
+    else
+    {
+        throw new PlatformNotSupportedException("Header frontend installation is not defined for this runner.");
+    }
+
+    string compiler = Path.Combine(directory, OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang");
+    VerifyHeaderFrontend(compiler);
+    Environment.SetEnvironmentVariable("PATH", directory + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH"));
+    string pathFile = Environment.GetEnvironmentVariable("GITHUB_PATH")
+        ?? throw new InvalidOperationException("GITHUB_PATH is required.");
+    File.AppendAllText(pathFile, directory + Environment.NewLine);
+}
+
+static void VerifyHeaderFrontend(string compiler)
+{
+    Run(compiler, ["--version"]);
+    string help = Capture(compiler, ["-cc1", "--help"]);
+    if (!help.Split('\n').Any(static line => line.TrimStart().StartsWith("-skip-function-bodies ", StringComparison.Ordinal)))
+    {
+        throw new InvalidOperationException($"The header collector requires Clang 20 or later with -skip-function-bodies support. Select a supported LLVM toolchain instead of '{compiler}'.");
     }
 }
 

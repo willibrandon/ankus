@@ -74,7 +74,9 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("record", record.GetProperty("Kind").GetString());
         Assert.AreEqual("", record.GetProperty("Name").GetString());
         Assert.IsFalse(record.GetProperty("IsUnion").GetBoolean());
-        Assert.IsTrue(symbols.GetProperty("proc_exit").GetProperty("DoesNotReturn").GetBoolean());
+        // PG17 and earlier omit this annotation under MSVC; PG18 uses C11 _Noreturn.
+        bool noReturn = s_installation.Version.Major >= 18 || !OperatingSystem.IsWindows();
+        Assert.AreEqual(noReturn, symbols.GetProperty("proc_exit").GetProperty("DoesNotReturn").GetBoolean());
     }
 
     /// <summary>
