@@ -17,8 +17,32 @@ internal static class NativeBindingCallSource
     internal static string Generate(NativeHeaderRecords records, string headers)
     {
         ArgumentNullException.ThrowIfNull(records);
+        return Generate(records, headers, [.. records.Headers.Symbols.Keys]);
+    }
+
+    /// <summary>
+    /// Emits selected fixed bodies while retaining and validating the complete shared declaration graph.
+    /// </summary>
+    /// <param name="records">The complete native signature and storage contract, including other functions and globals.</param>
+    /// <param name="headers">The original target headers.</param>
+    /// <param name="names">Unique function names whose fixed bodies should be emitted.</param>
+    /// <returns>Typed native bodies that share the original graph's storage identities.</returns>
+    internal static string Generate(NativeHeaderRecords records, string headers, IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(names);
         NativeBindingRecordValidation.Validate(records.Graph, records.Headers.Target, records.Headers.Symbols.Keys);
-        var source = new StringBuilder(NativeBindingHeaderParser.GenerateChecks(headers, records.Headers.Symbols));
+        var selected = new SortedDictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal);
+        foreach (string name in names)
+        {
+            if (!records.Headers.Symbols.TryGetValue(name, out NativeHeaderSymbol? symbol) || !selected.TryAdd(name, symbol))
+            {
+                throw new FormatException($"Unknown or duplicate native call selection '{name}'.");
+            }
+        }
+
+        var source = new StringBuilder(NativeBindingHeaderParser.GenerateChecks(headers, selected));
         source.AppendLine("#include <stddef.h>");
         source.AppendLine("#include <stdint.h>");
         source.AppendLine("#include <string.h>");
@@ -26,7 +50,7 @@ internal static class NativeBindingCallSource
         source.AppendLine("/* These bodies require a native error guard; they must never be called directly from managed code. */");
         source.AppendLine("typedef struct AnkusNativeCallArgument { const void *data; size_t size; } AnkusNativeCallArgument;");
         source.AppendLine("enum AnkusNativeCallStatus { ANKUS_CALL_OK, ANKUS_CALL_COUNT, ANKUS_CALL_ARGUMENTS, ANKUS_CALL_RESULT, ANKUS_CALL_STORAGE, ANKUS_CALL_ALIGNMENT };");
-        foreach ((string name, NativeHeaderSymbol symbol) in records.Headers.Symbols.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        foreach ((string name, NativeHeaderSymbol symbol) in selected)
         {
             NativeBindingCDeclaration.ValidateName(name);
             NativeBindingCDeclaration.ValidateName(symbol.NativeName);
@@ -99,8 +123,9 @@ internal static class NativeBindingCallSource
                     $"    if ((uintptr_t) arguments[{index}].data % _Alignof({alias}) != 0) return ANKUS_CALL_ALIGNMENT;");
             }
 
+            // Each typedef already retains the native qualifiers; an extra const duplicates qualified arguments on MSVC.
             string arguments = string.Join(", ", aliases.Select(static (alias, index) =>
-                string.Create(CultureInfo.InvariantCulture, $"*(const {alias} *) arguments[{index}].data")));
+                string.Create(CultureInfo.InvariantCulture, $"*({alias} *) arguments[{index}].data")));
             string call = "(" + symbol.NativeName + ")(" + arguments + ")";
             source.AppendLine(hasResult ? $"    {resultAlias} value = {call};" : $"    {call};");
             if (hasResult) { source.AppendLine("    memcpy(result, &value, sizeof(value));"); }

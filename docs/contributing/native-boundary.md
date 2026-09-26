@@ -681,6 +681,16 @@ and result validation runs before the underlying native function, and generated
 bodies publish result bytes only after it returns. Native failures use the
 existing owned diagnostic transport and allocator-matched release.
 
+Fixed-body emission can select functions within a complete graph that also
+contains globals and non-fixed prototypes. It validates that entire graph before
+selection, including unselected roots, and preserves the companion's type
+identities. Unknown or duplicate selections fail; selecting a global, variadic
+or unprototyped function still requires its own supported lowering. Selecting
+no bodies does not bypass graph validation.
+Argument typedefs retain the original native qualifiers. Reads through those
+types avoid adding a second `const`, which MSVC rejects for already-qualified
+parameters; pointee qualification and volatile reads remain part of the contract.
+
 Raw calls require the active backend thread. They remain available for native
 resource release during iterator disposal, including query-abort cleanup, as
 pgrx's raw `pfree` calls do during `PgBox` destruction. The caller must satisfy

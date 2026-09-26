@@ -6983,9 +6983,78 @@ The phases track implementation of the complete pgrx feature surface.
   This includes packaged Native AOT/backend execution, cross-project dependency
   identity, failed worker cleanup and deterministic recovery. The CI quality job
   now configures the same Clang frontend as the platform jobs; its automation
-  app builds successfully. Hosted validation of this milestone is still pending.
+  app builds successfully. Hosted CI
+  [36245904717](https://github.com/willibrandon/ankus/actions/runs/36245904717)
+  passes quality, all runtime jobs and the macOS 15 ARM64/PostgreSQL 18.6 full
+  suite: 7,457 passed and three existing platform skips in a 21m 43s job, with
+  Clang 20.1.8. Documentation deployment passes. Ubuntu's five other modules
+  pass, but its integration run is cancelled at the 20-minute job timeout while
+  a packaged extension build is still running; its log reports no test failure
+  before cancellation. Windows hosted validation is still running.
 
   General typed native calls, active signature/export selection, aligned native
   call storage, callback lifetimes, atomic operations, variadics, globals/hooks,
   remaining runtime/tooling inventories and the complete PostgreSQL/platform
   matrix remain required full-port work.
+
+- 2026-09-26 — Native call-body emission can now select fixed functions from
+  one complete declaration graph containing globals, variadic functions and
+  unprototyped declarations. The full graph remains validated, including roots
+  outside the body selection. Unknown and duplicate names reject; selecting an
+  unsupported body still fails explicitly. Empty selections preserve validation
+  and emit no invented call. This permits the eventual shared companion to keep
+  one type identity across different native access mechanisms.
+
+  Complete Windows header inspection exposed a generated C qualifier bug:
+  argument typedefs already retain native `const`, so adding another `const` to
+  the read cast triggers MSVC C4114. The cast now uses the exact declared typedef.
+  Original const/volatile qualifiers, pointer identity and writable pointees
+  retain their semantics. A compiler-executed regression first reproduced the
+  error with MSVC warnings treated as errors, then passed after the correction.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Fixed scalar/aggregate calls from a mixed graph, exact values, unchanged arguments and no unused links | `NativeCallBodiesSelectWithinCompleteGraph` executes optimized C for two bodies and an empty selection |
+  | Deterministic selection, unknown/duplicate/unsupported rejection, invalid unselected roots and valid recovery | `NativeCallBodySelectionsRetainCompleteValidation` also verifies unchanged companion identity and complete roots |
+  | Direct and typedef qualifiers, volatile reads, const pointer objects and read-only/writable pointees | `NativeCallBodiesPreserveQualifiedArguments` executes compiled values with Clang on Linux and MSVC on Windows |
+
+  A complete Linux x64/PostgreSQL 18.6 header experiment finds all 8,645 pinned
+  functions and 579 globals. All reconstructed signature checks compile. Its
+  transitive graph has 1,038 declarations and 14,828 types; the entire managed
+  declaration source compiles with AOT compatibility diagnostics. All 8,629 fixed
+  C call bodies compile; the other 16 functions are variadic. An optimized object
+  has 8,092 imports, of which 61 are absent from the backend executable and its
+  linked dependencies, including PL/pgSQL functions and module entry points.
+  Header presence therefore cannot establish the correct export/module scope.
+  These are compiler and symbol observations, not backend execution through a
+  complete managed raw API.
+
+  Windows x64/PostgreSQL 17.7 exposes 8,304 of the 8,339 pinned function names
+  and 544 of 546 globals. The 37 absent names remain explicitly inventoried;
+  build configuration and minor-version differences need target-aware selection.
+  All available signatures collect and their reconstructed checks compile. The
+  graph has 993 declarations and 14,152 types; its complete managed source builds
+  with zero warnings/errors. Emission produces 8,289 fixed bodies, but the full
+  MSVC body check rejects `pg_spin_delay_impl`: its MSVC header branch provides a
+  macro instead of an addressable function. This compiler-dependent shim case
+  remains required integration work. No compiler diagnostics were suppressed.
+
+  All 26 focused call-body cases pass on Linux x64 in 2.250s and Windows
+  x64/.NET 10.0.12 in 4.252s. The final Release solution build passes with zero
+  warnings/errors in 18.39s. API freshness retains 170 pages/2,254 members;
+  documentation builds 212 pages and checks with zero errors, warnings or hints.
+  Plain root `dotnet test` passes all six modules against PostgreSQL 18.6 on
+  Linux x64: 7,462 passed, zero failed and one existing Windows-only cleanup skip
+  in 10m 00.941s, including the packaged Native AOT/backend paths.
+  Contributor documentation records the internal boundary. Public guides keep
+  the currently supported APIs.
+
+  Raised the Ubuntu full-suite CI timeout from 20 to 30 minutes after the
+  preceding milestone hit its limit during package validation. The full suite
+  remains enabled in each platform job; every job stays within the authorized
+  40-minute maximum.
+
+  General typed consumer methods, active-extension signature/export selection,
+  aligned call storage, compiler-specific inline/macro shims, callbacks,
+  variadics, global/hook access, remaining feature inventories and the full
+  PostgreSQL/platform matrix remain required for the complete port.

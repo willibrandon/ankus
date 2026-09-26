@@ -223,17 +223,21 @@ public sealed partial class NativeBindingNativeTests
     }
 
     private async Task<string> ExecuteNativeCallsAsync(string headers, string[] names, string main)
+        => await ExecuteNativeCallsAsync(headers, [.. names.Select(static name => new NativeHeaderRequest(name, name, true))], null, main);
+
+    private async Task<string> ExecuteNativeCallsAsync(string headers, NativeHeaderRequest[] requests, string[]? names, string main, bool nativeCompiler = false)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-native-calls-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            NativeHeaderRequest[] requests = [.. names.Select(static name => new NativeHeaderRequest(name, name, true))];
             NativeHeaderRecords records = await CollectCallRecordsAsync(headers, requests, directory);
             string file = Path.Combine(directory, "calls.c");
-            await File.WriteAllTextAsync(file, NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers) + "\n" + main, context.CancellationToken);
+            string source = names is null ? NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers)
+                : NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers, names);
+            await File.WriteAllTextAsync(file, source + "\n" + main, context.CancellationToken);
             string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "calls.exe" : "calls");
-            string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
+            string compiler = OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang";
             string[] compile = OperatingSystem.IsWindows()
                 ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
                 : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, "-o", executable];
