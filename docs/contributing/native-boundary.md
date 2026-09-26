@@ -696,6 +696,25 @@ a callback boundary that finishes managed unwinding before raising PostgreSQL
 ERROR. Typed companion methods, signature identity and export/link selection
 remain required before general raw bindings are a consumer API.
 
+The internal selected-header record emitter consumes the independently validated
+transitive type graph. It emits exact-offset records and unions, nested inline
+arrays, native-width enums, anonymous-member access and checked bitfield
+properties. Numeric types map to CLR values only when the observed representation
+matches; extended floating-point, vector, complex and atomic storage retain raw
+bytes. A byte representation does not supply native arithmetic or synchronization.
+
+Native alignment remains explicit metadata. Managed copies do not promise native
+stack alignment, and the eventual call/allocation layer must honor the measured
+alignment. Opaque and complete zero-sized declarations expose metadata instead
+of fabricated CLR storage. Flexible tails require a live address and a
+caller-guaranteed initialized extent; integer overflow checks cannot establish
+pointer provenance or ownership.
+
+This emitter is a tested prerequisite for replacing the pinned node declaration
+path in the existing companion assembly. It is not yet connected to the SDK or
+an installed command. That integration must retain node contracts and a single
+assembly identity while adding complete selected native declarations and calls.
+
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove
 allocation records before native storage can be reused; monotonically increasing

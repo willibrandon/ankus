@@ -6852,5 +6852,69 @@ The phases track implementation of the complete pgrx feature surface.
   root `dotnet test` passes all six modules against PostgreSQL 18.6 on Linux x64:
   7,384 passed, zero failed, one existing Windows-only skip in 7m 30.016s.
   API freshness retains 170 pages/2,254 members; the site builds 212 pages and
-  checks with zero errors, warnings or hints. The hosted compiler failure remains
-  under investigation.
+  checks with zero errors, warnings or hints. Follow-up hosted CI
+  [36241459031](https://github.com/willibrandon/ankus/actions/runs/36241459031)
+  passes the Ubuntu 24.04 x64/PostgreSQL 18.6 full suite (7,384 passed, one
+  existing Windows-only skip) in an 18m 22s job. macOS 15 ARM64/PostgreSQL 18.6
+  passes 7,382 cases with three existing platform skips in 22m 49s. Windows
+  Server 2025 x64/PostgreSQL 17.11 passes 7,383 cases with two existing platform
+  skips in 29m 34s. All three use Clang 20.1.8. The entire CI run and docs
+  deployment pass. The earlier compiler failure did not recur in the
+  successful Ubuntu run; its cause remains under investigation.
+
+- 2026-09-26 — Added an internal managed declaration emitter for the complete
+  selected-header record graph. It retains exact struct/union offsets and sizes,
+  nested array strides, native enum representations, anonymous declaration
+  identity and promoted members. Generated bitfield properties preserve signed
+  and unsigned values through 128 bits, reject out-of-range writes before changing
+  storage, and leave neighboring fields and padding intact. Valid native names
+  that collide with enclosing managed types or CLR enum names receive distinct,
+  deterministic managed names.
+
+  Exact CLR numeric mappings require the compiler-observed numeric model.
+  Extended native representations retain bytes instead of narrowing to a CLR
+  number. Opaque and complete zero-sized declarations remain nonallocatable
+  metadata; flexible tails require a live address and caller-owned extent.
+  Their checked address arithmetic preserves the pointer's high bit and rejects
+  overflow. Native alignment is retained as metadata, without promising native
+  over-alignment for managed stack copies. Malformed by-value cycles, enum
+  representations and missing target identities fail explicitly. Assembly
+  identity includes the complete graph and generated source, independently of
+  root dictionary enumeration order; generated initialization rejects an
+  incompatible host.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Actual native record/union values, nested arrays, Boolean storage and recursive addresses | `ManagedRecordsPreserveNativeValues` compares compiled C# with an independent optimized C program |
+  | Exact bitfield extrema, signed extension, unchanged neighboring bytes and rejection recovery | `ManagedBitfieldsPreserveNativeStorage`, `ManagedWideBitfieldsPreserveNativeExtrema`, `ManagedHugeIntegersPreserveNativeBits` |
+  | Anonymous type identity, promoted fields, native enum extrema, name collisions and promoted flexible-tail offsets | `ManagedAnonymousRecordsRetainIdentity`, `ManagedRecordNamesAndPromotedTailsPreserveValues` |
+  | Long-double bytes, measured over-alignment and untouched neighboring storage | `ManagedExtendedValuesRetainRepresentation` |
+  | Opaque versus complete-zero storage, null/negative/overflow/zero-length tails and high-bit addresses | `ManagedRecordsRetainIncompleteStorage`, `ManagedRecordContractsDistinguishEmptyStorage` |
+  | Invalid graphs reject and recover; complete identity is deterministic; empty selections and host rejection execute | `ManagedRecordContractsRejectInvalidGraphs`, `ManagedRecordContractsRetainCompleteIdentity`, `ManagedRecordContractsValidateHostWithEmptySelection` |
+
+  The 32 focused cases pass on Linux x64 in 2.033s and Windows x64/.NET 10.0.12
+  in 2.532s, without failures or skips. A separate real PostgreSQL
+  18.6 selected-header experiment collects seven declarations and 77 types for
+  `CreateStatistics`, `FullTransactionIdFromU64` and `pg_atomic_read_u32`. The
+  emitted C# compiles with AOT compatibility diagnostics enabled. Thirteen size
+  and value observations agree exactly with independently compiled C, including
+  full-width transaction/object IDs, node tags, Boolean fields and union storage.
+  A larger selection spanning executor startup, tuple formation, memory
+  allocation, error copying and utility dispatch collects 318 declarations and
+  2,553 types; its entire emitted source also compiles. Its `ErrorData` size and
+  representative values agree with independently compiled C.
+  This is compiler/value evidence, not backend execution through the new emitter.
+
+  The Release build passes with zero warnings/errors in 20.94s. API freshness
+  retains 170 pages/2,254 members; the site builds 212 pages and checks with zero
+  errors, warnings or hints. Plain root `dotnet test` passes all six modules
+  against PostgreSQL 18.6 on Linux x64: 7,416 passed, zero failed and one existing
+  Windows-only cleanup skip in 7m 31.199s.
+
+  Contributor documentation describes the boundary. Public user guides keep the
+  currently supported APIs. The emitter is not yet wired to the SDK or an
+  installed command: replacing the pinned node emitter must preserve its node
+  contracts in one companion assembly. Typed calls, active signature/export
+  selection, aligned native allocation, managed callback lifetimes, atomic
+  operations, variadics, globals/hooks and the full PostgreSQL/platform matrix
+  remain required port work.
