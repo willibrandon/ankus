@@ -7196,3 +7196,15 @@ The phases track implementation of the complete pgrx feature surface.
   inventories and the complete PostgreSQL/platform matrix remain unfinished.
   Contributor documentation describes the common internal check; public guides
   continue to describe only the supported consumer surface.
+
+- 2026-09-26 — Raised the Windows full-suite CI timeout from 35 to the
+  authorized maximum of 40 minutes after
+  [CI run 36252581940](https://github.com/willibrandon/ankus/actions/runs/36252581940)
+  for `c05209a` hit that limit while executing the PostgreSQL suite. Its five
+  completed Windows modules passed; integration did not finish, so that run
+  supplies no complete Windows backend validation. Linux passed 7,499 cases with
+  two platform-specific skips; macOS passed 7,497 with four platform-specific
+  skips. Both had zero failures. Documentation and quality checks passed too.
+  Linux remains at 30 minutes and macOS at 25 minutes. The complete test suite
+  remains enabled in each job; analyzer enforcement and platform coverage are
+  unchanged. The next Windows run must complete within the 40-minute maximum.
