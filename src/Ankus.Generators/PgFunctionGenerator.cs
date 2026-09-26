@@ -170,7 +170,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(method));
         if (hasMemoryFunctionCallbacks)
         {
-            native.AppendLine(NativeNodeBridge.Binding(compilation));
+            native.AppendLine(NativeBindingBridge.Binding(compilation));
+            native.AppendLine(NativeNodeBridge.Layouts(compilation));
             native.AppendLine(NativeMemoryBridge.CleanupBinding);
         }
 

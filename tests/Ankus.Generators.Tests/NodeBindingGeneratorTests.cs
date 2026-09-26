@@ -31,9 +31,9 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains("static const char ankus_node_binding_identity[] = \"" + identity + "\";", native);
+        Assert.Contains("static const char ankus_binding_identity[] = \"" + identity + "\";", native);
         Assert.Contains("request->value != PG_VERSION_NUM / 10000", native);
-        Assert.Contains("memcmp((const void *) request->data, ankus_node_binding_identity", native);
+        Assert.Contains("memcmp((const void *) request->data, ankus_binding_identity", native);
         Assert.Contains("case 7U: *size = 8; *alignment = 4; return;", native);
         Assert.Contains("case 11U: *size = 16; *alignment = 8; return;", native);
     }
@@ -67,7 +67,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains("static const char ankus_node_binding_identity[] = \"\";", native);
+        Assert.Contains("static const char ankus_binding_identity[] = \"\";", native);
         Assert.DoesNotContain("bad_native_source();", native);
     }
 

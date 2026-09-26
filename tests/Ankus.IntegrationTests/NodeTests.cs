@@ -48,7 +48,7 @@ public sealed partial class NodeTests(TestContext context)
         await using var command = new NpgsqlCommand("SELECT datatype.node_incompatible_binding()", connection);
         PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
         Assert.AreEqual("0A000", error.SqlState);
-        Assert.AreEqual("the node representation does not match the active extension's PostgreSQL binding ABI", error.MessageText);
+        Assert.AreEqual("the generated binding does not match the active extension's PostgreSQL ABI", error.MessageText);
         command.CommandText = "SELECT datatype.node_range_table_roundtrip(false)";
         Assert.AreEqual("9|73|True|True|True", await command.ExecuteScalarAsync(token));
         command.CommandText = "SELECT pg_backend_pid()";

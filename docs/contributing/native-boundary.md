@@ -681,6 +681,15 @@ and result validation runs before the underlying native function, and generated
 bodies publish result bytes only after it returns. Native failures use the
 existing owned diagnostic transport and allocator-matched release.
 
+Node views and the raw-call runtime contract share the same binding validator. The hidden
+`NativeRawCall.ValidateBinding` entry point sends the complete companion identity
+and PostgreSQL major to the active extension's native guard. A missing or
+mismatched contract produces SQLSTATE `0A000`; no managed frame is crossed by
+PostgreSQL's error unwinding. Validation belongs to the current callback and must
+run before obtaining a body address. A successful check cannot be cached across
+providers or substituted for the guarded invocation itself. The accessor must
+only return an address, without calling PostgreSQL or reentering managed code.
+
 Fixed-body emission can select functions within a complete graph that also
 contains globals and non-fixed prototypes. It validates that entire graph before
 selection, including unselected roots, and preserves the companion's type

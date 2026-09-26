@@ -7163,3 +7163,36 @@ The phases track implementation of the complete pgrx feature surface.
   with zero errors, warnings or hints. Plain root `dotnet test` with IDE0251
   enabled passes all six modules against PostgreSQL 18.6 on Linux x64:
   7,499 passed, zero failed and two Windows-only skips in 10m 12.972s.
+
+- 2026-09-26 — Separated the complete binding validator from node-specific
+  layout and formatting code. Node views and the hidden generated-call runtime
+  contract now use the same active extension identity and PostgreSQL-major
+  check beneath the native error guard. Validation is repeated for each current
+  callback; it cannot be reused across nested extension providers. Mismatches
+  retain SQLSTATE `0A000` with a diagnostic that applies to any generated binding.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Exact identity bytes and major, without normalization or cached success | `GeneratedCallBindingPreservesContract` checks transport, unchanged inputs and repeated requests |
+  | Missing, masked, ended and worker scopes; nested-provider restoration | `GeneratedCallBindingRequiresActiveScope` checks rejection before transport and exact provider order |
+  | Owned native diagnostic release and retry | `GeneratedCallBindingErrorsReleaseDiagnosticsAndRecover` checks all diagnostic fields, three releases and subsequent validation |
+  | Backend identity/major rejection, unchanged result and same-session recovery | `GeneratedRawCallsValidateActiveBindingAndRecover` exercises seven mismatch partitions around successful native aggregate calls |
+
+  Focused verification passes 48 runtime cases and 15 generator cases. The
+  published Native AOT extension passes all 48 raw-call and node backend cases
+  on PostgreSQL 18.6/Linux x64 in 1m 43.717s, including the seven new mismatch
+  cases. These tests use the current node companion and standalone generated
+  call bodies; they do not establish a complete typed raw-call companion.
+
+  The Release build passes with zero warnings and errors in 13.84s. API
+  freshness retains 170 pages/2,254 members; the site builds 212 pages and checks
+  with zero errors, warnings or hints. Plain root `dotnet test` passes all six
+  modules on PostgreSQL 18.6/Linux x64: 7,512 passed, zero failed and two existing
+  Windows-only skips in 10m 00.050s.
+
+  General typed methods, header/signature identity consistency, aligned argument
+  storage, active export selection and SDK post-ILC integration remain required.
+  Compiler-specific shims, callbacks, variadics, globals/hooks, remaining feature
+  inventories and the complete PostgreSQL/platform matrix remain unfinished.
+  Contributor documentation describes the common internal check; public guides
+  continue to describe only the supported consumer surface.

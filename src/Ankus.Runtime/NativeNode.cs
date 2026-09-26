@@ -28,19 +28,7 @@ internal static unsafe class NativeNode
             throw new PlatformNotSupportedException("The node representation does not match its declared native layout or runtime ABI.");
         }
 
-        byte[] encoded = Encoding.UTF8.GetBytes(identity);
-        fixed (byte* data = encoded)
-        {
-            NativeMemoryRequest request = new()
-            {
-                _operation = NativeMemoryOperation.NativeBinding,
-                _data = (nint)data,
-                _length = (nuint)encoded.Length,
-                _value = T.PostgresMajor,
-            };
-            NativeMemoryContext.Invoke(ref request, out _);
-        }
-
+        NativeBindingContract.Validate(Encoding.UTF8.GetBytes(identity), T.PostgresMajor);
         return (nuint)alignment;
     }
 

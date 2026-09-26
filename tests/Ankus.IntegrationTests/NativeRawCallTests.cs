@@ -10,6 +10,23 @@ namespace Ankus.IntegrationTests;
 public sealed class NativeRawCallTests(TestContext context)
 {
     /// <summary>
+    /// A complete binding mismatch fails before touching the result and a later valid call recovers in the same backend.
+    /// </summary>
+    /// <param name="mode">The incompatible identity or server-major partition.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    [DataRow(6)]
+    public Task GeneratedRawCallsValidateActiveBindingAndRecover(int mode)
+        => CheckAsync(nameof(GeneratedRawCallsValidateActiveBindingAndRecover),
+            $"SELECT datatype.raw_call_binding(tests.raw_call_address(0), {mode})",
+            "0A000|the generated binding does not match the active extension's PostgreSQL ABI|12345|FFFFFFFFFFFFFFFF");
+
+    /// <summary>
     /// The native compiler's aggregate result preserves zero, high-bit and maximum values through the managed guard.
     /// </summary>
     /// <param name="hex">The independently specified aggregate value.</param>

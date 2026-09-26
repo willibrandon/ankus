@@ -30,6 +30,20 @@ public readonly record struct NativeCallArgument(nint Address, nuint Size);
 public static unsafe class NativeRawCall
 {
     /// <summary>
+    /// Validates the generated call's complete declaration contract before obtaining or invoking its native body.
+    /// </summary>
+    /// <param name="identity">The generated UTF-8 identity of the complete selected-header graph.</param>
+    /// <param name="postgresMajor">The PostgreSQL major version used to generate the call.</param>
+    /// <exception cref="InvalidOperationException">No usable backend callback is active.</exception>
+    /// <exception cref="PgException">The active extension has no matching native declaration contract.</exception>
+    /// <remarks>
+    /// Validation applies to the current callback and must not be cached across extension capabilities.
+    /// The subsequent body accessor must be a pure native address lookup; invocation still uses <see cref="Invoke"/>.
+    /// </remarks>
+    public static void ValidateBinding(ReadOnlySpan<byte> identity, int postgresMajor)
+        => NativeBindingContract.Validate(identity, postgresMajor);
+
+    /// <summary>
     /// Executes one C body and converts native diagnostics only after its guarded native frames return.
     /// </summary>
     /// <param name="body">The native generated C body address.</param>
