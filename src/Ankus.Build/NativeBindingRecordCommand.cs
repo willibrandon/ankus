@@ -39,6 +39,7 @@ internal static class NativeBindingRecordCommand
         var request = new NativeRecordRequest(ast, library, headers.Target, symbols);
         NativeRecordGraph graph = await NativeBindingRecordWorker.InspectAsync(request, output, cancellationToken);
         var records = new NativeHeaderRecords(headers, graph);
+        NativeBindingSignatureValidation.Validate(records);
         string temporary = Path.Combine(output, "native-records-" + Guid.NewGuid().ToString("N") + ".tmp");
         try
         {

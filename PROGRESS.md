@@ -7208,3 +7208,61 @@ The phases track implementation of the complete pgrx feature surface.
   Linux remains at 30 minutes and macOS at 25 minutes. The complete test suite
   remains enabled in each job; analyzer enforcement and platform coverage are
   unchanged. The next Windows run must complete within the 40-minute maximum.
+
+- 2026-09-26 — Added agreement checks between the independent selected-header
+  signature trees and their measured native type graph before record publication
+  or call-body emission. Every root is checked, including unselected functions
+  and globals and an empty body selection. Written and canonical types must
+  preserve scalar/typedef identity, qualifiers, nested pointers and arrays,
+  tag kind/completeness, prototype shape and calling convention. Equal size and
+  alignment cannot make incompatible native types interchangeable.
+
+  The comparison preserves C parameter adjustment, Boolean spelling and array
+  element qualification. It retains the distinction between an unspecified
+  parameter list and a fixed prototype; unprototyped calls remain unsupported.
+  Anonymous typedef observations must consistently bind to one declaration.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Same-size integer/float/unsigned substitutions reject | `NativeCallContractsRejectSameSizeTypeChanges` |
+  | Nested pointers, array extents, callbacks, qualifiers and tag identities agree | `NativeCallContractsRejectDifferentParameterTypes` |
+  | Both written and canonical prototypes constrain arguments | `NativeCallContractsValidateWrittenAndCanonicalTypes` |
+  | Anonymous typedef edges retain declaration identity | `NativeCallContractsPreserveAnonymousIdentity` |
+  | Prototype, calling convention, declaration kind, typedef spelling and nesting failures reject | `NativeCallContractsRejectChangedIdentity` |
+  | Unselected functions/globals remain validated, including empty selection | `NativeCallContractsValidateUnselectedSymbols` |
+  | Qualified multidimensional arrays and adjusted function parameters execute correctly | `NativeCallContractsPreserveCompilerTypeSemantics` |
+
+  All build-tool tests pass on Linux x64: 699 passed, zero failed and two existing
+  Windows-only skips in 5.602s. The production validator also accepts all 9,224
+  saved PostgreSQL 18.6/Linux x64 signatures and all 8,848 available saved
+  PostgreSQL 17.7/Windows x64 signatures in written and canonical form. These
+  archived observations verify compiler representation agreement; they are not
+  a fresh Windows or PostgreSQL backend run. A separate current Windows x64
+  run passes all 56 focused native-call/import cases with .NET 10.0.12, Clang
+  and MSVC in 2.787s. These are standalone compiler/execution tests, not a
+  complete Windows backend suite.
+
+  Release passes with zero warnings and errors in 29.08s. API freshness retains
+  170 pages/2,254 members; the site builds 212 pages in 3.00s and checks with zero
+  errors, warnings or hints. Plain root `dotnet test` passes all six modules on
+  PostgreSQL 18.6/Linux x64: 7,539 passed, zero failed and two existing Windows-only
+  skips in 10m 14.319s, including the packaged Native AOT/backend paths.
+
+  Prior hosted [CI run 36254734532](https://github.com/willibrandon/ankus/actions/runs/36254734532)
+  for `a666022` passes Linux x64/PostgreSQL 18.6 with 7,512 cases and two existing
+  platform skips in a 23m 03s job, and macOS ARM64/PostgreSQL 18.6 with 7,510 cases
+  and four existing platform skips in a 20m 52s job. Both have zero failures.
+  Quality, runtime and documentation jobs pass; Windows is still running at the
+  pre-commit check and does not yet supply complete backend evidence.
+  `AGENTS.md` now records the requested workflow: continue while CI runs, check
+  and record previous outcomes before each commit, and resolve reported failures
+  as work proceeds. The hard per-job maximum remains 40 minutes.
+
+  These checks do not independently prove every transitive record member or
+  distinguish anonymous declarations if all corresponding observations change
+  together. Complete compiler checks of member/layout projections, typed managed
+  methods, aligned argument storage, native/linkage identity, active export
+  selection and SDK post-ILC integration remain required, along with the existing
+  compiler-specific shim, callback, variadic, global/hook, feature-inventory and
+  PostgreSQL/platform-matrix work. Contributor documentation records this
+  internal boundary; public guides retain the supported consumer surface.

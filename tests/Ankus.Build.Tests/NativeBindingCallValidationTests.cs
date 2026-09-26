@@ -93,11 +93,12 @@ public sealed partial class NativeBindingNativeTests
             symbols["native_first"] = first with { Type = function with { Parameters = [] } };
             FormatException count = Assert.ThrowsExactly<FormatException>(() =>
                 NativeBindingCallSource.Generate(records with { Headers = records.Headers with { Symbols = symbols } }, Headers));
-            Assert.Contains("inconsistent parameter shapes", count.Message);
+            Assert.Contains("parameter count", count.Message);
             symbols["native_first"] = first with { Type = function with { Result = new NativeHeaderScalar("void") } };
             FormatException result = Assert.ThrowsExactly<FormatException>(() =>
                 NativeBindingCallSource.Generate(records with { Headers = records.Headers with { Symbols = symbols } }, Headers));
-            Assert.Contains("inconsistent result shapes", result.Message);
+            Assert.Contains("native_first.result", result.Message);
+            Assert.Contains("scalar identity", result.Message);
             int aliasIndex = records.Graph.Types.Count;
             var cyclicAlias = new NativeRecordType("alias", records.Graph.Types[records.Graph.Roots["native_first"]].Canonical,
                 "Cycle", NativeHeaderQualifiers.None, null, null, "Cycle", aliasIndex, null, null, null, "typedef int Cycle(int);");
@@ -108,7 +109,7 @@ public sealed partial class NativeBindingNativeTests
                 Graph = records.Graph with { Roots = cyclicRoots, Types = [.. records.Graph.Types, cyclicAlias] },
             };
             FormatException alias = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(cyclic, Headers));
-            Assert.Contains("cyclic function alias", alias.Message);
+            Assert.Contains("type shape", alias.Message);
         }
         finally { await DeleteDirectoryAsync(directory); }
     }

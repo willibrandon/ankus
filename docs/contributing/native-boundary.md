@@ -696,6 +696,17 @@ selection, including unselected roots, and preserves the companion's type
 identities. Unknown or duplicate selections fail; selecting a global, variadic
 or unprototyped function still requires its own supported lowering. Selecting
 no bodies does not bypass graph validation.
+Before publishing a record contract or emitting bodies, signature validation
+compares the independently collected header types with both written and canonical
+types in the measured graph. It checks scalar and typedef identities, nested
+pointers, array extents, tag kind/completeness, qualifiers and function prototypes
+and calling conventions. Equal sizes alone cannot establish type compatibility.
+The comparison preserves C parameter adjustment and compiler Boolean spelling;
+anonymous typedefs must refer consistently to the same measured declaration.
+These signature checks do not independently prove every transitive record member
+or distinguish anonymous declarations when all observations are changed together.
+Full compiler checks of the generated member/layout projection remain required
+for the general typed companion.
 Argument typedefs retain the original native qualifiers. Reads through those
 types avoid adding a second `const`, which MSVC rejects for already-qualified
 parameters; pointee qualification and volatile reads remain part of the contract.

@@ -110,5 +110,9 @@ before changing an area.
 - Validate the site with `pnpm build` and `pnpm check` in `docs/`, and check API
   freshness as documented in `docs/contributing/api-reference.md`.
 - Commit and push coherent verified milestones, then monitor and repair CI.
+  Continue development while CI runs. Before every commit, check and record
+  previous CI run outcomes, including runs still in progress, and resolve reported
+  failures as work proceeds. Do not wait for hosted CI to finish before continuing
+  independent work or committing a locally verified milestone.
   Preserve unrelated user changes. Do not publish NuGet packages until the
   faithful port and its required validation are complete.

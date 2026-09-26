@@ -32,7 +32,7 @@ internal static class NativeBindingCallSource
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(headers);
         ArgumentNullException.ThrowIfNull(names);
-        NativeBindingRecordValidation.Validate(records.Graph, records.Headers.Target, records.Headers.Symbols.Keys);
+        NativeBindingSignatureValidation.Validate(records);
         var selected = new SortedDictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal);
         foreach (string name in names)
         {
