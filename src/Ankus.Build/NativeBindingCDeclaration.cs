@@ -67,7 +67,11 @@ internal static partial class NativeBindingCDeclaration
         return type;
     }
 
-    private static void ValidateName(string name)
+    /// <summary>
+    /// Rejects text which cannot be emitted as one C identifier.
+    /// </summary>
+    /// <param name="name">The exact identifier to validate.</param>
+    internal static void ValidateName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
         if (!Identifier().IsMatch(name)) { throw new FormatException("Invalid generated C identifier."); }

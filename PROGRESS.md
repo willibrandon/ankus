@@ -6329,8 +6329,14 @@ The phases track implementation of the complete pgrx feature surface.
   418.820s on Linux x64/PostgreSQL 18.6; the integration suite takes 417.728s.
   The non-incremental Release build passes with zero warnings/errors in 63.01s.
   API freshness checks retain 170 pages/2,254 members. The site builds 212 pages,
-  and its check reports zero errors, warnings or hints. Hosted validation of
-  this new milestone is still pending.
+  and its check reports zero errors, warnings or hints. Hosted CI for `739a7af`
+  completed successfully: Ubuntu 24.04 x64/PostgreSQL 18.6 passes 7,057 cases
+  with zero failures/skips in a 13m51s job; macOS 15 ARM64/PostgreSQL 18.6 passes
+  7,055 with zero failures and the two existing Linux-only memory-measurement
+  skips in 14m47s; Windows Server 2025 x64/PostgreSQL 17.11 passes 7,055 with
+  the same two skips in 26m43s. Windows integration takes 22m06.969s. All seven
+  CI jobs and documentation deployment pass. Existing 20/25/30-minute platform
+  limits remain sufficient.
 
   | Requirement | Concrete witnesses |
   |---|---|
@@ -6345,3 +6351,58 @@ The phases track implementation of the complete pgrx feature surface.
   generation, call-site variadic promotion, raw global access, hook registration
   and chaining, and the complete version/platform matrix remain required. No
   analyzer settings, suppressions, production friend assemblies or timeouts change.
+
+- 2026-09-25 — Added selected-header semantic type collection through the build
+  tool's `binding-header-types` developer command. Clang resolves requested
+  catalog functions and globals against the selected PostgreSQL installation.
+  Structured types retain native typedef identities, anonymous records/enums,
+  const/volatile/restrict levels, arrays and their parameter adjustment, nested
+  callbacks, variadic/prototype distinctions and no-return metadata. Declaration
+  metadata retains ordered parameter names, linkage, storage and thread-local
+  status. Target identity comes from the same translation unit, including the
+  exact PostgreSQL version, runtime identifier, pointer width, byte order and
+  Clang major.
+
+  The command reconstructs C declarations and recompiles compatibility assertions
+  against the same headers before publishing its normalized JSON contract. It
+  rejects unsupported types/ABIs, malformed observations, mismatched identities,
+  excessive nesting and oversized compiler output. Diagnostic AST files retain
+  local header paths; normalized contracts omit those paths and compiler IDs.
+  Invalid selections, pre-start cancellation and runtime mismatch preserve an
+  existing final contract. This tooling does not change consumer SDK generation.
+
+  Linux x64/PostgreSQL 18.6 with Clang 21 collects and reconstructs all 9,224
+  inventoried functions/globals (8,645 functions and 579 globals) successfully.
+  This includes the installed `CreateStatistics` prototype, volatile atomic
+  parameters, anonymous typedefs and `va_list` forms that the reference-prototype
+  projection could not represent. A second run produces an identical normalized
+  contract, and Clang 19 also passes eight focused real-header signatures.
+  Native fixtures cover `const restrict` array-parameter adjustment: a regression
+  first fails the compiler's pointer-qualifier assertion, then passes after the
+  emitter restores qualifiers removed by conditional conversion.
+
+  All 333 binding tests pass with zero failures/skips in 3.445s. The three new
+  packaged-command integration cases pass on Linux x64/PostgreSQL 18.6 in
+  121.067s, including fixture publication. The final non-incremental Release
+  build passes with zero warnings/errors in 22.46s. API freshness retains
+  170 pages/2,254 members; the site builds 212 pages and its check reports zero
+  errors, warnings or hints. Final plain `dotnet test` passes all 7,126 cases
+  with zero failures/skips on Linux x64/PostgreSQL 18.6 in 440.662s; the
+  integration suite takes 439.645s. Hosted validation for this new milestone
+  is pending.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Typedef identity, qualifier levels, array adjustment, callbacks and no-return metadata | `HeaderTypesRetainNativeSemantics`, `DeclaratorsPreserveQualifierLevelsAndArrayPrecedence`, `CallbackReturnsAndPrototypeStatesRemainDistinct` |
+  | Exact declaration/selection identity, metadata and bounded type trees | `DeclarationMetadataAndQualifiedParametersRemainExact`, `SelectionAndGeneratedAliasesAreExact`, `InvalidCompilerObservationsFailExplicitly`, `NestingBoundaryIsExplicit` |
+  | Exact target facts and rejection of contradictory observations | `TargetFactsArePreserved`, `InvalidTargetFactsFailExplicitly` |
+  | Bounded output and failure without replacing an existing contract | `InvalidHeaderSelectionsPreserveOutput`, `BoundedCompilerOutputPreservesExactBytes`, `CompilerOutputOverrunsFailExplicitly`, `InvalidBoundsAndPreCancelledCompilationPreserveState` |
+  | Installed-package boundary and real selected-header identity | `PackagedBuildToolCollectsSelectedHeaderTypes`, `PackagedBuildToolPreservesHeaderContractOnRuntimeMismatch`, `PackagedBuildToolRejectsMismatchedHeaderMajor` |
+
+  These are compiler type checks, not managed imports or backend-call evidence.
+  Native scalar/record measurement, export availability, guarded managed calls,
+  argument/result ownership, variadic call-site promotion, global access, hook
+  registration/chaining and the complete version/platform matrix remain required.
+  Parser fixtures for other targets do not establish real platform validation.
+  No analyzer settings, suppressions, production friend assemblies or CI limits
+  change.

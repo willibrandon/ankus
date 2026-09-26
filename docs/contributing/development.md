@@ -7,14 +7,16 @@ import library. The repository's collation tests require PostgreSQL built with
 ICU support.
 
 Build-tool tests compile standalone C layout and signature probes, including
-deliberately incompatible prototypes which must fail compilation. Make `cc` on Linux/macOS or
+deliberately incompatible prototypes which must fail compilation. Header-type
+collection also uses Clang's structured AST and checks the packaged command against
+the selected PostgreSQL installation. Make both `cc` and `clang` on Linux/macOS or
 `clang-cl.exe` on Windows available on `PATH`. Windows also uses `cl.exe` from
 Visual Studio 2022 17.9 or later for the selected PostgreSQL header probe. Its
 [`__typeof__` support](https://learn.microsoft.com/cpp/c-language/typeof-c)
 lets the probe measure anonymous native values with a type operand to MSVC's
 alignment operator. A Visual Studio Developer Command Prompt supplies headers
 and libraries. Install the Visual Studio Clang tools or LLVM for the independent
-standard C fixture.
+standard C fixture and the header-type collector.
 
 ## PostgreSQL discovery
 

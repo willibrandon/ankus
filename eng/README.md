@@ -136,6 +136,46 @@ alone does not prove that every installed-header function matches the catalog.
 Variadic signatures retain only their fixed arguments; promoted call-site arguments
 still require generation. Guarded managed calls and hook registration remain open.
 
+To collect authoritative types from the selected headers, put catalog function
+and/or global names in a text file, one per line:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-header-types symbols.txt 18 /path/to/pg_config artifacts/binding-header-types/pg18
+```
+
+This developer command requires `clang` on Linux/macOS or `clang-cl.exe` on
+Windows. Optional arguments select the Clang executable, Windows library
+directories, expected runtime identifier and compiler target triple, in that
+order. Windows uses the Visual Studio and SDK include directories. Collection
+uses a frontend only, without linking or running target code; matching headers,
+compiler includes and target configuration are still required.
+
+The command writes `native-header-types.c`, the compiler's
+`native-header-types.ast.json`, reconstructed `native-header-checks.c`, compiler
+output in `native-header-checks.txt`, and a normalized `native-header-types.json`.
+The AST is a development artifact containing local header paths; the normalized
+contract excludes source paths and compiler pointer identities. Its target records
+the exact PostgreSQL version, runtime identifier, pointer width, byte order and
+Clang major. The type graph retains native typedefs and anonymous records/enums,
+qualifiers at each pointer level, fixed/incomplete arrays, both written and
+adjusted parameter types, callbacks, variadic/prototype distinctions and no-return
+metadata. Functions also retain parameter names and linkage; globals retain
+their declared types and thread-local status.
+
+Clang compiles the reconstructed declarations against the same headers before
+the command writes the final contract. Unsupported type kinds/calling conventions,
+invalid observations, target mismatches and compiler errors fail explicitly.
+Existing final contracts survive failures before that final write; intermediate
+diagnostic files may be replaced. Unlike the reference-prototype probe, collection
+can retain minor-release prototype changes, native volatile qualifiers and
+anonymous typedefs directly from the selected installation.
+
+Header types do not establish native record layouts, scalar widths, exported
+symbol availability, managed calling conventions, pointer ownership or backend
+error guards. Integrating these facts with layout measurement, managed call
+generation, global access and hook registration remains port work. The consumer
+SDK's existing node layout generation is unchanged.
+
 These declarations provide native fields, enums, embedded values, inline arrays
 and explicit flexible-tail access. Checked node ownership/casting/formatting APIs
 are available through the runtime; typed pointer/callback fields remain port work.
