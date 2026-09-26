@@ -102,6 +102,9 @@ before changing an area.
 - Update related public guides in `docs/src/content/docs/` and the README when
   appropriate. Generate API pages from source XML comments using
   `dotnet run --project src/Ankus.DocGenerator -c Release`; do not hand-edit them.
+- Keep repository maintenance commands in `eng/README.md` or `docs/contributing/`.
+  Public user guides should describe extension-author workflows, supported APIs,
+  and their limitations without internal development commands.
 - Validate the site with `pnpm build` and `pnpm check` in `docs/`, and check API
   freshness as documented in `docs/contributing/api-reference.md`.
 - Commit and push coherent verified milestones, then monitor and repair CI.

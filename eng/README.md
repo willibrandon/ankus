@@ -276,6 +276,43 @@ variadic arguments, or implement raw globals and hooks. The consumer SDK's node
 generation is unchanged; the complete PostgreSQL-major/platform matrix remains
 required port work.
 
+To generate checked native call bodies for a list of fixed-prototype functions:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-call-sources symbols.txt 18 /path/to/pg_config artifacts/binding-calls/pg18
+```
+
+This accepts the same arguments and compiler/library prerequisites as
+`binding-records`, followed by an optional native body compiler. Clang collects
+the declarations; native body compilation defaults to MSVC on Windows, matching
+the SDK, and to the selected Clang elsewhere. An explicit MSVC executable must
+target the measured architecture; generated checks reject a mismatch. Both
+compilation stages retain warnings as errors. It writes `native-calls.c` after
+compiling the complete generated bodies, including their calls, against the
+selected headers. A compiler
+failure or cancellation preserves the previous final source. Declaration-only
+inspection remains separate from complete-body validation.
+
+Each `ankus_native_call_<symbol>` body accepts native argument addresses and exact
+byte lengths, plus a result destination. It checks the complete envelope before
+calling the function. Argument addresses must satisfy the measured native
+alignment and hold valid C object representations with live referenced storage.
+Pointer values remain borrowed, including null pointers where the underlying
+native function permits them. The C compiler performs the actual call with its
+native scalar/aggregate ABI; there is no managed aggregate calling-convention
+guess. Result bytes are copied only after the native function returns. Empty
+records retain the selected compiler's size, including zero where applicable.
+
+These bodies are an internal prerequisite for guarded raw bindings. They must
+execute beneath the native PostgreSQL error guard on the backend thread, with
+owned diagnostic transport and managed unwinding outside that guard. They are
+not directly callable managed imports. Callback addresses here refer to native
+callbacks; generated managed callback guards and lifetimes remain required.
+Variadic and unprototyped calls need explicit call-site type/promotion handling;
+globals are not function calls. Those selections and incomplete by-value storage
+fail explicitly. Export discovery, guard/consumer integration and the complete
+PostgreSQL-major/platform matrix remain required port work.
+
 These declarations provide native fields, enums, embedded values, inline arrays
 and explicit flexible-tail access. Checked node ownership/casting/formatting APIs
 are available through the runtime; typed pointer/callback fields remain port work.

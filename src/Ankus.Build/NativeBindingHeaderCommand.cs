@@ -59,7 +59,7 @@ internal static class NativeBindingHeaderCommand
     /// Inspects declarations and constants using the selected header command's exact frontend arguments.
     /// </summary>
     internal static Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
-        string output, CancellationToken cancellationToken, bool dumpAst = true, string? serializedAst = null)
+        string output, CancellationToken cancellationToken, bool dumpAst = true, string? serializedAst = null, bool inspectBodies = false)
     {
         if (dumpAst && serializedAst is not null) { throw new ArgumentException("Select one native AST output format.", nameof(serializedAst)); }
 
@@ -85,13 +85,14 @@ internal static class NativeBindingHeaderCommand
 
         if (serializedAst is not null) { options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]); }
 
-        return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken);
+        return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken, inspectBodies);
     }
 
     /// <summary>
     /// Captures a frontend's structured output with a finite memory-independent byte limit.
     /// </summary>
-    internal static async Task CompileAsync(string compiler, IReadOnlyList<string> arguments, string ast, string directory, CancellationToken cancellationToken)
+    internal static async Task CompileAsync(string compiler, IReadOnlyList<string> arguments, string ast, string directory,
+        CancellationToken cancellationToken, bool inspectBodies = false)
     {
         var start = new ProcessStartInfo(compiler)
         {
@@ -100,10 +101,13 @@ internal static class NativeBindingHeaderCommand
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        // This frontend inspects declarations and constant expressions, not implementations.
-        // PostgreSQL inline bodies can depend on the server's original compiler dialect.
-        start.ArgumentList.Add("-Xclang");
-        start.ArgumentList.Add("-skip-function-bodies");
+        // Metadata collection only needs declarations. Generated call validation must also check bodies.
+        if (!inspectBodies)
+        {
+            start.ArgumentList.Add("-Xclang");
+            start.ArgumentList.Add("-skip-function-bodies");
+        }
+
         foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -120,12 +124,26 @@ internal static class NativeBindingHeaderCommand
             await exit;
             await copy;
             string error = await errors;
-            if (process.ExitCode != 0) { throw new InvalidOperationException($"{compiler} exited with {process.ExitCode}: {error}"); }
+            if (process.ExitCode != 0)
+            {
+                if (inspectBodies)
+                {
+                    output.Position = 0;
+                    byte[] diagnostic = new byte[(int)Math.Min(output.Length, 16 * 1024)];
+                    await output.ReadExactlyAsync(diagnostic, cancellationToken);
+                    error = System.Text.Encoding.UTF8.GetString(diagnostic) + error;
+                }
+
+                throw new InvalidOperationException($"{compiler} exited with {process.ExitCode}: {error}");
+            }
         }
         catch
         {
             if (!process.HasExited) { process.Kill(entireProcessTree: true); }
 
+            await process.WaitForExitAsync(CancellationToken.None);
+            // Observe stream cancellation/failure before disposing their owned buffers, preserving the original error.
+            await Task.WhenAll(copy, errors, exit).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             throw;
         }
     }

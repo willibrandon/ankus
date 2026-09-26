@@ -6633,8 +6633,15 @@ The phases track implementation of the complete pgrx feature surface.
   API freshness retains 170 pages/2,254 members; docs build 212 pages and check
   with zero errors, warnings or hints. Plain root `dotnet test` passes all six
   modules against PostgreSQL 18.6 on Linux x64: 7,264 passed, zero failed and the
-  existing Windows-only cleanup case skipped in 7m 36.924s. Hosted CI validation
-  remains pending for this milestone.
+  existing Windows-only cleanup case skipped in 7m 36.924s. Hosted CI
+  [36232029901](https://github.com/willibrandon/ankus/actions/runs/36232029901)
+  and docs deployment `36232029943` pass for `52673cc`. All six test modules
+  execute against real PostgreSQL installations with Clang 20.1.8: Ubuntu 24.04
+  x64/PostgreSQL 18.6 passes 7,264 cases with one existing Windows-only skip in a
+  12m 10s job; macOS 15 ARM64/PostgreSQL 18.6 passes 7,262 with three existing
+  platform skips in 20m 41s; Windows Server 2025 x64/PostgreSQL 17.11 passes
+  7,263 with two existing Linux-only skips in 24m 17s. No timeout changes were
+  needed.
 
   | Requirement | Concrete witnesses |
   |---|---|
@@ -6655,3 +6662,60 @@ The phases track implementation of the complete pgrx feature surface.
   promotion, raw globals or hook registration/chaining. Consumer SDK node
   generation and the unresolved complete PostgreSQL-major/platform matrix remain
   separate port work.
+
+- 2026-09-26 — Added typed native call-body generation from the selected-header
+  semantic signatures and record graph. The internal `binding-call-sources`
+  command emits a uniform argument-address/length and result-address/length
+  boundary. Native C performs each actual scalar or aggregate call, retaining
+  typedefs, array adjustment, pointer values and callback signatures. Declared
+  typedef alignment remains distinct from canonical function ABI shape. Empty
+  records use the selected compiler's actual size rather than an assumed
+  cross-platform representation.
+
+  The generated bodies check every envelope before any native side effect and
+  publish result bytes only after the function returns. Complete native prototype,
+  storage, PostgreSQL version, processor, operating-system and byte-order checks
+  reject stale contracts. Variadic/unprototyped calls require future explicit
+  call-site promotion support; globals and incomplete by-value objects fail
+  explicitly. A cyclic function-alias graph fails instead of hanging generation.
+  The command compiles complete function bodies rather than accepting a
+  declaration-only frontend pass. Clang collects the metadata; the Windows native
+  bodies use MSVC, matching the SDK's native bridge compiler. Both stages keep
+  warnings as errors. Compiler failure or cancellation leaves the
+  previous final source intact. Frontend cancellation now joins the process and
+  observes its stream tasks before releasing owned output files.
+
+  Linux x64/PostgreSQL 18.6/Clang 21 compiles all 8,629 fixed-prototype
+  functions in the selected catalog with warnings as errors. The selection
+  excludes 579 globals and 16 variadic/unprototyped functions explicitly; it is
+  compiler evidence, not execution of arbitrary backend functions. Local Windows
+  x64/Clang 21.1.7/MSVC also validates six selected real-header functions against
+  PostgreSQL 17.7 and 18.1. The 17 focused new unit cases pass on Windows x64/
+  .NET 10.0.12 in 821ms. The complete Linux build-tool module passes 484 cases
+  with its existing Windows-only cleanup case skipped in 3.753s.
+
+  The Release build passes with zero warnings/errors in 25.59s. API freshness
+  retains 170 pages/2,254 members; docs build 212 pages and check with zero
+  errors, warnings or hints. Plain root `dotnet test` passes all six modules
+  against PostgreSQL 18.6 on Linux x64: 7,283 passed, zero failed and one existing
+  Windows-only cleanup skip in 8m 26.985s. This includes both installed-command
+  cases, native compiler failure with preserved output, and subsequent successful
+  source publication.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Native scalar/aggregate ABI, full-width values, long double, 128-bit integers, mixed/large records, unions, over-aligned typedefs, empty records, borrowed pointers, native callbacks and array parameters | `NativeCallBodiesPreserveCompilerAbi` executes optimized generated C and checks independent native values and side effects |
+  | Count, pointer, byte-length, alignment and result-envelope validation before native effects | `NativeCallBodiesRejectInvalidStorageBeforeInvocation` checks exact status codes, unchanged output/counter state and subsequent successful calls |
+  | Native non-local error leaves the result untouched and allows recovery | `NativeCallBodiesRetainResultUntilNativeReturn` uses an entirely native setjmp/longjmp fixture, including a no-return function; it does not claim managed/PostgreSQL guard integration |
+  | Explicit unsupported shapes, empty selections, deterministic source and compiler rejection of changed types/storage/targets/bodies | `NativeCallBodiesRejectUnsupportedContracts`, `NativeCallBodiesAcceptEmptySelection`, `NativeCallBodiesRetainDeterministicCheckedContracts` |
+  | Command validation, cancellation, compiler failure and atomic source replacement | `InvalidCallCommandAritiesFailExplicitly`, `InvalidCallSelectionsPreserveOutput`, `CallSourcePublicationRequiresSuccessfulUncancelledCompilation`, `NativeFrontendCancellationJoinsProcessAndReleasesFiles` |
+  | Installed command executes real selected-header aggregate results and recovers after rejected selection | `PackagedBuildToolGeneratesExecutableNativeCalls`, `PackagedBuildToolPreservesCallSourcesAndRecovers` |
+
+  Native backend guards, owned diagnostic transport, managed imports, callback
+  lifetime/error transport, export availability, globals, hooks and the complete
+  PostgreSQL-major/platform matrix remain required. These generated C bodies
+  must run beneath the native error guard on the backend thread; they are not a
+  directly callable managed API. Engineering usage stays in `eng/README.md`.
+  Consumer guides retain their current supported capabilities and limitations.
+  `AGENTS.md` now records that internal maintenance commands belong in engineering
+  or contributor documentation. Hosted validation for this milestone is pending.
