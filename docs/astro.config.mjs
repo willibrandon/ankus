@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
+import { documentationGrammars } from './src/syntax/grammars.mjs';
 
 const siteBase = '/ankus';
 
@@ -53,6 +54,7 @@ export default defineConfig({
       ],
       customCss: ['./src/styles/custom.css'],
       expressiveCode: {
+        shiki: { langs: documentationGrammars },
         customizeTheme(theme) {
           // The bundled themes omit C# type and variable scopes, including attributes and generics.
           theme.settings.push(

@@ -6216,3 +6216,25 @@ The phases track implementation of the complete pgrx feature surface.
   public raw-value guide now describe allocation, explicit formatting and the
   caller's graph lifetime obligations. Analyzer modes, warnings, suppressions,
   production assembly boundaries and CI timeouts are unchanged.
+
+- 2026-09-25 — Node allocation and formatting in `d000135` pass all seven jobs
+  in [CI 36212131890](https://github.com/willibrandon/ankus/actions/runs/36212131890)
+  and documentation deployment. Linux x64/Ubuntu 24.04/PostgreSQL 18.6 passes
+  6,918 tests with no failures or skips in a 16m 51s job. macOS ARM64/macOS
+  15/PostgreSQL 18.6 and Windows x64/Windows Server 2025/PostgreSQL 17.11 each
+  pass 6,916 tests with no failures and the two existing Linux-only memory
+  measurement skips, in 12m 11s and 20m 52s respectively. The Windows integration
+  suite takes 17m 08.720s. Existing timeout limits remain sufficient; the full
+  PostgreSQL-major/platform inventory remains open.
+
+- 2026-09-25 — Corrected documentation syntax highlighting shared across pages.
+  A scoped C# grammar extension recognizes typed top-level `using` declarations
+  before the upstream namespace-import rule, preserving generic type, local,
+  initializer and string tokens. The SQL grammar now recognizes PostgreSQL's
+  `SHOW` command. The configuration guide's hook signatures terminate with
+  semicolons so each method starts a fresh declaration. Both themes pass 14 C#
+  token checks and seven SQL keyword/string/comment cases. The rebuilt HTML
+  confirms the expected type, method and keyword colors in both themes. A forced
+  site build produces 212 pages, and `pnpm check` reports zero errors, warnings
+  or hints. The non-incremental Release build passes with zero warnings/errors
+  in 73.50s. No analyzer settings, suppressions, runtime behavior or CI limits change.

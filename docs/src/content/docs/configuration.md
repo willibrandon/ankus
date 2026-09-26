@@ -169,9 +169,9 @@ public static partial class Settings
 For a property of type `T`, hook signatures are:
 
 ```csharp
-PgGucCheckResult<T> Check(T proposed, PgGucSource source)
-void Assign(T accepted, PgGucExtra? extra)
-string Show(T current, PgGucExtra? extra)
+PgGucCheckResult<T> Check(T proposed, PgGucSource source);
+void Assign(T accepted, PgGucExtra? extra);
+string Show(T current, PgGucExtra? extra);
 ```
 
 A check result can accept a normalized value with optional `PgGucExtra`, or reject

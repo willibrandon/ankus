@@ -31,5 +31,8 @@ Intermediate metadata is written beneath `artifacts/api-metadata/` and removed
 after generation.
 
 C# token colors are configured in `docs/astro.config.mjs` for both site themes.
+`docs/src/syntax/grammars.mjs` supplies shared corrections for typed C# `using`
+declarations and PostgreSQL's `SHOW` command. It extends the pinned Shiki
+grammars without changing their handling of namespace imports, strings or comments.
 After changing syntax highlighting, run `pnpm exec astro build --force` from
 `docs/` to invalidate Astro's cached Markdown rendering.

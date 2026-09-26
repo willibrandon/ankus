@@ -21,6 +21,9 @@ importers:
       '@astrojs/markdown-satteri':
         specifier: 0.4.1
         version: 0.4.1
+      '@shikijs/langs':
+        specifier: 4.4.3
+        version: 4.4.3
       typescript:
         specifier: 6.0.3
         version: 6.0.3
