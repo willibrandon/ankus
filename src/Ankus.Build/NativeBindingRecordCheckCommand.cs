@@ -72,6 +72,6 @@ internal static class NativeBindingRecordCheckCommand
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(file, Path.Combine(output, "native-record-checks.c"), overwrite: true);
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally { await NativeBuildDirectory.DeleteAsync(directory); }
     }
 }

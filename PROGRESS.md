@@ -7514,3 +7514,39 @@ The phases track implementation of the complete pgrx feature surface.
   existing Windows-only skips in 11m 11.393s. The final pre-commit CI recheck
   confirms the previous outcomes above. No implementation, analyzer setting,
   test selection or public API changes are included in this timeout adjustment.
+
+- 2026-09-26 — Fixed production native-probe cleanup on Windows after CI could
+  not delete a just-executed `checks.exe`. The node collector and record-check
+  publisher now share the bounded cleanup routine used by their tests. Cleanup
+  starts after native tools and diagnostic streams finish, retries only known
+  Windows file-release errors, and still reports persistent access failures.
+  Cancellation does not interrupt removal of owned staging.
+
+  `NativeProbeCleanupWaitsForReleasedFile` exercises a real file handle denying
+  delete sharing. `NativeProbeCleanupDoesNotHideAccessDenial` retains a read-only
+  file after the bounded failure, and `NativeProbeCleanupRejectsMissingDirectory`
+  preserves the missing-directory error. `NativeRecordChecksPublishOnlyVerifiedContracts`
+  verifies failed compilation, failed executable checks and late cancellation
+  preserve prior output and permit successful recovery. All seven focused cases
+  pass on Windows x64/.NET 10.0.12 in 2.297s; Linux passes six with the existing
+  Windows-only access-denial skip in 1.942s.
+
+  The prior commit `0d72775` was audited while independent SDK work continued.
+  CI run 36271508065 passed PostgreSQL 18.6/Linux x64 (7,611 passed, zero failed,
+  two existing skips; 15m25s) and PostgreSQL 18.6/macOS ARM64 (7,609 passed, zero
+  failed, four existing skips; 17m37s), plus quality and all runtime jobs.
+  PostgreSQL 17.11/Windows x64 failed during temporary executable cleanup:
+  the build module passed 772 cases and failed one; integration passed 3,318
+  cases with two existing skips. The other four unit modules did not run after
+  the build-module failure, so the failed Windows run is not full platform
+  validation. Its job finished in 35m29s, below the 40-minute limit.
+
+  The isolated repair passes Release with zero warnings/errors in 29.62s.
+  API freshness retains 170 pages/2,254 members; the site builds 212 pages in
+  8.06s and checks with zero errors, warnings or hints. Plain root `dotnet test`
+  passes all six modules on PostgreSQL 18.6/Linux x64: 7,611 passed, zero failed
+  and two existing Windows-only skips in 10m 18.861s. The final pre-commit audit
+  confirms the prior CI outcomes above; the latest documentation run,
+  36268363251 for `8646654`, remains successful. The next CI run must establish
+  the repaired complete Windows suite outcome. No analyzer or timeout setting
+  was relaxed.

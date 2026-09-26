@@ -79,9 +79,10 @@ artifact, including when Native AOT compilation fails before cluster startup.
 Generated-solution test builds retain their binary logs in
 `artifacts/test-logs/generated-solution`, outside the disposable test projects.
 
-Native binding probes remove their temporary directories after the compiler and
-probe processes exit. On Windows, cleanup retries file-release errors for a
-bounded period; persistent access or deletion errors still fail the test.
+Native binding probes and SDK record verification remove their temporary
+directories after the compiler and probe processes exit. Production commands and
+their tests share bounded Windows file-release retries; persistent access or
+deletion errors still fail the operation, including during cancellation cleanup.
 
 If another process takes the reserved TCP port before PostgreSQL binds it, the
 cluster harness retries with fresh data, socket and log paths and a new port.

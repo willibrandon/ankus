@@ -67,22 +67,5 @@ public sealed partial class NativeBindingNativeTests
     /// <summary>
     /// Removes owned probe artifacts after exit, allowing bounded retries for Windows file-release races.
     /// </summary>
-    private static async Task DeleteDirectoryAsync(string directory)
-    {
-        for (int attempt = 0; ; attempt++)
-        {
-            try
-            {
-                Directory.Delete(directory, recursive: true);
-                return;
-            }
-            catch (Exception error) when (OperatingSystem.IsWindows() && attempt < 19 &&
-                error is IOException or UnauthorizedAccessException && (error.HResult & 0xFFFF) is 5 or 32 or 33 or 145)
-            {
-                // Access denied, sharing/lock violation, or a directory still containing a locked file.
-                // Cleanup must finish even if the test's own cancellation token has already expired.
-                await Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None);
-            }
-        }
-    }
+    private static Task DeleteDirectoryAsync(string directory) => NativeBuildDirectory.DeleteAsync(directory);
 }

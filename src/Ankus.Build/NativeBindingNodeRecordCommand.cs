@@ -52,7 +52,7 @@ internal static class NativeBindingNodeRecordCommand
         finally
         {
             // Workers and compiler streams have joined before releasing their large temporary AST artifacts.
-            Directory.Delete(directory, recursive: true);
+            await NativeBuildDirectory.DeleteAsync(directory);
         }
     }
 }
