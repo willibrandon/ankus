@@ -72,6 +72,9 @@ internal static class NativeBindingSourceCommand
 
     private static string PhysicalDirectory(DirectoryInfo directory)
     {
+        // Windows link resolution uses file enumeration, which cannot query a drive root.
+        if (directory.Parent is null) { return directory.FullName; }
+
         DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
         return resolved.Parent is DirectoryInfo parent
             ? Path.Combine(PhysicalDirectory(parent), resolved.Name)

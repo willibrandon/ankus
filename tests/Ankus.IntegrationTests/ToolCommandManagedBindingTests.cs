@@ -161,6 +161,8 @@ public sealed partial class ToolCommandTests
 
     private static string PhysicalBindingDirectory(DirectoryInfo directory)
     {
+        if (directory.Parent is null) { return directory.FullName; }
+
         DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
         return resolved.Parent is DirectoryInfo parent
             ? Path.Combine(PhysicalBindingDirectory(parent), resolved.Name)

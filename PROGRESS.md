@@ -6049,8 +6049,25 @@ The phases track implementation of the complete pgrx feature surface.
   passes with zero warnings/errors in 20.48s. All seven native catalogs are
   current against the pinned pgrx declarations; API freshness passes for 168
   pages/2,245 members. The documentation check reports zero errors/warnings/hints,
-  and the site build produces 210 pages. Repaired hosted verification remains pending.
+  and the site build produces 210 pages. Hosted quality and macOS ARM64 checks
+  pass in CI 36203633498. macOS/PostgreSQL 18.6 passes 6,831 tests with two
+  existing Linux-only allocation-measurement skips; the Windows follow-up is
+  recorded below.
   No diagnostic modes, severities, suppressions, skips or timeouts changed.
   Checked node ownership/casts/formatting, typed
   pointer/callback contracts, complete raw FFI and the remaining platform and
   PostgreSQL version inventory are still open.
+
+- 2026-09-25 — Stop physical-directory traversal before resolving a filesystem
+  root. Windows in [CI 36203633498](https://github.com/willibrandon/ankus/actions/runs/36203633498)
+  gets past the integer-width failure but exposes `ResolveLinkTarget` querying
+  the drive root through Win32 file enumeration, which rejects that root path.
+  Both managed-binding generation and the installed-SDK fixture now return a
+  root directly before querying links. Ordinary directory and ancestor-link
+  resolution is retained. Plain `dotnet test` passes all 6,833 cases with zero
+  failures/skips in 459.533s on Linux x64/PostgreSQL 18.6. The non-incremental
+  Release build passes with zero warnings/errors in 22.73s. API freshness
+  passes for 168 pages/2,245 members; the site build produces 210 pages and
+  its check reports zero errors/warnings/hints. Hosted validation of the root
+  correction remains pending. Analyzer settings, test assertions and CI
+  timeouts are unchanged.
