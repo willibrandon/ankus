@@ -40,13 +40,14 @@ internal static class NativeBindingHeaderParser
     {
         var source = new StringBuilder(headers);
         source.AppendLine();
+        NativeBindingCompilerShims.Write(source, symbols.Values);
         foreach ((string name, NativeHeaderSymbol symbol) in symbols.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
         {
             NativeBindingCDeclaration.ValidateName(name);
             NativeBindingCDeclaration.ValidateName(symbol.NativeName);
             string check = "ankus_header_check_" + name;
             source.Append("typedef ").Append(new NativeHeaderPointer(symbol.Type).Declare(check)).AppendLine(";");
-            source.Append("_Static_assert(_Generic(&").Append(symbol.NativeName).Append(", ").Append(check)
+            source.Append("_Static_assert(_Generic(&").Append(NativeBindingCompilerShims.Reference(symbol)).Append(", ").Append(check)
                 .Append(": 1, default: 0), \"incompatible reconstructed native type: ").Append(name).AppendLine("\");");
         }
 

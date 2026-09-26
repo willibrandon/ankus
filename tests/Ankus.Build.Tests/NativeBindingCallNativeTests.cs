@@ -225,7 +225,8 @@ public sealed partial class NativeBindingNativeTests
     private async Task<string> ExecuteNativeCallsAsync(string headers, string[] names, string main)
         => await ExecuteNativeCallsAsync(headers, [.. names.Select(static name => new NativeHeaderRequest(name, name, true))], null, main);
 
-    private async Task<string> ExecuteNativeCallsAsync(string headers, NativeHeaderRequest[] requests, string[]? names, string main, bool nativeCompiler = false)
+    private async Task<string> ExecuteNativeCallsAsync(string headers, NativeHeaderRequest[] requests, string[]? names, string main, bool nativeCompiler = false,
+        string? nativeHeaders = null)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-native-calls-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -233,8 +234,9 @@ public sealed partial class NativeBindingNativeTests
         {
             NativeHeaderRecords records = await CollectCallRecordsAsync(headers, requests, directory);
             string file = Path.Combine(directory, "calls.c");
-            string source = names is null ? NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers)
-                : NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers, names);
+            string compilerHeaders = "#define PG_VERSION_NUM 180006\n" + (nativeHeaders ?? headers);
+            string source = names is null ? NativeBindingCallSource.Generate(records, compilerHeaders)
+                : NativeBindingCallSource.Generate(records, compilerHeaders, names);
             await File.WriteAllTextAsync(file, source + "\n" + main, context.CancellationToken);
             string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "calls.exe" : "calls");
             string compiler = OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang";

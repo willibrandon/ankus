@@ -7266,3 +7266,94 @@ The phases track implementation of the complete pgrx feature surface.
   compiler-specific shim, callback, variadic, global/hook, feature-inventory and
   PostgreSQL/platform-matrix work. Contributor documentation records this
   internal boundary; public guides retain the supported consumer surface.
+
+- 2026-09-26 — Recorded the completed hosted checks for `97d6431` before the
+  next milestone. [CI run 36256704901](https://github.com/willibrandon/ankus/actions/runs/36256704901)
+  and [documentation run 36256704952](https://github.com/willibrandon/ankus/actions/runs/36256704952)
+  both pass, including quality and all three runtime jobs.
+
+  | Full-suite platform | PostgreSQL | Passed | Failed | Existing platform skips | Job duration |
+  |---|---|---:|---:|---:|---|
+  | Linux x64 | 18.6 | 7,539 | 0 | 2 | 22m 09s |
+  | macOS ARM64 | 18.6 | 7,537 | 0 | 4 | 17m 53s |
+  | Windows x64 | 17.11 | 7,539 | 0 | 2 | 36m 39s |
+
+  Each platform ran the complete suite against its real PostgreSQL server.
+  Windows completed within the authorized 40-minute maximum; its limit remains
+  40 minutes, Linux remains 30 and macOS remains 25. No tests were sharded or
+  removed to meet those limits. This is platform evidence for the implemented
+  surface, not completion of the unresolved full-port requirements above.
+
+  The preceding `a666022` Windows job in
+  [run 36254734532](https://github.com/willibrandon/ankus/actions/runs/36254734532)
+  was superseded by the `97d6431` push after 30m 43s. Its five completed modules
+  passed; its unfinished integration module did not establish backend parity.
+  The completed `97d6431` run now supplies that milestone's Windows evidence.
+
+- 2026-09-26 — Added independent native compiler and executable verification for
+  collected record graphs. The internal `binding-record-checks` command rebuilds
+  C type declarations against the selected PostgreSQL headers, checks named
+  member types and offsets, complete sizes and alignments, typedef/canonical
+  compatibility, record identity and enum representation/constants. Prepared
+  bytes read through real named bitfields verify physical offsets, widths and
+  signedness without relying on generated-source text as proof.
+
+  Publication occurs only after compilation and execution succeed. Compiler
+  errors, physical-layout failures and late cancellation preserve the prior
+  verified source, remove owned staging and permit a subsequent successful run.
+  Cancelled native processes and their output streams are joined before cleanup.
+  Target checks are shared with native call generation.
+
+  Standard `va_list` bridges Clang's private spelling to the selected native
+  compiler. Function redeclarations preserve C parameter adjustment on MSVC;
+  canonical comparisons remove only parameter-level qualification. PostgreSQL's
+  `pg_spin_delay_impl` macro fallback receives an addressable C shim, and generated
+  call bodies execute that implementation without dropping the catalog entry.
+  A separate adversarial probe also exposed acceptance of a self-canonical field
+  alias. The shared graph validator now rejects canonical spelling wrappers and
+  detects alias/wrapper cycles, including types reachable only through fields.
+  Enum constants compare sign independently of numeric equality, preventing C's
+  unsigned conversions from accepting `-1` as an unsigned 64-bit maximum or the
+  reverse. A real compiler probe reproduced both failures before the fix.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Same-size substitutions, qualifiers, arrays, callbacks, offsets, packing and constants reject | `NativeRecordChecksRejectChangedMembers` |
+  | Bitfield position, width and signedness agree; 65-bit values cannot truncate into 64-bit evidence | `NativeRecordChecksRejectChangedBitfields`, `NativeRecordChecksRejectWiderNativeBitfields` |
+  | Recursive storage, wide fields, integer extrema, vectors, atomics and complex values retain compiler representation | `NativeRecordChecksPreserveRecursiveStorage`, `NativeRecordChecksPreserveWideBitfields`, `NativeRecordChecksPreserveAnnotatedTypes` |
+  | Enum signedness/width/constants and distinct record identities remain checked | `NativeRecordChecksRejectEnumRepresentationChanges`, `NativeRecordChecksRejectWrappedEnumConstants`, `NativeRecordChecksRejectMergedDeclarations` |
+  | Adjusted callbacks, qualified prototypes and standard variadic storage compile | `NativeRecordChecksRetainCompilerParameterAdjustment`, `NativeRecordChecksPreserveQualifiedFunctionParameters`, `NativeRecordChecksPreserveStandardVariadicStorage` |
+  | Field-only canonical corruption and self/mutual wrapper cycles reject | `NativeRecordChecksRejectFieldAliasCorruption` |
+  | Failed verification/cancellation preserves prior output and supports recovery | `NativeRecordChecksPublishOnlyVerifiedContracts`, `NativeRecordChecksValidateCommandBoundaries` |
+  | Function and macro implementations execute once; invalid argument counts cannot enter | `NativeCallBodiesPreserveCompilerMacroFallback` |
+
+  Fresh compiler/executable verification of the complete saved observations passes
+  for PostgreSQL 18.6/Linux x64 (1,038 declarations, 9,224 roots) and PostgreSQL
+  17.7/Windows x64 (993 declarations, 8,848 available roots). Complete native body
+  compilation also passes for all 8,629 available fixed functions on Linux and
+  8,289 on Windows. These use the installed native headers and Clang/MSVC; they
+  are standalone compiler checks, not another complete backend run. The build
+  module passes 735 cases with zero failures and two existing Windows-only skips
+  on Linux in 6.598s. All 92 focused native record/call/import cases pass on Windows
+  x64 with .NET 10.0.12 in 6.717s.
+
+  Release passes with zero warnings/errors in 25.37s. API freshness retains
+  170 pages/2,254 members; the site builds 212 pages in 2.62s and checks with zero
+  errors, warnings or hints. Plain root `dotnet test` passes all six modules on
+  PostgreSQL 18.6/Linux x64: 7,575 passed, zero failed and two existing Windows-only
+  skips in 9m 51.443s, including the published Native AOT/backend paths.
+  The pre-commit recheck confirms `97d6431` CI run 36256704901 and documentation
+  run 36256704952 remain successful; their complete platform outcomes are recorded
+  above. The milestone adds 36 test cases; analyzer enforcement and CI timeout
+  limits remain unchanged.
+
+  The verifier explicitly rejects unnameable anonymous containers: promoted
+  leaves alone cannot establish their hidden size/alignment. Collection and
+  managed projection still retain those containers. MSVC enum compatibility
+  cannot independently prove nominal enum identity; source observations retain
+  that identity. Complete generic verification and automatic typed-companion
+  enforcement remain required, along with typed managed methods, aligned argument
+  storage, native/linkage identity, active export selection, SDK post-ILC
+  integration, other compiler shims, callbacks, variadics, globals/hooks, complete
+  feature inventories and the PostgreSQL/platform matrix. Contributor docs record
+  the internal command and these limits; no unsupported consumer API is advertised.

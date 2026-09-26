@@ -34,6 +34,11 @@ internal static class NativeBindingRecordValidation
         {
             NativeRecordType type = Type(id);
             NativeRecordType canonical = Type(type.Canonical);
+            if (IsWrapper(canonical.Kind))
+            {
+                throw new FormatException("A canonical native type cannot retain an alias or spelling wrapper.");
+            }
+
             if (canonical.Canonical != type.Canonical || string.IsNullOrEmpty(type.Spelling) || type.Spelling.Length > 1_048_576 ||
                 type.Name is null || (type.Qualifiers & ~(NativeHeaderQualifiers.Const | NativeHeaderQualifiers.Volatile | NativeHeaderQualifiers.Restrict)) != 0 ||
                 type.SourceDeclaration?.Length > 1_048_576)
@@ -118,6 +123,7 @@ internal static class NativeBindingRecordValidation
             }
         }
 
+        ValidateWrappers(graph);
         long totalFields = 0;
         long totalConstants = 0;
         foreach (NativeRecordDeclaration declaration in graph.Declarations)
@@ -233,4 +239,36 @@ internal static class NativeBindingRecordValidation
             throw new FormatException("Invalid native object size or alignment.");
         }
     }
+
+    /// <summary>
+    /// Rejects cyclic typedef/spelling edges in linear time, including aliases reachable only through record fields.
+    /// </summary>
+    private static void ValidateWrappers(NativeRecordGraph graph)
+    {
+        byte[] states = new byte[graph.Types.Count];
+        for (int index = 0; index < graph.Types.Count; index++)
+        {
+            if (states[index] != 0 || !IsWrapper(graph.Types[index].Kind)) { continue; }
+
+            var path = new List<int>();
+            int current = index;
+            while (IsWrapper(graph.Types[current].Kind))
+            {
+                if (states[current] == 2) { break; }
+
+                if (states[current] == 1) { throw new FormatException("Native type shape has an alias or wrapper cycle."); }
+
+                states[current] = 1;
+                path.Add(current);
+                current = graph.Types[current].Element!.Value;
+            }
+
+            foreach (int visited in path) { states[visited] = 2; }
+        }
+    }
+
+    /// <summary>
+    /// Identifies spelling layers that must resolve to an actual canonical native type.
+    /// </summary>
+    private static bool IsWrapper(string kind) => kind is "alias" or "elaborated" or "attributed" or "typeof";
 }

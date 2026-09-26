@@ -46,7 +46,7 @@ internal static class NativeBindingCallSource
         source.AppendLine("#include <stddef.h>");
         source.AppendLine("#include <stdint.h>");
         source.AppendLine("#include <string.h>");
-        WriteTarget(source, records.Headers.Target);
+        NativeBindingTarget.WriteChecks(source, records.Headers.Target, "Native call");
         source.AppendLine("/* These bodies require a native error guard; they must never be called directly from managed code. */");
         source.AppendLine("typedef struct AnkusNativeCallArgument { const void *data; size_t size; } AnkusNativeCallArgument;");
         source.AppendLine("enum AnkusNativeCallStatus { ANKUS_CALL_OK, ANKUS_CALL_COUNT, ANKUS_CALL_ARGUMENTS, ANKUS_CALL_RESULT, ANKUS_CALL_STORAGE, ANKUS_CALL_ALIGNMENT };");
@@ -127,7 +127,7 @@ internal static class NativeBindingCallSource
             // Each typedef already retains the native qualifiers; an extra const duplicates qualified arguments on MSVC.
             string arguments = string.Join(", ", aliases.Select(static (alias, index) =>
                 string.Create(CultureInfo.InvariantCulture, $"*({alias} *) arguments[{index}].data")));
-            string call = "(" + symbol.NativeName + ")(" + arguments + ")";
+            string call = "(" + NativeBindingCompilerShims.Reference(symbol) + ")(" + arguments + ")";
             source.AppendLine(hasResult ? $"    {resultAlias} value = {call};" : $"    {call};");
             if (hasResult) { source.AppendLine("    memcpy(result, &value, sizeof(value));"); }
 
@@ -149,39 +149,6 @@ internal static class NativeBindingCallSource
         source.Append("typedef ").Append(type.Declare(alias)).AppendLine(";");
         source.AppendLine(CultureInfo.InvariantCulture,
             $"_Static_assert(sizeof({alias}) == {size} && _Alignof({alias}) == {alignment}, \"Native call storage changed: {alias}\");");
-    }
-
-    private static void WriteTarget(StringBuilder source, NativeHeaderTarget target)
-    {
-        int separator = target.RuntimeIdentifier.LastIndexOf('-');
-        string operatingSystem = target.RuntimeIdentifier[..separator] switch
-        {
-            "win" => "defined(_WIN32)",
-            "osx" => "defined(__APPLE__) && defined(__MACH__)",
-            "linux" => "defined(__linux__) && defined(__GLIBC__)",
-            "linux-musl" => "defined(__linux__) && !defined(__GLIBC__) && !defined(__ANDROID__)",
-            _ => throw new FormatException("Unsupported native call operating system."),
-        };
-        string architecture = target.RuntimeIdentifier[(separator + 1)..] switch
-        {
-            "x64" => "defined(_M_X64) || defined(__x86_64__)",
-            "x86" => "defined(_M_IX86) || defined(__i386__)",
-            "arm64" => "defined(_M_ARM64) || defined(__aarch64__)",
-            "arm" => "defined(_M_ARM) || defined(__arm__)",
-            _ => throw new FormatException("Unsupported native call processor."),
-        };
-        source.AppendLine("#include <limits.h>");
-        NativeBindingNumericModel.WriteChecks(source, target.Numeric);
-        source.AppendLine(CultureInfo.InvariantCulture, $"#if PG_VERSION_NUM != {target.PostgresVersion} || !({operatingSystem}) || !({architecture})");
-        source.AppendLine("#error Native call target changed");
-        source.AppendLine("#endif");
-        source.AppendLine(CultureInfo.InvariantCulture,
-            $"_Static_assert(CHAR_BIT == 8 && sizeof(void *) == {target.PointerSize}, \"Native call primitive model changed\");");
-        source.AppendLine(target.IsLittleEndian
-            ? "#if !defined(_WIN32) && (!defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__)"
-            : "#if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__");
-        source.AppendLine("#error Native call byte order changed");
-        source.AppendLine("#endif");
     }
 
     private static NativeHeaderType Canonical(NativeHeaderType type)

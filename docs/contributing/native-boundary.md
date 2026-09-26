@@ -703,10 +703,43 @@ pointers, array extents, tag kind/completeness, qualifiers and function prototyp
 and calling conventions. Equal sizes alone cannot establish type compatibility.
 The comparison preserves C parameter adjustment and compiler Boolean spelling;
 anonymous typedefs must refer consistently to the same measured declaration.
-These signature checks do not independently prove every transitive record member
-or distinguish anonymous declarations when all observations are changed together.
-Full compiler checks of the generated member/layout projection remain required
-for the general typed companion.
+These signature checks are supplemented by the separate `binding-record-checks`
+build-tool command. Given a collected `native-records.json`, it reconstructs the
+complete type graph against the selected PostgreSQL headers, checks every named
+member's type and offset, and checks complete object sizes and alignments. Tags,
+typedefs, globals and named member paths anchor actual native declarations;
+distinct record identities cannot collapse merely because their bytes match.
+Canonical entries must resolve to concrete types; typedef and spelling-wrapper
+cycles are rejected throughout the graph, including types reachable only through
+record fields.
+Enums retain their measured size, alignment, signedness and constants. MSVC's
+enum compatibility rules do not independently establish nominal enum identity;
+the source observations retain those identities. Constant checks compare sign
+as well as value, so C's unsigned conversions cannot equate a negative constant
+with an unsigned 64-bit maximum.
+
+The generated executable reads prepared bytes through real named bitfields to
+verify their offsets, widths and signedness, including const/volatile fields and
+128-bit values where supported by the selected compiler. Failures identify the
+physical field. Compilation and execution must succeed, and cancellation is
+checked again before `native-record-checks.c` replaces an existing result. Owned
+staging files are removed on failure. The command takes `<records-json> <pg_config>
+<output-directory> [compiler] [windows-library-directories] [target-triple]`.
+The default verifier is Clang on Unix and MSVC on Windows.
+
+Function compatibility follows C parameter adjustment and removes only
+parameter-level qualification when comparing canonical prototypes. Pointee and
+array element qualifiers remain checked. Standard `va_list` names the variadic
+storage even when Clang represents it through a compiler-private typedef.
+PostgreSQL's spin-delay macro fallback receives an addressable hidden C shim;
+generated call bodies execute the selected headers' operation without removing
+its catalog entry.
+
+This command rejects declarations for which no C type anchor exists. In
+particular, checking promoted leaves alone would not establish an unnameable
+anonymous container's hidden size or alignment. Such containers remain retained
+by collection and managed projection; complete independent verification and
+automatic enforcement in the general typed companion remain unfinished.
 Argument typedefs retain the original native qualifiers. Reads through those
 types avoid adding a second `const`, which MSVC rejects for already-qualified
 parameters; pointee qualification and volatile reads remain part of the contract.

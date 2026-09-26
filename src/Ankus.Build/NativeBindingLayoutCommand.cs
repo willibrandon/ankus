@@ -124,6 +124,10 @@ internal static class NativeBindingLayoutCommand
         {
             if (!process.HasExited) { process.Kill(entireProcessTree: true); }
 
+            await process.WaitForExitAsync(CancellationToken.None);
+            try { await Task.WhenAll(output, errors); }
+            catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); throw; }
+
             throw;
         }
 
