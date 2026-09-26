@@ -6283,4 +6283,65 @@ The phases track implementation of the complete pgrx feature surface.
   access, guarded callback/hook registration and chaining, remaining native shims
   and the full PostgreSQL-major/platform matrix remain required. No runtime API,
   analyzer mode/severity, suppression, production friend assembly or CI timeout
-  changes. Hosted verification of this inventory milestone is pending.
+  changes. Hosted CI `36214506967` and docs deployment `36214506968` pass for
+  commit `49d06c3`. Linux x64/Ubuntu 24.04/PostgreSQL 18.6 passes all 6,971
+  tests with no failures or skips in a 16m 52s job. macOS ARM64/macOS 15/
+  PostgreSQL 18.6 and Windows x64/Windows Server 2025/PostgreSQL 17.11 each
+  pass 6,969 tests with no failures and the two existing Linux-only memory
+  measurement skips, in 12m 56s and 24m 33s jobs. Windows integration takes
+  20m 28.995s; the existing 30-minute job limit remains sufficient.
+
+- 2026-09-25 — Implemented selected-header native signature verification as the
+  next dependency of general guarded raw-call generation. The build tool's
+  `binding-signatures` command consumes an explicit function list and the same
+  installation/compiler arguments as the layout probe. It checks full native
+  prototypes without calling PostgreSQL, measures fixed parameter/result storage,
+  and validates complete observations before writing its JSON contract.
+
+  C declaration generation retains native typedef names instead of substituting
+  the reference platform's primitive aliases. Nested callback return values,
+  pointer const levels, arrays, void/non-returning results and variadics retain
+  their native distinctions. Foreign arrays with unknown outer extents remain
+  incomplete extern arrays. pgrx shim symbols resolve to their header functions.
+  Unknown/duplicate selections, unsupported syntax or ABI, incompatible native
+  prototypes, unexpected/missing/duplicate measurements and inconsistent target
+  identities fail explicitly. The existing layout probe shares its unchanged
+  compiler options and process lifecycle with the signature command.
+
+  Development validation passes 267 binding cases, including every retained
+  PostgreSQL 13–19 foreign signature and global type expression. Independent C
+  declarations execute full-width values, nested callbacks and array-pointer
+  calls; deliberately changed native argument and result types fail compilation.
+  Selected PostgreSQL 18.6/Linux x64 headers verify 14 real signatures with GCC
+  and Clang, spanning rewrite manipulation, executor/utility calls, scalar and
+  by-value results, and inline/shim functions. A broader PostgreSQL 18 probe
+  also exposes retained
+  reference limitations: tag-only C records and anonymous typedefs need their
+  actual native spelling, `CreateStatistics` has a different installed-header
+  parameter list, and Rust signatures omit volatile qualifiers used by native
+  atomic/spinlock APIs.
+  The probe rejects those mismatches; full target-derived signature generation
+  must resolve them before these APIs can become managed calls.
+  Prototype checks use C11 generic-selection static assertions, so no unused
+  verification helper or optimizer-dependent symbol removal is required.
+
+  Final plain `dotnet test` passes all 7,057 cases with zero failures/skips in
+  418.820s on Linux x64/PostgreSQL 18.6; the integration suite takes 417.728s.
+  The non-incremental Release build passes with zero warnings/errors in 63.01s.
+  API freshness checks retain 170 pages/2,254 members. The site builds 212 pages,
+  and its check reports zero errors, warnings or hints. Hosted validation of
+  this new milestone is still pending.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Typedef identity, qualifiers, arrays and nested callback results | `ValuesPreserveNativeTypeIdentity`, `CallbacksPreserveNestedResultsAndQualifiers`, `CompiledDeclarationsPreserveNativeCallSemantics` |
+  | Versioned prototypes, void/non-returning and variadic distinctions | `FunctionPrototypesRetainCompleteSignatures`, `AllVersionedForeignDeclarationsProject`, `CompleteMeasurementsRetainSignatureContracts` |
+  | Invalid syntax, selection, incomplete arrays and nesting boundaries | `InvalidTypesAreRejected`, `InputBoundariesFailExplicitly`, `GlobalArraysRetainUnknownOuterExtents`, `FunctionSelectionIsExact` |
+  | Compiler-enforced header compatibility and measured storage | `CompiledSignatureProbeChecksHeadersAndMeasuresValues`, the PostgreSQL 18.6 signature command described above |
+  | Complete target observations and command failure without output mutation | `InvalidObservationsFailExplicitly`, `InvalidTargetEvidenceIsRejected`, `InvalidArgumentCountsFailExplicitly`, `InvalidFunctionListsPreserveExistingOutput` |
+
+  These are prototype/storage checks, not managed imports, export availability
+  or backend-call evidence. General guarded calls, managed argument/result
+  generation, call-site variadic promotion, raw global access, hook registration
+  and chaining, and the complete version/platform matrix remain required. No
+  analyzer settings, suppressions, production friend assemblies or timeouts change.

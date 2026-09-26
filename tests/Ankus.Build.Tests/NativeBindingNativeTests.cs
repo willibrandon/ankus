@@ -127,7 +127,7 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
         }
     }
 
-    private async Task<string> RunAsync(string executable, string[] arguments, string directory)
+    private async Task<string> RunAsync(string executable, string[] arguments, string directory, bool expectSuccess = true)
     {
         var start = new ProcessStartInfo(executable)
         {
@@ -154,7 +154,9 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
 
         string standardOutput = await output;
         string standardError = await error;
-        Assert.AreEqual(0, process.ExitCode, $"{executable}: {standardOutput}{standardError}");
-        return standardOutput;
+        if (expectSuccess) { Assert.AreEqual(0, process.ExitCode, $"{executable}: {standardOutput}{standardError}"); }
+        else { Assert.AreNotEqual(0, process.ExitCode, "The native compiler accepted an incompatible prototype."); }
+
+        return expectSuccess ? standardOutput : standardOutput + standardError;
     }
 }

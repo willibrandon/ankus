@@ -41,9 +41,39 @@ internal static class NativeBindingLayoutCommand
         string source = Path.Combine(output, "native-layout.c");
         string executable = Path.Combine(output, OperatingSystem.IsWindows() ? "native-layout.exe" : "native-layout");
         await File.WriteAllTextAsync(source, NativeBindingProbe.GenerateSource(catalog, NativeBindingResources.ReadHeaders(major)), cancellationToken);
-        string compiler = arguments.Length >= 4 && arguments[3].Length != 0 ? arguments[3] : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
+        string observations = await CompileProbeAsync(installation, arguments, source, executable, output, cancellationToken);
+        NativeBindingLayout layout = NativeBindingProbe.Read(catalog, observations);
         string expectedRuntime = arguments.Length >= 6 && arguments[5].Length != 0 ? arguments[5] : RuntimeInformation.RuntimeIdentifier;
+        if (layout.RuntimeIdentifier != expectedRuntime)
+        {
+            throw new InvalidOperationException($"Native bindings target {layout.RuntimeIdentifier}, but the requested runtime is {expectedRuntime}.");
+        }
+
+        await File.WriteAllTextAsync(Path.Combine(output, "native-layout.txt"), observations, cancellationToken);
+        string json = JsonSerializer.Serialize(layout, s_jsonOptions) + "\n";
+        await File.WriteAllTextAsync(Path.Combine(output, "native-layout.json"), json, cancellationToken);
+        Console.WriteLine($"PG{major}: measured {layout.Types.Count} native values and {layout.Types.Values.Sum(static type => type.Fields.Count)} fields.");
+        return layout;
+    }
+
+    /// <summary>
+    /// Compiles and executes a generated probe using the selected installation and shared toolchain arguments.
+    /// </summary>
+    /// <param name="installation">The authoritative header installation.</param>
+    /// <param name="arguments">The layout command's installation and optional toolchain arguments.</param>
+    /// <param name="source">The generated C source path.</param>
+    /// <param name="executable">The probe executable path.</param>
+    /// <param name="output">The probe working directory.</param>
+    /// <param name="cancellationToken">Cancels compilation or execution.</param>
+    /// <param name="requireC11">Whether the probe uses C11 compile-time type checks.</param>
+    /// <returns>The successful probe's observations.</returns>
+    internal static async Task<string> CompileProbeAsync(PostgresInstallation installation, string[] arguments,
+        string source, string executable, string output, CancellationToken cancellationToken, bool requireC11 = false)
+    {
+        string compiler = arguments.Length >= 4 && arguments[3].Length != 0 ? arguments[3] : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
         var options = new List<string>();
+        if (requireC11) { options.Add(OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11"); }
+
         if (OperatingSystem.IsWindows())
         {
             string libraries = arguments.Length >= 5 ? arguments[4] : string.Empty;
@@ -69,18 +99,7 @@ internal static class NativeBindingLayoutCommand
         }
 
         await RunAsync(compiler, options, output, cancellationToken);
-        string observations = await RunAsync(executable, [], output, cancellationToken);
-        NativeBindingLayout layout = NativeBindingProbe.Read(catalog, observations);
-        if (layout.RuntimeIdentifier != expectedRuntime)
-        {
-            throw new InvalidOperationException($"Native bindings target {layout.RuntimeIdentifier}, but the requested runtime is {expectedRuntime}.");
-        }
-
-        await File.WriteAllTextAsync(Path.Combine(output, "native-layout.txt"), observations, cancellationToken);
-        string json = JsonSerializer.Serialize(layout, s_jsonOptions) + "\n";
-        await File.WriteAllTextAsync(Path.Combine(output, "native-layout.json"), json, cancellationToken);
-        Console.WriteLine($"PG{major}: measured {layout.Types.Count} native values and {layout.Types.Values.Sum(static type => type.Fields.Count)} fields.");
-        return layout;
+        return await RunAsync(executable, [], output, cancellationToken);
     }
 
     private static async Task<string> RunAsync(string program, IEnumerable<string> arguments, string directory, CancellationToken cancellationToken)

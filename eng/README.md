@@ -110,6 +110,32 @@ built against the same contract share native type identity. Generated source
 retains its timestamp when unchanged, and normal project clean removes the
 companion artifacts. Compiler/header inputs are measured again on each build.
 
+For raw-call development, put one catalog function name per line in a text file
+and verify its native signature against an installed server:
+
+```text
+dotnet run --project src/Ankus.Build -c Release -- binding-signatures functions.txt 18 /path/to/pg_config artifacts/binding-signatures/pg18
+```
+
+The arguments after the function list match `binding-layouts`, including optional
+compiler, Windows library directories, runtime identifier and target triple.
+The command writes `native-signatures.c`, its executable, raw observations and
+validated `native-signatures.json`. C11 generic-selection static assertions check complete prototypes;
+the probe measures fixed parameter and result storage without calling backend
+functions. Native typedef names remain intact so target headers determine widths.
+Nested callback declarations, const-qualified pointers and arrays retain C
+declarator precedence. pgrx shim linkage selects the corresponding header function,
+without requiring a pgrx-specific export in the PostgreSQL server.
+
+Unknown/duplicate names, incompatible prototypes, unavailable header declarations
+and incomplete observations fail explicitly. The probe does not establish export
+availability, a managed calling convention, pointer ownership or an error guard.
+Some reference declarations still need target-derived type/prototype information,
+including anonymous C typedefs, platform types and qualifiers lost in Rust. A PostgreSQL major match
+alone does not prove that every installed-header function matches the catalog.
+Variadic signatures retain only their fixed arguments; promoted call-site arguments
+still require generation. Guarded managed calls and hook registration remain open.
+
 These declarations provide native fields, enums, embedded values, inline arrays
 and explicit flexible-tail access. Checked node ownership/casting/formatting APIs
-and typed pointer/callback fields remain separate port work.
+are available through the runtime; typed pointer/callback fields remain port work.
