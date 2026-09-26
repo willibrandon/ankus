@@ -7144,3 +7144,22 @@ The phases track implementation of the complete pgrx feature surface.
   post-ILC integration remain required, alongside compiler-specific shims,
   callbacks, variadics, globals/hooks, remaining feature inventories and the
   complete PostgreSQL/platform matrix. Public guides retain supported APIs.
+
+- 2026-09-26 — Enforced IDE0251 as an error for every repository C# project in
+  the root `.editorconfig`, with `csharp_style_prefer_readonly_struct_member`
+  enabled at error severity. Recorded the requirement in `AGENTS.md` and
+  contributor documentation. Fixed all twelve eligible private members: two
+  CBOR reader helpers and ten native-object reader helpers, including dependent
+  members identified after the initial fixes. No diagnostics are suppressed or
+  relaxed, and the consumer templates retain their existing policies.
+
+  Focused verification passes 82 serialization cases, 64 native-call/import
+  cases plus one Windows-only skip on Linux, and all 65 native cases on Windows
+  x64. These modifier changes retain the existing serialization and native
+  import behavior without changing public API signatures or native layouts.
+
+  The main Release build passes with zero warnings and errors in 58.12s. API
+  freshness retains 170 pages/2,254 members; the site builds 212 pages and checks
+  with zero errors, warnings or hints. Plain root `dotnet test` with IDE0251
+  enabled passes all six modules against PostgreSQL 18.6 on Linux x64:
+  7,499 passed, zero failed and two Windows-only skips in 10m 12.972s.

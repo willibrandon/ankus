@@ -4,7 +4,7 @@ internal static partial class NativeObjectSymbols
 {
     private ref partial struct Reader
     {
-        private NativeObjectImports ReadCoff()
+        private readonly NativeObjectImports ReadCoff()
         {
             ReadOnlySpan<byte> initial = Slice(0, 20);
             bool big = UInt16(initial) == 0 && UInt16(initial[2..]) == ushort.MaxValue;

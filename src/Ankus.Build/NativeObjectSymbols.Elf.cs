@@ -85,8 +85,8 @@ internal static partial class NativeObjectSymbols
             return Result("elf", architecture);
         }
 
-        private ulong ElfOffset(ReadOnlySpan<byte> section, bool wide) => wide ? UInt64(section[24..]) : UInt32(section[16..]);
+        private readonly ulong ElfOffset(ReadOnlySpan<byte> section, bool wide) => wide ? UInt64(section[24..]) : UInt32(section[16..]);
 
-        private ulong ElfSize(ReadOnlySpan<byte> section, bool wide) => wide ? UInt64(section[32..]) : UInt32(section[20..]);
+        private readonly ulong ElfSize(ReadOnlySpan<byte> section, bool wide) => wide ? UInt64(section[32..]) : UInt32(section[20..]);
     }
 }

@@ -280,7 +280,7 @@ public ref struct PgTypeReader
     /// <summary>
     /// Reconstructs a decimal fraction directly so zero retains its encoded scale.
     /// </summary>
-    private decimal ReadCborDecimal()
+    private readonly decimal ReadCborDecimal()
     {
         CborReader reader = _cbor!;
         if (reader.ReadTag() != CborTag.DecimalFraction || reader.ReadStartArray() != 2)
@@ -484,7 +484,7 @@ public ref struct PgTypeReader
     /// <summary>
     /// Applies the same recursion limit to known and unknown binary members.
     /// </summary>
-    private void SkipCbor(int extraDepth)
+    private readonly void SkipCbor(int extraDepth)
     {
         CborReader reader = _cbor!;
         while (reader.PeekState() == CborReaderState.Tag)

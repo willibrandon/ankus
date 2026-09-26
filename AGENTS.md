@@ -46,6 +46,8 @@ before changing an area.
   accessibility, and native struct layouts when converting existing declarations.
 - Remove redundant casts. IDE0004 is enforced as an error throughout the repository.
 - Remove unnecessary `unsafe` modifiers. IDE0380 is enforced as an error.
+- Mark struct members `readonly` wherever IDE0251 applies. IDE0251 is enforced
+  as an error throughout the repository; fix all findings without suppression.
 - Use collection expressions where IDE0300 applies. IDE0300 is enforced as an error
   throughout the repository.
 - Never disable warnings. Fix the underlying issue without warning pragmas,

@@ -44,28 +44,28 @@ internal static partial class NativeObjectSymbols
             };
         }
 
-        private NativeObjectImports Result(string format, string architecture)
+        private readonly NativeObjectImports Result(string format, string architecture)
             => new(format, architecture, _littleEndian, Array.AsReadOnly(_symbols.ToArray()));
 
-        private ReadOnlySpan<byte> Slice(ulong offset, ulong length)
+        private readonly ReadOnlySpan<byte> Slice(ulong offset, ulong length)
         {
             Require(offset <= (ulong)_image.Length && length <= (ulong)_image.Length - offset, "Native object range exceeds its file.");
             return _image.Slice((int)offset, (int)length);
         }
 
-        private ReadOnlySpan<byte> Table(ulong offset, ulong count, int width)
+        private readonly ReadOnlySpan<byte> Table(ulong offset, ulong count, int width)
         {
             Require(count <= (ulong)(_image.Length / width), "Native object table count exceeds its file.");
             return Slice(offset, count * (ulong)width);
         }
 
-        private ushort UInt16(ReadOnlySpan<byte> value)
+        private readonly ushort UInt16(ReadOnlySpan<byte> value)
             => _littleEndian ? BinaryPrimitives.ReadUInt16LittleEndian(value) : BinaryPrimitives.ReadUInt16BigEndian(value);
 
-        private uint UInt32(ReadOnlySpan<byte> value)
+        private readonly uint UInt32(ReadOnlySpan<byte> value)
             => _littleEndian ? BinaryPrimitives.ReadUInt32LittleEndian(value) : BinaryPrimitives.ReadUInt32BigEndian(value);
 
-        private ulong UInt64(ReadOnlySpan<byte> value)
+        private readonly ulong UInt64(ReadOnlySpan<byte> value)
             => _littleEndian ? BinaryPrimitives.ReadUInt64LittleEndian(value) : BinaryPrimitives.ReadUInt64BigEndian(value);
 
         private static ReadOnlySpan<byte> Name(ReadOnlySpan<byte> strings, uint index)
@@ -77,7 +77,7 @@ internal static partial class NativeObjectSymbols
             return tail[..end];
         }
 
-        private void Add(ReadOnlySpan<byte> name, bool decorated)
+        private readonly void Add(ReadOnlySpan<byte> name, bool decorated)
         {
             if (decorated)
             {
