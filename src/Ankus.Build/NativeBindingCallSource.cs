@@ -145,6 +145,7 @@ internal static class NativeBindingCallSource
             _ => throw new FormatException("Unsupported native call processor."),
         };
         source.AppendLine("#include <limits.h>");
+        NativeBindingNumericModel.WriteChecks(source, target.Numeric);
         source.AppendLine(CultureInfo.InvariantCulture, $"#if PG_VERSION_NUM != {target.PostgresVersion} || !({operatingSystem}) || !({architecture})");
         source.AppendLine("#error Native call target changed");
         source.AppendLine("#endif");

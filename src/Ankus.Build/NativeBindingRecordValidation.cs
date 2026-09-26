@@ -14,6 +14,7 @@ internal static class NativeBindingRecordValidation
     internal static void Validate(NativeRecordGraph graph, NativeHeaderTarget expected, IEnumerable<string> names)
     {
         ArgumentNullException.ThrowIfNull(graph);
+        NativeBindingNumericModel.Validate(expected.Numeric);
         string[] selected = [.. names.Order(StringComparer.Ordinal)];
         if (graph.Target != expected || graph.Roots is null || graph.Types is null || graph.Declarations is null ||
             string.IsNullOrEmpty(expected.RuntimeIdentifier) || !NativeBindingTarget.IsValid(expected.RuntimeIdentifier, expected.PointerSize, expected.IsLittleEndian) ||

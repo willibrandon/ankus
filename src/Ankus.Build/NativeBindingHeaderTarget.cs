@@ -34,6 +34,7 @@ internal static class NativeBindingHeaderTarget
         source.AppendLine("enum { ankus_header_pg_version = PG_VERSION_NUM, ankus_header_pointer_size = sizeof(void*),");
         source.AppendLine("    ankus_header_little_endian = ANKUS_HEADER_LITTLE_ENDIAN, ankus_header_clang_major = __clang_major__ };");
         source.AppendLine("const char ankus_header_runtime_identifier[] = ANKUS_NATIVE_OS \"-\" ANKUS_NATIVE_ARCH;");
+        NativeBindingNumericModel.WriteObservations(source);
         return source.ToString();
     }
 
@@ -66,10 +67,12 @@ internal static class NativeBindingHeaderTarget
                     if (!member.TryGetProperty("name", out JsonElement nameProperty)) { continue; }
 
                     string name = nameProperty.GetString()!;
-                    if (name is not ("ankus_header_pg_version" or "ankus_header_pointer_size" or "ankus_header_little_endian" or "ankus_header_clang_major")) { continue; }
+                    if (name is not ("ankus_header_pg_version" or "ankus_header_pointer_size" or "ankus_header_little_endian" or "ankus_header_clang_major") &&
+                        !NativeBindingNumericModel.IsFact(name)) { continue; }
 
                     string value = Constant(member, "ConstantExpr");
-                    if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int number) || !numbers.TryAdd(name, number))
+                    if (!int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int number) ||
+                        number.ToString(CultureInfo.InvariantCulture) != value || !numbers.TryAdd(name, number))
                     {
                         throw new FormatException("Invalid or duplicate native header target constant.");
                     }
@@ -87,6 +90,14 @@ internal static class NativeBindingHeaderTarget
             }
         }
 
+        return Create(numbers, runtime, major);
+    }
+
+    /// <summary>
+    /// Validates independently observed target constants from either compiler AST interface.
+    /// </summary>
+    internal static NativeHeaderTarget Create(IReadOnlyDictionary<string, int> numbers, string? runtime, int major)
+    {
         if (runtime is null || !numbers.TryGetValue("ankus_header_pg_version", out int version) || version / 10000 != major ||
             !numbers.TryGetValue("ankus_header_pointer_size", out int size) || !numbers.TryGetValue("ankus_header_little_endian", out int endian) ||
             endian is not (0 or 1) || !numbers.TryGetValue("ankus_header_clang_major", out int compiler) || compiler <= 0 ||
@@ -95,7 +106,7 @@ internal static class NativeBindingHeaderTarget
             throw new FormatException("Missing or inconsistent native header target identity.");
         }
 
-        return new(version, runtime, size, endian == 1, compiler);
+        return new(version, runtime, size, endian == 1, compiler, NativeBindingNumericModel.Read(numbers));
     }
 
     private static string Constant(JsonElement node, string kind)
@@ -122,4 +133,6 @@ internal static class NativeBindingHeaderTarget
 /// <param name="PointerSize">The target pointer width in bytes.</param>
 /// <param name="IsLittleEndian">Whether the target uses little-endian byte order.</param>
 /// <param name="ClangMajor">The frontend's reported major version.</param>
-internal sealed record NativeHeaderTarget(int PostgresVersion, string RuntimeIdentifier, int PointerSize, bool IsLittleEndian, int ClangMajor);
+/// <param name="Numeric">The compiler-observed native scalar representations.</param>
+internal sealed record NativeHeaderTarget(int PostgresVersion, string RuntimeIdentifier, int PointerSize, bool IsLittleEndian, int ClangMajor,
+    NativeNumericModel Numeric);

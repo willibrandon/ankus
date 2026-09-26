@@ -101,7 +101,7 @@ public sealed class NativeBindingRecordValidationTests
     [DataRow("missing-representation")]
     public void InvalidRecordEnumConstantsFailExplicitly(string value)
     {
-        var target = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21);
+        var target = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21, NativeNumericModelFixture.Binary80);
         NativeRecordType[] types =
         [
             new("enum", 0, "enum Limit", 0, 8, 8, "", null, 0, null, null, null),
@@ -133,7 +133,7 @@ public sealed class NativeBindingRecordValidationTests
 
     private static NativeRecordGraph CreateGraph()
     {
-        var target = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21);
+        var target = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21, NativeNumericModelFixture.Binary80);
         NativeRecordType[] types =
         [
             new("record", 0, "struct Root", 0, 32, 8, "", null, 0, null, null, null),

@@ -6769,8 +6769,14 @@ The phases track implementation of the complete pgrx feature surface.
   errors, warnings or hints. Plain root `dotnet test` passes all six modules
   against PostgreSQL 18.6 on Linux x64: 7,310 passed, zero failed and one existing
   Windows-only cleanup skip in 7m 12.253s. Contributor documentation describes
-  the protocol and the successful-call state contract. Hosted CI for this
-  milestone remains pending.
+  the protocol and the successful-call state contract. Hosted CI
+  [36237785959](https://github.com/willibrandon/ankus/actions/runs/36237785959)
+  and docs deployment `36237785929` pass for `8964473`. All six modules run with
+  real servers and Clang 20.1.8: Ubuntu 24.04 x64/PostgreSQL 18.6 passes 7,310
+  cases with one existing Windows-only skip in a 17m 50s job; macOS 15 ARM64/
+  PostgreSQL 18.6 passes 7,308 with three existing platform skips in 14m 37s;
+  Windows Server 2025 x64/PostgreSQL 17.11 passes 7,309 with two existing
+  Linux-only skips in 27m 27s. Quality passes and no timeout changes were needed.
 
   This transport remains a generated-code prerequisite. Typed companion methods,
   complete native type generation, signature identity, export/link selection,
@@ -6781,3 +6787,46 @@ The phases track implementation of the complete pgrx feature surface.
   unresolved. Public guides retain the currently supported APIs and limitations.
   The README also links to contributor instructions instead of repeating the
   repository-root test command; extension-author test commands remain in place.
+
+- 2026-09-26 — Captured the native numeric ABI needed by typed managed
+  bindings. Header contracts now retain compiler-observed plain-char signedness,
+  `wchar_t` size/signedness, floating radix, and significand precision plus normal
+  exponent limits for `float`, `double` and `long double`. These facts cannot be
+  inferred from the type name and byte size: local Linux x64/Clang 21 reports
+  64-bit and 113-bit significands in the same 16-byte long-double storage under
+  its default and `-mlong-double-128` modes. That alternate-mode observation is
+  compiler evidence, not backend execution in that mode.
+
+  Both AST interfaces independently observe the numeric model; the native worker
+  rejects a different requested interpretation. Storage observation protocol 2
+  carries every numeric identity field and rejects older observations. Plain
+  char storage must agree with the selected target's signedness. Generated C
+  bodies assert every numeric fact against their actual body compiler, including
+  MSVC on Windows. Missing, duplicate, malformed and contradictory facts fail
+  instead of acquiring defaults from the managed build host.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Exact host-independent scalar interpretation and complete required metadata | `TargetNumericFactsArePreserved`, `MissingNumericFactsFailExplicitly`, `NumericModelsRejectIncompleteContracts` |
+  | Invalid flags, widths, radix, precision/range ordering, zero/negative boundaries and malformed numeric text | `InvalidNumericFactsFailExplicitly` |
+  | Real signed/unsigned char compiler modes, native wchar facts and floating limits | `CollectedNumericModelsFollowCompilerOptions` executes an independent native compiler witness |
+  | Worker target mismatch preserves rejection and permits exact recovery | `RecordWorkerValidatesNumericIdentity`, `NativeRecordWorkerRejectsInvalidArtifactsAndRecovers` |
+  | Every storage identity field participates in compatibility | `HeaderStorageRejectsNumericMismatch` rejects all 13 changed facts and accepts the original observation afterward |
+  | Actual C compilation rejects every changed numeric fact and matching calls retain native values | `NativeCallBodiesRejectNumericAbiChanges` checks all 13 diagnostics, then compiles and executes exact character bits and retained long-double epsilon |
+
+  All 206 focused cases pass on Linux x64 and Windows x64/.NET 10.0.12.
+  The actual five-function PostgreSQL fixture also compiles and links against
+  Windows x64/PostgreSQL 17.7 with Clang 21.1.7 metadata and MSVC body checks.
+  This is compiler evidence, not local Windows PostgreSQL execution. The Release
+  build has zero warnings/errors in 38.72s. API freshness retains 170 pages/
+  2,254 members; the site builds 212 pages and checks with zero errors, warnings
+  or hints. Plain root `dotnet test` passes all six modules against PostgreSQL
+  18.6 on Linux x64: 7,384 passed, zero failed and one existing Windows-only
+  cleanup skip in 7m 32.510s. Hosted platform CI for this numeric-model change
+  remains pending.
+
+  Engineering documentation describes the numeric contract and required
+  observation regeneration. Public guides retain the currently supported APIs.
+  Complete managed native declarations, typed companion calls, active-extension
+  signature/export selection, native alignment, managed callback lifetimes,
+  variadics, globals, hooks and the full version/platform matrix remain required.

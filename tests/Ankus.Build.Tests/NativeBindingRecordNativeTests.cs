@@ -321,15 +321,15 @@ public sealed partial class NativeBindingNativeTests
         finally { await DeleteDirectoryAsync(directory); }
     }
 
-    private async Task<NativeRecordGraph> CollectRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory)
+    private async Task<NativeRecordGraph> CollectRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory, params string[] frontendOptions)
     {
         string file = Path.Combine(directory, "records.c");
         string ast = Path.Combine(directory, "records.ast");
         string json = Path.Combine(directory, "records.ast.json");
         string compiler = NativeBindingRecordCommand.FindCompiler(OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang");
         string[] frontend = OperatingSystem.IsWindows()
-            ? ["/nologo", "/std:c11", "/W4", "/WX", "/Zs"]
-            : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only"];
+            ? ["/nologo", "/std:c11", "/W4", "/WX", "/Zs", .. frontendOptions]
+            : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", .. frontendOptions];
         string targetHeaders = NativeBindingHeaderTarget.GenerateSource("#define PG_VERSION_NUM 180006\n" + headers, 18);
         await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateSource(targetHeaders, requests), context.CancellationToken);
         await NativeBindingHeaderCommand.CompileAsync(compiler, [.. frontend, "-Xclang", "-ast-dump=json", file], json, directory, context.CancellationToken);

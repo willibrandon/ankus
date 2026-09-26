@@ -7,7 +7,7 @@ namespace Ankus.Build.Tests;
 /// Verifies compiler-reported target identity independently of the host operating system.
 /// </summary>
 [TestClass]
-public sealed class NativeBindingHeaderTargetTests
+public sealed partial class NativeBindingHeaderTargetTests
 {
     private const string Ast = """
         { "kind":"TranslationUnitDecl", "inner": [
@@ -36,13 +36,13 @@ public sealed class NativeBindingHeaderTargetTests
     [DataRow("linux-arm", 190000, 19, 4, false)]
     public void TargetFactsArePreserved(string runtime, int version, int major, int width, bool littleEndian)
     {
-        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         root["inner"]![0]!["inner"]![0]!["inner"]![0]!["value"] = version.ToString(System.Globalization.CultureInfo.InvariantCulture);
         root["inner"]![0]!["inner"]![1]!["inner"]![0]!["value"] = width.ToString(System.Globalization.CultureInfo.InvariantCulture);
         root["inner"]![0]!["inner"]![2]!["inner"]![0]!["value"] = littleEndian ? "1" : "0";
         root["inner"]![1]!["inner"]![0]!["value"] = "\"" + runtime + "\"";
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());
-        Assert.AreEqual(new NativeHeaderTarget(version, runtime, width, littleEndian, 21), NativeBindingHeaderTarget.Read(document.RootElement, major));
+        Assert.AreEqual(new NativeHeaderTarget(version, runtime, width, littleEndian, 21, NativeNumericModelFixture.Binary80), NativeBindingHeaderTarget.Read(document.RootElement, major));
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public sealed class NativeBindingHeaderTargetTests
     [DataRow("missing-inner")]
     public void InvalidTargetFactsFailExplicitly(string change)
     {
-        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         JsonArray nodes = root["inner"]!.AsArray();
         JsonArray numbers = nodes[0]!["inner"]!.AsArray();
         switch (change)

@@ -84,7 +84,7 @@ internal static class NativeBindingStorageProbe
 
             var output = new StringBuilder();
             output.AppendLine(CultureInfo.InvariantCulture,
-                $"storage|1|{target.PostgresVersion}|{target.PointerSize}|{(target.IsLittleEndian ? 1 : 0)}|{target.RuntimeIdentifier}|{target.ClangMajor}");
+                $"storage|2|{target.PostgresVersion}|{target.PointerSize}|{(target.IsLittleEndian ? 1 : 0)}|{target.RuntimeIdentifier}|{target.ClangMajor}|{NativeBindingNumericModel.Encode(target.Numeric)}");
             foreach ((string name, string slot) in values.Keys)
             {
                 string alias = Alias(name, slot);
@@ -117,12 +117,13 @@ internal static class NativeBindingStorageProbe
         Dictionary<(string Name, string Slot), NativeHeaderType> values = Select(catalog);
         string[] lines = output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         string[] header = lines.Length == 0 ? [] : lines[0].Split('|');
-        if (header.Length != 7 || header[0] != "storage" || header[1] != "1" ||
+        if (header.Length != 8 || header[0] != "storage" || header[1] != "2" ||
             !int.TryParse(header[2], NumberStyles.None, CultureInfo.InvariantCulture, out int version) ||
             !int.TryParse(header[3], NumberStyles.None, CultureInfo.InvariantCulture, out int width) ||
             header[4] is not ("0" or "1") ||
             !int.TryParse(header[6], NumberStyles.None, CultureInfo.InvariantCulture, out int compiler) ||
-            new NativeHeaderTarget(version, header[5], width, header[4] == "1", compiler) != catalog.Target)
+            new NativeHeaderTarget(version, header[5], width, header[4] == "1", compiler, catalog.Target.Numeric) != catalog.Target ||
+            header[7] != NativeBindingNumericModel.Encode(catalog.Target.Numeric))
         {
             throw new FormatException("Native storage observations do not match the collected header target.");
         }
@@ -158,6 +159,7 @@ internal static class NativeBindingStorageProbe
                 elementSize == 0 && array is not null && !AllowsEmpty(Canonical(array.Element)) ||
                 isSigned.HasValue != (!opaque && IsInteger(canonical)) ||
                 KnownSignedness(canonical) is bool expectedSign && isSigned != expectedSign ||
+                canonical is NativeHeaderScalar { Name: "char" } && isSigned != catalog.Target.Numeric.CharIsSigned ||
                 canonical is NativeHeaderPointer && size != (ulong)catalog.Target.PointerSize)
             {
                 throw new FormatException("Inconsistent native value storage.");

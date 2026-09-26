@@ -27,7 +27,7 @@ public sealed class NativeBindingStorageObservationTests
         ] }
         """;
 
-    private static readonly NativeHeaderCatalog s_catalog = new(new(180006, "linux-x64", 8, true, 21),
+    private static readonly NativeHeaderCatalog s_catalog = new(new(180006, "linux-x64", 8, true, 21, NativeNumericModelFixture.Binary80),
         new Dictionary<string, NativeHeaderSymbol>
         {
             ["value"] = new("value", "value", false, new NativeHeaderScalar("int"), [], false, false, "extern", []),
@@ -39,7 +39,7 @@ public sealed class NativeBindingStorageObservationTests
     [TestMethod]
     public void CompilerConstantsRetainExactStorage()
     {
-        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         JsonArray members = root["inner"]![2]!["inner"]!.AsArray();
         JsonNode first = members[0]!.DeepClone();
         members.RemoveAt(0);
@@ -51,7 +51,7 @@ public sealed class NativeBindingStorageObservationTests
         root["inner"]!.AsArray().Add(new JsonObject { ["kind"] = "EnumDecl" });
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());
         string output = NativeBindingStorageProbe.ReadObservations(s_catalog, document.RootElement);
-        Assert.AreEqual("storage|1|180006|8|1|linux-x64|21\nvalue|value|global|4|4|-|1\n", output.ReplaceLineEndings("\n"));
+        Assert.AreEqual("storage|2|180006|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80 + "\nvalue|value|global|4|4|-|1\n", output.ReplaceLineEndings("\n"));
         NativeHeaderStorage storage = NativeBindingStorageProbe.Read(s_catalog, output);
         Assert.AreEqual(new NativeHeaderValueStorage(4, 4, null, true), storage.Symbols["value"].Global);
         Assert.IsNull(storage.Symbols["value"].Result);
@@ -64,12 +64,12 @@ public sealed class NativeBindingStorageObservationTests
     [TestMethod]
     public void EmptyCompilerStorageRetainsTarget()
     {
-        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         root["inner"]!.AsArray().RemoveAt(2);
         var catalog = new NativeHeaderCatalog(s_catalog.Target, new Dictionary<string, NativeHeaderSymbol>());
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());
         string output = NativeBindingStorageProbe.ReadObservations(catalog, document.RootElement);
-        Assert.AreEqual("storage|1|180006|8|1|linux-x64|21\n", output.ReplaceLineEndings("\n"));
+        Assert.AreEqual("storage|2|180006|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80 + "\n", output.ReplaceLineEndings("\n"));
         Assert.IsEmpty(NativeBindingStorageProbe.Read(catalog, output).Symbols);
     }
 
@@ -95,7 +95,7 @@ public sealed class NativeBindingStorageObservationTests
     [DataRow("wrong-signedness")]
     public void InvalidCompilerStorageFailsExplicitly(string change)
     {
-        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         JsonArray members = root["inner"]![2]!["inner"]!.AsArray();
         switch (change)
         {

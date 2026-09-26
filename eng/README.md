@@ -171,7 +171,11 @@ output in `native-header-checks.txt`, and a normalized `native-header-types.json
 The AST is a development artifact containing local header paths; the normalized
 contract excludes source paths and compiler pointer identities. Its target records
 the exact PostgreSQL version, runtime identifier, pointer width, byte order and
-Clang major. The type graph retains native typedefs and anonymous records/enums,
+Clang major. Its numeric model records plain-char signedness, `wchar_t` size and
+signedness, floating radix, and the precision and exponent limits of `float`,
+`double` and `long double`. These compiler observations distinguish numeric
+representations that have identical object byte sizes. The type graph retains
+native typedefs and anonymous records/enums,
 qualifiers at each pointer level, fixed/incomplete arrays, both written and
 adjusted parameter types, callbacks, variadic/prototype distinctions and no-return
 metadata. Functions also retain parameter names and linkage; globals retain
@@ -211,11 +215,13 @@ This command accepts the same optional Clang/toolchain arguments as
 `binding-header-types`, collects the semantic contract, then evaluates constants in
 `native-storage.c` with the same frontend. It does not execute a target program.
 Unevaluated prototype checks and storage expressions do not call PostgreSQL
-functions or require backend exports. The observed PostgreSQL version, runtime, pointer width, byte order and
-Clang major must exactly match the collected contract.
+functions or require backend exports. The observed PostgreSQL version, runtime,
+pointer width, byte order, Clang major and numeric model must exactly match the
+collected contract.
 
 `native-storage.ast.json` retains the compiler output and `native-storage.txt`
-contains the normalized observations. The validated
+contains the normalized observations. Its version-2 header carries every numeric
+identity field; regenerate earlier observations instead of reusing them. The validated
 `native-storage.json` retains the header contract and ordered measurements for
 fixed parameters, non-void results and globals. Each value records byte size,
 alignment, array element stride and integer/enum signedness where applicable.
@@ -286,7 +292,8 @@ This accepts the same arguments and compiler/library prerequisites as
 `binding-records`, followed by an optional native body compiler. Clang collects
 the declarations; native body compilation defaults to MSVC on Windows, matching
 the SDK, and to the selected Clang elsewhere. An explicit MSVC executable must
-target the measured architecture; generated checks reject a mismatch. Both
+target the measured architecture and numeric model; generated checks reject a
+mismatch, including changed char signedness or long-double precision. Both
 compilation stages retain warnings as errors. It writes `native-calls.c` after
 compiling the complete generated bodies, including their calls, against the
 selected headers. A compiler

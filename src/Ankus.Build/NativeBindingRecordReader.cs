@@ -318,7 +318,7 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
 
     private NativeHeaderTarget ReadTarget(List<NativeClangCursor> children, NativeHeaderTarget expected)
     {
-        var values = new Dictionary<string, long>(StringComparer.Ordinal);
+        var values = new Dictionary<string, int>(StringComparer.Ordinal);
         string? runtime = null;
         foreach (NativeClangCursor cursor in children)
         {
@@ -327,9 +327,11 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
                 foreach (NativeClangCursor member in library.Children(cursor).Where(static child => child.Kind == 7))
                 {
                     string name = library.Name(member);
-                    if (name is "ankus_header_pg_version" or "ankus_header_pointer_size" or "ankus_header_little_endian" or "ankus_header_clang_major")
+                    if (name is "ankus_header_pg_version" or "ankus_header_pointer_size" or "ankus_header_little_endian" or "ankus_header_clang_major" ||
+                        NativeBindingNumericModel.IsFact(name))
                     {
-                        if (!values.TryAdd(name, ((delegate* unmanaged[Cdecl]<NativeClangCursor, long>)library.Export("clang_getEnumConstantDeclValue"))(member)))
+                        long number = ((delegate* unmanaged[Cdecl]<NativeClangCursor, long>)library.Export("clang_getEnumConstantDeclValue"))(member);
+                        if (number is < int.MinValue or > int.MaxValue || !values.TryAdd(name, (int)number))
                         {
                             throw new FormatException("Duplicate native record target constant.");
                         }
@@ -355,11 +357,8 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
             }
         }
 
-        if (runtime != expected.RuntimeIdentifier || values.Count != 4 ||
-            values.GetValueOrDefault("ankus_header_pg_version") != expected.PostgresVersion ||
-            values.GetValueOrDefault("ankus_header_pointer_size") != expected.PointerSize ||
-            values.GetValueOrDefault("ankus_header_little_endian") != (expected.IsLittleEndian ? 1 : 0) ||
-            values.GetValueOrDefault("ankus_header_clang_major") != expected.ClangMajor)
+        if (values.GetValueOrDefault("ankus_header_pg_version") != expected.PostgresVersion ||
+            NativeBindingHeaderTarget.Create(values, runtime, expected.PostgresVersion / 10000) != expected)
         {
             throw new FormatException("Native record library target does not match the selected header contract.");
         }

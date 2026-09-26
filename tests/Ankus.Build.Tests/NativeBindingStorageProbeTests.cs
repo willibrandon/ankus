@@ -6,9 +6,9 @@ namespace Ankus.Build.Tests;
 [TestClass]
 public sealed class NativeBindingStorageProbeTests
 {
-    private static readonly NativeHeaderTarget s_target = new(180006, "linux-x64", 8, true, 21);
+    private static readonly NativeHeaderTarget s_target = new(180006, "linux-x64", 8, true, 21, NativeNumericModelFixture.Binary80);
     private static readonly NativeHeaderScalar s_integer = new("int");
-    private const string Header = "storage|1|180006|8|1|linux-x64|21\n";
+    private const string Header = "storage|2|180006|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80 + "\n";
     private const string Argument = "value|call|0|4|4|-|1\n";
 
     /// <summary>
@@ -105,18 +105,49 @@ public sealed class NativeBindingStorageProbeTests
     [TestMethod]
     [DataRow("")]
     [DataRow("storage|2|180006|8|1|linux-x64|21")]
-    [DataRow("storage|1|180005|8|1|linux-x64|21")]
-    [DataRow("storage|1|170011|8|1|linux-x64|21")]
-    [DataRow("storage|1|180006|4|1|linux-x64|21")]
-    [DataRow("storage|1|180006|8|0|linux-x64|21")]
-    [DataRow("storage|1|180006|8|2|linux-x64|21")]
-    [DataRow("storage|1|180006|8|1|osx-arm64|21")]
-    [DataRow("storage|1|180006|8|1|linux-x64|19")]
-    [DataRow("storage|1|180006|8|1|linux-x64|0")]
-    [DataRow("storage|1|180006|8|1|linux-x64|2147483648")]
-    [DataRow("storage|1|180006|8|1|linux-x64|21|extra")]
+    [DataRow("storage|2|180005|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|170011|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|4|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|0|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|2|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|1|osx-arm64|21|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|1|linux-x64|19|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|1|linux-x64|0|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|1|linux-x64|2147483648|" + NativeNumericModelFixture.EncodedBinary80)]
+    [DataRow("storage|2|180006|8|1|linux-x64|21|" + NativeNumericModelFixture.EncodedBinary80 + "|extra")]
+    [DataRow("storage|1|180006|8|1|linux-x64|21")]
     public void StorageTargetMustMatchCollectedHeaders(string header)
         => Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.Read(FunctionCatalog(s_integer), header + "\n" + Argument));
+
+    /// <summary>
+    /// A storage observation cannot be reused with a different interpretation of identically sized native values.
+    /// </summary>
+    /// <param name="index">The independent numeric identity field to change.</param>
+    /// <param name="value">Its alternate valid value.</param>
+    [TestMethod]
+    [DataRow(0, "0")]
+    [DataRow(1, "2")]
+    [DataRow(2, "0")]
+    [DataRow(3, "10")]
+    [DataRow(4, "23")]
+    [DataRow(5, "-126")]
+    [DataRow(6, "127")]
+    [DataRow(7, "52")]
+    [DataRow(8, "-1022")]
+    [DataRow(9, "1023")]
+    [DataRow(10, "113")]
+    [DataRow(11, "-16382")]
+    [DataRow(12, "16385")]
+    public void HeaderStorageRejectsNumericMismatch(int index, string value)
+    {
+        string[] fields = NativeNumericModelFixture.EncodedBinary80.Split(',');
+        fields[index] = value;
+        string changed = "storage|2|180006|8|1|linux-x64|21|" + string.Join(',', fields) + "\n" + Argument;
+        NativeHeaderCatalog catalog = FunctionCatalog(s_integer);
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.Read(catalog, changed));
+        Assert.AreEqual(new NativeHeaderValueStorage(4, 4, null, true),
+            Assert.ContainsSingle(NativeBindingStorageProbe.Read(catalog, Header + Argument).Symbols["call"].Parameters));
+    }
 
     /// <summary>
     /// Incomplete and fixed arrays require correct extents and strides without inferring a missing length.
@@ -151,7 +182,7 @@ public sealed class NativeBindingStorageProbeTests
     [DataRow("unsigned int", "1", false)]
     [DataRow("_Bool", "0", true)]
     [DataRow("_Bool", "1", false)]
-    [DataRow("char", "0", true)]
+    [DataRow("char", "0", false)]
     [DataRow("char", "1", true)]
     [DataRow("enum", "0", true)]
     [DataRow("enum", "1", true)]
