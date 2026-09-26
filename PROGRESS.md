@@ -7489,3 +7489,28 @@ The phases track implementation of the complete pgrx feature surface.
   guard remain open. The complete feature inventory, compiler shims, callbacks,
   variadics, globals/hooks and PostgreSQL 13–19/platform matrix remain required;
   this prerequisite does not close the full raw-binding or faithful-port scope.
+
+- 2026-09-26 — Raised the macOS full-suite CI timeout from 25 to 30 minutes
+  after the preceding run exhausted its budget during integration testing.
+  Linux remains at 30 minutes and Windows at 40; the hard 40-minute cap and
+  complete per-platform suite remain unchanged.
+
+  The previous commit `8646654` was audited while independent SDK work continued.
+  CI run 36268363214 completed with Linux and Windows successful; macOS was
+  cancelled at its 25-minute limit with an AOT compiler still running. No test
+  failure was reported before cancellation: the five completed macOS modules
+  passed, but the integration module did not finish and is not platform proof.
+  Complete PostgreSQL 18.6/Linux x64 validation passed 7,611 cases with zero
+  failures and two existing platform skips in 23m31s. PostgreSQL 17.11/Windows
+  x64 passed 7,611 cases with zero failures and two existing platform skips in
+  36m10s. Quality and all runtime jobs passed. Documentation run 36268363251
+  also passed. The next macOS run must establish the completed suite outcome.
+
+  The isolated timeout change passes Release with zero warnings/errors in
+  27.82s. The documentation site builds all 212 pages in 3.48s and checks with
+  zero errors, warnings or hints. After correcting the isolated checkout's
+  missing runtime payload/package setup, plain root `dotnet test` passes all
+  six modules on PostgreSQL 18.6/Linux x64: 7,611 passed, zero failed and two
+  existing Windows-only skips in 11m 11.393s. The final pre-commit CI recheck
+  confirms the previous outcomes above. No implementation, analyzer setting,
+  test selection or public API changes are included in this timeout adjustment.
