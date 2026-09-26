@@ -228,10 +228,11 @@ against an explicit or active PostgreSQL major version while preserving invalid,
 custom and built-in identity. `PgOid.ToDatum` maps the invalid tag to SQL NULL;
 ordinary `uint` values continue to preserve zero.
 
-The SDK generates `Ankus.Postgres` node declarations from the selected server
-headers, preserving native fields, enums, unions and arrays. Projects using the
-same measured contract share their native type identity. `PgNodes.Borrow` adds
-checked views over native storage, with tag-based casts that retain the original
+The SDK generates `Ankus.Postgres` node declarations and their native type
+dependencies from the selected server headers using Clang 20 or later and
+matching `libclang`, preserving fields, enums, unions, arrays and bitfields.
+Projects using the same measured contract share their native type identity.
+`PgNodes.Borrow` adds checked views over native storage, with tag-based casts that retain the original
 bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
 boundary and returns owned text.

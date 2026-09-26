@@ -6911,6 +6911,14 @@ The phases track implementation of the complete pgrx feature surface.
   against PostgreSQL 18.6 on Linux x64: 7,416 passed, zero failed and one existing
   Windows-only cleanup skip in 7m 31.199s.
 
+  Hosted CI [36243164812](https://github.com/willibrandon/ankus/actions/runs/36243164812)
+  passes for `016b926`, including quality and all three complete platform suites
+  with Clang 20.1.8. Ubuntu 24.04 x64/PostgreSQL 18.6 passes 7,416 cases with
+  one existing platform skip in a 14m 28s job; macOS 15 ARM64/PostgreSQL 18.6
+  passes 7,414 with three existing skips in 15m 51s; Windows Server 2025
+  x64/PostgreSQL 17.11 passes 7,415 with two existing skips in 27m 50s.
+  The documentation deployment also passes.
+
   Contributor documentation describes the boundary. Public user guides keep the
   currently supported APIs. The emitter is not yet wired to the SDK or an
   installed command: replacing the pinned node emitter must preserve its node
@@ -6918,3 +6926,66 @@ The phases track implementation of the complete pgrx feature surface.
   selection, aligned native allocation, managed callback lifetimes, atomic
   operations, variadics, globals/hooks and the full PostgreSQL/platform matrix
   remain required port work.
+
+- 2026-09-26 — Replaced the SDK's node-only emitter with the complete
+  selected-header record emitter. One companion now contains node declarations
+  and every native type reached through their fields, pointers and callback
+  signatures. Unevaluated native type roots retain existing names for anonymous
+  embedded values. The compiler graph must agree with independently executed C
+  probes on node layouts and named enum representations/constants. Node cast
+  rules, concrete allocation metadata, ordinary managed alignment and typed
+  flexible-tail accessors retain their existing contracts.
+
+  Full-header validation exposed an old probe error: an embedded field's packed
+  alignment was being used as its type's alignment. The probe now measures the
+  type independently of placement; incomplete arrays use their element type.
+  PostgreSQL `BlockIdData` consequently retains its required two-byte alignment
+  even when reached through packed `ItemPointerData`. Added a validated graph
+  representation for Clang's resolved `typeof` expressions. Unknown or
+  contradictory representations still fail explicitly.
+
+  The SDK accepts explicit `AnkusClangPath` and `AnkusLibClangPath` settings.
+  Clang declaration collection is separate from the Native AOT C toolchain.
+  Compiler/worker processes finish before their large temporary AST artifacts
+  are removed, including on failure. The obsolete emitter has been removed.
+  Public guides describe the supported declarations, compiler prerequisites
+  and configuration; engineering commands remain in contributor documentation.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Actual native identities, anonymous values, added fields and enum values, unchanged cast metadata | `CompiledNodeRecordRootsRetainNativeIdentity` compares independent C and emitted C# values |
+  | Packed placement preserves required native type alignment and ordinary managed embedding | `CompiledNodeRecordsPreservePackedEmbedding` compares independent native/managed sizes, offsets and values |
+  | Reject mismatched targets, roots, storage, enums and tags, with valid recovery | `NodeRecordContractsRejectContradictions`, `TypeofRecordContractsRejectContradictions` |
+  | Empty selections, command boundaries and cancellation preserve state | `CompiledNodeRecordsAllowEmptyValueSelection`, `InvalidSourceCommandAritiesFailExplicitly`, `CancelledSourceCommandPreservesExistingCompanion` |
+  | Existing inheritance, aliases, PG13–19 Value rules, target-sized scalars, enum bits and typed tails | Existing compiled node, value, alias, enum and flexible-padding tests now execute the shared emitter |
+  | Cross-project dependency identity, Native AOT/backend use, reference-only rebuild and cleanup | `SdkSharesNativeTypesAcrossProjectsAndPublishesThem` now exchanges `ErrorData` as well as node values |
+  | Failed worker load preserves companion bytes, removes temporary ASTs and permits deterministic recovery | `PackagedNodeBindingFailurePreservesCompanionAndRecovers` |
+
+  Local Linux x64/PostgreSQL 18.6 validation measures 499 values and 3,694
+  fields, then collects 826 declarations and 4,279 types. All emitted source
+  compiles with AOT compatibility diagnostics enabled. Fourteen size, alignment,
+  packed-field, node-value and bitmap-tail observations match an independent
+  optimized C executable. Windows x64/Clang 21.1.7/MSVC independently measures
+  491 values/3,600 fields for PostgreSQL 17.7 and 499 values/3,694 fields for
+  PostgreSQL 18.1. Their graphs contain 808 declarations/4,180 types and
+  826 declarations/4,268 types respectively; both emitted companions compile
+  with zero warnings/errors. These local Windows checks are compiler evidence,
+  not backend execution.
+
+  The complete Linux build-tool module passes 632 cases with zero failures and
+  one existing Windows-only cleanup skip in 4.583s. All 53 focused contracts and
+  compatibility cases pass on Windows x64/.NET 10.0.12 in 4.460s, without failures
+  or skips. The Release solution build passes with zero warnings/errors in
+  37.68s. API freshness retains 170 pages/2,254 members; the site builds 212 pages
+  and checks with zero errors, warnings or hints. Plain root `dotnet test`
+  passes all six modules against PostgreSQL 18.6 on Linux x64: 7,459 passed,
+  zero failed and one existing Windows-only cleanup skip in 10m 10.149s.
+  This includes packaged Native AOT/backend execution, cross-project dependency
+  identity, failed worker cleanup and deterministic recovery. The CI quality job
+  now configures the same Clang frontend as the platform jobs; its automation
+  app builds successfully. Hosted validation of this milestone is still pending.
+
+  General typed native calls, active signature/export selection, aligned native
+  call storage, callback lifetimes, atomic operations, variadics, globals/hooks,
+  remaining runtime/tooling inventories and the complete PostgreSQL/platform
+  matrix remain required full-port work.

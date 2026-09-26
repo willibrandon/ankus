@@ -15,6 +15,8 @@ isolated PostgreSQL cluster, and exercise its generated SQL functions.
 
 Backend testing requires PostgreSQL with server headers and the
 [Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
+Extension builds also require LLVM Clang 20 or later with matching `libclang`;
+see [publishing prerequisites](/getting-started/publishing/#prerequisites).
 The fixture discovers PostgreSQL 18 by default. Register a nonstandard
 installation with `ankus init --pg18 /path/to/pg_config`. Missing prerequisites
 fail initialization; tests are never silently skipped.

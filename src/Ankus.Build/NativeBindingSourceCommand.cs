@@ -51,13 +51,20 @@ internal static class NativeBindingSourceCommand
     /// <summary>
     /// Measures the selected headers and writes the managed companion source and assembly identity.
     /// </summary>
-    /// <param name="arguments">The same selected installation and toolchain arguments as the layout command.</param>
+    /// <param name="arguments">The layout command's arguments, followed by an optional Clang executable and matching libclang path.</param>
     /// <param name="cancellationToken">Cancels probing and source emission.</param>
     internal static async Task RunAsync(string[] arguments, CancellationToken cancellationToken = default)
     {
-        NativeBindingLayout layout = await NativeBindingLayoutCommand.RunAsync(arguments, cancellationToken);
+        if (arguments.Length is < 3 or > 9)
+        {
+            throw new ArgumentException("Expected binding-sources <major> <pg_config> <output-directory> [compiler] [windows-library-directories] [runtime-identifier] [target-triple] [clang] [libclang].", nameof(arguments));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        NativeBindingLayout layout = await NativeBindingLayoutCommand.RunAsync(arguments.Length > 7 ? arguments[..7] : arguments, cancellationToken);
         NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(layout.PostgresVersion / 10000);
-        NativeBindingSource binding = NativeBindingCSharp.Generate(catalog, layout);
+        NativeRecordGraph graph = await NativeBindingNodeRecordCommand.RunAsync(catalog, arguments, cancellationToken);
+        NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
         string output = Path.GetFullPath(arguments[2]);
         await WriteIfChangedAsync(Path.Combine(output, "native-binding.g.cs"), binding.Source, cancellationToken);
         await WriteIfChangedAsync(Path.Combine(output, "native-binding.assembly-name"), binding.AssemblyName + "\n", cancellationToken);

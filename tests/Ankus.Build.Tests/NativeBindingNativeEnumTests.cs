@@ -57,7 +57,9 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingLayout layout = NativeBindingProbe.Read(catalog, observations);
             Assert.AreEqual(new NativeBindingEnumLayout(4, true), layout.Enums["State"]);
             Assert.AreEqual(new NativeBindingEnumLayout(4, OperatingSystem.IsWindows()), layout.Enums["Flags"]);
-            NativeBindingSource binding = NativeBindingCSharp.Generate(catalog, layout);
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, Headers);
+            NativeRecordGraph graph = await CollectMeasuredRecordsAsync(roots.Source, roots.Requests, directory, 18);
+            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
             const string Harness = """
                 using Ankus.Postgres;
                 public static class BindingAssertions
@@ -81,7 +83,7 @@ public sealed partial class NativeBindingNativeTests
                 [IntPtr.Size == 8 ? 24 : 16, 4, 8, IntPtr.Size == 8 ? 16 : 12,
                     -3, 2147483648, IntPtr.Size == 8 ? unchecked((long)0xFEDCBA9876543210UL) : 0x76543210,
                     1, OperatingSystem.IsWindows() ? 0 : 1], observed);
-            Assert.AreEqual(binding, NativeBindingCSharp.Generate(catalog, layout));
+            Assert.AreEqual(binding, NativeBindingRecordCSharp.Generate(graph, catalog, layout));
             NativeBindingLayout changed = layout with
             {
                 Enums = new Dictionary<string, NativeBindingEnumLayout>(layout.Enums, StringComparer.Ordinal)
@@ -89,9 +91,7 @@ public sealed partial class NativeBindingNativeTests
                     ["Flags"] = new(4, !layout.Enums["Flags"].IsSigned),
                 },
             };
-            NativeBindingSource alternative = NativeBindingCSharp.Generate(catalog, changed);
-            Assert.AreNotEqual(binding.AbiIdentity, alternative.AbiIdentity);
-            Assert.AreNotEqual(binding.AssemblyName, alternative.AssemblyName);
+            Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordCSharp.Generate(graph, catalog, changed));
         }
         finally
         {

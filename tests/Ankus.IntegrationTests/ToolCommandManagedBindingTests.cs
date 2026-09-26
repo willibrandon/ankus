@@ -64,6 +64,7 @@ public sealed partial class ToolCommandTests
             {
                 public static RangeTblRef Create(int value) => new() { type = NodeTag.T_RangeTblRef, rtindex = value };
                 public static void Increment(ref RangeTblRef value) => value.rtindex++;
+                public static ErrorData CreateError(int value) => new() { elevel = value, output_to_client = true };
             }
             """, token);
         await File.WriteAllTextAsync(Path.Combine(consumer, "BindingConsumer.cs"), """
@@ -87,6 +88,13 @@ public sealed partial class ToolCommandTests
 
                 [PgFunction]
                 public static string NativeBindingRid() => NativeBinding.RuntimeIdentifier;
+
+                [PgFunction]
+                public static int NativeDependencyRoundTrip(int input)
+                {
+                    ErrorData value = BindingProvider.CreateError(input);
+                    return value.output_to_client ? value.elevel : -1;
+                }
             }
             """, token);
         string[] options = ["-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
@@ -143,6 +151,8 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(8, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_binding_rid()";
             Assert.AreEqual(RuntimeInformation.RuntimeIdentifier, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_dependency_round_trip(37)";
+            Assert.AreEqual(37, await command.ExecuteScalarAsync(token));
         }
 
         (await RunDotnetAsync(["clean", consumerProject, .. options], token)).EnsureSuccess("dotnet", ["clean"]);
@@ -183,6 +193,39 @@ public sealed partial class ToolCommandTests
         Assert.Contains($"requested runtime is {otherRuntime}", result.StandardError);
         Assert.IsFalse(File.Exists(Path.Combine(output, "native-binding.g.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(output, "Ankus.NativeBindings.csproj")));
+    }
+
+    /// <summary>
+    /// A failed compiler-library load preserves the prior complete companion, cleans large AST files and permits deterministic recovery.
+    /// </summary>
+    [TestMethod]
+    public async Task PackagedNodeBindingFailurePreservesCompanionAndRecovers()
+    {
+        CancellationToken token = context.CancellationToken;
+        string helper = await ReadPackagedBuildToolAsync();
+        string output = Path.Combine(CreateBindingDirectory(), "measured bindings");
+        string[] command = [helper, "binding-sources", MajorText(), s_installation.PgConfigPath, output];
+        (await RunDotnetAsync(command, token)).EnsureSuccess("dotnet", command);
+        string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj"];
+        var expected = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (string name in names) { expected.Add(name, await File.ReadAllBytesAsync(Path.Combine(output, name), token)); }
+
+        ProcessResult rejected = await RunDotnetAsync([.. command, "", "", "", "", "", Path.Combine(output, "missing-libclang")], token);
+        Assert.AreEqual(1, rejected.ExitCode);
+        Assert.Contains("Native record worker exited", rejected.StandardError);
+        foreach (string name in names)
+        {
+            Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
+        }
+
+        Assert.IsEmpty(Directory.GetDirectories(output, "node-records-*"));
+        (await RunDotnetAsync(command, token)).EnsureSuccess("dotnet", command);
+        foreach (string name in names)
+        {
+            Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
+        }
+
+        Assert.IsEmpty(Directory.GetDirectories(output, "node-records-*"));
     }
 
     private static string CreateBindingDirectory()

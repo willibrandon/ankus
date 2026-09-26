@@ -114,7 +114,13 @@ the compiler target triple. The actual compiler target must match the requested
 runtime identifier.
 
 To emit managed declarations and their companion project, use `binding-sources`
-with the same arguments. The SDK invokes this command before C# compilation,
+with the same arguments, followed by optional Clang executable and libclang paths.
+The native layout compiler remains separate from the Clang declaration frontend.
+The command collects the complete node dependency graph, checks the independent
+node/enum observations and emits one companion containing all reached native
+declarations. Large temporary AST files are removed after workers exit, including
+on failure. A failed collection does not replace a previous companion source.
+The SDK invokes this command before C# compilation,
 builds the generated `Ankus.NativeBindings.csproj`, and references its assembly.
 The assembly name includes a hash of the measured declarations so consumers
 built against the same contract share native type identity. Generated source

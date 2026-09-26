@@ -39,6 +39,7 @@
       <_AnkusBindingsTargetTriple>@(_AnkusBindingToolchain->'%(TargetTriple)')</_AnkusBindingsTargetTriple>
       <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(_AnkusBindingsTargetTriple)&quot;</_AnkusBindingsCommand>
+      <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(AnkusClangPath)&quot; &quot;$(AnkusLibClangPath)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsRemoveProperties>TargetFramework;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishAot;NativeLib;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;ProjectAssetsFile;MSBuildProjectExtensionsPath;ArtifactsPath;UseArtifactsOutput;ArtifactsProjectName;ArtifactsPivots;Version;AssemblyVersion;FileVersion;InformationalVersion</_AnkusBindingsRemoveProperties>
     </PropertyGroup>
     <ItemGroup>

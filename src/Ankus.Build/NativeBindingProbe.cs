@@ -28,7 +28,7 @@ internal static class NativeBindingProbe
         source.AppendLine("#if defined(_MSC_VER)");
         source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof(__typeof__(value))");
         source.AppendLine("#else");
-        source.AppendLine("#define ANKUS_ALIGNOF(value) __alignof__(value)");
+        source.AppendLine("#define ANKUS_ALIGNOF(value) _Alignof(__typeof__(value))");
         source.AppendLine("#endif");
         NativeBindingTarget.Write(source);
         source.AppendLine(CultureInfo.InvariantCulture, $"#if PG_VERSION_NUM / 10000 != {catalog.PostgresMajor}");
@@ -61,8 +61,9 @@ internal static class NativeBindingProbe
                 string expression = $"({value}).{field.NativeName}";
                 string size = flexible ? "(size_t)0" : $"sizeof({expression})";
                 string element = array ? expression + "[0]" : expression;
+                string alignment = flexible ? element : expression;
                 source.AppendLine(CultureInfo.InvariantCulture,
-                    $"        printf(\"field|{entry.Type.Name}|{field.Name}|%zu|%zu|%zu|%zu\\n\", (size_t)((char*)&({expression}) - (char*)&({value})), {size}, (size_t)ANKUS_ALIGNOF({expression}), sizeof({element}));");
+                    $"        printf(\"field|{entry.Type.Name}|{field.Name}|%zu|%zu|%zu|%zu\\n\", (size_t)((char*)&({expression}) - (char*)&({value})), {size}, (size_t)ANKUS_ALIGNOF({alignment}), sizeof({element}));");
             }
 
             source.AppendLine("        free(value);");

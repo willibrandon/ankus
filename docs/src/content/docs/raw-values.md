@@ -5,11 +5,13 @@ description: Bind raw PostgreSQL values and write custom type input and output f
 
 ## Native PostgreSQL declarations
 
-Extension projects using `Ankus.Sdk` receive generated node declarations in
-`Ankus.Postgres`. The SDK compiles a C probe against the selected PostgreSQL
-headers before compiling C#. Sizes, field offsets, enum representations, array
-strides and target identity come from that probe. Select the installation with
-`AnkusPostgresMajor` and `AnkusPgConfigPath`.
+Extension projects using `Ankus.Sdk` receive generated node declarations and their
+native type dependencies in `Ankus.Postgres`. The SDK reads the selected
+PostgreSQL headers with Clang and checks node layouts against a separately
+compiled C probe before compiling C#. Sizes, field offsets, enum representations,
+array strides and target identity come from those headers. Select the installation
+with `AnkusPostgresMajor` and `AnkusPgConfigPath`; see
+[build settings](/reference/build-settings/) for compiler selection.
 
 Native declarations retain PostgreSQL names and mutable fields:
 
@@ -19,6 +21,13 @@ using Ankus.Postgres;
 RangeTblRef reference = new() { type = NodeTag.T_RangeTblRef, rtindex = 9 };
 reference.rtindex++;
 ```
+
+The generated records include fields and dependencies reached through native
+pointers. Structs, unions, inline arrays and bitfields retain their measured
+storage; bitfield writes reject out-of-range values. Extended numeric and atomic
+representations expose bytes when no exact CLR value exists. Those bytes do not
+provide native arithmetic or atomic operations. Opaque declarations expose
+metadata and require an existing native address.
 
 Embedded structs, unions and fixed arrays can be edited in place. Unions share
 storage exactly as they do in C; only read the active representation. Flexible
@@ -104,8 +113,8 @@ or backend hook registration.
 
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation
-for projects that exchange these values. The generated contract rejects an
-incompatible runtime target; cross-compilation requires a probe that can execute
+and Clang toolchain for projects that exchange these values. The generated
+contract rejects an incompatible runtime target; cross-compilation requires a probe that can execute
 on the build host. `dotnet clean` removes the generated companion artifacts.
 
 ## Raw SQL values

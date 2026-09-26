@@ -46,7 +46,7 @@ internal static class NativeBindingRecordValidation
 
             if (type.Declaration is int declaration) { _ = Declaration(declaration); }
 
-            bool indirect = type.Kind is "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex";
+            bool indirect = type.Kind is "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex" or "typeof";
             bool tagged = type.Kind is "record" or "enum";
             if (indirect != type.Element.HasValue || tagged != type.Declaration.HasValue ||
                 (type.Kind == "function") != (type.Function is not null) ||
@@ -56,9 +56,14 @@ internal static class NativeBindingRecordValidation
                 throw new FormatException("Native type edges do not match its shape.");
             }
 
-            if (type.Kind is not ("scalar" or "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex" or "record" or "enum" or "function"))
+            if (type.Kind is not ("scalar" or "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex" or "record" or "enum" or "function" or "typeof"))
             {
                 throw new FormatException("Unknown native record type shape.");
+            }
+
+            if (type.Kind == "typeof" && (type.Element != type.Canonical || type.Canonical == id || type.Size != canonical.Size || type.Alignment != canonical.Alignment))
+            {
+                throw new FormatException("A native typeof expression disagrees with its resolved object representation.");
             }
 
             if ((type.Kind is "scalar" or "alias") != (type.Name.Length != 0) || (type.Kind == "alias" && string.IsNullOrEmpty(type.SourceDeclaration)))

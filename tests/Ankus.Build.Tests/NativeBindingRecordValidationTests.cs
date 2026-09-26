@@ -131,6 +131,36 @@ public sealed class NativeBindingRecordValidationTests
         Assert.ThrowsExactly<JsonException>(() => JsonSerializer.Deserialize<NativeRecordGraph>(json, NativeBindingRecordWorker.JsonOptions));
     }
 
+    /// <summary>
+    /// Unevaluated typeof roots must retain their resolved representation and cannot invent a second canonical identity.
+    /// </summary>
+    [TestMethod]
+    [DataRow("missing-element")]
+    [DataRow("wrong-element")]
+    [DataRow("self")]
+    [DataRow("size")]
+    [DataRow("alignment")]
+    public void TypeofRecordContractsRejectContradictions(string mutation)
+    {
+        NativeRecordGraph original = CreateGraph();
+        NativeRecordType wrapper = new("typeof", 0, "typeof (*((struct Root*)0))", 0, 32, 8, "", 0, null, null, null, null);
+        var roots = new Dictionary<string, int>(original.Roots, StringComparer.Ordinal) { ["expression"] = original.Types.Count };
+        NativeRecordGraph valid = original with { Types = [.. original.Types, wrapper], Roots = roots };
+        NativeBindingRecordValidation.Validate(valid, valid.Target, roots.Keys);
+        NativeRecordType changed = mutation switch
+        {
+            "missing-element" => wrapper with { Element = null },
+            "wrong-element" => wrapper with { Element = 2 },
+            "self" => wrapper with { Canonical = original.Types.Count, Element = original.Types.Count },
+            "size" => wrapper with { Size = 16 },
+            "alignment" => wrapper with { Alignment = 4 },
+            _ => throw new ArgumentOutOfRangeException(nameof(mutation)),
+        };
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordValidation.Validate(
+            valid with { Types = [.. original.Types, changed] }, valid.Target, roots.Keys));
+        NativeBindingRecordValidation.Validate(valid, valid.Target, roots.Keys);
+    }
+
     private static NativeRecordGraph CreateGraph()
     {
         var target = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21, NativeNumericModelFixture.Binary80);

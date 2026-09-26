@@ -321,7 +321,11 @@ public sealed partial class NativeBindingNativeTests
         finally { await DeleteDirectoryAsync(directory); }
     }
 
-    private async Task<NativeRecordGraph> CollectRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory, params string[] frontendOptions)
+    private Task<NativeRecordGraph> CollectRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory, params string[] frontendOptions)
+        => CollectMeasuredRecordsAsync("#define PG_VERSION_NUM 180006\n" + headers, requests, directory, 18, frontendOptions);
+
+    private async Task<NativeRecordGraph> CollectMeasuredRecordsAsync(string headers, IReadOnlyList<NativeHeaderRequest> requests, string directory,
+        int major, params string[] frontendOptions)
     {
         string file = Path.Combine(directory, "records.c");
         string ast = Path.Combine(directory, "records.ast");
@@ -330,11 +334,11 @@ public sealed partial class NativeBindingNativeTests
         string[] frontend = OperatingSystem.IsWindows()
             ? ["/nologo", "/std:c11", "/W4", "/WX", "/Zs", .. frontendOptions]
             : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", .. frontendOptions];
-        string targetHeaders = NativeBindingHeaderTarget.GenerateSource("#define PG_VERSION_NUM 180006\n" + headers, 18);
+        string targetHeaders = NativeBindingHeaderTarget.GenerateSource(headers, major);
         await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateSource(targetHeaders, requests), context.CancellationToken);
         await NativeBindingHeaderCommand.CompileAsync(compiler, [.. frontend, "-Xclang", "-ast-dump=json", file], json, directory, context.CancellationToken);
         using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(json, context.CancellationToken));
-        NativeHeaderTarget target = NativeBindingHeaderTarget.Read(document.RootElement, 18);
+        NativeHeaderTarget target = NativeBindingHeaderTarget.Read(document.RootElement, major);
         await NativeBindingHeaderCommand.CompileAsync(compiler, [.. frontend, "-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", ast, file],
             Path.Combine(directory, "records.txt"), directory, context.CancellationToken);
         string library = await NativeBindingRecordCommand.FindLibraryAsync(compiler, target.ClangMajor, context.CancellationToken);

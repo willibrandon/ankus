@@ -18,6 +18,8 @@ Set extension properties in your project file:
 | `AnkusExtensionVersion` | Project `Version` | Selects the versioned SQL filename and control-file version |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
+| `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
+| `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 
 ## Project SDK
 

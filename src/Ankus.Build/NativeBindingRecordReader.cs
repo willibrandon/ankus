@@ -95,6 +95,14 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         string? source = null;
         switch (type.Kind)
         {
+            case 1 when library.PrintType(library.Transform(type, "clang_getUnqualifiedType"), root) is string unqualified &&
+                (unqualified.StartsWith("typeof(", StringComparison.Ordinal) || unqualified.StartsWith("typeof (", StringComparison.Ordinal) ||
+                    unqualified.StartsWith("__typeof__(", StringComparison.Ordinal) || unqualified.StartsWith("__typeof__ (", StringComparison.Ordinal)):
+                if (canonical == TypeId(type)) { throw new FormatException("A native typeof expression has no resolved canonical type."); }
+
+                kind = "typeof";
+                element = canonical;
+                break;
             case >= 2 and <= 23:
             case 30:
             case 31:

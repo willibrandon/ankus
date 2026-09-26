@@ -10,6 +10,9 @@ target server's operating system and architecture.
 
 - .NET 10 SDK.
 - The [.NET Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
+- LLVM Clang 20 or later and its matching `libclang` library. Make `clang`
+  available on Linux/macOS or `clang-cl.exe` on Windows. Ankus uses it to read
+  native declarations from your PostgreSQL headers.
 - PostgreSQL 18 with `pg_config`, server executables, and development headers.
   Windows also needs the PostgreSQL server import library.
 

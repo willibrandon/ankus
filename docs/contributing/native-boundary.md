@@ -710,10 +710,15 @@ of fabricated CLR storage. Flexible tails require a live address and a
 caller-guaranteed initialized extent; integer overflow checks cannot establish
 pointer provenance or ownership.
 
-This emitter is a tested prerequisite for replacing the pinned node declaration
-path in the existing companion assembly. It is not yet connected to the SDK or
-an installed command. That integration must retain node contracts and a single
-assembly identity while adding complete selected native declarations and calls.
+The SDK's `binding-sources` path uses this emitter for one companion containing
+the complete node dependency graph. Unevaluated type roots preserve the existing
+named and anonymous node/value identities. Independently executed layout probes
+must agree with Clang on node sizes, offsets, array strides and named enum
+representations/constants. Packed field placement does not change the required
+alignment of the field's type. Node cast rules, concrete allocation metadata and
+typed flexible-tail accessors retain their existing contracts. Large temporary
+AST files are removed after compiler/worker completion. General selected native
+functions, globals and hooks still require further SDK and runtime integration.
 
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove

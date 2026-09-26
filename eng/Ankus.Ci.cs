@@ -38,6 +38,7 @@ try
         case "quality":
             ValidateRuntimeIdentity(repositoryRoot);
             InstallPostgreSql(repositoryRoot, "18");
+            ConfigureHeaderFrontend(repositoryRoot);
             Run(GetDotNetHost(), ["restore", "Ankus.slnx", "-m:1", "-p:PublishAot=false"]);
             Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "--no-incremental", "--no-restore", "-m:1", "-p:PublishAot=false"]);
             Run(GetDotNetHost(), ["run", "--project", "src/Ankus.DocGenerator", "--configuration", "Release", "--no-build", "--", "--check"]);

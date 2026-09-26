@@ -73,7 +73,9 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 4, 4), layout.Types["Payload"].Fields["number"]);
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 2, 2), layout.Types["Payload"].Fields["pair"]);
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 4, 4), layout.Types["Node"].Fields["type_"]);
-            NativeBindingSource binding = NativeBindingCSharp.Generate(catalog, layout);
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, Headers);
+            NativeRecordGraph graph = await CollectMeasuredRecordsAsync(roots.Source, roots.Requests, directory, 18);
+            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
             const string Harness = """
                 using System;
                 using Ankus;

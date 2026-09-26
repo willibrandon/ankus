@@ -235,7 +235,9 @@ public sealed partial class NativeBindingNativeTests
             await RunAsync(compiler, arguments, directory);
             string observations = await RunAsync(executable, [], directory);
             NativeBindingLayout layout = NativeBindingProbe.Read(catalog, observations);
-            return NativeBindingCSharp.Generate(catalog, layout);
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, headers);
+            NativeRecordGraph graph = await CollectMeasuredRecordsAsync(roots.Source, roots.Requests, directory, major);
+            return NativeBindingRecordCSharp.Generate(graph, catalog, layout);
         }
         finally
         {
