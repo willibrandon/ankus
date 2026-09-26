@@ -497,6 +497,40 @@ The address need not be a palloc chunk start. No native allocator ownership is i
 The caller guarantees at least sizeof(T) valid bytes and honors any shorter external lifetime,
 including stack return, resource closure, external free, or external resize.
 
+<a id="member-151a80969938d6da"></a>
+
+### DangerousBorrow&lt;T&gt;(void*, nuint)
+
+Borrows an initialized raw value with an explicit accessible byte extent and this context's reset generation.
+
+```csharp
+public PgNativeReference<T>? DangerousBorrow<T>(void* address, nuint byteLength) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The complete unmanaged representation available at the address.
+
+Parameters:
+
+`address` — [void*](https://learn.microsoft.com/dotnet/api/system.void)
+
+The accessible initialized raw address, or null.
+
+`byteLength` — [nuint](https://learn.microsoft.com/dotnet/api/system.uintptr)
+
+The caller-guaranteed accessible extent, at least the size of T.
+
+Returns: <code>PgNativeReference&lt;T&gt;</code>
+
+A borrowed view, or null without backend access for a null address.
+
+No allocator ownership is inferred. The caller guarantees the entire extent remains accessible
+and honors shorter external lifetimes. Typed casts retain this extent and the captured generation;
+a cast never increases the caller's original storage guarantee.
+
 <a id="member-68628cf191ce64b4"></a>
 
 ### Dispose()

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Ankus;
 
 /// <summary>
@@ -174,7 +176,7 @@ public sealed class PgInternal
         }
 
         return address == 0 ? null : new PgNativeReference<T>(NativeMemoryContext.Provider,
-            Datum.Lifetime.ContextId, unchecked((nint)Datum.Lifetime.Generation), (nint)address);
+            Datum.Lifetime.ContextId, unchecked((nint)Datum.Lifetime.Generation), (nint)address, (nuint)Unsafe.SizeOf<T>());
     }
 
     /// <summary>

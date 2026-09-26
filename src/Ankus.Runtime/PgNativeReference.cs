@@ -20,6 +20,7 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
     private readonly nint _context;
     private readonly nint _generation;
     private readonly nint _address;
+    private readonly nuint _availableLength;
 
     /// <summary>
     /// Borrows a complete typed range from an existing checked allocation.
@@ -39,12 +40,14 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
     /// <param name="context">The live lifetime anchor identity.</param>
     /// <param name="generation">The anchor generation captured when borrowing.</param>
     /// <param name="address">The caller-guaranteed initialized raw address.</param>
-    internal PgNativeReference(nint provider, nint context, nint generation, nint address)
+    /// <param name="availableLength">The caller-guaranteed complete accessible extent.</param>
+    internal PgNativeReference(nint provider, nint context, nint generation, nint address, nuint availableLength)
     {
         _provider = provider;
         _context = context;
         _generation = generation;
         _address = address;
+        _availableLength = availableLength;
     }
 
     /// <summary>
@@ -124,6 +127,45 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
         }
 
         return (void*)InvokeRaw(NativeMemoryOperation.ReadReference, 0, 0)._pointer;
+    }
+
+    /// <summary>
+    /// Gets the currently available extent after validating the complete source view and its lifetime.
+    /// </summary>
+    internal nuint AvailableLength
+    {
+        get
+        {
+            if (_allocation is not null)
+            {
+                _allocation.ValidateAccess(_offset, (nuint)sizeof(T));
+                return _allocation.Length - _offset;
+            }
+
+            InvokeRaw(NativeMemoryOperation.ReadReference, 0, 0);
+            return _availableLength;
+        }
+    }
+
+    /// <summary>
+    /// Reinterprets a complete range without changing its allocation, offset, or original raw lifetime anchor.
+    /// </summary>
+    /// <typeparam name="TTarget">The complete target representation.</typeparam>
+    /// <returns>A borrowed view with the original storage extent and lifetime.</returns>
+    /// <remarks>
+    /// Callers must establish the target's semantic and ABI compatibility separately.
+    /// </remarks>
+    internal PgNativeReference<TTarget> Reinterpret<TTarget>() where TTarget : unmanaged
+    {
+        nuint available = AvailableLength;
+        if ((nuint)sizeof(TTarget) > available)
+        {
+            throw new InvalidCastException("The target representation exceeds the borrowed native storage.");
+        }
+
+        return _allocation is not null
+            ? new PgNativeReference<TTarget>(_allocation, _offset)
+            : new PgNativeReference<TTarget>(_provider, _context, _generation, _address, available);
     }
 
     private void ReadBytes(Span<byte> destination)

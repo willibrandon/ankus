@@ -259,6 +259,10 @@ internal enum NativeMemoryOperation
     /// Allocates or accesses a selected-header native item pointer through checked ownership or an external anchor.
     /// </summary>
     ItemPointer = 31,
+    /// <summary>
+    /// Validates a generated native binding against the active extension's selected-header ABI.
+    /// </summary>
+    NativeBinding = 32,
 }
 
 /// <summary>

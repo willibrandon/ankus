@@ -73,6 +73,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgNativeBox&lt;T&gt;](/api/ankus.pgnativebox-1/)
 - [PgNativeItemPointer](/api/ankus.pgnativeitempointer/)
 - [PgNativeReference&lt;T&gt;](/api/ankus.pgnativereference-1/)
+- [PgNodeReference&lt;T&gt;](/api/ankus.pgnodereference-1/)
+- [PgNodes](/api/ankus.pgnodes/)
 - [PgNumericPrecisionAttribute](/api/ankus.pgnumericprecisionattribute/)
 - [PgOperatorAttribute](/api/ankus.pgoperatorattribute/)
 - [PgOrderingAttribute](/api/ankus.pgorderingattribute/)

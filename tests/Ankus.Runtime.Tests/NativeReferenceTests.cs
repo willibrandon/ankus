@@ -7,7 +7,7 @@ namespace Ankus.Runtime.Tests;
 /// Verifies non-owning typed views, checked offsets, raw lifetime anchors, and exact shallow clones.
 /// </summary>
 [TestClass]
-public sealed unsafe class NativeReferenceTests
+public sealed unsafe partial class NativeReferenceTests
 {
     /// <summary>
     /// A checked view reads and writes the complete value at its requested byte offset without adopting storage.

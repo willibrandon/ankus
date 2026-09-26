@@ -131,16 +131,32 @@ public sealed unsafe partial class PgMemoryContext
     /// including stack return, resource closure, external free, or external resize.
     /// </remarks>
     public PgNativeReference<T>? DangerousBorrow<T>(void* address) where T : unmanaged
+        => DangerousBorrow<T>(address, (nuint)sizeof(T));
+
+    /// <summary>
+    /// Borrows an initialized raw value with an explicit accessible byte extent and this context's reset generation.
+    /// </summary>
+    /// <typeparam name="T">The complete unmanaged representation available at the address.</typeparam>
+    /// <param name="address">The accessible initialized raw address, or null.</param>
+    /// <param name="byteLength">The caller-guaranteed accessible extent, at least the size of T.</param>
+    /// <returns>A borrowed view, or null without backend access for a null address.</returns>
+    /// <remarks>
+    /// No allocator ownership is inferred. The caller guarantees the entire extent remains accessible
+    /// and honors shorter external lifetimes. Typed casts retain this extent and the captured generation;
+    /// a cast never increases the caller's original storage guarantee.
+    /// </remarks>
+    public PgNativeReference<T>? DangerousBorrow<T>(void* address, nuint byteLength) where T : unmanaged
     {
         if (address is null)
         {
             return null;
         }
 
+        ArgumentOutOfRangeException.ThrowIfLessThan(byteLength, (nuint)sizeof(T));
         EnsureAlive();
         NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = Id };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
-        return new PgNativeReference<T>(_provider, Id, result._value, (nint)address);
+        return new PgNativeReference<T>(_provider, Id, result._value, (nint)address, byteLength);
     }
 
     private static PgAllocation InitializeNativeValue<T>(PgAllocation allocation, T value) where T : unmanaged

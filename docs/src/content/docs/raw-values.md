@@ -29,8 +29,39 @@ managed value.
 These are raw native representations. Pointer and callback fields currently
 hold `nint` addresses; they do not own or validate the pointed-to storage.
 Creating a managed struct does not allocate a PostgreSQL node, and setting its
-tag does not establish native ownership. Checked node casts, allocation and
-formatting APIs are still being implemented.
+tag does not establish native ownership.
+
+Use a native owner and `PgNodes.Borrow` to create a checked node view:
+
+```csharp
+using PgMemoryContext owner = PgMemoryContext.Create("query node");
+using PgNativeBox<RangeTblRef> storage = owner.CreateBox(
+    new RangeTblRef { type = NodeTag.T_RangeTblRef, rtindex = 9 });
+PgNodeReference<RangeTblRef> reference = PgNodes.Borrow(storage.Borrow());
+PgNodeReference<Node> root = reference.TryCast<Node>()!;
+PgNodeReference<RangeTblRef> sameNode = root.TryCast<RangeTblRef>()!;
+
+RangeTblRef changed = sameNode.Value;
+changed.rtindex = 10;
+sameNode.Value = changed; // storage and both views observe the same native bytes.
+```
+
+`TryCast<T>()` follows PostgreSQL's generated node inheritance and alias rules.
+It returns null for a rejected tag. Invalid storage, insufficient bounds, or an
+incompatible ABI throws. `Tag` preserves the native tag as `uint`;
+`IsA((uint)NodeTag.T_RangeTblRef)` tests exact equality.
+
+Views check the active extension's measured ABI, alignment, complete storage
+bounds and original lifetime on every access. Allocation views follow resizing.
+Freeing or resetting their owner invalidates them. Raw views retain the reset
+generation and byte extent captured by `DangerousBorrow<T>`; casting never
+recaptures a generation or expands the caller's storage guarantee. For a raw
+base-node address whose complete object is larger, pass the explicitly proven
+extent to `context.DangerousBorrow<Node>(address, byteLength)`.
+
+These checks do not establish that native pointer members form valid objects.
+Keep their storage and external resources alive for every use. Node-specific
+zeroed allocation and native formatting are still being implemented.
 
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation

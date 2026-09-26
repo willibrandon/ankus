@@ -2668,7 +2668,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
-| `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Pending |
+| `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations and checked tag/cast views with ABI, bounds and original-lifetime validation; node-specific allocation, native formatting, planner/executor integration and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
@@ -6101,3 +6101,59 @@ The phases track implementation of the complete pgrx feature surface.
   20 to 25 minutes under the authorized 40-minute ceiling. Linux remains at 20
   and Windows at 30 minutes; every platform still runs the complete suite.
   Analyzer modes, severities and suppressions are unchanged.
+
+- 2026-09-25 — Hosted verification of the binding/Windows repairs is complete.
+  Commit `94c0e61` passes all seven jobs in
+  [CI 36206527276](https://github.com/willibrandon/ankus/actions/runs/36206527276).
+  Linux x64/Ubuntu 24.04/PostgreSQL 18.6 passes all 6,834 tests with no failures
+  or skips in a 17m 08s job. macOS ARM64/macOS 15/PostgreSQL 18.6 passes 6,832
+  tests with no failures and the two existing Linux-only memory-measurement
+  skips in 16m 38s. Windows x64/Windows Server 2025/PostgreSQL 17.11 passes
+  6,832 tests with no failures and those same two skips in 26m 53s; its
+  integration suite takes 22m 29.158s. Hosted quality reports zero Release
+  warnings/errors, a current API reference and zero documentation errors,
+  warnings or hints. Timeouts remain Linux 20, macOS 25 and Windows 30 minutes,
+  below the authorized 40-minute ceiling. This is the tested matrix; complete
+  PostgreSQL-major/platform validation remains open.
+
+- 2026-09-25 — Implemented checked native node views. `PgNodes.Borrow`
+  and `PgNodeReference<T>` retain the original checked allocation/offset or
+  explicit raw address/extent/provider/context/reset generation. Upcasts do
+  not discard the complete original extent, and downcasts cannot invent extra
+  raw storage or recapture a newer context generation. Allocation views follow
+  resizing and reject incomplete source and target ranges. A raw-borrow
+  overload lets the caller explicitly guarantee a larger accessible extent.
+
+  Every node access checks its declared size, native alignment, target runtime
+  and measured binding identity against an independent native memory capability.
+  The generator embeds the compilation's measured identity; no SPI query or
+  production friend assembly is needed. Tag inspection preserves all bits;
+  target predicates decide cast acceptance. These checks cannot validate native
+  pointer members supplied by the caller. The reference tests pass 41 cases
+  with zero failures/skips, and five binding-generator cases pass. Nine real
+  PostgreSQL 18.6/Linux x64 cases pass in 63.583s, covering pgrx's RangeTblRef
+  roundtrip and AlternativeSubPlan/Expr/Node inheritance, shared addresses and
+  mutations, unrelated Var rejection, OpExpr aliases, allocation
+  shrink/regrowth/release, original raw generations after reset/deletion and
+  native ABI-mismatch diagnostics with same-session recovery. A direct runtime
+  union fixture also preserves source-only upcasts and rejects union downcasts.
+  Final plain `dotnet test` passes all 6,876 cases with zero failures/skips in
+  409.832s on Linux x64/PostgreSQL 18.6. The non-incremental Release build passes
+  with zero warnings/errors in 37.69s. The regenerated API reference is current
+  at 170 pages/2,252 members; the site builds 212 pages and its check reports
+  zero errors/warnings/hints.
+
+  | Checked-view requirement | Concrete witnesses |
+  |---|---|
+  | Shared allocation offsets, mutations, resizing and release | `AllocationReinterpretPreservesOffsetAndResize`, `ReinterpretRejectsAnInvalidSourceRange`, `NodeViewsRevalidateAllocationBoundsAndRelease` |
+  | Original raw extent, reset generation and provider; explicit extent boundaries | `RawReinterpretRetainsExtentAndCapturedGeneration`, `RawReinterpretCannotWidenThePromisedExtent`, `ReinterpretRejectsExpiredAndForeignAnchors`, `ExplicitRawExtentValidatesBeforeCapturingGeneration`, `RawNodeCastsRetainTheirOriginalAnchorGeneration` |
+  | Tag identity, inheritance, aliases and source-only union directionality | `RangeTableNodeRoundtripPreservesNativeValueAndAddress`, `NativeInheritanceRetainsTagAndRejectsUnrelatedNodes`, `NativeAliasesRetainExactTagsAndSharedPayload`, `SourceOnlyUnionCanUpcastWithoutAcceptingDowncasts`, `TagRejectionAndIncompleteTargetStorageRemainDistinct` |
+  | ABI/layout/alignment validation before native access, including retained views | `InvalidNodeMetadataFailsBeforeNativeAccess`, `ActiveBindingMismatchPreservesDiagnosticAndPrecedesStorageRead`, `NodeBorrowRejectsMisalignmentBeforeDereferencing`, `RetainedNodeViewsRevalidateAbiBeforeEveryAccess`, `NodeBorrowRequiresReferenceAndActiveCapability` |
+  | Generated native capability contract and malformed-identity rejection | `NativeNodeCapabilityUsesTheCompilationsMeasuredBindingIdentity`, `NativeNodeCapabilityRejectsMalformedBindingConstants` |
+  | Owned native diagnostics and same-session recovery | `IncompatibleBindingRaisesOwnedNativeErrorAndRecovers` |
+
+  Hosted validation of this checked-view milestone is pending. Node-specific
+  allocation, native formatting, further ownership/error witnesses, planner and
+  executor integration, complete raw FFI and the full PostgreSQL/platform matrix
+  remain required. Analyzer modes and severities are unchanged, with no added
+  suppressions or production friend assemblies.

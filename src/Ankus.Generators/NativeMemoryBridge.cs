@@ -60,7 +60,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_ALLOCATE_VARLENA = 28,
             ANKUS_MEMORY_STRINGINFO = 29,
             ANKUS_MEMORY_LIST = 30,
-            ANKUS_MEMORY_ITEM_POINTER = 31
+            ANKUS_MEMORY_ITEM_POINTER = 31,
+            ANKUS_MEMORY_NATIVE_BINDING = 32
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -911,7 +912,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeNodeBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -960,6 +961,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_ITEM_POINTER:
                     ankus_memory_item_pointer(request, result);
+                    break;
+                case ANKUS_MEMORY_NATIVE_BINDING:
+                    ankus_memory_native_binding(request);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);

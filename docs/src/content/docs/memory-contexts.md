@@ -286,6 +286,13 @@ allocator owner. A captured reset generation makes the view stale after context
 reset even when the context itself survives. No native record is allocated for
 each borrowed view.
 
+The overload `DangerousBorrow<T>(address, byteLength)` records an explicitly
+guaranteed accessible extent, which must contain the complete `T` value. Use it
+when a raw base-node view covers a larger native object. Checked
+[`PgNodes` casts](/raw-values/#native-postgresql-declarations) retain that extent
+and the original reset generation; casting never creates additional storage or
+renews an expired lifetime.
+
 The anchor does not detect a shorter lifetime caused by stack return, external
 free or resize, or closing a separate native resource. The unsafe caller must
 prevent later access in those cases. Failed context cleanup does not invalidate
