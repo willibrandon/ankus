@@ -256,6 +256,9 @@ public sealed partial class NativeBindingNativeTests
             }
 
             native.Append(NativeBindingGlobalSource.Bodies(records, globalAccesses));
+            int[] indirect = [.. NativeBindingIndirectModel.Describe(records.Graph).Where(static call => call.CanInvoke)
+                .Select(static call => call.FunctionType)];
+            native.Append(NativeBindingIndirectSource.Bodies(records, indirect));
             native.AppendLine("typedef int (*AnkusBody)(const AnkusNativeCallArgument *, size_t, void *, size_t);");
             foreach (string name in names)
             {
@@ -269,6 +272,13 @@ public sealed partial class NativeBindingNativeTests
                 native.AppendLine("#if defined(_WIN32)\n__declspec(dllexport)\n#else\n__attribute__((visibility(\"default\")))\n#endif");
                 native.Append("AnkusBody ").Append(NativeBindingGlobalImports.Prefix).Append(NativeBindingGlobalSource.OperationName(access.Operation))
                     .Append('_').Append(access.Name).Append("(void) { return ").Append(NativeBindingGlobalSource.BodyName(access)).AppendLine("; }");
+            }
+
+            foreach (int signature in indirect)
+            {
+                native.AppendLine("#if defined(_WIN32)\n__declspec(dllexport)\n#else\n__attribute__((visibility(\"default\")))\n#endif");
+                native.Append("AnkusBody ").Append(NativeBindingIndirectImports.Prefix).Append(signature.ToString(CultureInfo.InvariantCulture))
+                    .Append("(void) { return ").Append(NativeBindingIndirectSource.BodyName(signature)).AppendLine("; }");
             }
 
             string file = Path.Combine(directory, "calls.c");
@@ -296,8 +306,10 @@ public sealed partial class NativeBindingNativeTests
                     AttributeArgumentSyntax argument = import.ArgumentList!.Arguments.Single(static argument => argument.NameEquals?.Name.Identifier.ValueText == "EntryPoint");
                     string entry = ((LiteralExpressionSyntax)argument.Expression).Token.ValueText;
                     nint address = NativeLibrary.GetExport(module, entry);
-                    managed.Append("\nnamespace Ankus.Postgres { public static partial class ")
-                        .Append(((ClassDeclarationSyntax)method.Parent!).Identifier.Text).AppendLine(" {");
+                    var owner = (TypeDeclarationSyntax)method.Parent!;
+                    managed.Append("\nnamespace Ankus.Postgres { public ")
+                        .Append(owner is StructDeclarationSyntax ? "readonly partial struct " : "static partial class ")
+                        .Append(owner.Identifier.Text).AppendLine(" {");
                     managed.Append("private static partial nint ").Append(method.Identifier.Text)
                         .Append("() { unsafe { global::NativeCallTestBridge.Accessors++; return ((delegate* unmanaged[Cdecl]<nint>)unchecked((nint)")
                         .Append(unchecked((ulong)address).ToString(CultureInfo.InvariantCulture)).AppendLine("UL))(); } }");

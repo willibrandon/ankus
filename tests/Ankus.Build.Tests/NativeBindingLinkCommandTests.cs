@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Ankus.Build.Tests;
@@ -146,8 +147,8 @@ public sealed partial class NativeBindingNativeTests
         string directory = Directory.CreateTempSubdirectory("ankus-link-command-").FullName;
         try
         {
-            NativeHeaderRecords records = await CollectCallRecordsAsync("extern int known(int value); extern int current;",
-                [new("known", "known", true), new("current", "current", false)], directory);
+            NativeHeaderRecords records = await CollectCallRecordsAsync("extern int known(int value); extern int current; typedef int (*Operation)(int); extern Operation callback;",
+                [new("known", "known", true), new("current", "current", false), new("callback", "callback", false)], directory);
             string contract = Path.Combine(directory, "records.json");
             string consumer = Path.Combine(directory, "consumer.obj");
             string output = Path.Combine(directory, "output");
@@ -166,6 +167,13 @@ public sealed partial class NativeBindingNativeTests
             await File.WriteAllBytesAsync(consumer, global, context.CancellationToken);
             FileNotFoundException missing = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken));
             Assert.AreEqual("missing-pg-config", missing.FileName);
+            Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
+            int signature = NativeBindingIndirectModel.Describe(records.Graph).Single().FunctionType;
+            string accessor = NativeBindingIndirectImports.Prefix + signature.ToString(CultureInfo.InvariantCulture);
+            byte[] indirect = await CompileNativeObjectAsync("extern void *" + accessor + "(void); void *entry(void) { return " + accessor + "(); }");
+            await File.WriteAllBytesAsync(consumer, indirect, context.CancellationToken);
+            FileNotFoundException indirectMissing = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken));
+            Assert.AreEqual("missing-pg-config", indirectMissing.FileName);
             Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
             byte[] empty = await CompileNativeObjectAsync("int no_imports(void) { return 42; }");
             await File.WriteAllBytesAsync(consumer, empty, context.CancellationToken);

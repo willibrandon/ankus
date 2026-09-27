@@ -112,6 +112,53 @@ public sealed partial class ToolCommandTests
                 public static int NativeGlobalPid() => NativeGlobals.MyProcPid;
 
                 [PgFunction]
+                public static unsafe string NativeIndirectValues()
+                {
+                    uint oid = Spi.ExecuteScalar<uint>("SELECT 'pg_catalog.int4div(integer,integer)'::regprocedure::oid");
+                    using PgMemoryContext owner = PgMemoryContext.Create("native indirect calls");
+                    using PgNativeBox<FmgrInfo> function = owner.AllocateZeroedBox<FmgrInfo>();
+                    nint info = (nint)function.DangerousGetPointer();
+                    NativeMethods.fmgr_info_cxt(oid, info, NativeMethods.GetMemoryChunkContext(info));
+                    using PgNativeBox<PGFunction> saved = owner.CreateBox(function.Value.fn_addr);
+                    PGFunction target = saved.Value;
+                    using PgAllocation frame = owner.AllocateZeroed((nuint)sizeof(FunctionCallInfoBaseData) + 2U * (nuint)sizeof(NullableDatum));
+                    FunctionCallInfoBaseData* data = (FunctionCallInfoBaseData*)frame.DangerousGetPointer();
+                    *data = new() { flinfo = info, nargs = 2 };
+                    ulong first = InvokeIntegerDivision(target, frame, 84, 2);
+                    ulong signedResult = InvokeIntegerDivision(target, frame, -85, 2);
+                    string state = "missing";
+                    try
+                    {
+                        PgTransaction.RunInSubtransaction(() => InvokeIntegerDivision(target, frame, 1, 0));
+                    }
+                    catch (PgException error) when (error.SqlState == "22012")
+                    {
+                        state = error.SqlState;
+                    }
+
+                    ulong recovered = InvokeIntegerDivision(saved.Value, frame, 126, 3);
+                    bool identity = saved.Value.DangerousGetAddress() == function.Value.fn_addr.DangerousGetAddress();
+                    return $"{first}|{signedResult:X16}|{state}|{recovered}|{identity}|{Spi.ExecuteScalar<int>("SELECT 6 * 7")}";
+                }
+
+                private static unsafe ulong InvokeIntegerDivision(PGFunction target, PgAllocation frame, int left, int right)
+                {
+                    nint address = (nint)frame.DangerousGetPointer();
+                    FunctionCallInfoBaseData* data = (FunctionCallInfoBaseData*)address;
+                    data->isnull = false;
+                    System.Span<NullableDatum> arguments = FunctionCallInfoBaseData.Dangerous_args(address, 2);
+                    arguments[0] = new() { value = unchecked((ulong)left) };
+                    arguments[1] = new() { value = unchecked((ulong)right) };
+                    ulong result = target.Invoke(address);
+                    if (data->isnull)
+                    {
+                        throw new System.InvalidOperationException("Unexpected native SQL NULL.");
+                    }
+
+                    return result;
+                }
+
+                [PgFunction]
                 public static unsafe string NativeGlobalValues()
                 {
                     int original = NativeGlobals.extra_float_digits;
@@ -159,9 +206,9 @@ public sealed partial class ToolCommandTests
                 [PgFunction]
                 public static unsafe bool NativeLinkedProvider()
                 {
-                    OutputPluginCallbacks callbacks = new() { startup_cb = 17, shutdown_cb = 23 };
+                    OutputPluginCallbacks callbacks = new() { startup_cb = new(17), shutdown_cb = new(23) };
                     NativeMethods._PG_output_plugin_init((nint)(&callbacks));
-                    return callbacks.startup_cb == 0 && callbacks.shutdown_cb == 23;
+                    return callbacks.startup_cb.IsNull && callbacks.shutdown_cb.DangerousGetAddress() == 23;
                 }
 
                 [PgFunction]
@@ -448,6 +495,9 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual("FEDCBA9876543210", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_global_pid() = pg_backend_pid()";
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+            command.CommandText = "SELECT native_indirect_values()";
+            Assert.AreEqual("42|FFFFFFFFFFFFFFD6|22012|42|True|42", await command.ExecuteScalarAsync(token));
+            Assert.AreEqual("42|FFFFFFFFFFFFFFD6|22012|42|True|42", await command.ExecuteScalarAsync(token));
             command.CommandText = "SET extra_float_digits = 2; SELECT native_global_values()";
             Assert.AreEqual("2|-3|-3|-3|2|True|True", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT current_setting('extra_float_digits')::integer";

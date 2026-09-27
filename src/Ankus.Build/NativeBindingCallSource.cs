@@ -41,7 +41,7 @@ internal static class NativeBindingCallSource
         NativeBindingTarget.WriteChecks(source, records.Headers.Target, "Native call");
         source.AppendLine("/* These bodies require a native error guard; they must never be called directly from managed code. */");
         source.AppendLine("typedef struct AnkusNativeCallArgument { const void *data; size_t size; } AnkusNativeCallArgument;");
-        source.AppendLine("enum AnkusNativeCallStatus { ANKUS_CALL_OK, ANKUS_CALL_COUNT, ANKUS_CALL_ARGUMENTS, ANKUS_CALL_RESULT, ANKUS_CALL_STORAGE, ANKUS_CALL_ALIGNMENT };");
+        source.AppendLine("enum AnkusNativeCallStatus { ANKUS_CALL_OK, ANKUS_CALL_COUNT, ANKUS_CALL_ARGUMENTS, ANKUS_CALL_RESULT, ANKUS_CALL_STORAGE, ANKUS_CALL_ALIGNMENT, ANKUS_CALL_TARGET };");
         foreach (NativeBindingCall contract in calls)
         {
             string name = contract.Name;

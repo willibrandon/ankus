@@ -34,20 +34,31 @@ internal static partial class NativeBindingRecordCSharp
         /// Copies exact value bytes into independently aligned native storage and releases owned storage on every exit.
         /// </summary>
         private void Method(NativeBindingCall call, string method, string accessor, string visibility = "public")
+            => Method(call.Symbol.NativeName,
+                [.. call.Parameters.Select((parameter, index) =>
+                    (index < call.Symbol.ParameterNames.Count ? call.Symbol.ParameterNames[index] : "", parameter.StorageType))],
+                call.Result?.StorageType, method, accessor, visibility);
+
+        /// <summary>
+        /// Shares managed frame transport independently of the native target's declaration or lookup mechanism.
+        /// </summary>
+        private void Method(string nativeName, (string Name, int Type)[] nativeParameters, int? nativeResult,
+            string method, string accessor, string visibility = "public", bool indirect = false)
         {
-            NativeBindingCallFrame frame = NativeBindingCallFrameLayout.Create(graph, call);
+            NativeBindingCallFrame frame = NativeBindingCallFrameLayout.Create(graph,
+                [.. nativeParameters.Select(static parameter => parameter.Type)], nativeResult);
             var names = new HashSet<string>(StringComparer.Ordinal) { "allocation", "storage", "arguments", "alignment" };
             var parameters = new List<(string Name, Value Value)>();
-            for (int index = 0; index < call.Parameters.Count; index++)
+            for (int index = 0; index < nativeParameters.Length; index++)
             {
-                string observed = index < call.Symbol.ParameterNames.Count ? call.Symbol.ParameterNames[index] : "";
+                string observed = nativeParameters[index].Name;
                 string name = Unique(names, observed.Length == 0 ? "argument" + Number(index) : observed);
-                parameters.Add((name, CallValue(call.Parameters[index])));
+                parameters.Add((name, CallValue(nativeParameters[index].Type)));
             }
 
-            Value? result = call.Result is NativeBindingCallValue nativeResult ? CallValue(nativeResult) : null;
-            Summary("Invokes " + call.Symbol.NativeName + " beneath the active PostgreSQL error guard.", "    ");
-            foreach ((string name, _) in parameters)
+            Value? result = nativeResult is int resultType ? CallValue(resultType) : null;
+            Summary("Invokes " + nativeName + " beneath the active PostgreSQL error guard.", "    ");
+            foreach ((string name, _) in parameters.Skip(indirect ? 1 : 0))
             {
                 Line($"    /// <param name=\"{name}\">The exact native value; referenced addresses must remain valid for the complete call.</param>");
             }
@@ -58,11 +69,17 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             Line("    /// <remarks>Requires the matching native binding and an active backend callback. Raw pointers and callback addresses remain the caller's responsibility.</remarks>");
-            string signature = string.Join(", ", parameters.Select(static parameter => parameter.Value.Code + " @" + parameter.Name));
+            string signature = string.Join(", ", parameters.Skip(indirect ? 1 : 0).Select(static parameter => parameter.Value.Code + " @" + parameter.Name));
             string unsafeModifier = frame.AllocationSize == 0 ? "" : "unsafe ";
             string hide = parameters.Count == 0 && method != "Equals" ? Hide(method) : "";
-            Line($"    {visibility} {hide}static {unsafeModifier}{result?.Code ?? "void"} @{method}({signature})\n    {{");
+            string staticModifier = indirect ? "" : "static ";
+            Line($"    {visibility} {hide}{staticModifier}{unsafeModifier}{result?.Code ?? "void"} @{method}({signature})\n    {{");
             Line($"        global::Ankus.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
+            if (indirect)
+            {
+                Line("        if (IsNull)\n        {\n            throw new global::System.InvalidOperationException(\"A null native function pointer cannot be invoked.\");\n        }\n");
+            }
+
             if (frame.AllocationSize == 0)
             {
                 Line($"        global::Ankus.NativeRawCall.Invoke(@{accessor}(), [], 0, 0);\n    }}\n");
@@ -90,7 +107,8 @@ internal static partial class NativeBindingRecordCSharp
                     Line($"{indent}arguments[{Number(index)}] = new((nint)({address}), {NativeSize(value.Size)});");
                     if (value.Size != 0)
                     {
-                        Line($"{indent}global::System.Runtime.CompilerServices.Unsafe.WriteUnaligned((void*)({address}), @{name});");
+                        string argument = indirect && index == 0 ? "this" : "@" + name;
+                        Line($"{indent}global::System.Runtime.CompilerServices.Unsafe.WriteUnaligned((void*)({address}), {argument});");
                     }
                 }
             }
@@ -105,7 +123,7 @@ internal static partial class NativeBindingRecordCSharp
 
             if (heap)
             {
-                Line("        }\n        finally { global::System.Runtime.InteropServices.NativeMemory.Free(allocation); }");
+                Line("        }\n        finally\n        {\n            global::System.Runtime.InteropServices.NativeMemory.Free(allocation);\n        }");
             }
 
             Line("    }\n");

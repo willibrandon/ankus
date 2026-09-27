@@ -99,6 +99,7 @@ public static unsafe class NativeRawCall
                 3 => "result storage",
                 4 => "argument storage",
                 5 => "argument alignment",
+                6 => "function address",
                 _ => "unknown status",
             };
             throw new InvalidOperationException($"The generated native call rejected its {reason} (status {response._value}).");

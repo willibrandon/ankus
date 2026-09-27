@@ -12,15 +12,25 @@ internal static class NativeBindingCallFrameLayout
     /// <param name="call">The resolved fixed call.</param>
     /// <returns>Offsets and an allocation length including the leading alignment allowance.</returns>
     internal static NativeBindingCallFrame Create(NativeRecordGraph graph, NativeBindingCall call)
+        => Create(graph, [.. call.Parameters.Select(static parameter => parameter.StorageType)], call.Result?.StorageType);
+
+    /// <summary>
+    /// Computes a shared frame from exact storage identities independently of how its native target is selected.
+    /// </summary>
+    /// <param name="graph">The validated native storage graph.</param>
+    /// <param name="parameters">Ordered native argument storage identities.</param>
+    /// <param name="result">The native result storage identity, or null for a void call.</param>
+    /// <returns>Offsets and a bounded allocation length preserving every argument's alignment.</returns>
+    internal static NativeBindingCallFrame Create(NativeRecordGraph graph, IReadOnlyList<int> parameters, int? result)
     {
         try
         {
-            long position = checked((long)call.Parameters.Count * graph.Target.PointerSize * 2);
+            long position = checked((long)parameters.Count * graph.Target.PointerSize * 2);
             long alignment = graph.Target.PointerSize;
-            var offsets = new List<long>(call.Parameters.Count);
-            foreach (NativeBindingCallValue parameter in call.Parameters)
+            var offsets = new List<long>(parameters.Count);
+            foreach (int parameter in parameters)
             {
-                NativeRecordType storage = graph.Types[parameter.StorageType];
+                NativeRecordType storage = graph.Types[parameter];
                 long required = storage.Alignment!.Value;
                 alignment = Math.Max(alignment, required);
                 position = checked(position + (required - 1)) & -required;
@@ -29,10 +39,10 @@ internal static class NativeBindingCallFrameLayout
             }
 
             long resultOffset = position;
-            if (call.Result is NativeBindingCallValue result)
+            if (result is int resultType)
             {
                 // Native bodies memcpy results; the receiving bytes need no native result alignment.
-                position = checked(position + Math.Max(1, graph.Types[result.StorageType].Size!.Value));
+                position = checked(position + Math.Max(1, graph.Types[resultType].Size!.Value));
             }
 
             long length = position == 0 ? 0 : checked(position + (alignment - 1));

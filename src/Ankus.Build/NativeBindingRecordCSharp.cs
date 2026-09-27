@@ -143,6 +143,8 @@ internal static partial class NativeBindingRecordCSharp
         private readonly Dictionary<(string Code, int Count), string> _arrays = [];
         private readonly Dictionary<int, string> _storage = [];
         private readonly Dictionary<int, string> _opaqueValues = [];
+        private readonly IReadOnlyList<NativeBindingIndirectCall> _indirectCalls = NativeBindingIndirectModel.Describe(graph);
+        private readonly Dictionary<int, string> _functionPointers = [];
 
         /// <summary>
         /// Emits every declaration and hashes both the managed source and complete native contract.
@@ -210,6 +212,17 @@ internal static partial class NativeBindingRecordCSharp
                 _declarations.Add(index, Unique(_names, name));
             }
 
+            foreach (NativeBindingIndirectCall call in _indirectCalls)
+            {
+                string name = call.Name ?? "NativeFunction" + Number(call.FunctionType);
+                if (name is "Invoke" or "IsNull" or "DangerousGetAddress" or "GetNativeBody" or "_address" or "nint" or "nuint")
+                {
+                    name = "Native_" + name;
+                }
+
+                _functionPointers.Add(call.FunctionType, Unique(_names, name));
+            }
+
             for (int index = 0; index < graph.Types.Count; index++)
             {
                 if (graph.Types[index].Size > 0)
@@ -233,6 +246,8 @@ internal static partial class NativeBindingRecordCSharp
             {
                 Globals(globals);
             }
+
+            FunctionPointers();
 
             foreach (string name in _emptyValues.Values)
             {
@@ -554,7 +569,9 @@ internal static partial class NativeBindingRecordCSharp
             }
             else if (type.Kind == "pointer")
             {
-                value = new("nint", size, null);
+                string code = NativeBindingIndirectModel.FunctionType(graph, type.Element!.Value) is int signature
+                    ? "@" + _functionPointers[signature] : "nint";
+                value = new(code, size, null);
             }
             else if (type.Kind == "array")
             {

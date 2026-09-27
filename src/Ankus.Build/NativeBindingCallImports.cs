@@ -51,6 +51,7 @@ internal static class NativeBindingCallImports
         }
 
         NativeBindingGlobalImports.Append(source, records, NativeBindingGlobalImports.Select(image));
+        NativeBindingIndirectImports.Append(source, records, NativeBindingIndirectImports.Select(image));
         return source.ToString().ReplaceLineEndings("\n");
     }
 }

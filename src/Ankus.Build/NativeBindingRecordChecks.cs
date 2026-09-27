@@ -39,6 +39,20 @@ internal static partial class NativeBindingRecordChecks
     }
 
     /// <summary>
+    /// Reuses actual native declaration anchors when defining measured argument and result value aliases.
+    /// </summary>
+    /// <param name="records">The complete independently collected signature and storage contract.</param>
+    /// <param name="values">Measured type identities and distinct generated C alias names.</param>
+    /// <returns>Native typedefs and storage checks for inclusion after the original headers.</returns>
+    internal static string DeclareValues(NativeHeaderRecords records, IReadOnlyList<(int Type, string Name)> values)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(values);
+        NativeBindingSignatureValidation.Validate(records);
+        return new Writer(records).DeclareValues(values);
+    }
+
+    /// <summary>
     /// Uses actual C tags, typedefs and member expressions to preserve declaration identity.
     /// </summary>
     private sealed partial class Writer(NativeHeaderRecords records)
@@ -47,6 +61,40 @@ internal static partial class NativeBindingRecordChecks
         private readonly Dictionary<int, string> _anchors = [];
         private readonly StringBuilder _source = new();
         private int _functionComparison;
+
+        /// <summary>
+        /// Emits only requested value typedefs while retaining the complete graph's actual record identities.
+        /// </summary>
+        internal string DeclareValues(IReadOnlyList<(int Type, string Name)> values)
+        {
+            if (values.Count == 0)
+            {
+                return "";
+            }
+
+            _source.AppendLine("#include <stdarg.h>");
+            AnchorDeclarations();
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach ((int index, string name) in values)
+            {
+                NativeBindingCDeclaration.ValidateName(name);
+                if ((uint)index >= (uint)_graph.Types.Count || !names.Add(name))
+                {
+                    throw new FormatException("A native value alias requires a valid type and unique name.");
+                }
+
+                NativeRecordType type = _graph.Types[index];
+                if (type.Size is null || type.Alignment is not > 0)
+                {
+                    throw new FormatException("A native value alias requires complete object storage.");
+                }
+
+                _source.Append("typedef ").Append(Declare(index, name)).AppendLine(";");
+                Storage(name, type.Size, type.Alignment, "value " + name);
+            }
+
+            return _source.ToString().ReplaceLineEndings("\n");
+        }
 
         /// <summary>
         /// Constructs native anchors before comparing every measured object representation and field.
@@ -119,14 +167,6 @@ internal static partial class NativeBindingRecordChecks
                 Anchor(type.Canonical, "*(" + AliasName(type) + " *)0");
             }
 
-            foreach ((string name, NativeHeaderSymbol symbol) in records.Headers.Symbols.OrderBy(static value => value.Key, StringComparer.Ordinal))
-            {
-                if (!symbol.IsFunction)
-                {
-                    Anchor(_graph.Roots[name], symbol.NativeName);
-                }
-            }
-
             for (int index = 0; index < _graph.Declarations.Count; index++)
             {
                 NativeRecordDeclaration declaration = _graph.Declarations[index];
@@ -136,6 +176,28 @@ internal static partial class NativeBindingRecordChecks
                 }
             }
 
+            // Collection-only roots need not exist during invocation compilation. Prefer actual header types and their fields.
+            AnchorFields();
+            foreach ((string name, NativeHeaderSymbol symbol) in records.Headers.Symbols.OrderBy(static value => value.Key, StringComparer.Ordinal))
+            {
+                if (!symbol.IsFunction)
+                {
+                    Anchor(_graph.Roots[name], symbol.NativeName);
+                }
+            }
+
+            AnchorFields();
+            if (_anchors.Count != _graph.Declarations.Count)
+            {
+                throw new FormatException("Native record verification requires a C type anchor for every declaration.");
+            }
+        }
+
+        /// <summary>
+        /// Resolves embedded anonymous declarations through already established real native parents.
+        /// </summary>
+        private void AnchorFields()
+        {
             bool added;
             do
             {
@@ -153,11 +215,6 @@ internal static partial class NativeBindingRecordChecks
 
                 added = count != _anchors.Count;
             } while (added);
-
-            if (_anchors.Count != _graph.Declarations.Count)
-            {
-                throw new FormatException("Native record verification requires a C type anchor for every declaration.");
-            }
         }
 
         private void Anchor(int index, string expression)

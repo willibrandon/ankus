@@ -126,7 +126,7 @@ ulong exactValue = value.value;
 ```
 
 Arguments and results preserve the native types and complete object bytes.
-Pointers use `nint`; the caller must supply valid addresses, keep their owners
+Data pointers use `nint`; the caller must supply valid addresses, keep their owners
 alive, and follow the native function's allocation and lifetime rules. Prefer
 Ankus's checked APIs when they cover the operation you need. Publishing includes
 native bodies only for methods referenced by the extension.
@@ -184,14 +184,53 @@ it an atomic snapshot. Follow PostgreSQL's synchronization and ownership rules.
 objects and arrays expose only this address; Ankus does not invent an unknown
 size or array bound. These addresses retain native const/volatile, ownership and
 lifetime requirements. A thread-local address belongs to the current backend
-thread. Pointer values and function-pointer globals use `nint`; assigning a
-function address does not register or root a managed callback.
+thread. Data pointers use `nint`; function pointers use the typed borrowed values
+described below. Assigning a function address does not register or root a managed
+callback.
 
 Prefer the checked Ankus APIs when they cover the operation. Raw writes can
 violate backend invariants or bypass normal configuration assignment hooks.
 Headers do not guarantee exported storage: publishing includes only operations
 used by the extension, and their globals must be provided by the server or a
 linked native library.
+
+### Native function pointers
+
+Function-pointer fields, globals, parameters and results use generated readonly
+value types. Each type preserves the selected headers' exact signature. Typedef
+aliases and object qualifiers share one managed type; its name comes from the
+first typedef in ordinal order, or a generated name for an unnamed signature.
+
+For a fixed prototype with complete argument and result types, `Invoke` calls
+the current target through the native error guard. For example, given an
+initialized native `FmgrInfo` value and a valid, populated native function-call
+frame:
+
+```csharp
+PGFunction target = functionInfo.fn_addr;
+ulong datum = target.Invoke(callInfoAddress);
+```
+
+This low-level call preserves the native datum bits. The caller supplies the
+correct frame, arguments, collation and lifetime, and reads SQL NULL from the
+frame's `isnull` field. Prefer [`PgFunctions.Call<T>`](/calling-functions/) for
+ordinary SQL function invocation.
+
+Every `Invoke` requires an active backend callback and the matching native
+binding. A null target throws `InvalidOperationException` before native lookup
+or frame allocation. Native errors become `PgException`; use an explicit
+subtransaction when recovery needs rollback, as with fixed native functions.
+Publishing includes only the invocation bodies used by the extension.
+
+`IsNull` inspects the stored address. `DangerousGetAddress()` returns it, and the
+constructor accepts an address whose signature and lifetime the caller guarantees.
+Copying or storing a value does not extend its target's lifetime. These values
+do not create, register, root or safely wrap managed callbacks. Managed hook
+registration and lifetime support remain in progress.
+
+Variadic, unprototyped and incomplete-result function pointers retain typed
+address storage but have no `Invoke` method. Ankus does not infer missing call
+information or replace the native calling convention with a managed guess.
 
 ## Raw SQL values
 

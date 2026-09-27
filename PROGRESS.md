@@ -197,7 +197,8 @@ experiment alone cannot establish the complete requirement.
 
 The user has published the repository to GitHub and authorized CI workflows for
 cross-platform verification. CI should finish within 10 minutes where possible,
-with a hard 15-minute timeout per job; cold-cache behavior must be measured too.
+with the user's current 60-minute timeout for every workflow job; cold-cache
+behavior must be measured too.
 Independent platforms should run in parallel and superseded runs should cancel.
 Upstream runtime work is deferred until the owned patch is proven and has at least
 several months of real usage; there is no immediate upstream proposal planned. The intended
@@ -2671,9 +2672,9 @@ complete implementations. AOT serialization must use statically generated metada
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
-| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed calls and global access, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; indirect calls, callback/lifetime helpers and the complete matrix remain required |
+| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; managed callback/lifetime helpers, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed calls, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Indirect calls, managed hooks, variadics, callback/lifetime helpers, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Managed hooks, variadics, callback/lifetime helpers, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -8151,3 +8152,140 @@ suites are still in progress. No additional failure is reported. Their unfinishe
 runs do not count as passing platform evidence. The cache correction proceeds
 without waiting for hosted completion, as requested; the remaining full-port
 requirements above are unchanged.
+
+### Guarded native function-pointer calls
+
+The selected-header companion now represents native function pointers as typed
+readonly values across fields, globals, arrays, parameters and results. Aliases
+and object qualifiers share their canonical function identity. Types retain
+measured size/alignment and binding metadata. Their borrowed addresses can be
+inspected or stored; copying one does not establish ownership or extend the native
+target's lifetime.
+
+Complete fixed prototypes expose an instance `Invoke` with the exact native
+argument and result types. Every call validates the active backend and binding,
+then rejects a null target before allocating a frame or looking up native code.
+The existing aligned frame transport carries the current target as its first
+value. A native body validates every descriptor and invokes the actual C function
+pointer beneath the PostgreSQL error guard. Native calling conventions and
+aggregate ABI remain the native compiler's responsibility. Large frames release
+their owned storage on success and error; zero-byte native values preserve their
+logical type without copying CLR placeholder bytes.
+
+Pure body-address accessors have a distinct import namespace. Post-ILC selection
+emits only the signatures the Native AOT consumer actually invokes, retaining
+complete graph and object-target validation. Unused callback declarations create
+no native link dependency. Variadic, unprototyped and incomplete-result signatures
+retain typed address transport without an invented invocation API. This milestone
+does not register, root or guard managed callback implementations.
+
+| Requirement | Verified test boundary |
+|---|---|
+| Canonical aliases, qualifiers, adjusted parameters and nested signatures | `IndirectCallsPreserveCompleteSignatureIdentity`, `ManagedIndirectCallsPreserveValuesAndIdentity` |
+| Exact integer/aggregate/void ABI, live target changes, unchanged rejected state and corrected retry | `IndirectBodiesPreserveValuesAndRejectFrames` executes native C with independent expected bits, doubles, arrays and side-effect counts |
+| Active scope, nested binding mismatch, null target and owned diagnostic recovery | `ManagedIndirectCallsValidateEveryInvocationAndRecover` |
+| 64-aligned 8,192-byte values, native error, allocation failure and exact release counts | `ManagedIndirectCallsReleaseLargeFramesAndRecover` |
+| Empty native values, reserved names and unsupported signature transport | `ManagedIndirectCallsPreserveEmptyValuesAndNames`, seven `ManagedIndirectCallsPreserveReservedNames` cases, `ManagedIndirectPointersRetainUnsupportedSignatures` |
+| Actual object imports, complete validation, finite linking and retry | `IndirectImportsSelectReferencedSignatures`, `IndirectImportsRejectInvalidSignaturesAndTargets`, `IndirectCallsRejectInvalidSelectionsAndRecover` |
+| Actual Native AOT accessor calls and unused callback trimming | Expanded `PublishedManagedCallsUseNativeAccessors` publishes and runs the executable, inspects its ILC object and regenerates the exact selected native bodies |
+| Indirect-only tool discovery, preserved output and runtime target rejection | Expanded `NativeLinkCommandValidatesImportsBeforeToolDiscovery` and `RawCallStatusesRejectInvalidContractsAndRecover` |
+
+The shared-frame refactor first passes 71 existing cases in 5.581s. The final
+complete Linux build-tool module passes **870 cases, zero failures, six
+Windows-only skips, 876 total**, in 19.447s. The focused runtime protocol passes
+11 cases in 1.081s. Nineteen native/managed/Native AOT/link cases pass on Windows
+x64 with MSVC 18.10.1 and .NET 10.0.12 in 7.130s, with zero failures or skips.
+The first solution Release passes with zero warnings/errors in 1m 17.02s.
+Backend execution and final complete-suite/documentation verification are pending.
+
+The first packaged Linux and Windows witnesses expose an existing fixture's
+integer assignment/comparison of native callback fields. With typed pointers,
+that consumer fails to compile. The fixture now constructs explicit address
+values and checks `IsNull`/`DangerousGetAddress`; the typed API remains intact.
+Those failed runs supply no backend evidence and require corrected execution.
+
+Corrected consumer compilation then exposes an invocation-generation defect:
+temporary node probe globals were chosen as C type anchors but are absent at
+native link time. Anchors now prefer actual typedefs/tags and their transitive
+fields before global expressions. `IndirectBodiesUseHeaderTypesWithoutProbeGlobals`
+collects named and embedded anonymous records through probe globals, compiles
+without those globals, and invokes a real aggregate transform with exact result,
+input preservation and side-effect assertions. All 36 focused anchor/record
+cases pass in 2.906s. Complete graph validation remains enforced.
+The corrected complete build-tool module passes 871 cases with zero failures and
+six Windows-only skips (877 total) in 18.865s. Changed-source whitespace checks
+and the repository's accessor/block checks pass.
+The corrected Windows native/managed/Native AOT/link selection passes all twenty
+cases with zero failures or skips in 5.379s. Final solution Release passes with
+zero warnings/errors in 1m 06.32s. The site builds 212 pages in 3.25s and checks
+with zero errors, warnings or hints; API freshness passes for 170 pages/2,256
+members.
+
+Assertion and behavior-gap review checks exact outputs, rejected side effects,
+ownership and corrected retries. It caught an initially nondistinguishing native
+target-change witness: addition and XOR produced the same expected value. The
+corrected XOR witness produces different bits and passes. Source-to-assertion
+review does not claim empirical mutation execution or full platform parity.
+
+The corrected packaged SDK witness passes on PostgreSQL 18.6/Linux x64 with
+zero failures/skips in 4m 39.346s. It initializes a real `FmgrInfo`, saves its
+`PGFunction` in context-owned native storage, constructs an exact measured call
+frame, and invokes PostgreSQL's integer division function. It checks result 42,
+negative datum bits `FFFFFFFFFFFFFFD6`, native SQLSTATE `22012` under an explicit
+subtransaction, unchanged target identity, successful reuse and later SQL. The
+complete sequence passes twice on the same connection. The older linked-provider
+fixture also passes with typed pointer fields. The same packaged SDK/backend
+witness passes on PostgreSQL 18.1/Windows x64 with zero failures/skips in
+8m 51.978s.
+
+Final plain-root `dotnet test` passes the complete PostgreSQL 18.6/Linux x64
+suite: **7,717 passed, zero failed, six Windows-only skips, 7,723 total**, in
+13m 29.290s. Integration takes 13m 28.727s. This includes the final anchor
+correction, all new indirect-call cases, and the packaged SDK/backend witness.
+The focused Windows runs establish their stated scope; a complete hosted run
+is still required for each platform.
+
+The cache-first CI measurement now has a complete Linux result. [CI run
+36293364770](https://github.com/willibrandon/ankus/actions/runs/36293364770) for
+`9269e72` passes the complete PostgreSQL 18.6/Linux x64 suite: **7,698 passed,
+zero failed, six Windows-only skips, 7,704 total**. The job takes 31m 02s,
+including a 4m 11.29s Release build and 25m 31.834s integration module. The earlier
+uncached Linux job took 36m 29s; this single overall comparison is about 15%
+faster, but includes source changes and does not isolate cache savings. Both
+Linux and macOS reuse their package caches and restore packages in three seconds.
+Windows completes the corrected restore and saves its first package cache before
+tests. Its Release build passes in 10m 19.91s and all five unit modules pass;
+integration then reaches the existing 45-minute limit without a reported failed
+assertion. This is still a cache-miss run. The next hosted run must establish the
+first Windows cache-hit timing before further optimization decisions.
+
+The cache-hit macOS ARM64 run still reaches its 35-minute limit during integration.
+Its Release build passes in 7m 00.39s and all five unit modules pass; no failed
+assertion is reported. Following the user's explicit request, every job in the CI,
+documentation and release workflows now has a 60-minute timeout. This replaces
+the previous platform-specific limits and is recorded in `AGENTS.md`.
+Commit `aed39c7` publishes this timeout change independently while local full-suite
+validation continues. Previous CI outcomes were checked and recorded immediately
+before both its commit and push.
+The cache-first observation is retained: caching works, but it does not by itself
+bring macOS within 35 minutes. Every platform keeps the full suite, and no new
+jobs or test sharding are introduced. A fresh hosted run must establish complete
+macOS and Windows evidence under the adjusted limit.
+
+That CI run is now terminal: quality, all three runtime jobs and the full Linux
+suite passed; macOS and Windows timed out as recorded. The previous run
+36292247916 is terminal with its corrected Windows restore failure and superseded
+Linux/macOS jobs cancelled. Documentation run 36292247845 passed. Cancelled and
+timed-out suites are not counted as passing platform validation.
+
+Immediately before this milestone's commit, [CI run
+36296260478](https://github.com/willibrandon/ankus/actions/runs/36296260478) for
+the timeout-only commit `aed39c7` has all three runtime jobs passing, with quality
+and all platform suites still running. No failed check is reported. Its
+[documentation run](https://github.com/willibrandon/ankus/actions/runs/36296260503)
+has passed. These live outcomes were checked and recorded; development proceeds
+without treating unfinished platform suites as successful evidence.
+
+Managed callback/hook registration, ownership and chaining, variadic invocation,
+atomic/locking APIs, the remaining feature inventories and the complete
+PostgreSQL/platform matrix remain required for the faithful port.

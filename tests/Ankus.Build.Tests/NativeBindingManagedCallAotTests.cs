@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Ankus.Build.Tests;
@@ -16,6 +17,11 @@ public sealed partial class NativeBindingNativeTests
             int calls;
             void consume(Payload value) { ++calls; observed = value.bytes[0] * 3 + value.bytes[8191]; }
             int checksum(void) { return observed + calls * 1000; }
+            typedef int (*Arithmetic)(int);
+            int add_five(int value) { return value + 5; }
+            Arithmetic get_callback(void) { return add_five; }
+            typedef int (*UnavailableCallback)(double);
+            extern UnavailableCallback unavailable_callback;
             extern int unavailable(int value);
             extern int unavailable_global;
             """;
@@ -30,6 +36,10 @@ public sealed partial class NativeBindingNativeTests
             void *third(void) { return ankus_native_global_body_read_observed(); }
             void *fourth(void) { return ankus_native_global_body_write_observed(); }
             void *fifth(void) { return ankus_native_global_body_address_observed(); }
+            extern void *ankus_native_body_get_callback(void);
+            void *sixth(void) { return ankus_native_body_get_callback(); }
+            extern void *ankus_native_indirect_body___SIGNATURE__(void);
+            void *seventh(void) { return ankus_native_indirect_body___SIGNATURE__(); }
             """;
         const string Main = """
             public static class Program
@@ -51,20 +61,22 @@ public sealed partial class NativeBindingNativeTests
                     int original = NativeGlobals.observed;
                     NativeGlobals.observed = -41;
                     nint address = NativeGlobals.DangerousAddressOf_observed();
-                    Console.WriteLine($"{rejected},{result},{payload.bytes[0]},{payload.bytes[8191]},{original},{*(int*)address},{NativeMethods.checksum()},{scope.Validations},{scope.Invocations}");
+                    int indirect = NativeMethods.get_callback().Invoke(37);
+                    Console.WriteLine($"{rejected},{result},{payload.bytes[0]},{payload.bytes[8191]},{original},{*(int*)address},{NativeMethods.checksum()},{indirect},{scope.Validations},{scope.Invocations}");
                 }
             }
             """;
         string directory = Directory.CreateTempSubdirectory("ankus-managed-call-aot-").FullName;
         try
         {
-            string[] names = ["consume", "checksum", "unavailable"];
-            string[] globals = ["observed", "calls", "unavailable_global"];
+            string[] names = ["consume", "checksum", "get_callback", "unavailable"];
+            string[] globals = ["observed", "calls", "unavailable_global", "unavailable_callback"];
             NativeHeaderRecords records = await CollectCallRecordsAsync(Headers,
                 [.. names.Select(static name => new NativeHeaderRequest(name, name, true)),
                     .. globals.Select(static name => new NativeHeaderRequest(name, name, false))], directory);
             NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, names, globals);
-            byte[] imported = await CompileNativeObjectAsync(Imports);
+            int signature = NativeBindingIndirectModel.Describe(records.Graph).Single(static call => call.Name == "Arithmetic").FunctionType;
+            byte[] imported = await CompileNativeObjectAsync(Imports.Replace("__SIGNATURE__", signature.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
             string native = NativeBindingCallImports.Generate(records, "#define PG_VERSION_NUM 180006\n" + Headers, imported);
             string file = Path.Combine(directory, "calls.c");
             string nativeObject = Path.Combine(directory, OperatingSystem.IsWindows() ? "calls.obj" : "calls.o");
@@ -93,14 +105,15 @@ public sealed partial class NativeBindingNativeTests
             string output = Path.Combine(directory, "published");
             await RunAsync("dotnet", ["publish", projectFile, "-c", "Release", "-o", output], directory);
             string executable = Path.Combine(output, OperatingSystem.IsWindows() ? "Calls.exe" : "Calls");
-            Assert.AreEqual("1,1222,7,201,222,-41,959,7,7\n", (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n"));
+            Assert.AreEqual("1,1222,7,201,222,-41,959,42,9,9\n", (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n"));
             string objectName = OperatingSystem.IsWindows() ? "Calls.obj" : "Calls.o";
             string compiled = Assert.ContainsSingle(Directory.EnumerateFiles(Path.Combine(directory, "obj"), objectName, SearchOption.AllDirectories));
             byte[] image = await File.ReadAllBytesAsync(compiled, context.CancellationToken);
             NativeObjectImports actual = NativeObjectSymbols.Read(image, NativeBindingCallImports.Prefix);
-            Assert.AreSequenceEqual<string>(["ankus_native_body_checksum", "ankus_native_body_consume"], actual.Symbols);
+            Assert.AreSequenceEqual<string>(["ankus_native_body_checksum", "ankus_native_body_consume", "ankus_native_body_get_callback"], actual.Symbols);
             Assert.AreSequenceEqual<NativeBindingGlobalAccess>([new("observed", NativeBindingGlobalOperation.Read),
                 new("observed", NativeBindingGlobalOperation.Write), new("observed", NativeBindingGlobalOperation.Address)], NativeBindingGlobalImports.Select(image));
+            Assert.AreSequenceEqual<int>([signature], NativeBindingIndirectImports.Select(image));
             Assert.AreEqual(native, NativeBindingCallImports.Generate(records, "#define PG_VERSION_NUM 180006\n" + Headers, image));
         }
         finally

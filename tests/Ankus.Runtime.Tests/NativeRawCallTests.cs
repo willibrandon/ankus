@@ -75,6 +75,7 @@ public sealed unsafe class NativeRawCallTests
     [DataRow(3, "result storage")]
     [DataRow(4, "argument storage")]
     [DataRow(5, "argument alignment")]
+    [DataRow(6, "function address")]
     [DataRow(99, "unknown status")]
     [DataRow(-1, "unknown status")]
     public void RawCallStatusesRejectInvalidContractsAndRecover(int status, string reason)
