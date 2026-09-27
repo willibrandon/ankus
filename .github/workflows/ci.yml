@@ -138,8 +138,9 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
+      - name: Restore NuGet package cache
+        uses: actions/cache/restore@v5
+        id: nuget-cache
         with:
           path: ~/.nuget/packages
           key: nuget-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('global.json', '**/*.csproj', '**/*.props', '**/*.targets') }}
@@ -149,6 +150,16 @@ jobs:
         with:
           name: nativeaot-${{ matrix.rid }}
           path: artifacts/nativeaot/${{ matrix.rid }}
+
+      - name: Restore NuGet packages
+        run: dotnet restore Ankus.slnx
+
+      - name: Save NuGet package cache
+        if: steps.nuget-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Run full PostgreSQL tests
         run: >-

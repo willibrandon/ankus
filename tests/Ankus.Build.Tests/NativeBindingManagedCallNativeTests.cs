@@ -229,22 +229,46 @@ public sealed partial class NativeBindingNativeTests
     /// <summary>
     /// Compiles actual C bodies, substitutes only counting allocation and pure lookup collaborators, and executes emitted C#.
     /// </summary>
-    private async Task<long[]> ExecuteManagedCallsAsync(string headers, string[] names, string harness, bool nativeCompiler = true)
+    private async Task<long[]> ExecuteManagedCallsAsync(string headers, string[] names, string harness, bool nativeCompiler = true, string[]? globalNames = null)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-managed-native-call-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            NativeHeaderRequest[] requests = [.. names.Select(static name => new NativeHeaderRequest(name, name, true))];
+            NativeHeaderRequest[] requests = [.. names.Select(static name => new NativeHeaderRequest(name, name, true)),
+                .. (globalNames ?? []).Select(static name => new NativeHeaderRequest(name, name, false))];
             NativeHeaderRecords records = await CollectCallRecordsAsync(headers, requests, directory);
-            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, names);
+            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, names, globalNames);
             var native = new StringBuilder(NativeBindingCallSource.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers, names));
+            var globalAccesses = new List<NativeBindingGlobalAccess>();
+            foreach (NativeBindingGlobalContract global in NativeBindingGlobalModel.Select(records, globalNames ?? []))
+            {
+                globalAccesses.Add(new(global.Name, NativeBindingGlobalOperation.Address));
+                if (global.IsComplete)
+                {
+                    globalAccesses.Add(new(global.Name, NativeBindingGlobalOperation.Read));
+                }
+
+                if (global.CanWrite)
+                {
+                    globalAccesses.Add(new(global.Name, NativeBindingGlobalOperation.Write));
+                }
+            }
+
+            native.Append(NativeBindingGlobalSource.Bodies(records, globalAccesses));
             native.AppendLine("typedef int (*AnkusBody)(const AnkusNativeCallArgument *, size_t, void *, size_t);");
             foreach (string name in names)
             {
                 native.AppendLine("#if defined(_WIN32)\n__declspec(dllexport)\n#else\n__attribute__((visibility(\"default\")))\n#endif");
                 native.Append("AnkusBody ").Append(NativeBindingCallImports.Prefix).Append(name).Append("(void) { return ankus_native_call_")
                     .Append(name).AppendLine("; }");
+            }
+
+            foreach (NativeBindingGlobalAccess access in globalAccesses)
+            {
+                native.AppendLine("#if defined(_WIN32)\n__declspec(dllexport)\n#else\n__attribute__((visibility(\"default\")))\n#endif");
+                native.Append("AnkusBody ").Append(NativeBindingGlobalImports.Prefix).Append(NativeBindingGlobalSource.OperationName(access.Operation))
+                    .Append('_').Append(access.Name).Append("(void) { return ").Append(NativeBindingGlobalSource.BodyName(access)).AppendLine("; }");
             }
 
             string file = Path.Combine(directory, "calls.c");
@@ -259,7 +283,6 @@ public sealed partial class NativeBindingNativeTests
             try
             {
                 var managed = new StringBuilder(NativeBindingManagedCallHarness.Source.Replace("__EXPECTED_IDENTITY__", binding.AbiIdentity, StringComparison.Ordinal));
-                managed.AppendLine("\nnamespace Ankus.Postgres { public static partial class NativeMethods {");
                 foreach (MethodDeclarationSyntax method in CSharpSyntaxTree.ParseText(binding.Source, cancellationToken: context.CancellationToken)
                     .GetRoot(context.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
@@ -273,12 +296,15 @@ public sealed partial class NativeBindingNativeTests
                     AttributeArgumentSyntax argument = import.ArgumentList!.Arguments.Single(static argument => argument.NameEquals?.Name.Identifier.ValueText == "EntryPoint");
                     string entry = ((LiteralExpressionSyntax)argument.Expression).Token.ValueText;
                     nint address = NativeLibrary.GetExport(module, entry);
+                    managed.Append("\nnamespace Ankus.Postgres { public static partial class ")
+                        .Append(((ClassDeclarationSyntax)method.Parent!).Identifier.Text).AppendLine(" {");
                     managed.Append("private static partial nint ").Append(method.Identifier.Text)
                         .Append("() { unsafe { global::NativeCallTestBridge.Accessors++; return ((delegate* unmanaged[Cdecl]<nint>)unchecked((nint)")
                         .Append(unchecked((ulong)address).ToString(CultureInfo.InvariantCulture)).AppendLine("UL))(); } }");
+                    managed.AppendLine("} }");
                 }
 
-                managed.AppendLine("} }").AppendLine(harness);
+                managed.AppendLine(harness);
                 // The real allocator still owns real bytes. Counting this collaborator makes omitted/wrong finally frees observable.
                 NativeBindingSource observed = binding with
                 {

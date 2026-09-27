@@ -50,6 +50,7 @@ internal static class NativeBindingCallImports
             source.Append("{ return ankus_native_call_").Append(name).AppendLine("; }");
         }
 
+        NativeBindingGlobalImports.Append(source, records, NativeBindingGlobalImports.Select(image));
         return source.ToString().ReplaceLineEndings("\n");
     }
 }

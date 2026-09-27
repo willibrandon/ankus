@@ -68,7 +68,8 @@ internal static class NativeBindingSourceCache
                 string[] calls = [.. records.Headers.Symbols.Where(pair => pair.Value.IsFunction &&
                     records.Graph.Types[records.Graph.Types[records.Graph.Roots[pair.Key]].Canonical].Function is { HasPrototype: true, IsVariadic: false })
                     .Select(static pair => pair.Key)];
-                NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, catalog, layout, calls);
+                string[] globals = [.. collection.Availability.Available.Where(static request => !request.IsFunction).Select(static request => request.Name)];
+                NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, catalog, layout, calls, globals);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[0]), JsonSerializer.Serialize(records, NativeBindingRecordWorker.JsonOptions) + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[1]), JsonSerializer.Serialize(collection.Availability) + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[2]), binding.Source, token);

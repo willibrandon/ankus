@@ -2671,9 +2671,9 @@ complete implementations. AOT serialization must use statically generated metada
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
-| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed calls and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; callback/lifetime helpers and the complete matrix remain required |
+| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed calls and global access, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; indirect calls, callback/lifetime helpers and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function companion with guarded fixed calls and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Global/hook access, variadics, callback/lifetime helpers, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed calls, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Indirect calls, managed hooks, variadics, callback/lifetime helpers, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -7995,3 +7995,120 @@ must establish complete platform outcomes and cache savings. The full port
 remains incomplete: callbacks, globals/hooks, variadics, higher-level shared-memory
 locking, the broader feature inventory and the full platform/version matrix
 remain required.
+
+### Guarded native global access
+
+The SDK companion now exposes `NativeGlobals` from actual available native global
+declarations. Synthetic node/helper type roots remain type-discovery inputs.
+PostgreSQL 18.6/Linux x64 collects 579 globals into the shared declaration
+contract. Complete values have guarded getters, mutable objects have setters,
+and every object has an explicit `DangerousAddressOf_name()` operation. Native
+const qualification follows aliases and embedded by-value fields without making
+a mutable pointer to const storage read-only. Incomplete arrays and objects have
+address access without invented extents. Zero-size objects retain distinct
+logical managed values and transport no CLR storage bytes.
+
+Every operation validates the active callback and exact binding before native
+lookup, then enters the existing PostgreSQL error guard. Ordinary objects retain
+all bytes, including padding; qualified loads/stores use native C value
+operations and array elements retain their native shape. Compound value copies
+do not promise atomic snapshots. Thread-local addresses are resolved within each
+invoked native body. Function-pointer globals retain native addresses only;
+managed hook registration, callback lifetime and atomic/locking APIs remain
+separate full-port requirements.
+
+Native AOT selects individual read/write/address bodies from actual object
+imports in a namespace distinct from function imports. Pure accessors perform no
+global access. Unknown operations and names, writes to const storage, incomplete
+value accesses and foreign targets fail before publication. Unused globals do
+not require definitions. Global-only selections still require the native tool
+and preserve the previous linker manifest when discovery fails.
+
+| Requirement | Evidence |
+|---|---|
+| Qualifiers, aliases, complete/incomplete storage and deterministic identity | `NativeGlobalSelectionsPreserveObjectQualification`, `NativeGlobalSelectionsRejectInvalidContractsAndRecover` |
+| Exact native values, padding, arrays, union representations and original addresses | `NativeGlobalBodiesPreserveValuesAndRejectInvalidFrames` executes independently declared C objects, including high-bit and NaN representations |
+| Invalid frame preservation and corrected retry | The same native witness checks count, null, size, alignment and result failures before comparing unchanged bytes |
+| Current managed values, read-only API shape and pointer identity | `ManagedGlobalsPreserveNativeValuesAndIdentity` |
+| Callback/identity rejection before native lookup, nesting and recovery | `ManagedGlobalsValidateEveryAccessAndRecover` |
+| Large value ownership on success, native error and allocation failure | `ManagedGlobalsReleaseLargeFramesAndRecover` observes real allocation/free counts, zero retained buffers and unchanged native state |
+| Generated-name collisions, zero-byte transport and thread-local storage | `ManagedGlobalsPreserveMemberNames`, `ManagedGlobalsPreserveEmptyArrays`, `ManagedGlobalsResolveThreadLocalStoragePerAccess` |
+| Actual native import selection, rejection and global-only link behavior | `NativeGlobalImportsSelectReferencedOperations`, `NativeGlobalImportsRejectInvalidOperationsAndTargets`, expanded `NativeLinkCommandValidatesImportsBeforeToolDiscovery` |
+| Native AOT imports and trimming | Expanded `PublishedManagedCallsUseNativeAccessors` executes real getters/setters/address access and leaves unused functions/globals undefined |
+| Real SDK and PostgreSQL access, restoration and recovery | Expanded `SdkSharesNativeTypesAcrossProjectsAndPublishesThem`, executed on Linux and Windows below |
+
+The first expanded boundary run caught an unnecessary C# `new` modifier on a
+global named `Finalize`. The corrected naming case passes without suppression.
+The initial twelve-case global/AOT selection passes on Windows x64 with
+MSVC 18.10.1/.NET 10.0.12: twelve passed, zero failed/skipped, in 6.458s. Initial
+solution Release passes with zero warnings/errors in 1m 17.90s. Subsequent
+strengthening covers containing-type collisions, selection identity and the
+global-only link command; complete evidence follows. These focused cases are
+not a full-suite or full platform/version parity claim.
+
+The final complete build-tool module passes 853 cases with zero failures and six
+Windows-only skips (859 total) in 18.330s, including the strengthened cases above.
+Final solution Release passes with zero warnings/errors in 1m 02.68s. The Linux
+packaged SDK/backend witness passes on PostgreSQL 18.6 in 5m 02.394s. It checks
+`MyProcPid` against `pg_backend_pid()`, reads/writes `extra_float_digits` against
+SQL `current_setting`, switches/restores the actual `CurrentMemoryContext`, and
+verifies global access after a recovered division-by-zero error. The site builds
+212 pages in 3.25s and checks with zero errors, warnings or hints; API freshness
+covers 170 pages/2,256 members. Accessor and block checks pass.
+The same packaged SDK/backend witness also passes on PostgreSQL 18.1/Windows
+x64 in 9m 20.328s, with zero failures or skips. This exercises actual imported
+PostgreSQL global storage and the native guard under MSVC, as well as the shared
+managed declarations, SQL-observed mutation, restoration and session recovery.
+
+During this milestone, [CI run 36288886694](https://github.com/willibrandon/ankus/actions/runs/36288886694)
+passed quality and all three runtime jobs. Its full PostgreSQL 18/Linux x64 job
+passed all 7,687 executable cases with zero failures and six Windows-only skips
+(7,693 total), finishing in 36m 29s. Release took 4m 50.98s and integration took
+30m 21.872s. This was a NuGet cache miss; the job saved the package cache after
+success. [Documentation run 36288886773](https://github.com/willibrandon/ankus/actions/runs/36288886773)
+also passed.
+
+The same run's macOS ARM64 job reached its 35-minute limit during integration.
+Release passed in 7m 15.01s and every unit module passed, including the two
+previously failing cache cases. No complete macOS integration result is claimed.
+Because a timed-out job never reaches the combined cache action's successful
+post-job save, platform jobs now use standard `actions/cache/restore` and
+`actions/cache/save` around an explicit normal NuGet restore before testing. This
+allows a later run to reuse packages even if integration reaches the limit.
+Local plain solution restore succeeds. Full builds/tests still execute normally;
+limits, job counts and test distribution are unchanged. Actual cache savings
+remain unmeasured. The Windows x64/PostgreSQL 17 job also reached its existing
+45-minute limit during integration; Release passed in 12m 13.57s and all unit
+modules passed. It likewise had a package-cache miss and saved no package cache.
+The run is terminal with a cancelled overall conclusion; no failed assertion was
+reported by either timed-out platform. The cache-save adjustment applies to both.
+
+Final type-identity review found that qualified zero-size records and arrays
+received different managed logical types despite having the same native value
+shape. The expanded `ManagedGlobalsPreserveEmptyArrays` reproduces three C#
+assignment failures for const/mutable and volatile/mutable pairs. Empty values
+now share their declaration or element/count identity while native qualification
+still controls access. All fourteen focused global, import, Native AOT and empty
+function-value cases pass in isolated Linux outputs in 5.060s. The earlier full
+local run was cancelled before completion so the final plain-root suite could
+run against this correction; it is not reported as a passing complete run.
+The corrected fourteen-case selection also passes on Windows x64 in 6.616s with
+zero failures/skips. Corrected solution Release passes with zero warnings/errors
+in 1m 08.45s; the PostgreSQL 18.6 companion retains the same native contract
+identity. Final whitespace, accessor and block checks pass.
+
+The final plain-root `dotnet test` passes all six modules on PostgreSQL
+18.6/Linux x64: **7,698 passed, zero failed, six Windows-only skips, 7,704 total**,
+in 13m 46.223s. Integration completes in 13m 45.612s and includes the corrected
+packaged SDK/global witness. This is the complete current local suite, including
+the eleven new global cases and the expanded existing Native AOT/link/backend
+cases. Earlier partial and cancelled runs do not substitute for this result.
+
+Immediately before committing, the previous CI and documentation outcomes were
+checked and recorded again: quality, runtime, full Linux and documentation passed;
+macOS and Windows reached their recorded limits during integration. All previous
+jobs are terminal. The early cache-save change still needs fresh hosted execution
+and cache-hit timing; no speedup is claimed yet. The full port remains incomplete:
+guarded indirect calls, managed callback/hook lifetime and chaining, variadics,
+atomic/locking APIs, the remaining feature inventories and the complete
+PostgreSQL/platform matrix remain required.

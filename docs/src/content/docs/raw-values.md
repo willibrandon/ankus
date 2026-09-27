@@ -158,8 +158,40 @@ when an operation needs rollback before a caught exception reaches its caller.
 An error marks that scope for rollback even if the callback catches it.
 
 Header declarations do not guarantee that a server or loaded native library
-exports the corresponding function. Variadic calls, global variables, backend
-hook registration and complete version/platform validation remain in progress.
+exports the corresponding function. Variadic calls, managed backend hook
+registration and complete version/platform validation remain in progress.
+
+### Native globals
+
+`NativeGlobals` exposes global objects declared by the selected server headers.
+Each property reads the current value or writes a complete value through the
+native error guard. Every access requires an active backend callback and the
+matching native binding:
+
+```csharp
+int backendProcessId = NativeGlobals.MyProcPid;
+nint currentContext = NativeGlobals.CurrentMemoryContext;
+```
+
+Values are copies. To change an array or record, read it into a local, modify
+that value, and assign it back. Native `const` objects, including records with
+const fields, have no setter. A mutable pointer to a const object still has a
+setter: changing that pointer does not make its target mutable. Native volatile
+loads and stores use C value operations; reading a compound value does not make
+it an atomic snapshot. Follow PostgreSQL's synchronization and ownership rules.
+
+`DangerousAddressOf_name()` returns the original object's address. Incomplete
+objects and arrays expose only this address; Ankus does not invent an unknown
+size or array bound. These addresses retain native const/volatile, ownership and
+lifetime requirements. A thread-local address belongs to the current backend
+thread. Pointer values and function-pointer globals use `nint`; assigning a
+function address does not register or root a managed callback.
+
+Prefer the checked Ankus APIs when they cover the operation. Raw writes can
+violate backend invariants or bypass normal configuration assignment hooks.
+Headers do not guarantee exported storage: publishing includes only operations
+used by the extension, and their globals must be provided by the server or a
+linked native library.
 
 ## Raw SQL values
 

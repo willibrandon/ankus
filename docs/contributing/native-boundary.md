@@ -911,7 +911,30 @@ Cold, changed-source and unchanged SDK builds/publications have been measured on
 Linux and Windows, with conditions and results recorded in `PROGRESS.md`.
 Repeated builds improve with source reuse; the measured cold builds are slower.
 Content checks remain mandatory regardless of the time budget. Variadics,
-callback/lifetime helpers, globals and hooks remain unfinished.
+callback/lifetime helpers and managed hook registration remain unfinished.
+
+The companion's `NativeGlobals` class selects actual global entries from header
+availability, excluding synthetic node/helper type roots. Complete objects expose
+typed value copies, with setters only when their by-value storage contains no
+const qualification. Pointer targets do not qualify their containing pointer.
+Incomplete objects expose only explicit dangerous addresses. Empty native objects
+have distinct logical managed values and transport zero bytes.
+
+Read, write and address operations use the same per-access binding validation,
+aligned frame ownership and `NativeRawCall` guard as fixed functions. Plain
+objects copy their complete bytes; qualified objects use C value loads/stores,
+with recursive element access for arrays. Compound copies provide no atomic
+snapshot or synchronization guarantee. `_Atomic` header syntax and higher-level
+atomic/locking helpers still require their own complete implementation.
+Each thread-local address is resolved within the invoked body.
+
+Native AOT imports select individual operations through the disjoint
+`ankus_native_global_body_` prefix. Pure accessors only return body addresses;
+actual global access occurs beneath the native error boundary. Unknown operations,
+const writes, incomplete value accesses and incompatible targets fail before
+publication. Unreferenced globals do not become linker dependencies. Function
+pointer values preserve native addresses; they do not establish managed callback
+lifetime or hook registration contracts.
 
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove

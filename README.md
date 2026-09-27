@@ -237,8 +237,9 @@ bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
 boundary and returns owned text.
 `NativeMethods` exposes selected-header fixed functions and helpers for alignment,
-memory contexts, pages and tuples through the native error guard. Variadic calls,
-globals and hooks remain in progress.
+memory contexts, pages and tuples through the native error guard. `NativeGlobals`
+provides guarded value copies and explicit native addresses for selected-header
+globals. Variadic calls and managed hook registration remain in progress.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed

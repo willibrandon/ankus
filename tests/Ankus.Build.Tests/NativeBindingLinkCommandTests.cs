@@ -146,7 +146,8 @@ public sealed partial class NativeBindingNativeTests
         string directory = Directory.CreateTempSubdirectory("ankus-link-command-").FullName;
         try
         {
-            NativeHeaderRecords records = await CollectCallRecordsAsync("extern int known(int value);", [new("known", "known", true)], directory);
+            NativeHeaderRecords records = await CollectCallRecordsAsync("extern int known(int value); extern int current;",
+                [new("known", "known", true), new("current", "current", false)], directory);
             string contract = Path.Combine(directory, "records.json");
             string consumer = Path.Combine(directory, "consumer.obj");
             string output = Path.Combine(directory, "output");
@@ -161,6 +162,11 @@ public sealed partial class NativeBindingNativeTests
             Assert.Contains("Unknown or duplicate native call selection 'missing'", error.Message);
             Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
             Assert.IsEmpty(Directory.GetDirectories(output));
+            byte[] global = await CompileNativeObjectAsync("extern void *ankus_native_global_body_read_current(void); void *entry(void) { return ankus_native_global_body_read_current(); }");
+            await File.WriteAllBytesAsync(consumer, global, context.CancellationToken);
+            FileNotFoundException missing = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken));
+            Assert.AreEqual("missing-pg-config", missing.FileName);
+            Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
             byte[] empty = await CompileNativeObjectAsync("int no_imports(void) { return 42; }");
             await File.WriteAllBytesAsync(consumer, empty, context.CancellationToken);
             await NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken);

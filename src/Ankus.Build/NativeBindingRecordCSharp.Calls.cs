@@ -4,7 +4,7 @@ internal static partial class NativeBindingRecordCSharp
 {
     private sealed partial class Writer
     {
-        private readonly Dictionary<int, string> _emptyValues = [];
+        private readonly Dictionary<(string Code, long Count), string> _emptyValues = [];
 
         /// <summary>
         /// Emits typed managed calls and pure native address imports beside their shared record declarations.
@@ -28,17 +28,12 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             Line("}\n");
-            foreach (string name in _emptyValues.Values)
-            {
-                Summary("Represents the unique logical value of a native zero-size record without transporting CLR storage bytes.");
-                Line($"public readonly struct @{name}\n{{\n}}\n");
-            }
         }
 
         /// <summary>
         /// Copies exact value bytes into independently aligned native storage and releases owned storage on every exit.
         /// </summary>
-        private void Method(NativeBindingCall call, string method, string accessor)
+        private void Method(NativeBindingCall call, string method, string accessor, string visibility = "public")
         {
             NativeBindingCallFrame frame = NativeBindingCallFrameLayout.Create(graph, call);
             var names = new HashSet<string>(StringComparer.Ordinal) { "allocation", "storage", "arguments", "alignment" };
@@ -66,7 +61,7 @@ internal static partial class NativeBindingRecordCSharp
             string signature = string.Join(", ", parameters.Select(static parameter => parameter.Value.Code + " @" + parameter.Name));
             string unsafeModifier = frame.AllocationSize == 0 ? "" : "unsafe ";
             string hide = parameters.Count == 0 && method != "Equals" ? Hide(method) : "";
-            Line($"    public {hide}static {unsafeModifier}{result?.Code ?? "void"} @{method}({signature})\n    {{");
+            Line($"    {visibility} {hide}static {unsafeModifier}{result?.Code ?? "void"} @{method}({signature})\n    {{");
             Line($"        global::Ankus.NativeRawCall.ValidateBinding(\"__ANKUS_RECORD_IDENTITY__\"u8, {Number(graph.Target.PostgresVersion / 10000)});");
             if (frame.AllocationSize == 0)
             {
@@ -117,24 +112,37 @@ internal static partial class NativeBindingRecordCSharp
         }
 
         /// <summary>
-        /// Maps actual native bytes, using a distinct logical token for complete records with no bytes.
+        /// Maps actual native bytes, using a distinct logical token for complete objects with no bytes.
         /// </summary>
         private Value CallValue(NativeBindingCallValue value)
+            => CallValue(value.StorageType);
+
+        /// <summary>
+        /// Shares empty logical values by declaration or array shape, independently of native qualifications.
+        /// </summary>
+        private Value CallValue(int index)
         {
-            NativeRecordType type = Canonical(value.StorageType);
-            if (type.Size == 0 && type.Declaration is int declaration && type.Kind == "record")
+            NativeRecordType type = Canonical(index);
+            if (type.Size == 0)
             {
-                if (!_emptyValues.TryGetValue(declaration, out string? name))
+                (string Code, long Count) key = type.Kind switch
                 {
-                    name = Unique(_names, _declarations[declaration] + "Value");
-                    _emptyValues.Add(declaration, name);
+                    "record" => ("@" + _declarations[type.Declaration!.Value], -1),
+                    "array" => (CallValue(type.Element!.Value).Code, type.Count!.Value),
+                    _ => throw new FormatException("A zero-size native value requires a record or fixed array."),
+                };
+                if (!_emptyValues.TryGetValue(key, out string? name))
+                {
+                    string prefix = type.Declaration is int declaration ? _declarations[declaration] : "NativeEmpty" + Number(graph.Types[index].Canonical);
+                    name = Unique(_names, prefix + "Value");
+                    _emptyValues.Add(key, name);
                 }
 
                 return new("@" + name, 0, null);
             }
 
-            Value mapped = Map(value.StorageType);
-            if (mapped.Size != graph.Types[value.StorageType].Size)
+            Value mapped = Map(index);
+            if (mapped.Size != graph.Types[index].Size)
             {
                 throw new FormatException("A managed native call requires the exact declared object size.");
             }

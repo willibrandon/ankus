@@ -109,6 +109,54 @@ public sealed partial class ToolCommandTests
                 }
 
                 [PgFunction]
+                public static int NativeGlobalPid() => NativeGlobals.MyProcPid;
+
+                [PgFunction]
+                public static unsafe string NativeGlobalValues()
+                {
+                    int original = NativeGlobals.extra_float_digits;
+                    nint address = NativeGlobals.DangerousAddressOf_extra_float_digits();
+                    int changed;
+                    int sqlChanged;
+                    int recovered;
+                    bool context;
+                    try
+                    {
+                        NativeGlobals.extra_float_digits = -3;
+                        changed = *(int*)address;
+                        sqlChanged = Spi.ExecuteScalar<int>("SELECT current_setting('extra_float_digits')::integer");
+                        using PgMemoryContext owner = PgMemoryContext.Create("native globals");
+                        using PgAllocation allocation = owner.AllocateZeroed(16);
+                        nint nativeOwner = NativeMethods.GetMemoryChunkContext((nint)allocation.DangerousGetPointer());
+                        nint previous = NativeGlobals.CurrentMemoryContext;
+                        NativeGlobals.CurrentMemoryContext = nativeOwner;
+                        try
+                        {
+                            context = PgMemoryContext.Current.Id == owner.Id &&
+                                *(nint*)NativeGlobals.DangerousAddressOf_CurrentMemoryContext() == nativeOwner;
+                        }
+                        finally
+                        {
+                            NativeGlobals.CurrentMemoryContext = previous;
+                        }
+                        try
+                        {
+                            PgTransaction.RunInSubtransaction(() => Spi.Execute("SELECT 1 / 0"));
+                            throw new System.InvalidOperationException("Expected PostgreSQL division error.");
+                        }
+                        catch (PgException error) when (error.SqlState == "22012")
+                        {
+                            recovered = NativeGlobals.extra_float_digits;
+                        }
+                    }
+                    finally
+                    {
+                        NativeGlobals.extra_float_digits = original;
+                    }
+                    return $"{original}|{changed}|{sqlChanged}|{recovered}|{NativeGlobals.extra_float_digits}|{context}|{address == NativeGlobals.DangerousAddressOf_extra_float_digits()}";
+                }
+
+                [PgFunction]
                 public static unsafe bool NativeLinkedProvider()
                 {
                     OutputPluginCallbacks callbacks = new() { startup_cb = 17, shutdown_cb = 23 };
@@ -398,6 +446,12 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(37, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_record_result()";
             Assert.AreEqual("FEDCBA9876543210", await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_global_pid() = pg_backend_pid()";
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
+            command.CommandText = "SET extra_float_digits = 2; SELECT native_global_values()";
+            Assert.AreEqual("2|-3|-3|-3|2|True|True", await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT current_setting('extra_float_digits')::integer";
+            Assert.AreEqual(2, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_linked_provider()";
             Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
             command.CommandText = "SELECT native_node_call(-2147483648)";

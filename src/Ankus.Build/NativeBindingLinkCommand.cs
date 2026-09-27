@@ -32,9 +32,10 @@ internal static class NativeBindingLinkCommand
         int major = records.Headers.Target.PostgresVersion / 10000;
         string source = NativeBindingCallImports.Generate(records, NativeBindingResources.ReadHeaders(major), image);
         NativeObjectImports imports = NativeObjectSymbols.Read(image, NativeBindingCallImports.Prefix);
+        int globalCount = NativeBindingGlobalImports.Select(image).Count;
         string output = Path.GetFullPath(arguments[2]);
         Directory.CreateDirectory(output);
-        if (imports.Symbols.Count == 0)
+        if (imports.Symbols.Count + globalCount == 0)
         {
             await PublishEmptyAsync(output, cancellationToken);
             Console.WriteLine("Native binding calls: no referenced bodies.");
@@ -79,7 +80,7 @@ internal static class NativeBindingLinkCommand
             options.Add(file);
             await NativeBindingLayoutCommand.RunProcessAsync(compiler, options, Path.GetDirectoryName(file)!, token);
         }, cancellationToken);
-        Console.WriteLine($"Native binding calls: compiled {imports.Symbols.Count} referenced bodies.");
+        Console.WriteLine($"Native binding calls: compiled {imports.Symbols.Count + globalCount} referenced bodies.");
     }
 
     /// <summary>
