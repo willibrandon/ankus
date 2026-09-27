@@ -293,8 +293,10 @@ See [memory contexts](docs/src/content/docs/memory-contexts.md).
 
 Use static `PgLwLock<T>` descriptors and `PgSharedMemory.Initialize` during shared
 preload to share unmanaged values between backends. Disposable shared and
-exclusive guards use PostgreSQL lightweight locks and copy values with checked
-callback lifetimes. `PgAtomic<T>` provides scalar reads, exchanges, comparisons
+exclusive guards use PostgreSQL lightweight locks with checked callback
+lifetimes. Their `Read` callbacks access original nested atomic and spinlock
+fields; `Value` provides copied access and exclusive replacement.
+`PgAtomic<T>` provides scalar reads, exchanges, comparisons
 and integer updates across backends and managed threads with .NET `Interlocked`
 semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
 inline `PgAtomicValue<T>` fields. Inline `PgSpinLockValue<T>` fields provide

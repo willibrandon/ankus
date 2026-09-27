@@ -6,6 +6,82 @@ namespace Ankus.Generators.Tests;
 public sealed partial class PgFunctionGeneratorTests
 {
     /// <summary>
+    /// Both lightweight-lock guards compile original readers with nested synchronization and no raw public address.
+    /// </summary>
+    [TestMethod]
+    public void LwLockGuardReadersCompile()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            using Ankus;
+            public readonly struct Nested(int value)
+            {
+                public readonly PgAtomicValue<int> Atomic = new(value);
+                public readonly PgSpinLockValue<int> Child = new(value);
+            }
+            public static class Shared
+            {
+                private static readonly PgLwLock<Nested> State = new("test.readers");
+                [PgModuleLoad]
+                public static void Load() => PgSharedMemory.Initialize(State, () => new Nested(3));
+                [PgFunction]
+                public static int Read()
+                {
+                    using PgLwLockShareGuard<Nested> guard = State.Share();
+                    return guard.Read(static (in Nested value) =>
+                    {
+                        using PgSpinLockGuard<int> child = value.Child.Lock();
+                        return value.Atomic.Exchange(child.Value);
+                    });
+                }
+                [PgFunction]
+                public static int ReadExclusive()
+                {
+                    using PgLwLockExclusiveGuard<Nested> guard = State.Exclusive();
+                    return guard.Read(static (in Nested value) => value.Atomic.Value);
+                }
+            }
+            """);
+        AssertInitializationCompilationSucceeds(compilation, diagnostics);
+        string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
+        string read = native[native.IndexOf("static int\nankus_shared_read_address", StringComparison.Ordinal)..
+            native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        Assert.DoesNotContain("ereport(", read);
+        Assert.DoesNotContain("palloc(", read);
+        Assert.DoesNotContain("ankus_shared_attach(", read);
+        AssertOrdered(read, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
+            "request->length != entry->size", "result->data = (intptr_t) ankus_shared_data(entry->header)", "result->length = entry->size"]);
+        string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
+        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_read_address(request, result, error)", "PG_TRY();"]);
+    }
+
+    /// <summary>
+    /// Scoped readonly readers reject reference capture and direct replacement in either guard mode.
+    /// </summary>
+    /// <param name="guard">The public guard type.</param>
+    /// <param name="body">The forbidden callback body.</param>
+    /// <param name="expected">The compiler's reference-boundary diagnostic.</param>
+    [TestMethod]
+    [DataRow("PgLwLockShareGuard<int>", "return guard.Read(static (in int value) => new Func<int>(() => value));", "CS1628")]
+    [DataRow("PgLwLockExclusiveGuard<int>", "return guard.Read(static (in int value) => { value = 99; return new Func<int>(() => 0); });", "CS8331")]
+    public void LwLockGuardReadersRejectReferenceEscapes(string guard, string body, string expected)
+    {
+        (Compilation compilation, _) = Generate($$"""
+            using System;
+            using Ankus;
+            public static class Functions
+            {
+                public static Func<int> Escape({{guard}} guard)
+                {
+                    {{body}}
+                }
+            }
+            """);
+        Diagnostic[] errors = [.. compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+        Assert.Contains(expected, errors.Select(static diagnostic => diagnostic.Id),
+            string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
+    }
+
+    /// <summary>
     /// Atomic consumers compile and emit selected-header attachment, fork admission and retirement boundaries.
     /// </summary>
     [TestMethod]

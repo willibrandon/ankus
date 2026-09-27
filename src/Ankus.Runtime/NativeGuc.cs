@@ -232,7 +232,7 @@ public static unsafe class NativeGuc
 
     private static NativeValue Read(string name, int kind)
     {
-        NativeSpinLockLease.CheckBackendAccess();
+        NativeBorrowScope.CheckBackendAccess();
         if (s_scopeDepth == 0)
         {
             return NativeBackend.ReadGuc(name, kind);

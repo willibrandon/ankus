@@ -76,6 +76,19 @@ public sealed class PgLwLockShareGuard<T> : IDisposable where T : unmanaged
     public T Value => _lease.Read<T>();
 
     /// <summary>
+    /// Reads original protected storage through a reference limited to the synchronous callback.
+    /// </summary>
+    /// <typeparam name="TResult">The owned callback result.</typeparam>
+    /// <param name="reader">The reader, whose readonly reference cannot escape the callback.</param>
+    /// <returns>The callback result.</returns>
+    /// <remarks>
+    /// Access nested atomic and spinlock fields directly through this reference. Child spinlock guards
+    /// expire before the read ends. Disposing this guard and calling backend APIs are rejected while
+    /// a reader is active, so PostgreSQL cannot release its lock beneath the borrowed reference.
+    /// </remarks>
+    public TResult Read<TResult>(PgSharedReader<T, TResult> reader) => _lease.Read(reader);
+
+    /// <summary>
     /// Releases this guard once without modifying the shared value.
     /// </summary>
     public void Dispose() => _lease.Dispose();
@@ -107,6 +120,19 @@ public sealed class PgLwLockExclusiveGuard<T> : IDisposable where T : unmanaged
         get => _lease.Read<T>();
         set => _lease.Write(value);
     }
+
+    /// <summary>
+    /// Reads original protected storage through a reference limited to the synchronous callback.
+    /// </summary>
+    /// <typeparam name="TResult">The owned callback result.</typeparam>
+    /// <param name="reader">The reader, whose readonly reference cannot escape the callback.</param>
+    /// <returns>The callback result.</returns>
+    /// <remarks>
+    /// Access nested atomic and spinlock fields directly through this reference. Child spinlock guards
+    /// expire before the read ends. Replacing Value, disposing this guard and calling backend APIs are
+    /// rejected while a reader is active. Value can still return a copy during the read.
+    /// </remarks>
+    public TResult Read<TResult>(PgSharedReader<T, TResult> reader) => _lease.Read(reader);
 
     /// <summary>
     /// Releases this guard once, preserving any value already written.

@@ -1352,6 +1352,11 @@ internal static class NativeMemoryBridge
                 return 1;
             }
 
+            if (request->operation == ANKUS_MEMORY_SHARED && request->flags == 6)
+            {
+                return ankus_shared_read_address(request, result, error);
+            }
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext recovery = ankus_memory_contains(ErrorContext, caller) ? ErrorContext : caller;
             uint32 interrupt_holdoff = InterruptHoldoffCount;

@@ -182,6 +182,7 @@ public sealed unsafe partial class PgSharedMemoryTests
     {
         private readonly List<nint> _cookies = [];
         private nint _nextLease = 20;
+        private byte[] _bytes = [];
 
         internal SharedFixture()
         {
@@ -217,9 +218,13 @@ public sealed unsafe partial class PgSharedMemoryTests
 
         internal byte[] Bytes
         {
-            get;
-            set;
-        } = [];
+            get => _bytes;
+            set
+            {
+                _bytes = GC.AllocateArray<byte>(value.Length, pinned: true);
+                value.CopyTo(_bytes, 0);
+            }
+        }
 
         internal int Initialize(nint destination, nuint size, NativeCallError* error)
         {
@@ -265,6 +270,12 @@ public sealed unsafe partial class PgSharedMemoryTests
                 case 4:
                     Bytes = new ReadOnlySpan<byte>((void*)request._data, checked((int)request._length)).ToArray();
                     break;
+                case 6:
+                    return new NativeMemoryResult
+                    {
+                        _data = (nint)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(Bytes)),
+                        _length = (nuint)Bytes.Length,
+                    };
             }
 
             return default;

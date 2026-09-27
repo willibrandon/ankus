@@ -37,6 +37,36 @@ Releases this guard once, preserving any value already written.
 public void Dispose()
 ```
 
+<a id="member-b1b627a14b4f9828"></a>
+
+### Read&lt;TResult&gt;(PgSharedReader&lt;T, TResult&gt;)
+
+Reads original protected storage through a reference limited to the synchronous callback.
+
+```csharp
+public TResult Read<TResult>(PgSharedReader<T, TResult> reader)
+```
+
+Type parameters:
+
+`TResult`
+
+The owned callback result.
+
+Parameters:
+
+`reader` — <code>PgSharedReader&lt;T, TResult&gt;</code>
+
+The reader, whose readonly reference cannot escape the callback.
+
+Returns: <code>TResult</code>
+
+The callback result.
+
+Access nested atomic and spinlock fields directly through this reference. Child spinlock guards
+expire before the read ends. Replacing Value, disposing this guard and calling backend APIs are
+rejected while a reader is active. Value can still return a copy during the read.
+
 
 ## Properties
 

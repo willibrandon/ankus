@@ -49,6 +49,19 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("-9223372036854775808|18446744073709551615|1|2", await PackageGucScalarAsync(second, "SELECT shared_snapshot()"));
         Assert.AreEqual(37L, await PackageGucScalarAsync(first, "SELECT shared_write(37)"));
         Assert.AreEqual("37|18446744073709551615|1|2", await PackageGucScalarAsync(second, "SELECT shared_snapshot()"));
+        Assert.AreEqual("-9223372036854775808|0|0", await PackageGucScalarAsync(first, "SELECT shared_nested_read(false)"));
+        await Task.WhenAll(ExecutePackageGucAsync(first, "SELECT shared_nested_work(2000)"),
+            ExecutePackageGucAsync(second, "SELECT shared_nested_work(3000)"));
+        Assert.AreEqual("-9223372036854775808|5000|5000", await PackageGucScalarAsync(second, "SELECT shared_nested_read(true)"));
+        Assert.AreEqual(5000, await PackageGucScalarAsync(first, "SELECT shared_nested_rules()"));
+        PostgresException nestedError = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecutePackageGucAsync(first, "SELECT shared_nested_fail(97)"));
+        Assert.AreEqual("P7842", nestedError.SqlState);
+        Assert.AreEqual("scoped lock error", nestedError.MessageText);
+        Assert.AreEqual("owned reader detail", nestedError.Detail);
+        Assert.AreEqual("-9223372036854775808|97|97", await PackageGucScalarAsync(second, "SELECT shared_nested_read(false)"));
+        await ExecutePackageGucAsync(first, "BEGIN; SELECT shared_nested_add(10); ROLLBACK");
+        Assert.AreEqual("-9223372036854775808|107|107", await PackageGucScalarAsync(second, "SELECT shared_nested_read(true)"));
 
         foreach ((int kind, string state, long expected) in new (int, string, long)[]
         {
@@ -103,6 +116,7 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("-9223372036854775808|18446744073709551615|2|3",
             await PackageGucScalarAsync(recovered, "SELECT shared_snapshot()"));
         Assert.AreEqual(101L, await PackageGucScalarAsync(recovered, "SELECT shared_write(101)"));
+        Assert.AreEqual("-9223372036854775808|0|0", await PackageGucScalarAsync(recovered, "SELECT shared_nested_read(false)"));
         Assert.AreEqual(42, await PackageGucScalarAsync(recovered, "SELECT 42"));
     }
 
@@ -206,11 +220,20 @@ public sealed partial class ToolCommandTests
 
         public readonly record struct SharedState(long Count, ulong Bits, int Order);
 
+        public readonly struct NestedSharedState(long marker)
+        {
+            public readonly long Marker = marker;
+            public readonly PgAtomicValue<int> Atomic = new(0);
+            public readonly PgSpinLockValue<int> Counter = new(0);
+        }
+
         public static partial class SharedFunctions
         {
             private static readonly PgLwLock<SharedState> State = new("ankus_shared_probe.state");
             private static readonly PgLwLock<int> Order = new("ankus_shared_probe.order");
             private static readonly PgLwLock<int> Gate = new("ankus_shared_probe.gate");
+            private static readonly PgLwLock<NestedSharedState> Nested = new("ankus_shared_probe.nested");
+            private static readonly PgAtomic<int> NestedGate = new("ankus_shared_probe.nested_gate");
             private static PgLwLockExclusiveGuard<SharedState>? s_escaped;
             private static int s_initializations;
             private static StartupHookPointer s_previousStartup;
@@ -281,14 +304,149 @@ public sealed partial class ToolCommandTests
                 PgSharedMemory.Initialize(Order, () =>
                 {
                     using PgLwLockShareGuard<SharedState> guard = State.Share();
-                    return guard.Value.Order + 1;
+                    return guard.Read(static (in SharedState value) => value.Order) + 1;
                 });
                 PgSharedMemory.Initialize(Gate);
+                PgSharedMemory.Initialize(Nested, static () => new NestedSharedState(long.MinValue));
+                PgSharedMemory.Initialize(NestedGate);
                 PgSharedMemory.Initialize(State, () => throw new InvalidOperationException("Duplicate initialization."));
                 if (ExtraName is { } extra)
                 {
                     PgSharedMemory.Initialize(new PgLwLock<int>(extra));
                 }
+            }
+
+            [PgFunction]
+            public static string SharedNestedRead(bool exclusive)
+            {
+                if (exclusive)
+                {
+                    using PgLwLockExclusiveGuard<NestedSharedState> writer = Nested.Exclusive();
+                    return writer.Read(NestedSnapshot);
+                }
+
+                using PgLwLockShareGuard<NestedSharedState> reader = Nested.Share();
+                return reader.Read(NestedSnapshot);
+            }
+
+            private static string NestedSnapshot(scoped in NestedSharedState value)
+            {
+                using PgSpinLockGuard<int> child = value.Counter.Lock();
+                return string.Create(CultureInfo.InvariantCulture, $"{value.Marker}|{value.Atomic.Value}|{child.Value}");
+            }
+
+            [PgFunction]
+            public static int SharedNestedAdd(int amount)
+            {
+                using PgLwLockShareGuard<NestedSharedState> parent = Nested.Share();
+                return parent.Read((in NestedSharedState value) =>
+                {
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value += amount;
+                    value.Atomic.Exchange(child.Value);
+                    return child.Value;
+                });
+            }
+
+            [PgFunction]
+            public static void SharedNestedWork(int count)
+            {
+                using PgLwLockShareGuard<NestedSharedState> parent = Nested.Share();
+                _ = parent.Read((in NestedSharedState value) =>
+                {
+                    NestedGate.Increment();
+                    long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                    while (NestedGate.Value != 2)
+                    {
+                        if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromSeconds(15))
+                        {
+                            throw new TimeoutException("Both shared readers did not enter.");
+                        }
+
+                        Thread.Sleep(1);
+                    }
+
+                    for (int index = 0; index < count; index++)
+                    {
+                        using PgSpinLockGuard<int> child = value.Counter.Lock();
+                        child.Value++;
+                        value.Atomic.Exchange(child.Value);
+                    }
+
+                    return 0;
+                });
+            }
+
+            [PgFunction]
+            public static int SharedNestedRules()
+            {
+                using PgLwLockExclusiveGuard<NestedSharedState> parent = Nested.Exclusive();
+                using PgLwLockShareGuard<int> order = Order.Share();
+                int result = parent.Read((in NestedSharedState value) =>
+                {
+                    RequireBlocked(parent.Dispose);
+                    RequireBlocked(() => parent.Value = default);
+                    RequireBlocked(static () => Spi.Execute("SELECT 1/0"));
+                    RequireBlocked(static () => _ = PgMemoryContext.Current);
+                    RequireBlocked(static () => _ = CheckedSetting);
+                    RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    RequireBlocked(static () => PgLog.Write(PgLogLevel.Notice, "must not enter native logging"));
+                    if (order.Read(static (in int stored) => stored) != 2 || parent.Value.Marker != long.MinValue)
+                    {
+                        throw new InvalidOperationException("Nested guard reads lost original values.");
+                    }
+
+                    PgSpinLockGuard<int> expired = parent.Read(static (in NestedSharedState nested) => nested.Counter.Lock());
+                    try
+                    {
+                        _ = expired.Value;
+                        throw new InvalidOperationException("A child guard escaped its read.");
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    return child.Value;
+                });
+                if (Spi.ExecuteScalar<int>("SELECT 42") != 42)
+                {
+                    throw new InvalidOperationException("Backend access was not restored after the read.");
+                }
+
+                return result;
+            }
+
+            private static void RequireBlocked(Action operation)
+            {
+                try
+                {
+                    operation();
+                }
+                catch (InvalidOperationException)
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException("A scoped read permitted an invalidating operation.");
+            }
+
+            [PgFunction]
+            public static int SharedNestedFail(int changed)
+            {
+                using PgLwLockShareGuard<NestedSharedState> parent = Nested.Share();
+                return parent.Read((in NestedSharedState value) =>
+                {
+                    PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value = changed;
+                    value.Atomic.Exchange(changed);
+                    PgLog.Write(PgLogLevel.Error, new PgDiagnostic("scoped lock error")
+                    {
+                        SqlState = "P7842",
+                        Detail = "owned reader detail",
+                    });
+                    return 0;
+                });
             }
 
             [PgFunction]
@@ -342,8 +500,8 @@ public sealed partial class ToolCommandTests
             {
                 using PgLwLockShareGuard<SharedState> guard = State.Share();
                 using PgLwLockShareGuard<int> order = Order.Share();
-                SharedState value = guard.Value;
-                return string.Create(CultureInfo.InvariantCulture, $"{value.Count}|{value.Bits}|{value.Order}|{order.Value}");
+                return guard.Read((in SharedState value) => string.Create(CultureInfo.InvariantCulture,
+                    $"{value.Count}|{value.Bits}|{value.Order}|{order.Read(static (in int stored) => stored)}"));
             }
 
             [PgFunction]
@@ -414,6 +572,25 @@ public sealed partial class ToolCommandTests
                     }
                     catch (PgException expired) when (expired.SqlState == "55000")
                     {
+                    }
+
+                    long before = replacement.Value.Count;
+                    long after = replacement.Read((in SharedState current) =>
+                    {
+                        try
+                        {
+                            _ = original.Read(static (in SharedState stale) => stale.Count);
+                            throw new InvalidOperationException("A stale guard admitted an original reference.");
+                        }
+                        catch (PgException expired) when (expired.SqlState == "55000")
+                        {
+                        }
+
+                        return current.Count;
+                    });
+                    if (before != after)
+                    {
+                        throw new InvalidOperationException("Failed address admission changed a live reader's storage.");
                     }
 
                     original.Dispose();

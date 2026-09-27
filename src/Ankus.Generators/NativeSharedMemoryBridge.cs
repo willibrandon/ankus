@@ -465,6 +465,32 @@ internal static class NativeSharedMemoryBridge
             return adjusted < held_before ? 0 : (uint32) (adjusted - held_before);
         }
 
+        static int
+        ankus_shared_read_address(AnkusMemoryRequest *request, AnkusMemoryResult *result, AnkusError *error)
+        {
+            /* This validation must not allocate, ereport, process interrupts or enter
+             * callbacks: another original shared reference can already be borrowed. */
+            AnkusSharedStorage *entry = ankus_shared_find((uint64) request->context);
+            if (entry == NULL || entry->kind != 0 || entry->header == NULL || entry->lock == NULL ||
+                entry->lease == 0 || entry->lease != (uint64) request->other || !LWLockHeldByMe(entry->lock))
+            {
+                error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE;
+                strlcpy(error->message, "the Ankus shared-memory lock guard is no longer held", sizeof(error->message));
+                return 1;
+            }
+
+            if (request->length != entry->size)
+            {
+                error->sqlstate = ERRCODE_DATATYPE_MISMATCH;
+                strlcpy(error->message, "the Ankus shared-memory value size does not match its registration", sizeof(error->message));
+                return 1;
+            }
+
+            result->data = (intptr_t) ankus_shared_data(entry->header);
+            result->length = entry->size;
+            return 0;
+        }
+
         static void
         ankus_memory_shared(AnkusMemoryRequest *request, AnkusMemoryResult *result)
         {

@@ -44,7 +44,7 @@ public static unsafe class NativeLog
     {
         if (!terminal)
         {
-            NativeSpinLockLease.CheckBackendAccess();
+            NativeBorrowScope.CheckBackendAccess();
         }
 
         if (s_scopeDepth == 0)

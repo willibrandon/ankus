@@ -21,6 +21,15 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     internal NativeBorrowScope? Parent { get; } = parent;
 
     /// <summary>
+    /// Prevents backend operations from invalidating active lock-protected references.
+    /// </summary>
+    internal static void CheckBackendAccess()
+    {
+        NativeSpinLockLease.CheckBackendAccess();
+        NativeSharedMemoryLease.CheckBackendAccess();
+    }
+
+    /// <summary>
     /// Releases remaining lock leases before invalidating the callback's borrowed views.
     /// </summary>
     internal void Expire()

@@ -77,6 +77,48 @@ exclusive guard to publish the update. Writes take effect immediately; a SQL
 rollback or exception does not undo them. Readers in other backends see the
 updated value after the writer releases its lock.
 
+Use a guard's `Read` callback when you need original inline atomic or spinlock
+fields. Both shared and exclusive guards support it:
+
+```csharp
+public readonly struct LiveCounters(long initial)
+{
+    public readonly PgAtomicValue<long> Completed = new(initial);
+    public readonly PgSpinLockValue<long> Failed = new(0);
+}
+```
+
+For a registered `PgLwLock<LiveCounters>` named `state`:
+
+```csharp
+using PgLwLockShareGuard<LiveCounters> guard = state.Share();
+long failed = guard.Read(static (in LiveCounters value) =>
+{
+    using PgSpinLockGuard<long> child = value.Failed.Lock();
+    child.Value++;
+    return child.Value;
+});
+```
+
+The readonly reference lasts only for the synchronous callback. Atomic and
+spinlock fields provide their own synchronization, so their operations work
+under a shared guard. Ordinary fields remain readonly. `Value` still returns a
+copy during the callback; copying an inline field copies its state.
+
+While a reader is active, replacing the parent's value or disposing it is
+rejected, including through another reference to that guard. Child spinlock
+guards expire before the reader returns or throws. You can nest reads on the
+same guard or on other guards acquired before entering the callback.
+
+SQL, native calls, memory-context operations, configuration reads and
+nonterminal logging are rejected during these callbacks. PostgreSQL error
+recovery can release lightweight locks; this boundary keeps it from doing so
+while the original reference is borrowed. Managed exceptions and Error-level
+`PgLog.Write` unwind normally. Backend calls become available again after all
+readers return. Keep callbacks synchronous and finite, and perform backend work
+outside them. Owning a lightweight-lock guard without an active `Read` callback
+continues to permit backend calls with the error behavior described below.
+
 ## Lock ownership and errors
 
 `Share()` permits concurrent readers. `Exclusive()` waits for readers and writers

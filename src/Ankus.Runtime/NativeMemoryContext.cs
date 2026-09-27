@@ -92,9 +92,10 @@ public static unsafe class NativeMemoryContext
     /// <param name="result">The native result.</param>
     internal static void Invoke(ref NativeMemoryRequest request, out NativeMemoryResult result)
     {
-        if (request._operation != NativeMemoryOperation.SpinLock)
+        if (request._operation != NativeMemoryOperation.SpinLock &&
+            !(request._operation == NativeMemoryOperation.SharedMemory && request._flags == 6))
         {
-            NativeSpinLockLease.CheckBackendAccess();
+            NativeBorrowScope.CheckBackendAccess();
         }
 
         _ = Provider;

@@ -215,7 +215,7 @@ public static unsafe partial class NativeBackend
     /// <param name="owner">The required native binding, or zero to accept any active binding.</param>
     internal static void CheckAccess(nint owner = 0)
     {
-        NativeSpinLockLease.CheckBackendAccess();
+        NativeBorrowScope.CheckBackendAccess();
         CheckCallbackAccess(owner);
     }
 
@@ -788,7 +788,7 @@ public static unsafe partial class NativeBackend
 
     private static void Invoke(NativeSpiRequest* request, NativeSpiResult* result)
     {
-        NativeSpinLockLease.CheckBackendAccess();
+        NativeBorrowScope.CheckBackendAccess();
         if (s_abortCleanupDepth != 0)
         {
             bool relationRelease = request->_operation == SpiOperation.Relation && request->_scalarOperation == 0;
