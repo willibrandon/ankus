@@ -153,7 +153,7 @@ internal static class NativeBindingSignatureValidation
                 case NativeHeaderFunction function when type.Function is NativeRecordFunction shape:
                     // libclang marks an unspecified parameter list variadic; the structured AST keeps that flag false.
                     if (function.HasPrototype != shape.HasPrototype ||
-                        function.HasPrototype && function.IsVariadic != shape.IsVariadic || shape.CallingConvention != 1)
+                        function.HasPrototype && function.IsVariadic != shape.IsVariadic || function.CallingConvention != shape.CallingConvention)
                     {
                         throw Invalid(path, "function prototype or calling convention");
                     }

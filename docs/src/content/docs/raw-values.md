@@ -35,8 +35,9 @@ arrays expose `Dangerous_<field>` methods that require a live native address and
 the actual number of trailing elements. Their storage is outside the fixed
 managed value.
 
-These are raw native representations. Pointer and callback fields currently
-hold `nint` addresses; they do not own or validate the pointed-to storage.
+These are raw native representations. Data pointers hold `nint` addresses;
+function pointers use generated types with their native signatures. Neither
+owns or validates the pointed-to storage.
 Creating a managed struct does not allocate a PostgreSQL node, and setting its
 tag does not establish native ownership.
 
@@ -158,8 +159,8 @@ when an operation needs rollback before a caught exception reaches its caller.
 An error marks that scope for rollback even if the callback catches it.
 
 Header declarations do not guarantee that a server or loaded native library
-exports the corresponding function. Variadic calls, managed backend hook
-registration and complete version/platform validation remain in progress.
+exports the corresponding function. Variadic calls and complete version/platform
+validation remain in progress.
 
 ### Native globals
 
@@ -224,13 +225,91 @@ Publishing includes only the invocation bodies used by the extension.
 
 `IsNull` inspects the stored address. `DangerousGetAddress()` returns it, and the
 constructor accepts an address whose signature and lifetime the caller guarantees.
-Copying or storing a value does not extend its target's lifetime. These values
-do not create, register, root or safely wrap managed callbacks. Managed hook
-registration and lifetime support remain in progress.
+Copying or storing a value does not extend its target's lifetime. Use
+`[PgNativeCallback]` to obtain a guarded native address for a static managed handler.
 
 Variadic, unprototyped and incomplete-result function pointers retain typed
 address storage but have no `Invoke` method. Ankus does not infer missing call
 information or replace the native calling convention with a managed guess.
+
+### Managed native callbacks and hooks
+
+Apply `[PgNativeCallback]` to a static partial getter-only property whose type is
+a generated native function pointer. Its named handler must be synchronous,
+static, non-generic, and match that type's `Invoke` parameters and return value
+exactly. Private handlers are supported. The containing types must be
+non-generic partial classes, structs or records.
+
+For example, install an executor hook and retain the previous hook explicitly:
+
+```csharp
+using Ankus;
+using Ankus.Postgres;
+
+public static partial class ExecutorHooks
+{
+    private static ExecutorStart_hook_type s_previous;
+    private static bool s_installed;
+
+    [PgNativeCallback(nameof(OnExecutorStart))]
+    private static partial ExecutorStart_hook_type Start { get; }
+
+    [PgModuleLoad]
+    public static void Initialize()
+    {
+        if (s_installed)
+        {
+            return;
+        }
+
+        s_previous = NativeGlobals.ExecutorStart_hook;
+        NativeGlobals.ExecutorStart_hook = Start;
+        s_installed = true;
+    }
+
+    private static void OnExecutorStart(nint query, int flags)
+    {
+        if (s_previous.IsNull)
+        {
+            NativeMethods.standard_ExecutorStart(query, flags);
+        }
+        else
+        {
+            s_previous.Invoke(query, flags);
+        }
+    }
+}
+```
+
+The generated wrapper uses the selected PostgreSQL headers' native signature
+and calling convention. Its address remains stable for the loaded extension's
+lifetime; two callback properties with the same signature have independent
+addresses. No delegate or additional GC root is needed. Publishing includes only
+callbacks used by the extension.
+
+Callback declarations can also live in a referenced project using the same native
+binding contract. The consuming extension supplies the native dispatch boundary;
+its registration method explicitly calls the provider's installation code.
+Use [`PgModuleLoad`](/initialization/#native-hook-and-provider-registration) for
+hooks that must run on a worker's first query.
+
+Reading a callback property requires an active backend or initialization
+callback and the matching native binding. Invoke handlers synchronously on the
+PostgreSQL thread. Native pointers remain caller-owned: obey the specific hook's
+argument validity, transaction rules and lifetime. The raw callback signature
+does not infer SQL NULL or turn a datum into a managed SQL value.
+
+Managed exceptions unwind before the native wrapper raises PostgreSQL ERROR.
+`PgException` retains SQLSTATE, message, detail and hint; other managed exceptions
+use `38000`. Nested callbacks restore the surrounding backend and memory scopes.
+When catching a backend error and continuing work requires rollback, use
+[`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work).
+
+Hook ownership is explicit. Chain to the previous hook or the PostgreSQL
+fallback appropriate to that hook. Restore the saved hook only while yours is
+still the installed head; replacing it after another extension has installed a
+hook would discard that extension's chain. Dropping SQL declarations does not
+unload the native module or automatically unregister hooks.
 
 ## Raw SQL values
 

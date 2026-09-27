@@ -83,7 +83,7 @@ public sealed partial class PgFunctionGeneratorTests
         string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)];
         string[] loaderOrder =
         [
-            "if (ankus_initialization_state == 1)",
+            "if (ankus_initialization_state == 1 || ankus_module_loading)",
             "errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE)",
             "if (ankus_registration_complete)",
             "ankus_ensure_initialized();",
@@ -98,10 +98,8 @@ public sealed partial class PgFunctionGeneratorTests
             "PG_RE_THROW();",
             "PG_END_TRY();",
             "MemoryContextSwitchTo(caller);",
-            "#if defined(WIN32) && PG_VERSION_NUM < 180000",
-            "if (InitializingParallelWorker)",
+            "if (ankus_worker_restore_in_progress())",
             "return;",
-            "#endif",
             "ankus_ensure_initialized();",
         ];
         AssertOrdered(loader, loaderOrder);
@@ -109,7 +107,7 @@ public sealed partial class PgFunctionGeneratorTests
         string initializer = native[native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)..];
         string[] initializationOrder =
         [
-            "if (ankus_initialization_state == 1)",
+            "if (ankus_initialization_state == 1 || ankus_module_loading)",
             "errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE)",
             "if (ankus_initialization_state == 2)",
             "return;",

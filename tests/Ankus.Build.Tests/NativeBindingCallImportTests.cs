@@ -160,16 +160,16 @@ public sealed partial class NativeBindingNativeTests
         Assert.AreSequenceEqual<string>(["ankus_imported"], imports.Symbols);
     }
 
-    private async Task<string> RunImportedBodiesAsync(string source, string main, byte[] image, string directory)
+    private async Task<string> RunImportedBodiesAsync(string source, string main, byte[] image, string directory, bool nativeCompiler = true)
     {
         string file = Path.Combine(directory, "selected.c");
         string consumer = Path.Combine(directory, "consumer.obj");
         string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "selected.exe" : "selected");
         await File.WriteAllTextAsync(file, source + "\n" + main, context.CancellationToken);
         await File.WriteAllBytesAsync(consumer, image, context.CancellationToken);
-        string compiler = OperatingSystem.IsWindows() ? "cl.exe" : "clang";
+        string compiler = OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang";
         string[] arguments = OperatingSystem.IsWindows()
-            ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file, consumer]
+            ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file, "/link", consumer]
             : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, consumer, "-o", executable];
         await RunAsync(compiler, arguments, directory);
         return (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n");

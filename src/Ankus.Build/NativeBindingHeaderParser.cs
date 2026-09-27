@@ -249,8 +249,13 @@ internal static class NativeBindingHeaderParser
                 case "ElaboratedType":
                 case "ParenType":
                 case "TypeOfType":
+                case "MacroQualifiedType":
                     RequireChildren(inner, 1);
                     return ReadType(inner[0], depth + 1);
+                case "AttributedType":
+                    RequireChildren(inner, 2);
+                    // The second child is the compiler's effective type after applying the attribute.
+                    return ReadType(inner[1], depth + 1);
                 case "TypeOfExprType":
                     RequireChildren(inner, 2);
                     // The compiler supplies the unevaluated expression followed by its resolved type.
@@ -293,13 +298,24 @@ internal static class NativeBindingHeaderParser
                     return new NativeHeaderAdjusted(ReadType(inner[0], depth + 1), ReadType(inner[1], depth + 1));
                 case "FunctionProtoType":
                 case "FunctionNoProtoType":
-                    if (inner.Length == 0 || Text(node, "cc") != "cdecl" ||
+                    if (inner.Length == 0 ||
                         node.TryGetProperty("regParm", out JsonElement registerCount) &&
                             (registerCount.ValueKind != JsonValueKind.Number || !registerCount.TryGetInt32(out int registerParameters) || registerParameters != 0))
                     {
                         throw Invalid("Unsupported or incomplete native calling convention.");
                     }
 
+                    int convention = Text(node, "cc") switch
+                    {
+                        "cdecl" => 1,
+                        "stdcall" => 2,
+                        "fastcall" => 3,
+                        "thiscall" => 4,
+                        "ms_abi" => 10,
+                        "sysv_abi" => 11,
+                        "vectorcall" => 12,
+                        _ => throw Invalid("Unsupported native calling convention."),
+                    };
                     NativeHeaderType[] parameters = [.. inner.Skip(1).Select(child => ReadType(child, depth + 1))];
                     bool hasPrototype = kind == "FunctionProtoType";
                     bool variadic = Boolean(node, "variadic");
@@ -309,7 +325,7 @@ internal static class NativeBindingHeaderParser
                     }
 
                     return new NativeHeaderFunction(ReadType(inner[0], depth + 1), Array.AsReadOnly(parameters),
-                        variadic, hasPrototype, Boolean(node, "noreturn"));
+                        variadic, hasPrototype, Boolean(node, "noreturn"), convention);
                 default:
                     throw Invalid($"Unsupported native compiler type '{kind}'.");
             }

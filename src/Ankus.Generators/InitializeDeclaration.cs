@@ -16,15 +16,16 @@ internal static class InitializeDeclaration
     /// <param name="method">The attributed method.</param>
     /// <returns>Whether the initialization marker is present.</returns>
     internal static bool IsInitializer(IMethodSymbol method)
-        => method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgInitializeAttribute");
+        => method.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() is
+            "Ankus.PgInitializeAttribute" or "Ankus.PgModuleLoadAttribute");
 
     /// <summary>
-    /// Validates every initialization declaration and selects the sole valid callback.
+    /// Validates every initialization declaration and selects at most one callback for each phase.
     /// </summary>
     /// <param name="methods">The discovered attributed methods.</param>
     /// <param name="context">The generator context receiving diagnostics.</param>
-    /// <returns>The one supported callback, or no callback when absent or invalid.</returns>
-    internal static IMethodSymbol? Select(IEnumerable<IMethodSymbol> methods, SourceProductionContext context)
+    /// <returns>The initialization and module-load callbacks, or no callbacks when declarations are invalid.</returns>
+    internal static (IMethodSymbol? Initialize, IMethodSymbol? ModuleLoad) Select(IEnumerable<IMethodSymbol> methods, SourceProductionContext context)
     {
         IMethodSymbol[] initializers = [.. methods.Where(IsInitializer).Select(static method => method.PartialDefinitionPart ?? method)
             .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal)];
@@ -34,14 +35,19 @@ internal static class InitializeDeclaration
             valid &= Validate(method, context);
         }
 
-        if (initializers.Length > 1)
+        IMethodSymbol[] ready = [.. initializers.Where(static method => HasAttribute(method, "Ankus.PgInitializeAttribute"))];
+        IMethodSymbol[] load = [.. initializers.Where(static method => HasAttribute(method, "Ankus.PgModuleLoadAttribute"))];
+        foreach ((IMethodSymbol[] declarations, string attribute) in new[] { (ready, "PgInitialize"), (load, "PgModuleLoad") })
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, initializers[1].Locations.FirstOrDefault(), initializers[1].Name,
-                "An assembly can declare only one PgInitialize callback."));
-            return null;
+            if (declarations.Length > 1)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(s_invalid, declarations[1].Locations.FirstOrDefault(), declarations[1].Name,
+                    $"An assembly can declare only one {attribute} callback."));
+                valid = false;
+            }
         }
 
-        return valid && initializers.Length == 1 ? initializers[0] : null;
+        return valid ? (ready.SingleOrDefault(), load.SingleOrDefault()) : (null, null);
     }
 
     /// <summary>
@@ -49,6 +55,11 @@ internal static class InitializeDeclaration
     /// </summary>
     private static bool Validate(IMethodSymbol method, SourceProductionContext context)
     {
+        if (HasAttribute(method, "Ankus.PgInitializeAttribute") && HasAttribute(method, "Ankus.PgModuleLoadAttribute"))
+        {
+            return Invalid("A method cannot declare both PgInitialize and PgModuleLoad phases.");
+        }
+
         if (method.MethodKind != MethodKind.Ordinary || !method.IsStatic || method.IsAsync || method.PartialImplementationPart?.IsAsync == true ||
             method.IsGenericMethod || method.IsAbstract || method.IsVirtual || method.IsExtern || !method.ReturnsVoid || method.Parameters.Length != 0 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
@@ -88,4 +99,10 @@ internal static class InitializeDeclaration
             return false;
         }
     }
+
+    /// <summary>
+    /// Finds a phase marker on a normalized method declaration.
+    /// </summary>
+    private static bool HasAttribute(IMethodSymbol method, string name)
+        => method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == name);
 }

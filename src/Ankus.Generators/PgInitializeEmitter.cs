@@ -18,58 +18,23 @@ internal static class PgInitializeEmitter
     /// <param name="managed">The managed dispatch source.</param>
     /// <param name="native">The native library source.</param>
     /// <param name="exports">The native linker exports.</param>
+    /// <param name="hasNativeCallbacks">Whether static native callbacks require initialization and fork support.</param>
+    /// <param name="hasModuleLoad">Whether an immediate module registration callback precedes initialization.</param>
     internal static void Emit(IMethodSymbol? method, string? callback, bool hasHooks, string registration,
-        StringBuilder managed, StringBuilder native, StringBuilder exports)
+        StringBuilder managed, StringBuilder native, StringBuilder exports, bool hasNativeCallbacks = false, bool hasModuleLoad = false)
     {
-        bool requiresEnsure = method is not null || hasHooks;
+        bool requiresEnsure = method is not null || hasHooks || hasNativeCallbacks || hasModuleLoad;
         if (method is not null)
         {
-            managed.AppendLine($$"""
-                    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
-                        EntryPoint = "{{callback}}",
-                        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
-                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
-                    {
-                        nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
-                        nint previousRead = global::Ankus.NativeGuc.Enter(read);
-                        nint previousLog = global::Ankus.NativeLog.Enter(log);
-                        nint previousMemory = 0;
-                        bool memoryEntered = false;
-                        try
-                        {
-                            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
-                            memoryEntered = true;
-                            {{method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}}.@{{method.Name}}();
-                            return 0;
-                        }
-                        catch (global::System.Exception exception)
-                        {
-                            global::Ankus.NativeError.Write(exception, error);
-                            return 1;
-                        }
-                        finally
-                        {
-                            if (memoryEntered)
-                            {
-                                global::Ankus.NativeMemoryContext.Exit(previousMemory);
-                            }
-
-                            global::Ankus.NativeLog.Exit(previousLog);
-                            global::Ankus.NativeGuc.Exit(previousRead);
-                            global::Ankus.NativeBackend.Exit(previousBackend);
-                        }
-                    }
-
-                """);
-            native.AppendLine(NativeErrorBridge.InitializationLogging);
+            EmitManaged(method, callback!, managed);
         }
 
-        string forkDeclaration = method is not null || hasHooks ? """
+        string forkDeclaration = requiresEnsure ? """
             #ifndef WIN32
             extern int32_t RhEnableForkSupport(void);
             #endif
             """ : string.Empty;
-        string forkEnable = method is not null || hasHooks ? """
+        string forkEnable = requiresEnsure ? """
                     #ifndef WIN32
                     if (IsPostmasterEnvironment && !IsUnderPostmaster)
                     {
@@ -131,9 +96,6 @@ internal static class PgInitializeEmitter
             #include "miscadmin.h"
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
-            #if defined(WIN32) && PG_VERSION_NUM < 180000
-            #include "access/parallel.h"
-            #endif
 
             {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
             {{forkDeclaration}}
@@ -144,7 +106,7 @@ internal static class PgInitializeEmitter
             PGDLLEXPORT void _PG_init(void);
             PGDLLEXPORT void _PG_init(void)
             {
-                if (ankus_initialization_state == 1)
+                if (ankus_initialization_state == 1{{(requiresEnsure ? " || ankus_module_loading" : string.Empty)}})
                 {
                     ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                         errmsg("Ankus extension initialization is already in progress")));
@@ -152,7 +114,8 @@ internal static class PgInitializeEmitter
 
                 if (ankus_registration_complete)
                 {
-            {{(requiresEnsure ? "        ankus_ensure_initialized();\n        return;" : "        return;")}}
+            {{(hasModuleLoad ? "        ankus_ensure_module_loaded();\n" : string.Empty)}}
+            {{(requiresEnsure ? "        if (!ankus_worker_restore_in_progress())\n        {\n            ankus_ensure_initialized();\n        }\n\n        return;" : "        return;")}}
                 }
 
                 MemoryContext caller = CurrentMemoryContext;
@@ -171,13 +134,12 @@ internal static class PgInitializeEmitter
                 }
                 PG_END_TRY();
                 MemoryContextSwitchTo(caller);
+            {{(hasModuleLoad ? "    ankus_ensure_module_loaded();\n" : string.Empty)}}
             {{(requiresEnsure ? """
-                #if defined(WIN32) && PG_VERSION_NUM < 180000
-                if (InitializingParallelWorker)
+                if (ankus_worker_restore_in_progress())
                 {
                     return;
                 }
-                #endif
 
                 ankus_ensure_initialized();
             """ : "    ankus_initialization_state = 2;")}}
@@ -187,7 +149,8 @@ internal static class PgInitializeEmitter
             static void
             ankus_ensure_initialized(void)
             {
-                if (ankus_initialization_state == 1)
+            {{(hasModuleLoad ? "    ankus_ensure_module_loaded();\n" : string.Empty)}}
+                if (ankus_initialization_state == 1 || ankus_module_loading)
                 {
                     ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                         errmsg("Ankus extension initialization is already in progress")));
@@ -223,5 +186,52 @@ internal static class PgInitializeEmitter
             """ : string.Empty)}}
             """);
         exports.AppendLine("_PG_init");
+    }
+
+    /// <summary>
+    /// Emits the common managed error and capability boundary for one initialization phase.
+    /// </summary>
+    /// <param name="method">The validated phase handler.</param>
+    /// <param name="callback">Its native symbol.</param>
+    /// <param name="managed">The managed dispatch source.</param>
+    internal static void EmitManaged(IMethodSymbol method, string callback, StringBuilder managed)
+    {
+        managed.AppendLine($$"""
+                    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
+                        EntryPoint = "{{callback}}",
+                        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+                    private static int {{callback}}(global::Ankus.NativeCallError* error, nint read, nint execute, nint log, nint memory)
+                    {
+                        nint previousBackend = global::Ankus.NativeBackend.Enter(execute);
+                        nint previousRead = global::Ankus.NativeGuc.Enter(read);
+                        nint previousLog = global::Ankus.NativeLog.Enter(log);
+                        nint previousMemory = 0;
+                        bool memoryEntered = false;
+                        try
+                        {
+                            previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
+                            memoryEntered = true;
+                            {{method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}}.@{{method.Name}}();
+                            return 0;
+                        }
+                        catch (global::System.Exception exception)
+                        {
+                            global::Ankus.NativeError.Write(exception, error);
+                            return 1;
+                        }
+                        finally
+                        {
+                            if (memoryEntered)
+                            {
+                                global::Ankus.NativeMemoryContext.Exit(previousMemory);
+                            }
+
+                            global::Ankus.NativeLog.Exit(previousLog);
+                            global::Ankus.NativeGuc.Exit(previousRead);
+                            global::Ankus.NativeBackend.Exit(previousBackend);
+                        }
+                    }
+
+                """);
     }
 }

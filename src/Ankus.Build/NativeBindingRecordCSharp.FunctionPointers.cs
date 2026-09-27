@@ -15,6 +15,7 @@ internal static partial class NativeBindingRecordCSharp
                 Summary("Borrows a native function address with the selected header's exact signature.");
                 Line("/// <param name=\"address\">A native function with the matching signature and a lifetime covering every use.</param>");
                 Line("/// <remarks>This value does not own its target or register, guard or root a managed callback.</remarks>");
+                Line($"[global::Ankus.NativeFunctionPointer({Number(call.FunctionType)})]");
                 Line("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
                 Line($"public readonly partial struct @{name}(nint address) : global::Ankus.IPgNativeType\n{{");
                 NativeRecordType storage = graph.Types[call.PointerType];

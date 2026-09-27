@@ -10,12 +10,16 @@ internal static class NativeEnumBridge
     /// </summary>
     internal const string Source = """
         #include "access/htup_details.h"
+        #include "access/genam.h"
+        #include "access/table.h"
         #include "catalog/dependency.h"
         #include "catalog/namespace.h"
         #include "catalog/pg_extension.h"
         #include "catalog/pg_enum.h"
         #include "catalog/pg_proc_d.h"
         #include "catalog/pg_type.h"
+        #include "commands/extension.h"
+        #include "utils/fmgroids.h"
         #include "utils/syscache.h"
         #include "utils/lsyscache.h"
 
@@ -74,11 +78,20 @@ internal static class NativeEnumBridge
                 Oid extension = getExtensionOfObject(ProcedureRelationId, ankus_function_oid);
                 if (OidIsValid(extension))
                 {
-                    HeapTuple tuple = SearchSysCache1(EXTENSIONOID, ObjectIdGetDatum(extension));
-                    if (!HeapTupleIsValid(tuple))
+                    #if PG_VERSION_NUM >= 160000
+                    namespace_oid = get_extension_schema(extension);
+                    #else
+                    Relation relation = table_open(ExtensionRelationId, AccessShareLock);
+                    ScanKeyData key;
+                    ScanKeyInit(&key, Anum_pg_extension_oid, BTEqualStrategyNumber, F_OIDEQ, ObjectIdGetDatum(extension));
+                    SysScanDesc scan = systable_beginscan(relation, ExtensionOidIndexId, true, NULL, 1, &key);
+                    HeapTuple tuple = systable_getnext(scan);
+                    namespace_oid = HeapTupleIsValid(tuple) ? ((Form_pg_extension) GETSTRUCT(tuple))->extnamespace : InvalidOid;
+                    systable_endscan(scan);
+                    table_close(relation, AccessShareLock);
+                    #endif
+                    if (!OidIsValid(namespace_oid))
                         elog(ERROR, "Could not find owning extension for Ankus function");
-                    namespace_oid = ((Form_pg_extension) GETSTRUCT(tuple))->extnamespace;
-                    ReleaseSysCache(tuple);
                 }
                 else
                     namespace_oid = get_func_namespace(ankus_function_oid);

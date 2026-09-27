@@ -65,6 +65,19 @@ internal static partial class NativeBindingRecordChecks
                         parameters = "void";
                     }
 
+                    if (_graph.Types[function.Result].Qualifiers != NativeHeaderQualifiers.None)
+                    {
+                        // C ignores qualifiers on the returned value, but a typedef can retain its exact object type without redundant-return warnings.
+                        string resultAlias = "ankus_record_function_result_" + Number(function.Result);
+                        if (_functionResults.Add(function.Result))
+                        {
+                            string resultDeclaration = Declare(function.Result, resultAlias, depth: depth + 1);
+                            _source.Append("typedef ").Append(resultDeclaration).AppendLine(";");
+                        }
+
+                        return resultAlias + " " + name + "(" + parameters + ")" + Convention(function);
+                    }
+
                     return Declare(function.Result, name + "(" + parameters + ")", modifiers, depth + 1) + Convention(function);
                 case "complex":
                     return qualifiers + "_Complex " + Declare(type.Element!.Value, name, depth: depth + 1);

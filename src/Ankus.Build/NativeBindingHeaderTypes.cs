@@ -219,8 +219,9 @@ internal sealed record NativeHeaderAdjusted(NativeHeaderType Written, NativeHead
 /// <param name="IsVariadic">Whether additional promoted call-site arguments are required.</param>
 /// <param name="HasPrototype">Whether the declaration has a prototype instead of an unspecified argument list.</param>
 /// <param name="DoesNotReturn">Whether the function type itself carries a no-return contract.</param>
+/// <param name="CallingConvention">The compiler's native convention, using the measured graph's canonical convention identifiers.</param>
 internal sealed record NativeHeaderFunction(NativeHeaderType Result, IReadOnlyList<NativeHeaderType> Parameters,
-    bool IsVariadic, bool HasPrototype, bool DoesNotReturn) : NativeHeaderType
+    bool IsVariadic, bool HasPrototype, bool DoesNotReturn, int CallingConvention = 1) : NativeHeaderType
 {
     internal override string Format(string declarator, NativeHeaderQualifiers qualifiers)
     {
@@ -245,7 +246,18 @@ internal sealed record NativeHeaderFunction(NativeHeaderType Result, IReadOnlyLi
             parameters = "void";
         }
 
-        string value = Result.Format(declarator + "(" + parameters + ")", NativeHeaderQualifiers.None);
+        string convention = CallingConvention switch
+        {
+            1 => "",
+            2 => " __attribute__((stdcall))",
+            3 => " __attribute__((fastcall))",
+            4 => " __attribute__((thiscall))",
+            10 => " __attribute__((ms_abi))",
+            11 => " __attribute__((sysv_abi))",
+            12 => " __attribute__((vectorcall))",
+            _ => throw new InvalidOperationException("Unsupported native function calling convention."),
+        };
+        string value = Result.Format(declarator + "(" + parameters + ")", NativeHeaderQualifiers.None) + convention;
         return DoesNotReturn ? value + " __attribute__((noreturn))" : value;
     }
 }

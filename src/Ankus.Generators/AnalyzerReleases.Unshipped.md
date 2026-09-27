@@ -22,3 +22,4 @@ ANKUS017 | Ankus | Error | Invalid PostgreSQL base type or storage codec
 ANKUS018 | Ankus | Error | Invalid generated PostgreSQL operators
 ANKUS019 | Ankus | Error | Invalid reusable PostgreSQL datum mapping
 ANKUS020 | Ankus | Error | Invalid mapped PostgreSQL range declaration
+ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler

@@ -59,6 +59,7 @@ internal static partial class NativeBindingRecordChecks
     {
         private readonly NativeRecordGraph _graph = records.Graph;
         private readonly Dictionary<int, string> _anchors = [];
+        private readonly HashSet<int> _functionResults = [];
         private readonly StringBuilder _source = new();
         private int _functionComparison;
 
@@ -89,7 +90,8 @@ internal static partial class NativeBindingRecordChecks
                     throw new FormatException("A native value alias requires complete object storage.");
                 }
 
-                _source.Append("typedef ").Append(Declare(index, name)).AppendLine(";");
+                string declaration = Declare(index, name);
+                _source.Append("typedef ").Append(declaration).AppendLine(";");
                 Storage(name, type.Size, type.Alignment, "value " + name);
             }
 
@@ -118,14 +120,16 @@ internal static partial class NativeBindingRecordChecks
             for (int index = 0; index < _graph.Types.Count; index++)
             {
                 string alias = TypeName(index);
-                _source.Append("typedef ").Append(Declare(index, alias)).AppendLine(";");
+                string declaration = Declare(index, alias);
+                _source.Append("typedef ").Append(declaration).AppendLine(";");
                 NativeRecordType type = _graph.Types[index];
                 bool incompleteArray = type.Size is null && Canonical(index).Kind == "array";
                 Storage(alias, type.Size, type.Alignment, "type " + Number(index), incompleteArray);
                 if (type.Kind == "alias")
                 {
                     string underlying = alias + "_underlying";
-                    _source.Append("typedef ").Append(Declare(type.Element!.Value, underlying, type.Qualifiers)).AppendLine(";");
+                    string underlyingDeclaration = Declare(type.Element!.Value, underlying, type.Qualifiers);
+                    _source.Append("typedef ").Append(underlyingDeclaration).AppendLine(";");
                     Compatible(alias, underlying, "typedef " + type.Name, Canonical(index).Kind == "function");
                 }
             }

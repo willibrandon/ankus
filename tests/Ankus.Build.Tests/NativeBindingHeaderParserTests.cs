@@ -152,7 +152,7 @@ public sealed class NativeBindingHeaderParserTests
                 nodes[0]!["inner"]!.AsArray().RemoveAt(0);
                 break;
             case "calling-convention":
-                function["cc"] = "stdcall";
+                function["cc"] = "preserve_all";
                 break;
             case "register-parameters":
                 function["regParm"] = 2;
@@ -187,6 +187,68 @@ public sealed class NativeBindingHeaderParserTests
         }
 
         Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)]));
+    }
+
+    /// <summary>
+    /// Macro and attributed wrappers retain the compiler's effective calling convention rather than the unmodified cdecl child.
+    /// </summary>
+    /// <param name="convention">The compiler's effective convention spelling.</param>
+    /// <param name="identifier">Its independently specified measured-graph identifier.</param>
+    [TestMethod]
+    [DataRow("cdecl", 1)]
+    [DataRow("stdcall", 2)]
+    [DataRow("fastcall", 3)]
+    [DataRow("thiscall", 4)]
+    [DataRow("ms_abi", 10)]
+    [DataRow("sysv_abi", 11)]
+    [DataRow("vectorcall", 12)]
+    public void AttributedFunctionsPreserveEffectiveConventions(string convention, int identifier)
+    {
+        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonArray observed = root["inner"]![1]!["inner"]![0]!["inner"]!.AsArray();
+        JsonNode original = observed[1]!.DeepClone();
+        original["variadic"] = false;
+        JsonNode effective = original.DeepClone();
+        effective["cc"] = convention;
+        observed[1] = new JsonObject
+        {
+            ["kind"] = "MacroQualifiedType",
+            ["inner"] = new JsonArray(new JsonObject
+            {
+                ["kind"] = "AttributedType",
+                ["inner"] = new JsonArray(original, effective),
+            }),
+        };
+        NativeHeaderFunction function = Assert.IsInstanceOfType<NativeHeaderFunction>(
+            NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)])["call"].Type);
+        Assert.AreEqual(identifier, function.CallingConvention);
+        string expected = "void invoke(const volatile int *ankus_arg0)" + (identifier == 1 ? "" : " __attribute__((" + convention + "))");
+        Assert.AreEqual(expected, function.Declare("invoke"));
+        NativeHeaderType restored = JsonSerializer.Deserialize<NativeHeaderType>(JsonSerializer.Serialize<NativeHeaderType>(function))!;
+        Assert.AreEqual(expected, restored.Declare("invoke"));
+        Assert.ThrowsExactly<InvalidOperationException>(() => (function with { CallingConvention = 999 }).Declare("invoke"));
+    }
+
+    /// <summary>
+    /// Macro and attribute wrappers require their complete compiler shape before an effective type can be read.
+    /// </summary>
+    /// <param name="kind">The compiler wrapper kind.</param>
+    /// <param name="count">An invalid child count on either side of its required arity.</param>
+    [TestMethod]
+    [DataRow("MacroQualifiedType", 0)]
+    [DataRow("MacroQualifiedType", 2)]
+    [DataRow("AttributedType", 0)]
+    [DataRow("AttributedType", 1)]
+    [DataRow("AttributedType", 3)]
+    public void AttributedFunctionsRejectIncompleteWrappers(string kind, int count)
+    {
+        JsonNode root = JsonNode.Parse(Ast)!;
+        JsonArray observed = root["inner"]![1]!["inner"]![0]!["inner"]!.AsArray();
+        JsonNode original = observed[1]!.DeepClone();
+        observed[1] = new JsonObject { ["kind"] = kind, ["inner"] = new JsonArray([.. Enumerable.Range(0, count).Select(_ => original.DeepClone())]) };
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)]));
+        observed[1] = original;
+        Assert.IsInstanceOfType<NativeHeaderFunction>(NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)])["call"].Type);
     }
 
     /// <summary>

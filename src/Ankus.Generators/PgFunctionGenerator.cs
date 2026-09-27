@@ -56,10 +56,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             static (attributeContext, _) => attributeContext.TargetSymbol)
             .Where(static symbol => symbol is IMethodSymbol)
             .Select(static (symbol, _) => (IMethodSymbol)symbol);
+        IncrementalValuesProvider<IMethodSymbol> moduleLoads = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgModuleLoadAttribute",
+            static (_, _) => true,
+            static (attributeContext, _) => attributeContext.TargetSymbol)
+            .Where(static symbol => symbol is IMethodSymbol)
+            .Select(static (symbol, _) => (IMethodSymbol)symbol);
         IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
             .Combine(triggers.Collect()).Combine(eventTriggers.Collect()).Combine(initializers.Collect())
             .Select(static (input, _) => input.Left.Left.Left.Left.Left.AddRange(input.Left.Left.Left.Left.Right).AddRange(input.Left.Left.Left.Right)
                 .AddRange(input.Left.Left.Right).AddRange(input.Left.Right).AddRange(input.Right)
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
+            .Combine(moduleLoads.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -90,10 +98,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgAggregateAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
-        IncrementalValuesProvider<IPropertySymbol> gucs = context.SyntaxProvider.CreateSyntaxProvider(
+        IncrementalValuesProvider<IPropertySymbol> properties = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is PropertyDeclarationSyntax { AttributeLists.Count: > 0 } or IndexerDeclarationSyntax { AttributeLists.Count: > 0 },
             static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BasePropertyDeclarationSyntax)syntaxContext.Node, token) as IPropertySymbol)
-            .Where(static property => property is not null && property.GetAttributes().Any(GucDeclaration.IsGucAttribute))
+            .Where(static property => property is not null && property.GetAttributes().Any(static attribute =>
+                GucDeclaration.IsGucAttribute(attribute) || NativeCallbackDeclaration.IsAttribute(attribute)))
             .Select(static (property, _) => property!);
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
@@ -105,7 +114,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
         IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
             options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(gucs.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
@@ -114,11 +123,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
-        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> gucProperties,
+        ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation)
     {
-        if (methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && gucProperties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
+        bool referencedCallbacks = compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly =>
+            assembly.GetAttributes().Any(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
+                attribute.ConstructorArguments.Length == 2 &&
+                attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
+                attribute.ConstructorArguments[1].Value is "1"));
+        if (!referencedCallbacks && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
         }
@@ -141,9 +156,20 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var native = new StringBuilder(NativeBridge.Source);
         ImmutableArray<string> prefixes = GucPrefixDeclaration.Read(prefixAttributes, context);
         var gucs = new List<GucDeclaration>();
+        var callbacks = new List<NativeCallbackDeclaration>();
         var gucNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (IPropertySymbol property in gucProperties.Distinct<IPropertySymbol>(SymbolEqualityComparer.Default))
+        foreach (IPropertySymbol property in properties.Distinct<IPropertySymbol>(SymbolEqualityComparer.Default))
         {
+            if (property.GetAttributes().Any(NativeCallbackDeclaration.IsAttribute))
+            {
+                if (NativeCallbackDeclaration.Create(property, context) is { } callback)
+                {
+                    callbacks.Add(callback);
+                }
+
+                continue;
+            }
+
             GucDeclaration? guc = GucDeclaration.Create(property, context);
             if (guc is null)
             {
@@ -163,11 +189,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasGucHooks = gucs.Any(static guc => guc.HasHooks);
         bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
         bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
-        bool hasFunctionCallbacks = !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
+        bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks;
+        bool hasFunctionCallbacks = hasNativeCallbacks || !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        bool hasMemoryFunctionCallbacks = hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(method));
+        bool hasMemoryFunctionCallbacks = hasNativeCallbacks || hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(method));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(NativeBindingBridge.Binding(compilation));
@@ -391,8 +418,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             managed.AppendLine();
         }
 
-        IMethodSymbol? initializer = InitializeDeclaration.Select(methods, context);
-        bool ensureManagedReady = initializer is not null || hasGucHooks;
+        (IMethodSymbol? initializer, IMethodSymbol? moduleLoad) = InitializeDeclaration.Select(methods, context);
+        bool ensureManagedReady = initializer is not null || moduleLoad is not null || hasGucHooks || hasNativeCallbacks;
         if (ensureManagedReady)
         {
             native.AppendLine("static void ankus_ensure_initialized(void);");
@@ -465,6 +492,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         fixedSchema |= !typeProviders.Add(customSql, sqlBlocks, schemas, mappings);
+        if (ensureManagedReady)
+        {
+            native.AppendLine(PgModuleLoadEmitter.State);
+        }
+
+        if (hasNativeCallbacks || hasGucHooks)
+        {
+            native.AppendLine(NativeForkHostBridge.Source);
+        }
+
         var registration = new StringBuilder();
         if (gucs.Count != 0)
         {
@@ -489,10 +526,30 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         GucPrefixDeclaration.Emit(prefixes, native, registration);
-        if (initializer is not null || gucs.Count != 0 || !prefixes.IsEmpty)
+        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks)
+        {
+            native.AppendLine(NativeErrorBridge.InitializationLogging);
+        }
+
+        if (moduleLoad is not null)
+        {
+            PgModuleLoadEmitter.Emit(moduleLoad, GetCallbackName(moduleLoad, "module_load"), managed, native);
+        }
+
+        if (initializer is not null || moduleLoad is not null || gucs.Count != 0 || !prefixes.IsEmpty || hasNativeCallbacks)
         {
             PgInitializeEmitter.Emit(initializer, initializer is null ? null : GetCallbackName(initializer, "initialize"),
-                hasGucHooks, registration.ToString(), managed, native, exports);
+                hasGucHooks, registration.ToString(), managed, native, exports, hasNativeCallbacks, moduleLoad is not null);
+        }
+
+        if (hasNativeCallbacks)
+        {
+            native.AppendLine(NativeCallbackBridge.Source);
+        }
+
+        if (callbacks.Count != 0)
+        {
+            context.AddSource("NativeCallbackProperties.g.cs", PgNativeCallbackEmitter.Emit(callbacks));
         }
 
         var operatorEntities = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
@@ -728,7 +785,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             Metadata("Ankus.NativeSource", nativeSource) +
             Metadata("Ankus.Sql", installationSql) +
             Metadata("Ankus.Relocatable", fixedSchema ? "false" : "true") +
-            Metadata("Ankus.Exports", exportManifest);
+            Metadata("Ankus.Exports", exportManifest) +
+            (hasNativeCallbacks ? Metadata("Ankus.NativeCallbacks", "1") : string.Empty);
         context.AddSource("ExtensionManifest.g.cs", metadata);
 
         void AddSchemaDependency(SqlEntity entity, string? schema)

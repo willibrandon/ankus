@@ -2527,7 +2527,7 @@ The target architecture consists of:
 |---|---|---|
 | `#[pg_extern]` | `[PgFunction]` + source generator (exports, DDL, metadata) | Partial: supported scalar/array/enum types and SETOF/TABLE; nullability, overloads, variadics, named/defaulted arguments and execution options |
 | `#[pg_schema]` | `[PgSchema("name")]`, nested inheritance and per-function overrides | Owned/existing schemas and relocation metadata implemented; future type/dependency graph integration pending |
-| `#[pg_guard]` | automatic at export boundary and guarded native API calls | Partial: export/datum boundaries and SPI execution |
+| `#[pg_guard]` | automatic at export boundary, guarded native API calls and `[PgNativeCallback]` | Partial: export/datum boundaries, SPI, selected-header fixed/indirect calls and static native callback boundaries; full version/platform validation remains required |
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
 | Raw `EventTriggerData` and event-trigger helpers in `pgrx-pg-sys` | `[PgEventTrigger]` and owned context metadata | Implemented for descriptive DDL/drop/rewrite metadata and login; PostgreSQL 18.6/Linux x64 evidence above; raw bindings remain in the full inventory |
@@ -2626,7 +2626,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Manual raw mappings and the complete platform/version matrix remain required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
-| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, native guards, module magic, backend and shared-preload `[PgInitialize]` with retry/recursion handling; Linux x64 fork behavior verified, remaining platform/version matrix required |
+| `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, guarded static native callbacks, module magic, immediate `[PgModuleLoad]` registration and backend/shared-preload `[PgInitialize]` with retry/recursion handling; callback workers verified on Linux x64/PG18.6 and Windows x64/PG17.7, remaining platform/version matrix required |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
@@ -2670,11 +2670,11 @@ complete implementations. AOT serialization must use statically generated metada
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
-| `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
+| `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
-| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; managed callback/lifetime helpers, variadics and the complete matrix remain required |
+| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, static managed callbacks with nested capability/lease restoration, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; remaining callback/lifetime conveniences, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Managed hooks, variadics, callback/lifetime helpers, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, static managed native callbacks, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Remaining hook protocols, variadics, callback/lifetime conveniences, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -8289,3 +8289,306 @@ without treating unfinished platform suites as successful evidence.
 Managed callback/hook registration, ownership and chaining, variadic invocation,
 atomic/locking APIs, the remaining feature inventories and the complete
 PostgreSQL/platform matrix remain required for the faithful port.
+
+### Managed native callback entry points — in progress
+
+The native callback layer now selects static wrappers from actual accessor
+imports, retaining a distinct managed target identity for each canonical native
+signature. The native compiler owns argument passing and return ABI. Wrappers
+transport exact value addresses and sizes to a separate dispatcher. Each accessor
+accepts its statically compiled managed handler once, retains a stable native
+address, and rejects NULL or replacement targets without changing the handler.
+Repeated identical registration is idempotent. Unused wrappers introduce no
+native link dependency. The source-generator API and native/managed dispatchers
+are now connected, with end-to-end validation still in progress; this is not yet
+a completed consumer callback-registration feature.
+
+The compiler witness exposed a selected-header collection gap for macro-qualified
+calling-convention attributes. The independent header tree now retains the
+compiler's effective convention and verifies it against the measured graph.
+Unknown conventions, incomplete wrappers and mismatched observations still fail.
+Qualified result types use named typedefs to retain their native value contract
+without redundant return qualifiers; empty results initialize writable byte
+storage explicitly. These fix the underlying compiler errors without suppression.
+
+`CallbackImportsSelectIndependentTargets` executes real C scalar/aggregate/void
+wrappers, checks distinct same-signature targets, stable address registration,
+preserved invocation after rejected replacement, and
+absence of unused dependencies. `CallbackImportsRejectIncompatibleContracts`
+checks malformed imports, unsupported signatures, repeated target identities,
+foreign objects, invalid unselected roots and corrected retry.
+`NativeCallbackWrappersPreserveSpecialStorage` executes wide integers, extended
+precision, 64-byte alignment, empty types, const-qualified results, adjusted array
+parameters and nested callbacks under the selected native convention. It also
+compiles the complete graph's independent C checks and rejects a changed convention
+in the independently collected header tree.
+
+The current Linux build-tool suite passes **886 tests, zero failed, six
+Windows-only skips, 892 total**, in 17.673s. Native dispatcher stubs in these tests
+prove the C ABI only; managed exception handling, PostgreSQL error recovery, hook
+chaining, shared preload and worker startup remain required for this feature.
+
+The source generator now resolves `[PgNativeCallback(nameof(Handler))] on static
+partial getter-only properties to exact synchronous handlers, including private
+methods in partial classes, structs and records. `ANKUS021` rejects invalid
+declarations without suppression. A generated nested type owns the unmanaged
+dispatcher, so a throwing user type initializer runs inside the exception guard.
+The property supplies its statically compiled dispatcher address to the native
+accessor; no named unmanaged export roots unused handlers.
+
+The dispatcher checks the binding and complete frame before user effects,
+preserves zero-byte values without copying CLR placeholder bytes, and restores
+nested memory, backend, configuration and logging capabilities. The native side
+shares fork-host entry with GUC hooks and raises PostgreSQL errors after managed
+return. Initialization and postmaster/worker transitions still require the
+planned real-backend evidence.
+
+Focused Linux runtime validation passes **18 tests, zero failed**, in 851ms;
+generator validation passes **26 tests, zero failed**, in 3.206s, including
+compiled dispatch, malformed frames, owned managed errors, retry and the throwing
+type-initializer case. The native/compiler selection passes **16 tests, zero
+failed** on Linux in 1.750s and on Windows x64/.NET 10.0.12 with Visual Studio
+18.10.1 in 1.089s. Empty native values are checked against the selected compiler's
+actual `sizeof`, not an assumed cross-platform empty-struct size.
+
+The first packaged PostgreSQL attempt stopped in assembly setup: moving shared
+fork helpers into the common preamble gave the extracted allocator fixture
+unused functions under `-Werror`. Those helpers now sit beside their actual
+callers. A corrected packaged Native AOT test is running; its planned callback
+trimming, independent targets, borrowed-value expiry and PostgreSQL error/recovery
+checks are not yet counted as passing evidence. Complete suite, documentation,
+API freshness, hook chaining, preload and worker validation remain outstanding.
+
+For the preceding committed milestone `95031c5`, hosted CI run 36296692977 now
+has passing quality, all three runtime jobs and full Linux/macOS suites; Windows
+is still running. Documentation run 36296693000 passed. These live results are
+recorded without treating unfinished Windows validation as successful.
+
+The complete current generator module passes **2,002 tests, zero failed**, in
+15.842s, and the complete runtime module passes **1,541 tests, zero failed**, in
+2.072s. These runs reuse the built outputs while the packaged fixture owns its
+publishes. Hosted macOS ARM64/PostgreSQL 18.6 completed the previous milestone's
+full job in 47m50s; its integration module passes 3,318 tests with two existing
+platform skips in 39m12.347s. The 60-minute limit accommodates this measured run.
+
+The corrected packaged attempt passed fixture startup, then rejected the emitted
+callback accessors: `LibraryImportGenerator` cannot process another generator's
+newly emitted partial methods in the same compilation. The callback generator
+now emits the final blittable `DllImport` extern with exact spelling and Cdecl
+for its native-address-only accessor. This adds no runtime marshalling and
+preserves the SDK's direct native import selection. Compiler tests now compile
+that original emitted import; only managed-dispatch execution substitutes the
+accessor. The actual packaged publish and runtime witness must pass before this
+interop correction is considered verified.
+
+That retry publishes and executes the Native AOT callbacks: exact independent
+results and addresses, managed PostgreSQL diagnostics, native division-by-zero
+recovery and a subsequent guarded query all produce their expected values. The
+test still fails because it incorrectly expects a raw `DangerousBorrow` view to
+expire at callback return. Its documented lifetime is the explicitly selected
+context generation. The corrected witness checks survival after return followed
+by invalidation on owner reset; production ownership semantics are unchanged.
+Executor hook chaining, standard fallback, error recovery and explicit restoration
+have also been added to the packaged consumer and await execution.
+
+The preceding milestone's hosted run 36296692977 is now entirely successful.
+Windows x64/PostgreSQL 17 uses its first package-cache hit, passes Release in
+10m24.57s and its integration module in 47m44.701s (3,318 passed, two existing
+platform skips). Its complete job takes 59m48s, leaving little margin under the
+60-minute limit. Linux x64/PostgreSQL 18.6 passes its complete job in 35m47s,
+including all 3,320 integration tests in 29m05.438s. macOS evidence is recorded
+above. No unfinished or timed-out job is included in these successful results.
+
+The corrected packaged consumer now passes on Linux x64/PostgreSQL 18.6:
+`SdkSharesNativeTypesAcrossProjectsAndPublishesThem` completes with one passed,
+zero failed or skipped, in 3m48.379s. Actual Native AOT linking succeeds despite
+an unused callback referencing an undefined native symbol. Real backend calls
+retain independent same-signature addresses through GC, exact 64-bit results,
+owned managed/native diagnostics, raw-borrow survival until context reset, and
+same-session recovery. Two installed executor hooks execute in order `1,2,3,4`,
+reach the standard executor fallback, reject one query with exact owned
+diagnostics, recover on the next query, and restore the prior hook idempotently.
+The assertion checks that subsequent queries do not increment the removed hook.
+
+The complete generator module, including the final direct import and additional
+native result/parameter shapes, passes **2,015 tests, zero failed**, in 17.313s.
+The complete Build module passes **886 tests, zero failed, six Windows-only
+skips**, in 19.960s. Windows packaged callbacks, initialization transitions,
+shared preload/workers, callback input-lease coverage, full-root verification
+and public callback documentation remain outstanding for this milestone.
+
+The current solution Release build passes with zero warnings and errors in
+59.49s. API generation now produces 171 pages and 2,258 members, exposing the
+callback attribute while retaining the existing filter for generated interop
+contracts. The documentation site builds all 213 pages in 3.26s, and its check
+reports zero errors, warnings and hints. Windows packaged callback/hook validation
+is running against the refreshed owned checkout; no result is claimed yet.
+
+Windows x64/PostgreSQL 18.1 now passes the same packaged Native AOT callback and
+executor-hook test: one passed, zero failed or skipped, in 7m27.294s. This proves
+the direct generated import, used-only callback linking, exact results, error
+ownership/recovery and explicit hook chaining/restoration on Windows as well as
+Linux. It does not yet establish shared-preload or parallel-worker behavior for
+the new callbacks. The latest hosted CI and documentation for `95031c5` were
+rechecked and remain successful.
+
+The packaged consumer is being extended to invoke a callback during
+`PgInitialize`, install its executor chain there, and report exact initialization
+and callback values from actual parallel workers. The same published library is
+also tested under shared preload with two independent backends. Assertions
+require launched workers, exclude leader-evaluated rows, retain one initializer
+per process (or inherited postmaster state), and check unchanged leader state.
+This lifecycle extension is running locally; no passing result is claimed yet.
+The README and raw-values guide now describe the static managed callback API,
+explicit hook ownership and native error/lifetime contracts.
+
+The lifecycle extension now passes on Linux x64/PostgreSQL 18.6: the packaged
+test completes with one passed, zero failed or skipped, in 3m53.817s. It invokes
+the callback during initialization, verifies a single initialization and exact
+result, then executes the installed executor chain in ordinary backends and
+under shared preload. Real parallel worker plans launch workers; every one of
+30,000 returned row evaluations belongs to a worker rather than the leader.
+Worker initialization identities and results are exact, and the leader's state
+is unchanged afterward. Two separately connected preloaded backends retain the
+postmaster initializer and independently restore their own hook chains.
+Windows PostgreSQL 17 execution of these lifecycle cases is now running.
+
+Additional generated-dispatch tests execute scalar, enum, pointer,
+function-pointer and aggregate results with unaligned output and surrounding
+sentinels. Successful and throwing handlers expire their own callback input
+leases, retain the enclosing lease until its callback ends, and use fresh leases
+on retry. Twelve malformed native metadata cases and four missing-handler cases
+report `ANKUS021` without a callable dispatcher. The focused generator run passes
+57 tests with zero failures or skips in 3.452s; an additional empty-native-value
+case and complete-module verification follow before milestone acceptance.
+
+The final generator module, including the empty-native-value dispatch case,
+passes **2,034 tests, zero failures or skips**, in 18.144s. The updated public
+site builds 213 pages in 3.52s; its check reports zero errors, warnings and hints.
+
+Windows PostgreSQL 17.7 exposes a pre-existing native compatibility defect during
+fixture publication: `EXTENSIONOID` is unavailable in that installation's
+headers. The preceding hosted Windows run used PostgreSQL 17.11, so its success
+does not establish 17.7 compatibility. Extension-owned type lookup now uses the
+public `get_extension_schema` API on PostgreSQL 16 and later. For 13–15, where
+that routine is private, it uses PostgreSQL's indexed `pg_extension` catalog
+scan, closes the scan/relation, and retains the missing-extension error. The
+read-only PostgreSQL 13–18 reference headers establish these API boundaries;
+actual version/platform execution is still reported separately. The Windows
+17.7 retry and full local verification are pending this correction.
+
+The correction passes a complete Release build with zero warnings/errors in
+59.32s. Windows 17.7 has now executed both
+`EnumExtensionRelocationAndReinstallationFollowCatalogIdentity` and
+`CustomTypeOnlyExtensionTracksRelocationAndReinstallation` successfully; its
+packaged callback lifecycle test is still running. The plain root suite is also
+running, with all five non-integration modules already passing and the six
+existing Windows-only Build skips recorded separately.
+
+Final review identified two additional witnesses before callback acceptance.
+Exact `async void` signatures now have ordinary and partial-method rejection
+cases, independent of incompatible return-type rejection. Worker snapshots also
+require actual executor-hook order before the first row, rather than only an
+installed callback address. The current running binaries predate those last
+assertions. They need a subsequent narrow run and final root verification.
+In particular, pre-18 Windows defers managed initialization during library/GUC
+restoration; its effect on the first worker executor hook remains unproven and
+must be resolved without regressing snapshot or GUC-restoration behavior.
+No commit has been made for this unfinished callback milestone.
+
+The Windows 17.7 retry is now complete: all three selected tests pass, zero
+failures or skips, in 8m26.536s. This includes enum/custom-type relocation and
+the seven-field callback initialization/preload/parallel-worker witness. The
+stronger executor-order assertion was added afterward and is now being run
+against a freshly compiled test in the separate Windows checkout. The Linux
+full-suite process remains active; its shared outputs are not being rebuilt.
+
+That plain root run has now completed on Linux x64/PostgreSQL 18.6:
+**7,808 passed, zero failed, six Windows-only skips, 7,814 total**, in
+14m21.172s. Integration passes in 14m20.515s. This result covers the callback
+implementation and catalog compatibility correction, but predates the final
+two async-void diagnostic cases and first-worker executor-order assertion.
+Those additions remain under narrow verification before the final milestone run.
+
+Both exact async-void rejection cases pass, zero failures/skips, in 2.055s.
+The stronger Windows 17.7 worker check fails as intended: the first worker row
+observes an empty executor order instead of `1,2,3,4`. The earlier seven-field
+witness proved callback invocation and registration but missed this ordering
+defect. Windows defers managed initialization until worker state is restored,
+so installing a hook from that phase is too late for the first executor entry.
+
+The repair separates immediate native registration (`PgModuleLoad`) from the
+existing `PgInitialize` phase. Module registration must run in library load order
+before any worker query, with SQL unavailable while PostgreSQL is restoring its
+worker state. Existing SQL-capable initialization and GUC replay retain their
+deferred behavior. This phase separation is being implemented and tested; the
+callback milestone remains uncommitted until the stronger witness passes.
+
+The immediate registration phase now compiles alongside or without a deferred
+initializer. Generator validation rejects invalid signatures, duplicate phases
+and mixed attributes. The complete generator module passes 2,048 tests with no
+failures or skips; Release passes with zero warnings/errors. API generation
+produces 172 pages and 2,259 members, and the documentation check reports no
+errors, warnings or hints. These results precede the provider-composition
+refinement described below.
+
+Narrow Linux x64/PostgreSQL 18.6 validation passes all 23 initialization and GUC
+worker cases. The packaged callback case cannot start because its setup's SDK
+pack process exits with code 135 while the temporary filesystem is full; this is
+not a passing callback result. Stale generated compiler staging has been preserved
+in verified archives and removed from temporary storage before retrying.
+Windows x64/PostgreSQL 17.7 also passes those 23 existing cases. The callback case
+now passes the previously failing first-worker executor-order assertion and
+ordinary-worker SQL initialization. It then exposes an incorrect shared-preload
+test expectation: a preloaded Windows worker initializes before a transaction
+exists, so its initial SQL capability is unavailable. The expectation now
+distinguishes shared preload from backend-loaded worker restoration without
+weakening the hook-order assertion.
+
+Further review identifies a composition gap: a consuming extension needs the
+native dispatcher even when all callback declarations live in a referenced
+provider. A generated assembly capability now propagates that requirement
+through references, including an ordinary intermediary, while each assembly's
+initialization methods remain local. Both new generator cases pass. The existing
+packaged fixture now places all native callbacks in its provider and calls them
+through the consuming extension's SQL and initialization methods, reusing the
+same publication and backend scenarios. It also checks direct and nested SQL
+availability during early registration. These stronger backend checks and the
+final full suite are pending; no new platform pass or complete-port claim is made.
+
+The stronger packaged fixture now passes on Linux x64/PostgreSQL 18.6: one
+passed, zero failed/skipped, in 4m14.113s. All native callback declarations live
+in the referenced provider, while the consuming extension owns SQL exports,
+configuration and both initialization phases. Thirteen-field snapshots check
+the first worker hook, exact process/initialization identity and direct/nested
+registration SQL capability. Failed registration and later initialization retry
+independently with exact owned diagnostics, finally counts and same-session
+recovery. Shared preload and two independent backends pass. Complete generator
+validation passes 2,050 tests without failures/skips in 17.281s; Release passes
+without warnings/errors. Windows execution and the final root suite remain
+pending. Documentation checks and API freshness pass; the site builds 214 pages.
+
+Windows x64/PostgreSQL 17.7 now passes the same final provider/phase/preload/worker
+fixture: one passed, zero failed/skipped, in 8m19.145s. This includes the original
+first-worker executor-order regression and the direct/nested early-worker SQL
+capability checks, with initialization SQL becoming available after ordinary
+worker restoration. Both platform witnesses pass; the plain root test suite is
+running before committing this milestone.
+
+The final plain root `dotnet test` run passes on Linux x64/PostgreSQL 18.6:
+**7,824 passed, zero failed, six Windows-only skips, 7,830 total**, in
+13m49.027s. Integration completes in 13m48.333s and all five unit modules pass.
+The final Release build has zero warnings/errors; API freshness checks 172 pages
+and 2,259 members, documentation checks report zero errors/warnings/hints, and
+the final site rendering produces 214 pages. No warning suppression, analyzer
+reduction, test sharding or timeout increase beyond the requested 60 minutes was
+introduced. Full-port requirements and the remaining platform/version matrix
+remain open.
+
+Immediately before committing this milestone, the previous `95031c5` runs are
+checked again: [CI 36296692977](https://github.com/willibrandon/ankus/actions/runs/36296692977)
+and [Docs 36296693000](https://github.com/willibrandon/ankus/actions/runs/36296693000)
+are both completed successfully. The prior timeout-only commit's documentation
+run passed and its superseded CI run was cancelled. Cancelled runs are not
+counted as passing validation. These outcomes are recorded before the commit;
+they will be checked again immediately before pushing.

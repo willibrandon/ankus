@@ -175,6 +175,12 @@ public sealed partial class NativeBindingNativeTests
             FileNotFoundException indirectMissing = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken));
             Assert.AreEqual("missing-pg-config", indirectMissing.FileName);
             Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
+            string callbackAccessor = NativeBindingCallbackImports.Prefix + signature.ToString(CultureInfo.InvariantCulture) + "_" + new string('1', 32);
+            byte[] callback = await CompileNativeObjectAsync("extern void *" + callbackAccessor + "(void *); void *entry(void) { return " + callbackAccessor + "((void *)0); }");
+            await File.WriteAllBytesAsync(consumer, callback, context.CancellationToken);
+            FileNotFoundException callbackMissing = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken));
+            Assert.AreEqual("missing-pg-config", callbackMissing.FileName);
+            Assert.AreEqual("previous-object\n", await File.ReadAllTextAsync(manifest, context.CancellationToken));
             byte[] empty = await CompileNativeObjectAsync("int no_imports(void) { return 42; }");
             await File.WriteAllBytesAsync(consumer, empty, context.CancellationToken);
             await NativeBindingLinkCommand.RunAsync(arguments, context.CancellationToken);

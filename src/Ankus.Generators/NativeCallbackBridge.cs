@@ -1,0 +1,71 @@
+namespace Ankus.Generators;
+
+/// <summary>
+/// Provides the primary native error and capability boundary used by selected native callback wrappers.
+/// </summary>
+internal static class NativeCallbackBridge
+{
+    /// <summary>
+    /// Dispatches a registered static managed handler and raises errors only after the managed frame returns.
+    /// </summary>
+    internal const string Source = """
+        typedef int (*AnkusManagedNativeCallback)(const AnkusNativeCallArgument *, size_t, void *, size_t, void *);
+
+        typedef struct AnkusNativeCallbackContext
+        {
+            AnkusError *error;
+            AnkusExecute execute;
+            AnkusMemoryApi *memory;
+            AnkusGucReadBinding read;
+            AnkusInitializationLog log;
+        } AnkusNativeCallbackContext;
+
+        #if !defined(WIN32)
+        __attribute__((visibility("hidden")))
+        #endif
+        void
+        ankus_dispatch_native_callback(AnkusManagedNativeCallback callback, const AnkusNativeCallArgument *arguments,
+            size_t count, void *result, size_t result_size)
+        {
+            if (callback == NULL)
+            {
+                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                    errmsg("Ankus native callback has no registered managed handler")));
+            }
+
+            if (ankus_initialization_state == 0 && !ankus_module_loading && !ankus_worker_restore_in_progress())
+            {
+                ankus_ensure_initialized();
+            }
+
+            MemoryContext caller = CurrentMemoryContext;
+            AnkusMemoryApi memory = {0};
+            ankus_memory_initialize(&memory);
+            AnkusError *error = MemoryContextAllocZero(caller, sizeof(AnkusError));
+            AnkusNativeCallbackContext context = { error,
+                IsTransactionState() && !ankus_worker_restore_in_progress() ? ankus_spi_execute : NULL,
+                &memory, ankus_read_guc, ankus_initialization_log };
+            PG_TRY();
+            {
+                ankus_fork_host_enter();
+                int status = callback(arguments, count, result, result_size, &context);
+                ankus_fork_host_exit();
+                if (status != 0)
+                {
+                    ankus_raise_error(error);
+                }
+            }
+            PG_CATCH();
+            {
+                MemoryContextSwitchTo(caller);
+                ankus_release_error(error);
+                pfree(error);
+                PG_RE_THROW();
+            }
+            PG_END_TRY();
+            MemoryContextSwitchTo(caller);
+            ankus_release_error(error);
+            pfree(error);
+        }
+        """;
+}

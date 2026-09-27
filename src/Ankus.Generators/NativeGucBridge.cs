@@ -427,43 +427,12 @@ internal static class NativeGucBridge
     /// <returns>The selected native implementation fragments.</returns>
     internal static string GetManagedSource(bool hasCheck, bool hasAssign, bool hasShow)
         => ReadSource +
-            (hasCheck || hasAssign || hasShow ? "\n\n" + ForkHost + "\n\n" + HookCommon : string.Empty) +
+            (hasCheck || hasAssign || hasShow ? "\n\n" + HookCommon : string.Empty) +
             (hasCheck || hasShow ? "\n\n" + PersistentResult : string.Empty) +
             (hasCheck ? "\n\n" + Check : string.Empty) +
             (hasAssign ? "\n\n" + Assign : string.Empty) +
             (hasShow ? "\n\n" + Show : string.Empty) +
             (hasCheck || hasAssign || hasShow ? "\n\n" + WorkerRestore : string.Empty);
-
-    /// <summary>
-    /// Resumes a dormant postmaster runtime only while a managed hook is executing.
-    /// </summary>
-    private const string ForkHost = """
-        #ifndef WIN32
-        extern int RhEnterForkHost(void);
-        extern int RhExitForkHost(void);
-
-        static void
-        ankus_fork_host_enter(void)
-        {
-            int status = RhEnterForkHost();
-            if (status != 1)
-                ereport(FATAL, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("Ankus runtime host entry failed: %d", status)));
-        }
-
-        static void
-        ankus_fork_host_exit(void)
-        {
-            int status = RhExitForkHost();
-            if (status != 1)
-                ereport(FATAL, (errcode(ERRCODE_INTERNAL_ERROR),
-                    errmsg("Ankus runtime host exit failed: %d", status)));
-        }
-        #else
-        static void ankus_fork_host_enter(void) { }
-        static void ankus_fork_host_exit(void) { }
-        #endif
-        """;
 
     /// <summary>
     /// Provides owned typed reads, cached conversion functions, and native error capture.
@@ -719,7 +688,7 @@ internal static class NativeGucBridge
         static void
         ankus_guc_ensure_managed_ready(void)
         {
-            if (!ankus_guc_replaying_worker_restore && ankus_registration_complete)
+            if (!ankus_guc_replaying_worker_restore && ankus_registration_complete && !ankus_module_loading)
                 ankus_ensure_initialized();
             else
                 ankus_guc_complete_worker_restore();

@@ -915,10 +915,16 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsFalse(Directory.Exists(Path.Combine(output, "published")));
     }
 
-    private static async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token)
+    private static async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token,
+        bool sharedPreload = false)
     {
         s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
+        if (sharedPreload)
+        {
+            configuration.Add("shared_preload_libraries = '" + PublishedExtension.Read(output).Library + "'");
+        }
+
         if (s_installation.Version.Major >= 18)
         {
             configuration.Insert(0, "extension_control_path = '" + EscapeSetting(output) + "'");

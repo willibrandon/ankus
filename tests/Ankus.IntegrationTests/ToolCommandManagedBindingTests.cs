@@ -436,6 +436,9 @@ public sealed partial class ToolCommandTests
             """, token);
         string[] options = ["-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
             "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath];
+        await File.WriteAllTextAsync(Path.Combine(provider, "BindingCallbacks.cs"), ManagedNativeCallbackSource, token);
+        await File.WriteAllTextAsync(Path.Combine(provider, "BindingHookCallbacks.cs"), NativeHookSource, token);
+        await File.WriteAllTextAsync(Path.Combine(consumer, "CallbackExports.cs"), NativeCallbackExportSource, token);
         string published = Path.Combine(root, "published");
         (await RunDotnetAsync(["publish", consumerProject, .. options, "-o", published], token))
             .EnsureSuccess("dotnet", ["publish"]);
@@ -498,6 +501,12 @@ public sealed partial class ToolCommandTests
             command.CommandText = "SELECT native_indirect_values()";
             Assert.AreEqual("42|FFFFFFFFFFFFFFD6|22012|42|True|42", await command.ExecuteScalarAsync(token));
             Assert.AreEqual("42|FFFFFFFFFFFFFFD6|22012|42|True|42", await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_managed_callback_values()";
+            const string Callbacks = "EEDCBA9876543210|FFDCBA9876543210|True|True|True|22023|managed callback café|owned callback detail|retry callback|22012|division by zero|EEDCBA9876543210|4|42";
+            Assert.AreEqual(Callbacks, await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(Callbacks, await command.ExecuteScalarAsync(token));
+            await AssertNativeCallbackWorkersAsync(connection, null, token);
+            await AssertNativeHookChainingAsync(command, token);
             command.CommandText = "SET extra_float_digits = 2; SELECT native_global_values()";
             Assert.AreEqual("2|-3|-3|-3|2|True|True", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT current_setting('extra_float_digits')::integer";
@@ -551,7 +560,10 @@ public sealed partial class ToolCommandTests
             Assert.IsEmpty(notices, "Native error recovery must not leave PostgreSQL's SPI stack unbalanced.");
             command.CommandText = "SELECT native_node_call(42)";
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+            await AssertNativeModuleLoadRetryAsync(cluster, token);
         }
+
+        await AssertNativeCallbackPreloadAsync(published, token);
 
         (await RunDotnetAsync(["clean", consumerProject, .. options], token)).EnsureSuccess("dotnet", ["clean"]);
         Assert.IsFalse(File.Exists(providerAssembly));
