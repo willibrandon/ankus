@@ -159,6 +159,7 @@ internal static class NativeErrorBridge
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext recovery = ankus_error_recovery_context(caller);
             uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             volatile int status = 0;
             PG_TRY();
@@ -210,7 +211,7 @@ internal static class NativeErrorBridge
                 ereport(FATAL, (errmsg("Unable to recover an Ankus initializer logging failure")));
             }
             PG_END_TRY();
-            InterruptHoldoffCount = interrupt_holdoff;
+            InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
             QueryCancelHoldoffCount = cancel_holdoff;
             return status;
         }

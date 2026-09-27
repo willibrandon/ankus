@@ -39,6 +39,7 @@ internal static class GuardedBackend
 
             MemoryContext caller_context = CurrentMemoryContext;
             uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             ResourceOwner caller_owner = CurrentResourceOwner;
             int caller_nest_level = GetCurrentTransactionNestLevel();
@@ -426,7 +427,7 @@ internal static class GuardedBackend
                 ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded SPI failure")));
             }
             PG_END_TRY();
-            InterruptHoldoffCount = interrupt_holdoff;
+            InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
             QueryCancelHoldoffCount = cancel_holdoff;
             return status;
         }

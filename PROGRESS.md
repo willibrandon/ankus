@@ -2668,7 +2668,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
-| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Pending |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; atomics, bounded containers, spinlock conveniences and remaining platform/version evidence are required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
@@ -8592,3 +8592,126 @@ are both completed successfully. The prior timeout-only commit's documentation
 run passed and its superseded CI run was cancelled. Cancelled runs are not
 counted as passing validation. These outcomes are recorded before the commit;
 they will be checked again immediately before pushing.
+
+### Shared storage and lightweight locks — implementation in progress
+
+The next required runtime area now has ordinary static `PgLwLock<T>` descriptors,
+explicit `PgSharedMemory.Initialize` registration, deferred unmanaged value
+initializers, and disposable shared/exclusive guards. The native bridge requests
+selected-header shared storage and named lock tranches, chains request/startup
+hooks, preserves existing values on attachment, and uses monotonic acquisition
+identities so an expired guard cannot release a replacement lock. Callback exit
+releases forgotten guards. Shared data contains unmanaged bytes and layout
+identity; managed initializer references remain process-local.
+
+Direct Runtime validation currently passes eleven cases covering exact names,
+type identity and values, deferred/default initialization, failed registration
+retry, initializer diagnostics, guard copies, disposal, nested callback cleanup,
+and foreign-thread/provider rejection. One generator case passes for ordinary
+registration and selected-header hook ordering. A first real-server attempt
+identified an incorrect preload flag name during native compilation; this is
+fixed against the PostgreSQL 18.6 headers, and the real-server test is running.
+The native guards also account for shared locks released by PostgreSQL error
+recovery when restoring interrupt holdoffs; this requires actual backend proof.
+
+The public shared-memory guide and README describe this API, but platform
+validation is not yet complete and this milestone is not committed. Contention,
+failure/recovery, Windows attachment, Release/full-suite/docs/API checks and
+review remain pending. Atomics, bounded shared collections, spinlock conveniences,
+static/dynamic background-worker APIs and the complete PostgreSQL/platform matrix
+remain required for the faithful port. No full-parity claim is made.
+
+The preceding callback milestone's Docs run 36304890456 completed successfully.
+CI run 36304890457 has successful quality/runtime jobs and all three platform
+test jobs still running at the latest check. Fresh outcomes will be recorded
+again before a commit and push.
+
+The first actual Linux x64/PostgreSQL 18.6 witness now passes in 3m49.622s.
+Independent backends observe exact signed/unsigned values and persistent shared
+writes; managed errors, native division errors, recursive acquisition rejection,
+forgotten/expired guards and replacement after subtransaction abort all recover.
+A statement timeout still fires after recovery, proving interrupts were not left
+disabled. Full Runtime and generator suites pass: 1,555 and 2,051 respectively,
+with zero failures/skips. Stronger startup-name/factory failure and observed
+reader/writer contention checks are running on Linux and Windows PostgreSQL 17.7.
+Review also preserves ordered initializer dependencies: a later factory can read
+an earlier initialized value in the postmaster; waiting before PostgreSQL process
+initialization is rejected instead of allowing a native PANIC. Those latest
+changes still require rerunning the backend witnesses before final verification.
+
+The stronger failure cases exposed two concrete defects, both still under final
+verification. On Linux, a failing shared-memory factory hung during startup:
+native cleanup called the managed diagnostic allocator after parking the
+postmaster runtime. Shared-memory/native-callback dispatch and configuration
+hook frames now keep the runtime active through owned-buffer cleanup, including
+native error unwinding. On Windows PostgreSQL 17.7, the first shared read crashed:
+`GetNamedLWLockTranche` consults a postmaster-private request array unavailable in
+the child. Following PostgreSQL's shared-address contract and pglogical's attach
+pattern, the shared header now retains the actual shared lock, validates that
+address on attachment, and registers its wait-event name in each process. No
+process-local managed/native registration pointer is placed in shared storage.
+
+The regression fixture now also checks previous-startup-hook ordering and its
+owned failure diagnostics, ordered initializer dependencies, and a rejected then
+successful postmaster configuration reload. Expanded Linux and Windows witnesses
+must finish successfully before this milestone is eligible to commit; the earlier
+Linux pass does not prove these later additions.
+
+The recovery runs now pass the expanded startup/attachment/contention cases on
+both systems: Linux x64/PostgreSQL 18.6 in 4m35.878s, and Windows x64/PostgreSQL
+17.7 in 7m05.437s, one test passed with zero failures/skips on each. This confirms
+the formerly hanging factory failure and Windows attachment crash are repaired.
+Documentation checking reports zero errors/warnings/hints. The final lifecycle
+test additionally verifies native startup-hook errors, postmaster configuration
+reload rejection/recovery, and recreation of shared storage after an owned test
+backend crashes. These additions are running before the full validation gates.
+
+The previous callback commit's hosted CI run 36304890457 is now terminal:
+quality and all runtime jobs pass; Linux passes in 31m14s and macOS in 41m44s.
+Windows is cancelled at 60m07s with the explicit annotation that the job exceeded
+its one-hour execution limit. All five Windows unit modules finished successfully;
+integration had not completed. Docs run 36304890456 passed. The Windows log shows
+an 11m21s solution build before integration starts, despite a NuGet cache hit.
+The 60-minute limit remains unchanged. This timeout is unresolved; build-time
+investigation is continuing without suppressing checks or sharding the suite.
+
+Final shared-memory review also removes callback roots as soon as a lock lease
+is released or acquisition fails, so long-running callbacks do not accumulate
+disposed leases. A weak-reference lifetime witness joins the direct checks:
+all 15 shared-memory Runtime cases pass with zero failures/skips. The latest
+Release build passes with zero warnings/errors; the site builds 219 pages,
+documentation checks report zero errors/warnings/hints, and API freshness
+verifies 176 pages and 2,269 members. Full Linux validation and the final Windows
+lifecycle witness are running. The reload fixture now writes the isolated
+cluster's configuration directly because `ALTER SYSTEM` correctly validates
+and rejects the deliberately bad value before a postmaster reload can occur.
+
+The final Windows x64/PostgreSQL 17.7 shared-memory lifecycle witness passes in
+7m42.215s, one test passed with zero failures/skips. It covers prior startup-hook
+ordering and owned error cleanup, rejected then accepted postmaster reloads,
+independent backend attachment, observed reader/writer contention, native and
+managed recovery, stale/replaced guards, and reinitialization after an owned
+backend crash. This focused pass does not replace the hosted full Windows suite,
+whose preceding run still timed out at one hour.
+
+The completed root `dotnet test` run passes on Linux x64/PostgreSQL 18.6:
+**7,841 passed, zero failed, six Windows-only skips, 7,847 total**, in
+14m55.579s. Integration passes in 14m54.887s and all five unit modules pass.
+This includes the final startup-hook, configuration-reload, crash-recovery and
+lease-retention changes. Release, API freshness, documentation checking and
+site generation passed for the same implementation. Atomics, bounded shared
+containers, spinlocks, high-level workers and the complete PostgreSQL/platform
+matrix remain required; the faithful port is not complete.
+
+Immediately before committing, the previous hosted outcomes are checked again:
+[CI 36304890457](https://github.com/willibrandon/ankus/actions/runs/36304890457)
+remains cancelled because Windows exceeded one hour; its quality, runtime,
+Linux and macOS jobs passed.
+[Docs 36304890456](https://github.com/willibrandon/ankus/actions/runs/36304890456)
+passed. The preceding `95031c5` CI and Docs runs also passed. The unresolved
+Windows timeout is recorded without treating it as successful validation.
+Local binary-log analysis identifies native binding preparation as the dominant
+Windows build cost; parallel builds are already functioning. Reducing that cost
+within the existing 60-minute limit is the next CI repair priority. No standards
+are reduced and the full suite remains in each platform job. These outcomes
+will be refreshed again immediately before pushing.

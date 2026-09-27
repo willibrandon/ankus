@@ -105,6 +105,7 @@ export default defineConfig({
             { label: 'Tuple locations', slug: 'item-pointers' },
             { label: 'Transaction callbacks', slug: 'transaction-callbacks' },
             { label: 'Memory contexts', slug: 'memory-contexts' },
+            { label: 'Shared memory and locks', slug: 'shared-memory' },
             { label: 'StringInfo buffers', slug: 'stringinfo' },
             { label: 'PostgreSQL lists', slug: 'lists' },
             { label: 'Arrays', slug: 'arrays' },

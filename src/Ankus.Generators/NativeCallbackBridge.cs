@@ -45,27 +45,28 @@ internal static class NativeCallbackBridge
             AnkusNativeCallbackContext context = { error,
                 IsTransactionState() && !ankus_worker_restore_in_progress() ? ankus_spi_execute : NULL,
                 &memory, ankus_read_guc, ankus_initialization_log };
+            volatile bool entered = false;
             PG_TRY();
             {
                 ankus_fork_host_enter();
+                entered = true;
                 int status = callback(arguments, count, result, result_size, &context);
-                ankus_fork_host_exit();
                 if (status != 0)
                 {
                     ankus_raise_error(error);
                 }
             }
-            PG_CATCH();
+            PG_FINALLY();
             {
                 MemoryContextSwitchTo(caller);
                 ankus_release_error(error);
                 pfree(error);
-                PG_RE_THROW();
+                if (entered)
+                {
+                    ankus_fork_host_exit();
+                }
             }
             PG_END_TRY();
-            MemoryContextSwitchTo(caller);
-            ankus_release_error(error);
-            pfree(error);
         }
         """;
 }

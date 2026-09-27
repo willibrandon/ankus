@@ -497,7 +497,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(PgModuleLoadEmitter.State);
         }
 
-        if (hasNativeCallbacks || hasGucHooks)
+        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks || hasGucHooks)
         {
             native.AppendLine(NativeForkHostBridge.Source);
         }
@@ -529,6 +529,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         if (initializer is not null || moduleLoad is not null || hasNativeCallbacks)
         {
             native.AppendLine(NativeErrorBridge.InitializationLogging);
+            native.AppendLine(NativeSharedMemoryBridge.Initialization);
+            registration.Insert(0, "        ankus_shared_initialize = ankus_shared_run_initializer;\n");
         }
 
         if (moduleLoad is not null)

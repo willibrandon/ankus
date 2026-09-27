@@ -916,7 +916,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     }
 
     private static async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token,
-        bool sharedPreload = false)
+        bool sharedPreload = false, string[]? additionalConfiguration = null)
     {
         s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
@@ -928,6 +928,11 @@ public sealed partial class ToolCommandTests(TestContext context)
         if (s_installation.Version.Major >= 18)
         {
             configuration.Insert(0, "extension_control_path = '" + EscapeSetting(output) + "'");
+        }
+
+        if (additionalConfiguration is not null)
+        {
+            configuration.AddRange(additionalConfiguration);
         }
 
         return await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions

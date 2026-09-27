@@ -271,6 +271,10 @@ internal enum NativeMemoryOperation
     /// Executes a generated C call body beneath the callback's native error guard.
     /// </summary>
     NativeCall = 34,
+    /// <summary>
+    /// Registers, attaches or accesses a PostgreSQL shared-memory value and its lock.
+    /// </summary>
+    SharedMemory = 35,
 }
 
 /// <summary>

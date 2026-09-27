@@ -63,7 +63,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_ITEM_POINTER = 31,
             ANKUS_MEMORY_NATIVE_BINDING = 32,
             ANKUS_MEMORY_FORMAT_NODE = 33,
-            ANKUS_MEMORY_NATIVE_CALL = 34
+            ANKUS_MEMORY_NATIVE_CALL = 34,
+            ANKUS_MEMORY_SHARED = 35
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -914,7 +915,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + NativeSharedMemoryBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -972,6 +973,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_NATIVE_CALL:
                     ankus_memory_native_call(request, result);
+                    break;
+                case ANKUS_MEMORY_SHARED:
+                    ankus_memory_shared(request, result);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);
@@ -1325,6 +1329,14 @@ internal static class NativeMemoryBridge
             AnkusMemoryResult *result, AnkusError *error)
         {
             memset(error, 0, sizeof(*error));
+            if (request->operation == ANKUS_MEMORY_SHARED && request->flags == 5)
+            {
+                /* Lease release never allocates or raises ERROR. It remains available
+                 * during callback cleanup and preserves the balanced interrupt count. */
+                ankus_shared_release(request);
+                return 0;
+            }
+
             if (ankus_memory_error_cleanup)
             {
                 /* FlushErrorState would recursively reclaim this callback's owner and
@@ -1337,6 +1349,7 @@ internal static class NativeMemoryBridge
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext recovery = ankus_memory_contains(ErrorContext, caller) ? ErrorContext : caller;
             uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             int status = 0;
             PG_TRY();
@@ -1368,9 +1381,9 @@ internal static class NativeMemoryBridge
                 PG_END_TRY();
             }
             PG_END_TRY();
-            if (status != 0 || request->operation != ANKUS_MEMORY_NATIVE_CALL)
+            if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED))
             {
-                InterruptHoldoffCount = interrupt_holdoff;
+                InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
                 QueryCancelHoldoffCount = cancel_holdoff;
             }
 

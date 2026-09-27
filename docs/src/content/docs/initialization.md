@@ -98,3 +98,7 @@ Each backend receives its own copy of the initialized managed state. Changes mad
 in one backend do not change another backend or the postmaster. Tasks, timers,
 garbage collection, finalizers, and managed configuration hooks continue to work
 after startup. Extension projects use this automatically; no host setup is needed.
+
+To share values across backends, register static `PgLwLock<T>` descriptors from
+`PgModuleLoad` using `PgSharedMemory.Initialize`. See
+[shared memory and locks](/shared-memory/) for storage and guard lifetimes.

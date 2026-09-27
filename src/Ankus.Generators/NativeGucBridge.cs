@@ -708,6 +708,7 @@ internal static class NativeGucBridge
             void *pending_extra;
             char *pending_string;
             bool snapshot_owned;
+            bool fork_entered;
         } AnkusGucFrame;
 
         static void
@@ -840,7 +841,12 @@ internal static class NativeGucBridge
             ankus_release_error(&frame->error);
             ankus_guc_free(frame->pending_extra);
             ankus_guc_free(frame->pending_string);
+            bool fork_entered = frame->fork_entered;
             pfree(frame);
+            if (fork_entered)
+            {
+                ankus_fork_host_exit();
+            }
         }
 
         static void
@@ -1018,9 +1024,9 @@ internal static class NativeGucBridge
                     }
 
                     ankus_fork_host_enter();
+                    frame->fork_entered = true;
                     int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
                         &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);
-                    ankus_fork_host_exit();
                     if (frame->snapshot_owned)
                     {
                         frame->snapshot_owned = false;
@@ -1135,9 +1141,9 @@ internal static class NativeGucBridge
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, accepted, extra, frame);
                     ankus_fork_host_enter();
+                    frame->fork_entered = true;
                     int status = definition->hook(1, frame->arguments, frame->results, 0,
                         &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
-                    ankus_fork_host_exit();
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :
                             ankus_log_level(frame->error.report_level - 1));
@@ -1189,9 +1195,9 @@ internal static class NativeGucBridge
                     frame = palloc0(sizeof(AnkusGucFrame));
                     ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
                     ankus_fork_host_enter();
+                    frame->fork_entered = true;
                     int status = definition->hook(2, frame->arguments, frame->results, 0,
                         &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
-                    ankus_fork_host_exit();
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ?
                             (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));
