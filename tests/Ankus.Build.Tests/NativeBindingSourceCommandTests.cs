@@ -13,7 +13,7 @@ public sealed class NativeBindingSourceCommandTests(TestContext context)
     [TestMethod]
     [DataRow(0)]
     [DataRow(2)]
-    [DataRow(10)]
+    [DataRow(11)]
     public async Task InvalidSourceCommandAritiesFailExplicitly(int count)
     {
         ArgumentException error = await Assert.ThrowsExactlyAsync<ArgumentException>(() =>

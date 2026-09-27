@@ -1,0 +1,108 @@
+namespace Ankus.Build.Tests;
+
+public sealed partial class NativeBindingNativeTests
+{
+    /// <summary>
+    /// Actual preprocessing observes same-timestamp edits, unused macros, include precedence and target options.
+    /// </summary>
+    [TestMethod]
+    public async Task NativePreprocessingTracksContentAndIncludeResolution()
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-preprocessing-").FullName;
+        try
+        {
+            string earlier = Directory.CreateDirectory(Path.Combine(directory, "earlier")).FullName;
+            string later = Directory.CreateDirectory(Path.Combine(directory, "later")).FullName;
+            string relocated = Directory.CreateDirectory(Path.Combine(directory, "relocated")).FullName;
+            string file = Path.Combine(later, "binding-input.h");
+            const string Header = "#define WIDTH 3\n#define UNUSED 37\ntypedef struct Entry { int cells[WIDTH]; } Entry;\n";
+            const string Source = "#include <binding-input.h>\n#ifdef EXTRA\nextern Entry additional;\n#endif\n";
+            string[] options = OperatingSystem.IsWindows() ? ["/nologo", "/WX", "/I" + earlier, "/I" + later]
+                : ["-Werror", "-I", earlier, "-I", later];
+            await File.WriteAllTextAsync(file, Header, context.CancellationToken);
+            DateTime timestamp = File.GetLastWriteTimeUtc(file);
+            NativeBindingPreprocessed original = await ObserveAsync(directory, options);
+            Assert.IsGreaterThanOrEqualTo(20, original.ClangMajor);
+            Assert.AreEqual(original, await ObserveAsync(relocated, options));
+
+            await File.WriteAllTextAsync(file, Header.Replace("WIDTH 3", "WIDTH 4", StringComparison.Ordinal), context.CancellationToken);
+            File.SetLastWriteTimeUtc(file, timestamp);
+            NativeBindingPreprocessed resized = await ObserveAsync(directory, options);
+            Assert.AreNotEqual(original.Hash, resized.Hash);
+            await File.WriteAllTextAsync(file, Header.Replace("UNUSED 37", "UNUSED 38", StringComparison.Ordinal), context.CancellationToken);
+            File.SetLastWriteTimeUtc(file, timestamp);
+            NativeBindingPreprocessed macro = await ObserveAsync(directory, options);
+            Assert.AreNotEqual(original.Hash, macro.Hash);
+            Assert.AreNotEqual(resized.Hash, macro.Hash);
+
+            string shadow = Path.Combine(earlier, "binding-input.h");
+            await File.WriteAllTextAsync(shadow, Header, context.CancellationToken);
+            Assert.AreEqual(original, await ObserveAsync(directory, options));
+            await File.WriteAllTextAsync(shadow, Header.Replace("WIDTH 3", "WIDTH 9", StringComparison.Ordinal), context.CancellationToken);
+            NativeBindingPreprocessed selected = await ObserveAsync(directory, options);
+            Assert.AreNotEqual(original.Hash, selected.Hash);
+            Assert.AreNotEqual(macro.Hash, selected.Hash);
+            NativeBindingPreprocessed defined = await ObserveAsync(directory, [.. options, OperatingSystem.IsWindows() ? "/DEXTRA" : "-DEXTRA"]);
+            Assert.AreNotEqual(selected.Hash, defined.Hash);
+            File.Delete(shadow);
+            Assert.AreEqual(macro, await ObserveAsync(directory, options));
+
+            Task<NativeBindingPreprocessed> ObserveAsync(string working, string[] arguments)
+                => NativeBindingPreprocessor.ObserveAsync(OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang",
+                    arguments, Source, working, context.CancellationToken);
+        }
+        finally { await DeleteDirectoryAsync(directory); }
+    }
+
+    /// <summary>
+    /// Semantic compiler configuration changes invalidate reuse even when preprocessing produces identical tokens.
+    /// </summary>
+    [TestMethod]
+    public async Task NativePreprocessingTracksEffectiveCompilerConfiguration()
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-preprocessing-options-").FullName;
+        try
+        {
+            string file = Path.Combine(directory, "semantic.cfg");
+            string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
+            string prefix = OperatingSystem.IsWindows() ? "/clang:" : "";
+            string[] options = ["--config=" + file];
+            const string Source = "typedef struct Entry { char first; int second; } Entry;\n";
+            await File.WriteAllTextAsync(file, prefix + "-fpack-struct=1\n", context.CancellationToken);
+            DateTime timestamp = File.GetLastWriteTimeUtc(file);
+            NativeBindingPreprocessed original = await NativeBindingPreprocessor.ObserveAsync(compiler, options, Source, directory, context.CancellationToken);
+            await File.WriteAllTextAsync(file, prefix + "-fpack-struct=2\n", context.CancellationToken);
+            File.SetLastWriteTimeUtc(file, timestamp);
+            NativeBindingPreprocessed changed = await NativeBindingPreprocessor.ObserveAsync(compiler, options, Source, directory, context.CancellationToken);
+            Assert.AreEqual(original.Hash, changed.Hash);
+            Assert.AreNotEqual(original.InvocationHash, changed.InvocationHash);
+            await File.WriteAllTextAsync(file, prefix + "-fpack-struct=1\n", context.CancellationToken);
+            Assert.AreEqual(original, await NativeBindingPreprocessor.ObserveAsync(compiler, options, Source, directory, context.CancellationToken));
+        }
+        finally { await DeleteDirectoryAsync(directory); }
+    }
+
+    /// <summary>
+    /// Failed and cancelled observations cannot provide a content identity; a corrected compiler input recovers.
+    /// </summary>
+    [TestMethod]
+    public async Task NativePreprocessingRejectsCompilerFailuresAndRecovers()
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-preprocessing-failure-").FullName;
+        try
+        {
+            string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
+            InvalidOperationException failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                NativeBindingPreprocessor.ObserveAsync(compiler, [], "#error deliberate_preprocessing_failure\n", directory, context.CancellationToken));
+            Assert.Contains("deliberate_preprocessing_failure", failure.Message);
+            using var cancellation = new CancellationTokenSource();
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                NativeBindingPreprocessor.ObserveAsync(compiler, [], "int value;\n", directory, cancellation.Token));
+            NativeBindingPreprocessed recovered = await NativeBindingPreprocessor.ObserveAsync(compiler, [], "int value;\n", directory, context.CancellationToken);
+            Assert.AreEqual(64, recovered.Hash.Length);
+            Assert.AreEqual(recovered, await NativeBindingPreprocessor.ObserveAsync(compiler, [], "int value;\n", directory, context.CancellationToken));
+        }
+        finally { await DeleteDirectoryAsync(directory); }
+    }
+}

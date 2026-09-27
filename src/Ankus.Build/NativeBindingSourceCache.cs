@@ -1,0 +1,123 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Ankus.PgConfig;
+
+namespace Ankus.Build;
+
+/// <summary>
+/// Reuses semantic collection only after observing current preprocessing and repeating native contract verification.
+/// </summary>
+internal static class NativeBindingSourceCache
+{
+    /// <summary>
+    /// Names the location-independent source artifacts copied into each consuming project.
+    /// </summary>
+    internal static IReadOnlyList<string> Artifacts { get; } = Array.AsReadOnly<string>(
+    [
+        "native-records.json", "native-availability.json", "native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity",
+    ]);
+
+    /// <summary>
+    /// Leases content-verified generated sources after current header and native compiler checks succeed.
+    /// </summary>
+    internal static async Task<NativeBindingCacheLease> GetAsync(NativeBindingCatalog catalog, NativeBindingLayout layout,
+        string[] arguments, string cache, CancellationToken cancellationToken)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-source-").FullName;
+        try
+        {
+            PostgresInstallation installation = arguments[1].Length == 0
+                ? await PostgresInstallation.DiscoverAsync(catalog.PostgresMajor, cancellationToken)
+                : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
+            string compiler = NativeBindingRecordCommand.FindCompiler(arguments.Length >= 8 && arguments[7].Length != 0 ? arguments[7]
+                : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang");
+            string[] frontend = ["", arguments[0], arguments[1], directory, compiler,
+                arguments.Length >= 5 ? arguments[4] : "", arguments.Length >= 6 ? arguments[5] : "", arguments.Length >= 7 ? arguments[6] : ""];
+            List<string> options = NativeBindingHeaderCommand.CreateArguments(installation, frontend);
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(catalog.PostgresMajor));
+            string headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, catalog.PostgresMajor);
+            NativeBindingPreprocessed observation = await NativeBindingPreprocessor.ObserveAsync(compiler, options, headers, directory, cancellationToken);
+            string library = arguments.Length >= 9 && arguments[8].Length != 0 ? Path.GetFullPath(arguments[8])
+                : await NativeBindingRecordCommand.FindLibraryAsync(compiler, observation.ClangMajor, cancellationToken);
+            if (!File.Exists(library)) { throw new FileNotFoundException("Cannot locate the selected libclang library.", library); }
+
+            NativeBindingCacheFile[] tools = await NativeBindingCache.SnapshotAsync(ToolFiles(compiler, library), cancellationToken);
+            string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+            {
+                Observation = observation,
+                Layout = layout,
+                Tools = tools,
+                Compiler = compiler,
+                Library = library,
+                Options = options,
+                Runtime = Environment.Version.ToString(),
+            }))));
+            bool produced = false;
+            NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(Path.Combine(cache, "sources"), key, async (stage, token) =>
+            {
+                produced = true;
+                string[] selected = [arguments[0], arguments[1], stage,
+                    arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7], compiler, library];
+                NativeBindingCollection collection = await NativeBindingCollectionCommand.RunAsync(catalog, selected, token);
+                NativeHeaderRecords records = collection.Records;
+                string[] calls = [.. records.Headers.Symbols.Where(pair => pair.Value.IsFunction &&
+                    records.Graph.Types[records.Graph.Types[records.Graph.Roots[pair.Key]].Canonical].Function is { HasPrototype: true, IsVariadic: false })
+                    .Select(static pair => pair.Key)];
+                NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, catalog, layout, calls);
+                await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[0]), JsonSerializer.Serialize(records, NativeBindingRecordWorker.JsonOptions) + "\n", token);
+                await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[1]), JsonSerializer.Serialize(collection.Availability) + "\n", token);
+                await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[2]), binding.Source, token);
+                await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[3]), binding.AssemblyName + "\n", token);
+                await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[4]), binding.AbiIdentity + "\n", token);
+                await VerifyObservationAsync(token);
+                return tools;
+            }, cancellationToken);
+            try
+            {
+                if (!produced)
+                {
+                    await using FileStream stream = File.OpenRead(Path.Combine(lease.Directory, Artifacts[0]));
+                    NativeHeaderRecords records = await JsonSerializer.DeserializeAsync<NativeHeaderRecords>(stream,
+                        NativeBindingRecordWorker.JsonOptions, cancellationToken) ?? throw new FormatException("Missing cached native declarations.");
+                    await NativeBindingCollectionCommand.VerifyAsync(records, roots.Source, installation, arguments, directory, cancellationToken);
+                    await VerifyObservationAsync(cancellationToken);
+                }
+
+                Console.WriteLine(produced ? "Native binding sources: collected and verified." : "Native binding sources: reused after native verification.");
+                await NativeBuildDirectory.DeleteAsync(directory);
+                return lease;
+            }
+            catch
+            {
+                await lease.DisposeAsync();
+                throw;
+            }
+
+            async Task VerifyObservationAsync(CancellationToken token)
+            {
+                NativeBindingCacheFile[] current = await NativeBindingCache.SnapshotAsync(ToolFiles(compiler, library), token);
+                if (observation != await NativeBindingPreprocessor.ObserveAsync(compiler, options, headers, directory, token) ||
+                    !tools.SequenceEqual(current))
+                {
+                    throw new IOException("Native headers or compiler inputs changed during binding collection.");
+                }
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) { await NativeBuildDirectory.DeleteAsync(directory); }
+        }
+    }
+
+    private static IEnumerable<string> ToolFiles(string compiler, string library)
+    {
+        string[] directories = [Path.GetDirectoryName(compiler)!, Path.GetDirectoryName(library)!];
+        return directories.Distinct(StringComparer.Ordinal).SelectMany(static directory => Directory.GetFiles(directory))
+            .Where(static file => file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".dylib", StringComparison.Ordinal) ||
+                Path.GetFileName(file).Contains(".so", StringComparison.Ordinal))
+            .Append(compiler).Append(library).Append(typeof(NativeBindingSourceCache).Assembly.Location)
+            .Select(static file => new FileInfo(file).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? Path.GetFullPath(file))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+    }
+}

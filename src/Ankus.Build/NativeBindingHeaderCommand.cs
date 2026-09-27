@@ -26,7 +26,7 @@ internal static class NativeBindingHeaderCommand
         int major = int.Parse(arguments[1], NumberStyles.None, CultureInfo.InvariantCulture);
         NativeBindingRawCatalog raw = NativeBindingResources.ReadRawCatalog(major);
         string[] names = [.. (await File.ReadAllLinesAsync(arguments[0], cancellationToken)).Where(static line => !string.IsNullOrWhiteSpace(line)).Select(static line => line.Trim())];
-        NativeHeaderRequest[] requests = [.. names.Select(name => Request(raw, name))];
+        NativeHeaderRequest[] requests = [.. names.Select(name => NativeBindingHeaderAvailability.Request(raw, name))];
         string source = NativeBindingHeaderParser.GenerateSource(
             NativeBindingHeaderTarget.GenerateSource(NativeBindingResources.ReadHeaders(major), major), requests);
         PostgresInstallation installation = arguments[2].Length == 0 ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
@@ -64,23 +64,8 @@ internal static class NativeBindingHeaderCommand
         if (dumpAst && serializedAst is not null) { throw new ArgumentException("Select one native AST output format.", nameof(serializedAst)); }
 
         string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
-        var options = new List<string>();
-        if (OperatingSystem.IsWindows())
-        {
-            options.AddRange(["/nologo", "/std:c11", "/WX", "/Zs", "/I" + installation.ServerIncludeDirectory, "/I" + installation.IncludeDirectory,
-                "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"), "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc")]);
-            string libraries = arguments.Length >= 6 ? arguments[5] : "";
-            options.AddRange(WindowsToolchain.GetIncludeDirectories(libraries).Select(static path => "/I" + path));
-        }
-        else
-        {
-            options.AddRange(installation.PreprocessorArguments);
-            options.AddRange(["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", "-isystem", installation.ServerIncludeDirectory,
-                "-isystem", installation.IncludeDirectory]);
-        }
-
-        if (arguments.Length == 8 && arguments[7].Length != 0) { options.Add("--target=" + arguments[7]); }
-
+        List<string> options = CreateArguments(installation, arguments);
+        options.Add(OperatingSystem.IsWindows() ? "/Zs" : "-fsyntax-only");
         if (dumpAst) { options.AddRange(["-Xclang", "-ast-dump=json"]); }
 
         if (serializedAst is not null) { options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]); }
@@ -89,9 +74,34 @@ internal static class NativeBindingHeaderCommand
     }
 
     /// <summary>
+    /// Retains the same language, diagnostic, include and target options for preprocessing and semantic inspection.
+    /// </summary>
+    internal static List<string> CreateArguments(PostgresInstallation installation, string[] arguments)
+    {
+        var options = new List<string>();
+        if (OperatingSystem.IsWindows())
+        {
+            options.AddRange(["/nologo", "/std:c11", "/WX", "/I" + installation.ServerIncludeDirectory, "/I" + installation.IncludeDirectory,
+                "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"), "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc")]);
+            string libraries = arguments.Length >= 6 ? arguments[5] : "";
+            options.AddRange(WindowsToolchain.GetIncludeDirectories(libraries).Select(static path => "/I" + path));
+        }
+        else
+        {
+            options.AddRange(installation.PreprocessorArguments);
+            options.AddRange(["-std=c11", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
+                "-isystem", installation.IncludeDirectory]);
+        }
+
+        if (arguments.Length == 8 && arguments[7].Length != 0) { options.Add("--target=" + arguments[7]); }
+
+        return options;
+    }
+
+    /// <summary>
     /// Captures a frontend's structured output with a finite memory-independent byte limit.
     /// </summary>
-    internal static async Task CompileAsync(string compiler, IReadOnlyList<string> arguments, string ast, string directory,
+    internal static async Task<string> CompileAsync(string compiler, IReadOnlyList<string> arguments, string ast, string directory,
         CancellationToken cancellationToken, bool inspectBodies = false)
     {
         var start = new ProcessStartInfo(compiler)
@@ -136,6 +146,8 @@ internal static class NativeBindingHeaderCommand
 
                 throw new InvalidOperationException($"{compiler} exited with {process.ExitCode}: {error}");
             }
+
+            return error;
         }
         catch
         {
@@ -164,18 +176,6 @@ internal static class NativeBindingHeaderCommand
 
             await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
         }
-    }
-
-    private static NativeHeaderRequest Request(NativeBindingRawCatalog raw, string name)
-    {
-        if (raw.Functions.TryGetValue(name, out NativeBindingFunction? function))
-        {
-            return new(name, function.NativeSymbol == name + "__pgrx_cshim" ? name : function.NativeSymbol, true);
-        }
-
-        if (raw.Globals.TryGetValue(name, out NativeBindingGlobal? global)) { return new(name, global.NativeSymbol, false); }
-
-        throw new FormatException($"Unknown native function or global '{name}'.");
     }
 }
 

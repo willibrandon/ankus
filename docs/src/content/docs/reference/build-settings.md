@@ -20,6 +20,28 @@ Set extension properties in your project file:
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
+| `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |
+
+Binding reuse checks file contents and current compiler inputs. Native layout
+and declaration checks still run against the selected installation. Each project
+receives its own companion files, so cleaning one project does not remove another
+project's outputs. The companion restore follows the consuming project's NuGet
+feeds, configuration, source mappings and package directory.
+On Windows, choose a short cache path so MSVC can open its native objects.
+
+When a selected-header function is supplied by your own native code, include its
+object file or library through the ordinary `NativeLibrary` item:
+
+```xml
+<ItemGroup>
+  <NativeLibrary Include="native/libprovider.a" />
+</ItemGroup>
+```
+
+Use an object or archive compiled for the extension's target, such as a `.lib`
+archive on Windows. PostgreSQL and the native linker resolve the function's
+actual definition; its generated `NativeMethods` entry retains the native error
+guard.
 
 ## Project SDK
 

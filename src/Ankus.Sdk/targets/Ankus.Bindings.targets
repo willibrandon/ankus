@@ -33,14 +33,15 @@
       <_AnkusBuildTool Condition="'@(_AnkusBuildToolAssembly)' != ''">@(_AnkusBuildToolAssembly->'%(FullPath)')</_AnkusBuildTool>
       <_AnkusBindingsOutput>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'ankus-bindings'))</_AnkusBindingsOutput>
       <_AnkusBindingsDirectory>$(_AnkusBindingsOutput)/</_AnkusBindingsDirectory>
-      <_AnkusBindingsProject>$(_AnkusBindingsDirectory)Ankus.NativeBindings.csproj</_AnkusBindingsProject>
       <_AnkusBindingsCompiler>@(_AnkusBindingToolchain->'%(Compiler)')</_AnkusBindingsCompiler>
       <_AnkusBindingsLibraries>@(_AnkusBindingToolchain->'%(LibraryDirectories)')</_AnkusBindingsLibraries>
       <_AnkusBindingsTargetTriple>@(_AnkusBindingToolchain->'%(TargetTriple)')</_AnkusBindingsTargetTriple>
+      <!-- A final dot preserves quoted Windows directory arguments with a trailing backslash. -->
+      <_AnkusBindingCacheDirectory Condition="'$(AnkusBindingCacheDirectory)' != ''">$([MSBuild]::EnsureTrailingSlash('$(AnkusBindingCacheDirectory)')).</_AnkusBindingCacheDirectory>
       <_AnkusBindingsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-sources &quot;$(AnkusPostgresMajor)&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusBindingsOutput)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingsCompiler)&quot; &quot;$(_AnkusBindingsLibraries)&quot; &quot;$(RuntimeIdentifier)&quot; &quot;$(_AnkusBindingsTargetTriple)&quot;</_AnkusBindingsCommand>
       <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(AnkusClangPath)&quot; &quot;$(AnkusLibClangPath)&quot;</_AnkusBindingsCommand>
-      <_AnkusBindingsRemoveProperties>TargetFramework;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishAot;NativeLib;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;ProjectAssetsFile;MSBuildProjectExtensionsPath;ArtifactsPath;UseArtifactsOutput;ArtifactsProjectName;ArtifactsPivots;Version;AssemblyVersion;FileVersion;InformationalVersion</_AnkusBindingsRemoveProperties>
+      <_AnkusBindingsCommand>$(_AnkusBindingsCommand) &quot;$(_AnkusBindingCacheDirectory)&quot;</_AnkusBindingsCommand>
     </PropertyGroup>
     <ItemGroup>
       <_AnkusBindingRuntime Include="@(ReferencePath)" Condition="'%(Filename)' == 'Ankus.Runtime'" />
@@ -51,17 +52,15 @@
       <Output TaskParameter="Lines" PropertyName="_AnkusBindingAssemblyName" />
     </ReadLinesFromFile>
     <PropertyGroup>
-      <_AnkusBindingProperties>AnkusBindingTargetFramework=$(TargetFramework);AnkusBindingAssemblyName=$(_AnkusBindingAssemblyName);AnkusRuntimeAssembly=@(_AnkusBindingRuntime);Configuration=$(Configuration)</_AnkusBindingProperties>
+      <!-- A final dot keeps directory arguments literal when Windows parses a closing quote after a backslash. -->
+      <_AnkusBindingSdkDirectory>$([MSBuild]::EnsureTrailingSlash('$(MSBuildToolsPath)')).</_AnkusBindingSdkDirectory>
+      <_AnkusBindingCompileCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-compile &quot;$(_AnkusBindingsOutput)&quot; &quot;@(_AnkusBindingRuntime)&quot; &quot;$(TargetFramework)&quot; &quot;$(Configuration)&quot;</_AnkusBindingCompileCommand>
+      <_AnkusBindingCompileCommand>$(_AnkusBindingCompileCommand) &quot;$(NETCoreSdkVersion)&quot; &quot;$(_AnkusBindingSdkDirectory)&quot; &quot;$(ProjectAssetsFile)&quot; &quot;$(_AnkusBindingCacheDirectory)&quot;</_AnkusBindingCompileCommand>
     </PropertyGroup>
-    <!-- Give restore a separate evaluation so Build sees the newly generated NuGet imports. -->
-    <MSBuild Projects="$(_AnkusBindingsProject)" Targets="Restore"
-             Properties="$(_AnkusBindingProperties);ExcludeRestorePackageImports=true" RemoveProperties="$(_AnkusBindingsRemoveProperties)" />
-    <MSBuild Projects="$(_AnkusBindingsProject)" Targets="Build"
-             Properties="$(_AnkusBindingProperties)" RemoveProperties="$(_AnkusBindingsRemoveProperties)">
-      <Output TaskParameter="TargetOutputs" ItemName="_AnkusBindingAssembly" />
-    </MSBuild>
-    <WriteLinesToFile File="$(_AnkusBindingsDirectory)native-binding.assembly-path"
-                      Lines="@(_AnkusBindingAssembly->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <Exec Command="$(_AnkusBindingCompileCommand)" />
+    <ReadLinesFromFile File="$(_AnkusBindingsDirectory)native-binding.assembly-path">
+      <Output TaskParameter="Lines" ItemName="_AnkusBindingAssembly" />
+    </ReadLinesFromFile>
     <ItemGroup>
       <!-- A referenced extension can already supply this exact companion contract. -->
       <ReferencePath Remove="@(ReferencePath)" Condition="'%(Filename)' == '$(_AnkusBindingAssemblyName)'" />

@@ -72,7 +72,8 @@ internal static partial class NativeBindingRecordChecks
                 string alias = TypeName(index);
                 _source.Append("typedef ").Append(Declare(index, alias)).AppendLine(";");
                 NativeRecordType type = _graph.Types[index];
-                Storage(alias, type.Size, type.Alignment, "type " + Number(index));
+                bool incompleteArray = type.Size is null && Canonical(index).Kind == "array";
+                Storage(alias, type.Size, type.Alignment, "type " + Number(index), incompleteArray);
                 if (type.Kind == "alias")
                 {
                     string underlying = alias + "_underlying";
@@ -212,11 +213,28 @@ internal static partial class NativeBindingRecordChecks
             }
         }
 
-        private void Storage(string type, long? size, long? alignment, string description)
+        private void Storage(string type, long? size, long? alignment, string description, bool incompleteArray = false)
         {
             if (size is long count) { Check("sizeof(" + type + ") == " + Number(count), "size " + description); }
 
-            if (alignment is long boundary) { Check("_Alignof(" + type + ") == " + Number(boundary), "alignment " + description); }
+            if (alignment is long boundary)
+            {
+                if (incompleteArray)
+                {
+                    // GCC rejects _Alignof on an incomplete array. Completing an unevaluated
+                    // extern declaration retains the original typedef's alignment attributes.
+                    // Measuring only its element would lose an over-aligned array typedef.
+                    string witness = type + "_alignment";
+                    _source.AppendLine("#if defined(__GNUC__) && !defined(__clang__)");
+                    _source.Append("extern ").Append(type).Append(' ').Append(witness).AppendLine(";");
+                    _source.Append("extern __typeof__((*(").Append(type).Append(" *)0)[0]) ").Append(witness).AppendLine("[1];");
+                    Check("__alignof__(" + witness + ") == " + Number(boundary), "alignment " + description);
+                    _source.AppendLine("#else");
+                }
+
+                Check("_Alignof(" + type + ") == " + Number(boundary), "alignment " + description);
+                if (incompleteArray) { _source.AppendLine("#endif"); }
+            }
         }
 
         /// <summary>

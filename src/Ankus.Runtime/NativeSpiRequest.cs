@@ -143,4 +143,9 @@ internal unsafe struct NativeSpiRequest
     /// Supplies a caller-validated PostgreSQL version-1 entry point for explicit raw invocation.
     /// </summary>
     internal nint _nativeFunction;
+
+    /// <summary>
+    /// Borrows the managed state handle for a synchronous subtransaction callback.
+    /// </summary>
+    internal nint _callbackState;
 }

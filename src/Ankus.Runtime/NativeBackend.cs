@@ -85,8 +85,14 @@ public static unsafe partial class NativeBackend
         {
             try
             {
-                request._operation = SpiOperation.CloseSession;
-                Invoke(&request, &result);
+                // A raw error may leave deeper PostgreSQL SPI frames on this stack.
+                // The enclosing recovery scope will abort and reclaim every owned
+                // frame; SPI_finish here could close a different connection.
+                if (!NativeSubtransaction.HasFailure)
+                {
+                    request._operation = SpiOperation.CloseSession;
+                    Invoke(&request, &result);
+                }
             }
             finally
             {
@@ -209,6 +215,7 @@ public static unsafe partial class NativeBackend
     /// <param name="owner">The required native binding, or zero to accept any active binding.</param>
     internal static void CheckAccess(nint owner = 0)
     {
+        NativeSubtransaction.CheckAccess();
         CheckDisposalAccess(owner);
         if (s_abortCleanupDepth != 0)
         {

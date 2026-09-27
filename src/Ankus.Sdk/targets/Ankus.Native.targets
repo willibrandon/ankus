@@ -27,6 +27,7 @@
       <Output TaskParameter="Lines" ItemName="_AnkusNativeLibrary" />
     </ReadLinesFromFile>
     <ItemGroup>
+      <DirectPInvoke Include="Ankus.NativeBodies" />
       <IlcArg Include="@(_AnkusExport->'--export-dynamic-symbol:%(Identity)')" />
       <NativeLibrary Include="@(_AnkusNativeLibrary)" />
       <LinkerArg Include="@(_AnkusNativeLibrary->'&quot;%(Identity)&quot;')" />
@@ -35,7 +36,28 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="_QuoteAnkusNativeLibraries" BeforeTargets="LinkNative" Condition="'$(_targetOS)' != 'win'">
+  <Target Name="_PrepareAnkusNativeCalls" BeforeTargets="LinkNative" DependsOnTargets="IlcCompile">
+    <PropertyGroup>
+      <_AnkusNativeCallsCommand>dotnet &quot;$(_AnkusBuildTool)&quot; binding-link &quot;$(_AnkusBindingsDirectory)native-records.json&quot; &quot;$(AnkusPgConfigPath)&quot; &quot;$(_AnkusArtifacts)&quot;</_AnkusNativeCallsCommand>
+      <_AnkusNativeCallsCommand>$(_AnkusNativeCallsCommand) &quot;$(NativeObject)&quot; &quot;$(CppLinker)&quot; &quot;$(_AnkusLibraries)&quot; &quot;$(TargetTriple)&quot;</_AnkusNativeCallsCommand>
+      <_AnkusNativeCallsCommand>$(_AnkusNativeCallsCommand) &quot;$(_AnkusBindingCacheDirectory)&quot;</_AnkusNativeCallsCommand>
+    </PropertyGroup>
+    <Exec Command="$(_AnkusNativeCallsCommand)" />
+    <ReadLinesFromFile File="$(_AnkusArtifacts)native-call-libraries.txt">
+      <Output TaskParameter="Lines" ItemName="_AnkusNativeCallLibrary" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <NativeLibrary Include="@(_AnkusNativeCallLibrary)" />
+      <!-- Generated calls must precede the archives that supply their native symbols. -->
+      <_AnkusLinkerArgumentsAfterCalls Include="@(LinkerArg)" />
+      <LinkerArg Remove="@(LinkerArg)" />
+      <LinkerArg Include="@(_AnkusNativeCallLibrary->'&quot;%(Identity)&quot;')" />
+      <LinkerArg Include="@(_AnkusLinkerArgumentsAfterCalls)" />
+      <FileWrites Include="$(_AnkusArtifacts)**/*" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_QuoteAnkusNativeLibraries" BeforeTargets="LinkNative" DependsOnTargets="_PrepareAnkusNativeCalls" Condition="'$(_targetOS)' != 'win'">
     <!-- .NET 10's Unix targets append NativeLibrary paths to LinkerArg without quoting.
          Quote existing file arguments in place, preserving static-library ordering. -->
     <ItemGroup>

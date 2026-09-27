@@ -2671,9 +2671,9 @@ complete implementations. AOT serialization must use statically generated metada
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Pending |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
-| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function and SPI boundaries; general-purpose guarded APIs pending |
+| `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed calls and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; callback/lifetime helpers and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 declaration inventories retain foreign signatures, globals, reference constants, callback types and shim linkage alongside the type graph. General selected-header raw calls, global/hook access, remaining shims and string utilities still need implementation and backend evidence |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function companion with guarded fixed calls are connected to the SDK and actual Native AOT/backend execution. Global/hook access, variadics, callback/lifetime helpers, handwritten shims, remaining string utilities and the complete version/platform matrix remain required |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -7550,3 +7550,242 @@ The phases track implementation of the complete pgrx feature surface.
   36268363251 for `8646654`, remains successful. The next CI run must establish
   the repaired complete Windows suite outcome. No analyzer or timeout setting
   was relaxed.
+
+  Subsequent CI run 36274752988 for `de46baf` has passed PostgreSQL 18.6/Linux
+  x64 (all six modules: 7,611 passed, zero failed, two existing skips; job
+  22m54s) and PostgreSQL 18.6/macOS ARM64 (all six modules: 7,609 passed,
+  zero failed, four existing skips; job 21m23s). Quality, all runtime jobs and
+  documentation run 36274753012 have passed. PostgreSQL 17.11/Windows x64
+  subsequently passes all six modules: 7,611 passed, zero failed and two existing
+  integration skips. Its job finishes in 37m21s, below the 40-minute cap;
+  integration takes 31m 36.133s. The repaired run is successful on every job.
+
+- 2026-09-26 — Connected the SDK's shared node/function collection,
+  compiled companion cache and post-ILC native-body selection. The collector
+  explicitly partitions available and absent top-level declarations, validates
+  one complete graph and runs independent native record checks before emitting
+  managed declarations. GCC verification now retains the alignment of incomplete
+  array typedefs through a completed unevaluated extern witness; the regression
+  also rejects a changed over-aligned typedef.
+
+  Compiled artifacts are protected by content validation and cross-process
+  leases, with atomic cache publication and consumer-owned output copies.
+  Compiler preparation resolves current references/analyzers before lookup;
+  same-timestamp input changes, new inputs, malformed artifacts and failed
+  production cannot certify stale output. Linux tests cover real competing
+  compiler processes, consumer cleanup, compiler failure/recovery and changed
+  source/runtime content. Ten cache cases plus the combined node/function
+  contract witness pass locally. Twenty-four focused cache, compiler and
+  availability cases pass on Windows x64/.NET 10.0.12 in 1m 55.408s; this preceded
+  the additional failed-replacement preservation case. The Windows preparation
+  cost needs measurement and improvement before complete SDK validation. Bounded
+  parallel content reads retain every hash check; the expanded 26-case Windows
+  selection passes in 1m 34.894s with fresh compiler processes. The corresponding
+  Linux cache/compiler selection passes 12 cases in 13.491s. These are focused
+  test timings, not cold/warm SDK build baselines.
+
+  Companion restore now uses the consuming project's resolved feeds, ordered
+  NuGet configuration files, package directory and fallback folders. NuGet itself
+  applies credentials and source mappings; the build helper no longer substitutes
+  nuget.org. Configuration content participates in cache validation. The new
+  `CompiledCompanionsHonorOfflineFeedConfigurationAndSourceMapping` test restores
+  from a local feed into an empty package cache, rejects a changed source mapping
+  before reusing an artifact, preserves the previous consumer assembly and
+  recovers after the policy is corrected. It passes on Linux; all three compiler
+  process tests pass on Windows x64/.NET 10.0.12 in 42.476s. Full SDK and platform
+  validation of this change remains in progress.
+  The expanded selection also checks an explicit `RestoreSources` override.
+  Four compiler cases pass on Windows in 1m 57.566s; the Linux cache/compiler
+  selection passes 14 cases in 13.588s after adopting the shared cleanup helper.
+  Restore inherits the consumer's environment for credentials and provider
+  plugins; compilation runs separately with controlled settings. The command
+  verifies that the selected SDK retained the consumer's restore settings.
+
+  During this work, CI run 36271508065 for timeout commit `0d72775` completed
+  successfully on PostgreSQL 18.6/Linux x64 (7,611 passed, zero failed, two
+  existing platform skips; 15m25s) and PostgreSQL 18.6/macOS ARM64 (7,609 passed,
+  zero failed, four existing platform skips; 17m37s). Quality and all runtime
+  jobs passed. Windows subsequently failed when deleting a just-executed native
+  probe during record-check publication. Its build module passed 772 cases and
+  failed one; the integration module passed 3,318 cases with two existing skips
+  on PostgreSQL 17.11. The remaining unit modules did not run after the build
+  module failure, so this run does not establish complete Windows platform
+  validation. Commit `de46baf` contains the separately verified cleanup repair;
+  its new CI run passes all three complete platform suites as recorded above.
+
+  The Hello SDK build passes with 1,335 shared declarations and 8,629 fixed
+  methods on PostgreSQL 18.6/Linux x64. A packaged two-project SDK test publishes
+  selected native accessors and executes exact high-bit aggregate and native
+  node values in PostgreSQL. Its first error-recovery attempt stopped because
+  the isolated test cluster excluded PL/pgSQL from its library search path;
+  the corrected test passes in 5m 52.790s, including owned native SQLSTATE,
+  detail and hint, memory-context restoration, same-session successful retry,
+  cross-project type sharing, clean/rebuild and relocated intermediate outputs.
+  A subsequent Linux run with consumer restore settings passes in 6m 07.938s.
+  The corresponding packaged test passes on PostgreSQL 18.1/Windows x64 with
+  .NET 10.0.12 in 10m 11.368s, using a separate Windows checkout after a shared
+  Linux/Windows output-directory setup failure. These are focused test results.
+  Server-log review then exposed a nonempty SPI stack warning after the caught
+  PL/pgSQL error on both platforms. Returning the expected values does not prove
+  complete backend recovery: this remains unresolved and requires an explicit
+  recovery scope that preserves raw PostgreSQL call semantics and resource
+  lifetimes. It must be fixed and tested before this SDK milestone is complete.
+  The new notice assertion reproduces the gap on PostgreSQL 18.6/Linux x64:
+  the packaged test fails on one SPI warning in 5m 23.699s. An explicit
+  `PgTransaction.RunInSubtransaction` recovery callback is now implemented in
+  the existing native transaction guard. Its unmanaged thunk contains managed
+  exceptions until native rollback completes; raw calls keep their existing
+  behavior outside the scope. A raw error marks the innermost scope for rollback
+  even when caught, preventing subsequent SQL/raw calls until recovery. The
+  focused runtime selection initially passes 26 cases in 863ms, including
+  original exception identity, nested recovery and failed-scope access. The
+  packaged backend test then passes on PostgreSQL 18.6/Linux x64 in 6m 26.955s
+  with partial-write rollback, nested recovery, failed-context expiry and no
+  SPI warning. The expanded runtime selection passes 28 cases in 953ms,
+  including native failures before callback entry and after callback success.
+  SPI session disposal inside a failed scope now leaves abandoned native frames
+  for rollback instead of attempting to finish the wrong connection. Expanded
+  backend checks add enclosing/inner SPI sessions, managed-exception rollback
+  and successful subtransaction-context lifetime; their platform validation is
+  in progress. The 28 runtime cases also pass on Windows x64/.NET 10.0.12
+  in 143ms. The expanded packaged witness passes on PostgreSQL 18.6/Linux x64
+  in 6m 58.525s; its server log contains no warning or error. The corresponding
+  PostgreSQL 18.1/Windows x64 run passes in 11m 31.503s with no warning or error
+  in the packaged extension's server log. These precede the added witness for
+  rejecting recovery scopes during transaction callbacks. Plain root `dotnet test`
+  then passes all six modules on PostgreSQL 18.6/Linux x64, including that
+  restriction: 7,644 passed, zero failed and two existing Windows-only skips in
+  19m 29.800s. The packaged recovery log has no nonempty SPI stack warning.
+
+  Release builds with zero warnings/errors in 56.91s. Generated API pages now
+  contain 2,256 members across 170 pages and pass freshness verification. The
+  site builds all 212 pages in 4.32s and checks with zero errors, warnings or
+  hints. The README and transaction guide document explicit recovery and its
+  restrictions. Remaining SDK acceptance work is still pending.
+  An isolated PostgreSQL 18.6/Linux x64 SDK consumer with empty build, companion,
+  NuGet package and HTTP caches measures 49.306s for its cold build and 15.921s
+  for first publication, using the preinstalled SDK/runtime payload. An actual
+  source edit measures 14.790s to build and 16.342s to publish; unchanged build
+  and publication take 13.549s and 15.658s. The unchanged build spends 9.799s
+  in native declaration generation and 1.518s resolving its compiled companion.
+  These are local single-consumer baselines, not hosted CI or Windows timings.
+  The corresponding PostgreSQL 18.1/Windows x64 baseline with .NET 10.0.12
+  measures 72.794s cold build, 25.365s first publication, 22.359s changed-source
+  build, 25.155s changed-source publication, 23.816s unchanged build and 26.068s
+  unchanged publication. These sequential measurements used a separate owned
+  checkout and fresh build, companion, NuGet package and HTTP caches.
+  Source reuse now keys the preprocessed tokens/macros, effective Clang frontend
+  command, native tool contents and independently measured node layout. Every
+  hit still compiles and executes the native declaration checks. Three focused
+  preprocessing cases pass on Linux, including same-timestamp changes, include
+  precedence, relocation, failure/recovery and changed semantic compiler options
+  with identical preprocessed text. The first Linux comparison, before the
+  additional semantic-command check, measures 59.520s cold, 11.206s first publish,
+  8.605s changed-source build, 10.087s changed-source publish, 7.253s unchanged
+  build and 9.549s unchanged publish. Only repeated builds improve in this run;
+  final platform measurements and acceptance remain pending.
+  The semantic-configuration witness initially fails on Windows because the
+  test forwarded the driver configuration switch through the frontend option
+  prefix. Passing the configuration and command-reporting switches directly to
+  the driver fixes that boundary. All three preprocessing cases then pass on
+  Windows x64/.NET 10.0.12 in 540ms; the expanded Linux header, record-check,
+  cache and preprocessing selection passes 53 cases with no failures or skips
+  in 2.677s. Final complete-suite validation remains pending.
+  With semantic-command validation included, the Windows comparison measures
+  83.772s cold build, 21.591s first publication, 19.820s changed-source build,
+  21.253s changed-source publication, 19.357s unchanged build and 18.466s
+  unchanged publication. Warm companion resolution still takes 12.311s; source
+  reuse takes 3.667s. A separate complete-SDK hashing experiment reproduces every
+  content hash and shows only a small warm difference from pooled reads, so no
+  hash validation was removed or replaced on that basis.
+
+  Native-body publication now retains immutable source/object pairs and
+  atomically replaces the linker manifest after compilation. Seven Linux cases
+  pass in 2.026s, including actual compiler failure, missing output, late
+  cancellation, executable old-output preservation and recovery, empty selection,
+  and unknown accessor/argument rejection before tool discovery. Native provider
+  object/archive linking and the packaged SDK's explicit native archive are
+  undergoing verification; no server-export-only restriction is imposed because
+  valid symbols can come from the extension or a linked library.
+  The standalone object/archive checks pass on Linux (nine publication/provider
+  cases in 1.933s) and Windows (12 cases including preprocessing in 1.618s).
+  The first packaged archive witness then finds an actual SDK ordering defect:
+  the archive precedes its generated caller, leaving `_PG_output_plugin_init`
+  unresolved when PostgreSQL loads the extension. Generated call objects now
+  precede the existing linker arguments, preserving their relative order and
+  allowing the provider archive to satisfy those references. The unchanged
+  backend assertion then passes on PostgreSQL 18.6/Linux x64 in 3m 49.277s,
+  including the archive with spaces in its path, exact native values and
+  warning-free recovery in the same backend session. The failed attempt is
+  retained as the regression's evidence.
+  The expanded Windows selection passes discovery and cache-layout rejection,
+  but its archive publication fails with MSVC's misleading `.obj` input error.
+  An isolated real-linker probe identifies the new immutable object's long
+  absolute path as the cause. An initial extended-path probe could fall back to
+  a same-named local object; the executable regression invalidates that approach,
+  and the prefix workaround is removed. Compilation now uses short owned
+  temporary directories, and immutable objects live in the configured shared
+  binding cache instead of beneath deep consumer intermediates. The atomic
+  manifest candidate stays beside its destination, even across filesystems.
+  Four executable MSVC cases exercise long consumer paths and reuse after
+  consumer cleanup. All 15 focused Windows publication/command cases pass in
+  1.368s; Linux passes 11 with four Windows-only skips in 2.081s. The first final
+  Linux suite also finds
+  an outdated command-arity case: ten source arguments are now valid because
+  the shared cache is optional. Its rejection case is updated to eleven, while
+  packaged tests exercise all ten valid arguments. That suite is superseded by
+  a complete rerun after these fixes.
+
+  The repaired packaged SDK/native-provider witness passes on PostgreSQL
+  18.1/Windows x64 with .NET 10.0.12: one passed, zero failed or skipped in
+  8m 21.200s. It includes exact native values, explicit archive linking, rollback,
+  nested scope recovery, lifetime invalidation and the expected transaction-
+  callback rejection. The packaged server log contains the intentional rejection
+  and no SPI stack warning. Final Release passes with zero warnings/errors in
+  1m 02.55s; API freshness retains 170 pages/2,256 members, the site builds 212
+  pages in 3.29s and checks with zero errors, warnings or hints. Final plain root
+  `dotnet test` passes all six modules on PostgreSQL 18.6/Linux x64: 7,656 passed,
+  zero failed and six Windows-only skips (including the four new MSVC path cases),
+  7,662 total, in 13m 45.061s. Integration finishes in 13m 44.434s. No shared
+  output rebuild occurred during this full run.
+
+  The final Linux SDK baseline runs after both platform tests finish, with fresh
+  owned build, binding, NuGet package and HTTP caches and preinstalled SDK/runtime
+  payloads. On PostgreSQL 18.6/.NET 10.0.11 it measures 49.595s cold build,
+  9.628s first publication, 8.137s changed-source build, 9.775s changed-source
+  publication, 6.983s unchanged build and 8.975s unchanged publication. These are
+  individual wall-time observations, not a statistical benchmark or hosted CI
+  prediction. Repeated builds improve against the earlier baseline; cold-build
+  improvement is not established, and the Windows cold measurement is slower.
+
+  Immediately before this milestone's commit, the previous hosted outcomes were
+  checked again: [CI run 36274752988](https://github.com/willibrandon/ankus/actions/runs/36274752988)
+  and [documentation run 36274753012](https://github.com/willibrandon/ankus/actions/runs/36274753012)
+  for `de46baf` are successful, with every quality, runtime and full platform job
+  green. The complete Linux/macOS/Windows counts and versions are recorded in
+  the preceding cleanup milestone; the earlier Windows failure is resolved.
+  No newer run is pending. New hosted validation must establish this SDK
+  milestone's complete platform outcomes while independent porting continues.
+  Job limits remain Linux 30 minutes, macOS 30 minutes and Windows 40 minutes;
+  the hard maximum remains 40 minutes and analyzer enforcement is unchanged.
+
+  | Requirement | Concrete witnesses |
+  |---|---|
+  | Complete header-availability partition and independent native layout | `AvailabilityRetainsCompleteOrderedPartition`, `EmptyHeadersRetainAbsentInventory`, `InvalidAvailabilityCannotHideAsAbsence`, `InvalidInventoryCannotHideAsAbsence`, `NativeRecordChecksPreserveIncompleteArrayAlignmentInGcc` |
+  | Leased cache entries, content invalidation, cancellation and failed replacement | `CacheRebuildsChangedContent`, `CacheOwnershipProtectsReadersAndCancelsWaiters`, `CacheFailureCleansStagingAndRecovers`, `CacheRejectsInputsChangedDuringProduction`, `CacheFailurePreservesPreviousEntry` |
+  | Real compiler processes share output while respecting consumer restore policy | `CompiledCompanionsShareAcrossProcessesAndConsumerCleanup`, `CompiledCompanionsInvalidateContentAndRecoverFromCompilerFailure`, `CompiledCompanionsHonorOfflineFeedConfigurationAndSourceMapping` |
+  | Current preprocessing and semantic compiler options determine reuse | `NativePreprocessingTracksContentAndIncludeResolution`, `NativePreprocessingTracksEffectiveCompilerConfiguration`, `NativePreprocessingRejectsCompilerFailuresAndRecovers` |
+  | Native publication retains executable old output and resolves used providers | `NativeLinkPublicationPreservesExecutableOutputAndRecovers`, `NativeLinkCommandValidatesImportsBeforeToolDiscovery`, `NativeLinkCommandRejectsInvalidArguments`, `NativeCallImportsResolveExplicitNativeProviders` |
+  | Deep Windows consumer paths and consumer cleanup retain linkable objects | Four `NativeLinkPublicationSupportsLongWindowsConsumerPaths` cases link and execute the retained shared object after deleting consumer output directories of lengths 256, 260, 261 and 300 |
+  | Managed exception containment, original identity and independent nested scopes | `RecoveryScopesRequireCallbackAndBackend`, `RecoveryScopesPreserveResultsAndExceptionIdentity`, `RawFailureCannotBeSwallowedOrPoisonRecoveredParent`, `RecoveryScopesPreserveNativeBoundaryFailures` |
+  | Actual packaged SDK linking, backend values, rollback, lifetimes and recovery | `SdkSharesNativeTypesAcrossProjectsAndPublishesThem` checks the explicit archive, exact high-bit/native node values, owned diagnostics, writes, context expiry, callback restrictions and absence of SPI warnings; `SdkBindingDiscoveryLeavesNativeLinkInputsDeferred` checks build-stage separation |
+  | Cache-hit native verification, consumer preservation and corrected retry | Expanded `PackagedNodeBindingFailurePreservesCompanionAndRecovers` supplies a false field offset with a matching cache hash and requires the native compiler to reject it; it passes on PostgreSQL 18.6/Linux x64 in 3m 10.175s |
+
+  Local native-provider/backend checks, complete Linux validation and final
+  documentation verification pass for this SDK change. Its complete hosted
+  platform suites must still run after publication of the commit. Header availability
+  is distinct from server exports: ordinary linker/loader resolution must retain
+  valid extension and native-library providers, consistent with pgrx.
+  Compiler shims, callbacks, variadics,
+  globals/hooks, the full feature inventory and PostgreSQL/platform matrix
+  remain required for the faithful port.

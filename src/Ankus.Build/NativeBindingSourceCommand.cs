@@ -51,30 +51,59 @@ internal static class NativeBindingSourceCommand
     /// <summary>
     /// Measures the selected headers and writes the managed companion source and assembly identity.
     /// </summary>
-    /// <param name="arguments">The layout command's arguments, followed by an optional Clang executable and matching libclang path.</param>
+    /// <param name="arguments">The layout command's arguments, followed by optional Clang, libclang and shared cache paths.</param>
     /// <param name="cancellationToken">Cancels probing and source emission.</param>
     internal static async Task RunAsync(string[] arguments, CancellationToken cancellationToken = default)
     {
-        if (arguments.Length is < 3 or > 9)
+        if (arguments.Length is < 3 or > 10)
         {
-            throw new ArgumentException("Expected binding-sources <major> <pg_config> <output-directory> [compiler] [windows-library-directories] [runtime-identifier] [target-triple] [clang] [libclang].", nameof(arguments));
+            throw new ArgumentException("Expected binding-sources <major> <pg_config> <output-directory> [compiler] [windows-library-directories] [runtime-identifier] [target-triple] [clang] [libclang] [cache-directory].", nameof(arguments));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        // Clang is already required for semantic collection. Use it for default native
+        // verification too; explicitly selected native compilers keep their own checks.
+        if (arguments.Length == 3) { arguments = [.. arguments, OperatingSystem.IsWindows() ? "cl.exe" : "clang"]; }
+        else if (arguments[3].Length == 0)
+        {
+            arguments = [.. arguments];
+            arguments[3] = OperatingSystem.IsWindows() ? "cl.exe" : "clang";
+        }
+
         NativeBindingLayout layout = await NativeBindingLayoutCommand.RunAsync(arguments.Length > 7 ? arguments[..7] : arguments, cancellationToken);
         NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(layout.PostgresVersion / 10000);
-        NativeRecordGraph graph = await NativeBindingNodeRecordCommand.RunAsync(catalog, arguments, cancellationToken);
-        NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
+        string cache = arguments.Length == 10 && arguments[9].Length != 0 ? Path.GetFullPath(arguments[9])
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ankus", "bindings");
+        await using NativeBindingCacheLease lease = await NativeBindingSourceCache.GetAsync(catalog, layout,
+            arguments.Length == 10 ? arguments[..9] : arguments, cache, cancellationToken);
         string output = Path.GetFullPath(arguments[2]);
-        await WriteIfChangedAsync(Path.Combine(output, "native-binding.g.cs"), binding.Source, cancellationToken);
-        await WriteIfChangedAsync(Path.Combine(output, "native-binding.assembly-name"), binding.AssemblyName + "\n", cancellationToken);
-        await WriteIfChangedAsync(Path.Combine(output, "native-binding.identity"), binding.AbiIdentity + "\n", cancellationToken);
+        foreach (string name in NativeBindingSourceCache.Artifacts)
+        {
+            string source = Path.Combine(lease.Directory, name);
+            string destination = Path.Combine(output, name);
+            if (!File.Exists(destination) || await NativeBindingCache.HashAsync(destination, cancellationToken) !=
+                await NativeBindingCache.HashAsync(source, cancellationToken))
+            {
+                File.Copy(source, destination, overwrite: true);
+            }
+        }
+
+        await WriteIfChangedAsync(Path.Combine(output, "Ankus.NativeBindings.csproj"), CreateProject(output), cancellationToken);
+        string assembly = (await File.ReadAllTextAsync(Path.Combine(output, "native-binding.assembly-name"), cancellationToken)).Trim();
+        Console.WriteLine($"Managed bindings: {assembly}");
+    }
+
+    /// <summary>
+    /// Creates the isolated deterministic project used by local and shared compiled companions.
+    /// </summary>
+    internal static string CreateProject(string directory)
+    {
+        string output = Path.GetFullPath(directory);
         string pathMap = string.Join(',', new[] { output, PhysicalDirectory(new DirectoryInfo(output)) }
             .Distinct(StringComparer.Ordinal).Select(static path => path.Replace(",", ",,", StringComparison.Ordinal)
                 .Replace("=", "==", StringComparison.Ordinal) + "=/_/Ankus.Postgres"));
         string project = Project.Replace("__ANKUS_PATH_MAP__", SecurityElement.Escape(EscapeProperty(pathMap)), StringComparison.Ordinal);
-        await WriteIfChangedAsync(Path.Combine(output, "Ankus.NativeBindings.csproj"), project.ReplaceLineEndings("\n") + "\n", cancellationToken);
-        Console.WriteLine($"Managed bindings: {binding.AssemblyName}");
+        return project.ReplaceLineEndings("\n") + "\n";
     }
 
     private static string PhysicalDirectory(DirectoryInfo directory)
@@ -88,7 +117,10 @@ internal static class NativeBindingSourceCommand
             : resolved.FullName;
     }
 
-    private static string EscapeProperty(string value)
+    /// <summary>
+    /// Preserves literal paths and values through MSBuild's property expression parser.
+    /// </summary>
+    internal static string EscapeProperty(string value)
     {
         var escaped = new StringBuilder();
         foreach (char character in value)

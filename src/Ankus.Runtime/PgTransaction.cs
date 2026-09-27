@@ -1,10 +1,48 @@
 namespace Ankus;
 
 /// <summary>
-/// Registers managed callbacks for the current PostgreSQL transaction.
+/// Runs recoverable work and registers callbacks for the current PostgreSQL transaction.
 /// </summary>
 public static class PgTransaction
 {
+    /// <summary>
+    /// Runs synchronous work in an internal subtransaction, rolling it back if the callback fails.
+    /// </summary>
+    /// <param name="action">The work to run on the active backend thread.</param>
+    /// <remarks>
+    /// Catch failures outside this callback, after native resources have been recovered.
+    /// A failed raw native call prevents further SQL or raw calls in this scope, even if caught.
+    /// Success retains changes in the enclosing transaction; it does not commit that transaction.
+    /// The callback must not perform transaction control or asynchronous work. This operation
+    /// is unavailable during transaction callbacks and abort cleanup. Internal guard
+    /// subtransactions do not invoke consumer subtransaction callbacks.
+    /// </remarks>
+    public static void RunInSubtransaction(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        NativeSubtransaction.Run(() =>
+        {
+            action();
+            return 0;
+        });
+    }
+
+    /// <summary>
+    /// Runs synchronous work in an internal subtransaction and returns its result after successful release.
+    /// </summary>
+    /// <typeparam name="TResult">The callback result type.</typeparam>
+    /// <param name="action">The synchronous work to run on the active backend thread.</param>
+    /// <returns>The result after the subtransaction succeeds.</returns>
+    /// <remarks>
+    /// Failures roll back this scope before propagating to the caller. Catch raw native errors
+    /// outside the callback; catching one inside cannot turn a failed scope into a successful one.
+    /// Nested scopes may recover independently. Native results retain PostgreSQL's memory-context
+    /// lifetimes; rollback invalidates allocations and resources owned by the aborted scope.
+    /// Do not perform transaction control or asynchronous work in the callback. This operation
+    /// is unavailable during transaction callbacks and abort cleanup.
+    /// </remarks>
+    public static TResult RunInSubtransaction<TResult>(Func<TResult> action) => NativeSubtransaction.Run(action);
+
     /// <summary>
     /// Registers a one-shot callback for an outer-transaction phase.
     /// </summary>

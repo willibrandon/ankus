@@ -7,6 +7,46 @@ description: Run managed work when PostgreSQL transactions and savepoints change
 implicit transaction ends with the current statement; use `BEGIN` when later
 statements must share the registration.
 
+## Recoverable work
+
+Use `PgTransaction.RunInSubtransaction` to group synchronous backend work in a
+recovery scope. Success retains its changes in the enclosing transaction. An
+exception rolls back the scope before it reaches your `catch` block:
+
+```csharp
+try
+{
+    PgTransaction.RunInSubtransaction(() =>
+    {
+        Spi.Execute("INSERT INTO audit_log(message) VALUES ('attempt')");
+        Spi.Execute("SELECT perform_work()");
+    });
+}
+catch (PgException error)
+{
+    // Both commands have rolled back. Backend operations are usable again.
+    PgLog.Write(PgLogLevel.Notice, error.Message);
+}
+```
+
+The generic overload returns the callback's result after successful release.
+Nested scopes recover independently: catch an inner scope's exception outside
+its callback to continue the outer scope. A managed exception also rolls back
+the scope and retains its original exception type and instance.
+
+Catch raw native errors outside the scope. Catching one inside the callback
+does not make the scope successful: additional SQL and raw calls are rejected,
+and the scope rolls back with the original error. Raw calls outside an explicit
+recovery scope retain PostgreSQL's native transaction and cleanup requirements.
+
+The callback must stay synchronous on the backend thread and must not perform
+transaction control. Recovery scopes are unavailable during transaction
+callbacks and abort cleanup. Their internal subtransactions do not appear as
+consumer subtransaction events. Native results retain their memory-context
+lifetimes; rollback invalidates allocations and resources owned by that scope.
+
+## Register a callback
+
 ```csharp
 _ = PgTransaction.RegisterCallback(PgTransactionEvent.PreCommit, () =>
 {

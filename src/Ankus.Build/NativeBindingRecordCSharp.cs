@@ -30,6 +30,23 @@ internal static partial class NativeBindingRecordCSharp
     }
 
     /// <summary>
+    /// Emits shared node values and selected fixed calls from one complete validated native contract.
+    /// </summary>
+    /// <param name="records">The complete selected-header signatures and measured record graph.</param>
+    /// <param name="catalog">The pinned node identities and cast contracts.</param>
+    /// <param name="layout">The independently executed native node layout observations.</param>
+    /// <param name="names">Unique fixed functions to expose alongside the node APIs.</param>
+    /// <returns>One companion with one managed declaration per measured native declaration.</returns>
+    internal static NativeBindingSource Generate(NativeHeaderRecords records, NativeBindingCatalog catalog,
+        NativeBindingLayout layout, IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(layout);
+        IReadOnlyList<NativeBindingCall> calls = NativeBindingCallModel.Select(records, names);
+        return GenerateCore(records.Graph, catalog, layout, records.Headers, calls);
+    }
+
+    /// <summary>
     /// Retains the existing node APIs while emitting every declaration from the complete measured graph.
     /// </summary>
     internal static NativeBindingSource Generate(NativeRecordGraph graph, NativeBindingCatalog catalog, NativeBindingLayout layout)

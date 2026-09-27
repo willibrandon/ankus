@@ -65,8 +65,9 @@ internal static class GuardedBackend
             bool datum = request->operation == ANKUS_SPI_DATUM;
             bool function_context = request->operation == ANKUS_SPI_FUNCTION_CONTEXT;
             bool function_call = request->operation == ANKUS_SPI_FUNCTION_CALL;
+            bool subtransaction = request->operation == ANKUS_SPI_SUBTRANSACTION;
             bool direct = quote || reporting || temporal || numeric || network || geometry || range || enumeration || tuple ||
-                transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation;
+                transaction_callbacks || transaction_id || datum || function_context || function_call || custom_type || datum_type || array || lookup || relation || subtransaction;
             result->release = ankus_release_result;
 
             if (request->operation == ANKUS_SPI_GUC_READ)
@@ -106,6 +107,10 @@ internal static class GuardedBackend
                         ? ankus_memory_context_id(caller_context) : 0;
                     int code;
                     MemoryContext operation_context = NULL;
+                    if (subtransaction && transaction_frame != NULL)
+                        ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                            errmsg("Explicit recovery scopes are unavailable during transaction callbacks")));
+
                     if (request->cleanup_only)
                     {
                         /* Abort cleanup releases owned resources without SQL or a new subtransaction.
@@ -169,7 +174,7 @@ internal static class GuardedBackend
                             ankus_require_session(request->session_id);
                         }
 
-                        if ((direct || !standalone) && request->operation != ANKUS_SPI_CLOSE_SESSION)
+                        if ((direct || !standalone) && request->operation != ANKUS_SPI_CLOSE_SESSION && !subtransaction)
                         {
                             operation_context = AllocSetContextCreate(CurrentMemoryContext, "Ankus SPI operation", ALLOCSET_SMALL_SIZES);
                             MemoryContextSwitchTo(operation_context);
@@ -177,7 +182,26 @@ internal static class GuardedBackend
 
                         if (request->operation != ANKUS_SPI_CLOSE_SESSION)
                         {
-                            if (reporting)
+                            if (subtransaction)
+                            {
+                                typedef int (*AnkusSubtransactionManaged)(intptr_t);
+                                if (request->callback == 0 || request->callback_state == 0)
+                                    ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                                        errmsg("The subtransaction callback or state is missing")));
+
+                                /* The thunk returns all managed failures before ERROR starts
+                                 * rollback. Raw call guards remain inside the managed callback. */
+                                if (((AnkusSubtransactionManaged) request->callback)(request->callback_state) != 0)
+                                    ereport(ERROR, (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
+                                        errmsg("The managed subtransaction callback failed")));
+
+                                if (GetCurrentTransactionNestLevel() != caller_nest_level + 1)
+                                    ereport(ERROR, (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
+                                        errmsg("The recovery callback changed its transaction nesting")));
+
+                                code = 0;
+                            }
+                            else if (reporting)
                             {
                                 ankus_report(request->diagnostic, ankus_log_level(request->log_level));
                                 code = 0;

@@ -183,4 +183,9 @@ internal enum SpiOperation : byte
     /// Opens, inspects, and releases checked native relation references.
     /// </summary>
     Relation,
+
+    /// <summary>
+    /// Runs a synchronous managed callback inside an explicitly requested recovery boundary.
+    /// </summary>
+    Subtransaction,
 }

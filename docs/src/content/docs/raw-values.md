@@ -5,8 +5,8 @@ description: Bind raw PostgreSQL values and write custom type input and output f
 
 ## Native PostgreSQL declarations
 
-Extension projects using `Ankus.Sdk` receive generated node declarations and their
-native type dependencies in `Ankus.Postgres`. The SDK reads the selected
+Extension projects using `Ankus.Sdk` receive generated node declarations, fixed
+native functions and their type dependencies in `Ankus.Postgres`. The SDK reads the selected
 PostgreSQL headers with Clang and checks node layouts against a separately
 compiled C probe before compiling C#. Sizes, field offsets, enum representations,
 array strides and target identity come from those headers. Select the installation
@@ -108,14 +108,38 @@ traverses native pointers; ordinary debugger display does not perform that work.
 Planner/executor integration, broader raw bindings and complete version/platform
 validation remain in progress.
 
-`Ankus.Postgres` does not yet expose general native functions, global variables
-or backend hook registration.
-
 Projects built against the same generated contract share a companion assembly
 and can exchange its native types directly. Use the same selected installation
 and Clang toolchain for projects that exchange these values. The generated
 contract rejects an incompatible runtime target; cross-compilation requires a probe that can execute
 on the build host. `dotnet clean` removes the generated companion artifacts.
+
+### Fixed native functions
+
+`NativeMethods` exposes fixed-prototype functions present in the selected
+headers. Calls require an active PostgreSQL callback, including functions whose
+C implementation only computes a value:
+
+```csharp
+FullTransactionId value = NativeMethods.FullTransactionIdFromU64(0xFEDCBA9876543210UL);
+ulong exactValue = value.value;
+```
+
+Arguments and results preserve the native types and complete object bytes.
+Pointers use `nint`; the caller must supply valid addresses, keep their owners
+alive, and follow the native function's allocation and lifetime rules. Prefer
+Ankus's checked APIs when they cover the operation you need. Publishing includes
+native bodies only for methods referenced by the extension.
+
+PostgreSQL errors become `PgException` after the native guard restores the error
+boundary. Raw calls retain PostgreSQL's resource and transaction behavior. Use
+[`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
+when an operation needs rollback before a caught exception reaches its caller.
+An error marks that scope for rollback even if the callback catches it.
+
+Header declarations do not guarantee that a server or loaded native library
+exports the corresponding function. Variadic calls, global variables, backend
+hook registration and complete version/platform validation remain in progress.
 
 ## Raw SQL values
 

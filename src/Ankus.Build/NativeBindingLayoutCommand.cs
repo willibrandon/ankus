@@ -98,11 +98,14 @@ internal static class NativeBindingLayoutCommand
                 "-isystem", installation.IncludeDirectory, source, "-o", executable]);
         }
 
-        await RunAsync(compiler, options, output, cancellationToken);
-        return await RunAsync(executable, [], output, cancellationToken);
+        await RunProcessAsync(compiler, options, output, cancellationToken);
+        return await RunProcessAsync(executable, [], output, cancellationToken);
     }
 
-    private static async Task<string> RunAsync(string program, IEnumerable<string> arguments, string directory, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs a native tool and joins its diagnostics and descendants before releasing caller-owned staging.
+    /// </summary>
+    internal static async Task<string> RunProcessAsync(string program, IEnumerable<string> arguments, string directory, CancellationToken cancellationToken)
     {
         var start = new ProcessStartInfo(program)
         {

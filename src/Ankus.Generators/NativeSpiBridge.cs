@@ -58,7 +58,8 @@ internal static class NativeSpiBridge
             ANKUS_SPI_DATUM_TYPE,
             ANKUS_SPI_ARRAY,
             ANKUS_SPI_LOOKUP,
-            ANKUS_SPI_RELATION
+            ANKUS_SPI_RELATION,
+            ANKUS_SPI_SUBTRANSACTION
         };
 
         typedef struct AnkusRequest
@@ -90,6 +91,7 @@ internal static class NativeSpiBridge
             uint8 has_collation;
             uint8 variadic;
             PGFunction native_function;
+            intptr_t callback_state;
         } AnkusRequest;
 
         typedef struct AnkusColumn

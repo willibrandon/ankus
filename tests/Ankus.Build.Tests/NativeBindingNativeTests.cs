@@ -74,8 +74,9 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 2, 2), layout.Types["Payload"].Fields["pair"]);
             Assert.AreEqual(new NativeBindingFieldLayout(0, 4, 4, 4), layout.Types["Node"].Fields["type_"]);
             NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, Headers);
-            NativeRecordGraph graph = await CollectMeasuredRecordsAsync(roots.Source, roots.Requests, directory, 18);
-            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
+            NativeHeaderRecords records = await CollectCallRecordsAsync(roots.Source + "\nextern Leaf native_leaf(Leaf value);",
+                [.. roots.Requests, new("native_leaf", "native_leaf", true)], directory);
+            NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, catalog, layout, ["native_leaf"]);
             const string Harness = """
                 using System;
                 using Ankus;
@@ -101,6 +102,10 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
                         catch (ArgumentOutOfRangeException) { negative = 1; }
                         try { Leaf.Dangerous_tail(null, 0); }
                         catch (ArgumentNullException) { absent = 1; }
+                        Func<Leaf, Leaf> method = NativeMethods.native_leaf;
+                        int guarded = 0;
+                        try { method(leaf); }
+                        catch (InvalidOperationException error) when (error.Message.Contains("active backend callback", StringComparison.Ordinal)) { guarded = 1; }
                         return [sizeof(Leaf), sizeof(Metadata), sizeof(Payload),
                             (byte*)&leaf.meta - (byte*)&leaf, (byte*)&leaf.values - (byte*)&leaf,
                             leaf.values[0], leaf.values[2], leaf.meta.payload.number,
@@ -108,7 +113,7 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
                             Leaf.Dangerous_tail((Leaf*)storage, 0).Length,
                             Size<Leaf>(), Alignment<Leaf>(), Major<Leaf>(),
                             Accepts<Leaf>(7), Accepts<Leaf>(0), Accepts<Node>(uint.MaxValue),
-                            SameIdentity<Leaf>(), (byte*)&aligned.Value - (byte*)&aligned];
+                            SameIdentity<Leaf>(), (byte*)&aligned.Value - (byte*)&aligned, guarded, NativeMethods.Accessors];
                     }
                     private struct AlignedLeaf { public byte Prefix; public Leaf Value; }
                     private static int Size<T>() where T : unmanaged, IPgNativeType => T.NativeSize;
@@ -117,11 +122,19 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
                     private static int Accepts<T>(uint tag) where T : unmanaged, IPgNativeNode => T.AcceptsTag(tag) ? 1 : 0;
                     private static int SameIdentity<T>() where T : unmanaged, IPgNativeType => T.AbiIdentity == NativeBinding.Identity ? 1 : 0;
                 }
+                namespace Ankus.Postgres
+                {
+                    public static partial class NativeMethods
+                    {
+                        public static int Accessors;
+                        private static partial nint GetNativeBody_native_leaf() { Accessors++; return 0; }
+                    }
+                }
                 """;
             long[] observed = GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken);
             Assert.AreSequenceEqual<long>(
                 [16, 4, 4, 4, 8, 11, 33, BitConverter.IsLittleEndian ? 0x0016000B : 0x000B0016,
-                    90, 92, 1, 1, 0, 16, 4, 18, 1, 0, 1, 1, 4], observed);
+                    90, 92, 1, 1, 0, 16, 4, 18, 1, 0, 1, 1, 4, 1, 0], observed);
         }
         finally
         {

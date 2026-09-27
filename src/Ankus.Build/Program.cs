@@ -24,6 +24,18 @@ try
         return 0;
     }
 
+    if (args.Length > 0 && args[0] == "binding-compile")
+    {
+        await NativeBindingCompilationCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
+    if (args.Length > 0 && args[0] == "binding-link")
+    {
+        await NativeBindingLinkCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
     if (args.Length > 0 && args[0] == "binding-signatures")
     {
         await NativeBindingSignatureCommand.RunAsync(args[1..]);

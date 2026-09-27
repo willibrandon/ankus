@@ -236,7 +236,8 @@ Projects using the same measured contract share their native type identity.
 bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
 boundary and returns owned text.
-General native functions, globals and hooks remain in progress.
+`NativeMethods` exposes selected-header fixed functions through the native error
+guard. Variadic calls, globals and hooks remain in progress.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
@@ -260,6 +261,8 @@ Use `PgTransactionId` for PostgreSQL `xid`; C# `uint` remains PostgreSQL `oid`.
 It works in generated functions, SPI, and arrays, and can expand an `xid` with
 the current server epoch. See [transaction IDs](docs/src/content/docs/transaction-ids.md).
 
+Use `PgTransaction.RunInSubtransaction` to group synchronous work with rollback
+before an exception reaches the caller. Nested scopes recover independently.
 Use `PgTransaction.RegisterCallback` for commit, rollback, preparation, and parallel
 transaction phases. `RegisterSubtransactionCallback` observes savepoints and other
 subtransactions with their exact IDs. Callbacks support cancellation, guarded SPI

@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Registers managed callbacks for the current PostgreSQL transaction.
+Runs recoverable work and registers callbacks for the current PostgreSQL transaction.
 
 ```csharp
 public static class PgTransaction
@@ -72,3 +72,59 @@ A registration that can cancel future invocations.
 
 Start and PreCommit exceptions reject the operation. Unhandled exceptions during commit or abort
 cleanup cause PostgreSQL crash recovery.
+
+<a id="member-341f2ab35f47ed4e"></a>
+
+### RunInSubtransaction(Action)
+
+Runs synchronous work in an internal subtransaction, rolling it back if the callback fails.
+
+```csharp
+public static void RunInSubtransaction(Action action)
+```
+
+Parameters:
+
+`action` — [Action](https://learn.microsoft.com/dotnet/api/system.action)
+
+The work to run on the active backend thread.
+
+Catch failures outside this callback, after native resources have been recovered.
+A failed raw native call prevents further SQL or raw calls in this scope, even if caught.
+Success retains changes in the enclosing transaction; it does not commit that transaction.
+The callback must not perform transaction control or asynchronous work. This operation
+is unavailable during transaction callbacks and abort cleanup. Internal guard
+subtransactions do not invoke consumer subtransaction callbacks.
+
+<a id="member-b0815c0e9702d8ee"></a>
+
+### RunInSubtransaction&lt;TResult&gt;(Func&lt;TResult&gt;)
+
+Runs synchronous work in an internal subtransaction and returns its result after successful release.
+
+```csharp
+public static TResult RunInSubtransaction<TResult>(Func<TResult> action)
+```
+
+Type parameters:
+
+`TResult`
+
+The callback result type.
+
+Parameters:
+
+`action` — [Func&lt;TResult&gt;](https://learn.microsoft.com/dotnet/api/system.func-1)
+
+The synchronous work to run on the active backend thread.
+
+Returns: <code>TResult</code>
+
+The result after the subtransaction succeeds.
+
+Failures roll back this scope before propagating to the caller. Catch raw native errors
+outside the callback; catching one inside cannot turn a failed scope into a successful one.
+Nested scopes may recover independently. Native results retain PostgreSQL's memory-context
+lifetimes; rollback invalidates allocations and resources owned by the aborted scope.
+Do not perform transaction control or asynchronous work in the callback. This operation
+is unavailable during transaction callbacks and abort cleanup.

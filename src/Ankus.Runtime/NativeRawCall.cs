@@ -41,7 +41,10 @@ public static unsafe class NativeRawCall
     /// The subsequent body accessor must be a pure native address lookup; invocation still uses <see cref="Invoke"/>.
     /// </remarks>
     public static void ValidateBinding(ReadOnlySpan<byte> identity, int postgresMajor)
-        => NativeBindingContract.Validate(identity, postgresMajor);
+    {
+        NativeSubtransaction.CheckAccess();
+        NativeBindingContract.Validate(identity, postgresMajor);
+    }
 
     /// <summary>
     /// Executes one C body and converts native diagnostics only after its guarded native frames return.
@@ -56,6 +59,7 @@ public static unsafe class NativeRawCall
     public static void Invoke(nint body, ReadOnlySpan<NativeCallArgument> arguments, nint result, nuint resultSize)
     {
         ArgumentOutOfRangeException.ThrowIfZero(body);
+        NativeSubtransaction.CheckAccess();
         _ = NativeMemoryContext.Provider;
         fixed (NativeCallArgument* values = arguments)
         {
@@ -72,7 +76,17 @@ public static unsafe class NativeRawCall
                 _pointer = body,
                 _data = (nint)(&frame),
             };
-            NativeMemoryContext.Invoke(ref request, out NativeMemoryResult response);
+            NativeMemoryResult response;
+            try
+            {
+                NativeMemoryContext.Invoke(ref request, out response);
+            }
+            catch (PgException exception)
+            {
+                NativeSubtransaction.RecordFailure(exception);
+                throw;
+            }
+
             if (response._value == 0) { return; }
 
             string reason = response._value switch

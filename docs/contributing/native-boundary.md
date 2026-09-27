@@ -746,8 +746,9 @@ its catalog entry.
 This command rejects declarations for which no C type anchor exists. In
 particular, checking promoted leaves alone would not establish an unnameable
 anonymous container's hidden size or alignment. Such containers remain retained
-by collection and managed projection; complete independent verification and
-automatic enforcement in the general typed companion remain unfinished.
+by collection and managed projection; complete independent verification of those
+unnameable containers remains unfinished. The SDK requires native verification
+of its combined graph and rejects unsupported declarations before publication.
 Argument typedefs retain the original native qualifiers. Reads through those
 types avoid adding a second `const`, which MSVC rejects for already-qualified
 parameters; pointee qualification and volatile reads remain part of the contract.
@@ -783,8 +784,34 @@ cleanup and scoped binding rejection. A standalone Native AOT executable uses
 real generated imports and native accessors; inspecting its ILC object verifies
 that an unused unavailable function is trimmed. The test's public memory ABI
 harness models guarded error transport; it does not execute PostgreSQL ERROR.
-The SDK's general companion composition and post-ILC compilation/link steps are
-not connected to this emitter and selector yet.
+The SDK now composes node declarations and available fixed native functions in
+one companion. Its native link step reads the actual ILC object and compiles only
+referenced accessor bodies. Backend symbols use ordinary linker and loader
+resolution, including definitions in the extension and explicitly linked native
+objects or archives. A declaration's absence from the server's own exports does
+not establish that an extension cannot supply it. This follows pgrx's dynamic
+lookup behavior; PostgreSQL loads extension libraries with immediate symbol
+resolution. Complete platform and version validation remains in progress.
+
+The raw-call guard transports errors without rolling back PostgreSQL transaction
+or SPI state. `PgTransaction.RunInSubtransaction` adds an explicit recovery
+boundary through the existing SPI guard. A synchronous unmanaged thunk retains
+managed exceptions and returns failure before native rollback begins; the original
+exception is rethrown after the guard restores the caller's resource owner and
+memory context. Callback allocations use the subtransaction context, preserving
+PostgreSQL's commit and abort lifetimes. Nested recovery scopes are independent.
+Automatically adding a subtransaction to every raw call would change transaction
+operations and native pointer lifetimes, so raw calls retain their native semantics.
+
+A raw native error marks the innermost explicit scope for rollback even when the
+callback catches it. Subsequent SQL and raw calls are rejected until that scope
+unwinds. SPI session disposal inside a failed scope leaves native frames for abort
+cleanup, since a raw error can leave a deeper SPI connection on the stack. The
+session's registered memory-context cleanup releases its plans and registry entry
+during rollback. Managed tests check exception identity and boundary containment;
+the packaged backend witness checks writes, context lifetime, nested recovery
+and the previously observed SPI stack warning. The complete supported PostgreSQL
+and platform matrix remains required.
 
 Raw calls require the active backend thread. They remain available for native
 resource release during iterator disposal, including query-abort cleanup, as
@@ -798,9 +825,9 @@ holdoffs; the caller remains responsible for balancing them. Raw calls do not
 open an SPI subtransaction or infer pointer ownership, callback lifetime, or the
 validity of an arbitrary address. A C body may reenter managed code only through
 a callback boundary that finishes managed unwinding before raising PostgreSQL
-ERROR. Automatic companion integration, active-extension export/link selection
-and published PostgreSQL execution of these typed methods remain required before
-general raw bindings are a consumer API.
+ERROR. Packaged SDK tests exercise explicit native providers, selected calls and
+backend recovery. Complete published-platform and version evidence remains
+required for the full port.
 
 The internal selected-header record emitter consumes the independently validated
 transitive type graph. It emits exact-offset records and unions, nested inline
@@ -817,7 +844,7 @@ caller-guaranteed initialized extent; integer overflow checks cannot establish
 pointer provenance or ownership.
 
 The SDK's `binding-sources` path uses this emitter for one companion containing
-the complete node dependency graph. Unevaluated type roots preserve the existing
+the combined node/function/global dependency graph. Unevaluated type roots preserve the existing
 named and anonymous node/value identities. Independently executed layout probes
 must agree with Clang on node sizes, offsets, array strides and named enum
 representations/constants. Packed field placement does not change the required
@@ -825,9 +852,48 @@ alignment of the field's type. Node cast rules, concrete allocation metadata and
 typed flexible-tail accessors retain their existing contracts. Compiler staging
 uses a unique system temporary directory so long project output paths do not
 exceed Windows' process working-directory limit. Large temporary AST files are
-removed after compiler/worker completion, including failed collection. General
-selected native functions, globals and hooks still require further SDK and
-runtime integration.
+removed after compiler/worker completion, including failed collection. A first
+top-level header observation partitions the raw inventory into present and
+explicitly absent declarations. Nested variables do not satisfy global requests,
+and a changed declaration kind or malformed observation fails collection.
+
+The SDK's internal `binding-compile` command prepares an isolated project with
+the consumer's selected SDK, runtime reference and package directory. The consumer's
+restore assets supply the effective feeds, ordered NuGet configuration files and
+fallback directories. NuGet applies the original credentials and source mappings;
+an isolated build does not add nuget.org or merge configuration files itself.
+Restore runs before cache lookup, including when compiled artifacts already exist.
+It resolves current references and analyzers before cache lookup, then checks content hashes
+for the compiler, runtime, SDK, packages and compiler inputs. Timestamp-preserving
+changes invalidate reuse, including changes to NuGet configuration. Generated temporary project paths are normalized to
+the same logical source location used by deterministic compilation.
+
+A cross-process lease protects each immutable compiled entry through consumer
+copying. A producer publishes only complete verified artifacts; failure and
+cancellation remove its staging while retaining the previous entry. Consumers
+copy their own outputs and register those files for clean, without owning the
+shared cache. Source reuse observes the current preprocessed headers, including
+unused macro definitions, and the effective semantic frontend command. Compiler
+configuration can change record layout or diagnostics without changing the
+preprocessed tokens. Native tool contents, node layout and generator identity
+also participate in the key; pre/post observations reject changed inputs.
+Every hit still compiles and executes the independent declaration/bitfield
+checks. Leases protect source artifacts through verification and consumer copying.
+
+The native-body compiler uses short owned temporary paths and publishes immutable
+source/object pairs in the shared binding cache. An atomic linker-manifest replacement selects
+the new pair only after successful compilation; failure and cancellation retain
+the previous pair and selection. Empty selection needs no compiler. MSBuild clean
+owns the consumer's manifest and leaves shared objects intact. Keeping objects
+outside deep consumer intermediates avoids MSVC's native input-path limit.
+Object and archive provider tests exercise actual
+missing-symbol link errors, recovery, exact results and paths with spaces.
+
+Cold, changed-source and unchanged SDK builds/publications have been measured on
+Linux and Windows, with conditions and results recorded in `PROGRESS.md`.
+Repeated builds improve with source reuse; the measured cold builds are slower.
+Content checks remain mandatory regardless of the time budget. Variadics,
+callback/lifetime helpers, globals and hooks remain unfinished.
 
 Validation metadata and owned context identifiers use the extension's C runtime
 allocator. PostgreSQL owns the actual chunks. Context reset callbacks remove
