@@ -299,7 +299,9 @@ and integer updates across backends and managed threads with .NET `Interlocked`
 semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
 inline `PgAtomicValue<T>` fields. Inline `PgSpinLockValue<T>` fields provide
 exclusive guards for very short updates; `PgSpinLock<T>` owns stable local
-storage with the same guard API. `PgFixedList<T>`, `PgFixedDeque<T>` and
+storage with the same guard API. Scoped guard reads operate on original nested
+atomic and spinlock fields while preserving the parent's lifetime.
+`PgFixedList<T>`, `PgFixedDeque<T>` and
 `PgFixedMap<TKey, TValue>` provide bounded collections over unmanaged inline
 buffers, including process-stable map keys. See
 [shared memory, locks and atomics](docs/src/content/docs/shared-memory.md).

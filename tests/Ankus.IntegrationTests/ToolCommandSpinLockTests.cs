@@ -26,6 +26,10 @@ public sealed partial class ToolCommandTests
         Assert.AreSequenceEqual(Enumerable.Range(1, 10),
             Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(first, "SELECT array_agg(spin_increment()) FROM generate_series(1, 10)")));
         Assert.AreEqual(10, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+        Assert.AreEqual("-9223372036854775808|0|0", await PackageGucScalarAsync(first, "SELECT spin_nested_read()"));
+        Assert.AreEqual("-9223372036854775808|14|14", await PackageGucScalarAsync(first, "SELECT spin_nested_local()"));
+        Assert.AreEqual("-9223372036854775808|15|15", await PackageGucScalarAsync(first, "SELECT spin_nested_local()"));
+        Assert.AreEqual("-9223372036854775808|14|14", await PackageGucScalarAsync(second, "SELECT spin_nested_local()"));
         Assert.AreEqual(13, await PackageGucScalarAsync(first, "SELECT spin_local(true)"));
         Assert.AreEqual(14, await PackageGucScalarAsync(first, "SELECT spin_local(false)"));
         Assert.AreEqual(13, await PackageGucScalarAsync(second, "SELECT spin_local(true)"));
@@ -38,6 +42,17 @@ public sealed partial class ToolCommandTests
         await ExecutePackageGucAsync(first, "SELECT spin_set(0); SELECT spin_prepare_gate()");
         await Task.WhenAll(ExecutePackageGucAsync(first, "SELECT spin_work(2000)"), ExecutePackageGucAsync(second, "SELECT spin_work(3000)"));
         Assert.AreEqual(5000, await PackageGucScalarAsync(first, "SELECT spin_read()"));
+        Assert.AreEqual("-9223372036854775808|5000|5000", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(first, "SELECT spin_nested_reject_aliases()")));
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(first, "SELECT spin_nested_forget()")));
+        PostgresException nestedFailure = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecutePackageGucAsync(first, "SELECT spin_nested_fail(97)"));
+        Assert.AreEqual("P7841", nestedFailure.SqlState);
+        Assert.AreEqual("spinlock reader error", nestedFailure.MessageText);
+        Assert.AreEqual("owned reader detail", nestedFailure.Detail);
+        Assert.AreEqual("-9223372036854775808|97|97", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        await ExecutePackageGucAsync(first, "BEGIN; SELECT spin_nested_add(10); ROLLBACK");
+        Assert.AreEqual("-9223372036854775808|107|107", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        Assert.AreEqual(42, await PackageGucScalarAsync(first, "SELECT 42"));
         Assert.AreEqual(5000, await PackageGucScalarAsync(second, "SELECT spin_set(73)"));
         Assert.AreEqual(73, await PackageGucScalarAsync(first, "SELECT spin_read()"));
         PostgresException failure = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecutePackageGucAsync(first, "SELECT spin_fail(97)"));
@@ -74,6 +89,8 @@ public sealed partial class ToolCommandTests
 
         await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(timeout.Token);
         Assert.AreEqual(0, await PackageGucScalarAsync(recovered, "SELECT spin_read()"));
+        Assert.AreEqual("-9223372036854775808|0|0", await PackageGucScalarAsync(recovered, "SELECT spin_nested_read()"));
+        Assert.AreEqual("-9223372036854775808|14|14", await PackageGucScalarAsync(recovered, "SELECT spin_nested_local()"));
         Assert.AreEqual(1, await PackageGucScalarAsync(recovered, "SELECT spin_increment()"));
         Assert.AreEqual(13, await PackageGucScalarAsync(recovered, "SELECT spin_local(true)"));
         Assert.AreEqual(42, await PackageGucScalarAsync(recovered, "SELECT 42"));
@@ -89,6 +106,14 @@ public sealed partial class ToolCommandTests
         public readonly struct SpinState(int initial)
         {
             public readonly PgSpinLockValue<int> Counter = new(initial);
+            public readonly PgSpinLockValue<NestedState> Nested = new(new NestedState(initial));
+        }
+
+        public readonly struct NestedState(int initial)
+        {
+            public readonly long Marker = long.MinValue;
+            public readonly PgAtomicValue<int> Atomic = new(initial);
+            public readonly PgSpinLockValue<int> Counter = new(initial);
         }
 
         public static class SpinFunctions
@@ -96,6 +121,7 @@ public sealed partial class ToolCommandTests
             private static readonly PgShared<SpinState> State = new("ankus_spin_probe.state");
             private static readonly PgAtomic<int> Gate = new("ankus_spin_probe.gate");
             private static PgSpinLock<int>? s_local;
+            private static PgSpinLock<NestedState>? s_nestedLocal;
 
             [PgModuleLoad]
             public static void Load()
@@ -103,7 +129,111 @@ public sealed partial class ToolCommandTests
                 PgSharedMemory.Initialize(State, static () => new SpinState(0));
                 PgSharedMemory.Initialize(Gate);
                 s_local = new PgSpinLock<int>(13);
+                s_nestedLocal = new PgSpinLock<NestedState>(new NestedState(13));
             }
+
+            [PgFunction]
+            public static string SpinNestedRead() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                return parent.Read(static (in NestedState value) =>
+                {
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    return $"{value.Marker}|{value.Atomic.Value}|{child.Value}";
+                });
+            });
+
+            [PgFunction]
+            public static string SpinNestedLocal()
+            {
+                using PgSpinLockGuard<NestedState> parent = s_nestedLocal!.Lock();
+                return parent.Read(static (in NestedState value) =>
+                {
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value++;
+                    value.Atomic.Exchange(child.Value);
+                    GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    return $"{value.Marker}|{value.Atomic.Value}|{child.Value}";
+                });
+            }
+
+            [PgFunction]
+            public static int SpinNestedAdd(int amount) => State.Read((in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                return parent.Read((in NestedState value) =>
+                {
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value += amount;
+                    value.Atomic.Exchange(child.Value);
+                    return child.Value;
+                });
+            });
+
+            [PgFunction]
+            public static bool SpinNestedRejectAliases() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                return parent.Read((in NestedState value) =>
+                {
+                    bool release = false;
+                    bool replace = false;
+                    try
+                    {
+                        parent.Dispose();
+                    }
+                    catch (InvalidOperationException error) when (error.Message.Contains("scoped read", StringComparison.Ordinal))
+                    {
+                        release = true;
+                    }
+
+                    try
+                    {
+                        parent.Value = default;
+                    }
+                    catch (InvalidOperationException error) when (error.Message.Contains("scoped read", StringComparison.Ordinal))
+                    {
+                        replace = true;
+                    }
+
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    return release && replace && child.Value == 5000 && value.Atomic.Value == 5000 && value.Marker == long.MinValue;
+                });
+            });
+
+            [PgFunction]
+            public static bool SpinNestedForget() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                PgSpinLockGuard<int> child = parent.Read(static (in NestedState value) => value.Counter.Lock());
+                try
+                {
+                    _ = child.Value;
+                    return false;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return true;
+                }
+            });
+
+            [PgFunction]
+            public static int SpinNestedFail(int changed) => State.Read((in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                return parent.Read((in NestedState value) =>
+                {
+                    PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value = changed;
+                    value.Atomic.Exchange(changed);
+                    PgLog.Write(PgLogLevel.Error, new PgDiagnostic("spinlock reader error")
+                    {
+                        SqlState = "P7841",
+                        Detail = "owned reader detail",
+                    });
+                    return 0;
+                });
+            });
 
             [PgFunction]
             public static int SpinRead() => State.Read(static (in SpinState state) =>
@@ -241,6 +371,7 @@ public sealed partial class ToolCommandTests
                 for (int index = 0; index < count; index++)
                 {
                     _ = SpinIncrement();
+                    _ = SpinNestedAdd(1);
                 }
             }
 
@@ -274,15 +405,22 @@ public sealed partial class ToolCommandTests
             {
                 using PgSpinLockGuard<int> guard = state.Counter.Lock();
                 guard.Value = 211;
-                Gate.Value = 1;
-                long started = Stopwatch.GetTimestamp();
-                // The test kills this owned backend while it holds the lock; the timeout bounds a failed witness.
-                while (Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                return parent.Read<int>(static (in NestedState value) =>
                 {
-                    Thread.Sleep(10);
-                }
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    child.Value = 223;
+                    value.Atomic.Exchange(223);
+                    Gate.Value = 1;
+                    long started = Stopwatch.GetTimestamp();
+                    // The test kills this owned backend while both nested guards remain live.
+                    while (Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
+                    {
+                        Thread.Sleep(10);
+                    }
 
-                throw new TimeoutException("The owned spinlock backend was not stopped.");
+                    throw new TimeoutException("The owned spinlock backend was not stopped.");
+                });
             });
         }
         """;

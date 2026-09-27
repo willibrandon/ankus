@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Reads an unmanaged shared value through a reference limited to the synchronous callback.
+Reads an unmanaged value through a reference limited to the synchronous callback.
 
 ```csharp
 public delegate TResult PgSharedReader<T, out TResult>(scoped in T value) where T : unmanaged

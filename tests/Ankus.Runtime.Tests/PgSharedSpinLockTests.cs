@@ -5,6 +5,68 @@ namespace Ankus.Runtime.Tests;
 public sealed unsafe partial class PgSharedTests
 {
     /// <summary>
+    /// Nested original-storage readers release children and parent before shared admission retires.
+    /// </summary>
+    [TestMethod]
+    public void SpinGuardReadsReleaseBeforeSharedAdmission()
+    {
+        using var spins = new NativeSpinLockTestFixture();
+        using var fixture = new SharedFixture();
+        Func<NativeMemoryRequest, NativeMemoryResult> shared = fixture.Memory.Handler!;
+        fixture.Memory.Handler = request => request._operation == NativeMemoryOperation.SpinLock ? spins.Respond(request) : shared(request);
+        PgShared<PgSpinLockValue<SpinState>> storage = fixture.Start(new PgSpinLockValue<SpinState>(new SpinState(73)));
+        var admissions = new List<int>();
+        spins.BeforeRelease = () => admissions.Add(fixture.Access->_readers);
+        PgSpinLockGuard<int>? staleChild = null;
+        PgSpinLockGuard<SpinState> staleParent = storage.Read((in PgSpinLockValue<SpinState> value) =>
+        {
+            PgSpinLockGuard<SpinState> parent = value.Lock();
+            Assert.AreEqual(79, parent.Read((in SpinState state) =>
+            {
+                staleChild = state._counter.Lock();
+                Assert.AreEqual(73, staleChild.Value);
+                staleChild.Value = 79;
+                return staleChild.Value;
+            }));
+            Assert.IsNotNull(staleChild);
+            Assert.ThrowsExactly<ObjectDisposedException>(() => staleChild.Value);
+            Assert.HasCount(1, spins.Held);
+            Assert.AreEqual(1, fixture.Access->_readers);
+            return parent;
+        });
+        Assert.AreSequenceEqual([1, 1], admissions);
+        Assert.AreEqual(0, fixture.Access->_readers);
+        Assert.IsEmpty(spins.Held);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => staleParent.Read(static (in SpinState value) => value._other.IsLocked));
+        Assert.AreEqual(79, storage.Read(static (in PgSpinLockValue<SpinState> value) =>
+        {
+            using PgSpinLockGuard<SpinState> parent = value.Lock();
+            return parent.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> child = state._counter.Lock();
+                return child.Value;
+            });
+        }));
+        fixture.UseReplacement(new PgSpinLockValue<SpinState>(new SpinState(101)));
+        staleParent.Dispose();
+        Assert.IsNotNull(staleChild);
+        staleChild.Dispose();
+        Assert.AreEqual(101, storage.Read(static (in PgSpinLockValue<SpinState> value) =>
+        {
+            using PgSpinLockGuard<SpinState> parent = value.Lock();
+            return parent.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> child = state._counter.Lock();
+                return child.Value;
+            });
+        }));
+        Assert.AreEqual(0, fixture.Access->_readers);
+        Assert.IsEmpty(spins.Held);
+        fixture.AssertGuards(sizeof(PgSpinLockValue<SpinState>));
+        Assert.IsNull(spins.ReleaseFailure);
+    }
+
+    /// <summary>
     /// Native admission does not make zeroed spinlock fields initialized or detached copies safe to acquire.
     /// </summary>
     [TestMethod]

@@ -24,6 +24,7 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
     private NativeSpinLockLease? _next;
     private delegate* unmanaged[Cdecl]<nint, void> _release;
     private bool _held;
+    private int _readDepth;
 
     /// <summary>
     /// Initializes an unlocked cell using the selected PostgreSQL headers.
@@ -126,11 +127,40 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
     }
 
     /// <summary>
+    /// Reads original protected storage while preventing replacement or release through guard aliases.
+    /// </summary>
+    internal TResult Read<T, TResult>(PgSharedReader<T, TResult> reader) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        Validate();
+        _readDepth = checked(_readDepth + 1);
+        NativeSharedReadScope frame = default;
+        NativeSharedReadScope.Push(&frame, NativeMemoryContext.Provider, data, (nuint)sizeof(T));
+        try
+        {
+            return reader(in Unsafe.AsRef<T>((void*)data));
+        }
+        finally
+        {
+            try
+            {
+                NativeSharedReadScope.Pop(&frame);
+            }
+            finally
+            {
+                _readDepth--;
+                GC.KeepAlive(_owner);
+            }
+        }
+    }
+
+    /// <summary>
     /// Immediately publishes the protected value without allocation or backend entry.
     /// </summary>
     internal void Write<T>(T value) where T : unmanaged
     {
         Validate();
+        CheckNoReaders();
         Unsafe.WriteUnaligned((void*)data, value);
         GC.KeepAlive(_owner);
     }
@@ -146,7 +176,19 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
         }
 
         Validate();
+        CheckNoReaders();
         Expire();
+    }
+
+    /// <summary>
+    /// Preserves original storage and lock ownership until every active reader has returned.
+    /// </summary>
+    private void CheckNoReaders()
+    {
+        if (_readDepth != 0)
+        {
+            throw new InvalidOperationException("A PostgreSQL spinlock guard cannot replace or release its value during a scoped read.");
+        }
     }
 
     /// <summary>

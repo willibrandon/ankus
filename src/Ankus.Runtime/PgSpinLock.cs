@@ -58,7 +58,7 @@ public sealed class PgSpinLock<T> where T : unmanaged
 }
 
 /// <summary>
-/// Holds one PostgreSQL spinlock acquisition with checked copied value access.
+/// Holds one PostgreSQL spinlock acquisition with checked copied values and scoped original-storage reads.
 /// </summary>
 /// <typeparam name="T">The unmanaged protected value.</typeparam>
 public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
@@ -78,6 +78,20 @@ public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
         get => _lease.Read<T>();
         set => _lease.Write(value);
     }
+
+    /// <summary>
+    /// Reads the original protected value through a reference limited to the synchronous callback.
+    /// </summary>
+    /// <typeparam name="TResult">The owned callback result.</typeparam>
+    /// <param name="reader">The reader, whose protected reference cannot escape the callback.</param>
+    /// <returns>The callback result.</returns>
+    /// <remarks>
+    /// Access nested atomic values and spinlocks directly through the readonly reference.
+    /// Replacing Value or disposing this guard is rejected until the reader returns. Nested spinlock
+    /// guards expire before the read ends, including exceptional exits. Keep the callback short;
+    /// PostgreSQL calls remain forbidden while the parent spinlock is held.
+    /// </remarks>
+    public TResult Read<TResult>(PgSharedReader<T, TResult> reader) => _lease.Read(reader);
 
     /// <summary>
     /// Releases the acquisition once; aliases and expired guards cannot release a later owner.

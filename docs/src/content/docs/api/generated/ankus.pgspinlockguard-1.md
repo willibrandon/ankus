@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Holds one PostgreSQL spinlock acquisition with checked copied value access.
+Holds one PostgreSQL spinlock acquisition with checked copied values and scoped original-storage reads.
 
 ```csharp
 public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
@@ -36,6 +36,37 @@ Releases the acquisition once; aliases and expired guards cannot release a later
 ```csharp
 public void Dispose()
 ```
+
+<a id="member-41c3b02ea8259e8a"></a>
+
+### Read&lt;TResult&gt;(PgSharedReader&lt;T, TResult&gt;)
+
+Reads the original protected value through a reference limited to the synchronous callback.
+
+```csharp
+public TResult Read<TResult>(PgSharedReader<T, TResult> reader)
+```
+
+Type parameters:
+
+`TResult`
+
+The owned callback result.
+
+Parameters:
+
+`reader` — <code>PgSharedReader&lt;T, TResult&gt;</code>
+
+The reader, whose protected reference cannot escape the callback.
+
+Returns: <code>TResult</code>
+
+The callback result.
+
+Access nested atomic values and spinlocks directly through the readonly reference.
+Replacing Value or disposing this guard is rejected until the reader returns. Nested spinlock
+guards expire before the read ends, including exceptional exits. Keep the callback short;
+PostgreSQL calls remain forbidden while the parent spinlock is held.
 
 
 ## Properties

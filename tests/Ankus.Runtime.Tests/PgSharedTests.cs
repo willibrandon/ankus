@@ -244,14 +244,14 @@ public sealed unsafe partial class PgSharedTests
 
     private sealed class SharedFixture : IDisposable
     {
-        private readonly byte* _buffer = (byte*)NativeMemory.Alloc(128);
+        private readonly byte* _buffer = (byte*)NativeMemory.Alloc(256);
         private nint _cookie;
 
         internal SharedFixture()
         {
             Scope = MemoryContextTestFixture.Enter();
             Memory.Handler = Respond;
-            new Span<byte>(_buffer, 128).Fill(0xA5);
+            new Span<byte>(_buffer, 256).Fill(0xA5);
             Access->_readers = int.MinValue;
             Access->_processId = Environment.ProcessId;
         }
@@ -280,6 +280,7 @@ public sealed unsafe partial class PgSharedTests
 
         internal PgShared<T> Start<T>(T value) where T : unmanaged
         {
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(sizeof(T), 120, nameof(value));
             var storage = new PgShared<T>("shared");
             PgSharedMemory.Initialize(storage, () => value);
             Initialize();
@@ -316,8 +317,9 @@ public sealed unsafe partial class PgSharedTests
 
         internal void UseReplacement<T>(T value) where T : unmanaged
         {
-            Unsafe.Write(_buffer + 72, value);
-            Access->_address = (long)(_buffer + 72);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(sizeof(T), 120, nameof(value));
+            Unsafe.Write(_buffer + 136, value);
+            Access->_address = (long)(_buffer + 136);
             Volatile.Write(ref Access->_readers, 0);
         }
 
@@ -325,6 +327,11 @@ public sealed unsafe partial class PgSharedTests
         {
             Assert.AreEqual(-1, new ReadOnlySpan<byte>(_buffer, 8).IndexOfAnyExcept((byte)0xA5));
             Assert.AreEqual(-1, new ReadOnlySpan<byte>(_buffer + 8 + size, 120 - size).IndexOfAnyExcept((byte)0xA5));
+            if (Access->_address == (long)(_buffer + 136))
+            {
+                Assert.AreEqual(-1, new ReadOnlySpan<byte>(_buffer + 128, 8).IndexOfAnyExcept((byte)0xA5));
+                Assert.AreEqual(-1, new ReadOnlySpan<byte>(_buffer + 136 + size, 120 - size).IndexOfAnyExcept((byte)0xA5));
+            }
         }
 
         public void Dispose()

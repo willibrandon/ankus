@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Ankus;
 
 /// <summary>
-/// Reads an unmanaged shared value through a reference limited to the synchronous callback.
+/// Reads an unmanaged value through a reference limited to the synchronous callback.
 /// </summary>
 /// <typeparam name="T">The unmanaged shared value.</typeparam>
 /// <typeparam name="TResult">The owned result returned by the callback.</typeparam>

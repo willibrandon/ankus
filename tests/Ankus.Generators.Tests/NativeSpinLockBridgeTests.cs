@@ -79,4 +79,62 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains(expected, errors.Select(static diagnostic => diagnostic.Id),
             string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
     }
+
+    /// <summary>
+    /// Scoped guard readers compile nested native cells and atomic updates against original storage.
+    /// </summary>
+    [TestMethod]
+    public void SpinGuardReadersCompileNestedValues()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            using Ankus;
+            public readonly struct Nested(int value)
+            {
+                public readonly PgSpinLockValue<int> Child = new(value);
+                public readonly PgAtomicValue<int> Atomic = new(value);
+            }
+            public static class Functions
+            {
+                [PgFunction]
+                public static int Probe()
+                {
+                    var owner = new PgSpinLock<Nested>(new Nested(7));
+                    using PgSpinLockGuard<Nested> parent = owner.Lock();
+                    return parent.Read(static (in Nested value) =>
+                    {
+                        using PgSpinLockGuard<int> child = value.Child.Lock();
+                        child.Value++;
+                        return value.Atomic.Exchange(child.Value);
+                    });
+                }
+            }
+            """);
+        AssertInitializationCompilationSucceeds(compilation, diagnostics);
+    }
+
+    /// <summary>
+    /// Readers cannot expose their protected reference through a closure or overwrite it directly.
+    /// </summary>
+    /// <param name="body">The forbidden callback body.</param>
+    /// <param name="expected">The compiler diagnostic proving the boundary.</param>
+    [TestMethod]
+    [DataRow("return guard.Read(static (in int value) => new Func<int>(() => value));", "CS1628")]
+    [DataRow("return guard.Read(static (in int value) => { value = 99; return new Func<int>(() => 0); });", "CS8331")]
+    public void SpinGuardReadersPreserveReferenceBoundaries(string body, string expected)
+    {
+        (Compilation compilation, _) = Generate($$"""
+            using System;
+            using Ankus;
+            public static class Functions
+            {
+                public static Func<int> Escape(PgSpinLockGuard<int> guard)
+                {
+                    {{body}}
+                }
+            }
+            """);
+        Diagnostic[] errors = [.. compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+        Assert.Contains(expected, errors.Select(static diagnostic => diagnostic.Id),
+            string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
+    }
 }

@@ -40,7 +40,7 @@ internal unsafe struct NativeSharedReadScope
             }
         }
 
-        throw new InvalidOperationException("Access an inline PostgreSQL spinlock directly within its owning PgShared.Read callback.");
+        throw new InvalidOperationException("Access an inline PostgreSQL spinlock directly within its owning scoped read callback.");
     }
 
     /// <summary>

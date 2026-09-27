@@ -243,8 +243,9 @@ Spinlock construction, acquisition and guard access require the owning backend's
 native callback thread. Keep critical sections synchronous and limited to small
 managed computations. Release the guard before SQL, logging, GUC reads, memory
 context operations or other PostgreSQL calls; those APIs reject access while a
-spinlock is held. Managed exceptions, including `PgLog.Error`, unwind the guard
-before PostgreSQL reports the error. Prefer `PgLwLock<T>` for longer work.
+spinlock is held. Managed exceptions, including an Error-level `PgLog.Write`,
+unwind the guard before PostgreSQL reports the error. Prefer `PgLwLock<T>` for
+longer work.
 
 For a value local to one backend, use `PgSpinLock<T>`:
 
@@ -257,6 +258,29 @@ guard.Value = 1;
 This owner keeps its storage pinned, and a live guard keeps that storage alive.
 Callback exit releases a forgotten local guard. Local values are not shared
 between PostgreSQL processes; use an inline field in `PgShared<T>` for that.
+
+When the protected value contains atomic or spinlock fields, use the guard's
+`Read` method to operate on their original storage. For example, this local
+owner protects the `SpinCounters` aggregate defined above:
+
+```csharp
+PgSpinLock<SpinCounters> counters = new(new SpinCounters(0));
+using PgSpinLockGuard<SpinCounters> parent = counters.Lock();
+int completed = parent.Read(static (in SpinCounters state) =>
+{
+    using PgSpinLockGuard<int> child = state.Completed.Lock();
+    child.Value++;
+    return child.Value;
+});
+```
+
+The same method works on a guard acquired from an inline shared spinlock. Its
+readonly reference lasts only for the synchronous callback. The callback may
+return an owned result; copying the value or a field creates independent storage.
+It cannot replace `parent.Value` or dispose `parent` while a reader is active,
+including through another reference to the same guard. Forgotten child guards
+expire before that reader returns or throws. These reads keep the parent locked
+and preserve the same short-critical-section and backend-call restrictions.
 
 Both forms expose `IsLocked` before PostgreSQL 19. This is an instantaneous
 observation, not permission to read the protected value without a guard.
