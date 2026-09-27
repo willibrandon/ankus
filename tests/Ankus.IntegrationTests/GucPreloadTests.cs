@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Ankus.Testing;
 using Npgsql;
 
@@ -71,10 +72,33 @@ public sealed class GucPreloadTests(TestContext context)
         await ExecuteAsync(connection, "SET ankus_guc_assign.count = '9'");
         await ExecuteAsync(connection, "BEGIN; SET LOCAL ankus_guc_assign.count = '11'; ROLLBACK");
         Assert.AreEqual("9", await ScalarAsync(connection, "SHOW ankus_guc_assign.count"));
-        PostgresException error = await FailureAsync(connection, "SET ankus_guc_assign.count = '666'");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
-        Assert.AreEqual("38000", error.SqlState);
-        Assert.AreEqual("Assign-only callback entered.", error.MessageText);
+        string session = "ankus-assign-error-" + Guid.NewGuid().ToString("N");
+        await ExecuteAsync(connection, $"SET application_name = '{session}'; SET log_error_verbosity = verbose");
+        await using NpgsqlConnection observer = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        await ExecuteAsync(observer, "LOAD 'Ankus.GucAssignExtension'");
+
+        NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => ExecuteAsync(connection, "SET ankus_guc_assign.count = '666'"));
+        if (failure is PostgresException error)
+        {
+            Assert.AreEqual("FATAL", error.InvariantSeverity);
+            Assert.AreEqual("38000", error.SqlState);
+            Assert.AreEqual("Assign-only callback entered.", error.MessageText);
+        }
+        else
+        {
+            // Windows can reset the socket before the client reads PostgreSQL's terminal error.
+            Assert.IsTrue(OperatingSystem.IsWindows());
+            IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
+            SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+            Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+        }
+
+        Assert.Contains($"[{session}]: FATAL:  38000: Assign-only callback entered.", PostgresFixture.Cluster.ReadServerLog());
+        Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
+        Assert.AreEqual(42, await ScalarAsync(observer, "SELECT 42"));
+        Assert.AreEqual("7", await ScalarAsync(observer, "SHOW ankus_guc_assign.count"));
+        await ExecuteAsync(observer, "SET ankus_guc_assign.count = '9'; RESET ankus_guc_assign.count");
+        Assert.AreEqual("7", await ScalarAsync(observer, "SHOW ankus_guc_assign.count"));
     }
 
     /// <summary>

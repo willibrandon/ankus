@@ -15,6 +15,11 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
     private nint _access;
 
     /// <summary>
+    /// Gets the provider whose native callback may acquire embedded backend locks.
+    /// </summary>
+    internal nint Provider => _provider;
+
+    /// <summary>
     /// Registers the descriptor once; failure retains the ability to retry.
     /// </summary>
     /// <param name="initializer">Writes the initial unmanaged value at shared-memory startup.</param>

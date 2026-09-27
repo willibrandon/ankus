@@ -215,6 +215,15 @@ public static unsafe partial class NativeBackend
     /// <param name="owner">The required native binding, or zero to accept any active binding.</param>
     internal static void CheckAccess(nint owner = 0)
     {
+        NativeSpinLockLease.CheckBackendAccess();
+        CheckCallbackAccess(owner);
+    }
+
+    /// <summary>
+    /// Checks the active callback without entering PostgreSQL, including managed diagnostic unwinding.
+    /// </summary>
+    internal static void CheckCallbackAccess(nint owner = 0)
+    {
         NativeSubtransaction.CheckAccess();
         CheckDisposalAccess(owner);
         if (s_abortCleanupDepth != 0)
@@ -779,6 +788,7 @@ public static unsafe partial class NativeBackend
 
     private static void Invoke(NativeSpiRequest* request, NativeSpiResult* result)
     {
+        NativeSpinLockLease.CheckBackendAccess();
         if (s_abortCleanupDepth != 0)
         {
             bool relationRelease = request->_operation == SpiOperation.Relation && request->_scalarOperation == 0;

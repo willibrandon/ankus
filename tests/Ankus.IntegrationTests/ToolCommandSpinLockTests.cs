@@ -1,0 +1,289 @@
+using System.Diagnostics;
+using System.Globalization;
+using Ankus.Testing;
+using Npgsql;
+
+namespace Ankus.IntegrationTests;
+
+public sealed partial class ToolCommandTests
+{
+    /// <summary>
+    /// Published spinlocks preserve values, ownership and recovery across independent PostgreSQL backends.
+    /// </summary>
+    [TestMethod]
+    public async Task SharedSpinLocksPreserveValuesAcrossBackends()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await PublishColdGucConsumerAsync("SpinLocks", "ankus_spin_probe", SpinLockSource, token);
+        await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true);
+        await using NpgsqlConnection first = await cluster.OpenConnectionAsync(token);
+        await using NpgsqlConnection second = await cluster.OpenConnectionAsync(token);
+        Assert.AreNotEqual(first.ProcessID, second.ProcessID);
+        await ExecutePackageGucAsync(first, "CREATE EXTENSION ankus_spin_probe");
+        int version = int.Parse(Assert.IsInstanceOfType<string>(await PackageGucScalarAsync(first, "SHOW server_version_num")), CultureInfo.InvariantCulture);
+        Assert.AreEqual(version < 190000 ? "False|True|False|0" : "unsupported|0",
+            await PackageGucScalarAsync(first, "SELECT spin_state()"));
+        Assert.AreSequenceEqual(Enumerable.Range(1, 10),
+            Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(first, "SELECT array_agg(spin_increment()) FROM generate_series(1, 10)")));
+        Assert.AreEqual(10, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+        Assert.AreEqual(13, await PackageGucScalarAsync(first, "SELECT spin_local(true)"));
+        Assert.AreEqual(14, await PackageGucScalarAsync(first, "SELECT spin_local(false)"));
+        Assert.AreEqual(13, await PackageGucScalarAsync(second, "SELECT spin_local(true)"));
+        Assert.AreEqual(47, await PackageGucScalarAsync(first, "SELECT spin_forget_local()"));
+        Assert.AreEqual(47, await PackageGucScalarAsync(first, "SELECT spin_local(false)"));
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(first, "SELECT spin_expired_guard()")));
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(first, "SELECT spin_reject_worker()")));
+        Assert.AreEqual(10, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+
+        await ExecutePackageGucAsync(first, "SELECT spin_set(0); SELECT spin_prepare_gate()");
+        await Task.WhenAll(ExecutePackageGucAsync(first, "SELECT spin_work(2000)"), ExecutePackageGucAsync(second, "SELECT spin_work(3000)"));
+        Assert.AreEqual(5000, await PackageGucScalarAsync(first, "SELECT spin_read()"));
+        Assert.AreEqual(5000, await PackageGucScalarAsync(second, "SELECT spin_set(73)"));
+        Assert.AreEqual(73, await PackageGucScalarAsync(first, "SELECT spin_read()"));
+        PostgresException failure = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecutePackageGucAsync(first, "SELECT spin_fail(97)"));
+        Assert.AreEqual("P7832", failure.SqlState);
+        Assert.AreEqual("spinlock managed error", failure.MessageText);
+        Assert.AreEqual(97, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+        Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(first, "SELECT spin_reject_sql()")));
+        Assert.AreEqual(101, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+        Assert.AreEqual(42, await PackageGucScalarAsync(first, "SELECT 42"));
+        await ExecutePackageGucAsync(first, "BEGIN; SELECT spin_set(107); ROLLBACK");
+        Assert.AreEqual(107, await PackageGucScalarAsync(second, "SELECT spin_read()"));
+
+        await ExecutePackageGucAsync(first, "SELECT spin_prepare_gate()");
+        Task holding = ExecutePackageGucAsync(first, "SELECT spin_hold_for_crash()");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (!Equals(1, await PackageGucScalarAsync(second, "SELECT spin_gate()")))
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+
+        int logLength = cluster.ReadServerLog().Length;
+        using (Process backend = Process.GetProcessById(first.ProcessID))
+        {
+            backend.Kill();
+            await backend.WaitForExitAsync(token);
+        }
+
+        await Assert.ThrowsAsync<NpgsqlException>(() => holding);
+        while (!cluster.ReadServerLog()[logLength..].Contains("database system is ready to accept connections", StringComparison.Ordinal))
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+
+        await using NpgsqlConnection recovered = await cluster.OpenConnectionAsync(timeout.Token);
+        Assert.AreEqual(0, await PackageGucScalarAsync(recovered, "SELECT spin_read()"));
+        Assert.AreEqual(1, await PackageGucScalarAsync(recovered, "SELECT spin_increment()"));
+        Assert.AreEqual(13, await PackageGucScalarAsync(recovered, "SELECT spin_local(true)"));
+        Assert.AreEqual(42, await PackageGucScalarAsync(recovered, "SELECT 42"));
+    }
+
+    /// <summary>
+    /// Exercises the pgrx guard update loop, native contention and owned crash recovery in a packaged consumer.
+    /// </summary>
+    private const string SpinLockSource = """
+        using Ankus;
+        using System.Diagnostics;
+
+        public readonly struct SpinState(int initial)
+        {
+            public readonly PgSpinLockValue<int> Counter = new(initial);
+        }
+
+        public static class SpinFunctions
+        {
+            private static readonly PgShared<SpinState> State = new("ankus_spin_probe.state");
+            private static readonly PgAtomic<int> Gate = new("ankus_spin_probe.gate");
+            private static PgSpinLock<int>? s_local;
+
+            [PgModuleLoad]
+            public static void Load()
+            {
+                PgSharedMemory.Initialize(State, static () => new SpinState(0));
+                PgSharedMemory.Initialize(Gate);
+                s_local = new PgSpinLock<int>(13);
+            }
+
+            [PgFunction]
+            public static int SpinRead() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                return guard.Value;
+            });
+
+            [PgFunction]
+            public static int SpinSet(int value) => State.Read((in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                int previous = guard.Value;
+                guard.Value = value;
+                return previous;
+            });
+
+            [PgFunction]
+            public static int SpinIncrement() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                guard.Value++;
+                return guard.Value;
+            });
+
+            [PgFunction]
+            public static string SpinState()
+            {
+                bool supported = true;
+                bool before = false;
+                try
+                {
+                    before = State.Read(static (in SpinState state) => state.Counter.IsLocked);
+                }
+                catch (NotSupportedException)
+                {
+                    supported = false;
+                }
+
+                bool during = false;
+                int value = State.Read((in SpinState state) =>
+                {
+                    using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                    if (supported)
+                    {
+                        during = state.Counter.IsLocked;
+                    }
+
+                    return guard.Value;
+                });
+                bool after = supported && State.Read(static (in SpinState state) => state.Counter.IsLocked);
+                return supported ? $"{before}|{during}|{after}|{value}" : $"unsupported|{value}";
+            }
+
+            [PgFunction]
+            public static int SpinLocal(bool collect)
+            {
+                using PgSpinLockGuard<int> guard = s_local!.Lock();
+                int previous = guard.Value;
+                guard.Value++;
+                if (collect)
+                {
+                    // Deliberately stress stable local storage while its test-owned guard exists.
+                    GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    if (guard.Value != previous + 1)
+                    {
+                        throw new InvalidOperationException("Local spinlock data changed during GC.");
+                    }
+                }
+
+                return previous;
+            }
+
+            [PgFunction]
+            public static int SpinForgetLocal()
+            {
+                PgSpinLockGuard<int> guard = s_local!.Lock();
+                guard.Value = 47;
+                return guard.Value;
+            }
+
+            [PgFunction]
+            public static bool SpinExpiredGuard()
+            {
+                PgSpinLockGuard<int> expired = State.Read(static (in SpinState state) => state.Counter.Lock());
+                try
+                {
+                    _ = expired.Value;
+                    return false;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return true;
+                }
+            }
+
+            [PgFunction]
+            public static bool SpinRejectWorker() => Task.Run(() =>
+            {
+                try
+                {
+                    return State.Read(static (in SpinState state) =>
+                    {
+                        using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                        return false;
+                    });
+                }
+                catch (InvalidOperationException error) when (error.Message.Contains("active backend callback", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }).GetAwaiter().GetResult();
+
+            [PgFunction]
+            public static void SpinPrepareGate() => Gate.Value = 0;
+
+            [PgFunction]
+            public static int SpinGate() => Gate.Value;
+
+            [PgFunction]
+            public static void SpinWork(int count)
+            {
+                Gate.Increment();
+                long started = Stopwatch.GetTimestamp();
+                while (Gate.Value != 2)
+                {
+                    if (Stopwatch.GetElapsedTime(started) > TimeSpan.FromSeconds(10))
+                    {
+                        throw new TimeoutException("The other spinlock backend did not arrive.");
+                    }
+
+                    Thread.Sleep(1);
+                }
+
+                for (int index = 0; index < count; index++)
+                {
+                    _ = SpinIncrement();
+                }
+            }
+
+            [PgFunction]
+            public static int SpinFail(int value) => State.Read((in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                guard.Value = value;
+                PgLog.Write(PgLogLevel.Error, new PgDiagnostic("spinlock managed error") { SqlState = "P7832" });
+                return 0;
+            });
+
+            [PgFunction]
+            public static bool SpinRejectSql() => State.Read(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                guard.Value = 101;
+                try
+                {
+                    Spi.Execute("SELECT 1 / 0");
+                    return false;
+                }
+                catch (InvalidOperationException error) when (error.Message.Contains("spinlock", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            });
+
+            [PgFunction]
+            public static int SpinHoldForCrash() => State.Read<int>(static (in SpinState state) =>
+            {
+                using PgSpinLockGuard<int> guard = state.Counter.Lock();
+                guard.Value = 211;
+                Gate.Value = 1;
+                long started = Stopwatch.GetTimestamp();
+                // The test kills this owned backend while it holds the lock; the timeout bounds a failed witness.
+                while (Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
+                {
+                    Thread.Sleep(10);
+                }
+
+                throw new TimeoutException("The owned spinlock backend was not stopped.");
+            });
+        }
+        """;
+}

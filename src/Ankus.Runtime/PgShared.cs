@@ -12,12 +12,12 @@ namespace Ankus;
 public delegate TResult PgSharedReader<T, out TResult>(scoped in T value) where T : unmanaged;
 
 /// <summary>
-/// Stores an immutable unmanaged value or an aggregate containing atomic values in PostgreSQL shared memory.
+/// Stores an unmanaged aggregate with immutable, atomic or spinlock-protected fields in PostgreSQL shared memory.
 /// </summary>
 /// <typeparam name="T">The unmanaged shared value.</typeparam>
 /// <remarks>
 /// Register a static descriptor during shared preload. Ordinary fields are immutable after initialization;
-/// use inline atomic values for concurrent updates. Embedded addresses must be valid in every process.
+/// use inline atomic values or spinlocks for concurrent updates. Embedded addresses must be valid in every process.
 /// Each synchronous read protects the native address against retirement until its callback returns.
 /// </remarks>
 public sealed class PgShared<T> where T : unmanaged
@@ -55,12 +55,23 @@ public sealed class PgShared<T> where T : unmanaged
     /// Access inline atomic fields directly through the readonly reference. Copying the aggregate or a
     /// field copies its state and subsequent updates affect that copy. Multiple atomic fields do not
     /// form a single transaction. Keep callbacks finite; shutdown waits for admitted readers to finish.
+    /// Access inline spinlocks directly through this reference on the backend callback thread. Guards
+    /// are released before the read returns, including exceptional exits, and cannot escape its admission.
     /// </remarks>
-    public TResult Read<TResult>(PgSharedReader<T, TResult> reader)
+    public unsafe TResult Read<TResult>(PgSharedReader<T, TResult> reader)
     {
         ArgumentNullException.ThrowIfNull(reader);
         using NativeSharedMemoryAccessLease lease = _registration.Open();
-        return reader(in lease.GetReference<T>());
+        NativeSharedReadScope scope = default;
+        NativeSharedReadScope.Push(&scope, _registration.Provider, lease.Value, (nuint)sizeof(T));
+        try
+        {
+            return reader(in lease.GetReference<T>());
+        }
+        finally
+        {
+            NativeSharedReadScope.Pop(&scope);
+        }
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     private readonly int _thread = Environment.CurrentManagedThreadId;
     private bool _alive = true;
     private List<NativeSharedMemoryLease>? _locks;
+    private List<NativeSpinLockLease>? _spinLocks;
 
     /// <summary>
     /// Gets the nesting depth that owns this unique lease.
@@ -24,6 +25,16 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     /// </summary>
     internal void Expire()
     {
+        if (_spinLocks is not null)
+        {
+            for (int index = _spinLocks.Count - 1; index >= 0; index--)
+            {
+                _spinLocks[index].Expire();
+            }
+
+            _spinLocks = null;
+        }
+
         if (_locks is not null)
         {
             for (int index = _locks.Count - 1; index >= 0; index--)
@@ -48,6 +59,16 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     /// </summary>
     /// <param name="lease">The lease whose native ownership has ended.</param>
     internal void Unregister(NativeSharedMemoryLease lease) => _locks?.Remove(lease);
+
+    /// <summary>
+    /// Retains a prepared spinlock lease before native acquisition begins.
+    /// </summary>
+    internal void Register(NativeSpinLockLease lease) => (_spinLocks ??= []).Add(lease);
+
+    /// <summary>
+    /// Stops retaining a released or failed spinlock acquisition.
+    /// </summary>
+    internal void Unregister(NativeSpinLockLease lease) => _spinLocks?.Remove(lease);
 
     /// <summary>
     /// Rejects expired, foreign-thread or foreign-provider access before touching input storage.

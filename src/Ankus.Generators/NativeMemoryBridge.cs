@@ -64,7 +64,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_NATIVE_BINDING = 32,
             ANKUS_MEMORY_FORMAT_NODE = 33,
             ANKUS_MEMORY_NATIVE_CALL = 34,
-            ANKUS_MEMORY_SHARED = 35
+            ANKUS_MEMORY_SHARED = 35,
+            ANKUS_MEMORY_SPIN = 36
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -917,7 +918,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + NativeSharedMemoryBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + NativeSharedMemoryBridge.Source + NativeSpinLockBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -978,6 +979,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_SHARED:
                     ankus_memory_shared(request, result);
+                    break;
+                case ANKUS_MEMORY_SPIN:
+                    ankus_memory_spin(request, result);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);
@@ -1383,7 +1387,8 @@ internal static class NativeMemoryBridge
                 PG_END_TRY();
             }
             PG_END_TRY();
-            if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED))
+            if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED &&
+                request->operation != ANKUS_MEMORY_SPIN))
             {
                 InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
                 QueryCancelHoldoffCount = cancel_holdoff;

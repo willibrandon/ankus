@@ -33,7 +33,7 @@ public static class PgLog
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         ValidateLevel(level);
-        NativeLog.CheckAccess();
+        NativeLog.CheckAccess(terminal: level >= PgLogLevel.Error);
         if (diagnostic.SqlState is string state &&
             (state.Length != 5 || state.Any(static value => value is not (>= '0' and <= '9' or >= 'A' and <= 'Z')) ||
             (level >= PgLogLevel.Error && state == "00000")))

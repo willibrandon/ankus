@@ -40,11 +40,16 @@ public static unsafe class NativeLog
     /// <summary>
     /// Requires the scoped logging capability or the ordinary active backend capability.
     /// </summary>
-    internal static void CheckAccess()
+    internal static void CheckAccess(bool terminal = false)
     {
+        if (!terminal)
+        {
+            NativeSpinLockLease.CheckBackendAccess();
+        }
+
         if (s_scopeDepth == 0)
         {
-            NativeBackend.CheckAccess();
+            NativeBackend.CheckCallbackAccess();
         }
         else if (s_log == 0)
         {

@@ -34,39 +34,41 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Bounded collections extend the shared storage, locks, scalar atomics and scoped
-aggregates introduced in `9a8e907`, `77e9965` and `aa4b44a`.
-`PgFixedList<T>`, `PgFixedDeque<T>` and `PgFixedMap<TKey, TValue>` borrow
-unmanaged inline buffers and metadata, with fixed capacities, ordered snapshots,
-draining, collision repair and process-stable key hashing. Real-server witnesses
-cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7, including exact
-custom values across independent backends, full-buffer recovery, rollback
-persistence and shared-segment recreation after a backend crash.
+`PgSpinLock<T>` owns pinned local storage; `PgSpinLockValue<T>` embeds a native
+spinlock in an admitted shared aggregate. Checked guards preserve exact copied
+values, immediate writes, ownership and release before read/callback exit.
+The native recovery pair passes on Linux x64/PostgreSQL 18.6 (2/2, 4m11.401s)
+and Windows x64/PostgreSQL 17.7 (2/2, 7m51.840s). Twenty direct Runtime cases
+and three compiler cases pass; the complete Runtime suite passes 1,642 tests.
 
-The new witness also exposed and fixed an existing set-result conversion bug:
-the originating function's identity now remains active through native custom
-type and array conversion, including extension relocation, and restores the
-caller's identity on success or failure.
+The final full Linux suite passes **7,945 tests, zero failures and six
+Windows-only skips, 7,951 total**, in 12m55.115s, including the Windows GUC
+assertion repair. That GUC preload group
+passes 11/11 on Windows x64/PostgreSQL 17.7 in 4m31.090s. Release builds pass
+with zero warnings/errors: Linux 1m03.11s and Windows 3m14.28s; the subsequent
+Windows integration-project rebuild passes in 11.88s. API freshness verifies
+191 pages/2,375 members; the site builds 234 pages and checks with zero
+errors/warnings/hints.
 
-The latest full Linux run passes **7,921 tests, zero failures and six Windows-only
-skips, 7,927 total**, in 11m30.624s. The focused collection/custom-type tests pass
-25/25 on Linux in 3m57.880s and 25/25 on Windows in 6m21.202s. The direct Runtime
-focus passes 29 cases and the related generator/compiler focus passes 20.
-Release solution builds pass with zero warnings/errors: Linux 1m06.06s and
-Windows 2m23.32s. Documentation generates 231 pages, site checking reports zero
-errors/warnings/hints, and API freshness verifies 188 pages/2,367 members.
+The preceding collection [CI 36325012375](https://github.com/willibrandon/ankus/actions/runs/36325012375)
+passes quality, every runtime job and macOS (34m41s). Linux fails during backend
+crash recovery; Windows reports a GUC FATAL transport mismatch and reaches its
+one-hour timeout (60m09s). [Docs 36325012376](https://github.com/willibrandon/ankus/actions/runs/36325012376)
+passes. Runtime fork commit `134b853ff766627327405b2fb1f5c0d74266e4b6`, selected
+by payload `10.0.11-ankus.4`, repairs the finalizer retirement request ordering.
+It passes the Linux native recovery pair, the complete Linux suite and 2,048
+retirement/restart cycles. The unrepaired control also passes the stress probe;
+this is a source-identified ordering race, not a deterministic stress reproduction.
+The GUC repair requires the unique session's exact server-log diagnostic and a
+healthy independent observer even when Windows reports a connection reset.
+Hosted validation of both repairs and resolution of the Windows timeout remain
+pending. Every workflow job retains the requested 60-minute limit.
 
-For the preceding scalar milestone, hosted
-[CI 36318146632](https://github.com/willibrandon/ankus/actions/runs/36318146632)
-passed quality, runtime jobs and the full Linux/macOS suites; its Windows job
-was cancelled by the superseding aggregate commit, not a timeout. Docs
-36318146663 passes. Aggregate [CI 36320463333](https://github.com/willibrandon/ankus/actions/runs/36320463333)
-has passed every job: full Linux 33m42s, macOS 38m01s and Windows 40m04s.
-Docs 36320463356 passes. The preceding `d6b5cd5` CI passed all
-jobs, including Windows in 54m25s, resolving the earlier timeout within the
-unchanged one-hour limit. The new collection milestone still requires its hosted
-platform run. Embedded spinlocks, high-level background workers and the complete
-PostgreSQL/platform matrix remain full-port work.
+A broader local Windows run on PostgreSQL 17.7 has exposed allocator cases that
+require PostgreSQL 17.11; an isolated current-patch installation is ready for
+full validation. Focused passing evidence above does not establish full-suite
+support for the older patch. In-place guard composition, high-level background
+workers and the complete PostgreSQL 13–19/platform matrix remain full-port work.
 
 ### Managed preload validation history
 
@@ -2704,7 +2706,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
-| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields and bounded list/deque/map views are implemented. Shared values, error cleanup, contention and segment recreation are verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7. Embedded spinlock conveniences and remaining platform/version evidence are required |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks with copied guarded values are implemented. Shared values, error cleanup, contention and segment recreation are verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7. In-place guard composition and remaining platform/version evidence are required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
@@ -9063,3 +9065,128 @@ timeouts remain historical failures, resolved by subsequent complete platform
 runs. All workflow jobs retain the requested 60-minute timeout. Outcomes are
 checked and recorded again immediately before pushing, and the new hosted run
 must establish this collection milestone's complete platform results.
+
+### Embedded and local PostgreSQL spinlocks — Linux and Windows validation
+
+`PgSpinLockValue<T>` embeds the selected PostgreSQL `slock_t` representation and
+an unmanaged protected value inside an admitted `PgShared<T>` aggregate.
+`PgSpinLock<T>` provides stable pinned local storage for ordinary backend-owned
+values. `PgSpinLockGuard<T>` owns one acquisition and copies or immediately
+replaces its protected value. Ten successive updates match pgrx's spinlock
+example; the inline form preserves process-shared storage across backends.
+Native initialization, acquisition and pre-19 state queries use the selected
+server headers. PostgreSQL 19 removed `SpinLockFree`; state queries reject it
+before native entry while lock acquisition and release remain available.
+
+Guard allocation, callback registration and release-function preparation finish
+before acquisition. Value access performs no PostgreSQL call, and disposal uses
+the prepared native release entry point. The guard retains its local pinned
+storage, validates callback/thread/provider/process ownership, rejects recursive
+acquisition and expires after disposal. Aliases cannot release a subsequent
+owner's acquisition. Shared-read exit releases forgotten guards before the
+shared admission ends; callback exit releases spinlocks before lightweight locks.
+Default, detached and unaligned inline cells fail before native entry. Other
+backend operations are rejected while a spinlock is held. Managed terminal
+diagnostics can still unwind and release the guard before reaching PostgreSQL.
+
+Twenty direct Runtime cases pass, and the complete Runtime suite passes 1,642
+tests. Three generator/compiler cases check the public contracts, selected-header
+bridge and forbidden reference escape. The new packaged Native AOT witness
+passes on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7. It verifies
+pinned local storage through collection, exact updates across callbacks, two
+backends contending for 5,000 updates, rollback persistence, managed ERROR
+cleanup, forgotten guards, foreign-thread rejection, and segment recreation
+after the owning backend is killed. The Linux/Windows recovery pair also reruns
+the existing lightweight-lock crash witness: Linux 2/2 in 4m11.401s; Windows 2/2
+in 7m51.840s, both with zero failures/skips. The first Linux witness exposed a
+missing explicit generic result on a throw-only callback; that compilation
+failure was corrected before these passing runs.
+
+| Requirement | Evidence |
+|---|---|
+| Exact native storage and updates | `SpinValuesInitializeExactStorage`, `SpinGuardsPreserveUpdatesAndOwnership` |
+| Pinned local ownership and stale aliases | `LocalSpinLocksRetainStableOwnedStorage`, `SpinGuardsReleaseOnceAndRejectStaleAccess` |
+| Callback/read cleanup and managed errors | `SpinScopesReleaseForgottenGuards`, `SpinSharedReadsReleaseBeforeAdmission`, `SpinManagedDiagnosticsUnwindAndRecover` |
+| Provider/thread/range/default/alignment rejection | `SpinGuardsRejectForeignAndRecursiveAccess`, `SpinReadAdmissionRejectsIncompleteRanges`, `SpinValuesRequireAdmittedStorage`, `SpinSharedValuesRequireInitializationAndOriginalStorage`, `SpinValuesRejectInvalidStorage` |
+| Critical-section backend rejection and failed acquisition | `SpinGuardsRejectBackendCalls`, `SpinAcquisitionFailurePreservesStorageAndScope` |
+| Selected PostgreSQL version and compiled API boundaries | `SpinStateQueriesHonorSelectedMajor`, `SpinLocksCompileWithLocalAndInlineSharedValues`, `SpinGuardValuesPreserveReferenceBoundaries` |
+| Original shared storage and replacement-segment isolation | `SpinSharedReadsRecoverFromErrorsAndReplacement`, `SharedSpinLocksPreserveValuesAcrossBackends` |
+
+Static assertion and pseudo-mutation review covers all 19 new test methods,
+24 cases, including direct value/error/lifetime assertions and the native
+witness. No executed mutation campaign or line-coverage result is claimed.
+The first completed full Linux run passes 7,945 tests, zero failures and six
+Windows-only skips, 7,951 total, in 12m31.139s. The final full run includes the
+Windows FATAL transport assertion repair below and passes the same counts in
+12m55.115s (integration 12m54.533s). Release builds pass without
+warnings/errors on Linux and Windows. API freshness verifies 191 pages and
+2,375 rendered members; the documentation site builds 234 pages and checks with
+zero errors, warnings or hints.
+
+An initial local Release build lost an MSBuild worker to SIGBUS while the
+temporary filesystem was full. Moving an idle owned checkout intact to
+disk-backed temporary storage freed 2.2 GB. No user files or processes were
+removed. The final Release build passes in 1m03.11s with zero warnings/errors.
+
+The preceding collection milestone's hosted
+[CI 36325012375](https://github.com/willibrandon/ankus/actions/runs/36325012375)
+passes quality, all runtime jobs and the full macOS suite (34m41s). Linux fails
+the shared-memory recovery witness (34m32s job); Windows reports the GUC assign
+termination mismatch and reaches its one-hour job timeout (60m09s).
+[Docs 36325012376](https://github.com/willibrandon/ankus/actions/runs/36325012376)
+passes. These failures are recorded separately from local passing evidence.
+
+The Linux server log identifies a finalizer retirement acknowledgement failure.
+The runtime used to publish retirement admission before the new request number
+and exit flag. A finalizer could acknowledge the old number and then observe
+the new exit request. Runtime fork commit
+`134b853ff766627327405b2fb1f5c0d74266e4b6` publishes the complete request before
+closing admission; Ankus now selects payload `10.0.11-ankus.4`. The rebuilt
+Release runtime passes 2,048 retirement/restart cycles and the existing two-round
+parent/child fork probe. The unrepaired control passes the same stress probe;
+the race is identified from source ordering, not a deterministic stress
+reproduction. Linux native recovery validation above uses the repaired runtime.
+Windows focused spinlock validation uses the preceding payload, whose Unix-only
+retirement code is inactive there. Hosted validation of the new payload remains
+required. Prior hosted outcomes were checked and recorded immediately before
+the runtime fork commit and again before its push.
+
+The Windows assign-only test now associates the terminal operation with a
+unique application name and requires the server log's exact FATAL/38000 message.
+It also checks that the failed connection is closed and a pre-existing observer
+still executes SQL and retains its own GUC value. A normal PostgreSQL exception
+must retain the exact severity, SQLSTATE and message. Only Windows may instead
+report the specific nested connection-reset socket exception; the server-log
+and observer assertions remain mandatory. No server log was available from the
+cancelled hosted job, so the transport mismatch alone is not claimed as proof
+that its backend terminated correctly. The repaired GUC preload group passes
+11/11 on Windows x64/PostgreSQL 17.7 in 4m31.090s, with zero failures/skips.
+The final full Linux suite passes as recorded above. The complete Windows
+integration module is running.
+The broader local Windows run uses PostgreSQL 17.7 and has exposed five allocator
+test failures that require the fixes in PostgreSQL 17.11 (the hosted CI version).
+The older installation is valid for the focused spinlock/GUC evidence above, but
+does not establish complete suite support at that patch level. An isolated
+PostgreSQL 17.11 validation installation is prepared from EDB's server archive;
+the complete run against it remains pending. Existing PostgreSQL installations
+are unchanged. No test assertion or version restriction is weakened.
+
+The hosted Windows console shows approximately 14 minutes building before test
+execution. Existing NuGet/runtime caches remain enabled; native binding caches
+validate toolchain/input content and are local to each hosted machine. The
+one-hour full-suite timeout remains unresolved pending measured hosted repair
+results. No timeout is increased, test omitted, diagnostic suppressed or suite
+sharded to hide this outcome.
+
+Safe in-place guard access for nested synchronization-bearing values, high-level
+background workers, and the complete PostgreSQL 13–19/platform matrix remain
+full-port requirements. The copied guard value API does not claim parity with
+pgrx's complete dereference/composition surface.
+
+Immediately before the spinlock commit, hosted outcomes were checked again:
+CI 36325012375 is completed with the Linux recovery failure, Windows FATAL
+transport failure and one-hour timeout recorded above; quality, all runtime
+jobs and macOS passed. Docs 36325012376 passed. The preceding aggregate CI
+36320463333 and Docs 36320463356 both passed. Local repair evidence and pending
+hosted/full Windows validation remain explicitly separate. Outcomes are checked
+and recorded again immediately before pushing this milestone.

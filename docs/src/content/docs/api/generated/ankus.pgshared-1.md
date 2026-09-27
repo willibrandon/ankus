@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Stores an immutable unmanaged value or an aggregate containing atomic values in PostgreSQL shared memory.
+Stores an unmanaged aggregate with immutable, atomic or spinlock-protected fields in PostgreSQL shared memory.
 
 ```csharp
 public sealed class PgShared<T> where T : unmanaged
@@ -22,7 +22,7 @@ Type parameters:
 The unmanaged shared value.
 
 Register a static descriptor during shared preload. Ordinary fields are immutable after initialization;
-use inline atomic values for concurrent updates. Embedded addresses must be valid in every process.
+use inline atomic values or spinlocks for concurrent updates. Embedded addresses must be valid in every process.
 Each synchronous read protects the native address against retirement until its callback returns.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
@@ -92,3 +92,5 @@ The callback result.
 Access inline atomic fields directly through the readonly reference. Copying the aggregate or a
 field copies its state and subsequent updates affect that copy. Multiple atomic fields do not
 form a single transaction. Keep callbacks finite; shutdown waits for admitted readers to finish.
+Access inline spinlocks directly through this reference on the backend callback thread. Guards
+are released before the read returns, including exceptional exits, and cannot escape its admission.

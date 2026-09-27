@@ -1,6 +1,6 @@
 ---
 title: Shared memory, locks and atomics
-description: Share unmanaged values between PostgreSQL backends with native reader/writer locks and atomic scalars.
+description: Share unmanaged values between PostgreSQL backends with lightweight locks, spinlocks and atomic scalars.
 ---
 
 Use `PgLwLock<T>` for a value shared by PostgreSQL processes. Keep the descriptor
@@ -146,7 +146,7 @@ In a Unix postmaster, follow the [preload thread lifetime rules](/initialization
 ## Shared aggregates
 
 Use `PgShared<T>` for immutable unmanaged data or a struct containing independent
-atomic fields. `Read` supplies a readonly reference valid for the duration of its
+atomic or spinlock fields. `Read` supplies a readonly reference valid for the duration of its
 synchronous callback:
 
 ```csharp
@@ -197,6 +197,71 @@ threads may call `Read` after their process has attached, without invoking
 PostgreSQL. Keep callbacks finite: shutdown closes admission and waits for active
 callbacks before unmapping their shared segment. New callbacks fail during
 retirement and can read replacement storage after startup publishes it.
+
+## Spinlocks
+
+Use `PgSpinLockValue<T>` for a small value inside a shared aggregate that needs
+an exclusive update lasting only a few instructions:
+
+```csharp
+public readonly struct SpinCounters(int initial)
+{
+    public readonly PgSpinLockValue<int> Completed = new(initial);
+}
+
+public static class SharedSpinCounters
+{
+    private static readonly PgShared<SpinCounters> State = new("my_extension.spin_counters");
+
+    [PgModuleLoad]
+    public static void Register() => PgSharedMemory.Initialize(State, () => new SpinCounters(0));
+
+    [PgFunction]
+    public static int RecordCompletion() => State.Read(static (in SpinCounters state) =>
+    {
+        using PgSpinLockGuard<int> guard = state.Completed.Lock();
+        guard.Value++;
+        return guard.Value;
+    });
+}
+```
+
+Construct every spinlock field explicitly in the shared initializer. Its
+constructor initializes the lock using the selected PostgreSQL headers.
+A default field has no initialized lock. Access the original field directly
+through the `in` reference; locking a detached copy is rejected. The field
+requires eight-byte alignment, so incompatible packed layouts are rejected.
+
+`Lock()` waits for exclusive access. A guard's `Value` getter returns a copy;
+assigning `Value` writes the protected storage immediately. Updates survive
+exceptions and SQL rollback. Use `using` to release the guard promptly. Shared
+read exit also releases forgotten guards before the shared address can retire.
+An escaped, disposed or expired guard cannot access storage or unlock a later
+acquisition. Recursive acquisition of the same lock is rejected.
+
+Spinlock construction, acquisition and guard access require the owning backend's
+native callback thread. Keep critical sections synchronous and limited to small
+managed computations. Release the guard before SQL, logging, GUC reads, memory
+context operations or other PostgreSQL calls; those APIs reject access while a
+spinlock is held. Managed exceptions, including `PgLog.Error`, unwind the guard
+before PostgreSQL reports the error. Prefer `PgLwLock<T>` for longer work.
+
+For a value local to one backend, use `PgSpinLock<T>`:
+
+```csharp
+PgSpinLock<int> counter = new(0);
+using PgSpinLockGuard<int> guard = counter.Lock();
+guard.Value = 1;
+```
+
+This owner keeps its storage pinned, and a live guard keeps that storage alive.
+Callback exit releases a forgotten local guard. Local values are not shared
+between PostgreSQL processes; use an inline field in `PgShared<T>` for that.
+
+Both forms expose `IsLocked` before PostgreSQL 19. This is an instantaneous
+observation, not permission to read the protected value without a guard.
+PostgreSQL 19 removed the native state query, so `IsLocked` throws
+`NotSupportedException` there; locking and guarded values remain available.
 
 ## Bounded collections
 
@@ -340,4 +405,4 @@ and hashing. Do not rely on record-generated `GetHashCode`, `HashCode.Combine`,
 process-local addresses, mutable settings, or randomized hashing. Use the same
 comparer semantics for every attachment to a populated map.
 
-Spinlock conveniences and high-level background-worker APIs are still being ported.
+High-level background-worker APIs are still being ported.

@@ -10,7 +10,7 @@ namespace Ankus.Runtime.Tests;
 /// Verifies scoped readonly shared aggregates, inline atomic values and address admission.
 /// </summary>
 [TestClass]
-public sealed unsafe class PgSharedTests
+public sealed unsafe partial class PgSharedTests
 {
     /// <summary>
     /// Invalid inputs and missing registration fail before PostgreSQL calls or callback invocation.

@@ -92,6 +92,11 @@ public static unsafe class NativeMemoryContext
     /// <param name="result">The native result.</param>
     internal static void Invoke(ref NativeMemoryRequest request, out NativeMemoryResult result)
     {
+        if (request._operation != NativeMemoryOperation.SpinLock)
+        {
+            NativeSpinLockLease.CheckBackendAccess();
+        }
+
         _ = Provider;
         NativeMemoryApi* api = (NativeMemoryApi*)s_api;
         NativeCallError error = default;
@@ -275,6 +280,10 @@ internal enum NativeMemoryOperation
     /// Registers, attaches or accesses a PostgreSQL shared-memory value and its lock.
     /// </summary>
     SharedMemory = 35,
+    /// <summary>
+    /// Initializes, prepares, acquires or queries selected-header PostgreSQL spinlock storage.
+    /// </summary>
+    SpinLock = 36,
 }
 
 /// <summary>
