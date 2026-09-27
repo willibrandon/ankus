@@ -78,7 +78,7 @@ internal static class NativeBindingCompilationCommand
         start.Environment["DOTNET_MSBUILD_SDK_RESOLVER_CLI_DIR"] = Path.GetDirectoryName(host);
         // Only the hash of inherited settings participates in identity; values are not persisted.
         string settings = JsonSerializer.Serialize(start.Environment.OrderBy(static pair => pair.Key, StringComparer.Ordinal));
-        string work = Directory.CreateTempSubdirectory("ankus-binding-compile-").FullName;
+        string work = NativeBuildDirectory.PhysicalPath(Directory.CreateTempSubdirectory("ankus-binding-compile-"));
         try
         {
             NativeBindingCacheFile[] toolchain = await NativeBindingCache.SnapshotAsync(installation.Concat(restore.Configurations), cancellationToken);

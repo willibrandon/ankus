@@ -91,6 +91,69 @@ public sealed class NativeBindingHeaderAvailabilityTests
     }
 
     /// <summary>
+    /// Required helpers retain their native identities and join the ordered partition without hiding absent inventory.
+    /// </summary>
+    [TestMethod]
+    public void RequiredHelpersRetainNativeIdentityAndOrderedPartition()
+    {
+        const string Ast = """
+            {"kind":"TranslationUnitDecl","inner":[
+              {"kind":"FunctionDecl","name":"native_zeta"},
+              {"kind":"FunctionDecl","name":"native_run"},
+              {"kind":"FunctionDecl","name":"native_alpha"}
+            ]}
+            """;
+        using JsonDocument document = JsonDocument.Parse(Ast);
+        NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse(Inventory, 18);
+        NativeHeaderRequest[] helpers = [new("zeta", "native_zeta", true), new("alpha", "native_alpha", true)];
+        NativeBindingAvailability result = NativeBindingHeaderAvailability.Read(document.RootElement, inventory, helpers);
+        Assert.AreSequenceEqual<NativeHeaderRequest>([new("alpha", "native_alpha", true), new("run", "native_run", true), new("zeta", "native_zeta", true)], result.Available);
+        Assert.AreSequenceEqual<string>(["absent", "allocate", "hidden", "state"], result.Absent.Select(static request => request.Name));
+        Assert.AreSequenceEqual<NativeHeaderRequest>([new("zeta", "native_zeta", true), new("alpha", "native_alpha", true)], helpers);
+        Assert.ThrowsExactly<NotSupportedException>(() => ((IList<NativeHeaderRequest>)result.Available).Clear());
+    }
+
+    /// <summary>
+    /// A required helper cannot become an absent, nested, or variable declaration.
+    /// </summary>
+    /// <param name="ast">A complete observation without the required top-level function.</param>
+    [TestMethod]
+    [DataRow("{\"kind\":\"TranslationUnitDecl\"}")]
+    [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"VarDecl\",\"name\":\"native_helper\"}]}")]
+    [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"FunctionDecl\",\"name\":\"outer\",\"inner\":[{\"kind\":\"FunctionDecl\",\"name\":\"native_helper\"}]}]}")]
+    public void RequiredHelpersRejectMissingFunctionDeclarations(string ast)
+    {
+        using JsonDocument document = JsonDocument.Parse(ast);
+        NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse("", 18);
+        FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, inventory,
+            [new("helper", "native_helper", true)]));
+        Assert.Contains("Required native helper 'helper'", error.Message);
+        Assert.Contains("native_helper", error.Message);
+    }
+
+    /// <summary>
+    /// Required helper metadata must contain distinct valid function identities.
+    /// </summary>
+    [TestMethod]
+    public void RequiredHelpersRejectInvalidAndConflictingRequests()
+    {
+        using JsonDocument document = JsonDocument.Parse("""
+            {"kind":"TranslationUnitDecl","inner":[{"kind":"FunctionDecl","name":"native_helper"}]}
+            """);
+        NativeBindingRawCatalog empty = NativeBindingRawParser.Parse("", 18);
+        NativeHeaderRequest helper = new("helper", "native_helper", true);
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, empty, [helper, helper]));
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, empty,
+            [helper with { IsFunction = false }]));
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, empty,
+            [helper with { Name = "invalid;" }]));
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, empty,
+            [helper with { NativeName = "invalid;" }]));
+        NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse("extern \"C\" { pub fn helper(); }", 18);
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, inventory, [helper]));
+    }
+
+    /// <summary>
     /// Malformed compiler observations and conflicting declaration kinds never become ordinary absence.
     /// </summary>
     /// <param name="ast">An independently invalid compiler observation.</param>

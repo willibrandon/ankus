@@ -35,7 +35,8 @@ internal static class NativeBindingSourceCache
             string[] frontend = ["", arguments[0], arguments[1], directory, compiler,
                 arguments.Length >= 5 ? arguments[4] : "", arguments.Length >= 6 ? arguments[5] : "", arguments.Length >= 7 ? arguments[6] : ""];
             List<string> options = NativeBindingHeaderCommand.CreateArguments(installation, frontend);
-            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(catalog.PostgresMajor));
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(catalog.PostgresMajor),
+                NativeBindingHeaderHelpers.RequiredTypes);
             string headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, catalog.PostgresMajor);
             NativeBindingPreprocessed observation = await NativeBindingPreprocessor.ObserveAsync(compiler, options, headers, directory, cancellationToken);
             string library = arguments.Length >= 9 && arguments[8].Length != 0 ? Path.GetFullPath(arguments[8])

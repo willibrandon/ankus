@@ -56,8 +56,25 @@ internal static class NativeBindingHeaderCommand
         }
 
         string checks = Path.Combine(output, "native-header-checks.c");
-        await File.WriteAllTextAsync(checks, NativeBindingHeaderParser.GenerateChecks(NativeBindingResources.ReadHeaders(major), symbols), cancellationToken);
+        string definitions = NativeBindingHeaderHelpers.Definitions(major, symbols.Values);
+        string headers = NativeBindingResources.ReadHeaders(major);
+        await File.WriteAllTextAsync(checks, NativeBindingHeaderParser.GenerateChecks(headers, symbols), cancellationToken);
         await InspectAsync(installation, arguments, checks, Path.Combine(output, "native-header-checks.txt"), output, cancellationToken, dumpAst: false);
+        if (definitions.Length != 0)
+        {
+            string helpers = Path.Combine(output, "native-header-helpers.c");
+            await File.WriteAllTextAsync(helpers, definitions + headers, cancellationToken);
+            string[] bodyArguments = [.. arguments.Take(8), .. Enumerable.Repeat("", Math.Max(0, 8 - arguments.Length))];
+            if (OperatingSystem.IsWindows())
+            {
+                bodyArguments[4] = "cl.exe";
+                bodyArguments[7] = "";
+            }
+
+            await InspectAsync(installation, bodyArguments, helpers, Path.Combine(output, "native-header-helpers.txt"),
+                output, cancellationToken, dumpAst: false, inspectBodies: true);
+        }
+
         var catalog = new NativeHeaderCatalog(target, symbols);
         await File.WriteAllTextAsync(Path.Combine(output, "native-header-types.json"), JsonSerializer.Serialize(catalog, s_jsonOptions) + "\n", cancellationToken);
         Console.WriteLine($"PG{major}: collected {symbols.Count} native header symbol types with Clang {target.ClangMajor} for {target.RuntimeIdentifier}.");

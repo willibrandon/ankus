@@ -15,7 +15,11 @@ internal static class NativeBindingNodeRecords
     /// <summary>
     /// Names unevaluated native object types without allocating or evaluating a backend address.
     /// </summary>
-    internal static NativeBindingNodeRoots CreateRoots(NativeBindingCatalog catalog, string headers)
+    /// <param name="catalog">The selected major's existing node declarations.</param>
+    /// <param name="headers">The native header source for compiler discovery.</param>
+    /// <param name="additionalTypes">Other native types required independently of node fields or function signatures.</param>
+    /// <returns>Compiler roots for the node contract and any additional native storage.</returns>
+    internal static NativeBindingNodeRoots CreateRoots(NativeBindingCatalog catalog, string headers, IReadOnlyList<string>? additionalTypes = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(headers);
@@ -29,6 +33,20 @@ internal static class NativeBindingNodeRecords
             NativeBindingCDeclaration.ValidateName(entry.Type.Name);
             string name = Prefix + entry.Type.Name;
             source.Append("extern __typeof__(").Append(entry.Expression).Append(") ").Append(name).AppendLine(";");
+            requests.Add(new(name, name, false));
+        }
+
+        var types = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string type in additionalTypes ?? [])
+        {
+            NativeBindingCDeclaration.ValidateName(type);
+            if (!types.Add(type))
+            {
+                throw new FormatException($"Duplicate additional native type '{type}'.");
+            }
+
+            string name = "ankus_header_record_" + type;
+            source.Append("extern ").Append(type).Append(' ').Append(name).AppendLine(";");
             requests.Add(new(name, name, false));
         }
 

@@ -130,6 +130,121 @@ public sealed partial class ToolCommandTests
                 }
 
                 [PgFunction]
+                public static unsafe string NativeHeaderHelperValues()
+                {
+                    using PgMemoryContext owner = PgMemoryContext.Create("header helpers");
+                    using PgAllocation page = owner.AllocateZeroed(8192);
+                    nint address = (nint)page.DangerousGetPointer();
+                    nint nativeOwner = NativeMethods.GetMemoryChunkContext(address);
+                    bool ownership = nativeOwner != 0 && NativeMethods.MemoryContextIsValid(nativeOwner) && !NativeMethods.MemoryContextIsValid(0);
+                    nint previousId = PgMemoryContext.Current.Id;
+                    nint previous = NativeMethods.MemoryContextSwitchTo(nativeOwner);
+                    bool selected;
+                    bool restored;
+                    try
+                    {
+                        selected = PgMemoryContext.Current.Id == owner.Id;
+                    }
+                    finally
+                    {
+                        restored = NativeMethods.MemoryContextSwitchTo(previous) == nativeOwner;
+                    }
+
+                    restored &= PgMemoryContext.Current.Id == previousId;
+                    NativeMethods.PageInit(address, 8192, 16);
+                    NativeMethods.PageSetPageSizeAndVersion(address, 8192, 199);
+                    NativeMethods.PageValidateSpecialPointer(address);
+                    bool pointers = NativeMethods.PageGetContents(address) == address + (nint)NativeMethods.MAXALIGN(NativeMethods.SizeOfPageHeaderData()) &&
+                        NativeMethods.PageGetSpecialPointer(address) == address + 8176;
+                    bool pageState = NativeMethods.PageIsValid(address) && !NativeMethods.PageIsValid(0) &&
+                        NativeMethods.PageIsEmpty(address) && !NativeMethods.PageIsNew(address) &&
+                        NativeMethods.PageGetMaxOffsetNumber(address) == 0 && NativeMethods.PageGetPageSize(address) == 8192 &&
+                        NativeMethods.PageSizeIsValid(8192) && !NativeMethods.PageSizeIsValid(8191) && !NativeMethods.PageSizeIsValid(8193);
+                    nint itemAddress = NativeMethods.PageGetItemId(address, 1);
+                    ItemIdData* item = (ItemIdData*)itemAddress;
+                    item->lp_off = 512;
+                    item->lp_flags = 1;
+                    item->lp_len = 3;
+                    ((PageHeaderData*)address)->pd_lower = checked((ushort)(NativeMethods.SizeOfPageHeaderData() + (ulong)sizeof(ItemIdData)));
+                    bool itemState = NativeMethods.ItemIdGetOffset(itemAddress) == 512 &&
+                        NativeMethods.PageGetItem(address, itemAddress) == address + 512 && NativeMethods.PageGetMaxOffsetNumber(address) == 1;
+                    byte version = NativeMethods.PageGetPageLayoutVersion(address);
+                    ushort special = NativeMethods.PageGetSpecialSize(address);
+                    bool ids = !NativeMethods.TransactionIdIsNormal(2) && NativeMethods.TransactionIdIsNormal(3) &&
+                        NativeMethods.TransactionIdPrecedes(uint.MaxValue, 3) && NativeMethods.TransactionIdFollows(3, uint.MaxValue) &&
+                        NativeMethods.TransactionIdPrecedesOrEquals(3, 3) && NativeMethods.TransactionIdFollowsOrEquals(3, 3);
+                    bool categories = NativeMethods.BufferIsLocal(-1) && !NativeMethods.BufferIsLocal(0) &&
+                        NativeMethods.type_is_array(1007) && !NativeMethods.type_is_array(23);
+                    using PgAllocation name = owner.AllocateUtf8String("value");
+                    nint descriptor = NativeMethods.CreateTemplateTupleDesc(1);
+                    ulong value;
+                    bool tupleState;
+                    bool nullState;
+                    bool recovered = false;
+                    try
+                    {
+                        NativeMethods.TupleDescInitEntry(descriptor, 1, (nint)name.DangerousGetPointer(), 23, -1, 0);
+                        ulong datum = unchecked((ulong)-42L);
+                        bool isNull = false;
+                        nint tuple = NativeMethods.heap_form_tuple(descriptor, (nint)(&datum), (nint)(&isNull));
+                        try
+                        {
+                            nint headerAddress = ((HeapTupleData*)tuple)->t_data;
+                            value = NativeMethods.heap_getattr(tuple, 1, descriptor, (nint)(&isNull));
+                            tupleState = !isNull && NativeMethods.HeapTupleNoNulls(tuple) &&
+                                NativeMethods.HeapTupleHeaderGetNatts(headerAddress) == 1 &&
+                                NativeMethods.GETSTRUCT(tuple) == headerAddress + ((HeapTupleHeaderData*)headerAddress)->t_hoff;
+                            nint nullAddress = (nint)(&isNull);
+                            try
+                            {
+                                PgTransaction.RunInSubtransaction(() => NativeMethods.heap_getattr(tuple, 0, descriptor, nullAddress));
+                            }
+                            catch (PgException error)
+                            {
+                                recovered = error.SqlState == "XX000" && error.Message == "invalid attnum: 0" &&
+                                    NativeMethods.heap_getattr(tuple, 1, descriptor, nullAddress) == datum && !isNull;
+                            }
+                        }
+                        finally
+                        {
+                            NativeMethods.heap_freetuple(tuple);
+                        }
+
+                        isNull = true;
+                        tuple = NativeMethods.heap_form_tuple(descriptor, (nint)(&datum), (nint)(&isNull));
+                        try
+                        {
+                            isNull = false;
+                            ulong nullDatum = NativeMethods.heap_getattr(tuple, 1, descriptor, (nint)(&isNull));
+                            nullState = isNull && nullDatum == 0 && !NativeMethods.HeapTupleNoNulls(tuple);
+                        }
+                        finally
+                        {
+                            NativeMethods.heap_freetuple(tuple);
+                        }
+                    }
+                    finally
+                    {
+                        NativeMethods.FreeTupleDesc(descriptor);
+                    }
+
+                    ulong aligned = NativeMethods.TYPEALIGN(8, 9);
+                    ulong high = NativeMethods.MAXALIGN(0xFEDCBA9876543211UL);
+                    owner.Reset();
+                    bool expired = false;
+                    try
+                    {
+                        page.DangerousGetPointer();
+                    }
+                    catch (System.ObjectDisposedException)
+                    {
+                        expired = true;
+                    }
+
+                    return $"{aligned}|{high:X16}|{version}|{special}|{value:X16}|{ownership}|{selected}|{restored}|{pointers}|{pageState}|{itemState}|{ids}|{categories}|{tupleState}|{nullState}|{recovered}|{expired}";
+                }
+
+                [PgFunction]
                 public static string NativeTypedError(uint functionOid, bool swallow)
                 {
                     PgMemoryContext owner = PgMemoryContext.Current;
@@ -289,6 +404,11 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(int.MinValue, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_node_call(2147483647)";
             Assert.AreEqual(int.MaxValue, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_header_helper_values()";
+            Assert.AreEqual("16|FEDCBA9876543218|199|16|FFFFFFFFFFFFFFD6|True|True|True|True|True|True|True|True|True|True|True|True",
+                await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_node_call(42)";
+            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT set_config('dynamic_library_path', current_setting('dynamic_library_path') || $1, false)";
             command.Parameters.AddWithValue(Path.PathSeparator + "$libdir");
             await command.ExecuteNonQueryAsync(token);

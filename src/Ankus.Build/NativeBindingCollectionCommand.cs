@@ -16,6 +16,7 @@ internal static class NativeBindingCollectionCommand
         cancellationToken.ThrowIfCancellationRequested();
         int major = catalog.PostgresMajor;
         NativeBindingRawCatalog inventory = NativeBindingResources.ReadRawCatalog(major);
+        IReadOnlyList<NativeHeaderRequest> required = NativeBindingHeaderHelpers.Requests(inventory);
         PostgresInstallation installation = arguments[1].Length == 0
             ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
             : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
@@ -25,7 +26,8 @@ internal static class NativeBindingCollectionCommand
         string directory = Directory.CreateTempSubdirectory("ankus-node-").FullName;
         try
         {
-            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(major));
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(major),
+                NativeBindingHeaderHelpers.RequiredTypes);
             string headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, major);
             string file = Path.Combine(directory, "native-node-types.c");
             await File.WriteAllTextAsync(file, headers, cancellationToken);
@@ -37,7 +39,7 @@ internal static class NativeBindingCollectionCommand
             await using (FileStream stream = File.OpenRead(observations))
             {
                 using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
-                availability = NativeBindingHeaderAvailability.Read(document.RootElement, inventory);
+                availability = NativeBindingHeaderAvailability.Read(document.RootElement, inventory, required);
             }
 
             NativeHeaderRequest[] requests = [.. roots.Requests, .. availability.Available];
@@ -50,7 +52,7 @@ internal static class NativeBindingCollectionCommand
                 using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
                 target = NativeBindingHeaderTarget.Read(document.RootElement, major);
                 symbols = NativeBindingHeaderParser.Read(document.RootElement, requests);
-                NativeBindingAvailability current = NativeBindingHeaderAvailability.Read(document.RootElement, inventory);
+                NativeBindingAvailability current = NativeBindingHeaderAvailability.Read(document.RootElement, inventory, required);
                 if (!current.Available.SequenceEqual(availability.Available) || !current.Absent.SequenceEqual(availability.Absent))
                 {
                     throw new InvalidOperationException("Native declaration availability changed during collection.");
@@ -82,6 +84,24 @@ internal static class NativeBindingCollectionCommand
     internal static async Task VerifyAsync(NativeHeaderRecords records, string headers, PostgresInstallation installation,
         string[] arguments, string directory, CancellationToken cancellationToken)
     {
+        string definitions = NativeBindingHeaderHelpers.Definitions(records.Headers.Target.PostgresVersion / 10000, records.Headers.Symbols.Values);
+        if (definitions.Length != 0)
+        {
+            string helperSource = Path.Combine(directory, "native-helper-checks.c");
+            await File.WriteAllTextAsync(helperSource, definitions + headers, cancellationToken);
+            string compiler = arguments.Length >= 4 && arguments[3].Length != 0 ? arguments[3]
+                : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
+            string[] frontend = ["", arguments[0], arguments[1], directory, compiler,
+                arguments.Length >= 5 ? arguments[4] : "", arguments.Length >= 6 ? arguments[5] : "", arguments.Length >= 7 ? arguments[6] : ""];
+            if (OperatingSystem.IsWindows() && Path.GetFileNameWithoutExtension(compiler).Equals("cl", StringComparison.OrdinalIgnoreCase))
+            {
+                frontend[7] = "";
+            }
+
+            await NativeBindingHeaderCommand.InspectAsync(installation, frontend, helperSource, Path.Combine(directory, "native-helper-checks.txt"),
+                directory, cancellationToken, dumpAst: false, inspectBodies: true);
+        }
+
         string checks = NativeBindingRecordChecks.Generate(records, headers) + NativeBindingRecordChecks.ExecutableEntryPoint;
         string verification = Path.Combine(directory, "native-record-checks.c");
         await File.WriteAllTextAsync(verification, checks, cancellationToken);

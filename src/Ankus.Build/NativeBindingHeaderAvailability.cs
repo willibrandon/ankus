@@ -13,8 +13,10 @@ internal static class NativeBindingHeaderAvailability
     /// </summary>
     /// <param name="root">A successful complete compiler observation of the selected headers.</param>
     /// <param name="inventory">The supported major's reference function and global inventory.</param>
+    /// <param name="required">Supplemental native functions that must be declared by the selected headers.</param>
     /// <returns>Deterministically ordered available and absent requests, retaining their native identities.</returns>
-    internal static NativeBindingAvailability Read(JsonElement root, NativeBindingRawCatalog inventory)
+    internal static NativeBindingAvailability Read(JsonElement root, NativeBindingRawCatalog inventory,
+        IReadOnlyList<NativeHeaderRequest>? required = null)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("kind", out JsonElement kind) || kind.ValueKind != JsonValueKind.String ||
@@ -87,7 +89,24 @@ internal static class NativeBindingHeaderAvailability
             });
         }
 
-        return new(available.AsReadOnly(), absent.AsReadOnly());
+        foreach (NativeHeaderRequest request in required ?? [])
+        {
+            NativeBindingCDeclaration.ValidateName(request.Name);
+            NativeBindingCDeclaration.ValidateName(request.NativeName);
+            if (!names.Add(request.Name))
+            {
+                throw new FormatException($"Duplicate native inventory entry '{request.Name}'.");
+            }
+
+            if (!request.IsFunction || !declarations.TryGetValue(request.NativeName, out string? helperKind) || helperKind != "FunctionDecl")
+            {
+                throw new FormatException($"Required native helper '{request.Name}' has no matching function declaration '{request.NativeName}'.");
+            }
+
+            available.Add(request);
+        }
+
+        return new(available.OrderBy(static request => request.Name, StringComparer.Ordinal).ToList().AsReadOnly(), absent.AsReadOnly());
     }
 
     /// <summary>
@@ -103,6 +122,13 @@ internal static class NativeBindingHeaderAvailability
         if (raw.Globals.TryGetValue(name, out NativeBindingGlobal? global))
         {
             return new(name, global.NativeSymbol, false);
+        }
+
+        NativeBindingHeaderHelper? helper = NativeBindingHeaderHelpers.Read(raw.PostgresMajor)
+            .FirstOrDefault(value => value.Name == name);
+        if (helper is not null)
+        {
+            return new(helper.Name, helper.NativeName, true);
         }
 
         throw new FormatException($"Unknown native function or global '{name}'.");

@@ -131,6 +131,26 @@ alive, and follow the native function's allocation and lifetime rules. Prefer
 Ankus's checked APIs when they cover the operation you need. Publishing includes
 native bodies only for methods referenced by the extension.
 
+The same class includes selected-header helpers for alignment, memory contexts,
+transaction IDs, buffers, pages, and heap tuples. Macros such as `TYPEALIGN`,
+`GETSTRUCT`, and `HeapTupleHeaderGetNatts` use native wrappers so their arguments
+are evaluated once and their pointer and integer values retain PostgreSQL's
+semantics:
+
+```csharp
+ulong alignedLength = NativeMethods.TYPEALIGN(8, 13); // 16
+ulong pageHeaderBytes = NativeMethods.SizeOfPageHeaderData();
+```
+
+Signatures follow the selected PostgreSQL version, including native `const` and
+`volatile` contracts. For example, `PageValidateSpecialPointer` returns `bool`
+on PostgreSQL 13–17 and `void` on 18–19; `SpinLockFree` is unavailable on 19.
+Page and tuple helpers require valid native storage with the original owner's
+lifetime. `PgMemoryContext.Id` is an opaque validation token, not a native
+`MemoryContext` address. `GetMemoryChunkContext` obtains the native owner address
+of a live PostgreSQL allocation with a chunk header. Keep spinlock critical sections entirely in native code: managed
+execution can allocate or suspend while a lock is held.
+
 PostgreSQL errors become `PgException` after the native guard restores the error
 boundary. Raw calls retain PostgreSQL's resource and transaction behavior. Use
 [`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)

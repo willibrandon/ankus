@@ -47,12 +47,12 @@ internal static class NativeBindingResources
     /// Reads the matching header manifest to compile against the user's actual installation.
     /// </summary>
     /// <param name="major">The selected PostgreSQL major.</param>
-    /// <returns>The pinned header include directives and their source license notice.</returns>
+    /// <returns>The pinned header includes, source license notice, and selected-major helper wrappers.</returns>
     internal static string ReadHeaders(int major)
     {
         using Stream source = Open(major, "h");
         using var reader = new StreamReader(source);
-        return reader.ReadToEnd();
+        return reader.ReadToEnd() + NativeBindingHeaderHelpers.Source(major);
     }
 
     private static Stream Open(int major, string extension)

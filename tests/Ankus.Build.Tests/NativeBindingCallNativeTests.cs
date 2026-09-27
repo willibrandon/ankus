@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Ankus.Build.Tests;
@@ -226,15 +227,15 @@ public sealed partial class NativeBindingNativeTests
         => await ExecuteNativeCallsAsync(headers, [.. names.Select(static name => new NativeHeaderRequest(name, name, true))], null, main);
 
     private async Task<string> ExecuteNativeCallsAsync(string headers, NativeHeaderRequest[] requests, string[]? names, string main, bool nativeCompiler = false,
-        string? nativeHeaders = null)
+        string? nativeHeaders = null, int major = 18)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-native-calls-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            NativeHeaderRecords records = await CollectCallRecordsAsync(headers, requests, directory);
+            NativeHeaderRecords records = await CollectCallRecordsAsync(headers, requests, directory, major);
             string file = Path.Combine(directory, "calls.c");
-            string compilerHeaders = "#define PG_VERSION_NUM 180006\n" + (nativeHeaders ?? headers);
+            string compilerHeaders = "#define PG_VERSION_NUM " + (major * 10000 + 6).ToString(CultureInfo.InvariantCulture) + "\n" + (nativeHeaders ?? headers);
             string source = names is null ? NativeBindingCallSource.Generate(records, compilerHeaders)
                 : NativeBindingCallSource.Generate(records, compilerHeaders, names);
             await File.WriteAllTextAsync(file, source + "\n" + main, context.CancellationToken);
@@ -252,9 +253,10 @@ public sealed partial class NativeBindingNativeTests
         }
     }
 
-    private async Task<NativeHeaderRecords> CollectCallRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory)
+    private async Task<NativeHeaderRecords> CollectCallRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory, int major = 18)
     {
-        NativeRecordGraph graph = await CollectRecordsAsync(headers, requests, directory);
+        string compilerHeaders = "#define PG_VERSION_NUM " + (major * 10000 + 6).ToString(CultureInfo.InvariantCulture) + "\n" + headers;
+        NativeRecordGraph graph = await CollectMeasuredRecordsAsync(compilerHeaders, requests, directory, major);
         using JsonDocument ast = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "records.ast.json"), context.CancellationToken));
         var catalog = new NativeHeaderCatalog(graph.Target, NativeBindingHeaderParser.Read(ast.RootElement, requests));
         return new(catalog, graph);

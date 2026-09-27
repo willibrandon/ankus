@@ -481,8 +481,73 @@ public sealed partial class NativeBindingNativeTests
         }
     }
 
+    /// <summary>
+    /// Supplemental records retain compiler-measured storage even when no node field or function signature references them.
+    /// </summary>
+    [TestMethod]
+    public async Task SupplementalRecordRootsPreserveNativeStorage()
+    {
+        const string Headers = NodeRecordHeaders + "\ntypedef struct Supplemental { unsigned short flags; long position; } Supplemental;\n";
+        const string Main = """
+            #include <stddef.h>
+            int main(void) {
+                Supplemental value = { 65000, -23 };
+                printf("%zu %zu %zu %u %ld\n", sizeof(value), _Alignof(Supplemental),
+                    offsetof(Supplemental, position), (unsigned int)value.flags, value.position);
+                return 0;
+            }
+            """;
+        const string Harness = """
+            using Ankus;
+            using Ankus.Postgres;
+            public static class BindingAssertions
+            {
+                public static unsafe long[] Run()
+                {
+                    Supplemental value = new() { flags = 65000, position = -23 };
+                    return [sizeof(Supplemental), Alignment<Supplemental>(),
+                        (byte*)&value.position - (byte*)&value, value.flags, value.position];
+                }
+                private static int Alignment<T>() where T : unmanaged, IPgNativeType => T.NativeAlignment;
+            }
+            """;
+        string directory = Path.Combine(Path.GetTempPath(), "ankus-supplemental-record-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            (NativeBindingCatalog catalog, NativeBindingLayout layout, NativeRecordGraph graph) = await CollectNodeFixtureAsync(
+                directory, headers: Headers, additionalTypes: ["Supplemental"]);
+            Assert.AreSequenceEqual<string>(["ankus_header_record_Supplemental", "ankus_node_record_Leaf", "ankus_node_record_Node",
+                "ankus_node_record_Payload", "ankus_node_tag_contract"], graph.Roots.Keys);
+            long[] expected = await RunRecordWitnessAsync(Headers + Main, directory);
+            Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(
+                NativeBindingRecordCSharp.Generate(graph, catalog, layout), Harness, context.CancellationToken));
+        }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
+    }
+
+    /// <summary>
+    /// Supplemental roots reject duplicate names and text that cannot name one native object type.
+    /// </summary>
+    /// <param name="name">A duplicate or invalid additional type name.</param>
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("bad-name")]
+    [DataRow("Supplemental *")]
+    [DataRow("Supplemental")]
+    public void SupplementalRecordRootsRejectInvalidNames(string name)
+    {
+        NativeBindingCatalog catalog = NativeBindingParser.Parse(NodeRecordDeclarations, 18);
+        Assert.ThrowsExactly<FormatException>(() => NativeBindingNodeRecords.CreateRoots(catalog, NodeRecordHeaders, ["Supplemental", name]));
+        NativeBindingNodeRoots recovered = NativeBindingNodeRecords.CreateRoots(catalog, NodeRecordHeaders, ["Supplemental"]);
+        Assert.AreEqual(new NativeHeaderRequest("ankus_header_record_Supplemental", "ankus_header_record_Supplemental", false), recovered.Requests[^1]);
+    }
+
     private async Task<(NativeBindingCatalog Catalog, NativeBindingLayout Layout, NativeRecordGraph Graph)> CollectNodeFixtureAsync(
-        string directory, string declarations = NodeRecordDeclarations, string headers = NodeRecordHeaders)
+        string directory, string declarations = NodeRecordDeclarations, string headers = NodeRecordHeaders, IReadOnlyList<string>? additionalTypes = null)
     {
         NativeBindingCatalog catalog = NativeBindingParser.Parse(declarations, 18);
         string source = Path.Combine(directory, "probe.c");
@@ -494,7 +559,7 @@ public sealed partial class NativeBindingNativeTests
             : ["-std=c11", "-Wall", "-Wextra", "-Werror", source, "-o", executable];
         await RunAsync(compiler, arguments, directory);
         NativeBindingLayout layout = NativeBindingProbe.Read(catalog, await RunAsync(executable, [], directory));
-        NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, headers);
+        NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, headers, additionalTypes);
         NativeRecordGraph graph = await CollectMeasuredRecordsAsync(roots.Source, roots.Requests, directory, 18);
         return (catalog, layout, graph);
     }

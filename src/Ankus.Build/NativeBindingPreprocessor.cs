@@ -21,6 +21,7 @@ internal static class NativeBindingPreprocessor
         string source, string directory, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        directory = NativeBuildDirectory.PhysicalPath(new DirectoryInfo(directory));
         const string Input = "native-binding-input.c";
         await File.WriteAllTextAsync(Path.Combine(directory, Input), source, cancellationToken);
         string output = Path.Combine(directory, "native-binding-input.i");

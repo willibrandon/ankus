@@ -24,6 +24,12 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingPreprocessed original = await ObserveAsync(directory, options);
             Assert.IsGreaterThanOrEqualTo(20, original.ClangMajor);
             Assert.AreEqual(original, await ObserveAsync(relocated, options));
+            if (!OperatingSystem.IsWindows())
+            {
+                string alias = Path.Combine(directory, "linked staging");
+                Directory.CreateSymbolicLink(alias, relocated);
+                Assert.AreEqual(original, await ObserveAsync(alias, options));
+            }
 
             await File.WriteAllTextAsync(file, Header.Replace("WIDTH 3", "WIDTH 4", StringComparison.Ordinal), context.CancellationToken);
             File.SetLastWriteTimeUtc(file, timestamp);

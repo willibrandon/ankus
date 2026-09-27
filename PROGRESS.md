@@ -2673,7 +2673,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed calls and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; callback/lifetime helpers and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
-| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function companion with guarded fixed calls are connected to the SDK and actual Native AOT/backend execution. Global/hook access, variadics, callback/lifetime helpers, handwritten shims, remaining string utilities and the complete version/platform matrix remain required |
+| `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function companion with guarded fixed calls and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Global/hook access, variadics, callback/lifetime helpers, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
 | `pgrx-pg-sys/src/submodules/{datum,oids,transaction_id,htup,tupdesc,utils,cmp,sql_translatable}.rs` | Built-in OIDs, raw datum/tuple access, identifier helpers, comparison and SQL type metadata | PostgreSQL 13–19 versioned built-in OID catalogs, tagged PgOid classification and explicit invalid/custom datum conversion implemented alongside selected scalar mappings. Raw tuple, identifier and remaining type metadata APIs plus the full matrix remain required |
 | `misc.rs`, `prelude.rs`, internal `ptr.rs`/`slice.rs` | Hash helpers, ergonomic API access, pointer/slice lifetime semantics underlying public APIs | Pending |
 
@@ -7863,3 +7863,135 @@ succeeded, including deployment. No newer run is pending. New hosted suites must
 establish the repaired complete platform outcomes; the local regression witnesses
 do not replace macOS or Windows platform evidence. The remaining full-port scope
 from the preceding milestone remains required.
+
+### Selected-header helpers and CI cache reuse
+
+The handwritten pgrx helper layer now supplements the pinned foreign inventory
+without changing generated reference JSON. The descriptors cover alignment,
+memory contexts, transaction IDs, buffers, pages, tuples and spinlock primitives
+for PostgreSQL 13–19, preserving macro-to-inline transitions and the removal of
+`SpinLockFree` in 19. Existing native prototypes remain authoritative. Required
+supplemental functions must appear as top-level functions; missing, conflicting,
+nested or wrong-kind declarations fail collection.
+
+Macro prototypes participate in compiler type discovery. Their implementations
+are enabled only for selected native call bodies and for independent body
+verification, including source-cache hits. This avoids unused internal functions
+without suppressing warnings or compiling unrelated helpers into published
+objects. A standalone PostgreSQL 18.6/Linux x64 header command collects and
+compiles all 47 helper contracts with Clang 21. This is compiler evidence, not
+proof of their backend behavior or of other supported PostgreSQL versions.
+
+`HeaderHelpersRespectSelectedMajorAndExistingDeclarations` verifies all seven
+version partitions; companion cases reject unsupported majors and global
+collisions while retaining foreign aliases. The `RequiredHelpers*` cases preserve
+the ordered availability partition and reject missing or invalid contracts.
+`NativeHeaderMacrosPreserveValuesAndPointerContracts` compiles and executes
+alignment boundaries, single evaluation, tuple addresses, masks, page predicates
+and a bounded native lock sequence; independent compilation rejects lost
+`volatile` pointer qualifications. All 18 focused cases pass on Linux x64 in
+1.982s. The complete build-tool module passes 830 cases, with zero failures and
+six Windows-only skips (836 total), in 18.788s.
+
+The first packaged SDK/backend attempt failed during consumer compilation because
+`PageHeaderData` was absent from the generated declarations: page helpers expose
+an untyped address, so that storage was not reachable through their signatures.
+Helper-required types now enter the same compiler-measured graph through explicit
+native object roots, including cache verification. No managed layout is invented.
+`SupplementalRecordRootsPreserveNativeStorage` compares generated size, alignment,
+field offset and values with an independent native C program for an otherwise
+unreferenced record. Companion cases reject duplicate and invalid root names and
+permit recovery. This six-case selection passes in 2.821s after correcting the
+new harness to access the explicitly implemented native-alignment interface.
+The expanded 18 helper cases pass in 1.968s.
+The combined helper and native-record selection also passes all 24 cases on
+Windows x64 with MSVC 18.10.1/.NET 10.0.12 in 2.752s. Release passes with zero
+warnings or errors in 1m 12.30s. API freshness passes for 170 pages/2,256 members;
+the site builds 212 pages in 3.79s and checks with zero errors, warnings or hints.
+The repository accessor and block checks find no formatting violations.
+
+Subsequent backend validation found two additional issues before publication.
+Windows full-body validation used the Clang discovery frontend against native
+MSVC headers, exposing incompatible intrinsic pointer declarations. Helper bodies
+now use the selected native compiler, while Clang still independently measures
+declarations; no diagnostics are disabled. The first Linux execution crashed
+because the new witness passed `PgMemoryContext.Id` as a native address. That
+property is an opaque registry token. The witness now obtains the actual owner
+with `GetMemoryChunkContext`, independently checks the managed context identity
+after switching, and restores the previous native owner. XML remarks and the raw
+guide clarify the distinction. These failed attempts are not backend evidence;
+both corrected witnesses require successful execution.
+The corrected build-tool module passes 835 cases with zero failures and six
+Windows-only skips (841 total), in 21.469s. The Release integration build also
+passes with zero warnings or errors in 56.16s. The standalone packaged-header
+witness now includes `TYPEALIGN`, checking its public/native identity and exact
+address-width result contract as well as compiling its body.
+
+The corrected packaged SDK/backend and standalone header witnesses both pass on
+PostgreSQL 18.6/Linux x64 in 4m 44.647s and PostgreSQL 18.1/Windows x64 in
+8m 39.210s, two passed with zero failures or skips on each platform. They execute actual page and tuple values,
+SQL NULL, allocation owners, context restoration, lifetime expiry and recovery
+after a helper raises PostgreSQL ERROR. The plain root complete suite passes all
+six modules on PostgreSQL 18.6/Linux x64: 7,680 passed, zero failed, and six
+Windows-only skips (7,686 total), in 14m 15.498s. Integration completes in
+14m 14.949s. A subsequent reference recheck corrected `BufferIsValid` for
+PostgreSQL 13–15, where it remains a macro until PostgreSQL 16. Seven additional
+native fixtures compile and execute the macro/inline boundary with exact local,
+invalid and shared buffer values; their final execution is recorded separately
+below because they were added after the complete run began. The new fixture's
+inline declarations initially triggered Clang's unused-function diagnostic during
+discovery. An independently invoked native function-pointer witness now retains
+those inline definitions without suppressing the warning. The fourteen-case
+version/validity selection passes with zero failures or skips in 2.755s.
+The corrected complete build-tool module passes 842 cases with zero failures and
+six Windows-only skips (848 total) in 19.417s. The repository now contains 7,693
+cases; the seven late cases have module-level execution evidence in addition to
+the complete 7,686-case run above. Final solution Release passes with zero
+warnings/errors in 1m 14.93s, followed by a clean Release build of the corrected
+test fixture in 1.01s. The final site builds 212 pages in 4.58s and checks with
+zero errors, warnings or hints. The same fourteen version/validity cases pass on
+Windows x64 in 995ms. Final API freshness covers 170 pages/2,256 members, and the
+complete whitespace verification passes.
+
+The preceding repair's [CI run 36285915891](https://github.com/willibrandon/ankus/actions/runs/36285915891)
+has passed quality and all runtime jobs, but macOS reached its 30-minute limit
+after a 26m 10.15s Release build. Its unit module also reported
+`CompiledCompanionsShareAcrossProcessesAndConsumerCleanup` and
+`NativePreprocessingTracksContentAndIncludeResolution` failures. Both reproduce
+on Linux with a symbolic-link temporary root: identical native/managed inputs
+acquired different cache identities because tools reported physical paths while
+the cache normalized logical paths. Both staging paths now resolve all directory
+aliases before compilation and hashing. The existing physical-path resolver is
+shared with generated project path mapping. Four affected cases pass under the
+linked temporary root in 6.996s; the persistent tests now create linked staging
+themselves on Unix. All seven cache regression cases pass in 22.213s, and the
+same seven cases pass on Windows x64 in 1m 26.212s. The final Release build
+passes with zero warnings/errors in 1m 16.73s. Final API freshness still covers
+170 pages/2,256 members; the site builds 212 pages in 3.25s and checks without
+errors, warnings or hints. Final accessor and block checks also pass.
+Fresh macOS evidence is still required.
+
+The hosted Linux job reached its 35-minute limit during integration testing. Its
+Release build passed in 4m 31.24s and every unit module passed without failures.
+Linux now allows 40 minutes and macOS 35; Windows remains 45. The cache defect is
+fixed alongside the measured timeout adjustment, and every platform retains its
+complete suite. Windows also reached its 45-minute limit during integration;
+its Release build passed in 11m 16.31s and all five unit modules passed. Its
+limit remains unchanged while the cache changes receive hosted measurement.
+
+Following the user's cache-first request, quality and platform test jobs now
+cache the ordinary NuGet package directory using `actions/cache`. Keys separate
+operating systems, architectures and jobs and hash the SDK, project and MSBuild
+dependency files. Earlier dependency keys can seed restores; normal restore and
+every build/test still run. Packaged-consumer tests retain their isolated NuGet
+directories, and repository build outputs are not cached. The first successful
+run populates the package caches; savings need a later hosted cache-hit run.
+The existing pinned Native AOT runtime cache remains in place. No sharding or
+additional CI jobs are introduced.
+[Documentation run 36285915863](https://github.com/willibrandon/ankus/actions/runs/36285915863)
+passed. Immediately before committing, both preceding run outcomes were checked
+again; all jobs are terminal and no newer run is pending. Fresh hosted execution
+must establish complete platform outcomes and cache savings. The full port
+remains incomplete: callbacks, globals/hooks, variadics, higher-level shared-memory
+locking, the broader feature inventory and the full platform/version matrix
+remain required.

@@ -18,7 +18,7 @@ public sealed partial class ToolCommandTests
         string helper = await ReadPackagedBuildToolAsync();
         string output = Path.Combine(s_root, "native header types");
         string selection = Path.Combine(s_root, "native header symbols.txt");
-        string[] names = ["ConditionVariableSleep", "ExecutorRun", "ExecutorRun_hook", "pg_atomic_read_u32", "pg_popcount32", "proc_exit"];
+        string[] names = ["ConditionVariableSleep", "ExecutorRun", "ExecutorRun_hook", "TYPEALIGN", "pg_atomic_read_u32", "pg_popcount32", "proc_exit"];
         await File.WriteAllLinesAsync(selection, names, token);
         ProcessResult result = await RunDotnetAsync(
             [helper, "binding-header-types", selection, MajorText(), s_installation.PgConfigPath, output], token);
@@ -35,6 +35,15 @@ public sealed partial class ToolCommandTests
         Assert.IsGreaterThan(0, target.GetProperty("ClangMajor").GetInt32());
         JsonElement symbols = document.RootElement.GetProperty("Symbols");
         Assert.AreSequenceEqual(names, symbols.EnumerateObject().Select(static property => property.Name));
+
+        JsonElement alignment = symbols.GetProperty("TYPEALIGN");
+        Assert.IsTrue(alignment.GetProperty("IsFunction").GetBoolean());
+        Assert.AreEqual("ankus_header_TYPEALIGN", alignment.GetProperty("NativeName").GetString());
+        Assert.AreSequenceEqual<string?>(["alignment", "value"], alignment.GetProperty("ParameterNames").EnumerateArray().Select(static name => name.GetString()));
+        JsonElement alignmentType = alignment.GetProperty("Type");
+        Assert.AreEqual("function", alignmentType.GetProperty("Kind").GetString());
+        Assert.AreEqual("uintptr_t", alignmentType.GetProperty("Result").GetProperty("Name").GetString());
+        Assert.HasCount(2, alignmentType.GetProperty("Parameters").EnumerateArray());
 
         JsonElement executor = symbols.GetProperty("ExecutorRun");
         Assert.IsTrue(executor.GetProperty("IsFunction").GetBoolean());

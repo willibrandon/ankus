@@ -860,6 +860,21 @@ kinds and types come from the selected headers. For example, PostgreSQL can expo
 declarations cannot satisfy requests. Conflicting declarations, malformed observations,
 or changes between the initial observation and measured collection fail validation.
 
+Handwritten pgrx helpers supplement the pinned foreign inventory at this boundary.
+Existing native functions retain their selected-header prototypes. Versioned
+macro wrappers contribute explicit addressable declarations; required helpers
+cannot disappear into the absent partition or conflict with another public
+declaration. Discovery uses their prototypes, and only selected native call bodies
+enable their implementations. This avoids unused internal definitions and avoids
+linking unrelated helper dependencies. Complete collection and cache-hit
+verification compile the current helper bodies with the selected native compiler before
+the independent record/layout checks. The final native compiler also checks and
+compiles every selected body beneath the ordinary error guard.
+Types required by helpers with untyped addresses, including `PageHeaderData`,
+enter the same measured record graph through additional native object roots.
+Their fields and layout come from the selected headers and independent compiler
+checks; they do not become node types or acquire node cast tags.
+
 The SDK's internal `binding-compile` command prepares an isolated project with
 the consumer's selected SDK, runtime reference and package directory. The consumer's
 restore assets supply the effective feeds, ordered NuGet configuration files and

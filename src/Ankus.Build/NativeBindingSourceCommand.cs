@@ -102,25 +102,11 @@ internal static class NativeBindingSourceCommand
     internal static string CreateProject(string directory)
     {
         string output = Path.GetFullPath(directory);
-        string pathMap = string.Join(',', new[] { output, PhysicalDirectory(new DirectoryInfo(output)) }
+        string pathMap = string.Join(',', new[] { output, NativeBuildDirectory.PhysicalPath(new DirectoryInfo(output)) }
             .Distinct(StringComparer.Ordinal).Select(static path => path.Replace(",", ",,", StringComparison.Ordinal)
                 .Replace("=", "==", StringComparison.Ordinal) + "=/_/Ankus.Postgres"));
         string project = Project.Replace("__ANKUS_PATH_MAP__", SecurityElement.Escape(EscapeProperty(pathMap)), StringComparison.Ordinal);
         return project.ReplaceLineEndings("\n") + "\n";
-    }
-
-    private static string PhysicalDirectory(DirectoryInfo directory)
-    {
-        // Windows link resolution uses file enumeration, which cannot query a drive root.
-        if (directory.Parent is null)
-        {
-            return directory.FullName;
-        }
-
-        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
-        return resolved.Parent is DirectoryInfo parent
-            ? Path.Combine(PhysicalDirectory(parent), resolved.Name)
-            : resolved.FullName;
     }
 
     /// <summary>

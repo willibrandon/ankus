@@ -163,8 +163,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     }
 
     /// <summary>
-    /// Gets the stable native identity used to validate this handle.
+    /// Gets the stable validation token for this handle.
     /// </summary>
+    /// <remarks>
+    /// This opaque token is not a native MemoryContext address and must not be passed to raw PostgreSQL functions.
+    /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public nint Id { get; }
 

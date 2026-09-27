@@ -33,7 +33,8 @@ internal static class NativeBindingCallSource
         ArgumentNullException.ThrowIfNull(headers);
         IReadOnlyList<NativeBindingCall> calls = NativeBindingCallModel.Select(records, names);
         Dictionary<string, NativeHeaderSymbol> selected = calls.ToDictionary(static call => call.Name, static call => call.Symbol, StringComparer.Ordinal);
-        var source = new StringBuilder(NativeBindingHeaderParser.GenerateChecks(headers, selected));
+        var source = new StringBuilder(NativeBindingHeaderHelpers.Definitions(records.Headers.Target.PostgresVersion / 10000, selected.Values));
+        source.Append(NativeBindingHeaderParser.GenerateChecks(headers, selected));
         source.AppendLine("#include <stddef.h>");
         source.AppendLine("#include <stdint.h>");
         source.AppendLine("#include <string.h>");

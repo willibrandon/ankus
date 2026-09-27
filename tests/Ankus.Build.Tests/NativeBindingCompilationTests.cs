@@ -41,9 +41,20 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             string[] firstArguments = Arguments(root, first, settings);
             string[] secondArguments = Arguments(root, second, settings);
             string tool = typeof(NativeBindingCompilationCommand).Assembly.Location;
+            string program = "dotnet";
+            string[] prefix = [];
+            if (!OperatingSystem.IsWindows())
+            {
+                string physical = Directory.CreateDirectory(Path.Combine(root, "temporary")).FullName;
+                string alias = Path.Combine(root, "linked temporary");
+                Directory.CreateSymbolicLink(alias, physical);
+                program = "/usr/bin/env";
+                prefix = ["TMPDIR=" + alias, "dotnet"];
+            }
+
             string[] results = await Task.WhenAll(
-                NativeBindingLayoutCommand.RunProcessAsync("dotnet", [tool, "binding-compile", .. firstArguments], root, context.CancellationToken),
-                NativeBindingLayoutCommand.RunProcessAsync("dotnet", [tool, "binding-compile", .. secondArguments], root, context.CancellationToken));
+                NativeBindingLayoutCommand.RunProcessAsync(program, [.. prefix, tool, "binding-compile", .. firstArguments], root, context.CancellationToken),
+                NativeBindingLayoutCommand.RunProcessAsync(program, [.. prefix, tool, "binding-compile", .. secondArguments], root, context.CancellationToken));
             Assert.ContainsSingle(results.Where(static result => result.Contains("Managed binding compilation: built ", StringComparison.Ordinal)));
             Assert.ContainsSingle(results.Where(static result => result.Contains("Managed binding compilation: reused ", StringComparison.Ordinal)));
             string artifact = Artifact(second);
@@ -54,7 +65,7 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             DateTime timestamp = DateTime.UtcNow.AddDays(-1);
             File.SetLastWriteTimeUtc(artifact, timestamp);
             timestamp = File.GetLastWriteTimeUtc(artifact);
-            string reused = await NativeBindingLayoutCommand.RunProcessAsync("dotnet", [tool, "binding-compile", .. secondArguments], root, context.CancellationToken);
+            string reused = await NativeBindingLayoutCommand.RunProcessAsync(program, [.. prefix, tool, "binding-compile", .. secondArguments], root, context.CancellationToken);
             Assert.Contains("Managed binding compilation: reused ", reused);
             Assert.AreEqual(timestamp, File.GetLastWriteTimeUtc(artifact));
             Assert.AreEqual(41, Execute(artifact));
