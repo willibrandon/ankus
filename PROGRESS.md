@@ -34,6 +34,26 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Worker registration allocation faults now pass four focused cases on Linux
+x64/PostgreSQL 18.6 (1m38.413s) and Windows x64/PostgreSQL 17.11 (3m38.883s).
+The native fixture wraps only the worker owner's selected-header allocator
+methods and exercises owner, registry-entry and actual PostgreSQL handle
+allocation failures, plus identity exhaustion. Each case executes twice in the
+same backend and requires exact owned diagnostics, restored caller context,
+released registry/context state, and a real replacement worker's startup,
+argument, shutdown and process exit. PostgreSQL can publish a worker before its
+handle allocation fails: an independent PID/value witness proves that worker
+starts, and the fixture terminates it and observes its exit. Public API remarks
+and the worker guide document this registration side effect. This tests existing
+production behavior; the worker implementation and runtime patch are unchanged.
+The first Linux attempt failed native compilation on a setjmp-clobbered local;
+the corrected counter is volatile, with no suppressed diagnostic. The final
+Windows rerun verifies that qualifier. Release passes with zero warnings/errors
+in 1m21.62s; API freshness verifies 200 pages/2,437 members, the site builds
+244 pages, and checking reports zero errors/warnings/hints. The final plain full
+Linux suite passes **8,094 tests, zero failures and six Windows-only skips,
+8,100 total**, in 14m03.413s (integration 14m02.799s).
+
 Background-worker APIs, generated native entries, a public sample and
 `ankus new --background-worker` are implemented. Static/dynamic registration,
 callback-owned observation handles, native signals/latches, name/OID connections
@@ -51,8 +71,9 @@ requiring a user initialization method. The runtime patch and package are unchan
 The Windows postmaster-death rerun passes in 6m20.163s, including recovery of the
 owned cluster and normal cleanup.
 
-The final complete Linux suite passes **8,090 tests with zero failures and six
-Windows-only skips, 8,096 total**, in 13m31.323s. This includes the retained
+The preceding worker lifecycle milestone's complete Linux suite passes **8,090
+tests with zero failures and six Windows-only skips, 8,096 total**, in
+13m31.323s. This includes the retained
 bounded slot-reclamation assertion and final postmaster-restart cleanup.
 The complete generator module passes
 2,100/2,100 in 26.068s. Production Release builds pass with zero warnings/errors
@@ -73,8 +94,8 @@ reclamation. The final bounded check passes on Windows in 6m47.069s and in the
 final full Linux suite. All jobs retain the requested one-hour limit and full
 unsharded suites.
 
-Registration allocation faults and the complete PostgreSQL 13–19/platform matrix
-remain required, along with the remaining full-port inventory below. This
+The complete PostgreSQL 13–19/platform matrix remains required, along with the
+remaining full-port inventory below. This
 milestone does not establish complete worker or full-port parity.
 
 The preceding mutation [CI 36338481778](https://github.com/willibrandon/ankus/actions/runs/36338481778)
@@ -2782,7 +2803,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
-| `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Partial: generated entries, checked registration, callback-owned observation handles, native signal/latch operations, name/OID connections and recoverable transaction callbacks implemented. Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 evidence includes restart, exhaustion, commit failures, SIGCHLD delivery/consumption, detached-worker lifetime, explicit role permissions, eleven connection failure/recovery cases and actual postmaster death during latch/shutdown waits. Registration allocation faults and the full version/platform matrix remain required |
+| `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Partial: generated entries, checked registration, callback-owned observation handles, native signal/latch operations, name/OID connections and recoverable transaction callbacks implemented. Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 evidence includes restart, exhaustion, commit failures, SIGCHLD delivery/consumption, detached-worker lifetime, explicit role permissions, eleven connection failure/recovery cases, actual postmaster death during latch/shutdown waits, and owner/entry/PostgreSQL-handle allocation failures with identity exhaustion and same-session recovery. The full version/platform matrix remains required |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
@@ -9598,3 +9619,60 @@ and Windows fail only the detached-worker capacity assertion repaired in this
 milestone. Both job logs were inspected, and the exact final assertion now
 passes on Linux and Windows. Outcomes are checked and recorded again immediately
 before push. New hosted CI is required for this commit's full platform evidence.
+
+### Background workers — registration allocation faults and recovery
+
+The native allocator fixture now observes the selected worker owner's actual
+allocation methods. It wraps that context alone, forwards the selected version's
+allocator signature, and restores the original method table before deletion so
+PostgreSQL's AllocSet cache cannot retain a fixture wrapper. It compiles the exact
+emitted worker bridge and does not copy PostgreSQL's private handle layout.
+
+`WorkerRegistrationAllocationFailuresRecover` has four cases, each repeated twice
+on the same backend:
+
+| Boundary | Required observations |
+|---|---|
+| Owner creation | Exact owned `53200` diagnostic, no created owner or allocation, unchanged handle identity and caller context |
+| Registry-entry allocation | First allocation fails, one owner is created and deleted, no retained registry entry or consumed identity |
+| PostgreSQL observation-handle allocation | Second allocation fails after publication, one consumed identity, deleted owner and empty registry; a separate worker's PID and argument witness prove it actually started, followed by termination and process exit |
+| Handle identity exhaustion | Exact `54000` before owner creation or allocation; the controlled counter is restored for subsequent test operations |
+
+Every case checks message/detail/hint ownership through diagnostic release,
+empty native result fields, restored context and registry state, then starts a
+real replacement worker. Startup, exact argument 42, distinct process identity,
+shutdown, handle release and process exit must all succeed. Final SQL observes
+the original backend PID, value 42 and zero worker-owner contexts.
+
+The PostgreSQL-handle case verifies a registration side effect rather than an
+atomic rollback: PostgreSQL publishes the worker before allocating its handle.
+Ankus releases its local owner and registry when that allocation raises an error,
+but the worker can still run. The public worker guide and generated API remarks
+describe this behavior and the consequence for retries. Production worker code
+and the Native AOT runtime fork/package are unchanged.
+
+Focused execution passes 4/4 with zero skips on Linux x64/PostgreSQL 18.6 in
+1m38.413s and Windows x64/PostgreSQL 17.11 in 3m38.883s. The first Linux attempt
+failed native compilation because GCC could inline a context counter across
+PostgreSQL's setjmp boundary; the counter is now volatile. The final Windows run
+includes that correction. No warning is disabled. The fixture compiles with
+warnings as errors on both targets.
+
+Release passes with zero warnings/errors in 1m21.62s. API freshness verifies
+200 pages/2,437 members; the site builds 244 pages and checks with zero
+errors/warnings/hints. Static assertion and pseudo-mutation review checks each
+case's sensitivity to incorrect registration outcomes, identity progression,
+context or registry leaks, changed worker arguments and failed recovery. This
+is not an executed mutation score or coverage percentage. The final plain full
+Linux `dotnet test` passes **8,094 tests, zero failures and six Windows-only
+skips, 8,100 total**, in 14m03.413s (integration 14m02.799s). The complete
+PostgreSQL 13–19/platform matrix and remaining full-port inventory remain required.
+
+Immediately before committing, the 2026-09-27 21:38 UTC check confirms that
+[CI 36350125488](https://github.com/willibrandon/ankus/actions/runs/36350125488)
+has passed quality and every runtime-package job; the full Linux, macOS and
+Windows suites remain in progress without a reported failed job.
+[Docs 36350125478](https://github.com/willibrandon/ankus/actions/runs/36350125478)
+passes. Pending suites are not counted as platform proof. Outcomes are checked
+and recorded again immediately before push. All jobs retain the requested
+one-hour timeout and full unsharded suites.

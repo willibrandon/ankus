@@ -22,6 +22,8 @@ internal static class AllocatorFaultFixtureCompiler
         AS 'Ankus.AllocatorFaultFixture', 'ankus_test_stringinfo_fault' LANGUAGE c STRICT;
         CREATE FUNCTION tests.list_fault(integer) RETURNS text
         AS 'Ankus.AllocatorFaultFixture', 'ankus_test_list_fault' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.worker_allocation_fault(integer, text) RETURNS text
+        AS 'Ankus.AllocatorFaultFixture', 'ankus_test_worker_allocation_fault' LANGUAGE c STRICT;
         """;
 
     /// <summary>
@@ -49,8 +51,10 @@ internal static class AllocatorFaultFixtureCompiler
         string fixtures = Path.Combine(root, "tests", "Ankus.IntegrationTests", "Native");
         string prefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "allocator_fault_prefix.c"), cancellationToken);
         string probe = await File.ReadAllTextAsync(Path.Combine(fixtures, "allocator_fault_probe.c"), cancellationToken);
-        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix +
-            emitted[memoryStart..memoryEnd] + probe;
+        string workerPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_prefix.c"), cancellationToken);
+        string workerProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_probe.c"), cancellationToken);
+        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix + workerPrefix +
+            emitted[memoryStart..memoryEnd] + probe + workerProbe;
         string output = IntegrationEnvironment.NativeOutputDirectory;
         string sourcePath = Path.Combine(output, "allocator_fault_fixture.c");
         await File.WriteAllTextAsync(sourcePath, source, cancellationToken);

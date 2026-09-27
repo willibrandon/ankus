@@ -123,6 +123,13 @@ registration. `WaitForStartup` waits for a startup outcome; a `Started` snapshot
 contains a process ID, while the other states have no process ID. After a
 restart, query the handle again to obtain the new process ID.
 
+PostgreSQL registers a dynamic worker before allocating its observation handle.
+If that allocation fails, `TryStart` throws a `PgException`, but the registered
+worker can still start. Ankus releases its local observation storage; it cannot
+undo that registration without a handle. Check your worker's shared state or
+other application-level completion signal before retrying if duplicate work
+would be a problem.
+
 Set `NotifyProcessId` to the registering backend's PID to use startup and
 shutdown waits. They return `Untracked` if that backend is not the notifier.
 Polling and termination remain available without notifications. Static workers

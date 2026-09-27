@@ -25,6 +25,8 @@ public static class PgBackgroundWorker
     /// <returns>Whether PostgreSQL accepted the registration.</returns>
     /// <remarks>
     /// Registration does not guarantee startup. Inspect or wait on the handle to observe the process.
+    /// PostgreSQL can register the worker before allocating its observation handle. An allocation error
+    /// can therefore throw while the worker remains registered; retrying may start another worker.
     /// Dynamic registration requires an initialized backend after shared preload has completed.
     /// Disposing the handle or leaving this backend callback does not terminate the registered worker.
     /// PostgreSQL sanitizes dynamic names, types, library paths and symbols; values it would alter are rejected.
