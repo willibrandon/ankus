@@ -29,13 +29,9 @@ public sealed class PgAtomic<T> where T : unmanaged
             throw new ArgumentException("A PostgreSQL shared-memory name cannot contain a zero byte.", nameof(name));
         }
 
-        if ((!typeof(T).IsPrimitive && !typeof(T).IsEnum) || Unsafe.SizeOf<T>() is not (1 or 2 or 4 or 8))
-        {
-            throw new NotSupportedException($"The type '{typeof(T)}' is not supported by .NET scalar atomic operations.");
-        }
-
+        NativeAtomicScalar.Validate<T>();
         Name = name;
-        _registration = new NativeSharedMemoryRegistration(name, typeof(T).AssemblyQualifiedName!, Unsafe.SizeOf<T>(), atomic: true);
+        _registration = new NativeSharedMemoryRegistration(name, typeof(T).AssemblyQualifiedName!, Unsafe.SizeOf<T>(), NativeSharedMemoryKind.Atomic);
     }
 
     /// <summary>

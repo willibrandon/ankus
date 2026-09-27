@@ -8,7 +8,7 @@ namespace Ankus;
 /// <summary>
 /// Roots one process-local initializer and identifies its native shared-memory descriptor.
 /// </summary>
-internal sealed unsafe class NativeSharedMemoryRegistration(string name, string identity, int size, bool atomic = false)
+internal sealed unsafe class NativeSharedMemoryRegistration(string name, string identity, int size, NativeSharedMemoryKind kind = NativeSharedMemoryKind.Locked)
 {
     private nint _provider;
     private nint _handle;
@@ -39,7 +39,7 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
                     _name = (nint)text,
                     _identity = (nint)type,
                     _size = (nuint)size,
-                    _kind = atomic ? 1u : 0u,
+                    _kind = (uint)kind,
                     _cookie = cookie,
                     _initialize = (nint)(delegate* unmanaged[Cdecl]<nint, nint, nuint, NativeCallbackContext*, int>)&NativeSharedMemoryInitializer.Invoke,
                 };
@@ -54,10 +54,10 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
                     throw new InvalidOperationException("PostgreSQL did not return a shared-memory registration.");
                 }
 
-                if (atomic && (result._data == 0 || (nuint)result._data % sizeof(long) != 0 ||
+                if (kind != NativeSharedMemoryKind.Locked && (result._data == 0 || (nuint)result._data % sizeof(long) != 0 ||
                     result._length != (nuint)sizeof(NativeSharedMemoryAccess)))
                 {
-                    throw new InvalidOperationException("PostgreSQL returned invalid atomic access storage.");
+                    throw new InvalidOperationException("PostgreSQL returned invalid shared-memory access storage.");
                 }
 
                 _provider = provider;
@@ -73,7 +73,7 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
     }
 
     /// <summary>
-    /// Borrows a published atomic address without invoking PostgreSQL or requiring a backend thread.
+    /// Borrows a published shared address without invoking PostgreSQL or requiring a backend thread.
     /// </summary>
     /// <returns>A bounded operation lease that prevents shared-memory retirement until disposal.</returns>
     internal NativeSharedMemoryAccessLease Open()
@@ -81,13 +81,13 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
         nint location = Volatile.Read(ref _access);
         if (location == 0)
         {
-            throw new InvalidOperationException("Register the PostgreSQL atomic descriptor during shared preload before accessing it.");
+            throw new InvalidOperationException("Register the PostgreSQL shared descriptor during shared preload before accessing it.");
         }
 
         var access = (NativeSharedMemoryAccess*)location;
         if (Volatile.Read(ref access->_processId) != Environment.ProcessId)
         {
-            throw new InvalidOperationException("PostgreSQL atomic storage has not attached in this process.");
+            throw new InvalidOperationException("PostgreSQL shared storage has not attached in this process.");
         }
 
         while (true)
@@ -95,12 +95,12 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
             int readers = Volatile.Read(ref access->_readers);
             if (readers < 0)
             {
-                throw new InvalidOperationException("PostgreSQL atomic storage is not initialized or is being retired.");
+                throw new InvalidOperationException("PostgreSQL shared storage is not initialized or is being retired.");
             }
 
             if (readers == int.MaxValue)
             {
-                throw new InvalidOperationException("The PostgreSQL atomic reader limit has been reached.");
+                throw new InvalidOperationException("The PostgreSQL shared-memory reader limit has been reached.");
             }
 
             if (Interlocked.CompareExchange(ref access->_readers, readers + 1, readers) == readers)
@@ -110,10 +110,11 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
         }
 
         nint value = (nint)Volatile.Read(ref access->_address);
-        if (value == 0 || (nuint)value % (nuint)Math.Min(size, sizeof(long)) != 0)
+        int alignment = kind == NativeSharedMemoryKind.Shared ? sizeof(long) : Math.Min(size, sizeof(long));
+        if (value == 0 || (nuint)value % (nuint)alignment != 0)
         {
             Interlocked.Decrement(ref access->_readers);
-            throw new InvalidOperationException("PostgreSQL atomic storage has an invalid value address.");
+            throw new InvalidOperationException("PostgreSQL shared storage has an invalid value address.");
         }
 
         return new NativeSharedMemoryAccessLease(location, value);
@@ -177,7 +178,7 @@ internal struct NativeSharedMemoryDefinition
     internal nuint _size;
 
     /// <summary>
-    /// Selects a lightweight lock (zero) or atomic storage (one).
+    /// Selects a lightweight lock, atomic scalar or shared aggregate.
     /// </summary>
     internal uint _kind;
 

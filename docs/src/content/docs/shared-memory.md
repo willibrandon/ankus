@@ -143,6 +143,60 @@ backend attachment preserves the existing value.
 
 In a Unix postmaster, follow the [preload thread lifetime rules](/initialization/#preloading).
 
-General immutable shared views, aggregate atomic fields, bounded shared
-collections, spinlock conveniences and high-level background-worker APIs are
-still being ported.
+## Shared aggregates
+
+Use `PgShared<T>` for immutable unmanaged data or a struct containing independent
+atomic fields. `Read` supplies a readonly reference valid for the duration of its
+synchronous callback:
+
+```csharp
+public readonly struct RequestState(int version)
+{
+    public readonly PgAtomicValue<long> Completed = new(0);
+    public readonly PgAtomicValue<bool> Enabled = new(true);
+    public int Version { get; } = version;
+}
+
+public static class SharedRequests
+{
+    private static readonly PgShared<RequestState> State = new("my_extension.state");
+
+    [PgModuleLoad]
+    public static void Register() => PgSharedMemory.Initialize(State, () => new RequestState(1));
+
+    [PgFunction]
+    public static long RecordCompletion() => State.Read(static (in RequestState value) =>
+        value.Enabled.Value ? value.Completed.Increment() : value.Completed.Value);
+
+    [PgFunction]
+    public static bool SetEnabled(bool enabled) => State.Read((in RequestState value) =>
+        value.Enabled.Exchange(enabled));
+}
+```
+
+The initializer runs only when PostgreSQL creates the shared segment. Ordinary
+fields remain immutable afterward; structs, tuples, wide numeric values and
+unmanaged inline arrays retain their exact layout. As with lock-protected values,
+any embedded address must be valid in every process that uses it.
+
+`PgAtomicValue<T>` supports the same scalar types and update methods as
+`PgAtomic<T>`. Read its getter-only `Value`, use `Exchange` or `CompareExchange`
+to replace it, and use the arithmetic and bitwise extension methods for other
+updates. A default atomic field starts at zero. Each field occupies eight bytes
+and requires eight-byte alignment; unaligned packed layouts fail before access.
+
+Operate directly on fields of the `in` parameter. Assigning a field or the whole
+aggregate to a local variable copies its storage; later updates to that copy do
+not change the shared value. Separate field reads and updates are independent
+atomic operations, not a consistent snapshot or transaction across all fields.
+Use `PgLwLock<T>` when updates must preserve a relationship between fields.
+
+The scoped callback prevents safe C# from retaining the borrowed reference.
+It may return an owned result, and exceptions release its admission. Managed
+threads may call `Read` after their process has attached, without invoking
+PostgreSQL. Keep callbacks finite: shutdown closes admission and waits for active
+callbacks before unmapping their shared segment. New callbacks fail during
+retirement and can read replacement storage after startup publishes it.
+
+Bounded shared collections, spinlock conveniences and high-level background-worker
+APIs are still being ported.

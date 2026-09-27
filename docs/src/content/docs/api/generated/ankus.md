@@ -26,6 +26,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAnyElement](/api/ankus.pganyelement/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgAtomic](/api/ankus.pgatomic/)
+- [PgAtomicValue](/api/ankus.pgatomicvalue/)
 - [PgAtomic&lt;T&gt;](/api/ankus.pgatomic-1/)
 - [PgBuiltInOids](/api/ankus.pgbuiltinoids/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
@@ -95,6 +96,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgRelation](/api/ankus.pgrelation/)
 - [PgSchemaAttribute](/api/ankus.pgschemaattribute/)
 - [PgSharedMemory](/api/ankus.pgsharedmemory/)
+- [PgShared&lt;T&gt;](/api/ankus.pgshared-1/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
 - [PgSqlStates](/api/ankus.pgsqlstates/)
@@ -161,6 +163,7 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Structs
 
+- [PgAtomicValue&lt;T&gt;](/api/ankus.pgatomicvalue-1/)
 - [PgBox](/api/ankus.pgbox/)
 - [PgCidr](/api/ankus.pgcidr/)
 - [PgCircle](/api/ankus.pgcircle/)
@@ -183,3 +186,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTimestampTz](/api/ankus.pgtimestamptz/)
 - [PgTransactionId](/api/ankus.pgtransactionid/)
 - [SpiParameter](/api/ankus.spiparameter/)
+
+## Delegates
+
+- [PgSharedReader&lt;T, TResult&gt;](/api/ankus.pgsharedreader-2/)

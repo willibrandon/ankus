@@ -56,7 +56,7 @@ internal sealed partial class ApiReferenceRenderer
                 string childUid = Scalar(child);
                 if (_items.TryGetValue(childUid, out YamlMappingNode? member) && !IsPage(member))
                 {
-                    _links.Add(childUid, _links[uid] + "#" + Anchor(childUid));
+                    _links.Add(childUid, Text(item, "type") == "Delegate" ? _links[uid] : _links[uid] + "#" + Anchor(childUid));
                 }
             }
         }
@@ -68,9 +68,9 @@ internal sealed partial class ApiReferenceRenderer
     }
 
     /// <summary>
-    /// Gets the number of member declarations in the generated reference, including compiler-synthesized members.
+    /// Gets the number of rendered member declarations, excluding delegate implementation methods.
     /// </summary>
-    internal int MemberCount => _items.Values.Count(static item => !IsPage(item));
+    internal int MemberCount => _items.Count(pair => !IsPage(pair.Value) && _links[pair.Key].Contains('#', StringComparison.Ordinal));
 
     /// <summary>
     /// Renders namespace and type pages in deterministic UID order.
@@ -106,8 +106,9 @@ internal sealed partial class ApiReferenceRenderer
             AppendDeclaration(text, item);
             AppendLinks(text, item, "inheritance", "Inheritance");
             AppendLinks(text, item, "implements", "Implements");
-            foreach (IGrouping<string, YamlMappingNode> group in Sequence(item, "children").Select(Scalar)
-                .Where(_items.ContainsKey).Select(key => _items[key]).GroupBy(child => Text(child, "type")))
+            IEnumerable<YamlMappingNode> children = Text(item, "type") == "Delegate" ? [] :
+                Sequence(item, "children").Select(Scalar).Where(_items.ContainsKey).Select(key => _items[key]);
+            foreach (IGrouping<string, YamlMappingNode> group in children.GroupBy(child => Text(child, "type")))
             {
                 text.AppendLine("## " + Section(group.Key));
                 text.AppendLine();

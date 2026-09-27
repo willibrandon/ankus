@@ -27,6 +27,9 @@ dotnet run --project src/Ankus.DocGenerator -c Release -- --check
 `pnpm build` in `docs/` regenerates the API reference before building the site.
 Generation includes signatures, generic parameters, returns, exceptions, remarks,
 examples, and cross-reference links. Overloads receive distinct, stable anchors.
+Delegate pages render their declaration, parameters and return contract; compiler
+implementation methods link to that declaration rather than appearing as separate
+asynchronous APIs.
 Intermediate metadata is written beneath `artifacts/api-metadata/` and removed
 after generation.
 

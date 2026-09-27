@@ -26,7 +26,7 @@ internal struct NativeSharedMemoryAccess
 }
 
 /// <summary>
-/// Protects a shared address for one bounded managed atomic operation.
+/// Protects a shared address for one synchronous managed operation or reader callback.
 /// </summary>
 /// <param name="access">The process-local native admission slot.</param>
 /// <param name="value">The admitted shared value address.</param>

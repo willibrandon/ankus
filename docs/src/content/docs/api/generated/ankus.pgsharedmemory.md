@@ -124,3 +124,51 @@ constraint cannot establish that an embedded native address is valid in another 
 Registration is idempotent for the same descriptor; another descriptor with the same name
 in one extension is rejected. Shared values and their locks live until PostgreSQL shuts down or recreates
 its shared memory after a backend crash; a replacement segment runs the initializer again.
+
+<a id="member-56b33dbf35534c37"></a>
+
+### Initialize&lt;T&gt;(PgShared&lt;T&gt;)
+
+Registers a zero-initialized immutable shared value or aggregate of atomic values.
+
+```csharp
+public static void Initialize<T>(PgShared<T> storage) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged aggregate type.
+
+Parameters:
+
+`storage` — <code>PgShared&lt;T&gt;</code>
+
+The static named shared descriptor.
+
+<a id="member-7a5a86e3e8726a67"></a>
+
+### Initialize&lt;T&gt;(PgShared&lt;T&gt;, Func&lt;T&gt;)
+
+Registers a shared aggregate whose factory runs only when PostgreSQL creates its storage.
+
+```csharp
+public static void Initialize<T>(PgShared<T> storage, Func<T> initializer) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The unmanaged aggregate type.
+
+Parameters:
+
+`storage` — <code>PgShared&lt;T&gt;</code>
+
+The static named shared descriptor.
+
+`initializer` — [Func&lt;T&gt;](https://learn.microsoft.com/dotnet/api/system.func-1)
+
+The factory run at shared-memory startup.

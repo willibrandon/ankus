@@ -34,31 +34,33 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Shared scalar atomics extend the named unmanaged storage and lightweight locks
-introduced in `9a8e907`. `PgAtomic<T>` preserves primitive and enum bits with .NET
-Interlocked semantics across PostgreSQL processes and managed threads. Native
-admission protects each operation while shutdown retires shared addresses.
-Real-server witnesses cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL
-17.7, including startup failures, exact scalar updates, contention, error recovery
-and an original postmaster timer accessing replacement shared memory after a
-backend crash. General shared aggregate/immutable views remain required.
+Shared aggregates extend the named storage, lightweight locks and scalar atomics
+introduced in `9a8e907` and `77e9965`. `PgShared<T>` provides scoped readonly
+access to unmanaged aggregates; `PgAtomicValue<T>` fields retain exact scalar
+Interlocked semantics across processes and managed threads. Native admission
+protects each callback while shutdown retires shared addresses. Real-server
+witnesses cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7,
+including immutable wide values, inline arrays, startup failures, contention,
+callback-error recovery and an original postmaster timer accessing replacement
+storage after a backend crash.
 
-The latest full Linux run passes **7,865 tests, zero failures and six Windows-only
-skips, 7,871 total**, in 10m41.815s. The focused native atomic and existing lock
-tests pass 2/2 on Linux in 4m01.575s and 2/2 on Windows in 7m04.799s, with clean
-fixture teardown. The direct Runtime focus passes 37 cases and the generator
-focus passes two. Documentation generates 221 pages, site checking reports zero
-errors/warnings/hints, and API freshness verifies 178 pages/2,286 members.
-The final Linux Release solution build passes with zero warnings/errors in 58.85s;
-the Windows Release solution and final affected-project builds also pass.
+The latest full Linux run passes **7,885 tests, zero failures and six Windows-only
+skips, 7,891 total**, in 11m17.409s. The focused aggregate, scalar and lock tests
+pass 3/3 on Linux in 5m42.599s and 3/3 on Windows in 9m22.618s, with clean fixture
+teardown. The direct Runtime focus passes 52 cases and the generator/compiler
+focus passes seven. The Linux Release solution build passes with zero
+warnings/errors in 1m10.82s; the Windows Release solution also passes in
+3m23.19s. Documentation generates 225 pages, site checking reports zero
+errors/warnings/hints, and API freshness verifies 182 pages/2,305 members.
 
-Hosted [CI 36313857919](https://github.com/willibrandon/ankus/actions/runs/36313857919)
-for the fixture milestone `d6b5cd5` passes every job: the full Linux job takes
-31m04s, macOS 38m21s and Windows 54m25s. Docs 36313857910 also passes. This resolves
-the preceding Windows timeout within the unchanged one-hour limit. The complete
-PostgreSQL/platform matrix remains required. Hosted validation of the new scalar
-atomics is pending; general shared views, bounded shared collections, spinlocks and high-level
-background workers remain full-port work.
+For the preceding scalar milestone, hosted
+[CI 36318146632](https://github.com/willibrandon/ankus/actions/runs/36318146632)
+has passed quality, runtime jobs and the full Linux/macOS suites; Windows is
+still running. Docs 36318146663 passes. The preceding `d6b5cd5` CI passed all
+jobs, including Windows in 54m25s, resolving the earlier timeout within the
+unchanged one-hour limit. Hosted aggregate validation and the complete
+PostgreSQL/platform matrix remain required. Bounded shared collections, embedded
+spinlocks and high-level background workers remain full-port work.
 
 ### Managed preload validation history
 
@@ -2696,7 +2698,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
-| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics across processes and managed threads, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; general shared aggregate/immutable views, bounded containers, spinlock conveniences and remaining platform/version evidence are required |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views and inline atomic fields across processes and managed threads, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; bounded containers, embedded spinlock conveniences and remaining platform/version evidence are required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
@@ -8913,3 +8915,75 @@ for `d6b5cd5` both pass. The preceding `9a8e907` and `8f2d1e0` CI runs remain
 recorded as Windows timeouts; their Docs runs passed. Outcomes are checked and
 recorded again immediately before pushing. The new run must establish the scalar
 milestone's complete hosted platform results.
+
+### Shared aggregates and inline atomic fields — Linux and Windows validation
+
+Read-only pgrx `atomics.rs` and `shmem.rs` require general immutable shared data
+and interior synchronization in addition to scalar descriptors. `PgShared<T>`
+now supplies a synchronous `scoped in T` callback with native address admission.
+Ordinary unmanaged fields remain readonly; inline `PgAtomicValue<T>` fields
+provide the supported scalar Interlocked operations in an eight-byte aligned
+slot. Callbacks cannot return or capture a borrowed reference in safe C#.
+Copying a field copies its storage, so documentation demonstrates updating the
+original field through the callback parameter. Multiple fields do not become an
+aggregate transaction.
+
+The native protocol adds a distinct aggregate kind, reuses process attachment
+and close/drain retirement, permits arbitrary unmanaged sizes, and allocates no
+LWLock for aggregate views. Final direct Runtime validation passes 52 cases including
+existing scalar/lock behavior; focused generator/compiler validation passes seven.
+The tests check exact wide/inline-array data, readonly field updates, NaN payloads
+and signed zero, wrapping arithmetic and return values, packed-layout rejection,
+nested/throwing callbacks, balanced admission and concurrent worker updates.
+
+README and the public shared-memory guide describe the API and lifetime contract.
+The generated API reference includes the aggregate, inline atomic value and
+scoped reader delegate. Delegate pages now show their documented signature and
+parameters without compiler-generated asynchronous invocation methods; links to
+synthetic members resolve to the declaration itself.
+The preceding scalar milestone `77e9965` is pushed; Docs 36318146663 passes and
+CI 36318146632 is running. Bounded containers, embedded spinlocks, high-level
+workers and the full platform/version matrix remain required.
+
+The first native aggregate/scalar/lock focus passes **3/3** on Linux x64,
+PostgreSQL 18.6, in 5m42.599s. It proves exact immutable and inline-array values,
+original atomic field updates across independent backends and managed threads,
+startup error ownership, throwing callbacks and same-session recovery, rollback
+persistence, rejection of unaligned packed atomic fields, and the original
+postmaster timer using the recreated segment. The Windows Release solution build
+passes with zero warnings/errors in 3m23.19s. The Windows x64/PostgreSQL 17.7
+aggregate/scalar/lock run now passes **3/3**, zero failures/skips, in 9m22.618s,
+with successful fixture cleanup. The final Linux Release solution build passes
+with zero warnings/errors in 1m10.82s. The final direct focus includes default
+aggregate/cell initialization and immediate arithmetic-state assertions.
+
+The final site build produces 225 pages, site checks have zero
+errors/warnings/hints, and API freshness verifies 182 pages/2,305 rendered
+members. The complete root `dotnet test` run passes on Linux x64/PostgreSQL 18.6:
+**7,885 passed, zero failed, six Windows-only skips, 7,891 total**, in
+11m17.409s (integration 11m16.780s). The full port is not complete.
+
+| Requirement | Concrete evidence |
+|---|---|
+| Names, null input and registration | `SharedViewsRejectInvalidContracts`, `SharedViewsPreserveInitializationAndIdentity`: exact argument names, no invalid native calls, deferred/idempotent factory, aggregate kind, type digest and size |
+| Immutable values, inline arrays and defaults | `SharedViewsReadExactAggregateValues`, `SharedViewsInitializeDefaults`, `SharedViewInitializersRejectInvalidStorage`: exact Guid/Int128/decimal and five-byte array contents, zero initialization, untouched invalid buffers and valid retry |
+| Scoped lifetime, nesting and recovery | `SharedViewsReleaseAdmissionAndObserveReplacement`: nested counts, original exception identity, preserved writes, balanced admission, closed-reader rejection and replacement address |
+| Inline scalar bits, alignment and copies | `AtomicValuesPreserveExactScalarBits`, `AtomicValuesCompareFloatingPointBits`, `AtomicValuesRejectInvalidStorage`, `AtomicValuesUpdateReadonlyAggregateFields`: all widths/enum, NaN/signed-zero comparisons, surrounding bytes, unsupported defaults, misalignment and actual readonly-field versus copied storage |
+| Arithmetic and concurrent updates | `AtomicValuesPreserveArithmeticContracts`, `SharedViewsSupportManagedThreads`: wrapping arithmetic, exact return/stored values, four-thread total, preserved metadata and no worker PostgreSQL calls |
+| Generated and language boundaries | `SharedAggregateRegistrationEmitsNativeAccessProtocol`, `SharedAggregateCallbacksPreserveScopedReadonlyReferences`: positive compilation, selected native kind/attachment/retirement protocol and compiler rejection of ordinary field mutation, borrowed-span escape and reference capture |
+| Native shared behavior | `SharedAggregatesPreserveValuesAcrossProcessesAndThreads`: packaged Native AOT on the two stated platforms, independent backend PIDs, first access on a managed worker, synchronized threads, startup errors, error/rollback persistence, packed-field rejection and an original timer using the replacement segment |
+| Existing shared families | `SharedAtomicsPreserveValuesAcrossProcessesAndThreads` and `SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` pass alongside aggregates on both platforms |
+
+Bounded shared containers, embedded PostgreSQL spinlocks, high-level background
+workers and the complete PostgreSQL/platform matrix remain required. Passing this
+shared-memory milestone does not establish completion of the faithful port.
+
+Immediately before committing, hosted outcomes were refreshed and recorded:
+[CI 36318146632](https://github.com/willibrandon/ankus/actions/runs/36318146632)
+for `77e9965` has passed quality, all runtime jobs, Linux in 21m56s and macOS in
+34m54s; its full Windows job remains active. [Docs 36318146663](https://github.com/willibrandon/ankus/actions/runs/36318146663)
+passed. The preceding `d6b5cd5` CI/Docs runs both passed; the older `9a8e907`
+Windows timeout remains recorded as cancelled, not successful. These outcomes
+are checked and recorded again immediately before pushing. Development continues
+without waiting for the remaining hosted job; the new run must establish the
+aggregate milestone's complete hosted platform results.

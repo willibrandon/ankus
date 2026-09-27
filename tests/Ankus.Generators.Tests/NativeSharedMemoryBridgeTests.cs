@@ -49,6 +49,6 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("result->length = sizeof(entry->access);", native);
         string retirement = native[native.IndexOf("static void\nankus_shared_retire(void)", StringComparison.Ordinal)..
             native.IndexOf("static void\nankus_shared_before_exit", StringComparison.Ordinal)];
-        AssertOrdered(retirement, ["entry = ankus_shared_storage", "entry->kind == 1", "ankus_shared_close(entry);"]);
+        AssertOrdered(retirement, ["entry = ankus_shared_storage", "entry->kind != 0", "ankus_shared_close(entry);"]);
     }
 }

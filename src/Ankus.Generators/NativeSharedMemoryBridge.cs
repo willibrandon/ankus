@@ -80,7 +80,7 @@ internal static class NativeSharedMemoryBridge
         static uint64 ankus_shared_next_storage = 1;
         static uint64 ankus_shared_next_lease = 1;
         static uint32 ankus_shared_held_count;
-        static bool ankus_shared_has_atomic;
+        static bool ankus_shared_has_access;
         static int ankus_shared_exit_pid;
         static shmem_startup_hook_type ankus_shared_previous_startup;
         #if PG_VERSION_NUM >= 150000
@@ -108,7 +108,7 @@ internal static class NativeSharedMemoryBridge
              * each finite operation before PostgreSQL unmaps this process's segment. */
             for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
             {
-                if (entry->kind == 1)
+                if (entry->kind != 0)
                 {
                     ankus_shared_close(entry);
                 }
@@ -127,7 +127,7 @@ internal static class NativeSharedMemoryBridge
         static void
         ankus_shared_prepare(void)
         {
-            if (!ankus_shared_has_atomic || ankus_shared_exit_pid == MyProcPid ||
+            if (!ankus_shared_has_access || ankus_shared_exit_pid == MyProcPid ||
                 (IsUnderPostmaster && MyProc == NULL))
             {
                 return;
@@ -139,7 +139,7 @@ internal static class NativeSharedMemoryBridge
             ankus_shared_exit_pid = MyProcPid;
             for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
             {
-                if (entry->kind == 1)
+                if (entry->kind != 0)
                 {
                     if (pg_atomic_read_u32(&entry->access.process_id) != (uint32) MyProcPid)
                     {
@@ -249,7 +249,7 @@ internal static class NativeSharedMemoryBridge
                 if (header->magic != UINT64CONST(0x414e4b5553534802) || header->size != entry->size || header->kind != entry->kind ||
                     memcmp(header->identity, entry->identity, sizeof(header->identity)) != 0 || !header->initialized ||
                     (entry->kind == 0 && (header->lock == NULL || !ShmemAddrIsValid(header->lock))) ||
-                    (entry->kind == 1 && header->lock != NULL))
+                    (entry->kind != 0 && header->lock != NULL))
                 {
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
                         errmsg("Ankus shared memory '%s' has a conflicting or incomplete value layout", entry->name)));
@@ -265,7 +265,7 @@ internal static class NativeSharedMemoryBridge
                 }
 
                 entry->header = header;
-                if (entry->kind == 1)
+                if (entry->kind != 0)
                 {
                     pg_atomic_write_u64(&entry->access.address, (uint64) (uintptr_t) ankus_shared_data(header));
                     pg_atomic_write_u32(&entry->access.process_id, (uint32) MyProcPid);
@@ -294,7 +294,7 @@ internal static class NativeSharedMemoryBridge
              * retaining its loaded modules and managed descriptors. Retire every
              * address before invoking hooks for the replacement shared segment. */
             ankus_shared_held_count = 0;
-            if (ankus_shared_has_atomic)
+            if (ankus_shared_has_access)
             {
                 ankus_shared_retire();
             }
@@ -344,7 +344,7 @@ internal static class NativeSharedMemoryBridge
             AnkusSharedDefinition *definition = (AnkusSharedDefinition *) request->data;
             if (definition == NULL || definition->name == NULL || definition->name[0] == '\0' ||
                 strlen(definition->name) >= ANKUS_SHARED_NAME_LENGTH || definition->identity == NULL ||
-                definition->size == 0 || definition->kind > 1 ||
+                definition->size == 0 || definition->kind > 2 ||
                 (definition->kind == 1 && definition->size != 1 && definition->size != 2 && definition->size != 4 && definition->size != 8) ||
                 definition->cookie == 0 || definition->initialize == NULL)
             {
@@ -416,9 +416,9 @@ internal static class NativeSharedMemoryBridge
             }
 
             ankus_shared_last_storage = entry;
-            ankus_shared_has_atomic |= entry->kind == 1;
+            ankus_shared_has_access |= entry->kind != 0;
             result->value = (intptr_t) entry->id;
-            if (entry->kind == 1)
+            if (entry->kind != 0)
             {
                 result->data = (intptr_t) &entry->access;
                 result->length = sizeof(entry->access);
