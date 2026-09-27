@@ -34,6 +34,20 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Generated `<Record>_<Field>Callback` types now preserve canonical pointer storage
+and guarded invocation while letting method-table handlers use names derived
+from native declarations. Seven binding cases pass on Linux and Windows; four
+real PostgreSQL callback cases pass on Linux x64/PostgreSQL 18.6 (1m57.756s) and
+Windows x64/PostgreSQL 17.11 (4m19.817s). These exercise actual native table
+storage, exact state/slot addresses, managed/native errors, both managed unwind
+frames and same-session recovery. This is groundwork for custom-scan providers;
+planner/executor protocol implementation is still required. Final plain full
+Linux `dotnet test` passes **8,119 tests, zero failures and six Windows-only
+skips, 8,125 total**, in 14m48.009s (integration 14m47.274s). Release builds pass
+with zero warnings/errors on
+Linux and Windows; API freshness verifies 200 pages/2,437 members, and the site
+builds 244 pages and checks with zero errors/warnings/hints.
+
 The macOS failure in [CI 36352480777](https://github.com/willibrandon/ankus/actions/runs/36352480777/job/108713921584)
 comes from the allocation test worker's signal handler: Clang rejects the unused
 `postgres_signal_arg` parameter with warnings treated as errors. This prevents
@@ -48,6 +62,8 @@ hosted run, quality, all runtime jobs and Ubuntu's full suite (41m27s) pass;
 Windows remains in progress at the 2026-09-27 22:28 UTC pre-commit check.
 [Docs 36352480612](https://github.com/willibrandon/ankus/actions/runs/36352480612)
 passes.
+The subsequent callback milestone push superseded that run's Windows job after
+50m09s; it is cancelled and supplies no complete platform result.
 
 Prepared and parallel transaction callbacks now have ten real PostgreSQL cases,
 passing on Linux x64/PostgreSQL 18.6 (2m11.216s) and Windows x64/PostgreSQL 17.11
@@ -2835,7 +2851,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
-| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
+| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method-table storage and field-named native callbacks execute on Linux/Windows; actual planner/executor provider protocols and full platform/version evidence remain required |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, static managed callbacks with nested capability/lease restoration, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; remaining callback/lifetime conveniences, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, static managed native callbacks, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Remaining hook protocols, variadics, callback/lifetime conveniences, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
@@ -9772,3 +9788,64 @@ passes. The failed macOS job log was inspected and its exact diagnostic was
 reproduced and repaired without suppression. Pending Windows and new macOS
 execution are not counted as platform proof. Outcomes are checked and recorded
 again immediately before push. One-hour timeouts and full unsharded suites remain.
+
+### Native method tables — field-named callback values
+
+An unnamed function-pointer signature previously exposed only its collected
+graph-index type name. Adding an unrelated native root can change that index,
+so a managed method-table handler could not use a declaration-derived callback
+name. The binding writer now additionally emits `<Record>_<Field>Callback`
+values. Each retains the existing canonical pointer representation, selected
+header signature and native type identity. Implicit conversions preserve the
+exact address, and supported `Invoke` methods delegate to the existing guarded
+canonical call. Native field storage and canonical signature selection stay
+shared. No additional native entry path or runtime patch is introduced.
+
+The same naming applies to callback array elements, unions and typedef-backed
+anonymous records. Existing naming rules resolve collisions. Variadic,
+unprototyped, incomplete-result and layout-only bindings retain addresses without
+inventing an unsupported invocation signature. The public README and raw-value
+guide describe the types, their conversions and their borrowed lifetime.
+
+| Requirement | Execution evidence |
+|---|---|
+| Declaration-derived names survive graph changes | `ManagedFieldCallbacksKeepNamesAcrossGraphs` compiles one unchanged consumer against two graphs, requires different canonical signature indices, and executes both native targets with exact results and addresses |
+| Storage, conversions and signature shapes | `ManagedFieldCallbacksPreserveStorageAndInvocation` executes typedef, union, array and anonymous-record fields, including reassignment and high-bit addresses; `ManagedFieldCallbacksPreserveEmptyAndAggregateSignatures` verifies native side effects, void/empty signatures, aggregate endpoints and unchanged by-value input |
+| Unsupported calls and collisions | `ManagedFieldCallbacksKeepUnsupportedSignaturesAddressOnly`, `ManagedFieldCallbacksWithoutHeadersRetainOnlyAddresses` and `ManagedFieldCallbacksAvoidNameCollisions` compile actual consumers, retain exact values, reject unsupported invocation surfaces and preserve colliding native declarations |
+| Admission, owned errors and retry | `ManagedFieldCallbacksValidateInvocationAndRecover` rejects absent backend scope and null targets before invocation, retains every owned diagnostic field and verifies no rejected-call native side effect followed by an exact healthy result |
+| Real native method-table storage | `NativeFieldCallbackRoundtripPreservesStorage` assigns a generated managed callback to `CustomExecMethods.ExecCustomScan`, reads it back, invokes both field-specific and canonical values, and requires shared native state mutation and exact slot addresses |
+| Native boundary and same-session recovery | `NativeFieldCallbackErrorsUnwindAndRecover` verifies managed/native diagnostic ownership, callback and outer finally execution, a healthy retry and the original SQL backend PID; the caught-SPI partition requires exact diagnostics and successful SQL within the same callback |
+
+All seven binding cases pass on Linux (3.255s) and Windows (3.004s after final
+fixture formatting). All four actual PostgreSQL cases pass on Linux
+x64/PostgreSQL 18.6 (1m57.756s) and Windows x64/PostgreSQL 17.11 (4m19.817s).
+The first native attempt had an incorrect caught-SPI expectation: ordinary SPI
+rolls back its internal subtransaction and permits recovery inside the callback.
+The corrected test requires that documented behavior and exact diagnostic
+content; no production behavior was changed to accommodate it. Native C test
+helpers use distinct external names to avoid a libc symbol collision and the
+body-skipping collector's legitimate unused-static-function diagnostic.
+
+Final Release builds pass with zero warnings/errors on Linux (1m18.60s) and
+Windows (4m25.71s). API freshness verifies 200 pages/2,437 members; the site builds
+244 pages and checks with zero errors/warnings/hints. Static source pairing,
+assertion review and pseudo-mutation review informed the cases; they do not
+establish a coverage percentage or executed mutation score. Final plain full
+Linux `dotnet test`, against PostgreSQL 18.6, passes **8,119 tests, zero failures
+and six Windows-only skips, 8,125 total**, in 14m48.009s (integration
+14m47.274s). This includes the final native fixture formatting.
+
+This milestone exercises callback transport through real native method-table
+storage. Actual custom-scan planner/executor registration, plans, lifecycle,
+rescan, explanation and parallel protocols remain required, along with the
+remaining raw API inventory and complete PostgreSQL 13–19/platform matrix.
+All analyzer requirements and one-hour full-suite platform jobs remain intact.
+
+Immediately before committing, the 2026-09-27 23:13 UTC check of
+[CI 36355439020](https://github.com/willibrandon/ankus/actions/runs/36355439020),
+for the macOS fixture repair at `2dbdb3e`, confirms quality and every runtime
+package job pass; all three platform suites are still running without a reported
+failure. [Docs 36355439000](https://github.com/willibrandon/ankus/actions/runs/36355439000)
+passes. No pending platform suite is counted as completed evidence. The prior
+run's Windows cancellation and repaired macOS failure are recorded above.
+Outcomes are checked and recorded again immediately before push.

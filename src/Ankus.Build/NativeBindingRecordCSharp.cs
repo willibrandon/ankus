@@ -223,6 +223,8 @@ internal static partial class NativeBindingRecordCSharp
                 _functionPointers.Add(call.FunctionType, Unique(_names, name));
             }
 
+            NameFieldCallbacks();
+
             for (int index = 0; index < graph.Types.Count; index++)
             {
                 if (graph.Types[index].Size > 0)
@@ -248,6 +250,7 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             FunctionPointers();
+            FieldCallbacks();
 
             foreach (string name in _emptyValues.Values)
             {

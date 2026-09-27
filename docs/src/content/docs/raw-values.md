@@ -202,6 +202,25 @@ value types. Each type preserves the selected headers' exact signature. Typedef
 aliases and object qualifiers share one managed type; its name comes from the
 first typedef in ordinal order, or a generated name for an unnamed signature.
 
+Named record fields also expose a `<Record>_<Field>Callback` type. Use these
+names for method-table callbacks that have no C typedef; their names come from
+the record and field rather than a collected type index. For example, given
+an initialized `CustomExecMethods` table and a valid `CustomScanState` address:
+
+```csharp
+CustomExecMethods_ExecCustomScanCallback execute = methods.ExecCustomScan;
+methods.ExecCustomScan = execute;
+nint slot = execute.Invoke(scanStateAddress);
+```
+
+Conversions between the field-specific type and the field's canonical type
+preserve the address and signature. Native callback arrays expose the same
+field-specific type for their elements. A collision with another generated
+declaration adds a numeric suffix, following the companion's naming rules.
+These values keep the same caller-owned lifetime and guarded invocation rules.
+Use a field-specific type with `[PgNativeCallback]` to declare a managed handler
+without depending on an unnamed signature's generated index.
+
 For a fixed prototype with complete argument and result types, `Invoke` calls
 the current target through the native error guard. For example, given an
 initialized native `FmgrInfo` value and a valid, populated native function-call

@@ -1,0 +1,99 @@
+using Ankus.Postgres;
+
+namespace Ankus.TestExtension;
+
+/// <summary>
+/// Executes field-named callback values through selected-header native method-table storage.
+/// </summary>
+public static unsafe partial class NativeFieldCallbackFunctions
+{
+    private static int s_mode;
+    private static int s_calls;
+    private static int s_callbackFinally;
+    private static int s_outerFinally;
+    private static bool s_caught;
+
+    /// <summary>
+    /// Supplies the stable field-specific signature without naming a collected graph index.
+    /// </summary>
+    [PgNativeCallback(nameof(ExecuteScan))]
+    private static partial CustomExecMethods_ExecCustomScanCallback Execute { get; }
+
+    /// <summary>
+    /// Assigns and reads a native method table, then invokes its exact callback signature over owned native storage.
+    /// </summary>
+    /// <param name="mode">Zero for success, one for managed failure, two for native failure, three for caught native failure.</param>
+    /// <returns>The shared state mutation and preserved callback and result addresses.</returns>
+    [PgFunction]
+    public static string NativeFieldCallbackRoundtrip(int mode)
+    {
+        s_mode = mode;
+        s_calls = 0;
+        s_callbackFinally = 0;
+        s_outerFinally = 0;
+        s_caught = false;
+        try
+        {
+            using PgMemoryContext owner = PgMemoryContext.Create("field callback storage");
+            using PgNativeBox<TupleTableSlot> slot = owner.CreateBox<TupleTableSlot>(default);
+            CustomScanState value = default;
+            value.ss.ps.type = NodeTag.T_CustomScanState;
+            value.ss.ss_ScanTupleSlot = (nint)slot.DangerousGetPointer();
+            value.flags = 7;
+            using PgNativeBox<CustomScanState> state = owner.CreateBox(value);
+            using PgNativeBox<CustomExecMethods> methods = owner.CreateBox(new CustomExecMethods { ExecCustomScan = Execute });
+            CustomExecMethods_ExecCustomScanCallback callback = methods.Value.ExecCustomScan;
+            nint first = callback.Invoke((nint)state.DangerousGetPointer());
+            nint second = methods.Value.ExecCustomScan.Invoke((nint)state.DangerousGetPointer());
+            return $"{state.Value.flags}|{first == (nint)slot.DangerousGetPointer()}|{second == first}|" +
+                $"{callback.DangerousGetAddress() == Execute.DangerousGetAddress()}";
+        }
+        finally
+        {
+            s_outerFinally++;
+        }
+    }
+
+    /// <summary>
+    /// Reports managed invocation and unwind observations after the native callback has returned or raised an error.
+    /// </summary>
+    /// <returns>Callback entries, callback finally executions, outer finally executions and the caught-native marker.</returns>
+    [PgFunction]
+    public static string NativeFieldCallbackState() => $"{s_calls}|{s_callbackFinally}|{s_outerFinally}|{s_caught}";
+
+    /// <summary>
+    /// Mutates original native bytes, returns the original slot address and supplies controlled managed and native errors.
+    /// </summary>
+    private static nint ExecuteScan(nint address)
+    {
+        s_calls++;
+        try
+        {
+            var state = (CustomScanState*)address;
+            state->flags++;
+            if (s_mode == 1)
+            {
+                throw new PgException("P7511", "managed field callback failure", "field callback detail", "field callback hint");
+            }
+
+            if (s_mode is 2 or 3)
+            {
+                try
+                {
+                    _ = Spi.Execute("SELECT 1 / 0");
+                }
+                catch (PgException error) when (s_mode == 3)
+                {
+                    s_caught = error.SqlState == "22012" && error.Message == "division by zero" &&
+                        error.Detail is null && error.Hint is null && Spi.ExecuteScalar<int>("SELECT 6 * 7") == 42;
+                }
+            }
+
+            return state->ss.ss_ScanTupleSlot;
+        }
+        finally
+        {
+            s_callbackFinally++;
+        }
+    }
+}

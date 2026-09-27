@@ -240,7 +240,8 @@ boundary and returns owned text.
 memory contexts, pages and tuples through the native error guard. `NativeGlobals`
 provides guarded value copies and explicit native addresses for selected-header
 globals. Native function pointers have typed borrowed values whose `Invoke`
-methods use the same native error guard. `[PgNativeCallback]` exposes a static
+methods use the same native error guard. Method-table fields expose callback
+types named after their record and field. `[PgNativeCallback]` exposes a static
 managed handler through a generated native function-pointer property, including
 explicit hook installation, previous-hook chaining and restoration. Variadic
 calls remain in progress.
