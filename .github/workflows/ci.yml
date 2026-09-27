@@ -152,7 +152,7 @@ jobs:
           path: artifacts/nativeaot/${{ matrix.rid }}
 
       - name: Restore NuGet packages
-        run: dotnet restore Ankus.slnx
+        run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
 
       - name: Save NuGet package cache
         if: steps.nuget-cache.outputs.cache-hit != 'true'

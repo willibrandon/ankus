@@ -8112,3 +8112,42 @@ and cache-hit timing; no speedup is claimed yet. The full port remains incomplet
 guarded indirect calls, managed callback/hook lifetime and chaining, variadics,
 atomic/locking APIs, the remaining feature inventories and the complete
 PostgreSQL/platform matrix remain required.
+
+### CI package-cache restore correction
+
+[CI run 36292247916](https://github.com/willibrandon/ankus/actions/runs/36292247916)
+reused the Linux test and quality NuGet caches. The macOS ARM64 test job restored
+packages in 26 seconds and saved its first package cache in 16 seconds before
+starting the full suite. The cache service confirms the 836,369,566-byte entry;
+its reuse and complete-job savings still need measurement. All three runtime
+jobs and [documentation run 36292247845](https://github.com/willibrandon/ankus/actions/runs/36292247845)
+passed.
+
+The Windows test job failed before running tests: the new standalone solution
+restore inherited Visual Studio's `Platform=x64`, producing MSB4126 for the
+invalid `Debug|x64` solution configuration. The existing C# CI driver clears that
+environment variable for its child .NET commands, but the separate restore step
+does not pass through that driver. The restore command now explicitly selects
+the solution's `Any CPU` platform. The same inherited environment reproduces the
+failure on Linux and Windows; the corrected command succeeds on both, including
+a 2.594-second Windows restore. This is restore evidence, not a Windows test-suite
+result. The cache keys, analyzers, full-suite jobs and timeouts are unchanged.
+
+The exact workflow command also passes through Windows PowerShell with the same
+inherited environment (1.842s); its unchanged predecessor still fails with
+MSB4126. Local Release passes with zero warnings/errors in 1m 10.16s. API
+freshness covers 170 pages/2,256 members; the site builds 212 pages in 2.95s and
+checks with zero errors, warnings or hints. Hosted quality passes in 8m 16s
+with a confirmed package-cache hit, compared with the preceding run's 8m 40s.
+This single comparison includes other source changes and is not an isolated
+measurement of cache savings. Complete platform-suite timings remain pending.
+
+Final plain-root `dotnet test` on PostgreSQL 18.6/Linux x64 passes all six modules:
+**7,698 passed, zero failed, six Windows-only skips, 7,704 total**, in 14m 00.722s.
+Integration takes 13m 59.676s. Immediately before committing, the live CI outcomes
+were checked and recorded again: quality, all runtime jobs and documentation
+passed; Windows failed at the restore step corrected here; Linux and macOS full
+suites are still in progress. No additional failure is reported. Their unfinished
+runs do not count as passing platform evidence. The cache correction proceeds
+without waiting for hosted completion, as requested; the remaining full-port
+requirements above are unchanged.
