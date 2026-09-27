@@ -65,6 +65,13 @@ Outer-transaction callbacks run once, in registration order. PostgreSQL keeps
 the callback alive even when its returned registration is discarded. Dispose
 the registration to cancel a callback that has not run.
 
+Preparation ends these registrations too. `PREPARE TRANSACTION` runs
+`PrePrepare`, then `Prepare`, and releases unused callbacks and their captured
+objects. A later `COMMIT PREPARED` or `ROLLBACK PREPARED` does not invoke the
+original backend's callbacks, even when issued by that same backend. Writes made
+by `PrePrepare` belong to the prepared transaction and become visible only if it
+is committed.
+
 | Event | Timing | SPI |
 |---|---|---|
 | `PreCommit` | Before commit | Yes |
@@ -76,11 +83,21 @@ the registration to cancel a callback that has not run.
 | `ParallelCommit` | After a parallel worker commits | No |
 | `ParallelAbort` | After a parallel worker rolls back | No |
 
-`PreCommit` and `PrePrepare` may reject the operation by throwing. Events after
+`PreCommit`, `PrePrepare` and `ParallelPreCommit` may reject the operation by
+throwing. Events after
 commit, rollback, or preparation are for cleanup and logging. An unhandled
 exception in those events causes PostgreSQL to disconnect all sessions and run
-crash recovery, as with pgrx. Committed changes remain committed. Use `PreCommit`
-to reject a transaction safely; handle expected failures inside cleanup callbacks.
+crash recovery, as with pgrx. Committed changes remain committed; a transaction
+that reached `Prepare` remains prepared and can still be committed or rolled
+back after recovery. Use a reversible phase to reject work safely; handle
+expected failures inside cleanup callbacks.
+
+Registrations made inside a parallel worker belong to that worker's transaction.
+Successful completion runs `ParallelPreCommit` and `ParallelCommit`; failure
+runs `ParallelAbort`. A `ParallelPreCommit` error fails the leader's query.
+The leader's registrations remain separate, and SQL is unavailable in all three
+parallel callback phases. After the failed query is rolled back, another query
+can launch fresh workers.
 
 ## Savepoints and subtransactions
 

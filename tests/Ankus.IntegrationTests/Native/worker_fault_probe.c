@@ -8,7 +8,14 @@ static void
 fault_worker_signal(SIGNAL_ARGS)
 {
     int saved_errno = errno;
-    fault_worker_terminated = 1;
+#if PG_VERSION_NUM >= 190000
+    (void) pg_siginfo;
+#endif
+    if (postgres_signal_arg == SIGTERM)
+    {
+        fault_worker_terminated = 1;
+    }
+
     SetLatch(MyLatch);
     errno = saved_errno;
 }

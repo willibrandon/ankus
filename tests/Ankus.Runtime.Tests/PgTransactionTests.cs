@@ -111,22 +111,35 @@ public sealed unsafe class PgTransactionTests
     /// <summary>
     /// Clears callbacks for mutually exclusive events and all subtransaction callbacks when the outer transaction ends.
     /// </summary>
+    /// <param name="terminal">The terminal event dispatched by PostgreSQL.</param>
     [TestMethod]
-    public void TerminalEventReleasesEveryUnusedRegistration()
+    [DataRow(PgTransactionEvent.Commit)]
+    [DataRow(PgTransactionEvent.Abort)]
+    [DataRow(PgTransactionEvent.Prepare)]
+    [DataRow(PgTransactionEvent.ParallelCommit)]
+    [DataRow(PgTransactionEvent.ParallelAbort)]
+    public void TerminalEventReleasesEveryUnusedRegistration(PgTransactionEvent terminal)
     {
         using var fixture = new TransactionFixture();
         var events = new List<string>();
-        using PgTransactionCallback commit = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, () => events.Add("commit"));
-        using PgTransactionCallback abort = PgTransaction.RegisterCallback(PgTransactionEvent.Abort, () => events.Add("abort"));
-        using PgTransactionCallback prepare = PgTransaction.RegisterCallback(PgTransactionEvent.Prepare, () => events.Add("prepare"));
+        PgTransactionCallback[] receipts = [.. Enum.GetValues<PgTransactionEvent>().Select(@event =>
+            PgTransaction.RegisterCallback(@event, () => events.Add(@event.ToString())))];
+        using PgTransactionCallback second = PgTransaction.RegisterCallback(terminal, () => events.Add("second"));
         using PgSubtransactionCallback sub = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Abort,
             (_, _) => events.Add("sub"));
-        Assert.IsNull(fixture.DispatchTransaction(PgTransactionEvent.Commit, 0));
-        Assert.AreSequenceEqual(["commit"], events);
-        Assert.IsFalse(commit.IsPending);
-        Assert.IsFalse(abort.IsPending);
-        Assert.IsFalse(prepare.IsPending);
+        Assert.IsNull(fixture.DispatchTransaction(terminal, 0));
+        Assert.AreSequenceEqual([terminal.ToString(), "second"], events);
+        foreach (PgTransactionCallback receipt in receipts)
+        {
+            Assert.IsFalse(receipt.IsPending);
+            receipt.Dispose();
+        }
+
+        Assert.IsFalse(second.IsPending);
         Assert.IsFalse(sub.IsPending);
+        Assert.IsNull(fixture.DispatchTransaction(terminal, 0));
+        Assert.IsNull(fixture.DispatchSubtransaction(PgSubtransactionEvent.Abort, 17, 9, 0));
+        Assert.AreSequenceEqual([terminal.ToString(), "second"], events);
     }
 
     /// <summary>

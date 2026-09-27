@@ -34,6 +34,34 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The macOS failure in [CI 36352480777](https://github.com/willibrandon/ankus/actions/runs/36352480777/job/108713921584)
+comes from the allocation test worker's signal handler: Clang rejects the unused
+`postgres_signal_arg` parameter with warnings treated as errors. This prevents
+assembly initialization, producing 3,332 failed integration cases and two
+Linux-only skips before backend tests can run. The handler now checks `SIGTERM`
+and accounts for PostgreSQL 19's additional signal metadata while retaining the
+selected-header signature. The exact strict Clang command fails before the fix
+and passes afterwards; all four allocation cases pass on Linux x64/PostgreSQL
+18.6 (1m34.949s) and Windows x64/PostgreSQL 17.11 (3m11.515s). Fresh hosted macOS
+execution remains required. No diagnostic is suppressed or relaxed. In that
+hosted run, quality, all runtime jobs and Ubuntu's full suite (41m27s) pass;
+Windows remains in progress at the 2026-09-27 22:28 UTC pre-commit check.
+[Docs 36352480612](https://github.com/willibrandon/ankus/actions/runs/36352480612)
+passes.
+
+Prepared and parallel transaction callbacks now have ten real PostgreSQL cases,
+passing on Linux x64/PostgreSQL 18.6 (2m11.216s) and Windows x64/PostgreSQL 17.11
+(3m50.737s), plus 17 direct callback cases on each platform. These verify
+commit/rollback of prepared writes, managed/native pre-prepare rejection,
+durability after a post-prepare PANIC, actual parallel worker completion/errors,
+callback order, SQL capability boundaries and released captures. The final
+parallel lifetime refinement passes 3/3 on Linux in 2m17.312s and Windows in
+3m43.067s. The final plain full Linux suite passes **8,108 tests, zero failures
+and six Windows-only skips, 8,114 total**, in 14m00.034s (integration
+13m59.424s). Final Release passes with zero warnings/errors in 55.95s. API
+freshness verifies 200 pages/2,437 members; the site builds 244 pages and checks
+with zero errors/warnings/hints.
+
 Worker registration allocation faults now pass four focused cases on Linux
 x64/PostgreSQL 18.6 (1m38.413s) and Windows x64/PostgreSQL 17.11 (3m38.883s).
 The native fixture wraps only the worker owner's selected-header allocator
@@ -2801,7 +2829,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `list.rs`, `list/`, `stringinfo.rs` | PostgreSQL lists and string/binary buffer operations with native ownership | StringInfo and typed lists, including checked mutation/iteration, exclusive borrowing and container ownership, verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform evidence remains pending |
 | `rel.rs`, `itemptr.rs`, `pg_catalog/`, `namespace.rs`, `wrappers.rs` | Relation/index access and locks, tuple locations, function/type catalog lookups, namespaces and type resolution | Tuple locations, checked native storage, native type-syntax, qualified operator lookup, owned function-catalog metadata and native defaults verified on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Checked relation APIs verified on Linux x64/PostgreSQL 18.6. Raw RelationData bindings and complete version/platform evidence remain pending |
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
-| `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
+| `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Implemented event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors. Actual prepared commit/rollback, preparation failure/durability/recovery, parallel worker terminal events/errors and callback capture lifetimes pass on Linux x64/PG18.6 and Windows x64/PG17.11; the complete PG13–19/platform matrix remains required. |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Partial: generated entries, checked registration, callback-owned observation handles, native signal/latch operations, name/OID connections and recoverable transaction callbacks implemented. Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 evidence includes restart, exhaustion, commit failures, SIGCHLD delivery/consumption, detached-worker lifetime, explicit role permissions, eleven connection failure/recovery cases, actual postmaster death during latch/shutdown waits, and owner/entry/PostgreSQL-handle allocation failures with identity exhaustion and same-session recovery. The full version/platform matrix remains required |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
@@ -9676,3 +9704,71 @@ Windows suites remain in progress without a reported failed job.
 passes. Pending suites are not counted as platform proof. Outcomes are checked
 and recorded again immediately before push. All jobs retain the requested
 one-hour timeout and full unsharded suites.
+
+### Transaction callbacks — prepared transactions and actual parallel workers
+
+The existing callback implementation now has direct and native execution
+evidence for preparation and parallel completion. Five direct terminal-event
+rows require selected callbacks in registration order, every unused outer and
+subtransaction receipt inactive, safe disposal and no repeated invocation.
+The complete direct callback class passes 17/17 on Linux (982ms) and Windows
+(161ms).
+
+The published test extension supplies ten cases against real PostgreSQL:
+
+| Requirement | Execution evidence |
+|---|---|
+| Preparation ends callback ownership | `PreparedTransactionCallbacksEndWithPreparation` commits and rolls back from a distinct backend; exact pre/prepare order, cancelled and later registrations, collected captures, prepared database/role/identity, initially invisible rows and exact resolved writes are required |
+| Pre-prepare rejection recovers | `PrePrepareFailureAbortsAndRecovers` preserves managed and native diagnostics, including a caught native failure; finally execution, no prepared identity or writes, released captures and healthy callbacks on the original backend are required |
+| Post-prepare failure retains durability | `PrepareFailureRetainsDurablePreparedTransaction` observes managed finally before PANIC, disconnected sessions, actual crash recovery, the surviving prepared transaction, exact commit/rollback outcomes and healthy later callbacks |
+| Parallel success and failure preserve worker semantics | `ParallelTransactionCallbacksPreserveWorkerOutcomes` reads all 30,000 distinct values or the exact row/pre-commit error; actual foreign worker PIDs, exact per-worker terminal files, no pending receipts, denied SQL capability and healthy replacement workers are required |
+
+Parallel capture checks force collection both while callbacks are registered and
+after terminal cleanup. Atomic test-owned witness files survive worker exit and
+are removed with each owned cluster. Replacement queries must satisfy the same
+independent terminal observations as the initial successful query. The complete
+native class passes 10/10 on Linux x64/PostgreSQL 18.6 (2m11.216s) and Windows
+x64/PostgreSQL 17.11 (3m50.737s). The final forced-collection refinement passes
+the three affected cases on Linux in 2m17.312s and Windows in 3m43.067s.
+The public transaction guide documents preparation lifetime, durability after
+cleanup failure and parallel callback phases.
+
+The user-reported macOS [job 108713921584](https://github.com/willibrandon/ankus/actions/runs/36352480777/job/108713921584)
+fails after 16m55s when strict Clang compiles the allocation fixture. Its
+`SIGNAL_ARGS` handler ignored `postgres_signal_arg`, which produced
+`-Werror,-Wunused-parameter`. Assembly initialization therefore fails 3,332
+integration cases before they execute; two Linux-only cases skip. The repaired
+handler checks `SIGTERM`, preserves errno and wakes the latch, with explicit
+handling of PostgreSQL 19's additional metadata parameter. The exact strict
+Clang command rejects the original complete fixture and accepts the regenerated
+repair. Actual allocation cases pass 4/4 on Linux x64/PostgreSQL 18.6
+(1m34.949s) and Windows x64/PostgreSQL 17.11 (3m11.515s). No warning is disabled,
+and the runtime fork/package are unchanged. Fresh macOS backend execution is
+still required.
+
+The preceding [CI 36350125488](https://github.com/willibrandon/ankus/actions/runs/36350125488)
+was superseded by the allocation milestone push: Linux, macOS and Windows were
+cancelled after 36m37s, 36m39s and 36m29s respectively. Quality, every runtime
+job and [Docs 36350125478](https://github.com/willibrandon/ankus/actions/runs/36350125478)
+passed. Cancelled platform suites are not counted as platform proof.
+
+Final Release passes with zero warnings/errors in 55.95s. API freshness verifies
+200 pages/2,437 members; the site builds 244 pages and checks with zero
+errors/warnings/hints. Assertion and pseudo-mutation review led to the forced-GC,
+exact SQL-capability diagnostic and replacement-worker witness refinements;
+it does not establish an executed mutation score or coverage percentage.
+The final plain full Linux `dotnet test` passes **8,108 tests, zero failures
+and six Windows-only skips, 8,114 total**, in 14m00.034s (integration
+13m59.424s), against PostgreSQL 18.6.
+The complete PostgreSQL 13–19/platform matrix and remaining full-port inventory
+remain required.
+
+Immediately before committing, the 2026-09-27 22:28 UTC check of
+[CI 36352480777](https://github.com/willibrandon/ankus/actions/runs/36352480777)
+confirms quality, every runtime-package job and the complete Ubuntu suite
+(41m27s) pass. macOS fails only during the fixture compilation repaired here;
+Windows is still running. [Docs 36352480612](https://github.com/willibrandon/ankus/actions/runs/36352480612)
+passes. The failed macOS job log was inspected and its exact diagnostic was
+reproduced and repaired without suppression. Pending Windows and new macOS
+execution are not counted as platform proof. Outcomes are checked and recorded
+again immediately before push. One-hour timeouts and full unsharded suites remain.
