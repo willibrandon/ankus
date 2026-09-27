@@ -297,7 +297,10 @@ exclusive guards use PostgreSQL lightweight locks and copy values with checked
 callback lifetimes. `PgAtomic<T>` provides scalar reads, exchanges, comparisons
 and integer updates across backends and managed threads with .NET `Interlocked`
 semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
-inline `PgAtomicValue<T>` fields. See [shared memory, locks and atomics](docs/src/content/docs/shared-memory.md).
+inline `PgAtomicValue<T>` fields. `PgFixedList<T>`, `PgFixedDeque<T>` and
+`PgFixedMap<TKey, TValue>` provide bounded collections over unmanaged inline
+buffers, including process-stable map keys. See
+[shared memory, locks and atomics](docs/src/content/docs/shared-memory.md).
 
 Use `PgStringInfoStream` for a PostgreSQL-owned growable buffer with ordinary
 stream writes, strict UTF-8 text, exact binary copies, checked context lifetimes,

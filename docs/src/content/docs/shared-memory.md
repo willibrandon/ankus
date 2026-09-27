@@ -198,5 +198,146 @@ PostgreSQL. Keep callbacks finite: shutdown closes admission and waits for activ
 callbacks before unmapping their shared segment. New callbacks fail during
 retirement and can read replacement storage after startup publishes it.
 
-Bounded shared collections, spinlock conveniences and high-level background-worker
-APIs are still being ported.
+## Bounded collections
+
+Use `PgFixedList<T>`, `PgFixedDeque<T>` and `PgFixedMap<TKey, TValue>` for
+collections with a fixed capacity. They borrow a buffer and its metadata;
+ordinary C# inline arrays own the elements inside an unmanaged struct.
+The collection view is a `ref struct`, so it cannot escape the lifetime of
+that storage or become a field of the shared value itself.
+
+For example, store a bounded queue of work identifiers behind a lightweight lock:
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using Ankus;
+
+[InlineArray(128)]
+public struct WorkItems
+{
+    private int _element;
+}
+
+public struct WorkQueue
+{
+    private WorkItems _items;
+    private int _count;
+    private int _head;
+
+    [UnscopedRef]
+    public PgFixedDeque<int> Items() => new(_items, ref _count, ref _head);
+}
+
+public static class SharedWork
+{
+    private static readonly PgLwLock<WorkQueue> Queue = new("my_extension.work");
+
+    [PgModuleLoad]
+    public static void Register() => PgSharedMemory.Initialize(Queue);
+
+    [PgFunction]
+    public static bool Enqueue(int identifier)
+    {
+        using PgLwLockExclusiveGuard<WorkQueue> guard = Queue.Exclusive();
+        WorkQueue value = guard.Value;
+        bool added = value.Items().TryPushBack(identifier);
+        guard.Value = value;
+        return added;
+    }
+
+    [PgFunction]
+    public static int? Dequeue()
+    {
+        using PgLwLockExclusiveGuard<WorkQueue> guard = Queue.Exclusive();
+        WorkQueue value = guard.Value;
+        bool found = value.Items().TryPopFront(out int identifier);
+        guard.Value = value;
+        return found ? identifier : null;
+    }
+}
+```
+
+`UnscopedRef` lets an instance method return a view borrowing its struct's
+fields. C# still checks the caller's storage lifetime. Copying `WorkQueue`
+copies its elements and metadata. Copying a `PgFixedDeque<int>` view aliases
+its existing storage. To publish mutations, assign the owning value back to
+the exclusive guard. A view over a guard's copied value does not mutate
+shared memory by itself.
+
+All buffers and metadata start at zero. Constructing another view preserves
+existing contents. Keep a collection's buffers and metadata together and
+synchronize their use; these views do not acquire locks themselves.
+
+| Collection | Operations |
+|---|---|
+| `PgFixedList<T>` | `Add`/`TryAdd`, `AddRange`/`TryAddRange`, insertion, indexing, ordered `RemoveAt`, unordered `SwapRemoveAt`, and `Pop`/`TryPop` |
+| `PgFixedDeque<T>` | `PushFront`/`PushBack`, `PopFront`/`PopBack`, their `Try` forms, logical indexing, and wrapped buffer access through `GetSpans` |
+| `PgFixedMap<TKey, TValue>` | `Add`/`TryAdd`, `Set`/`TrySet`, indexing, `TryGetValue`, `ContainsKey`, `Remove`, and readonly `Entries` |
+
+The list and deque expose `Drain`, which returns an owned array and empties
+the collection. All three provide `ToArray`, `Clear` and allocation-free
+`foreach` enumeration. Constructing a view over existing storage does not
+allocate a collection or comparer. List `AsSpan` and
+deque `GetSpans` borrow initialized elements; structural changes invalidate
+their previous logical extent. Deque `CopyTo` requires a large enough,
+nonoverlapping destination. List range appends permit overlapping source data.
+
+Full collections reject new elements without changing their contents.
+`Try` operations report capacity or empty-state failures without throwing;
+their throwing counterparts report `InvalidOperationException`. Invalid
+metadata or unsupported map keys still throw. These collections never resize.
+Elements and map keys must be unmanaged; custom structs can contain inline
+arrays and other unmanaged fields.
+
+### Fixed maps and key equality
+
+A map owner needs equally sized buffers of `PgFixedMapEntry<TKey, TValue>`
+and `int`, plus an element count:
+
+```csharp
+[InlineArray(4)]
+public struct MapEntries
+{
+    private PgFixedMapEntry<int, long> _element;
+}
+
+[InlineArray(4)]
+public struct MapIndices
+{
+    private int _element;
+}
+
+public struct Counters
+{
+    private MapEntries _entries;
+    private MapIndices _indices;
+    private int _count;
+
+    [UnscopedRef]
+    public PgFixedMap<int, long> Values() => new(_entries, _indices, ref _count);
+}
+```
+
+`Set(key, value)` returns the previous value, or null for a new key.
+`TrySet(key, value, out previous)` returns false if a new key cannot fit.
+Replacing an existing entry works even at capacity and preserves the original
+key and position. Iteration follows insertion order until removal: `Remove`
+moves the last entry into the removed position, matching `heapless::IndexMap`.
+Never modify a populated map's raw entry or index buffers.
+
+The default comparer uses .NET value equality and deterministic hashing for
+Boolean, character, integer primitives, enums, `Int128`, `UInt128`, `Guid`,
+`Half`, `float`, `double` and `decimal`. Equal NaNs, signed zeros and decimal
+values with different scales find the same entry. This differs from an atomic
+compare-exchange, which compares exact bits. Hashes are internal to the map;
+they are not a Rust-compatible or durable serialization format.
+
+Other key structs require an explicit `IEqualityComparer<TKey>` supplied to
+the map constructor. Its equality and hash results must be identical in every
+backend using that storage. Use deliberate, deterministic field comparisons
+and hashing. Do not rely on record-generated `GetHashCode`, `HashCode.Combine`,
+process-local addresses, mutable settings, or randomized hashing. Use the same
+comparer semantics for every attachment to a populated map.
+
+Spinlock conveniences and high-level background-worker APIs are still being ported.

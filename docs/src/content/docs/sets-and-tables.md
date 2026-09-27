@@ -28,6 +28,11 @@ their meaning: `int[]` returns a PostgreSQL integer array, while
 supported [function type](/function-declarations/), including generated enums,
 shaped arrays, ranges, numeric values, and full-range temporal values.
 
+Generated `[PgType]` values and their arrays also work as set elements.
+Types declared without an explicit schema follow the owning extension's schema,
+including after `ALTER EXTENSION ... SET SCHEMA`; lookup does not depend on the
+session's search path. This applies to streaming and materialized results.
+
 For named or anonymous composite rows, use `IEnumerable<PgHeapTuple?>` and
 [composite bindings](/composites/). TABLE fields can also contain composites.
 PostgreSQL expands a single composite TABLE output into its underlying row

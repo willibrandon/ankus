@@ -262,9 +262,11 @@ internal static class NativeSetBridge
         {
             AnkusError error = {0};
             volatile int status = 2;
+            Oid previous_function = ankus_function_oid;
             CHECK_FOR_INTERRUPTS();
             if (state->iterator == NULL)
                 return false;
+            ankus_function_oid = state->function;
             PG_TRY();
             {
                 status = ankus_set_call(state, 1, NULL, &error, true, NULL);
@@ -285,6 +287,7 @@ internal static class NativeSetBridge
             }
             PG_FINALLY();
             {
+                ankus_function_oid = previous_function;
                 ankus_set_release_row(state);
             }
             PG_END_TRY();

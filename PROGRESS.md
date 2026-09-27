@@ -34,33 +34,39 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Shared aggregates extend the named storage, lightweight locks and scalar atomics
-introduced in `9a8e907` and `77e9965`. `PgShared<T>` provides scoped readonly
-access to unmanaged aggregates; `PgAtomicValue<T>` fields retain exact scalar
-Interlocked semantics across processes and managed threads. Native admission
-protects each callback while shutdown retires shared addresses. Real-server
-witnesses cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7,
-including immutable wide values, inline arrays, startup failures, contention,
-callback-error recovery and an original postmaster timer accessing replacement
-storage after a backend crash.
+Bounded collections extend the shared storage, locks, scalar atomics and scoped
+aggregates introduced in `9a8e907`, `77e9965` and `aa4b44a`.
+`PgFixedList<T>`, `PgFixedDeque<T>` and `PgFixedMap<TKey, TValue>` borrow
+unmanaged inline buffers and metadata, with fixed capacities, ordered snapshots,
+draining, collision repair and process-stable key hashing. Real-server witnesses
+cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7, including exact
+custom values across independent backends, full-buffer recovery, rollback
+persistence and shared-segment recreation after a backend crash.
 
-The latest full Linux run passes **7,885 tests, zero failures and six Windows-only
-skips, 7,891 total**, in 11m17.409s. The focused aggregate, scalar and lock tests
-pass 3/3 on Linux in 5m42.599s and 3/3 on Windows in 9m22.618s, with clean fixture
-teardown. The direct Runtime focus passes 52 cases and the generator/compiler
-focus passes seven. The Linux Release solution build passes with zero
-warnings/errors in 1m10.82s; the Windows Release solution also passes in
-3m23.19s. Documentation generates 225 pages, site checking reports zero
-errors/warnings/hints, and API freshness verifies 182 pages/2,305 members.
+The new witness also exposed and fixed an existing set-result conversion bug:
+the originating function's identity now remains active through native custom
+type and array conversion, including extension relocation, and restores the
+caller's identity on success or failure.
+
+The latest full Linux run passes **7,921 tests, zero failures and six Windows-only
+skips, 7,927 total**, in 11m30.624s. The focused collection/custom-type tests pass
+25/25 on Linux in 3m57.880s and 25/25 on Windows in 6m21.202s. The direct Runtime
+focus passes 29 cases and the related generator/compiler focus passes 20.
+Release solution builds pass with zero warnings/errors: Linux 1m06.06s and
+Windows 2m23.32s. Documentation generates 231 pages, site checking reports zero
+errors/warnings/hints, and API freshness verifies 188 pages/2,367 members.
 
 For the preceding scalar milestone, hosted
 [CI 36318146632](https://github.com/willibrandon/ankus/actions/runs/36318146632)
-has passed quality, runtime jobs and the full Linux/macOS suites; Windows is
-still running. Docs 36318146663 passes. The preceding `d6b5cd5` CI passed all
+passed quality, runtime jobs and the full Linux/macOS suites; its Windows job
+was cancelled by the superseding aggregate commit, not a timeout. Docs
+36318146663 passes. Aggregate [CI 36320463333](https://github.com/willibrandon/ankus/actions/runs/36320463333)
+has passed every job: full Linux 33m42s, macOS 38m01s and Windows 40m04s.
+Docs 36320463356 passes. The preceding `d6b5cd5` CI passed all
 jobs, including Windows in 54m25s, resolving the earlier timeout within the
-unchanged one-hour limit. Hosted aggregate validation and the complete
-PostgreSQL/platform matrix remain required. Bounded shared collections, embedded
-spinlocks and high-level background workers remain full-port work.
+unchanged one-hour limit. The new collection milestone still requires its hosted
+platform run. Embedded spinlocks, high-level background workers and the complete
+PostgreSQL/platform matrix remain full-port work.
 
 ### Managed preload validation history
 
@@ -2698,7 +2704,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
-| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views and inline atomic fields across processes and managed threads, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; bounded containers, embedded spinlock conveniences and remaining platform/version evidence are required |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields and bounded list/deque/map views are implemented. Shared values, error cleanup, contention and segment recreation are verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7. Embedded spinlock conveniences and remaining platform/version evidence are required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
@@ -8987,3 +8993,73 @@ Windows timeout remains recorded as cancelled, not successful. These outcomes
 are checked and recorded again immediately before pushing. Development continues
 without waiting for the remaining hosted job; the new run must establish the
 aggregate milestone's complete hosted platform results.
+
+### Bounded shared collections — Linux and Windows validation
+
+The next shared-memory phase ports the `pgrx-examples/shmem` fixed `Vec`,
+`Deque` and `FnvIndexMap` operations. `PgFixedList<T>`, `PgFixedDeque<T>` and
+`PgFixedMap<TKey, TValue>` now borrow spans and count/head metadata stored in
+ordinary unmanaged inline-array owners. Copies of an owner are independent;
+copies of a view alias the owner's fields. The existing `PgLwLock<T>` copy and
+explicit publication boundary preserves native error/lock validation without
+exposing mutable native references after PostgreSQL releases a lock.
+
+Lists support bounded append/range append, insertion, ordered or swap removal,
+indexing and popping. Deques support both ends and circular wraparound. Owned
+snapshots and draining let SQL iterators outlive a guard without borrowing its
+storage. Maps retain insertion order until swap removal, preserve original
+keys on replacement, accept replacement at capacity, and repair collision
+chains using cached stable hashes. Their scalar defaults normalize equal NaNs,
+signed zeros and decimal scales; custom keys require deliberate process-stable
+equality and hashing. `README.md` and the shared-memory public guide describe
+the storage and publication contracts.
+
+The focused Runtime run passes **29/29** cases in 894ms. The packaged native
+witness uses custom SQL values, 400-element list/deque buffers and a four-entry
+map, following pgrx's example capacities. Its first Linux/PostgreSQL 18.6 attempt
+exposed a witness query requesting Npgsql binary output for the text-only custom
+type; the SQL now casts nullable results to text. Subsequent Linux and Windows
+runs exposed the same existing set-result conversion defect: the native wrapper restored
+the caller's function identity before converting each returned row, so a
+custom type declared without an explicit schema could not be resolved. The
+row conversion now retains the set function's identity through conversion and
+restores it in `PG_FINALLY`. The witness retains its custom SQL type and adds
+array results, extension relocation under a restricted search path, explicit
+materialization, iterator-error cleanup and same-session recovery. The repaired
+Linux x64/PostgreSQL 18.6 native focus passes **25/25** cases, including the new
+witness and existing `CustomTypeTests`, in 3m57.880s. The same focus passes
+**25/25** on Windows x64/PostgreSQL 17.7 in 6m21.202s. Both have zero failures
+and skips. The related generator/compiler focus passes **20/20** in 2s487ms,
+including five borrowed-collection compiler cases and the set-conversion
+regression. Final Release builds pass with zero warnings/errors: Linux
+1m06.06s and Windows 2m23.32s. Documentation builds 231 site pages with zero
+check errors/warnings/hints; API freshness verifies 188 pages and 2,367 rendered
+members. The complete root `dotnet test` run passes on Linux x64/PostgreSQL 18.6:
+**7,921 passed, zero failed, six Windows-only skips, 7,927 total**, in
+11m30.624s (integration 11m30.056s). This milestone adds 36 test cases.
+
+| Requirement | Focused evidence |
+|---|---|
+| Bounded list operations, ordering and exterior bytes | `FixedListPreservesCapacityAndOrder`, `FixedListRejectsInvalidIndices`, `FixedListRejectsInvalidStateAndBounds` |
+| Overlapping appends and view versus owner identity | `FixedListCopiesOverlappingRanges`, `FixedListViewsRespectStorageIdentity` |
+| Deque ends, wraparound, empty/full/copy boundaries | `FixedDequePreservesWrappedOrder`, `FixedDequeMatchesOrderedModel`, `FixedDequeRejectsInvalidStateAndBounds` |
+| Allocation-free view attachment and standard enumeration | `FixedMapAttachmentAndUpdatesDoNotAllocate`, `FixedDequeEnumeratorsRejectInvalidPositions`, enumeration assertions in the direct list/deque/map order cases |
+| Map collisions, replacement at capacity, swap ordering and recovery | `FixedMapPreservesCollisionsCapacityAndOrder`, `FixedMapMatchesOrderedModel`, `FixedMapRejectsInvalidIndicesBeforeMutation`, `FixedMapComparerFailuresPreserveStorage`, `FixedMapRejectsInvalidStateAndBounds` |
+| Stable hashes, equivalent representations and custom keys | `FixedComparersProduceStableHashVectors`, `FixedComparersPreserveEquivalentKeys`, `FixedComparersRequireExplicitCustomKeyHashing` |
+| Inline owner compilation and rejected reference escapes | `FixedCollectionOwnersCompileWithSharedLocks`, `FixedCollectionViewsPreserveBufferLifetimes` |
+| Custom set-result conversion retains schema identity and restores its caller | `SetRowsRetainFunctionIdentityDuringCustomTypeConversion`; packaged witness checks relocated custom rows/arrays, materialization and iterator-error cleanup on both stated platforms |
+| Real backend visibility, errors, draining, rollback and segment recreation | `BoundedSharedCollectionsPreserveValuesAcrossBackends` — passes on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7 |
+
+Embedded spinlocks, high-level background workers and the complete
+PostgreSQL/platform matrix remain required for the full port.
+
+Immediately before committing, hosted outcomes were refreshed and recorded:
+aggregate [CI 36320463333](https://github.com/willibrandon/ankus/actions/runs/36320463333)
+and [Docs 36320463356](https://github.com/willibrandon/ankus/actions/runs/36320463356)
+both pass. CI includes the full Linux suite in 33m42s, macOS in 38m01s and Windows
+in 40m04s, plus quality and every runtime job. The preceding scalar CI's Windows
+job was superseded and cancelled; its other jobs and Docs passed. Older Windows
+timeouts remain historical failures, resolved by subsequent complete platform
+runs. All workflow jobs retain the requested 60-minute timeout. Outcomes are
+checked and recorded again immediately before pushing, and the new hosted run
+must establish this collection milestone's complete platform results.

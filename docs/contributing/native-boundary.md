@@ -508,6 +508,10 @@ Managed rows use the same conversion expressions as scalar functions. Native
 TABLE conversion selects each tuple descriptor attribute's OID, preserving enum
 and array identity independently of the overall RECORD return type. Output buffers
 are released in native `PG_FINALLY` blocks on successful conversion and errors.
+The originating set function's OID remains active through native row conversion,
+so unqualified custom types and their arrays resolve in the owning extension's
+current schema. The conversion's `PG_FINALLY` restores the caller's identity,
+including when a row fails; managed callback scope alone is not sufficient.
 One-column TABLE results use the scalar datum ABI, as PostgreSQL requires.
 
 Value-per-call execution returns a single row and leaves the iterator rooted for
