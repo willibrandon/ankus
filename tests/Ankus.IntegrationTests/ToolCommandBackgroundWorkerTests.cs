@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Xml.Linq;
+using Ankus.PgConfig;
 using Ankus.Testing;
 using Npgsql;
 
@@ -79,10 +81,18 @@ public sealed partial class ToolCommandTests
     {
         CancellationToken token = context.CancellationToken;
         string output = await PublishColdGucConsumerAsync("BackgroundWorkers", "ankus_worker_probe", BackgroundWorkerSource, token);
+        string signalFixture = Path.Combine(output, "Ankus.WorkerSignals" + Path.GetExtension(PublishedExtension.Read(output).Library));
+        await AllocatorFixtureCompiler.CompileModuleAsync(s_installation,
+            Path.Combine(IntegrationEnvironment.RepositoryRoot, "tests", "Ankus.IntegrationTests", "Native", "worker_signal_fixture.c"),
+            signalFixture, true, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         await ExecutePackageGucAsync(connection, "CREATE EXTENSION ankus_worker_probe; CREATE TABLE worker_values (value integer PRIMARY KEY DEFERRABLE INITIALLY DEFERRED)");
+        await ExecutePackageGucAsync(connection, """
+            CREATE FUNCTION worker_send_child(integer) RETURNS void
+            AS 'Ankus.WorkerSignals', 'ankus_test_worker_child_signal' LANGUAGE c STRICT;
+            """);
         int staticPid = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection, "SELECT worker_static_pid()"));
         Assert.IsGreaterThan(0, staticPid);
         Assert.AreNotEqual(connection.ProcessID, staticPid);
@@ -92,14 +102,15 @@ public sealed partial class ToolCommandTests
             await ExecutePackageGucAsync(connection, "TRUNCATE worker_values");
             string result = Assert.IsInstanceOfType<string>(await PackageGucScalarAsync(connection, $"SELECT worker_round_trip({mode})"));
             string[] fields = result.Split('|');
-            Assert.HasCount(5, fields);
+            Assert.HasCount(6, fields);
             int workerPid = int.Parse(fields[0], CultureInfo.InvariantCulture);
             Assert.IsGreaterThan(0, workerPid);
             Assert.AreNotEqual(connection.ProcessID, workerPid);
             Assert.AreNotEqual(staticPid, workerPid);
-            Assert.AreEqual("127", fields[1]);
+            Assert.AreEqual("255", fields[1]);
             Assert.AreEqual("28", fields[2]);
             Assert.AreEqual("1", fields[3]);
+            Assert.AreEqual("2", fields[5]);
             ulong argument = ulong.Parse(fields[4], CultureInfo.InvariantCulture);
             if (mode == 1)
             {
@@ -162,6 +173,7 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("38000", lossy.SqlState);
         Assert.Contains("unchanged", lossy.MessageText);
         Assert.AreEqual(42, await PackageGucScalarAsync(connection, "SELECT 42"));
+        Assert.AreEqual(3, await PackageGucScalarAsync(connection, "SELECT worker_slots()"));
         foreach (bool dispose in new[] { false, true })
         {
             int process = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection,
@@ -172,7 +184,22 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(1, await PackageGucScalarAsync(connection, "SELECT worker_detached_stop()"));
         }
 
-        Assert.AreEqual(3, await PackageGucScalarAsync(connection, "SELECT worker_slots()"));
+        // The final shared value precedes process exit and the postmaster reclaiming its worker slot.
+        var elapsed = Stopwatch.StartNew();
+        int available;
+        do
+        {
+            available = Assert.IsInstanceOfType<int>(await PackageGucScalarAsync(connection, "SELECT worker_slots()"));
+            if (available == 3)
+            {
+                break;
+            }
+
+            await Task.Delay(25, token);
+        }
+        while (elapsed.Elapsed < TimeSpan.FromSeconds(30));
+
+        Assert.AreEqual(3, available);
     }
 
     /// <summary>
@@ -195,6 +222,7 @@ public sealed partial class ToolCommandTests
             private static readonly PgAtomic<int> Restarts = new("ankus_worker.restarts");
             private static readonly PgAtomic<int> DetachedStop = new("ankus_worker.detached_stop");
             private static readonly PgAtomic<long> Heartbeat = new("ankus_worker.heartbeat");
+            private static readonly PgAtomic<int> ChildSignals = new("ankus_worker.children");
 
             [PgModuleLoad]
             public static void Load()
@@ -208,6 +236,7 @@ public sealed partial class ToolCommandTests
                 PgSharedMemory.Initialize(Restarts);
                 PgSharedMemory.Initialize(DetachedStop);
                 PgSharedMemory.Initialize(Heartbeat);
+                PgSharedMemory.Initialize(ChildSignals);
                 try
                 {
                     PgBackgroundWorker.TryStart(new("early dynamic worker", "BackgroundWorkers", nameof(SlotWorker)), out _);
@@ -275,7 +304,7 @@ public sealed partial class ToolCommandTests
                         PgBackgroundWorker.Connect((uint)argument);
                     }
 
-                    PgBackgroundWorker.AttachSignalHandlers(PgBackgroundWorkerSignals.Interrupt);
+                    PgBackgroundWorker.AttachSignalHandlers(PgBackgroundWorkerSignals.Interrupt | PgBackgroundWorkerSignals.Child);
                     try
                     {
                         PgBackgroundWorker.Connect(database);
@@ -354,6 +383,17 @@ public sealed partial class ToolCommandTests
                             errors |= 64;
                         }
 
+                        if (PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Child) != PgBackgroundWorkerSignals.None)
+                        {
+                            if (PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Child) != PgBackgroundWorkerSignals.None)
+                            {
+                                throw new InvalidOperationException("Child signal remained set after consumption.");
+                            }
+
+                            errors |= 128;
+                            ChildSignals.Add(1);
+                        }
+
                         Errors.Exchange(errors);
                     }
                 }
@@ -405,6 +445,7 @@ public sealed partial class ToolCommandTests
                 Ready.Exchange(0);
                 Stopped.Exchange(0);
                 Errors.Exchange(0);
+                ChildSignals.Exchange(0);
                 string database = Spi.ExecuteScalar<string>("SELECT current_database()::text");
                 nuint argument = mode == 1 ? nuint.MaxValue : Spi.ExecuteScalar<uint>("SELECT oid FROM pg_database WHERE datname = current_database()");
                 var options = new PgBackgroundWorkerOptions("Ankus worker", "BackgroundWorkers", nameof(ReportWorker))
@@ -454,6 +495,12 @@ public sealed partial class ToolCommandTests
 
                         WaitUntil(() => (Errors.Value & 32) != 0);
 
+                        for (int child = 1; child <= 2; child++)
+                        {
+                            Spi.Execute("SELECT worker_send_child(" + pid.ToString(CultureInfo.InvariantCulture) + ")");
+                            WaitUntil(() => ChildSignals.Value == child);
+                        }
+
                         worker.Terminate();
                         if (worker.WaitForShutdown() != PgBackgroundWorkerStatus.Stopped)
                         {
@@ -461,7 +508,7 @@ public sealed partial class ToolCommandTests
                         }
 
                         return string.Create(CultureInfo.InvariantCulture,
-                            $"{pid}|{Errors.Value}|{Sum.Value}|{Stopped.Value}|{Argument.Value}");
+                            $"{pid}|{Errors.Value}|{Sum.Value}|{Stopped.Value}|{Argument.Value}|{ChildSignals.Value}");
                     }
                     finally
                     {

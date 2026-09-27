@@ -35,7 +35,8 @@ public static class Workers
 The native symbol defaults to the method name. Set `EntryPoint` on the attribute
 to choose another symbol. The generator rejects invalid signatures, conflicting
 SQL attributes and duplicate worker symbols. Worker entries do not create SQL
-functions.
+functions. A library can declare worker entries without a `[PgModuleLoad]` or
+`[PgInitialize]` method.
 
 Start with a complete worker project and tests:
 
@@ -139,8 +140,13 @@ Call `Connect` once in a database-enabled worker, using database and optional
 role names or their OIDs. A null database name or zero database OID requests no
 selected database. A null role name or zero role OID selects PostgreSQL's
 bootstrap superuser. Choose an explicit role when the worker should use that
-role's database privileges. PostgreSQL can terminate the worker if connection
-initialization fails.
+role's database privileges. The role's login permission, database `CONNECT`
+permission and table privileges apply. An empty name requests a database whose
+name is empty. The same null-versus-empty distinction applies to role names.
+PostgreSQL can terminate the worker if connection initialization fails, including
+a missing database or role, a role without login permission, or denied database
+access. Observe the stopped worker and server diagnostic, then start another
+worker to retry.
 
 Use `RunTransaction` for synchronous database work after connecting. The callback
 can use `Spi` and return an owned managed result. Commit completes before the
@@ -165,7 +171,10 @@ liveness and an unconsumed termination request without waiting.
 `ConsumeSignals` returns and clears only the selected observations. To observe
 interrupt or child signals, first add them with `AttachSignalHandlers`. Signal
 handlers record flags and wake the latch; managed code processes them after
-waking. Reloading configuration is explicit through `ReloadConfiguration()`.
+waking. These observations are flags: multiple deliveries before consumption
+can coalesce. Consuming one selection leaves other pending observations intact;
+consuming the same selection again returns no flags unless another signal arrived.
+Reloading configuration is explicit through `ReloadConfiguration()`.
 
 `Name`, `Type` and `Extra` return owned strings from the current registration.
 `Type` defaults to `Name`. Registration text uses strict UTF-8 and must fit the

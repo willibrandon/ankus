@@ -181,7 +181,8 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertGucCompilation(compilation, diagnostics);
-        IMethodSymbol callback = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers()));
+        IMethodSymbol callback = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
+            .GetMembers().Where(static member => member.Name.EndsWith("_guc", StringComparison.Ordinal))));
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
         Assert.AreSequenceEqual(["int", "Ankus.NativeValue*", "Ankus.NativeValue*", "int", "Ankus.NativeCallError*", "nint", "nint", "nint", "nint"],
             callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString()));

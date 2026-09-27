@@ -548,7 +548,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         if (initializer is not null || moduleLoad is not null || gucs.Count != 0 || !prefixes.IsEmpty || hasNativeCallbacks || hasWorkers)
         {
-            PgInitializeEmitter.Emit(initializer, initializer is null ? null : GetCallbackName(initializer, "initialize"),
+            PgInitializeEmitter.Emit(initializer, initializer is null
+                    ? GetCallbackName(compilation.Assembly.Identity.ToString(), "initialize") : GetCallbackName(initializer, "initialize"),
                 hasGucHooks, registration.ToString(), managed, native, exports, hasNativeCallbacks || hasWorkers, moduleLoad is not null);
         }
 
@@ -895,8 +896,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             name.All(static character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '_');
 
     private static string GetCallbackName(IMethodSymbol method, string sqlName)
+        => GetCallbackName(method.ContainingAssembly.Identity + ":" + method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), sqlName);
+
+    /// <summary>
+    /// Keeps managed entry symbols distinct across assemblies, including synthetic initialization entries.
+    /// </summary>
+    private static string GetCallbackName(string identity, string sqlName)
     {
-        string identity = method.ContainingAssembly.Identity + ":" + method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
         using SHA256 hash = SHA256.Create();
         byte[] bytes = hash.ComputeHash(Encoding.UTF8.GetBytes(identity));
         string suffix = string.Concat(bytes.Take(16).Select(static value => value.ToString("x2", CultureInfo.InvariantCulture)));

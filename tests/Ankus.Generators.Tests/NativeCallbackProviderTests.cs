@@ -54,6 +54,10 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RhEnableForkSupport();", native);
         Assert.DoesNotContain(registration, native);
         Assert.DoesNotContain("ankus_ensure_module_loaded", native);
+        ISymbol initialization = Assert.ContainsSingle(consumer.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
+            .GetMembers().Where(static member => member.Name.EndsWith("_initialize", StringComparison.Ordinal)));
+        AssertOrdered(native[native.IndexOf("static void\nankus_ensure_initialized(void)\n{", StringComparison.Ordinal)..],
+            [$"{initialization.Name}();", "RhEnableForkSupport();", "ankus_initialization_state = 2;"]);
         Assert.Contains("_PG_init", ManifestValue(consumer, "Ankus.Exports"));
         Assert.DoesNotContain("NativeCallbackProperties.g.cs", consumer.SyntaxTrees.Select(static tree => Path.GetFileName(tree.FilePath)));
     }

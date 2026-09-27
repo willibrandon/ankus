@@ -27,6 +27,13 @@ public sealed partial class PgFunctionGeneratorTests
             "ankus_fork_host_enter()", "int status =", "if (status != 0)", "ankus_raise_error(error)", "PG_FINALLY()",
             "ankus_worker_active = false", "ankus_release_error(error)", "ankus_fork_host_exit()"]);
         Assert.DoesNotContain("PG_FUNCTION_INFO_V1(Run)", native);
+        IMethodSymbol initialization = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(
+            compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers()
+                .Where(static member => member.Name.EndsWith("_initialize", StringComparison.Ordinal))));
+        Assert.AreEqual(SpecialType.System_Void, initialization.ReturnType.SpecialType);
+        Assert.IsEmpty(initialization.Parameters);
+        AssertOrdered(native[native.IndexOf("static void\nankus_ensure_initialized(void)\n{", StringComparison.Ordinal)..],
+            [$"{initialization.Name}();", "RhEnableForkSupport();", "ankus_initialization_state = 2;"]);
     }
 
     /// <summary>

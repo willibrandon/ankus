@@ -52,7 +52,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         IMethodSymbol callback = Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
-            .GetMembers().OfType<IMethodSymbol>());
+            .GetMembers().OfType<IMethodSymbol>().Where(static method => !method.ReturnsVoid));
         Assert.AreEqual(managedParameters, string.Join(',', callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString())));
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());

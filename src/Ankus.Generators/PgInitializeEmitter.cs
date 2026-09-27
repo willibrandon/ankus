@@ -12,7 +12,7 @@ internal static class PgInitializeEmitter
     /// Appends the managed callback, native loader entry point, and export without declaring a SQL function.
     /// </summary>
     /// <param name="method">The optional validated initialization method.</param>
-    /// <param name="callback">The optional assembly-specific managed symbol.</param>
+    /// <param name="callback">The assembly-specific managed initialization symbol.</param>
     /// <param name="hasHooks">Whether configuration registration can enter managed hooks.</param>
     /// <param name="registration">Native setting registration followed by prefix checking statements.</param>
     /// <param name="managed">The managed dispatch source.</param>
@@ -20,13 +20,25 @@ internal static class PgInitializeEmitter
     /// <param name="exports">The native linker exports.</param>
     /// <param name="hasNativeCallbacks">Whether static native callbacks require initialization and fork support.</param>
     /// <param name="hasModuleLoad">Whether an immediate module registration callback precedes initialization.</param>
-    internal static void Emit(IMethodSymbol? method, string? callback, bool hasHooks, string registration,
+    internal static void Emit(IMethodSymbol? method, string callback, bool hasHooks, string registration,
         StringBuilder managed, StringBuilder native, StringBuilder exports, bool hasNativeCallbacks = false, bool hasModuleLoad = false)
     {
         bool requiresEnsure = method is not null || hasHooks || hasNativeCallbacks || hasModuleLoad;
+        bool warmRuntime = method is null && requiresEnsure && !hasModuleLoad;
         if (method is not null)
         {
-            EmitManaged(method, callback!, managed);
+            EmitManaged(method, callback, managed);
+        }
+        else if (warmRuntime)
+        {
+            // Native AOT initializes the runtime on the first managed entry, before fork support is enabled.
+            managed.AppendLine($$"""
+                    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
+                        EntryPoint = "{{callback}}", CallConvs = [typeof(global::System.Runtime.CompilerServices.CallConvCdecl)])]
+                    private static void {{callback}}()
+                    {
+                    }
+                """);
         }
 
         string forkDeclaration = requiresEnsure ? """
@@ -56,7 +68,7 @@ internal static class PgInitializeEmitter
                 AnkusError *error = MemoryContextAllocZero(caller, sizeof(AnkusError));
                 volatile bool snapshot_owned = false;
             """;
-        string invocation = method is null ? string.Empty : $$"""
+        string invocation = method is null ? (warmRuntime ? $"        {callback}();\n" : string.Empty) : $$"""
                     if (IsTransactionState() && !ActiveSnapshotSet())
                     {
                         PushActiveSnapshot(GetTransactionSnapshot());
@@ -97,7 +109,7 @@ internal static class PgInitializeEmitter
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
 
-            {{(method is null ? string.Empty : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
+            {{(method is null ? (warmRuntime ? $"extern void {callback}(void);" : string.Empty) : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
             {{forkDeclaration}}
             static int ankus_initialization_state = 0;
             {{registrationDeclaration}}
