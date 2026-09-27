@@ -14,7 +14,7 @@ concurrency:
 jobs:
   metadata:
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 60
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       runtime_repository: ${{ steps.metadata.outputs.repository }}
@@ -38,7 +38,7 @@ jobs:
   managed-packages:
     needs: metadata
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -83,7 +83,7 @@ jobs:
             platform: windows
             architecture: x64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -116,7 +116,7 @@ jobs:
   publish:
     needs: [metadata, managed-packages, runtime-packages]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 60
     environment: release
     permissions:
       contents: read
