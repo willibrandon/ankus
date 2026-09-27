@@ -34,6 +34,25 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Commit `9a8e907` adds named unmanaged shared storage and PostgreSQL lightweight
+reader/writer lock guards. Real-server witnesses cover Linux x64/PostgreSQL 18.6
+and Windows x64/PostgreSQL 17.7, including startup failures, independent backends,
+contention, error recovery and shared-segment recreation after a backend crash.
+
+The latest full Linux run passes **7,841 tests, zero failures and six Windows-only
+skips, 7,847 total**, in 10m30.871s. It includes the bounded
+package-consumer fixture and MSBuild worker-lifetime fix described at the end of
+this tracker. The Release build has zero warnings/errors. The corresponding
+Windows x64/PostgreSQL 17.7 consumer rerun passes all 74 cases with successful
+class cleanup in 18m05.184s.
+
+Hosted CI for `9a8e907` passes quality, runtime, Linux and macOS; Windows timed out
+at one hour. Full hosted Windows validation and the complete PostgreSQL/platform
+matrix remain required. Atomics, bounded shared collections, spinlocks and
+high-level background workers are still being ported; the full goal is incomplete.
+
+### Managed preload validation history
+
 Managed `shared_preload_libraries` works through the generated Ankus SDK on
 PostgreSQL 18.6/Linux x64 and PostgreSQL 18.1 on macOS ARM64 and Windows x64.
 Initializers and configuration hooks run during preload. Unix backends inherit the
@@ -8715,3 +8734,93 @@ Windows build cost; parallel builds are already functioning. Reducing that cost
 within the existing 60-minute limit is the next CI repair priority. No standards
 are reduced and the full suite remains in each platform job. These outcomes
 will be refreshed again immediately before pushing.
+
+### Bounded package-consumer execution
+
+The shared-memory milestone is committed as `9a8e907`. Its hosted Docs run
+36309864488 passed; CI 36309864480 has successful quality/runtime jobs with
+all three platform suites still running at the latest observation. The preceding
+Windows one-hour timeout remains unresolved. All workflow limits remain 60 minutes.
+
+Two small build experiments did not establish useful timeout savings: larger
+hash buffers saved only hundredths of a second on warm Windows SDK reads, and
+ordinary versus graph-scheduled warm solution builds took 59.164s and 57.838s.
+All compared builds retained the full solution and analyzers. Neither change
+was adopted. Direct phase measurement instead shows one cold Windows companion
+compile taking 30.398s of 32.453s total, with verified warm reuse taking 1.793s.
+These are local Windows x64/SDK 10.0.401/.NET 10.0.12 measurements using existing
+caches and PostgreSQL 18.1 headers, not hosted CI timing improvements.
+
+The package-consumer class currently serializes many independent publishes
+because pre-18 tests overwrite the same extension control files in one staged
+PostgreSQL installation. The new fixture reserves two concurrent consumer slots,
+each with an independent staged installation on pre-18 servers. PostgreSQL 18+
+continues to use per-consumer extension directories. Tests that change the shared
+sample's build settings remain serial, and shared reference resolution is guarded.
+All tests, analyzer settings and platform jobs are retained. The integration
+project builds with zero warnings/errors; same-name Windows PostgreSQL 17 consumer
+cases, the complete Linux suite and the full Windows consumer class must still
+pass before this change is ready to commit. No CI speedup is claimed yet.
+
+The focused Windows x64/PostgreSQL 17.7 run now passes **6/6**, with zero
+failures/skips, in 7m51.770s. It exercises parallel enum-only and schema-only
+consumers with the same extension name, an independent packaged MSTest consumer,
+and the serial invalid-build-setting cases. Two independent staged control-file
+directories were observed while the consumer tests ran, and class cleanup
+completed successfully. The full Release build passes with zero warnings/errors;
+the documentation build produces 219 pages, site checking reports zero
+errors/warnings/hints, and API freshness verifies 176 pages/2,269 members.
+All five Linux unit modules have passed. Linux integration and the complete
+Windows package-consumer class are still running; this focused result does not
+prove the complete Windows suite or resolve the hosted timeout by itself.
+
+The completed root `dotnet test` run passes on Linux x64/PostgreSQL 18.6:
+**7,841 passed, zero failed, six Windows-only skips, 7,847 total**, in
+10m49.964s. The preceding full run took 14m55.579s with the same test counts;
+this local comparison includes cache and concurrent workload differences and is
+not a hosted CI speedup measurement. The complete Windows package-consumer class
+remains under validation before committing.
+
+The first complete Windows x64/PostgreSQL 17.7 consumer run passed all 74
+cases in 14m58.817s, but class cleanup failed because a reusable MSBuild worker
+still had the fixture's `Microsoft.Testing.Platform.MSBuild.dll` loaded. Native
+process inspection confirmed the retained assembly belonged to this fixture.
+Consumer subprocesses now disable MSBuild node reuse so their temporary package
+assemblies can be removed. Cleanup errors remain failures; the complete class
+must pass again before committing. The hosted shared-memory milestone has now
+passed Linux in 39m13s and macOS in 46m32s; Windows remains in progress.
+
+The same hosted CI run 36309864480 is now terminal: Windows again exceeded its
+one-hour limit at 60m07s. Quality, all runtime jobs, Linux and macOS passed;
+Docs run 36309864488 also passed. This run predates the bounded consumer fixture.
+The timeout remains unresolved until a complete hosted Windows run proves the
+change sufficient. The timeout limit, complete test coverage and analyzer
+standards are unchanged.
+
+After the worker-lifetime correction, final root `dotnet test` again passes on
+Linux x64/PostgreSQL 18.6: **7,841 passed, zero failed, six Windows-only skips,
+7,847 total**, in 10m30.871s (integration 10m30.132s). The final Release build
+passes with zero warnings/errors in 1m09.99s; documentation checking has zero
+errors/warnings/hints, site generation produces 219 pages, and API freshness
+verifies 176 pages/2,269 members. The Windows consumer rerun remains active.
+
+The final Windows x64/PostgreSQL 17.7 consumer run now passes **74/74**, with
+zero failures/skips, in 18m05.184s. Class cleanup succeeds and the fixture's
+temporary package, project and staged-server root is removed. This repairs the
+retained MSBuild task observed in the initial run. The earlier six-case Windows
+focus and the complete Linux suite also passed. These local results validate
+test isolation and cleanup, not the duration of a complete hosted Windows job.
+The new hosted run must still establish whether two concurrent consumers provide
+sufficient headroom within the unchanged one-hour limit. No checks are omitted,
+sharded or suppressed. Atomics, bounded shared collections, spinlocks, high-level
+workers and the complete PostgreSQL/platform matrix remain required full-port work.
+
+Immediately before committing, hosted outcomes are refreshed and recorded:
+[CI 36309864480](https://github.com/willibrandon/ankus/actions/runs/36309864480)
+is cancelled because Windows exceeded one hour; its quality, runtime, Linux and
+macOS jobs passed. [Docs 36309864488](https://github.com/willibrandon/ankus/actions/runs/36309864488)
+passed. The preceding `8f2d1e0` CI also timed out on Windows while its Docs passed;
+the `95031c5` CI and Docs passed. These outcomes will be checked and recorded again
+immediately before pushing. The next hosted run must validate the full platform
+suites with the bounded consumer fixture; the earlier timeout is not treated as
+successful validation.

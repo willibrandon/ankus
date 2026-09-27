@@ -14,7 +14,6 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The current test context.</param>
 [TestClass]
-[DoNotParallelize]
 public sealed partial class ToolCommandTests(TestContext context)
 {
     private const string NativeAotRuntimeVersion = "10.0.11-ankus.3";
@@ -42,7 +41,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         s_root = Path.Combine(Path.GetTempPath(), "ankus package tests " + Guid.NewGuid().ToString("N"));
         s_home = Path.Combine(s_root, "Ankus home");
         s_published = Path.Combine(s_root, "published extension");
-        s_installation = (await IntegrationEnvironment.CreateOptionsAsync(token)).Installation;
+        s_installation = await IntegrationEnvironment.GetInstallationAsync(token);
         s_postgresOption = "--pg" + s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
         s_postgresKey = "pg" + s_installation.Version.Major.ToString(CultureInfo.InvariantCulture);
         string feed = Path.Combine(s_root, "feed");
@@ -69,7 +68,11 @@ public sealed partial class ToolCommandTests(TestContext context)
                 new Dictionary<string, string?>(), token);
         }
 
-        s_environment = new Dictionary<string, string?> { ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages") };
+        s_environment = new Dictionary<string, string?>
+        {
+            ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages"),
+            ["MSBUILDDISABLENODEREUSE"] = "1",
+        };
         File.Copy(Path.Combine(repository, "global.json"), Path.Combine(s_root, "global.json"));
         string config = Path.Combine(s_root, "NuGet.Config");
         new XDocument(new XElement("configuration", new XElement("packageSources", new XElement("clear"),
@@ -98,14 +101,20 @@ public sealed partial class ToolCommandTests(TestContext context)
         (await InvokeAsync(
             ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);
+        await InitializeCaseInstallationsAsync(token);
     }
 
     /// <summary>
     /// Removes the isolated tool installation and project after every child process has exited.
     /// </summary>
     [ClassCleanup]
-    public static void Cleanup()
+    public static async Task CleanupAsync()
     {
+        while (s_caseInstallations.TryDequeue(out PostgresTestInstallation? installation))
+        {
+            await installation.DisposeAsync();
+        }
+
         if (s_root is not null && Directory.Exists(s_root))
         {
             Directory.Delete(s_root, recursive: true);
@@ -273,7 +282,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(await File.ReadAllTextAsync(Path.Combine(s_published, "extension", manifest.Control), token),
             await File.ReadAllTextAsync(Path.Combine(shared, "extension", manifest.Control), token));
         Assert.HasCount(3, Directory.GetFiles(stage, "*", SearchOption.AllDirectories));
-        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(s_published, token);
+        PostgresInstallation installation = PrepareCaseInstallation(s_published);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(libraries) + "'"];
         if (s_installation.Version.Major >= 18)
         {
@@ -282,7 +291,7 @@ public sealed partial class ToolCommandTests(TestContext context)
 
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
-            Installation = s_installation,
+            Installation = installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
             PostgreSqlConfiguration = [.. configuration, "shared_preload_libraries = '" + manifest.Library + "'"],
@@ -365,6 +374,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// Verifies a cold SDK restore supplies only package dependencies, with Native AOT and the analyzer active.
     /// </summary>
     [TestMethod]
+    [DoNotParallelize]
     public async Task SdkRestoresWithoutRepositoryReferences()
     {
         Assert.IsFalse(s_project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
@@ -643,6 +653,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// <param name="property">The invalid publish property.</param>
     /// <param name="message">The SDK diagnostic.</param>
     [TestMethod]
+    [DoNotParallelize]
     [DataRow("PublishAot=false", "Ankus extensions require PublishAot=true.")]
     [DataRow("NativeLib=Static", "Ankus extensions require OutputType=Library and NativeLib=Shared.")]
     public async Task SdkRejectsNonExtensionPublishSettings(string property, string message)
@@ -661,9 +672,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [TestMethod]
     public async Task TestingPackageRunsInIndependentMSTestProject()
     {
-        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(
-            s_published,
-            context.CancellationToken);
+        PostgresInstallation installation = PrepareCaseInstallation(s_published);
         string projectDirectory = CreateDirectory();
         string project = Path.Combine(projectDirectory, "ConsumerTests.csproj");
         string controlSetting = s_installation.Version.Major >= 18
@@ -685,7 +694,7 @@ public sealed partial class ToolCommandTests(TestContext context)
                 [TestMethod]
                 public async Task PackagedClusterLoadsNativeExtension()
                 {
-                    var installation = await PostgresInstallation.CreateAsync({{JsonSerializer.Serialize(s_installation.PgConfigPath)}});
+                    var installation = await PostgresInstallation.CreateAsync({{JsonSerializer.Serialize(installation.PgConfigPath)}});
                     await using var cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
                     {
                         Installation = installation,
@@ -915,10 +924,10 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsFalse(Directory.Exists(Path.Combine(output, "published")));
     }
 
-    private static async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token,
+    private async Task<PostgresTestCluster> StartPublishedClusterAsync(string output, CancellationToken token,
         bool sharedPreload = false, string[]? additionalConfiguration = null)
     {
-        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
+        PostgresInstallation installation = PrepareCaseInstallation(output);
         List<string> configuration = ["dynamic_library_path = '" + EscapeSetting(output) + "'"];
         if (sharedPreload)
         {
@@ -937,7 +946,7 @@ public sealed partial class ToolCommandTests(TestContext context)
 
         return await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
-            Installation = s_installation,
+            Installation = installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
             PostgreSqlConfiguration = configuration,

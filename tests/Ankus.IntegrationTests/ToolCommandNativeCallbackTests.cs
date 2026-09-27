@@ -55,7 +55,7 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Exercises postmaster registration, independent backend state and worker attachment using the same published library.
     /// </summary>
-    private static async Task AssertNativeCallbackPreloadAsync(string published, CancellationToken token)
+    private async Task AssertNativeCallbackPreloadAsync(string published, CancellationToken token)
     {
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(published, token, sharedPreload: true);
         Assert.Contains("Ankus native callback initialized: FFDCBA9876543210", cluster.ReadServerLog());

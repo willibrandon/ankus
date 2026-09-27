@@ -201,6 +201,16 @@ Central Package Management, and real SQL execution. A separate MSTest consumer
 references only the packed `Ankus.Testing`, runs ordinary `dotnet test`, and checks
 native error recovery as well as successful calls.
 
+Package-consumer tests run at most two cases concurrently. PostgreSQL releases
+before 18 use a separate staged installation for each slot, so consumers with
+the same extension name cannot overwrite another active test's control or SQL
+files. PostgreSQL 18 and later select each consumer's own extension directory.
+The fixture releases a slot after its test finishes and removes the staged
+installations during class cleanup. Cases that change the shared sample's build
+settings remain serial. Every platform job still runs the complete suite.
+Consumer builds disable MSBuild node reuse so worker processes release the
+fixture's temporary package assemblies before class cleanup.
+
 `ankus new` bundles source templates under `src/Ankus.Tool/Templates/Extension`.
 It creates a version-matched solution with CPM and native MTP discovery. The
 package tests run the generated solution's `dotnet test` outside the checkout,

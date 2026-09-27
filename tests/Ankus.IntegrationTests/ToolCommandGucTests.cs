@@ -118,7 +118,7 @@ public sealed partial class ToolCommandTests
         PublishedExtension manifest = PublishedExtension.Read(output);
         Assert.AreEqual("-- No installable objects declared.\n", (await File.ReadAllTextAsync(
             Path.Combine(output, "extension", manifest.Sql), token)).ReplaceLineEndings("\n"));
-        s_installation = await IntegrationEnvironment.PrepareExtensionInstallationAsync(output, token);
+        PostgresInstallation installation = PrepareCaseInstallation(output);
         List<string> configuration =
         [
             "dynamic_library_path = '" + EscapeSetting(output) + "'",
@@ -132,7 +132,7 @@ public sealed partial class ToolCommandTests
 
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
         {
-            Installation = s_installation,
+            Installation = installation,
             DataDirectoryBase = Path.Combine(s_root, "pgdata"),
             LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
             PostgreSqlConfiguration = configuration,

@@ -234,7 +234,12 @@ internal static class IntegrationEnvironment
         }
     }
 
-    private static async Task<PostgresInstallation> GetInstallationAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Gets the selected source installation before any test-owned relocation.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels discovery and PostgreSQL inspection.</param>
+    /// <returns>The selected installation, whose files tests must not modify.</returns>
+    internal static async Task<PostgresInstallation> GetInstallationAsync(CancellationToken cancellationToken)
     {
         if (s_installation is not null)
         {

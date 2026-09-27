@@ -58,18 +58,27 @@ public sealed partial class ToolCommandTests
 
     private async Task<string> ReadPackagedBuildToolAsync()
     {
-        ProcessResult evaluated = await RunDotnetAsync(
-            ["msbuild", s_project, "-target:ResolveReferences", "-verbosity:quiet", "-getProperty:_AnkusBuildTool,MSBuildProjectDirectory"],
-            context.CancellationToken);
-        evaluated.EnsureSuccess("dotnet", ["msbuild"]);
-        using JsonDocument document = JsonDocument.Parse(evaluated.StandardOutput);
-        string? path = document.RootElement.GetProperty("Properties").GetProperty("_AnkusBuildTool").GetString();
-        Assert.IsNotNull(path);
-        string helper = Path.GetFullPath(path);
-        Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, helper);
-        string license = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(helper)!, "Bindings", "LICENSE.pgrx"), context.CancellationToken);
-        Assert.Contains("Permission is hereby granted", license);
-        return helper;
+        // ResolveReferences writes the shared sample's intermediates even when callers only inspect its output.
+        await s_sampleProjectLock.WaitAsync(context.CancellationToken);
+        try
+        {
+            ProcessResult evaluated = await RunDotnetAsync(
+                ["msbuild", s_project, "-target:ResolveReferences", "-verbosity:quiet", "-getProperty:_AnkusBuildTool,MSBuildProjectDirectory"],
+                context.CancellationToken);
+            evaluated.EnsureSuccess("dotnet", ["msbuild"]);
+            using JsonDocument document = JsonDocument.Parse(evaluated.StandardOutput);
+            string? path = document.RootElement.GetProperty("Properties").GetProperty("_AnkusBuildTool").GetString();
+            Assert.IsNotNull(path);
+            string helper = Path.GetFullPath(path);
+            Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, helper);
+            string license = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(helper)!, "Bindings", "LICENSE.pgrx"), context.CancellationToken);
+            Assert.Contains("Permission is hereby granted", license);
+            return helper;
+        }
+        finally
+        {
+            s_sampleProjectLock.Release();
+        }
     }
 
     private static void AssertNativeField(JsonElement types, string type, string name, int offset, int size)
