@@ -52,6 +52,16 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("-9223372036854775808|97|97", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
         await ExecutePackageGucAsync(first, "BEGIN; SELECT spin_nested_add(10); ROLLBACK");
         Assert.AreEqual("-9223372036854775808|107|107", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        Assert.AreEqual("113|127|107", await PackageGucScalarAsync(first, "SELECT spin_nested_mutate(113, 127, false)"));
+        Assert.AreEqual("113|127|107", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        PostgresException mutationFailure = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecutePackageGucAsync(first, "SELECT spin_nested_mutate(131, 137, true)"));
+        Assert.AreEqual("P7843", mutationFailure.SqlState);
+        Assert.AreEqual("spin mutation error", mutationFailure.MessageText);
+        Assert.AreEqual("owned mutation detail", mutationFailure.Detail);
+        Assert.AreEqual("131|137|107", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
+        await ExecutePackageGucAsync(first, "BEGIN; SELECT spin_nested_mutate(139, 149, false); ROLLBACK");
+        Assert.AreEqual("139|149|107", await PackageGucScalarAsync(second, "SELECT spin_nested_read()"));
         Assert.AreEqual(42, await PackageGucScalarAsync(first, "SELECT 42"));
         Assert.AreEqual(5000, await PackageGucScalarAsync(second, "SELECT spin_set(73)"));
         Assert.AreEqual(73, await PackageGucScalarAsync(first, "SELECT spin_read()"));
@@ -109,9 +119,9 @@ public sealed partial class ToolCommandTests
             public readonly PgSpinLockValue<NestedState> Nested = new(new NestedState(initial));
         }
 
-        public readonly struct NestedState(int initial)
+        public struct NestedState(int initial)
         {
-            public readonly long Marker = long.MinValue;
+            public long Marker = long.MinValue;
             public readonly PgAtomicValue<int> Atomic = new(initial);
             public readonly PgSpinLockValue<int> Counter = new(initial);
         }
@@ -169,6 +179,86 @@ public sealed partial class ToolCommandTests
                     return child.Value;
                 });
             });
+
+            [PgFunction]
+            public static string SpinNestedMutate(long marker, int atomic, bool fail) => State.Read((in SpinState state) =>
+            {
+                using PgSpinLockGuard<NestedState> parent = state.Nested.Lock();
+                _ = parent.Mutate((ref NestedState value) =>
+                {
+                    value.Marker = marker;
+                    value.Atomic.Exchange(atomic);
+                    RequireBlocked(parent.Dispose);
+                    RequireBlocked(() => parent.Value = default);
+                    RequireBlocked(() => parent.Read(static (in NestedState nested) => nested.Marker));
+                    RequireBlocked(() => parent.Mutate(static (ref NestedState nested) => nested.Marker = 99));
+                    RequireBlocked(static () => Spi.Execute("SELECT 1/0"));
+                    RequireBlocked(static () => _ = PgMemoryContext.Current);
+                    RequireBlocked(static () => PgLog.Write(PgLogLevel.Notice, "blocked mutation log"));
+                    RequireChildBlocked(in value.Counter);
+                    if (parent.Value.Marker != marker)
+                    {
+                        throw new InvalidOperationException("A mutation snapshot lost its current value.");
+                    }
+
+                    if (fail)
+                    {
+                        PgLog.Write(PgLogLevel.Error, new PgDiagnostic("spin mutation error")
+                        {
+                            SqlState = "P7843",
+                            Detail = "owned mutation detail",
+                        });
+                    }
+
+                    return value.Marker;
+                });
+                return parent.Read(static (in NestedState value) =>
+                {
+                    using PgSpinLockGuard<int> child = value.Counter.Lock();
+                    return $"{value.Marker}|{value.Atomic.Value}|{child.Value}";
+                });
+            });
+
+            private static void RequireBlocked(Action operation)
+            {
+                try
+                {
+                    operation();
+                }
+                catch (InvalidOperationException)
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException("An active mutation permitted conflicting access.");
+            }
+
+            private static void RequireChildBlocked(scoped in PgSpinLockValue<int> value)
+            {
+                int rejected = 0;
+                try
+                {
+                    using PgSpinLockGuard<int> child = value.Lock();
+                }
+                catch (InvalidOperationException)
+                {
+                    rejected++;
+                }
+
+                try
+                {
+                    _ = value.IsLocked;
+                }
+                catch (InvalidOperationException)
+                {
+                    rejected++;
+                }
+
+                if (rejected != 2)
+                {
+                    throw new InvalidOperationException("A surrounding read admitted a mutable child lock.");
+                }
+            }
 
             [PgFunction]
             public static bool SpinNestedRejectAliases() => State.Read(static (in SpinState state) =>
@@ -255,8 +345,7 @@ public sealed partial class ToolCommandTests
             public static int SpinIncrement() => State.Read(static (in SpinState state) =>
             {
                 using PgSpinLockGuard<int> guard = state.Counter.Lock();
-                guard.Value++;
-                return guard.Value;
+                return guard.Mutate(static (ref int value) => ++value);
             });
 
             [PgFunction]

@@ -37,6 +37,37 @@ Releases this guard once, preserving any value already written.
 public void Dispose()
 ```
 
+<a id="member-4040e79c408478be"></a>
+
+### Mutate&lt;TResult&gt;(PgSharedMutator&lt;T, TResult&gt;)
+
+Mutates original protected storage through a reference limited to the synchronous callback.
+
+```csharp
+public TResult Mutate<TResult>(PgSharedMutator<T, TResult> mutator)
+```
+
+Type parameters:
+
+`TResult`
+
+The owned callback result.
+
+Parameters:
+
+`mutator` — <code>PgSharedMutator&lt;T, TResult&gt;</code>
+
+The update, whose protected reference cannot escape the callback.
+
+Returns: <code>TResult</code>
+
+The callback result.
+
+Writes remain visible if the callback throws or the SQL transaction rolls back. Value can
+return a copy, but aliases cannot borrow original storage, replace Value or dispose this
+guard while the callback is active. Nested spinlock access and backend calls are rejected.
+Use a separate Read callback for nested locks while retaining the same parent guard.
+
 <a id="member-b1b627a14b4f9828"></a>
 
 ### Read&lt;TResult&gt;(PgSharedReader&lt;T, TResult&gt;)

@@ -19,7 +19,7 @@ Type parameters:
 
 `T`
 
-The unmanaged value copied to and from shared storage.
+The unmanaged value stored in shared memory.
 
 Keep this descriptor in a static field and register it with [PgSharedMemory](/api/ankus.pgsharedmemory/).
 Each guard belongs to the acquiring callback and backend thread. Recursive acquisition is

@@ -271,6 +271,7 @@ public sealed unsafe partial class PgSharedMemoryTests
                     Bytes = new ReadOnlySpan<byte>((void*)request._data, checked((int)request._length)).ToArray();
                     break;
                 case 6:
+                case 7:
                     return new NativeMemoryResult
                     {
                         _data = (nint)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(Bytes)),

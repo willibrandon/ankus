@@ -8,22 +8,23 @@ namespace Ankus;
 internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, nint storage) : IDisposable
 {
     [ThreadStatic]
-    private static int s_readers;
+    private static int s_borrows;
 
     private readonly int _process = Environment.ProcessId;
     private nint _token;
     private nint _readAddress;
     private nuint _readLength;
     private int _readDepth;
+    private bool _mutating;
 
     /// <summary>
     /// Rejects backend entry that could revoke a lock while an original reference is borrowed.
     /// </summary>
     internal static void CheckBackendAccess()
     {
-        if (s_readers != 0)
+        if (s_borrows != 0)
         {
-            throw new InvalidOperationException("Finish scoped lightweight-lock reads before calling backend APIs.");
+            throw new InvalidOperationException("Finish scoped lightweight-lock access before calling backend APIs.");
         }
     }
 
@@ -48,7 +49,7 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
     /// <returns>The exact copied value.</returns>
     internal T Read<T>() where T : unmanaged
     {
-        if (_readDepth != 0)
+        if (_readDepth != 0 || _mutating)
         {
             Validate();
             ValidateReadLength<T>();
@@ -67,24 +68,10 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
     {
         ArgumentNullException.ThrowIfNull(reader);
         Validate();
+        CheckNoMutation();
         if (_readDepth == 0)
         {
-            NativeMemoryRequest request = new()
-            {
-                _operation = NativeMemoryOperation.SharedMemory,
-                _flags = 6,
-                _context = storage,
-                _other = _token,
-                _length = (nuint)sizeof(T),
-            };
-            NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
-            if (result._data == 0 || (nuint)result._data % sizeof(long) != 0 || result._length != (nuint)sizeof(T))
-            {
-                throw new InvalidOperationException("PostgreSQL returned invalid lightweight-lock read storage.");
-            }
-
-            _readAddress = result._data;
-            _readLength = result._length;
+            Admit<T>(mutable: false);
         }
         else
         {
@@ -92,9 +79,9 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
         }
 
         int depth = checked(_readDepth + 1);
-        int readers = checked(s_readers + 1);
+        int borrows = checked(s_borrows + 1);
         _readDepth = depth;
-        s_readers = readers;
+        s_borrows = borrows;
         NativeSharedReadScope frame = default;
         NativeSharedReadScope.Push(&frame, NativeMemoryContext.Provider, _readAddress, _readLength);
         try
@@ -110,7 +97,7 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
             finally
             {
                 _readDepth--;
-                s_readers--;
+                s_borrows--;
                 if (_readDepth == 0)
                 {
                     _readAddress = 0;
@@ -118,6 +105,62 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Mutates exact original storage after independently validating exclusive native ownership.
+    /// </summary>
+    internal TResult Mutate<T, TResult>(PgSharedMutator<T, TResult> mutator) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(mutator);
+        Validate();
+        CheckNoBorrowers();
+        Admit<T>(mutable: true);
+        s_borrows = checked(s_borrows + 1);
+        _mutating = true;
+        NativeSharedReadScope frame = default;
+        NativeSharedReadScope.PushMutation(&frame, NativeMemoryContext.Provider, _readAddress, _readLength);
+        try
+        {
+            return mutator(ref Unsafe.AsRef<T>((void*)_readAddress));
+        }
+        finally
+        {
+            try
+            {
+                NativeSharedReadScope.Pop(&frame);
+            }
+            finally
+            {
+                _mutating = false;
+                s_borrows--;
+                _readAddress = 0;
+                _readLength = 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates a nonthrowing native address reply before exposing original storage.
+    /// </summary>
+    private void Admit<T>(bool mutable) where T : unmanaged
+    {
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.SharedMemory,
+            _flags = mutable ? 7 : 6,
+            _context = storage,
+            _other = _token,
+            _length = (nuint)sizeof(T),
+        };
+        NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
+        if (result._data == 0 || (nuint)result._data % sizeof(long) != 0 || result._length != (nuint)sizeof(T))
+        {
+            throw new InvalidOperationException("PostgreSQL returned invalid lightweight-lock storage.");
+        }
+
+        _readAddress = result._data;
+        _readLength = result._length;
     }
 
     /// <summary>
@@ -138,7 +181,7 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
         }
 
         Validate();
-        CheckNoReaders();
+        CheckNoBorrowers();
         NativeMemoryRequest request = new()
         {
             _operation = NativeMemoryOperation.SharedMemory,
@@ -156,7 +199,7 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
         Validate();
         if (operation == 4)
         {
-            CheckNoReaders();
+            CheckNoBorrowers();
         }
 
         NativeMemoryRequest request = new()
@@ -172,13 +215,25 @@ internal sealed unsafe class NativeSharedMemoryLease(NativeBorrowScope scope, ni
     }
 
     /// <summary>
-    /// Preserves original storage until every scoped reader returns.
+    /// Preserves original storage until every scoped borrower returns.
     /// </summary>
-    private void CheckNoReaders()
+    private void CheckNoBorrowers()
     {
+        CheckNoMutation();
         if (_readDepth != 0)
         {
             throw new InvalidOperationException("A PostgreSQL lightweight-lock guard cannot replace or release its value during a scoped read.");
+        }
+    }
+
+    /// <summary>
+    /// Rejects conflicting original references and ownership changes while mutation is active.
+    /// </summary>
+    private void CheckNoMutation()
+    {
+        if (_mutating)
+        {
+            throw new InvalidOperationException("Finish the PostgreSQL lightweight-lock mutation before borrowing, replacing or releasing its value.");
         }
     }
 

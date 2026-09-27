@@ -119,6 +119,39 @@ readers return. Keep callbacks synchronous and finite, and perform backend work
 outside them. Owning a lightweight-lock guard without an active `Read` callback
 continues to permit backend calls with the error behavior described below.
 
+## Mutating original values
+
+An exclusive lightweight-lock guard or a spinlock guard provides `Mutate` for
+direct updates through a scoped `ref` parameter. For a registered
+`PgLwLock<Counters>` named `state`, using the value type from the first example:
+
+```csharp
+using PgLwLockExclusiveGuard<Counters> guard = state.Exclusive();
+long completed = guard.Mutate(static (ref Counters value) =>
+{
+    value = value with { Completed = checked(value.Completed + 1) };
+    return value.Completed;
+});
+```
+
+Mutable structs can update their fields directly. Changes affect original
+storage immediately and remain visible if the callback throws or the SQL
+transaction rolls back. The callback can return an owned result; its reference
+and any collection views borrowing that reference cannot escape.
+
+During mutation, `Value` can return a snapshot. Other references to the same
+guard cannot start `Read` or another `Mutate`, assign `Value`, or dispose the
+guard. A mutation also cannot start while that guard has an active reader.
+Backend calls remain unavailable until the mutable callback returns.
+
+Access child spinlocks in a separate `Read` callback. Acquiring or querying a
+spinlock inside the value being mutated is rejected, including when an outer
+shared reader covers the same storage. This prevents overwriting a child lock
+while a child guard still owns it. The parent stays held between callbacks, so
+ordinary field updates and child-lock operations can remain within one parent
+acquisition. Prepare initialized spinlock values before acquiring a spinlock
+parent; do not publish copies of a held lock's state.
+
 ## Lock ownership and errors
 
 `Share()` permits concurrent readers. `Exclusive()` waits for readers and writers
@@ -371,20 +404,15 @@ public static class SharedWork
     public static bool Enqueue(int identifier)
     {
         using PgLwLockExclusiveGuard<WorkQueue> guard = Queue.Exclusive();
-        WorkQueue value = guard.Value;
-        bool added = value.Items().TryPushBack(identifier);
-        guard.Value = value;
-        return added;
+        return guard.Mutate((ref WorkQueue value) => value.Items().TryPushBack(identifier));
     }
 
     [PgFunction]
     public static int? Dequeue()
     {
         using PgLwLockExclusiveGuard<WorkQueue> guard = Queue.Exclusive();
-        WorkQueue value = guard.Value;
-        bool found = value.Items().TryPopFront(out int identifier);
-        guard.Value = value;
-        return found ? identifier : null;
+        return guard.Mutate(static (ref WorkQueue value) =>
+            value.Items().TryPopFront(out int identifier) ? (int?)identifier : null);
     }
 }
 ```
@@ -392,9 +420,9 @@ public static class SharedWork
 `UnscopedRef` lets an instance method return a view borrowing its struct's
 fields. C# still checks the caller's storage lifetime. Copying `WorkQueue`
 copies its elements and metadata. Copying a `PgFixedDeque<int>` view aliases
-its existing storage. To publish mutations, assign the owning value back to
-the exclusive guard. A view over a guard's copied value does not mutate
-shared memory by itself.
+its existing storage. A view created inside `Mutate` updates shared memory
+directly. A view over a guard's copied `Value` instead updates that copy; assign
+the owning value back through the exclusive guard to publish those changes.
 
 All buffers and metadata start at zero. Constructing another view preserves
 existing contents. Keep a collection's buffers and metadata together and

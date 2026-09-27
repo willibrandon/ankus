@@ -295,14 +295,16 @@ Use static `PgLwLock<T>` descriptors and `PgSharedMemory.Initialize` during shar
 preload to share unmanaged values between backends. Disposable shared and
 exclusive guards use PostgreSQL lightweight locks with checked callback
 lifetimes. Their `Read` callbacks access original nested atomic and spinlock
-fields; `Value` provides copied access and exclusive replacement.
+fields; exclusive guards also provide `Mutate` callbacks for direct field and
+bounded-collection updates. `Value` provides copied access and replacement.
 `PgAtomic<T>` provides scalar reads, exchanges, comparisons
 and integer updates across backends and managed threads with .NET `Interlocked`
 semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
 inline `PgAtomicValue<T>` fields. Inline `PgSpinLockValue<T>` fields provide
 exclusive guards for very short updates; `PgSpinLock<T>` owns stable local
 storage with the same guard API. Scoped guard reads operate on original nested
-atomic and spinlock fields while preserving the parent's lifetime.
+atomic and spinlock fields while preserving the parent's lifetime. Spinlock
+guards also support scoped mutations without releasing the parent lock.
 `PgFixedList<T>`, `PgFixedDeque<T>` and
 `PgFixedMap<TKey, TValue>` provide bounded collections over unmanaged inline
 buffers, including process-stable map keys. See

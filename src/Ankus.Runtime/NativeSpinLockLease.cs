@@ -25,6 +25,7 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
     private delegate* unmanaged[Cdecl]<nint, void> _release;
     private bool _held;
     private int _readDepth;
+    private bool _mutating;
 
     /// <summary>
     /// Initializes an unlocked cell using the selected PostgreSQL headers.
@@ -133,6 +134,7 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
     {
         ArgumentNullException.ThrowIfNull(reader);
         Validate();
+        CheckNoMutation();
         _readDepth = checked(_readDepth + 1);
         NativeSharedReadScope frame = default;
         NativeSharedReadScope.Push(&frame, NativeMemoryContext.Provider, data, (nuint)sizeof(T));
@@ -155,12 +157,41 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
     }
 
     /// <summary>
+    /// Mutates original protected storage without permitting aliases or nested locks to retain conflicting access.
+    /// </summary>
+    internal TResult Mutate<T, TResult>(PgSharedMutator<T, TResult> mutator) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(mutator);
+        Validate();
+        CheckNoBorrowers();
+        _mutating = true;
+        NativeSharedReadScope frame = default;
+        NativeSharedReadScope.PushMutation(&frame, NativeMemoryContext.Provider, data, (nuint)sizeof(T));
+        try
+        {
+            return mutator(ref Unsafe.AsRef<T>((void*)data));
+        }
+        finally
+        {
+            try
+            {
+                NativeSharedReadScope.Pop(&frame);
+            }
+            finally
+            {
+                _mutating = false;
+                GC.KeepAlive(_owner);
+            }
+        }
+    }
+
+    /// <summary>
     /// Immediately publishes the protected value without allocation or backend entry.
     /// </summary>
     internal void Write<T>(T value) where T : unmanaged
     {
         Validate();
-        CheckNoReaders();
+        CheckNoBorrowers();
         Unsafe.WriteUnaligned((void*)data, value);
         GC.KeepAlive(_owner);
     }
@@ -176,18 +207,30 @@ internal sealed unsafe class NativeSpinLockLease(nint address, nint data, nint f
         }
 
         Validate();
-        CheckNoReaders();
+        CheckNoBorrowers();
         Expire();
     }
 
     /// <summary>
-    /// Preserves original storage and lock ownership until every active reader has returned.
+    /// Preserves original storage and lock ownership until every active borrower has returned.
     /// </summary>
-    private void CheckNoReaders()
+    private void CheckNoBorrowers()
     {
+        CheckNoMutation();
         if (_readDepth != 0)
         {
             throw new InvalidOperationException("A PostgreSQL spinlock guard cannot replace or release its value during a scoped read.");
+        }
+    }
+
+    /// <summary>
+    /// Rejects overlapping guard operations while a callback can mutate original storage.
+    /// </summary>
+    private void CheckNoMutation()
+    {
+        if (_mutating)
+        {
+            throw new InvalidOperationException("Finish the PostgreSQL spinlock mutation before borrowing, replacing or releasing its value.");
         }
     }
 

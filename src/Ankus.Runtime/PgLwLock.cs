@@ -5,7 +5,7 @@ namespace Ankus;
 /// <summary>
 /// Describes an unmanaged shared value protected by a PostgreSQL lightweight reader/writer lock.
 /// </summary>
-/// <typeparam name="T">The unmanaged value copied to and from shared storage.</typeparam>
+/// <typeparam name="T">The unmanaged value stored in shared memory.</typeparam>
 /// <remarks>
 /// Keep this descriptor in a static field and register it with <see cref="PgSharedMemory"/>.
 /// Each guard belongs to the acquiring callback and backend thread. Recursive acquisition is
@@ -133,6 +133,20 @@ public sealed class PgLwLockExclusiveGuard<T> : IDisposable where T : unmanaged
     /// rejected while a reader is active. Value can still return a copy during the read.
     /// </remarks>
     public TResult Read<TResult>(PgSharedReader<T, TResult> reader) => _lease.Read(reader);
+
+    /// <summary>
+    /// Mutates original protected storage through a reference limited to the synchronous callback.
+    /// </summary>
+    /// <typeparam name="TResult">The owned callback result.</typeparam>
+    /// <param name="mutator">The update, whose protected reference cannot escape the callback.</param>
+    /// <returns>The callback result.</returns>
+    /// <remarks>
+    /// Writes remain visible if the callback throws or the SQL transaction rolls back. Value can
+    /// return a copy, but aliases cannot borrow original storage, replace Value or dispose this
+    /// guard while the callback is active. Nested spinlock access and backend calls are rejected.
+    /// Use a separate Read callback for nested locks while retaining the same parent guard.
+    /// </remarks>
+    public TResult Mutate<TResult>(PgSharedMutator<T, TResult> mutator) => _lease.Mutate(mutator);
 
     /// <summary>
     /// Releases this guard once, preserving any value already written.

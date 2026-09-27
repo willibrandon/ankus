@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Links stack-resident shared read admissions without allocating for ordinary aggregate reads.
+/// Links stack-resident original-storage admissions and excludes cells under mutable access.
 /// </summary>
 internal unsafe struct NativeSharedReadScope
 {
@@ -12,16 +12,30 @@ internal unsafe struct NativeSharedReadScope
     private nint _provider;
     private nuint _address;
     private nuint _length;
+    private bool _mutable;
 
     /// <summary>
     /// Publishes a caller-owned stack frame until the matching synchronous read exits.
     /// </summary>
     internal static void Push(NativeSharedReadScope* frame, nint provider, nint address, nuint length)
+        => Push(frame, provider, address, length, mutable: false);
+
+    /// <summary>
+    /// Prevents inline lock access to a region that the callback can overwrite directly.
+    /// </summary>
+    internal static void PushMutation(NativeSharedReadScope* frame, nint provider, nint address, nuint length)
+        => Push(frame, provider, address, length, mutable: true);
+
+    /// <summary>
+    /// Links a readonly admission or mutable exclusion until the matching callback exits.
+    /// </summary>
+    private static void Push(NativeSharedReadScope* frame, nint provider, nint address, nuint length, bool mutable)
     {
         frame->_previous = s_current;
         frame->_provider = provider;
         frame->_address = (nuint)address;
         frame->_length = length;
+        frame->_mutable = mutable;
         s_current = frame;
     }
 
@@ -31,16 +45,26 @@ internal unsafe struct NativeSharedReadScope
     internal static nint Find(nint address, nuint length)
     {
         nint provider = NativeMemoryContext.Provider;
+        nint admission = 0;
         for (NativeSharedReadScope* frame = s_current; frame != null; frame = frame->_previous)
         {
-            if (frame->_provider == provider && (nuint)address >= frame->_address && length <= frame->_length &&
+            if (frame->_mutable && length != 0 && frame->_length != 0 &&
+                ((nuint)address >= frame->_address
+                    ? (nuint)address - frame->_address < frame->_length
+                    : frame->_address - (nuint)address < length))
+            {
+                throw new InvalidOperationException("Finish mutating the parent value before accessing its inline PostgreSQL spinlocks.");
+            }
+
+            if (admission == 0 && !frame->_mutable && frame->_provider == provider && (nuint)address >= frame->_address && length <= frame->_length &&
                 (nuint)address - frame->_address <= frame->_length - length)
             {
-                return (nint)frame;
+                admission = (nint)frame;
             }
         }
 
-        throw new InvalidOperationException("Access an inline PostgreSQL spinlock directly within its owning scoped read callback.");
+        return admission != 0 ? admission :
+            throw new InvalidOperationException("Access an inline PostgreSQL spinlock directly within its owning scoped read callback.");
     }
 
     /// <summary>

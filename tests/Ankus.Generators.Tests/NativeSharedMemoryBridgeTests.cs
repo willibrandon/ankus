@@ -6,6 +6,90 @@ namespace Ankus.Generators.Tests;
 public sealed partial class PgFunctionGeneratorTests
 {
     /// <summary>
+    /// Exclusive guard mutations compile through the public API and emit independent native write admission checks.
+    /// </summary>
+    [TestMethod]
+    public void GuardMutatorsCompile()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            using Ankus;
+            public struct Value(long count)
+            {
+                public long Count = count;
+                public readonly PgAtomicValue<long> Atomic = new(3);
+                public readonly PgSpinLockValue<int> Child = new(7);
+            }
+            public static class Shared
+            {
+                private static readonly PgLwLock<Value> State = new("test.mutation");
+                [PgModuleLoad]
+                public static void Load() => PgSharedMemory.Initialize(State, () => new Value(0));
+                [PgFunction]
+                public static long Update(long count)
+                {
+                    using PgLwLockExclusiveGuard<Value> guard = State.Exclusive();
+                    _ = guard.Mutate((ref Value value) =>
+                    {
+                        value.Atomic.Exchange(count);
+                        return value.Count = count;
+                    });
+                    return guard.Read(static (in Value value) =>
+                    {
+                        using PgSpinLockGuard<int> child = value.Child.Lock();
+                        _ = child.Mutate(static (ref int stored) => ++stored);
+                        return value.Count;
+                    });
+                }
+                [PgFunction]
+                public static int Local()
+                {
+                    PgSpinLock<int> owner = new(1);
+                    using PgSpinLockGuard<int> guard = owner.Lock();
+                    return guard.Mutate(static (ref int value) => ++value);
+                }
+            }
+            """);
+        AssertInitializationCompilationSucceeds(compilation, diagnostics);
+        string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
+        string admission = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..
+            native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        AssertOrdered(admission, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
+            "request->length != entry->size", "request->flags == 7 && !entry->exclusive",
+            "error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE", "return 1;",
+            "result->data = (intptr_t) ankus_shared_data(entry->header)"]);
+        Assert.DoesNotContain("ereport(", admission);
+        Assert.DoesNotContain("palloc(", admission);
+        string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
+        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6 || request->flags == 7",
+            "ankus_shared_value_address(request, result, error)", "PG_TRY();"]);
+    }
+
+    /// <summary>
+    /// Shared guards cannot mutate, and mutable references cannot escape either exclusive guard callback.
+    /// </summary>
+    /// <param name="guard">The public guard type.</param>
+    /// <param name="expected">The compiler's ownership diagnostic.</param>
+    [TestMethod]
+    [DataRow("PgLwLockShareGuard<int>", "CS1061")]
+    [DataRow("PgLwLockExclusiveGuard<int>", "CS1628")]
+    [DataRow("PgSpinLockGuard<int>", "CS1628")]
+    public void GuardMutatorsRejectInvalidAccess(string guard, string expected)
+    {
+        (Compilation compilation, _) = Generate($$"""
+            using System;
+            using Ankus;
+            public static class Functions
+            {
+                public static Func<int> Escape({{guard}} guard)
+                    => guard.Mutate(static (ref int value) => new Func<int>(() => value));
+            }
+            """);
+        Diagnostic[] errors = [.. compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+        Assert.Contains(expected, errors.Select(static diagnostic => diagnostic.Id),
+            string.Join(Environment.NewLine, errors.Select(static diagnostic => diagnostic.ToString())));
+    }
+
+    /// <summary>
     /// Both lightweight-lock guards compile original readers with nested synchronization and no raw public address.
     /// </summary>
     [TestMethod]
@@ -43,7 +127,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string read = native[native.IndexOf("static int\nankus_shared_read_address", StringComparison.Ordinal)..
+        string read = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..
             native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
         Assert.DoesNotContain("ereport(", read);
         Assert.DoesNotContain("palloc(", read);
@@ -51,7 +135,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertOrdered(read, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
             "request->length != entry->size", "result->data = (intptr_t) ankus_shared_data(entry->header)", "result->length = entry->size"]);
         string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
-        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_read_address(request, result, error)", "PG_TRY();"]);
+        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_value_address(request, result, error)", "PG_TRY();"]);
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ public sealed class PgSpinLock<T> where T : unmanaged
 }
 
 /// <summary>
-/// Holds one PostgreSQL spinlock acquisition with checked copied values and scoped original-storage reads.
+/// Holds one PostgreSQL spinlock acquisition with copied values and scoped original-storage access.
 /// </summary>
 /// <typeparam name="T">The unmanaged protected value.</typeparam>
 public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
@@ -92,6 +92,20 @@ public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
     /// PostgreSQL calls remain forbidden while the parent spinlock is held.
     /// </remarks>
     public TResult Read<TResult>(PgSharedReader<T, TResult> reader) => _lease.Read(reader);
+
+    /// <summary>
+    /// Mutates the original protected value through a reference limited to the synchronous callback.
+    /// </summary>
+    /// <typeparam name="TResult">The owned callback result.</typeparam>
+    /// <param name="mutator">The update, whose protected reference cannot escape the callback.</param>
+    /// <returns>The callback result.</returns>
+    /// <remarks>
+    /// Writes remain visible if the callback throws. Value can return a copy, but aliases cannot
+    /// read the original value, start another mutation, replace Value or dispose this guard until
+    /// the callback returns. Nested spinlock access is rejected during mutation; use a separate
+    /// Read callback while retaining this guard. PostgreSQL calls remain forbidden while it is held.
+    /// </remarks>
+    public TResult Mutate<TResult>(PgSharedMutator<T, TResult> mutator) => _lease.Mutate(mutator);
 
     /// <summary>
     /// Releases the acquisition once; aliases and expired guards cannot release a later owner.

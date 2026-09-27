@@ -62,6 +62,19 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("-9223372036854775808|97|97", await PackageGucScalarAsync(second, "SELECT shared_nested_read(false)"));
         await ExecutePackageGucAsync(first, "BEGIN; SELECT shared_nested_add(10); ROLLBACK");
         Assert.AreEqual("-9223372036854775808|107|107", await PackageGucScalarAsync(second, "SELECT shared_nested_read(true)"));
+        Assert.AreEqual("113|127|107", await PackageGucScalarAsync(first, "SELECT shared_nested_mutate(113, 127, false)"));
+        Assert.AreEqual("113|127|107", await PackageGucScalarAsync(second, "SELECT shared_nested_read(false)"));
+        Assert.AreSequenceEqual([127], Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(second, "SELECT shared_mutation_queue()")));
+        PostgresException mutationError = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+            ExecutePackageGucAsync(first, "SELECT shared_nested_mutate(131, 137, true)"));
+        Assert.AreEqual("P7844", mutationError.SqlState);
+        Assert.AreEqual("lightweight mutation error", mutationError.MessageText);
+        Assert.AreEqual("owned mutation detail", mutationError.Detail);
+        Assert.AreEqual("131|137|107", await PackageGucScalarAsync(second, "SELECT shared_nested_read(true)"));
+        Assert.AreSequenceEqual([127, 137], Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(second, "SELECT shared_mutation_queue()")));
+        await ExecutePackageGucAsync(first, "BEGIN; SELECT shared_nested_mutate(139, 149, false); ROLLBACK");
+        Assert.AreEqual("139|149|107", await PackageGucScalarAsync(second, "SELECT shared_nested_read(false)"));
+        Assert.AreSequenceEqual([127, 137, 149], Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(second, "SELECT shared_mutation_queue()")));
 
         foreach ((int kind, string state, long expected) in new (int, string, long)[]
         {
@@ -117,6 +130,7 @@ public sealed partial class ToolCommandTests
             await PackageGucScalarAsync(recovered, "SELECT shared_snapshot()"));
         Assert.AreEqual(101L, await PackageGucScalarAsync(recovered, "SELECT shared_write(101)"));
         Assert.AreEqual("-9223372036854775808|0|0", await PackageGucScalarAsync(recovered, "SELECT shared_nested_read(false)"));
+        Assert.IsEmpty(Assert.IsInstanceOfType<int[]>(await PackageGucScalarAsync(recovered, "SELECT shared_mutation_queue()")));
         Assert.AreEqual(42, await PackageGucScalarAsync(recovered, "SELECT 42"));
     }
 
@@ -215,16 +229,30 @@ public sealed partial class ToolCommandTests
     private const string SharedMemorySource = """
         using Ankus;
         using Ankus.Postgres;
+        using System.Diagnostics.CodeAnalysis;
         using System.Globalization;
+        using System.Runtime.CompilerServices;
         using StartupHookPointer = Ankus.Postgres.JitProviderResetAfterErrorCB;
 
         public readonly record struct SharedState(long Count, ulong Bits, int Order);
 
-        public readonly struct NestedSharedState(long marker)
+        [InlineArray(4)]
+        public struct NestedItems
         {
-            public readonly long Marker = marker;
+            private int _element;
+        }
+
+        public struct NestedSharedState(long marker)
+        {
+            public long Marker = marker;
             public readonly PgAtomicValue<int> Atomic = new(0);
             public readonly PgSpinLockValue<int> Counter = new(0);
+            private NestedItems _items;
+            private int _count;
+            private int _head;
+
+            [UnscopedRef]
+            public PgFixedDeque<int> Items() => new(_items, ref _count, ref _head);
         }
 
         public static partial class SharedFunctions
@@ -349,6 +377,84 @@ public sealed partial class ToolCommandTests
             }
 
             [PgFunction]
+            public static string SharedNestedMutate(long marker, int atomic, bool fail)
+            {
+                using PgLwLockExclusiveGuard<NestedSharedState> parent = Nested.Exclusive();
+                _ = parent.Mutate((ref NestedSharedState value) =>
+                {
+                    value.Marker = marker;
+                    value.Atomic.Exchange(atomic);
+                    value.Items().PushBack(atomic);
+                    RequireBlocked(parent.Dispose);
+                    RequireBlocked(() => parent.Value = default);
+                    RequireBlocked(() => parent.Read(static (in NestedSharedState nested) => nested.Marker));
+                    RequireBlocked(() => parent.Mutate(static (ref NestedSharedState nested) => nested.Marker = 99));
+                    RequireBlocked(static () => Spi.Execute("SELECT 1/0"));
+                    RequireBlocked(static () => _ = PgMemoryContext.Current);
+                    RequireBlocked(static () => _ = CheckedSetting);
+                    RequireBlocked(static () => _ = NativeGlobals.shmem_startup_hook);
+                    RequireBlocked(static () => PgLog.Write(PgLogLevel.Notice, "blocked mutation log"));
+                    RequireChildBlocked(in value.Counter);
+                    if (parent.Value.Marker != marker)
+                    {
+                        throw new InvalidOperationException("A mutation snapshot lost its current value.");
+                    }
+
+                    if (fail)
+                    {
+                        PgLog.Write(PgLogLevel.Error, new PgDiagnostic("lightweight mutation error")
+                        {
+                            SqlState = "P7844",
+                            Detail = "owned mutation detail",
+                        });
+                    }
+
+                    return value.Marker;
+                });
+                if (Spi.ExecuteScalar<int>("SELECT 42") != 42)
+                {
+                    throw new InvalidOperationException("Backend entry did not recover after mutation.");
+                }
+
+                return parent.Read(NestedSnapshot);
+            }
+
+            [PgFunction]
+            public static int[] SharedMutationQueue()
+            {
+                using PgLwLockShareGuard<NestedSharedState> guard = Nested.Share();
+                NestedSharedState snapshot = guard.Value;
+                return snapshot.Items().ToArray();
+            }
+
+            private static void RequireChildBlocked(scoped in PgSpinLockValue<int> value)
+            {
+                int rejected = 0;
+                try
+                {
+                    using PgSpinLockGuard<int> child = value.Lock();
+                }
+                catch (InvalidOperationException)
+                {
+                    rejected++;
+                }
+
+                try
+                {
+                    _ = value.IsLocked;
+                }
+                catch (InvalidOperationException)
+                {
+                    rejected++;
+                }
+
+                if (rejected != 2)
+                {
+                    throw new InvalidOperationException("A child lock was accessible during parent mutation.");
+                }
+            }
+
+            [PgFunction]
             public static void SharedNestedWork(int count)
             {
                 using PgLwLockShareGuard<NestedSharedState> parent = Nested.Share();
@@ -369,8 +475,8 @@ public sealed partial class ToolCommandTests
                     for (int index = 0; index < count; index++)
                     {
                         using PgSpinLockGuard<int> child = value.Counter.Lock();
-                        child.Value++;
-                        value.Atomic.Exchange(child.Value);
+                        int changed = child.Mutate(static (ref int stored) => ++stored);
+                        value.Atomic.Exchange(changed);
                     }
 
                     return 0;
@@ -593,8 +699,26 @@ public sealed partial class ToolCommandTests
                         throw new InvalidOperationException("Failed address admission changed a live reader's storage.");
                     }
 
+                    long mutated = replacement.Mutate((ref SharedState current) =>
+                    {
+                        try
+                        {
+                            _ = original.Mutate(static (ref SharedState stale) => stale = stale with { Count = 999 });
+                            throw new InvalidOperationException("A stale guard admitted mutable storage.");
+                        }
+                        catch (PgException expired) when (expired.SqlState == "55000")
+                        {
+                        }
+
+                        current = current with { Count = value };
+                        return current.Count;
+                    });
+                    if (mutated != value)
+                    {
+                        throw new InvalidOperationException("A failed inner admission revoked a live mutation.");
+                    }
+
                     original.Dispose();
-                    replacement.Value = replacement.Value with { Count = value };
                     return replacement.Value.Count;
                 }
 

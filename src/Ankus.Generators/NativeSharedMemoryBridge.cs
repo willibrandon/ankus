@@ -466,7 +466,7 @@ internal static class NativeSharedMemoryBridge
         }
 
         static int
-        ankus_shared_read_address(AnkusMemoryRequest *request, AnkusMemoryResult *result, AnkusError *error)
+        ankus_shared_value_address(AnkusMemoryRequest *request, AnkusMemoryResult *result, AnkusError *error)
         {
             /* This validation must not allocate, ereport, process interrupts or enter
              * callbacks: another original shared reference can already be borrowed. */
@@ -483,6 +483,13 @@ internal static class NativeSharedMemoryBridge
             {
                 error->sqlstate = ERRCODE_DATATYPE_MISMATCH;
                 strlcpy(error->message, "the Ankus shared-memory value size does not match its registration", sizeof(error->message));
+                return 1;
+            }
+
+            if (request->flags == 7 && !entry->exclusive)
+            {
+                error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE;
+                strlcpy(error->message, "the Ankus shared-memory operation requires an exclusive lock guard", sizeof(error->message));
                 return 1;
             }
 

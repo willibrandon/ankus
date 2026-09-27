@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Holds one PostgreSQL spinlock acquisition with checked copied values and scoped original-storage reads.
+Holds one PostgreSQL spinlock acquisition with copied values and scoped original-storage access.
 
 ```csharp
 public sealed class PgSpinLockGuard<T> : IDisposable where T : unmanaged
@@ -36,6 +36,37 @@ Releases the acquisition once; aliases and expired guards cannot release a later
 ```csharp
 public void Dispose()
 ```
+
+<a id="member-f83050563832108b"></a>
+
+### Mutate&lt;TResult&gt;(PgSharedMutator&lt;T, TResult&gt;)
+
+Mutates the original protected value through a reference limited to the synchronous callback.
+
+```csharp
+public TResult Mutate<TResult>(PgSharedMutator<T, TResult> mutator)
+```
+
+Type parameters:
+
+`TResult`
+
+The owned callback result.
+
+Parameters:
+
+`mutator` — <code>PgSharedMutator&lt;T, TResult&gt;</code>
+
+The update, whose protected reference cannot escape the callback.
+
+Returns: <code>TResult</code>
+
+The callback result.
+
+Writes remain visible if the callback throws. Value can return a copy, but aliases cannot
+read the original value, start another mutation, replace Value or dispose this guard until
+the callback returns. Nested spinlock access is rejected during mutation; use a separate
+Read callback while retaining this guard. PostgreSQL calls remain forbidden while it is held.
 
 <a id="member-41c3b02ea8259e8a"></a>
 

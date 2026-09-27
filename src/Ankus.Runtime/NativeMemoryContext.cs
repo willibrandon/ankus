@@ -93,7 +93,7 @@ public static unsafe class NativeMemoryContext
     internal static void Invoke(ref NativeMemoryRequest request, out NativeMemoryResult result)
     {
         if (request._operation != NativeMemoryOperation.SpinLock &&
-            !(request._operation == NativeMemoryOperation.SharedMemory && request._flags == 6))
+            !(request._operation == NativeMemoryOperation.SharedMemory && request._flags is 6 or 7))
         {
             NativeBorrowScope.CheckBackendAccess();
         }

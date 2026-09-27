@@ -1352,9 +1352,9 @@ internal static class NativeMemoryBridge
                 return 1;
             }
 
-            if (request->operation == ANKUS_MEMORY_SHARED && request->flags == 6)
+            if (request->operation == ANKUS_MEMORY_SHARED && (request->flags == 6 || request->flags == 7))
             {
-                return ankus_shared_read_address(request, result, error);
+                return ankus_shared_value_address(request, result, error);
             }
 
             MemoryContext caller = CurrentMemoryContext;

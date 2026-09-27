@@ -9,7 +9,7 @@ namespace Ankus;
 /// <typeparam name="T">The unmanaged value protected by the spinlock.</typeparam>
 /// <remarks>
 /// Construct this field in the shared initializer and access it directly through the reference
-/// supplied by PgShared.Read. Default values and detached copies cannot be locked. Use
+/// supplied by the owning shared value's or lock guard's Read callback. Default values and detached copies cannot be locked. Use
 /// PgSpinLock for ordinary local storage. Keep critical sections short and synchronous.
 /// </remarks>
 [StructLayout(LayoutKind.Sequential)]

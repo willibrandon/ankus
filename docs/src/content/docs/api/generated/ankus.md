@@ -198,4 +198,5 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Delegates
 
+- [PgSharedMutator&lt;T, TResult&gt;](/api/ankus.pgsharedmutator-2/)
 - [PgSharedReader&lt;T, TResult&gt;](/api/ankus.pgsharedreader-2/)
