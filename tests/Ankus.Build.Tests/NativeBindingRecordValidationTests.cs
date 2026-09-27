@@ -47,44 +47,214 @@ public sealed class NativeBindingRecordValidationTests
         NativeRecordType[] types = [.. valid.Types];
         NativeRecordDeclaration[] declarations = [.. valid.Declarations];
         NativeRecordField[] fields = [.. declarations[0].Fields];
-        NativeRecordGraph changed = valid with { Types = types, Declarations = declarations };
+        NativeRecordGraph changed = valid with
+        {
+            Types = types,
+            Declarations = declarations
+        };
         switch (mutation)
         {
-            case "target": changed = changed with { Target = valid.Target with { PostgresVersion = 170011 } }; break;
-            case "missing-root": changed = changed with { Roots = new Dictionary<string, int> { ["current"] = 0 } }; break;
-            case "root-edge": changed = changed with { Roots = new Dictionary<string, int> { ["current"] = -1, ["call"] = 4 } }; break;
-            case "canonical-edge": types[0] = types[0] with { Canonical = 99 }; break;
-            case "canonical-chain": types[0] = types[0] with { Canonical = 1 }; types[1] = types[1] with { Canonical = 2 }; break;
-            case "unknown-kind": types[1] = types[1] with { Kind = "reference" }; break;
-            case "pointer-width": types[1] = types[1] with { Size = 4 }; break;
-            case "alignment": types[2] = types[2] with { Alignment = 3 }; break;
-            case "array-size": types[3] = types[3] with { Size = 13 }; break;
-            case "array-count": types[3] = types[3] with { Count = -1 }; break;
-            case "incomplete-array": types[3] = types[3] with { Count = null }; break;
-            case "function-storage": types[4] = types[4] with { Size = 1, Alignment = 1 }; break;
-            case "parameter-edge": types[4] = types[4] with { Function = types[4].Function! with { Parameters = [99] } }; break;
-            case "calling-convention": types[4] = types[4] with { Function = types[4].Function! with { CallingConvention = 100 } }; break;
-            case "no-prototype": types[4] = types[4] with { Function = types[4].Function! with { HasPrototype = false } }; break;
-            case "tag-kind": types[0] = types[0] with { Kind = "enum" }; break;
-            case "tag-size": types[0] = types[0] with { Size = 64 }; break;
-            case "field-edge": fields[1] = fields[1] with { Type = 99 }; break;
-            case "field-offset": fields[1] = fields[1] with { OffsetBits = 65 }; break;
-            case "field-bounds": fields[1] = fields[1] with { OffsetBits = 256 }; break;
-            case "union-offset": declarations[0] = declarations[0] with { Kind = "union" }; break;
-            case "anonymous-name": fields[1] = fields[1] with { IsAnonymous = true }; break;
-            case "anonymous-scalar": fields[1] = fields[1] with { Name = "", IsAnonymous = true }; break;
-            case "bit-width": fields[3] = fields[3] with { BitWidth = 33 }; break;
-            case "named-zero-width": fields[3] = fields[3] with { BitWidth = 0 }; break;
-            case "opaque-fields":
-                types[0] = types[0] with { Size = null, Alignment = null };
-                declarations[0] = declarations[0] with { IsComplete = false, Size = null, Alignment = null };
+            case "target":
+                changed = changed with
+                {
+                    Target = valid.Target with
+                    {
+                        PostgresVersion = 170011
+                    }
+                };
                 break;
-            case "unreachable": changed = changed with { Types = [.. types, types[2] with { Canonical = 5 }] }; break;
-            case "extra-enum-metadata": declarations[0] = declarations[0] with { EnumUnderlying = 2 }; break;
-            default: throw new ArgumentOutOfRangeException(nameof(mutation));
+            case "missing-root":
+                changed = changed with
+                {
+                    Roots = new Dictionary<string, int> { ["current"] = 0 }
+                };
+                break;
+            case "root-edge":
+                changed = changed with
+                {
+                    Roots = new Dictionary<string, int> { ["current"] = -1, ["call"] = 4 }
+                };
+                break;
+            case "canonical-edge":
+                types[0] = types[0] with
+                {
+                    Canonical = 99
+                };
+                break;
+            case "canonical-chain":
+                types[0] = types[0] with
+                {
+                    Canonical = 1
+                };
+                types[1] = types[1] with
+                {
+                    Canonical = 2
+                };
+                break;
+            case "unknown-kind":
+                types[1] = types[1] with
+                {
+                    Kind = "reference"
+                };
+                break;
+            case "pointer-width":
+                types[1] = types[1] with
+                {
+                    Size = 4
+                };
+                break;
+            case "alignment":
+                types[2] = types[2] with
+                {
+                    Alignment = 3
+                };
+                break;
+            case "array-size":
+                types[3] = types[3] with
+                {
+                    Size = 13
+                };
+                break;
+            case "array-count":
+                types[3] = types[3] with
+                {
+                    Count = -1
+                };
+                break;
+            case "incomplete-array":
+                types[3] = types[3] with
+                {
+                    Count = null
+                };
+                break;
+            case "function-storage":
+                types[4] = types[4] with
+                {
+                    Size = 1,
+                    Alignment = 1
+                };
+                break;
+            case "parameter-edge":
+                types[4] = types[4] with
+                {
+                    Function = types[4].Function! with
+                    {
+                        Parameters = [99]
+                    }
+                };
+                break;
+            case "calling-convention":
+                types[4] = types[4] with
+                {
+                    Function = types[4].Function! with
+                    {
+                        CallingConvention = 100
+                    }
+                };
+                break;
+            case "no-prototype":
+                types[4] = types[4] with
+                {
+                    Function = types[4].Function! with
+                    {
+                        HasPrototype = false
+                    }
+                };
+                break;
+            case "tag-kind":
+                types[0] = types[0] with
+                {
+                    Kind = "enum"
+                };
+                break;
+            case "tag-size":
+                types[0] = types[0] with
+                {
+                    Size = 64
+                };
+                break;
+            case "field-edge":
+                fields[1] = fields[1] with
+                {
+                    Type = 99
+                };
+                break;
+            case "field-offset":
+                fields[1] = fields[1] with
+                {
+                    OffsetBits = 65
+                };
+                break;
+            case "field-bounds":
+                fields[1] = fields[1] with
+                {
+                    OffsetBits = 256
+                };
+                break;
+            case "union-offset":
+                declarations[0] = declarations[0] with
+                {
+                    Kind = "union"
+                };
+                break;
+            case "anonymous-name":
+                fields[1] = fields[1] with
+                {
+                    IsAnonymous = true
+                };
+                break;
+            case "anonymous-scalar":
+                fields[1] = fields[1] with
+                {
+                    Name = "",
+                    IsAnonymous = true
+                };
+                break;
+            case "bit-width":
+                fields[3] = fields[3] with
+                {
+                    BitWidth = 33
+                };
+                break;
+            case "named-zero-width":
+                fields[3] = fields[3] with
+                {
+                    BitWidth = 0
+                };
+                break;
+            case "opaque-fields":
+                types[0] = types[0] with
+                {
+                    Size = null,
+                    Alignment = null
+                };
+                declarations[0] = declarations[0] with
+                {
+                    IsComplete = false,
+                    Size = null,
+                    Alignment = null
+                };
+                break;
+            case "unreachable":
+                changed = changed with
+                {
+                    Types = [.. types, types[2] with { Canonical = 5 }]
+                };
+                break;
+            case "extra-enum-metadata":
+                declarations[0] = declarations[0] with
+                {
+                    EnumUnderlying = 2
+                };
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mutation));
         }
 
-        declarations[0] = declarations[0] with { Fields = fields };
+        declarations[0] = declarations[0] with
+        {
+            Fields = fields
+        };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordValidation.Validate(changed, valid.Target, valid.Roots.Keys));
     }
 
@@ -145,7 +315,11 @@ public sealed class NativeBindingRecordValidationTests
         NativeRecordGraph original = CreateGraph();
         NativeRecordType wrapper = new("typeof", 0, "typeof (*((struct Root*)0))", 0, 32, 8, "", 0, null, null, null, null);
         var roots = new Dictionary<string, int>(original.Roots, StringComparer.Ordinal) { ["expression"] = original.Types.Count };
-        NativeRecordGraph valid = original with { Types = [.. original.Types, wrapper], Roots = roots };
+        NativeRecordGraph valid = original with
+        {
+            Types = [.. original.Types, wrapper],
+            Roots = roots
+        };
         NativeBindingRecordValidation.Validate(valid, valid.Target, roots.Keys);
         NativeRecordType changed = mutation switch
         {
@@ -157,7 +331,10 @@ public sealed class NativeBindingRecordValidationTests
             _ => throw new ArgumentOutOfRangeException(nameof(mutation)),
         };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordValidation.Validate(
-            valid with { Types = [.. original.Types, changed] }, valid.Target, roots.Keys));
+            valid with
+            {
+                Types = [.. original.Types, changed]
+            }, valid.Target, roots.Keys));
         NativeBindingRecordValidation.Validate(valid, valid.Target, roots.Keys);
     }
 

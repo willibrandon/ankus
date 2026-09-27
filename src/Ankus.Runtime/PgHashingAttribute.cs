@@ -20,19 +20,31 @@ public sealed class PgHashingAttribute : Attribute
     /// <summary>
     /// Gets or sets the installation dependency identifier for the completed hash operator family and class.
     /// </summary>
-    public string? Id { get; set; }
+    public string? Id
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets installation entities that must precede the generated hashing declarations.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets whether installation SQL is emitted for the hash operator family and class.
     /// The default is true. False retains the hash support function, equality prerequisite and dependency identifier.
     /// Cannot be false when Sql contains a replacement, including an empty string.
     /// </summary>
-    public bool GenerateSql { get; set; } = true;
+    public bool GenerateSql
+    {
+        get;
+        set;
+    } = true;
 
     /// <summary>
     /// Gets or sets literal installation SQL replacing the hash operator family and class.
@@ -43,12 +55,20 @@ public sealed class PgHashingAttribute : Attribute
     /// schema is declared, without an argument list. Do not add string quotes around this token.
     /// @MODULE_PATHNAME@ becomes MODULE_PATHNAME. The hash support function remains generated.
     /// </remarks>
-    public string? Sql { get; set; }
+    public string? Sql
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
     /// The default is false. This option applies only to non-null Sql; fixed schemas and other
     /// non-relocatable declarations can still prevent relocation.
     /// </summary>
-    public bool SqlRelocatable { get; set; }
+    public bool SqlRelocatable
+    {
+        get;
+        set;
+    }
 }

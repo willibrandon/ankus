@@ -42,7 +42,11 @@ public sealed unsafe class PgMappedArrayTests
     {
         int factories = 0;
         PgDatumRegistry.RegisterValue<Shared>("array_shared", "fixed", PgTypeOrigin.External, typeof(SharedConverter),
-            () => { factories++; return new SharedConverter(); }, true, true);
+            () =>
+            {
+                factories++;
+                return new SharedConverter();
+            }, true, true);
         PgDatumRegistry.RegisterValue<Shared>("array_shared", "fixed", PgTypeOrigin.External, typeof(SharedConverter),
             static () => throw new InvalidOperationException("Compatible registration must retain the first factory."), true, true);
         var empty = new PgArray<Shared>([]);
@@ -660,7 +664,11 @@ public sealed unsafe class PgMappedArrayTests
         var primary = new InvalidOperationException("shared array factory failed");
         int factories = 0;
         PgDatumRegistry.RegisterValue<FactoryValue>("array_factory", "fixed", PgTypeOrigin.External, typeof(FactoryConverter),
-            () => { factories++; throw primary; }, true, true);
+            () =>
+            {
+                factories++;
+                throw primary;
+            }, true, true);
         using var script = new Script();
         NativeValue empty = NativeValue.FromMapped(Array.Empty<FactoryValue>());
         empty.Release();
@@ -979,142 +987,254 @@ public sealed unsafe class PgMappedArrayTests
         /// <summary>
         /// Gets or sets independently supplied raw array cells.
         /// </summary>
-        internal Cell[] Cells { get; set; } = [new(2), new(5)];
+        internal Cell[] Cells
+        {
+            get;
+            set;
+        } = [new(2), new(5)];
 
         /// <summary>
         /// Gets or sets independently supplied dimension lengths.
         /// </summary>
-        internal int[] Lengths { get; set; } = [2];
+        internal int[] Lengths
+        {
+            get;
+            set;
+        } = [2];
 
         /// <summary>
         /// Gets or sets independently supplied lower bounds.
         /// </summary>
-        internal int[] Bounds { get; set; } = [1];
+        internal int[] Bounds
+        {
+            get;
+            set;
+        } = [1];
 
         /// <summary>
         /// Gets or sets the live catalog element identity.
         /// </summary>
-        internal uint ElementOid { get; set; } = 9001;
+        internal uint ElementOid
+        {
+            get;
+            set;
+        } = 9001;
 
         /// <summary>
         /// Gets or sets the live catalog array identity.
         /// </summary>
-        internal uint ArrayOid { get; set; } = 9002;
+        internal uint ArrayOid
+        {
+            get;
+            set;
+        } = 9002;
 
         /// <summary>
         /// Gets or sets an independently reported extraction identity.
         /// </summary>
-        internal uint? ReportedElement { get; set; }
+        internal uint? ReportedElement
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of SPI rows.
         /// </summary>
-        internal int Rows { get; set; } = 1;
+        internal int Rows
+        {
+            get;
+            set;
+        } = 1;
 
         /// <summary>
         /// Gets or sets whether SPI returns zero columns for a utility command.
         /// </summary>
-        internal bool Utility { get; set; }
+        internal bool Utility
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets a later managed converter failure.
         /// </summary>
-        internal Exception? Failure { get; set; }
+        internal Exception? Failure
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native owner deletion fails.
         /// </summary>
-        internal bool FailDelete { get; set; }
+        internal bool FailDelete
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether raw extraction or construction fails inside the native error seam.
         /// </summary>
-        internal bool FailNative { get; set; }
+        internal bool FailNative
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether the selected present negative leaf writes SQL NULL.
         /// </summary>
-        internal bool WriterNull { get; set; }
+        internal bool WriterNull
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the deliberately invalid writer provenance partition.
         /// </summary>
-        internal string? WriterMode { get; set; }
+        internal string? WriterMode
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether writer results use an independent caller owner.
         /// </summary>
-        internal bool ReturnCallerOwned { get; set; }
+        internal bool ReturnCallerOwned
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether the first converter changes the live catalog identity before the next element.
         /// </summary>
-        internal bool ChangeElementDuringConversion { get; set; }
+        internal bool ChangeElementDuringConversion
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether a direct function reports SQL NULL rather than a present array.
         /// </summary>
-        internal bool NativeResultNull { get; set; }
+        internal bool NativeResultNull
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether a direct call changes the mapping identity before returning its captured result.
         /// </summary>
-        internal bool ChangeIdentityDuringCall { get; set; }
+        internal bool ChangeIdentityDuringCall
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the latest reader input retained for lifetime assertions.
         /// </summary>
-        internal PgDatum? Captured { get; set; }
+        internal PgDatum? Captured
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the reader invocation count.
         /// </summary>
-        internal int Reads { get; set; }
+        internal int Reads
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets the writer invocation count.
         /// </summary>
-        internal int Writes { get; private set; }
+        internal int Writes
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the live element lookup count.
         /// </summary>
-        internal int Lookups { get; private set; }
+        internal int Lookups
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the temporary allocation count.
         /// </summary>
-        internal int Creates { get; private set; }
+        internal int Creates
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the attempted temporary deletion count.
         /// </summary>
-        internal int Deletes { get; private set; }
+        internal int Deletes
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the attempted extraction count.
         /// </summary>
-        internal int Extractions { get; private set; }
+        internal int Extractions
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the attempted eager construction count.
         /// </summary>
-        internal int Builds { get; private set; }
+        internal int Builds
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the SPI and catalog execution count.
         /// </summary>
-        internal int Executions { get; private set; }
+        internal int Executions
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the released transport count.
         /// </summary>
-        internal int Releases { get; private set; }
+        internal int Releases
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the writer's explicit supplied destination.
         /// </summary>
-        internal nint WriterDestination { get; private set; }
+        internal nint WriterDestination
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets all original writer handles, including those expected to expire.
@@ -1129,47 +1249,83 @@ public sealed unsafe class PgMappedArrayTests
         /// <summary>
         /// Gets independently captured construction transport cells.
         /// </summary>
-        internal WrittenCell[] Written { get; private set; } = [];
+        internal WrittenCell[] Written
+        {
+            get;
+            private set;
+        } = [];
 
         /// <summary>
         /// Gets the exact shape metadata presented to the native builder.
         /// </summary>
-        internal byte[] Shape { get; private set; } = [];
+        internal byte[] Shape
+        {
+            get;
+            private set;
+        } = [];
 
         /// <summary>
         /// Gets the construction mode.
         /// </summary>
-        internal int BuilderMode { get; private set; }
+        internal int BuilderMode
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the expected final array identity.
         /// </summary>
-        internal uint BuilderOid { get; private set; }
+        internal uint BuilderOid
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the final array destination before temporary cleanup.
         /// </summary>
-        internal nint FinalContext { get; private set; }
+        internal nint FinalContext
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of deletion attempts already made at construction.
         /// </summary>
-        internal int DeletesAtBuild { get; private set; }
+        internal int DeletesAtBuild
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the catalog request's exactness mode.
         /// </summary>
-        internal int CallMode { get; private set; }
+        internal int CallMode
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the requested catalog return identity.
         /// </summary>
-        internal uint CallExpectedOid { get; private set; }
+        internal uint CallExpectedOid
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the native address independently recorded from a direct invocation request.
         /// </summary>
-        internal nint CallPointer { get; private set; }
+        internal nint CallPointer
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Creates a live raw array whose original owner is distinct from extraction storage.

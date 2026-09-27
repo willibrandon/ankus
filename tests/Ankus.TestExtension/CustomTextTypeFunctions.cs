@@ -50,9 +50,12 @@ public static class CustomTextTypeFunctions
             s_parses++;
             switch (text)
             {
-                case "!pgparse": throw new PgException("P7911", "custom text parse failed");
-                case "!managedparse": throw new InvalidOperationException("ordinary text parse failed");
-                case "!nullparse": return null!;
+                case "!pgparse":
+                    throw new PgException("P7911", "custom text parse failed");
+                case "!managedparse":
+                    throw new InvalidOperationException("ordinary text parse failed");
+                case "!nullparse":
+                    return null!;
             }
 
             int separator = text.IndexOf('|');

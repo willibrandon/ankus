@@ -125,9 +125,15 @@ internal static class NativeBindingEnums
             throw new FormatException($"Native enum constant does not fit its measured width: {expression}.");
         }
 
-        if (layout.IsSigned && value >= modulus >> 1) { return value - modulus; }
+        if (layout.IsSigned && value >= modulus >> 1)
+        {
+            return value - modulus;
+        }
 
-        if (!layout.IsSigned && value < 0) { return value + modulus; }
+        if (!layout.IsSigned && value < 0)
+        {
+            return value + modulus;
+        }
 
         return value;
     }

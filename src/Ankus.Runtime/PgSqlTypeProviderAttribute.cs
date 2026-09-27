@@ -41,5 +41,9 @@ public sealed class PgSqlTypeProviderAttribute(string sqlId, string name) : Attr
     /// A managed-type provider uses its mapping's schema and rejects an explicitly assigned Schema.
     /// A fixed owned schema prevents extension schema relocation.
     /// </summary>
-    public string? Schema { get; set; }
+    public string? Schema
+    {
+        get;
+        set;
+    }
 }

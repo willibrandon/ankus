@@ -57,28 +57,46 @@ internal static class NativeBindingStorageProbe
         {
             foreach (JsonElement node in root.GetProperty("inner").EnumerateArray())
             {
-                if (node.GetProperty("kind").GetString() != "EnumDecl" || !node.TryGetProperty("inner", out JsonElement members)) { continue; }
+                if (node.GetProperty("kind").GetString() != "EnumDecl" || !node.TryGetProperty("inner", out JsonElement members))
+                {
+                    continue;
+                }
 
                 foreach (JsonElement member in members.EnumerateArray())
                 {
-                    if (!member.TryGetProperty("name", out JsonElement nameProperty)) { continue; }
+                    if (!member.TryGetProperty("name", out JsonElement nameProperty))
+                    {
+                        continue;
+                    }
 
                     string name = nameProperty.GetString() ?? throw new FormatException("Missing native storage constant name.");
-                    if (!name.StartsWith("ankus_storage_", StringComparison.Ordinal)) { continue; }
+                    if (!name.StartsWith("ankus_storage_", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
 
-                    if (member.GetProperty("kind").GetString() != "EnumConstantDecl") { throw new FormatException("Invalid native storage constant declaration."); }
+                    if (member.GetProperty("kind").GetString() != "EnumConstantDecl")
+                    {
+                        throw new FormatException("Invalid native storage constant declaration.");
+                    }
 
                     JsonElement expression = member;
                     while (expression.GetProperty("kind").GetString() != "ConstantExpr")
                     {
                         JsonElement inner = expression.GetProperty("inner");
-                        if (inner.GetArrayLength() != 1) { throw new FormatException("Missing native storage constant expression."); }
+                        if (inner.GetArrayLength() != 1)
+                        {
+                            throw new FormatException("Missing native storage constant expression.");
+                        }
 
                         expression = inner[0];
                     }
 
                     string value = expression.GetProperty("value").GetString() ?? throw new FormatException("Missing native storage constant value.");
-                    if (!constants.TryAdd(name, value == "-1" ? "-" : value)) { throw new FormatException("Duplicate native storage constant."); }
+                    if (!constants.TryAdd(name, value == "-1" ? "-" : value))
+                    {
+                        throw new FormatException("Duplicate native storage constant.");
+                    }
                 }
             }
 
@@ -91,7 +109,10 @@ internal static class NativeBindingStorageProbe
                 output.Append("value|").Append(name).Append('|').Append(slot);
                 foreach (string suffix in new[] { "_size", "_alignment", "_element", "_signed" })
                 {
-                    if (!constants.Remove(alias + suffix, out string? value)) { throw new FormatException("Missing native storage constant."); }
+                    if (!constants.Remove(alias + suffix, out string? value))
+                    {
+                        throw new FormatException("Missing native storage constant.");
+                    }
 
                     output.Append('|').Append(value);
                 }
@@ -99,7 +120,10 @@ internal static class NativeBindingStorageProbe
                 output.AppendLine();
             }
 
-            if (constants.Count != 0) { throw new FormatException("Unexpected native storage constant."); }
+            if (constants.Count != 0)
+            {
+                throw new FormatException("Unexpected native storage constant.");
+            }
 
             return output.ToString();
         }
@@ -174,7 +198,10 @@ internal static class NativeBindingStorageProbe
             observed.Add((fields[1], fields[2]), new(size, alignment, elementSize, isSigned));
         }
 
-        if (observed.Count != values.Count) { throw new FormatException("Missing native storage observations."); }
+        if (observed.Count != values.Count)
+        {
+            throw new FormatException("Missing native storage observations.");
+        }
 
         var symbols = new SortedDictionary<string, NativeHeaderSymbolStorage>(StringComparer.Ordinal);
         foreach ((string name, NativeHeaderSymbol symbol) in catalog.Symbols)
@@ -212,14 +239,20 @@ internal static class NativeBindingStorageProbe
             NativeBindingCDeclaration.ValidateName(symbol.NativeName);
             if (symbol.IsFunction)
             {
-                if (Canonical(symbol.Type) is not NativeHeaderFunction function) { throw new FormatException("A native function requires its collected function type."); }
+                if (Canonical(symbol.Type) is not NativeHeaderFunction function)
+                {
+                    throw new FormatException("A native function requires its collected function type.");
+                }
 
                 for (int index = 0; index < function.Parameters.Count; index++)
                 {
                     Add(name, index.ToString(CultureInfo.InvariantCulture), function.Parameters[index]);
                 }
 
-                if (!IsVoid(function.Result)) { Add(name, "result", function.Result); }
+                if (!IsVoid(function.Result))
+                {
+                    Add(name, "result", function.Result);
+                }
             }
             else
             {
@@ -246,10 +279,17 @@ internal static class NativeBindingStorageProbe
         {
             switch (type)
             {
-                case NativeHeaderAlias alias: type = alias.Underlying; break;
-                case NativeHeaderQualified qualified: type = qualified.Underlying; break;
-                case NativeHeaderAdjusted adjusted: type = adjusted.Adjusted; break;
-                default: return type;
+                case NativeHeaderAlias alias:
+                    type = alias.Underlying;
+                    break;
+                case NativeHeaderQualified qualified:
+                    type = qualified.Underlying;
+                    break;
+                case NativeHeaderAdjusted adjusted:
+                    type = adjusted.Adjusted;
+                    break;
+                default:
+                    return type;
             }
         }
     }

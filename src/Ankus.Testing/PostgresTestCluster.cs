@@ -118,7 +118,10 @@ public sealed class PostgresTestCluster : IAsyncDisposable
                     throw new AggregateException($"Startup and cleanup failed. Log: {cluster.LogFilePath}\n{log}", error, cleanupError);
                 }
 
-                if (error is OperationCanceledException) { throw; }
+                if (error is OperationCanceledException)
+                {
+                    throw;
+                }
 
                 if (attempt < MaximumAttempts && cluster.HasPortCollision(log))
                 {

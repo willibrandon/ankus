@@ -110,11 +110,20 @@ public static class SpiPreparedFunctions
         {
             switch (mode)
             {
-                case 0: statement.Execute(); break;
-                case 1: statement.Execute(SpiParameter.Create(1), SpiParameter.Create(2)); break;
-                case 2: statement.Execute(SpiParameter.Create("wrong")); break;
-                case 3: statement.Execute(default(SpiParameter)); break;
-                default: throw new ArgumentOutOfRangeException(nameof(mode));
+                case 0:
+                    statement.Execute();
+                    break;
+                case 1:
+                    statement.Execute(SpiParameter.Create(1), SpiParameter.Create(2));
+                    break;
+                case 2:
+                    statement.Execute(SpiParameter.Create("wrong"));
+                    break;
+                case 3:
+                    statement.Execute(default(SpiParameter));
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
 
             return "unexpected success";

@@ -151,7 +151,10 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
+        foreach (string argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
 
         using Process process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {executable}.");
         Task<string> output = process.StandardOutput.ReadToEndAsync(context.CancellationToken);
@@ -162,7 +165,10 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
         }
         catch
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
 
             await process.WaitForExitAsync(CancellationToken.None);
 
@@ -171,8 +177,14 @@ public sealed partial class NativeBindingNativeTests(TestContext context)
 
         string standardOutput = await output;
         string standardError = await error;
-        if (expectSuccess) { Assert.AreEqual(0, process.ExitCode, $"{executable}: {standardOutput}{standardError}"); }
-        else { Assert.AreNotEqual(0, process.ExitCode, "The native compiler accepted an incompatible prototype."); }
+        if (expectSuccess)
+        {
+            Assert.AreEqual(0, process.ExitCode, $"{executable}: {standardOutput}{standardError}");
+        }
+        else
+        {
+            Assert.AreNotEqual(0, process.ExitCode, "The native compiler accepted an incompatible prototype.");
+        }
 
         return expectSuccess ? standardOutput : standardOutput + standardError;
     }

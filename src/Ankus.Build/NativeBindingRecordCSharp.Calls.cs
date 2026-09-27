@@ -57,7 +57,10 @@ internal static partial class NativeBindingRecordCSharp
                 Line($"    /// <param name=\"{name}\">The exact native value; referenced addresses must remain valid for the complete call.</param>");
             }
 
-            if (result is not null) { Line("    /// <returns>The exact native result. Referenced storage retains its native ownership and lifetime.</returns>"); }
+            if (result is not null)
+            {
+                Line("    /// <returns>The exact native result. Referenced storage retains its native ownership and lifetime.</returns>");
+            }
 
             Line("    /// <remarks>Requires the matching native binding and an active backend callback. Raw pointers and callback addresses remain the caller's responsibility.</remarks>");
             string signature = string.Join(", ", parameters.Select(static parameter => parameter.Value.Code + " @" + parameter.Name));
@@ -74,7 +77,10 @@ internal static partial class NativeBindingRecordCSharp
             bool heap = frame.AllocationSize > 4096;
             Line(heap ? $"        byte* allocation = (byte*)global::System.Runtime.InteropServices.NativeMemory.Alloc({NativeSize(frame.AllocationSize)});"
                 : $"        byte* allocation = stackalloc byte[{Number(frame.AllocationSize)}];");
-            if (heap) { Line("        try\n        {"); }
+            if (heap)
+            {
+                Line("        try\n        {");
+            }
 
             string indent = heap ? "            " : "        ";
             Line($"{indent}nuint alignment = {NativeSize(frame.Alignment - 1)};");
@@ -102,7 +108,10 @@ internal static partial class NativeBindingRecordCSharp
                     : $"{indent}return global::System.Runtime.CompilerServices.Unsafe.ReadUnaligned<{result.Code}>((void*)(storage + {NativeSize(frame.Result)}));");
             }
 
-            if (heap) { Line("        }\n        finally { global::System.Runtime.InteropServices.NativeMemory.Free(allocation); }"); }
+            if (heap)
+            {
+                Line("        }\n        finally { global::System.Runtime.InteropServices.NativeMemory.Free(allocation); }");
+            }
 
             Line("    }\n");
         }

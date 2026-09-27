@@ -218,8 +218,14 @@ public sealed unsafe class PgStringInfoStreamTests
             Exception? failure = null;
             var thread = new Thread(() =>
             {
-                try { buffer.Flush(); }
-                catch (Exception exception) { failure = exception; }
+                try
+                {
+                    buffer.Flush();
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
             });
             thread.Start();
             thread.Join();
@@ -257,8 +263,14 @@ public sealed unsafe class PgStringInfoStreamTests
         using PgStringInfoStream buffer = PgStringInfoStream.Create();
         PgException exception = Assert.ThrowsExactly<PgException>(() =>
         {
-            if (transfer) { buffer.DangerousDetachCString(); }
-            else { buffer.Dispose(); }
+            if (transfer)
+            {
+                buffer.DangerousDetachCString();
+            }
+            else
+            {
+                buffer.Dispose();
+            }
         });
         Assert.AreEqual("22023", exception.SqlState);
         Assert.AreEqual("native failure", exception.Message);
@@ -267,8 +279,14 @@ public sealed unsafe class PgStringInfoStreamTests
         Assert.AreEqual(3, fixture.ErrorReleases);
         buffer.WriteByte(42);
         fail = false;
-        if (transfer) { Assert.AreEqual(701, (nint)buffer.DangerousDetachCString()); }
-        else { buffer.Dispose(); }
+        if (transfer)
+        {
+            Assert.AreEqual(701, (nint)buffer.DangerousDetachCString());
+        }
+        else
+        {
+            buffer.Dispose();
+        }
 
         Assert.IsFalse(buffer.CanWrite);
         int requests = fixture.Requests.Count;

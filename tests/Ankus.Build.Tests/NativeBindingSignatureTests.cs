@@ -65,41 +65,95 @@ public sealed partial class NativeBindingNativeTests
             {
                 case "typedef":
                     NativeHeaderAlias alias = Assert.IsInstanceOfType<NativeHeaderAlias>(function.Parameters[0]);
-                    symbols["native_value"] = symbol with { Type = function with { Parameters = [alias with { Name = "DifferentNumber" }, function.Parameters[1]] } };
+                    symbols["native_value"] = symbol with
+                    {
+                        Type = function with
+                        {
+                            Parameters = [alias with { Name = "DifferentNumber" }, function.Parameters[1]]
+                        }
+                    };
                     break;
                 case "convention":
-                    types[canonical] = types[canonical] with { Function = types[canonical].Function! with { CallingConvention = 2 } };
+                    types[canonical] = types[canonical] with
+                    {
+                        Function = types[canonical].Function! with
+                        {
+                            CallingConvention = 2
+                        }
+                    };
                     break;
                 case "variadic":
-                    types[canonical] = types[canonical] with { Function = types[canonical].Function! with { IsVariadic = true } };
+                    types[canonical] = types[canonical] with
+                    {
+                        Function = types[canonical].Function! with
+                        {
+                            IsVariadic = true
+                        }
+                    };
                     break;
                 case "prototype":
-                    types[canonical] = types[canonical] with { Function = types[canonical].Function! with { HasPrototype = false } };
+                    types[canonical] = types[canonical] with
+                    {
+                        Function = types[canonical].Function! with
+                        {
+                            HasPrototype = false
+                        }
+                    };
                     break;
                 case "declaration":
-                    symbols["native_value"] = symbol with { IsFunction = false };
+                    symbols["native_value"] = symbol with
+                    {
+                        IsFunction = false
+                    };
                     break;
                 case "complete":
                     NativeHeaderPointer address = Assert.IsInstanceOfType<NativeHeaderPointer>(function.Parameters[1]);
                     NativeHeaderRecord entry = Assert.IsInstanceOfType<NativeHeaderRecord>(address.Element);
-                    symbols["native_value"] = symbol with { Type = function with { Parameters = [function.Parameters[0], address with { Element = entry with { IsComplete = false } }] } };
+                    symbols["native_value"] = symbol with
+                    {
+                        Type = function with
+                        {
+                            Parameters = [function.Parameters[0], address with { Element = entry with { IsComplete = false } }]
+                        }
+                    };
                     break;
                 case "nesting":
                     NativeHeaderType nested = function;
-                    for (int depth = 0; depth < 128; depth++) { nested = new NativeHeaderQualified(nested, NativeHeaderQualifiers.None); }
+                    for (int depth = 0; depth < 128; depth++)
+                    {
+                        nested = new NativeHeaderQualified(nested, NativeHeaderQualifiers.None);
+                    }
 
-                    symbols["native_value"] = symbol with { Type = nested };
+                    symbols["native_value"] = symbol with
+                    {
+                        Type = nested
+                    };
                     break;
-                default: Assert.Fail("Unknown signature mutation."); break;
+                default:
+                    Assert.Fail("Unknown signature mutation.");
+                    break;
             }
 
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types }, Headers = records.Headers with { Symbols = symbols } };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                },
+                Headers = records.Headers with
+                {
+                    Symbols = symbols
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, Headers));
             Assert.Contains(mutation == "prototype" ? "native_empty" : "native_value", error.Message);
             Assert.Contains(reason, error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, Headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -120,7 +174,13 @@ public sealed partial class NativeBindingNativeTests
             string expected = NativeBindingCallSource.Generate(records, Headers);
             NativeRecordType[] types = [.. records.Graph.Types.Select(type => type.Kind == "scalar" && type.Name == "int"
                 ? type with { Name = replacement, Spelling = replacement } : type)];
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types } };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                }
+            };
             Assert.AreSequenceEqual(records.Graph.Types.Select(static type => (type.Size, type.Alignment)),
                 changed.Graph.Types.Select(static type => (type.Size, type.Alignment)));
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, Headers));
@@ -128,7 +188,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.Contains("scalar identity", error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, Headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -160,14 +223,26 @@ public sealed partial class NativeBindingNativeTests
                 [new("native_value", "native_value", true), new("native_other", "native_other", true)], directory);
             string expected = NativeBindingCallSource.Generate(records, headers);
             Dictionary<string, NativeHeaderSymbol> symbols = records.Headers.Symbols.ToDictionary();
-            symbols["native_value"] = symbols["native_value"] with { Type = symbols["native_other"].Type };
-            NativeHeaderRecords changed = records with { Headers = records.Headers with { Symbols = symbols } };
+            symbols["native_value"] = symbols["native_value"] with
+            {
+                Type = symbols["native_other"].Type
+            };
+            NativeHeaderRecords changed = records with
+            {
+                Headers = records.Headers with
+                {
+                    Symbols = symbols
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, headers));
             Assert.Contains("native_value.argument0", error.Message);
             Assert.Contains(reason, error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -193,14 +268,29 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreNotEqual(root, resolved);
             int changedIndex = canonical ? resolved : root;
             int different = types[records.Graph.Roots["native_other"]].Function!.Parameters[0];
-            types[changedIndex] = types[changedIndex] with { Function = types[changedIndex].Function! with { Parameters = [different] } };
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types } };
+            types[changedIndex] = types[changedIndex] with
+            {
+                Function = types[changedIndex].Function! with
+                {
+                    Parameters = [different]
+                }
+            };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, Headers));
             Assert.Contains("native_value.argument0", error.Message);
             Assert.Contains("scalar identity", error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, Headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -229,13 +319,25 @@ public sealed partial class NativeBindingNativeTests
             Assert.IsGreaterThanOrEqualTo(0, second);
             Assert.AreNotEqual(types[first].Canonical, types[second].Canonical);
             Assert.AreEqual(types[first].Size, types[second].Size);
-            types[first] = types[first] with { Canonical = types[second].Canonical };
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types } };
+            types[first] = types[first] with
+            {
+                Canonical = types[second].Canonical
+            };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, Headers));
             Assert.Contains("anonymous typedef identity", error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, Headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -261,12 +363,21 @@ public sealed partial class NativeBindingNativeTests
             string expected = NativeBindingCallSource.Generate(records, headers, selected);
             NativeRecordType[] types = [.. records.Graph.Types.Select(static type => type.Kind == "scalar" && type.Name == "float"
                 ? type with { Name = "unsigned int", Spelling = "unsigned int" } : type)];
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types } };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(changed, headers, selected));
             Assert.Contains(isFunction ? "native_unused.result" : "native_unused'", error.Message);
             Assert.Contains("scalar identity", error.Message);
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, headers, selected));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

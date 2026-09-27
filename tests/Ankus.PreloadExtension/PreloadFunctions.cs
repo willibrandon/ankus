@@ -186,12 +186,20 @@ public static class PreloadFunctions
         /// <summary>
         /// Gets or sets the process-local marker.
         /// </summary>
-        internal int Marker { get; set; } = marker;
+        internal int Marker
+        {
+            get;
+            set;
+        } = marker;
 
         /// <summary>
         /// Gets or sets the cyclic reference.
         /// </summary>
-        internal Node? Next { get; set; }
+        internal Node? Next
+        {
+            get;
+            set;
+        }
     }
 
     /// <summary>

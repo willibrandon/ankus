@@ -31,7 +31,10 @@ internal static class NativeBindingHeaderCommand
             NativeBindingHeaderTarget.GenerateSource(NativeBindingResources.ReadHeaders(major), major), requests);
         PostgresInstallation installation = arguments[2].Length == 0 ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
             : await PostgresInstallation.CreateAsync(arguments[2], cancellationToken);
-        if (installation.Version.Major != major) { throw new InvalidOperationException("The selected installation has the wrong PostgreSQL major."); }
+        if (installation.Version.Major != major)
+        {
+            throw new InvalidOperationException("The selected installation has the wrong PostgreSQL major.");
+        }
 
         string output = Path.GetFullPath(arguments[3]);
         Directory.CreateDirectory(output);
@@ -41,10 +44,16 @@ internal static class NativeBindingHeaderCommand
         await InspectAsync(installation, arguments, file, ast, output, cancellationToken);
         await using FileStream stream = File.OpenRead(ast);
         using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
+        Dictionary<string, NativeHeaderRequest> available = NativeBindingHeaderAvailability.Read(document.RootElement, raw).Available
+            .ToDictionary(static request => request.Name, StringComparer.Ordinal);
+        requests = [.. requests.Select(request => available.TryGetValue(request.Name, out NativeHeaderRequest? observed) ? observed : request)];
         IReadOnlyDictionary<string, NativeHeaderSymbol> symbols = NativeBindingHeaderParser.Read(document.RootElement, requests);
         NativeHeaderTarget target = NativeBindingHeaderTarget.Read(document.RootElement, major);
         string runtime = arguments.Length >= 7 && arguments[6].Length != 0 ? arguments[6] : RuntimeInformation.RuntimeIdentifier;
-        if (target.RuntimeIdentifier != runtime) { throw new InvalidOperationException("Native header types do not match the requested runtime ABI."); }
+        if (target.RuntimeIdentifier != runtime)
+        {
+            throw new InvalidOperationException("Native header types do not match the requested runtime ABI.");
+        }
 
         string checks = Path.Combine(output, "native-header-checks.c");
         await File.WriteAllTextAsync(checks, NativeBindingHeaderParser.GenerateChecks(NativeBindingResources.ReadHeaders(major), symbols), cancellationToken);
@@ -61,14 +70,23 @@ internal static class NativeBindingHeaderCommand
     internal static Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
         string output, CancellationToken cancellationToken, bool dumpAst = true, string? serializedAst = null, bool inspectBodies = false)
     {
-        if (dumpAst && serializedAst is not null) { throw new ArgumentException("Select one native AST output format.", nameof(serializedAst)); }
+        if (dumpAst && serializedAst is not null)
+        {
+            throw new ArgumentException("Select one native AST output format.", nameof(serializedAst));
+        }
 
         string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
         List<string> options = CreateArguments(installation, arguments);
         options.Add(OperatingSystem.IsWindows() ? "/Zs" : "-fsyntax-only");
-        if (dumpAst) { options.AddRange(["-Xclang", "-ast-dump=json"]); }
+        if (dumpAst)
+        {
+            options.AddRange(["-Xclang", "-ast-dump=json"]);
+        }
 
-        if (serializedAst is not null) { options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]); }
+        if (serializedAst is not null)
+        {
+            options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]);
+        }
 
         return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken, inspectBodies);
     }
@@ -93,7 +111,10 @@ internal static class NativeBindingHeaderCommand
                 "-isystem", installation.IncludeDirectory]);
         }
 
-        if (arguments.Length == 8 && arguments[7].Length != 0) { options.Add("--target=" + arguments[7]); }
+        if (arguments.Length == 8 && arguments[7].Length != 0)
+        {
+            options.Add("--target=" + arguments[7]);
+        }
 
         return options;
     }
@@ -118,7 +139,10 @@ internal static class NativeBindingHeaderCommand
             start.ArgumentList.Add("-skip-function-bodies");
         }
 
-        foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
+        foreach (string argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         await using FileStream output = File.Create(ast);
@@ -129,7 +153,10 @@ internal static class NativeBindingHeaderCommand
         try
         {
             await Task.WhenAny(copy, exit);
-            if (copy.IsCompleted) { await copy; }
+            if (copy.IsCompleted)
+            {
+                await copy;
+            }
 
             await exit;
             await copy;
@@ -151,7 +178,10 @@ internal static class NativeBindingHeaderCommand
         }
         catch
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
 
             await process.WaitForExitAsync(CancellationToken.None);
             // Observe stream cancellation/failure before disposing their owned buffers, preserving the original error.
@@ -172,7 +202,10 @@ internal static class NativeBindingHeaderCommand
         while ((count = await source.ReadAsync(buffer, cancellationToken)) != 0)
         {
             total += count;
-            if (total > maximumBytes) { throw new InvalidDataException("Native compiler AST exceeds the supported byte limit."); }
+            if (total > maximumBytes)
+            {
+                throw new InvalidDataException("Native compiler AST exceeds the supported byte limit.");
+            }
 
             await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
         }

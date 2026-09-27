@@ -305,7 +305,11 @@ public static class MemoryCleanupOwnerFunctions
         /// <summary>
         /// Gets or sets the accumulated value.
         /// </summary>
-        public int Sum { get; set; }
+        public int Sum
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Probes the native owner's protection before its allocation is freed.

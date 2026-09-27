@@ -141,9 +141,15 @@ internal sealed record NativeHeaderPointer(NativeHeaderType Element) : NativeHea
     {
         string value = "*" + Qualifiers(qualifiers) + declarator;
         NativeHeaderType element = Element;
-        while (element is NativeHeaderQualified qualified) { element = qualified.Underlying; }
+        while (element is NativeHeaderQualified qualified)
+        {
+            element = qualified.Underlying;
+        }
 
-        if (element is NativeHeaderArray or NativeHeaderFunction) { value = "(" + value + ")"; }
+        if (element is NativeHeaderArray or NativeHeaderFunction)
+        {
+            value = "(" + value + ")";
+        }
 
         return Element.Format(value, NativeHeaderQualifiers.None);
     }
@@ -189,10 +195,17 @@ internal sealed record NativeHeaderAdjusted(NativeHeaderType Written, NativeHead
         }
 
         // MSVC's typeof does not reliably decay a function conditional. Its written type can be addressed directly.
-        if (written is NativeHeaderFunction) { return new NativeHeaderPointer(Written).Format(declarator, qualifiers); }
+        if (written is NativeHeaderFunction)
+        {
+            return new NativeHeaderPointer(Written).Format(declarator, qualifiers);
+        }
 
         NativeHeaderType storage = Written is NativeHeaderArray array
-            ? array with { HasMinimumExtent = false, IndexQualifiers = NativeHeaderQualifiers.None } : Written;
+            ? array with
+            {
+                HasMinimumExtent = false,
+                IndexQualifiers = NativeHeaderQualifiers.None
+            } : Written;
         string address = new NativeHeaderPointer(storage).Format("", NativeHeaderQualifiers.None).Trim();
         return Qualifiers(qualifiers) + "__typeof__(0 ? *(" + address + ")0 : *(" + address + ")0) " + declarator;
     }
@@ -211,7 +224,10 @@ internal sealed record NativeHeaderFunction(NativeHeaderType Result, IReadOnlyLi
 {
     internal override string Format(string declarator, NativeHeaderQualifiers qualifiers)
     {
-        if (qualifiers != NativeHeaderQualifiers.None) { throw new InvalidOperationException("A C function type cannot be qualified."); }
+        if (qualifiers != NativeHeaderQualifiers.None)
+        {
+            throw new InvalidOperationException("A C function type cannot be qualified.");
+        }
 
         if ((!HasPrototype && (Parameters.Count != 0 || IsVariadic)) || (IsVariadic && Parameters.Count == 0))
         {
@@ -220,8 +236,14 @@ internal sealed record NativeHeaderFunction(NativeHeaderType Result, IReadOnlyLi
 
         string parameters = string.Join(", ", Parameters.Select(static (type, index) =>
             (type is NativeHeaderAdjusted adjusted ? adjusted.Written : type).Declare("ankus_arg" + index.ToString(CultureInfo.InvariantCulture))));
-        if (IsVariadic) { parameters += Parameters.Count == 0 ? "..." : ", ..."; }
-        else if (HasPrototype && Parameters.Count == 0) { parameters = "void"; }
+        if (IsVariadic)
+        {
+            parameters += Parameters.Count == 0 ? "..." : ", ...";
+        }
+        else if (HasPrototype && Parameters.Count == 0)
+        {
+            parameters = "void";
+        }
 
         string value = Result.Format(declarator + "(" + parameters + ")", NativeHeaderQualifiers.None);
         return DoesNotReturn ? value + " __attribute__((noreturn))" : value;

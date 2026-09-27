@@ -182,9 +182,12 @@ public static class RangeFunctions
     [PgFunction]
     public static bool[] RangeSubtypePredicates(string type, string left, string right) => type switch
     {
-        "int4range" => Predicates<int>(left, right), "int8range" => Predicates<long>(left, right),
-        "numrange" => Predicates<PgNumeric>(left, right), "daterange" => Predicates<PgDate>(left, right),
-        "tsrange" => Predicates<PgTimestamp>(left, right), "tstzrange" => Predicates<PgTimestampTz>(left, right),
+        "int4range" => Predicates<int>(left, right),
+        "int8range" => Predicates<long>(left, right),
+        "numrange" => Predicates<PgNumeric>(left, right),
+        "daterange" => Predicates<PgDate>(left, right),
+        "tsrange" => Predicates<PgTimestamp>(left, right),
+        "tstzrange" => Predicates<PgTimestampTz>(left, right),
         _ => throw new ArgumentException("Unknown range type.", nameof(type)),
     };
 
@@ -266,7 +269,11 @@ public static class RangeFunctions
         PgRange<T> b = PgRange.Parse<T>(right);
         PgRange<T> result = operation switch
         {
-            0 => a.Union(b), 1 => a.Intersect(b), 2 => a.Except(b), 3 => a.Merge(b), _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+            0 => a.Union(b),
+            1 => a.Intersect(b),
+            2 => a.Except(b),
+            3 => a.Merge(b),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
         return result.ToPostgresString();
     }

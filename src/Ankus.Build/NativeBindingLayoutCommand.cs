@@ -72,7 +72,10 @@ internal static class NativeBindingLayoutCommand
     {
         string compiler = arguments.Length >= 4 && arguments[3].Length != 0 ? arguments[3] : OperatingSystem.IsWindows() ? "cl.exe" : "cc";
         var options = new List<string>();
-        if (requireC11) { options.Add(OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11"); }
+        if (requireC11)
+        {
+            options.Add(OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11");
+        }
 
         if (OperatingSystem.IsWindows())
         {
@@ -92,7 +95,10 @@ internal static class NativeBindingLayoutCommand
         else
         {
             options.AddRange(installation.PreprocessorArguments);
-            if (arguments.Length == 7 && arguments[6].Length != 0) { options.Add("--target=" + arguments[6]); }
+            if (arguments.Length == 7 && arguments[6].Length != 0)
+            {
+                options.Add("--target=" + arguments[6]);
+            }
 
             options.AddRange(["-O2", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
                 "-isystem", installation.IncludeDirectory, source, "-o", executable]);
@@ -114,7 +120,10 @@ internal static class NativeBindingLayoutCommand
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
+        foreach (string argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
 
         using Process process = Process.Start(start) ?? throw new InvalidOperationException($"Cannot start {program}.");
         Task<string> output = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -125,11 +134,21 @@ internal static class NativeBindingLayoutCommand
         }
         catch
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
 
             await process.WaitForExitAsync(CancellationToken.None);
-            try { await Task.WhenAll(output, errors); }
-            catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); throw; }
+            try
+            {
+                await Task.WhenAll(output, errors);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw;
+            }
 
             throw;
         }

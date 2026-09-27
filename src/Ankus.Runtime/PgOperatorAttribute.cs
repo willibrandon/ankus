@@ -19,44 +19,76 @@ public sealed class PgOperatorAttribute(string name) : Attribute
     /// <summary>
     /// Gets or sets the operator with reversed operands. An unqualified name uses this operator's schema.
     /// </summary>
-    public string? Commutator { get; set; }
+    public string? Commutator
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the boolean complement operator. An unqualified name uses this operator's schema.
     /// </summary>
-    public string? Negator { get; set; }
+    public string? Negator
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets a restriction selectivity function, optionally qualified with one schema.
     /// PostgreSQL validates its signature at installation.
     /// </summary>
-    public string? RestrictionEstimator { get; set; }
+    public string? RestrictionEstimator
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets a join selectivity function, optionally qualified with one schema.
     /// PostgreSQL validates its signature at installation.
     /// </summary>
-    public string? JoinEstimator { get; set; }
+    public string? JoinEstimator
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether this binary boolean operator supports hash joins.
     /// This is a semantic promise; compatible hash operator families are declared separately.
     /// </summary>
-    public bool Hashes { get; set; }
+    public bool Hashes
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether this binary boolean operator supports merge joins.
     /// This is a semantic promise; compatible B-tree operator families are declared separately.
     /// </summary>
-    public bool Merges { get; set; }
+    public bool Merges
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the dependency identifier for the operator, independently of its backing function.
     /// </summary>
-    public string? Id { get; set; }
+    public string? Id
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets declarations that must precede CREATE OPERATOR.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 }

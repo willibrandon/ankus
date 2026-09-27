@@ -26,11 +26,20 @@ internal static partial class NativeBindingRawParser
         {
             for (; scanned < declaration.Index; scanned++)
             {
-                if (code[scanned] == '{') { depth++; }
-                else if (code[scanned] == '}') { depth--; }
+                if (code[scanned] == '{')
+                {
+                    depth++;
+                }
+                else if (code[scanned] == '}')
+                {
+                    depth--;
+                }
             }
 
-            if (depth != 0) { continue; }
+            if (depth != 0)
+            {
+                continue;
+            }
 
             int start = declaration.Index + declaration.Length;
             if (declaration.Groups["name"].Success)
@@ -49,7 +58,10 @@ internal static partial class NativeBindingRawParser
             {
                 int bodyStart = start - 1;
                 Match header = ForeignHeader().Match(source[declaration.Index..(bodyStart + 1)].Trim());
-                if (!header.Success) { throw new FormatException("Unsupported bindgen foreign ABI declaration."); }
+                if (!header.Success)
+                {
+                    throw new FormatException("Unsupported bindgen foreign ABI declaration.");
+                }
 
                 int bodyEnd = NativeBindingParser.ReadUntil(code, bodyStart + 1, '}', trackAngles: false);
                 ReadForeignItems(source, code, bodyStart + 1, bodyEnd, header.Groups["abi"].Value, functions, globals);
@@ -75,7 +87,10 @@ internal static partial class NativeBindingRawParser
         while (position < end)
         {
             SkipWhitespace(code, ref position);
-            if (position == end) { break; }
+            if (position == end)
+            {
+                break;
+            }
 
             var attributes = new List<string>();
             string? linkName = null;
@@ -87,7 +102,10 @@ internal static partial class NativeBindingRawParser
                 if (code[(position + 2)..attributeEnd].TrimStart().StartsWith("link_name", StringComparison.Ordinal))
                 {
                     Match link = LinkName().Match(attribute);
-                    if (!link.Success || linkName is not null) { throw new FormatException("Invalid or duplicate foreign link_name."); }
+                    if (!link.Success || linkName is not null)
+                    {
+                        throw new FormatException("Invalid or duplicate foreign link_name.");
+                    }
 
                     linkName = link.Groups["name"].Value;
                 }
@@ -103,7 +121,10 @@ internal static partial class NativeBindingRawParser
             }
 
             string name = item.Groups["name"].Value;
-            if (functions.ContainsKey(name) || globals.ContainsKey(name)) { throw new FormatException($"Duplicate foreign declaration {name}."); }
+            if (functions.ContainsKey(name) || globals.ContainsKey(name))
+            {
+                throw new FormatException($"Duplicate foreign declaration {name}.");
+            }
 
             position += item.Length;
             int itemEnd;
@@ -111,7 +132,10 @@ internal static partial class NativeBindingRawParser
             {
                 int parametersEnd = NativeBindingParser.ReadUntil(code, position, ')');
                 itemEnd = NativeBindingParser.ReadUntil(code, parametersEnd + 1, ';');
-                if (itemEnd >= end) { throw new FormatException($"Unterminated foreign declaration {name}."); }
+                if (itemEnd >= end)
+                {
+                    throw new FormatException($"Unterminated foreign declaration {name}.");
+                }
 
                 (IReadOnlyList<NativeBindingParameter> parameters, bool variadic) = ReadParameters(
                     source[position..parametersEnd], code[position..parametersEnd]);
@@ -133,7 +157,10 @@ internal static partial class NativeBindingRawParser
             else
             {
                 itemEnd = NativeBindingParser.ReadUntil(code, position, ';');
-                if (itemEnd >= end) { throw new FormatException($"Unterminated foreign declaration {name}."); }
+                if (itemEnd >= end)
+                {
+                    throw new FormatException($"Unterminated foreign declaration {name}.");
+                }
 
                 string representation = RequiredType(source, code, position, itemEnd);
                 globals.Add(name, new(linkName ?? name, abi, representation, item.Groups["mutable"].Success, attributes.AsReadOnly()));
@@ -156,13 +183,22 @@ internal static partial class NativeBindingRawParser
         while (position < code.Length)
         {
             SkipWhitespace(code, ref position);
-            if (position == code.Length) { break; }
+            if (position == code.Length)
+            {
+                break;
+            }
 
-            if (variadic) { throw new FormatException("Variadic marker must be the final foreign parameter."); }
+            if (variadic)
+            {
+                throw new FormatException("Variadic marker must be the final foreign parameter.");
+            }
 
             int end = NativeBindingParser.ReadUntil(terminated, position, ',');
             string parameter = code[position..end].Trim();
-            if (parameter == "...") { variadic = true; }
+            if (parameter == "...")
+            {
+                variadic = true;
+            }
             else
             {
                 Match name = ParameterName().Match(code, position);
@@ -183,14 +219,20 @@ internal static partial class NativeBindingRawParser
 
     private static string RequiredType(string source, string code, int start, int end)
     {
-        if (code.AsSpan(start, end - start).Trim().IsEmpty) { throw new FormatException("Missing bindgen type representation."); }
+        if (code.AsSpan(start, end - start).Trim().IsEmpty)
+        {
+            throw new FormatException("Missing bindgen type representation.");
+        }
 
         return source[start..end].Trim();
     }
 
     private static void SkipWhitespace(string code, ref int position)
     {
-        while (position < code.Length && char.IsWhiteSpace(code[position])) { position++; }
+        while (position < code.Length && char.IsWhiteSpace(code[position]))
+        {
+            position++;
+        }
     }
 
     [GeneratedRegex(@"(?m)^[ \t]*(?:(?:unsafe\s+)?extern\s+\{|pub[ \t]+const[ \t]+(?<name>[A-Za-z_]\w*)\s*:)")]
@@ -223,5 +265,9 @@ internal sealed record NativeBindingRawCatalog(int PostgresMajor, IReadOnlyDicti
     /// <summary>
     /// Gets the pgrx commit read by catalog generation, or null for standalone parsed input.
     /// </summary>
-    public string? SourceRevision { get; init; }
+    public string? SourceRevision
+    {
+        get;
+        init;
+    }
 }

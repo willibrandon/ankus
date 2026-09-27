@@ -194,9 +194,18 @@ public static class NumericContractFunctions
             int finalized = 0;
             for (int index = 0; index < 50; index++)
             {
-                try { session.Execute(sql); }
-                catch (PgException error) { state = error.SqlState; }
-                finally { finalized++; }
+                try
+                {
+                    session.Execute(sql);
+                }
+                catch (PgException error)
+                {
+                    state = error.SqlState;
+                }
+                finally
+                {
+                    finalized++;
+                }
             }
 
             session.Execute("INSERT INTO numeric_contract_writes VALUES (2)");

@@ -290,15 +290,18 @@ public static class ArrayFunctions
         const string sql = "SELECT $1";
         switch (mode)
         {
-            case 0: return value;
-            case 1: return Spi.ExecuteScalar<T>(sql, SpiParameter.Create(value));
+            case 0:
+                return value;
+            case 1:
+                return Spi.ExecuteScalar<T>(sql, SpiParameter.Create(value));
             case 2:
                 using (SpiPreparedStatement plan = Spi.Prepare(sql, typeof(T)))
                 {
                     return plan.ExecuteScalar<T>(SpiParameter.Create(value));
                 }
 
-            case 3: return Spi.Connect(session => session.ExecuteScalar<T>(sql, SpiParameter.Create(value)));
+            case 3:
+                return Spi.Connect(session => session.ExecuteScalar<T>(sql, SpiParameter.Create(value)));
             case 4:
                 using (SpiCursor cursor = Spi.OpenCursor(sql, SpiParameter.Create(value)))
                 {
@@ -324,7 +327,8 @@ public static class ArrayFunctions
                 SpiRow edited = Spi.Query("SELECT 42 AS value")[0];
                 edited.Set("value", value);
                 return Spi.ExecuteScalar<T>(sql, SpiParameter.Create(edited.Get<T>(0)));
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
     }
 }

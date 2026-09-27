@@ -223,32 +223,56 @@ public static class AggregateParallelFunctions
         /// <summary>
         /// Gets or sets the exact signed sum.
         /// </summary>
-        public long Sum { get; set; }
+        public long Sum
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of nonnull values.
         /// </summary>
-        public long Count { get; set; }
+        public long Count
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of combine callbacks represented by this payload.
         /// </summary>
-        public long Combines { get; set; }
+        public long Combines
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of serialized partial states represented by this payload.
         /// </summary>
-        public long Serialized { get; set; }
+        public long Serialized
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of deserialized partial states represented by this payload.
         /// </summary>
-        public long Deserialized { get; set; }
+        public long Deserialized
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets a controlled failure selected by a negative input sentinel.
         /// </summary>
-        public int Failure { get; set; }
+        public int Failure
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets the actual backends that processed the payload's input rows.

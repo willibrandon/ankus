@@ -66,7 +66,11 @@ public sealed class SpiPreparedStatement : IDisposable
     /// <summary>
     /// Gets or sets the native plan handle. Zero means no native plan is owned.
     /// </summary>
-    internal nint Handle { get; set; }
+    internal nint Handle
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Opens a transaction-bound cursor from this plan. The cursor remains valid after the plan is disposed.

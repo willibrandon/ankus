@@ -42,7 +42,10 @@ public sealed partial class NativeBindingNativeTests
             await RunAsync("link.exe", ["@" + response], directory);
             Assert.AreEqual("42\n", (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n"));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -119,7 +122,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.DoesNotContain(Directory.Exists, stages);
             Assert.IsEmpty(Directory.GetFiles(output, "native-call-manifest-*"));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
 
         async Task CompileAsync(string file, string artifact, CancellationToken token)
         {
@@ -162,7 +168,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual<string>([manifest], Directory.GetFiles(output));
             Assert.IsEmpty(Directory.GetDirectories(output));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>

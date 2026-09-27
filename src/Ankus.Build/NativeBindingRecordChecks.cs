@@ -101,7 +101,10 @@ internal static partial class NativeBindingRecordChecks
                 Check("_Generic(&(" + NativeBindingCompilerShims.Reference(symbol) + "), " + TypeName(_graph.Roots[name]) + " *: 1, default: 0)", "root type " + name);
             }
 
-            for (int index = 0; index < _graph.Declarations.Count; index++) { Declaration(index); }
+            for (int index = 0; index < _graph.Declarations.Count; index++)
+            {
+                Declaration(index);
+            }
 
             Bitfields();
             return _source.ToString().ReplaceLineEndings("\n");
@@ -118,13 +121,19 @@ internal static partial class NativeBindingRecordChecks
 
             foreach ((string name, NativeHeaderSymbol symbol) in records.Headers.Symbols.OrderBy(static value => value.Key, StringComparer.Ordinal))
             {
-                if (!symbol.IsFunction) { Anchor(_graph.Roots[name], symbol.NativeName); }
+                if (!symbol.IsFunction)
+                {
+                    Anchor(_graph.Roots[name], symbol.NativeName);
+                }
             }
 
             for (int index = 0; index < _graph.Declarations.Count; index++)
             {
                 NativeRecordDeclaration declaration = _graph.Declarations[index];
-                if (declaration.Name.Length != 0) { AddAnchor(index, declaration.Kind + " " + declaration.Name); }
+                if (declaration.Name.Length != 0)
+                {
+                    AddAnchor(index, declaration.Kind + " " + declaration.Name);
+                }
             }
 
             bool added;
@@ -163,9 +172,18 @@ internal static partial class NativeBindingRecordChecks
                     return;
                 }
 
-                if (type.Kind == "pointer") { expression = "*(" + expression + ")"; }
-                else if (type.Kind == "array") { expression = "(" + expression + ")[0]"; }
-                else { return; }
+                if (type.Kind == "pointer")
+                {
+                    expression = "*(" + expression + ")";
+                }
+                else if (type.Kind == "array")
+                {
+                    expression = "(" + expression + ")[0]";
+                }
+                else
+                {
+                    return;
+                }
 
                 index = type.Element!.Value;
             }
@@ -204,7 +222,10 @@ internal static partial class NativeBindingRecordChecks
 
             foreach (NativeRecordField field in declaration.Fields)
             {
-                if (field.IsAnonymous || field.BitWidth is not null) { continue; }
+                if (field.IsAnonymous || field.BitWidth is not null)
+                {
+                    continue;
+                }
 
                 string path = "((" + anchor + " *)0)->" + field.Name;
                 string member = description + "." + field.Name;
@@ -215,7 +236,10 @@ internal static partial class NativeBindingRecordChecks
 
         private void Storage(string type, long? size, long? alignment, string description, bool incompleteArray = false)
         {
-            if (size is long count) { Check("sizeof(" + type + ") == " + Number(count), "size " + description); }
+            if (size is long count)
+            {
+                Check("sizeof(" + type + ") == " + Number(count), "size " + description);
+            }
 
             if (alignment is long boundary)
             {
@@ -233,7 +257,10 @@ internal static partial class NativeBindingRecordChecks
                 }
 
                 Check("_Alignof(" + type + ") == " + Number(boundary), "alignment " + description);
-                if (incompleteArray) { _source.AppendLine("#endif"); }
+                if (incompleteArray)
+                {
+                    _source.AppendLine("#endif");
+                }
             }
         }
 
@@ -248,7 +275,10 @@ internal static partial class NativeBindingRecordChecks
                 _source.Append("extern ").Append(actual).Append(' ').Append(name).AppendLine(";");
                 _source.Append("extern ").Append(expected).Append(' ').Append(name).AppendLine(";");
             }
-            else { Check("_Generic((" + actual + " *)0, " + expected + " *: 1, default: 0)", description); }
+            else
+            {
+                Check("_Generic((" + actual + " *)0, " + expected + " *: 1, default: 0)", description);
+            }
         }
 
         private void Check(string expression, string description)

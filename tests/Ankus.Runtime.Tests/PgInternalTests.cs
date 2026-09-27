@@ -153,12 +153,20 @@ public sealed class PgInternalTests
         /// <summary>
         /// Gets the number of disposal calls.
         /// </summary>
-        internal int Disposals { get; private set; }
+        internal int Disposals
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets or sets a cleanup observation.
         /// </summary>
-        internal Action? OnDispose { get; set; }
+        internal Action? OnDispose
+        {
+            get;
+            set;
+        }
 
         /// <inheritdoc />
         public void Dispose()
@@ -193,7 +201,11 @@ public sealed class PgInternalTests
         /// <summary>
         /// Gets or sets whether registration fails before ownership transfers.
         /// </summary>
-        internal bool FailRegistration { get; set; }
+        internal bool FailRegistration
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Runs one pending native cleanup callback and releases its owned diagnostics.

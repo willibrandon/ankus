@@ -32,12 +32,20 @@ public unsafe partial struct NativeValue
     /// <summary>
     /// Gets or sets the integer, Boolean, OID, or floating-point bit representation.
     /// </summary>
-    public long Integral { readonly get => _integer; set => _integer = value; }
+    public long Integral
+    {
+        readonly get => _integer;
+        set => _integer = value;
+    }
 
     /// <summary>
     /// Gets or sets whether the value represents SQL NULL, using a one-byte C flag.
     /// </summary>
-    public byte IsNull { readonly get => _isNull; set => _isNull = value; }
+    public byte IsNull
+    {
+        readonly get => _isNull;
+        set => _isNull = value;
+    }
 
     /// <summary>
     /// Reads a validated PostgreSQL date from the scalar transport.
@@ -107,7 +115,11 @@ public unsafe partial struct NativeValue
     /// <param name="value">The time with an offset.</param>
     /// <returns>The scalar transport.</returns>
     public static NativeValue FromTimeTz(PgTimeTz value)
-        => new() { _integer = value.Time.Microseconds, _auxiliary1 = value.OffsetSeconds };
+        => new()
+        {
+            _integer = value.Time.Microseconds,
+            _auxiliary1 = value.OffsetSeconds
+        };
 
     /// <summary>
     /// Writes a timezone-free timestamp without allocating a buffer.
@@ -131,7 +143,10 @@ public unsafe partial struct NativeValue
     public static NativeValue FromInterval(PgInterval value)
         => new()
         {
-            _integer = value.Microseconds, _auxiliary1 = value.Days, _auxiliary2 = value.Months, _temporalInfinity = value.Infinity,
+            _integer = value.Microseconds,
+            _auxiliary1 = value.Days,
+            _auxiliary2 = value.Months,
+            _temporalInfinity = value.Infinity,
         };
 
     /// <summary>
@@ -140,7 +155,11 @@ public unsafe partial struct NativeValue
     /// <param name="value">The transaction ID.</param>
     /// <returns>The scalar transport.</returns>
     public static NativeValue FromTransactionId(PgTransactionId value)
-        => new() { _integer = value.Value, _isNull = value.IsValid ? (byte)0 : (byte)1 };
+        => new()
+        {
+            _integer = value.Value,
+            _isNull = value.IsValid ? (byte)0 : (byte)1
+        };
 
     /// <summary>
     /// Copies a borrowed UTF-8 input buffer into a managed string, rejecting malformed UTF-8.

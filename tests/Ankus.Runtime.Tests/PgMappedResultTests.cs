@@ -567,7 +567,11 @@ public sealed unsafe class PgMappedResultTests
         /// <summary>
         /// Gets the number of cleanup attempts.
         /// </summary>
-        internal int Disposals { get; private set; }
+        internal int Disposals
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public void Dispose()
@@ -614,167 +618,299 @@ public sealed unsafe class PgMappedResultTests
         /// <summary>
         /// Gets or sets independently supplied result cells.
         /// </summary>
-        internal Cell[] Cells { get; set; } = [new(9001, 42)];
+        internal Cell[] Cells
+        {
+            get;
+            set;
+        } = [new(9001, 42)];
 
         /// <summary>
         /// Gets or sets the returned row count.
         /// </summary>
-        internal int Rows { get; set; } = 1;
+        internal int Rows
+        {
+            get;
+            set;
+        } = 1;
 
         /// <summary>
         /// Gets or sets the current resolved mapping identity.
         /// </summary>
-        internal uint Oid { get; set; } = 9001;
+        internal uint Oid
+        {
+            get;
+            set;
+        } = 9001;
 
         /// <summary>
         /// Gets or sets the actual catalog result identity.
         /// </summary>
-        internal uint ResultOid { get; set; } = 9001;
+        internal uint ResultOid
+        {
+            get;
+            set;
+        } = 9001;
 
         /// <summary>
         /// Gets or sets whether a catalog result is SQL NULL.
         /// </summary>
-        internal bool IsNull { get; set; }
+        internal bool IsNull
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native owner deletion fails.
         /// </summary>
-        internal bool FailDelete { get; set; }
+        internal bool FailDelete
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native result acquisition fails.
         /// </summary>
-        internal bool FailExecution { get; set; }
+        internal bool FailExecution
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether current catalog identity resolution fails before execution.
         /// </summary>
-        internal bool FailLookup { get; set; }
+        internal bool FailLookup
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether invocation replaces the current mapping identity before managed reading.
         /// </summary>
-        internal bool ChangeOidDuringCall { get; set; }
+        internal bool ChangeOidDuringCall
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the independently supplied direct result word.
         /// </summary>
-        internal long NativeBits { get; set; } = 42;
+        internal long NativeBits
+        {
+            get;
+            set;
+        } = 42;
 
         /// <summary>
         /// Gets or sets the original managed reader or factory failure.
         /// </summary>
-        internal Exception? Primary { get; set; }
+        internal Exception? Primary
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the reader input retained for lifetime assertions.
         /// </summary>
-        internal PgDatum? Captured { get; set; }
+        internal PgDatum? Captured
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of executed reader calls.
         /// </summary>
-        internal int Reads { get; set; }
+        internal int Reads
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of failing factory attempts.
         /// </summary>
-        internal int FactoryCalls { get; set; }
+        internal int FactoryCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets the number of live mapping identity resolutions.
         /// </summary>
-        internal int Lookups { get; private set; }
+        internal int Lookups
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of result owner allocations.
         /// </summary>
-        internal int Creates { get; private set; }
+        internal int Creates
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of attempted owner deletions.
         /// </summary>
-        internal int Deletes { get; private set; }
+        internal int Deletes
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of native execution requests.
         /// </summary>
-        internal int Executions { get; private set; }
+        internal int Executions
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of released native transport envelopes.
         /// </summary>
-        internal int ResultReleases { get; private set; }
+        internal int ResultReleases
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of native datum copies.
         /// </summary>
-        internal int Copies { get; private set; }
+        internal int Copies
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the last catalog result validation mode.
         /// </summary>
-        internal int CallMode { get; private set; }
+        internal int CallMode
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the requested catalog result identity.
         /// </summary>
-        internal uint ExpectedOid { get; private set; }
+        internal uint ExpectedOid
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the explicit catalog function identity.
         /// </summary>
-        internal uint FunctionOid { get; private set; }
+        internal uint FunctionOid
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the caller-supplied native address.
         /// </summary>
-        internal nint NativeFunction { get; private set; }
+        internal nint NativeFunction
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the caller's explicit collation.
         /// </summary>
-        internal uint Collation { get; private set; }
+        internal uint Collation
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the captured result owner generation.
         /// </summary>
-        internal nuint ResultGeneration { get; private set; }
+        internal nuint ResultGeneration
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the raw direct arguments independently decoded from their envelopes.
         /// </summary>
-        internal RawArgument[] Arguments { get; private set; } = [];
+        internal RawArgument[] Arguments
+        {
+            get;
+            private set;
+        } = [];
 
         /// <summary>
         /// Gets the parent of the most recently created owner.
         /// </summary>
-        internal nint ParentContext { get; private set; }
+        internal nint ParentContext
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the last catalog result destination.
         /// </summary>
-        internal nint ResultContext { get; private set; }
+        internal nint ResultContext
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the last polymorphic copy destination.
         /// </summary>
-        internal nint CopyDestination { get; private set; }
+        internal nint CopyDestination
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the captured argument default markers.
         /// </summary>
-        internal byte[] Defaults { get; private set; } = [];
+        internal byte[] Defaults
+        {
+            get;
+            private set;
+        } = [];
 
         /// <summary>
         /// Gets the selected SPI result width.
         /// </summary>
-        internal SpiResultMode LastMode { get; private set; }
+        internal SpiResultMode LastMode
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the requested SQL execution row limit.
         /// </summary>
-        internal int LastLimit { get; private set; }
+        internal int LastLimit
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public void Dispose()

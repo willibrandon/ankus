@@ -88,7 +88,10 @@ public static class ExtendedDatumFunctions
     {
         JsonEnvelope envelope = input.Deserialize(ExtensionJsonContext.Default.JsonEnvelope)
             ?? throw new InvalidOperationException("An envelope is required.");
-        return PgJsonb.Serialize(envelope with { Id = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff") },
+        return PgJsonb.Serialize(envelope with
+        {
+            Id = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff")
+        },
             ExtensionJsonContext.Default.JsonEnvelope);
     }
 

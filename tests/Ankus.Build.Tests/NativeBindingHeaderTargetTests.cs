@@ -74,24 +74,60 @@ public sealed partial class NativeBindingHeaderTargetTests
         JsonArray numbers = nodes[0]!["inner"]!.AsArray();
         switch (change)
         {
-            case "missing-version": numbers.RemoveAt(0); break;
-            case "wrong-major": numbers[0]!["inner"]![0]!["value"] = "170011"; break;
-            case "duplicate-number": numbers.Add(numbers[0]!.DeepClone()); break;
-            case "number-overflow": numbers[0]!["inner"]![0]!["value"] = "2147483648"; break;
-            case "number-negative": numbers[0]!["inner"]![0]!["value"] = "-180006"; break;
-            case "number-not-text": numbers[0]!["inner"]![0]!["value"] = 180006; break;
-            case "missing-value": numbers[0]!["inner"]![0]!.AsObject().Remove("value"); break;
-            case "extra-expression": numbers[0]!["inner"]!.AsArray().Add(numbers[0]!["inner"]![0]!.DeepClone()); break;
-            case "wrong-width": numbers[1]!["inner"]![0]!["value"] = "4"; break;
-            case "unknown-endian": numbers[2]!["inner"]![0]!["value"] = "2"; break;
-            case "wrong-endian": numbers[2]!["inner"]![0]!["value"] = "0"; break;
-            case "compiler-zero": numbers[3]!["inner"]![0]!["value"] = "0"; break;
-            case "missing-target": nodes.RemoveAt(1); break;
-            case "duplicate-target": nodes.Add(nodes[1]!.DeepClone()); break;
-            case "unquoted-target": nodes[1]!["inner"]![0]!["value"] = "linux-x64"; break;
-            case "unknown-target": nodes[1]!["inner"]![0]!["value"] = "\"freebsd-x64\""; break;
-            case "missing-inner": root.AsObject().Remove("inner"); break;
-            default: Assert.Fail("Unknown invalid target observation."); break;
+            case "missing-version":
+                numbers.RemoveAt(0);
+                break;
+            case "wrong-major":
+                numbers[0]!["inner"]![0]!["value"] = "170011";
+                break;
+            case "duplicate-number":
+                numbers.Add(numbers[0]!.DeepClone());
+                break;
+            case "number-overflow":
+                numbers[0]!["inner"]![0]!["value"] = "2147483648";
+                break;
+            case "number-negative":
+                numbers[0]!["inner"]![0]!["value"] = "-180006";
+                break;
+            case "number-not-text":
+                numbers[0]!["inner"]![0]!["value"] = 180006;
+                break;
+            case "missing-value":
+                numbers[0]!["inner"]![0]!.AsObject().Remove("value");
+                break;
+            case "extra-expression":
+                numbers[0]!["inner"]!.AsArray().Add(numbers[0]!["inner"]![0]!.DeepClone());
+                break;
+            case "wrong-width":
+                numbers[1]!["inner"]![0]!["value"] = "4";
+                break;
+            case "unknown-endian":
+                numbers[2]!["inner"]![0]!["value"] = "2";
+                break;
+            case "wrong-endian":
+                numbers[2]!["inner"]![0]!["value"] = "0";
+                break;
+            case "compiler-zero":
+                numbers[3]!["inner"]![0]!["value"] = "0";
+                break;
+            case "missing-target":
+                nodes.RemoveAt(1);
+                break;
+            case "duplicate-target":
+                nodes.Add(nodes[1]!.DeepClone());
+                break;
+            case "unquoted-target":
+                nodes[1]!["inner"]![0]!["value"] = "linux-x64";
+                break;
+            case "unknown-target":
+                nodes[1]!["inner"]![0]!["value"] = "\"freebsd-x64\"";
+                break;
+            case "missing-inner":
+                root.AsObject().Remove("inner");
+                break;
+            default:
+                Assert.Fail("Unknown invalid target observation.");
+                break;
         }
 
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());

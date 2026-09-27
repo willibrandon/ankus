@@ -15,7 +15,10 @@ public static partial class NativeBackend
         try
         {
             InvokeParameters(&request, [SpiParameter.Create(oid)], &result);
-            if (result._rowCount == 0) { return null; }
+            if (result._rowCount == 0)
+            {
+                return null;
+            }
 
             if (result._rowCount != 1 || result._columnCount != 24 || result._values == null)
             {

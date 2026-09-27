@@ -102,7 +102,10 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingSource raw = NativeBindingRecordCSharp.Generate(graph);
             Assert.AreNotEqual(raw.AbiIdentity, binding.AbiIdentity);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -149,39 +152,130 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingSource expected = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
             var values = layout.Types.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
             var fields = values["Leaf"].Fields.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
-            values["Leaf"] = values["Leaf"] with { Fields = fields };
-            NativeBindingLayout changed = layout with { Types = values };
+            values["Leaf"] = values["Leaf"] with
+            {
+                Fields = fields
+            };
+            NativeBindingLayout changed = layout with
+            {
+                Types = values
+            };
             NativeBindingCatalog declarations = catalog;
             NativeRecordGraph records = graph;
             switch (mutation)
             {
-                case "version": changed = changed with { PostgresVersion = 180005 }; break;
-                case "major": declarations = catalog with { PostgresMajor = 17 }; break;
-                case "runtime": changed = changed with { RuntimeIdentifier = "other" }; break;
-                case "address-width": changed = changed with { PointerSize = layout.PointerSize * 2 }; break;
-                case "byte-order": changed = changed with { IsLittleEndian = !layout.IsLittleEndian }; break;
-                case "char-sign": changed = changed with { CharIsSigned = !layout.CharIsSigned }; break;
-                case "long-width": changed = changed with { LongSize = layout.LongSize * 2 }; break;
-                case "node-size": values["Leaf"] = values["Leaf"] with { Size = values["Leaf"].Size + 4 }; break;
-                case "node-alignment": values["Leaf"] = values["Leaf"] with { Alignment = values["Leaf"].Alignment * 2 }; break;
-                case "field-offset": fields["payload"] = fields["payload"] with { Offset = fields["payload"].Offset + 1 }; break;
-                case "field-size": fields["payload"] = fields["payload"] with { Size = fields["payload"].Size + 1 }; break;
-                case "field-alignment": fields["payload"] = fields["payload"] with { Alignment = fields["payload"].Alignment * 2 }; break;
-                case "element-stride": fields["tail"] = fields["tail"] with { ElementSize = fields["tail"].ElementSize + 1 }; break;
-                case "missing-field": fields.Remove("payload"); break;
-                case "extra-field": fields.Add("other", fields["payload"]); break;
-                case "missing-value": values.Remove("Payload"); break;
-                case "extra-value": values.Add("Other", values["Payload"]); break;
+                case "version":
+                    changed = changed with
+                    {
+                        PostgresVersion = 180005
+                    };
+                    break;
+                case "major":
+                    declarations = catalog with
+                    {
+                        PostgresMajor = 17
+                    };
+                    break;
+                case "runtime":
+                    changed = changed with
+                    {
+                        RuntimeIdentifier = "other"
+                    };
+                    break;
+                case "address-width":
+                    changed = changed with
+                    {
+                        PointerSize = layout.PointerSize * 2
+                    };
+                    break;
+                case "byte-order":
+                    changed = changed with
+                    {
+                        IsLittleEndian = !layout.IsLittleEndian
+                    };
+                    break;
+                case "char-sign":
+                    changed = changed with
+                    {
+                        CharIsSigned = !layout.CharIsSigned
+                    };
+                    break;
+                case "long-width":
+                    changed = changed with
+                    {
+                        LongSize = layout.LongSize * 2
+                    };
+                    break;
+                case "node-size":
+                    values["Leaf"] = values["Leaf"] with
+                    {
+                        Size = values["Leaf"].Size + 4
+                    };
+                    break;
+                case "node-alignment":
+                    values["Leaf"] = values["Leaf"] with
+                    {
+                        Alignment = values["Leaf"].Alignment * 2
+                    };
+                    break;
+                case "field-offset":
+                    fields["payload"] = fields["payload"] with
+                    {
+                        Offset = fields["payload"].Offset + 1
+                    };
+                    break;
+                case "field-size":
+                    fields["payload"] = fields["payload"] with
+                    {
+                        Size = fields["payload"].Size + 1
+                    };
+                    break;
+                case "field-alignment":
+                    fields["payload"] = fields["payload"] with
+                    {
+                        Alignment = fields["payload"].Alignment * 2
+                    };
+                    break;
+                case "element-stride":
+                    fields["tail"] = fields["tail"] with
+                    {
+                        ElementSize = fields["tail"].ElementSize + 1
+                    };
+                    break;
+                case "missing-field":
+                    fields.Remove("payload");
+                    break;
+                case "extra-field":
+                    fields.Add("other", fields["payload"]);
+                    break;
+                case "missing-value":
+                    values.Remove("Payload");
+                    break;
+                case "extra-value":
+                    values.Add("Other", values["Payload"]);
+                    break;
                 case "tag-value":
                     var tags = catalog.Tags.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
                     tags["T_Leaf"] = 8;
-                    declarations = catalog with { Tags = tags };
+                    declarations = catalog with
+                    {
+                        Tags = tags
+                    };
                     break;
                 case "cast-tag":
                 case "node-kind":
                     var types = catalog.Types.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
-                    types["Leaf"] = mutation == "cast-tag" ? types["Leaf"] with { CastTags = ["T_Missing"] } : types["Leaf"] with { IsUnion = true };
-                    declarations = catalog with { Types = types };
+                    types["Leaf"] = mutation == "cast-tag" ? types["Leaf"] with
+                    {
+                        CastTags = ["T_Missing"]
+                    } : types["Leaf"] with
+                    {
+                        IsUnion = true
+                    };
+                    declarations = catalog with
+                    {
+                        Types = types
+                    };
                     break;
                 case "missing-tag-root":
                 case "wrong-tag-root":
@@ -191,14 +285,27 @@ public sealed partial class NativeBindingNativeTests
                     var roots = graph.Roots.ToDictionary(StringComparer.Ordinal);
                     switch (mutation)
                     {
-                        case "missing-tag-root": roots.Remove("ankus_node_tag_contract"); break;
-                        case "wrong-tag-root": roots["ankus_node_tag_contract"] = roots["ankus_node_record_Node"]; break;
-                        case "missing-record-root": roots.Remove("ankus_node_record_Payload"); break;
-                        case "duplicate-record-root": roots["ankus_node_record_Payload"] = roots["ankus_node_record_Leaf"]; break;
-                        case "extra-record-root": roots.Add("ankus_node_record_Unknown", roots["ankus_node_record_Leaf"]); break;
+                        case "missing-tag-root":
+                            roots.Remove("ankus_node_tag_contract");
+                            break;
+                        case "wrong-tag-root":
+                            roots["ankus_node_tag_contract"] = roots["ankus_node_record_Node"];
+                            break;
+                        case "missing-record-root":
+                            roots.Remove("ankus_node_record_Payload");
+                            break;
+                        case "duplicate-record-root":
+                            roots["ankus_node_record_Payload"] = roots["ankus_node_record_Leaf"];
+                            break;
+                        case "extra-record-root":
+                            roots.Add("ankus_node_record_Unknown", roots["ankus_node_record_Leaf"]);
+                            break;
                     }
 
-                    records = graph with { Roots = roots };
+                    records = graph with
+                    {
+                        Roots = roots
+                    };
                     break;
                 case "enum-size":
                 case "enum-sign":
@@ -207,26 +314,53 @@ public sealed partial class NativeBindingNativeTests
                     var enums = layout.Enums.ToDictionary(StringComparer.Ordinal);
                     switch (mutation)
                     {
-                        case "enum-size": enums["Mode"] = enums["Mode"] with { Size = 8 }; break;
-                        case "enum-sign": enums["Mode"] = enums["Mode"] with { IsSigned = false }; break;
-                        case "missing-enum": enums.Remove("Mode"); break;
-                        case "extra-enum": enums.Add("Other", enums["Mode"]); break;
+                        case "enum-size":
+                            enums["Mode"] = enums["Mode"] with
+                            {
+                                Size = 8
+                            };
+                            break;
+                        case "enum-sign":
+                            enums["Mode"] = enums["Mode"] with
+                            {
+                                IsSigned = false
+                            };
+                            break;
+                        case "missing-enum":
+                            enums.Remove("Mode");
+                            break;
+                        case "extra-enum":
+                            enums.Add("Other", enums["Mode"]);
+                            break;
                     }
 
-                    changed = changed with { Enums = enums };
+                    changed = changed with
+                    {
+                        Enums = enums
+                    };
                     break;
                 case "enum-value":
                     var named = catalog.Enums.ToDictionary(StringComparer.Ordinal);
-                    named["Mode"] = named["Mode"] with { Values = new Dictionary<string, string> { ["MODE_LOW"] = "-4", ["MODE_HIGH"] = "7" } };
-                    declarations = catalog with { Enums = named };
+                    named["Mode"] = named["Mode"] with
+                    {
+                        Values = new Dictionary<string, string> { ["MODE_LOW"] = "-4", ["MODE_HIGH"] = "7" }
+                    };
+                    declarations = catalog with
+                    {
+                        Enums = named
+                    };
                     break;
-                default: throw new ArgumentOutOfRangeException(nameof(mutation));
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mutation));
             }
 
             Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordCSharp.Generate(records, declarations, changed));
             Assert.AreEqual(expected, NativeBindingRecordCSharp.Generate(graph, catalog, layout));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -306,7 +440,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(
                 NativeBindingRecordCSharp.Generate(graph, catalog, layout), Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -338,7 +475,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual<long>([0, 0, 64, 1], GeneratedBindingCompilation.Run(
                 NativeBindingRecordCSharp.Generate(graph, catalog, layout), Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     private async Task<(NativeBindingCatalog Catalog, NativeBindingLayout Layout, NativeRecordGraph Graph)> CollectNodeFixtureAsync(

@@ -57,9 +57,18 @@ public sealed class NativeBindingCacheTests(TestContext context)
                 await File.WriteAllTextAsync(file, "modified", context.CancellationToken);
                 File.SetLastWriteTimeUtc(file, timestamp);
             }
-            else if (change == "missing-artifact") { File.Delete(artifact); }
-            else if (change == "manifest") { await File.WriteAllTextAsync(Path.Combine(entry, "manifest.json"), "not json", context.CancellationToken); }
-            else { await File.WriteAllTextAsync(Path.Combine(entry, "unexpected"), "changed", context.CancellationToken); }
+            else if (change == "missing-artifact")
+            {
+                File.Delete(artifact);
+            }
+            else if (change == "manifest")
+            {
+                await File.WriteAllTextAsync(Path.Combine(entry, "manifest.json"), "not json", context.CancellationToken);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(Path.Combine(entry, "unexpected"), "changed", context.CancellationToken);
+            }
 
             await using (NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(cache, Key, Produce, context.CancellationToken))
             {
@@ -71,7 +80,10 @@ public sealed class NativeBindingCacheTests(TestContext context)
 
             Assert.AreSequenceEqual<string>([entry], Directory.GetDirectories(cache));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -106,7 +118,10 @@ public sealed class NativeBindingCacheTests(TestContext context)
             Assert.AreEqual(1, produced);
             Assert.AreEqual("verified", await File.ReadAllTextAsync(Path.Combine(recovered.Directory, "binding.dll"), context.CancellationToken));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -155,7 +170,10 @@ public sealed class NativeBindingCacheTests(TestContext context)
             }, context.CancellationToken);
             Assert.AreEqual("complete", await File.ReadAllTextAsync(Path.Combine(recovered.Directory, "binding.dll"), context.CancellationToken));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -181,7 +199,10 @@ public sealed class NativeBindingCacheTests(TestContext context)
             Assert.IsEmpty(Directory.GetDirectories(cache));
             Assert.AreEqual("after", await File.ReadAllTextAsync(input, context.CancellationToken));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -221,6 +242,9 @@ public sealed class NativeBindingCacheTests(TestContext context)
             await using NativeBindingCacheLease recovered = await NativeBindingCache.GetAsync(cache, Key, Produce, context.CancellationToken);
             Assert.AreEqual("replacement", await File.ReadAllTextAsync(Path.Combine(recovered.Directory, "binding.dll"), context.CancellationToken));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }

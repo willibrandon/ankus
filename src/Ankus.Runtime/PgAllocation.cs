@@ -57,7 +57,11 @@ public sealed unsafe class PgAllocation : IDisposable
         get
         {
             EnsureLive();
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Owner, _context = _id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Owner,
+                _context = _id
+            };
             Invoke(ref request, out NativeMemoryResult result);
             return PgMemoryContext.FromId(_provider, result._context);
         }
@@ -234,7 +238,11 @@ public sealed unsafe class PgAllocation : IDisposable
     public void* DangerousDetach()
     {
         EnsureLive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Detach, _context = _id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Detach,
+            _context = _id
+        };
         Invoke(ref request, out NativeMemoryResult result);
         _id = 0;
         _length = 0;
@@ -249,7 +257,11 @@ public sealed unsafe class PgAllocation : IDisposable
     public void* DangerousGetPointer()
     {
         EnsureLive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Read, _context = _id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Read,
+            _context = _id
+        };
         Invoke(ref request, out NativeMemoryResult result);
         return (void*)result._pointer;
     }
@@ -269,7 +281,11 @@ public sealed unsafe class PgAllocation : IDisposable
         }
 
         NativeMemoryContext.CheckProvider(_provider);
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Free, _context = _id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Free,
+            _context = _id
+        };
         NativeMemoryContext.Invoke(ref request, out _);
         _id = 0;
         _length = 0;

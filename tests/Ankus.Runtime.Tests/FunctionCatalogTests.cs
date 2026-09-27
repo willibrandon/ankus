@@ -163,8 +163,14 @@ public sealed unsafe class FunctionCatalogTests
         script.Malformed = false;
         Assert.AreEqual(42U, PgFunctions.GetInfo(42)!.Oid);
         nint previous = NativeBackend.Enter(Script.Pointer, abortCleanup: true);
-        try { Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.GetInfo(42)); }
-        finally { NativeBackend.Exit(previous, abortCleanup: true); }
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => PgFunctions.GetInfo(42));
+        }
+        finally
+        {
+            NativeBackend.Exit(previous, abortCleanup: true);
+        }
 
         Assert.AreEqual(3, script.Releases);
     }
@@ -182,14 +188,20 @@ public sealed unsafe class FunctionCatalogTests
         bool fail = false;
         memory.Handler = request =>
         {
-            if (request._operation != NativeMemoryOperation.List) { return memory.Respond(request); }
+            if (request._operation != NativeMemoryOperation.List)
+            {
+                return memory.Respond(request);
+            }
 
             if (request._flags == 15)
             {
                 Assert.AreEqual<nint>(101, request._context);
                 Assert.AreEqual<nint>(1, request._value);
                 Assert.AreEqual("(catalog café)", Encoding.UTF8.GetString(new ReadOnlySpan<byte>((void*)request._data, checked((int)request._length))));
-                if (fail) { throw new PgException("22023", "bad catalog nodes"); }
+                if (fail)
+                {
+                    throw new PgException("22023", "bad catalog nodes");
+                }
 
                 return new NativeMemoryResult { _pointer = 717 };
             }
@@ -230,59 +242,115 @@ public sealed unsafe class FunctionCatalogTests
         /// <summary>
         /// Gets or sets whether the catalog row is absent.
         /// </summary>
-        internal bool Missing { get; set; }
+        internal bool Missing
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets whether optional fields are populated.
         /// </summary>
-        internal bool Rich { get; set; }
+        internal bool Rich
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets whether dispatch fails.
         /// </summary>
-        internal bool Fail { get; set; }
+        internal bool Fail
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets whether the returned frame is malformed.
         /// </summary>
-        internal bool Malformed { get; set; }
+        internal bool Malformed
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets the invalid discriminator field.
         /// </summary>
-        internal int InvalidField { get; set; } = -1;
+        internal int InvalidField
+        {
+            get;
+            set;
+        } = -1;
         /// <summary>
         /// Gets or sets the input argument count.
         /// </summary>
-        internal int ArgumentCount { get; set; } = 1;
+        internal int ArgumentCount
+        {
+            get;
+            set;
+        } = 1;
         /// <summary>
         /// Gets or sets the native function kind.
         /// </summary>
-        internal char Kind { get; set; } = 'f';
+        internal char Kind
+        {
+            get;
+            set;
+        } = 'f';
         /// <summary>
         /// Gets or sets the native volatility.
         /// </summary>
-        internal char Volatility { get; set; } = 'i';
+        internal char Volatility
+        {
+            get;
+            set;
+        } = 'i';
         /// <summary>
         /// Gets or sets the native parallel mode.
         /// </summary>
-        internal char Parallel { get; set; } = 's';
+        internal char Parallel
+        {
+            get;
+            set;
+        } = 's';
         /// <summary>
         /// Gets the requested OID.
         /// </summary>
-        internal uint RequestedOid { get; private set; }
+        internal uint RequestedOid
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the requested parameter type.
         /// </summary>
-        internal uint ParameterOid { get; private set; }
+        internal uint ParameterOid
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the operation family.
         /// </summary>
-        internal byte Operation { get; private set; }
+        internal byte Operation
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the selector.
         /// </summary>
-        internal int Selector { get; private set; }
+        internal int Selector
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the result release count.
         /// </summary>
-        internal int Releases { get; private set; }
+        internal int Releases
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Restores the enclosing backend.
@@ -304,13 +372,22 @@ public sealed unsafe class FunctionCatalogTests
                 script.Selector = request->_scalarOperation;
                 script.ParameterOid = request->_parameters[0]._typeOid;
                 script.RequestedOid = checked((uint)request->_parameters[0]._value.Integral);
-                if (script.Fail) { throw new PgException("42501", "catalog denied café"); }
+                if (script.Fail)
+                {
+                    throw new PgException("42501", "catalog denied café");
+                }
 
-                if (script.Missing) { return 0; }
+                if (script.Missing)
+                {
+                    return 0;
+                }
 
                 result->_rowCount = 1;
                 result->_columnCount = script.Malformed ? 0 : 24;
-                if (script.Malformed) { return 0; }
+                if (script.Malformed)
+                {
+                    return 0;
+                }
 
                 result->_values = (NativeValue*)NativeMemory.AllocZeroed(24, (nuint)sizeof(NativeValue));
                 Span<NativeValue> values = new(result->_values, 24);
@@ -324,24 +401,45 @@ public sealed unsafe class FunctionCatalogTests
                 values[7].Integral = script.Rich ? 1 : 0;
                 values[8].Integral = 14;
                 values[9] = NativeValue.FromString("source café 🐘");
-                values[10] = script.Rich ? NativeValue.FromString("$libdir/example") : new() { IsNull = 1 };
-                values[11] = script.Rich ? NativeValue.FromArray(new PgArray<string>(["search_path=pg_catalog", "work_mem=4MB"])) : new() { IsNull = 1 };
-                values[12] = script.Rich ? NativeValue.FromString("iobvt") : new() { IsNull = 1 };
+                values[10] = script.Rich ? NativeValue.FromString("$libdir/example") : new()
+                {
+                    IsNull = 1
+                };
+                values[11] = script.Rich ? NativeValue.FromArray(new PgArray<string>(["search_path=pg_catalog", "work_mem=4MB"])) : new()
+                {
+                    IsNull = 1
+                };
+                values[12] = script.Rich ? NativeValue.FromString("iobvt") : new()
+                {
+                    IsNull = 1
+                };
                 values[13].Integral = script.Rich ? 3 : script.ArgumentCount;
                 values[14].Integral = script.Rich ? 1 : 0;
-                values[15] = script.Rich ? NativeValue.FromArray(new PgArray<string?>(["", "名", null, "many", "result"])) : new() { IsNull = 1 };
+                values[15] = script.Rich ? NativeValue.FromArray(new PgArray<string?>(["", "名", null, "many", "result"])) : new()
+                {
+                    IsNull = 1
+                };
                 values[16] = NativeValue.FromArray(new PgArray<uint>(script.Rich ? [23, 25, 1007] : Enumerable.Repeat<uint>(23, script.ArgumentCount).ToArray()));
-                values[17] = script.Rich ? NativeValue.FromArray(new PgArray<uint>([23, 20, 25, 1007, 16])) : new() { IsNull = 1 };
+                values[17] = script.Rich ? NativeValue.FromArray(new PgArray<uint>([23, 20, 25, 1007, 16])) : new()
+                {
+                    IsNull = 1
+                };
                 values[18].Integral = 2249;
                 values[19].Integral = script.Rich ? 1 : 0;
                 values[20].Integral = script.Volatility;
                 values[21].Integral = script.Parallel;
                 values[22].Integral = script.Rich ? 1 : 0;
-                values[23] = script.Rich ? NativeValue.FromString("(catalog café)") : new() { IsNull = 1 };
+                values[23] = script.Rich ? NativeValue.FromString("(catalog café)") : new()
+                {
+                    IsNull = 1
+                };
                 if (script.InvalidField >= 0)
                 {
                     values[script.InvalidField].Release();
-                    values[script.InvalidField] = script.InvalidField == 12 ? NativeValue.FromString("?") : new() { Integral = '?' };
+                    values[script.InvalidField] = script.InvalidField == 12 ? NativeValue.FromString("?") : new()
+                    {
+                        Integral = '?'
+                    };
                 }
 
                 return 0;
@@ -357,7 +455,10 @@ public sealed unsafe class FunctionCatalogTests
         private static void Release(NativeSpiResult* result)
         {
             s_script!.Releases++;
-            for (int index = 0; index < result->_columnCount; index++) { result->_values[index].Release(); }
+            for (int index = 0; index < result->_columnCount; index++)
+            {
+                result->_values[index].Release();
+            }
 
             NativeMemory.Free(result->_values);
         }

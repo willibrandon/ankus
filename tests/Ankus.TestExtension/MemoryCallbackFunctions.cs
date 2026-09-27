@@ -217,9 +217,17 @@ public static class MemoryCallbackFunctions
                 root.Reset,
                 root.ResetChildren,
                 root.Dispose,
-                () => owner.Run(static () => { }),
-                () => { using PgMemoryContext forbidden = PgMemoryContext.Create("forbidden callback child", owner); },
-                () => { using PgMemoryContext forbidden = PgMemoryContext.Create("forbidden callback sibling", root); },
+                () => owner.Run(static () =>
+                {
+                }),
+                () =>
+                {
+                    using PgMemoryContext forbidden = PgMemoryContext.Create("forbidden callback child", owner);
+                },
+                () =>
+                {
+                    using PgMemoryContext forbidden = PgMemoryContext.Create("forbidden callback sibling", root);
+                },
             })
             {
                 states.Add(CaptureState(action));
@@ -430,7 +438,10 @@ public static class MemoryCallbackFunctions
             ?? throw new InvalidOperationException("No ErrorContext.");
         string allocationFailure = errorContext.Run(() =>
         {
-            string state = CaptureState(() => { using PgAllocation invalid = owner.Allocate(0x40000000); });
+            string state = CaptureState(() =>
+            {
+                using PgAllocation invalid = owner.Allocate(0x40000000);
+            });
             return $"{state}|{PgMemoryContext.Current.Name}";
         });
         using PgMemoryCallback callback = owner.RegisterResetCallback(static () => throw CallbackError());

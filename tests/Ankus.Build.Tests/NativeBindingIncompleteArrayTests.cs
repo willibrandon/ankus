@@ -38,6 +38,9 @@ public sealed partial class NativeBindingNativeTests
             string diagnostic = await RunAsync("gcc", arguments, directory, expectSuccess: false);
             Assert.Contains("Native record contract changed: alignment type", diagnostic);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

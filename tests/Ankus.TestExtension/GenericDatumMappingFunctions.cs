@@ -16,22 +16,38 @@ public sealed class GenericBoxConverter : IPgDatumReader<GenericBox<int>>, IPgDa
     /// <summary>
     /// Gets the number of lazy converter constructions in this backend.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the number of int-tagged reads.
     /// </summary>
-    public static int IntReads { get; private set; }
+    public static int IntReads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the number of long-tagged reads.
     /// </summary>
-    public static int LongReads { get; private set; }
+    public static int LongReads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the last checked callback operand.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records construction separately for each statically registered closed identity.

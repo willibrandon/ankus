@@ -21,35 +21,63 @@ public abstract class PgGucAttribute(string name, string shortDescription) : Att
     /// <summary>
     /// Gets or sets the optional extended description.
     /// </summary>
-    public string? LongDescription { get; set; }
+    public string? LongDescription
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets when PostgreSQL permits changes. The default allows session changes by any user.
     /// </summary>
-    public PgGucContext Context { get; set; } = PgGucContext.UserSet;
+    public PgGucContext Context
+    {
+        get;
+        set;
+    } = PgGucContext.UserSet;
 
     /// <summary>
     /// Gets or sets additional PostgreSQL configuration behaviors.
     /// </summary>
-    public PgGucOptions Flags { get; set; }
+    public PgGucOptions Flags
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the base parsing and display unit for an integer or real setting.
     /// </summary>
-    public PgGucUnit Unit { get; set; }
+    public PgGucUnit Unit
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the static check method that accepts a proposed value and source and returns a typed check result.
     /// </summary>
-    public string? Check { get; set; }
+    public string? Check
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the static assignment method that receives the accepted value and optional owned extra bytes.
     /// </summary>
-    public string? Assign { get; set; }
+    public string? Assign
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the static display method that receives the current value and optional owned extra bytes.
     /// </summary>
-    public string? Show { get; set; }
+    public string? Show
+    {
+        get;
+        set;
+    }
 }

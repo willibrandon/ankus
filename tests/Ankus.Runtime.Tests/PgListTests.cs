@@ -203,7 +203,10 @@ public sealed unsafe class PgListTests
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         fixture.Handler = request =>
         {
-            if (Is(request, NativeListOperation.Read)) { *(ulong*)request._data = (ulong)(10 + request._value); }
+            if (Is(request, NativeListOperation.Read))
+            {
+                *(ulong*)request._data = (ulong)(10 + request._value);
+            }
 
             return Respond(fixture, request);
         };
@@ -222,7 +225,10 @@ public sealed unsafe class PgListTests
         Assert.AreEqual(3, list.Count);
         using IEnumerator<int> complete = list.GetEnumerator();
         var result = new List<int>();
-        while (complete.MoveNext()) { result.Add(complete.Current); }
+        while (complete.MoveNext())
+        {
+            result.Add(complete.Current);
+        }
 
         Assert.AreSequenceEqual<int>([10, 11, 12], result);
         Assert.IsFalse(complete.MoveNext());
@@ -314,9 +320,18 @@ public sealed unsafe class PgListTests
             failure = operation;
             PgException error = Assert.ThrowsExactly<PgException>(() =>
             {
-                if (operation == NativeListOperation.Add) { list.Add(7); }
-                else if (operation == NativeListOperation.Dispose) { list.Dispose(); }
-                else { list.DangerousDetach(); }
+                if (operation == NativeListOperation.Add)
+                {
+                    list.Add(7);
+                }
+                else if (operation == NativeListOperation.Dispose)
+                {
+                    list.Dispose();
+                }
+                else
+                {
+                    list.DangerousDetach();
+                }
             });
             Assert.AreEqual("53200", error.SqlState);
             Assert.AreEqual("native detail", error.Detail);
@@ -372,7 +387,10 @@ public sealed unsafe class PgListTests
     /// </summary>
     private static NativeMemoryResult Respond(MemoryContextTestFixture fixture, NativeMemoryRequest request)
     {
-        if (request._operation != NativeMemoryOperation.List) { return fixture.Respond(request); }
+        if (request._operation != NativeMemoryOperation.List)
+        {
+            return fixture.Respond(request);
+        }
 
         return new NativeMemoryResult
         {

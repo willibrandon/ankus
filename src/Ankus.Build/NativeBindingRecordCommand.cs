@@ -53,7 +53,10 @@ internal static class NativeBindingRecordCommand
         }
         finally
         {
-            if (File.Exists(temporary)) { File.Delete(temporary); }
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
         }
 
         Console.WriteLine($"PG{major}: collected {graph.Declarations.Count} transitive native declarations and {graph.Types.Count} types for {graph.Roots.Count} symbols.");
@@ -74,7 +77,10 @@ internal static class NativeBindingRecordCommand
         foreach (string directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
             string candidate = Path.Combine(directory, name);
-            if (File.Exists(candidate)) { return Resolve(candidate); }
+            if (File.Exists(candidate))
+            {
+                return Resolve(candidate);
+            }
         }
 
         throw new FileNotFoundException("Cannot locate the selected Clang executable.", compiler);
@@ -82,7 +88,10 @@ internal static class NativeBindingRecordCommand
         static string Resolve(string path)
         {
             var file = new FileInfo(Path.GetFullPath(path));
-            if (!file.Exists) { throw new FileNotFoundException("Cannot locate the selected Clang executable.", file.FullName); }
+            if (!file.Exists)
+            {
+                throw new FileNotFoundException("Cannot locate the selected Clang executable.", file.FullName);
+            }
 
             return file.FullName;
         }
@@ -117,11 +126,17 @@ internal static class NativeBindingRecordCommand
                 pending.Remove(completed);
             }
 
-            if (process.ExitCode != 0) { throw new InvalidOperationException("Cannot query Clang resources: " + System.Text.Encoding.UTF8.GetString(errors.ToArray())); }
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException("Cannot query Clang resources: " + System.Text.Encoding.UTF8.GetString(errors.ToArray()));
+            }
         }
         catch
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
 
             await process.WaitForExitAsync(CancellationToken.None);
             await Task.WhenAll(copy, diagnostics);
@@ -129,7 +144,10 @@ internal static class NativeBindingRecordCommand
         }
 
         string resources = System.Text.Encoding.UTF8.GetString(output.ToArray()).Trim();
-        if (!Path.IsPathFullyQualified(resources) || !Directory.Exists(resources)) { throw new InvalidOperationException("Clang did not report its absolute resource directory."); }
+        if (!Path.IsPathFullyQualified(resources) || !Directory.Exists(resources))
+        {
+            throw new InvalidOperationException("Clang did not report its absolute resource directory.");
+        }
 
         string lib = Path.GetFullPath(Path.Combine(resources, "..", ".."));
         string bin = Path.GetFullPath(Path.Combine(lib, "..", "bin"));

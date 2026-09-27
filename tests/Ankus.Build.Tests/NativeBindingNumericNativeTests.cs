@@ -56,7 +56,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual([charIsSigned ? -1 : 255, numeric.WCharSize, numeric.WCharIsSigned ? 1 : 0,
                 numeric.Radix, numeric.LongDouble.Precision, numeric.LongDouble.MinExponent, numeric.LongDouble.MaxExponent], native);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -76,16 +79,34 @@ public sealed partial class NativeBindingNativeTests
             NativeRecordRequest request = JsonSerializer.Deserialize<NativeRecordRequest>(await File.ReadAllTextAsync(
                 Path.Combine(directory, "native-record-request.json"), context.CancellationToken), NativeBindingRecordWorker.JsonOptions)!;
             NativeNumericModel numeric = expected.Target.Numeric;
-            NativeNumericModel mismatch = change == "char" ? numeric with { CharIsSigned = !numeric.CharIsSigned }
-                : numeric with { LongDouble = numeric.LongDouble with { Precision = numeric.LongDouble.Precision + 1 } };
+            NativeNumericModel mismatch = change == "char" ? numeric with
+            {
+                CharIsSigned = !numeric.CharIsSigned
+            }
+                : numeric with
+                {
+                    LongDouble = numeric.LongDouble with
+                    {
+                        Precision = numeric.LongDouble.Precision + 1
+                    }
+                };
             InvalidOperationException failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => NativeBindingRecordWorker.InspectAsync(
-                request with { Target = request.Target with { Numeric = mismatch } }, directory, context.CancellationToken));
+                request with
+                {
+                    Target = request.Target with
+                    {
+                        Numeric = mismatch
+                    }
+                }, directory, context.CancellationToken));
             Assert.Contains("target does not match", failure.Message);
             NativeRecordGraph recovered = await NativeBindingRecordWorker.InspectAsync(request, directory, context.CancellationToken);
             Assert.AreEqual(JsonSerializer.Serialize(expected, NativeBindingRecordWorker.JsonOptions),
                 JsonSerializer.Serialize(recovered, NativeBindingRecordWorker.JsonOptions));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -133,8 +154,21 @@ public sealed partial class NativeBindingNativeTests
                 "long_double_max_exp" => numeric with { LongDouble = numeric.LongDouble with { MaxExponent = numeric.LongDouble.MaxExponent + 1 } },
                 _ => throw new ArgumentOutOfRangeException(nameof(change)),
             };
-            NativeHeaderTarget target = records.Headers.Target with { Numeric = mismatch };
-            NativeHeaderRecords changed = records with { Headers = records.Headers with { Target = target }, Graph = records.Graph with { Target = target } };
+            NativeHeaderTarget target = records.Headers.Target with
+            {
+                Numeric = mismatch
+            };
+            NativeHeaderRecords changed = records with
+            {
+                Headers = records.Headers with
+                {
+                    Target = target
+                },
+                Graph = records.Graph with
+                {
+                    Target = target
+                }
+            };
             string file = Path.Combine(directory, "calls.c");
             string diagnostics = Path.Combine(directory, "calls.txt");
             string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
@@ -165,6 +199,9 @@ public sealed partial class NativeBindingNativeTests
             await RunAsync(compiler, compile, directory);
             Assert.AreEqual("211 1\n", (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n"));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

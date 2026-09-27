@@ -15,22 +15,38 @@ internal sealed class EnumDeclaration
     /// <summary>
     /// Gets the attributed managed enum.
     /// </summary>
-    internal INamedTypeSymbol Type { get; private set; } = null!;
+    internal INamedTypeSymbol Type
+    {
+        get;
+        private set;
+    } = null!;
 
     /// <summary>
     /// Gets the enum attribute and its graph options.
     /// </summary>
-    internal AttributeData Attribute { get; private set; } = null!;
+    internal AttributeData Attribute
+    {
+        get;
+        private set;
+    } = null!;
 
     /// <summary>
     /// Gets the exact SQL type identifier.
     /// </summary>
-    internal string Name { get; private set; } = string.Empty;
+    internal string Name
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the fixed or inherited schema, or null for the installation schema.
     /// </summary>
-    internal string? Schema { get; private set; }
+    internal string? Schema
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the qualified, quoted SQL type name.
@@ -73,7 +89,8 @@ internal sealed class EnumDeclaration
 
         var result = new EnumDeclaration
         {
-            Type = type, Attribute = attribute,
+            Type = type,
+            Attribute = attribute,
             Name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name)),
             Schema = AttributeValues.Get<string?>(attribute, "Schema", null),
         };

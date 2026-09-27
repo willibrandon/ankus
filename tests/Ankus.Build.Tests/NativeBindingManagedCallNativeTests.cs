@@ -265,7 +265,10 @@ public sealed partial class NativeBindingNativeTests
                 {
                     AttributeSyntax? import = method.AttributeLists.SelectMany(static list => list.Attributes)
                         .FirstOrDefault(static attribute => attribute.Name.ToString().EndsWith("LibraryImport", StringComparison.Ordinal));
-                    if (import is null) { continue; }
+                    if (import is null)
+                    {
+                        continue;
+                    }
 
                     AttributeArgumentSyntax argument = import.ArgumentList!.Arguments.Single(static argument => argument.NameEquals?.Name.Identifier.ValueText == "EntryPoint");
                     string entry = ((LiteralExpressionSyntax)argument.Expression).Token.ValueText;
@@ -277,12 +280,21 @@ public sealed partial class NativeBindingNativeTests
 
                 managed.AppendLine("} }").AppendLine(harness);
                 // The real allocator still owns real bytes. Counting this collaborator makes omitted/wrong finally frees observable.
-                NativeBindingSource observed = binding with { Source = binding.Source.Replace("global::System.Runtime.InteropServices.NativeMemory",
-                    "global::NativeCallTestBridge.Allocator", StringComparison.Ordinal) };
+                NativeBindingSource observed = binding with
+                {
+                    Source = binding.Source.Replace("global::System.Runtime.InteropServices.NativeMemory",
+                    "global::NativeCallTestBridge.Allocator", StringComparison.Ordinal)
+                };
                 return GeneratedBindingCompilation.Run(observed, managed.ToString(), context.CancellationToken);
             }
-            finally { NativeLibrary.Free(module); }
+            finally
+            {
+                NativeLibrary.Free(module);
+            }
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

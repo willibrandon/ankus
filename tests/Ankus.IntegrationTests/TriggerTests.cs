@@ -180,7 +180,12 @@ public sealed class TriggerTests(TestContext context)
                 CREATE TRIGGER ignored {timing} {operation} ON trigger_values.rows FOR EACH ROW
                 EXECUTE FUNCTION trigger_values.trigger_action('{action}');
                 """, token);
-            string expected = operation switch { "INSERT" => "2:20:new", "UPDATE" => "1:20:new", _ => "1:10:old" };
+            string expected = operation switch
+            {
+                "INSERT" => "2:20:new",
+                "UPDATE" => "1:20:new",
+                _ => "1:10:old"
+            };
             Assert.AreEqual(expected, await Scalar<string>(connection, transaction,
                 "WITH changed AS (" + Change(operation) + " RETURNING *) SELECT id||':'||value||':'||note FROM changed", token));
             Assert.AreEqual(operation == "DELETE" ? "" : operation == "INSERT" ? "1:10:old|2:20:new" : "1:20:new",

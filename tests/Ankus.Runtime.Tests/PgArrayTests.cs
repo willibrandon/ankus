@@ -206,7 +206,13 @@ public sealed class PgArrayTests
     [DataRow("shaped-empty")]
     public void MalformedArrayEnvelopesAreRejected(string kind)
     {
-        byte[] bytes = new byte[kind switch { "short" => 11, "trailing" => 13, "shaped-empty" => 20, _ => 12 }];
+        byte[] bytes = new byte[kind switch
+        {
+            "short" => 11,
+            "trailing" => 13,
+            "shaped-empty" => 20,
+            _ => 12
+        }];
         if (bytes.Length >= 12)
         {
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(8), kind == "unknown" ? 999999 : 23);

@@ -17,17 +17,29 @@ public sealed class ArrayValueConverter : IPgDatumReader<ArrayValue>, IPgDatumWr
     /// <summary>
     /// Counts lazy factories shared by scalar, vector and shaped adapters.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present reads since the probe reset.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present writes since the probe reset.
     /// </summary>
-    public static int Writes { get; private set; }
+    public static int Writes
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Retains checked inputs solely to verify extraction-owner cleanup.
@@ -120,7 +132,11 @@ public sealed class ArrayTextConverter : IPgDatumReader<ArrayText>, IPgDatumWrit
     /// <summary>
     /// Supplies an independently owned source that a writer may return without transferring ownership.
     /// </summary>
-    public static PgDatum? Borrowed { get; set; }
+    public static PgDatum? Borrowed
+    {
+        get;
+        set;
+    }
 
     /// <inheritdoc />
     public ArrayText Read(PgDatum value)
@@ -194,7 +210,11 @@ public sealed class ArrayLiveConverter : IPgDatumReader<ArrayLive>, IPgDatumWrit
     /// <summary>
     /// Counts actual present writes.
     /// </summary>
-    public static int Writes { get; private set; }
+    public static int Writes
+    {
+        get;
+        private set;
+    }
 
     /// <inheritdoc />
     public ArrayLive Read(PgDatum value) => new(value.Read<int>());

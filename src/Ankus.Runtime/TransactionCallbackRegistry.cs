@@ -19,17 +19,29 @@ internal sealed class TransactionCallbackRegistry(nint owner)
     /// <summary>
     /// Gets or sets whether the native outer-transaction dispatcher is installed.
     /// </summary>
-    internal bool HasTransactionDispatcher { get; set; }
+    internal bool HasTransactionDispatcher
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether the native subtransaction dispatcher is installed.
     /// </summary>
-    internal bool HasSubtransactionDispatcher { get; set; }
+    internal bool HasSubtransactionDispatcher
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets whether this registry still represents the active outer transaction.
     /// </summary>
-    internal bool IsActive { get; private set; } = true;
+    internal bool IsActive
+    {
+        get;
+        private set;
+    } = true;
 
     /// <summary>
     /// Cancels an outer-transaction callback on its owning backend thread.

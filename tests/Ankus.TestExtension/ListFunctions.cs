@@ -37,12 +37,18 @@ public static unsafe class ListFunctions
         long original = (long)list.DangerousGetPointer();
         ambient.Run(() =>
         {
-            for (int index = 1; index < count; index++) { list.Add(index); }
+            for (int index = 1; index < count; index++)
+            {
+                list.Add(index);
+            }
         });
         ambient.Dispose();
         int[] actual = [.. list];
         bool exact = actual.Length == count;
-        for (int index = 0; index < actual.Length; index++) { exact &= actual[index] == index; }
+        for (int index = 0; index < actual.Length; index++)
+        {
+            exact &= actual[index] == index;
+        }
 
         return $"{exact}|{list.Count}|{list.Capacity >= count}|{original == (long)list.DangerousGetPointer()}|" +
             $"{list.LifetimeContext!.Id == owner.Id}|{NativeDescribe(list)}";
@@ -59,7 +65,13 @@ public static unsafe class ListFunctions
         bool nilResults = !list.TryAdd(99) && !list.TryReserve(0) && !list.TryReserve(100) && !list.TryReserve(int.MaxValue);
         list.Add(-7);
         int initial = list.Capacity;
-        while (list.Count < initial) { if (!list.TryAdd(list.Count)) { throw new InvalidOperationException("spare capacity rejected"); } }
+        while (list.Count < initial)
+        {
+            if (!list.TryAdd(list.Count))
+            {
+                throw new InvalidOperationException("spare capacity rejected");
+            }
+        }
 
         long fullCells = (long)list.DangerousGetCellsPointer();
         bool full = !list.TryAdd(777) && list.Count == initial && fullCells == (long)list.DangerousGetCellsPointer();
@@ -117,26 +129,44 @@ public static unsafe class ListFunctions
     {
         using PgList<int> list = PgList.Create<int>([2, 3, 5]);
         var values = new List<int>();
-        foreach (int value in list) { values.Add(value); }
+        foreach (int value in list)
+        {
+            values.Add(value);
+        }
 
         using IEnumerator<int> invalidated = list.GetEnumerator();
         _ = invalidated.MoveNext();
         list[1] = 7;
         bool rejected = false;
-        try { invalidated.MoveNext(); }
-        catch (InvalidOperationException) { rejected = true; }
+        try
+        {
+            invalidated.MoveNext();
+        }
+        catch (InvalidOperationException)
+        {
+            rejected = true;
+        }
 
         using IEnumerator<int> consuming = list.GetConsumingEnumerator();
         bool consumed = false;
-        try { _ = list.Count; }
-        catch (ObjectDisposedException) { consumed = true; }
+        try
+        {
+            _ = list.Count;
+        }
+        catch (ObjectDisposedException)
+        {
+            consumed = true;
+        }
 
         bool first = consuming.MoveNext() && consuming.Current == 2;
         consuming.Dispose();
         using PgList<int> all = PgList.Create<int>([11, 13]);
         using IEnumerator<int> complete = all.GetConsumingEnumerator();
         var consumedValues = new List<int>();
-        while (complete.MoveNext()) { consumedValues.Add(complete.Current); }
+        while (complete.MoveNext())
+        {
+            consumedValues.Add(complete.Current);
+        }
 
         return $"{string.Join(',', values)}|{rejected}|{consumed}|{first}|{string.Join(',', consumedValues)}|{complete.MoveNext()}";
     }
@@ -154,18 +184,42 @@ public static unsafe class ListFunctions
         using PgList<int> owned = PgList.Create<int>([99], owner);
         void* raw = list.DangerousDetach();
         using PgList<int> borrowed = PgList.DangerousBorrow<int>(raw, owner);
-        if (delete) { owner.Dispose(); }
-        else { owner.Reset(); }
+        if (delete)
+        {
+            owner.Dispose();
+        }
+        else
+        {
+            owner.Reset();
+        }
 
         int rejected = 0;
-        try { _ = borrowed.Count; }
-        catch (ObjectDisposedException) { rejected++; }
+        try
+        {
+            _ = borrowed.Count;
+        }
+        catch (ObjectDisposedException)
+        {
+            rejected++;
+        }
 
-        try { empty.CopyTo(Span<int>.Empty); }
-        catch (ObjectDisposedException) { rejected++; }
+        try
+        {
+            empty.CopyTo(Span<int>.Empty);
+        }
+        catch (ObjectDisposedException)
+        {
+            rejected++;
+        }
 
-        try { owned.TryAdd(1); }
-        catch (ObjectDisposedException) { rejected++; }
+        try
+        {
+            owned.TryAdd(1);
+        }
+        catch (ObjectDisposedException)
+        {
+            rejected++;
+        }
 
         borrowed.Dispose();
         empty.Dispose();
@@ -188,9 +242,18 @@ public static unsafe class ListFunctions
         using PgList<int> list = PgList.Create<int>([17, 23]);
         string state = "none";
         int finalizers = 0;
-        try { list.TryReserve(int.MaxValue); }
-        catch (PgException exception) { state = exception.SqlState; }
-        finally { finalizers++; }
+        try
+        {
+            list.TryReserve(int.MaxValue);
+        }
+        catch (PgException exception)
+        {
+            state = exception.SqlState;
+        }
+        finally
+        {
+            finalizers++;
+        }
 
         list.Add(31);
         return $"{state}|{finalizers}|{NativeDescribe(list)}|{Spi.ExecuteScalar<int>("SELECT 42")}";
@@ -246,8 +309,14 @@ public static unsafe class ListFunctions
         using PgMemoryContext wrong = PgMemoryContext.Create("wrong list owner");
         using PgList<int> list = PgList.Create<int>([17, 31], owner);
         string state = "none";
-        try { using PgList<int> rejected = PgList.DangerousBorrow<int>(list.DangerousGetPointer(), wrong); }
-        catch (PgException error) { state = error.SqlState; }
+        try
+        {
+            using PgList<int> rejected = PgList.DangerousBorrow<int>(list.DangerousGetPointer(), wrong);
+        }
+        catch (PgException error)
+        {
+            state = error.SqlState;
+        }
 
         return $"{state}|{NativeDescribe(list)}";
     }
@@ -265,7 +334,10 @@ public static unsafe class ListFunctions
         if (mode == 2)
         {
             bool rejected = !PgList.DangerousTryBorrow<uint>(pointer, owner, out PgList<uint>? wrong) && wrong is null;
-            if (!rejected) { throw new InvalidOperationException("wrong tag accepted"); }
+            if (!rejected)
+            {
+                throw new InvalidOperationException("wrong tag accepted");
+            }
         }
 
         using PgList<int> list = PgList.DangerousBorrow<int>(pointer, owner);
@@ -277,7 +349,10 @@ public static unsafe class ListFunctions
         {
             list.Add(42);
             list.Insert(0, -7);
-            if (mode == 0) { list[1] = 11; }
+            if (mode == 0)
+            {
+                list[1] = 11;
+            }
         }
 
         long result = (long)list.DangerousGetPointer();
@@ -303,8 +378,16 @@ public static unsafe class ListFunctions
     [PgFunction]
     public static string ListSaved()
     {
-        try { return s_saved is null ? "missing" : string.Join(',', s_saved.ToArray()); }
-        catch (ObjectDisposedException) { s_saved?.Dispose(); s_saved = null; return "stale"; }
+        try
+        {
+            return s_saved is null ? "missing" : string.Join(',', s_saved.ToArray());
+        }
+        catch (ObjectDisposedException)
+        {
+            s_saved?.Dispose();
+            s_saved = null;
+            return "stale";
+        }
     }
 
     /// <summary>

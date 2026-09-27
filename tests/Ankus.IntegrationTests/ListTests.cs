@@ -162,8 +162,14 @@ public sealed class ListTests(TestContext context)
             Assert.AreEqual("saved", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT datatype.list_saved()";
             Assert.AreEqual("17", await command.ExecuteScalarAsync(token));
-            if (commit) { await transaction.CommitAsync(token); }
-            else { await transaction.RollbackAsync(token); }
+            if (commit)
+            {
+                await transaction.CommitAsync(token);
+            }
+            else
+            {
+                await transaction.RollbackAsync(token);
+            }
         }
 
         await using var check = new NpgsqlCommand("SELECT datatype.list_saved()", connection);

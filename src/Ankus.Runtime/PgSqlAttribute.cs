@@ -24,21 +24,37 @@ public sealed class PgSqlAttribute(string name, string sql) : Attribute
     /// <summary>
     /// Gets or sets identifiers of declarations that must run before this block.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets identifiers of declarations that must run after this block.
     /// </summary>
-    public string[] Before { get; set; } = [];
+    public string[] Before
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets whether this block runs first, last, or according to its explicit dependencies.
     /// </summary>
-    public PgSqlOrder Order { get; set; }
+    public PgSqlOrder Order
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether every object and reference in this block permits extension schema relocation.
     /// The default is false because arbitrary SQL may refer to fixed schemas.
     /// </summary>
-    public bool Relocatable { get; set; }
+    public bool Relocatable
+    {
+        get;
+        set;
+    }
 }

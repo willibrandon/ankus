@@ -89,6 +89,9 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual<string>(["ankus_native_body_checksum", "ankus_native_body_consume"], actual.Symbols);
             Assert.AreEqual(native, NativeBindingCallImports.Generate(records, "#define PG_VERSION_NUM 180006\n" + Headers, image));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

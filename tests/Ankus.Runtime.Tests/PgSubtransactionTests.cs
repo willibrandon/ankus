@@ -44,8 +44,14 @@ public sealed unsafe class PgSubtransactionTests
             InvalidOperationException actual = Assert.ThrowsExactly<InvalidOperationException>(() =>
                 PgTransaction.RunInSubtransaction(() =>
                 {
-                    try { throw failure; }
-                    finally { unwound = true; }
+                    try
+                    {
+                        throw failure;
+                    }
+                    finally
+                    {
+                        unwound = true;
+                    }
                 }));
             Assert.AreSame(failure, actual);
             Assert.IsTrue(unwound);
@@ -53,7 +59,10 @@ public sealed unsafe class PgSubtransactionTests
             Assert.AreEqual(42, PgTransaction.RunInSubtransaction(static () => 42));
             Assert.AreSequenceEqual([0, 1, 0], s_statuses!);
         }
-        finally { Exit(previous); }
+        finally
+        {
+            Exit(previous);
+        }
     }
 
     /// <summary>
@@ -92,7 +101,10 @@ public sealed unsafe class PgSubtransactionTests
             Assert.HasCount(2, memory.Requests);
             Assert.AreEqual(3, memory.ErrorReleases);
         }
-        finally { Exit(previous); }
+        finally
+        {
+            Exit(previous);
+        }
     }
 
     /// <summary>
@@ -118,7 +130,10 @@ public sealed unsafe class PgSubtransactionTests
             s_failStage = 0;
             Assert.AreEqual(42, PgTransaction.RunInSubtransaction(static () => 42));
         }
-        finally { Exit(previous); }
+        finally
+        {
+            Exit(previous);
+        }
     }
 
     /// <summary>

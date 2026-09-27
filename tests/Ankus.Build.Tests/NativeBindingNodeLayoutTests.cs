@@ -27,7 +27,10 @@ public sealed class NativeBindingNodeLayoutTests
         });
         Assert.AreEqual("7:24:8;8:24:8;9:32:8;10:32:8;11:32:8;12:32:8", NativeBindingNodeLayouts.Encode(catalog, layout));
         Assert.AreEqual("7:40:8;8:40:8;9:32:8;10:32:8;11:32:8;12:32:8", NativeBindingNodeLayouts.Encode(catalog,
-            layout with { Types = new Dictionary<string, NativeBindingTypeLayout>(layout.Types) { ["Leaf"] = new(40, 8, new Dictionary<string, NativeBindingFieldLayout>()) } }));
+            layout with
+            {
+                Types = new Dictionary<string, NativeBindingTypeLayout>(layout.Types) { ["Leaf"] = new(40, 8, new Dictionary<string, NativeBindingFieldLayout>()) }
+            }));
     }
 
     /// <summary>

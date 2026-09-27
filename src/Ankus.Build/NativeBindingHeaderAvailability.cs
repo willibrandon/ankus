@@ -9,7 +9,7 @@ namespace Ankus.Build;
 internal static class NativeBindingHeaderAvailability
 {
     /// <summary>
-    /// Matches only top-level native declarations, rejecting kind disagreements instead of hiding collection errors.
+    /// Matches only top-level native declarations and takes their kind from the selected target headers.
     /// </summary>
     /// <param name="root">A successful complete compiler observation of the selected headers.</param>
     /// <param name="inventory">The supported major's reference function and global inventory.</param>
@@ -26,7 +26,10 @@ internal static class NativeBindingHeaderAvailability
         var declarations = new Dictionary<string, string>(StringComparer.Ordinal);
         if (root.TryGetProperty("inner", out JsonElement children))
         {
-            if (children.ValueKind != JsonValueKind.Array) { throw new FormatException("Invalid native availability declarations."); }
+            if (children.ValueKind != JsonValueKind.Array)
+            {
+                throw new FormatException("Invalid native availability declarations.");
+            }
 
             foreach (JsonElement child in children.EnumerateArray())
             {
@@ -36,7 +39,10 @@ internal static class NativeBindingHeaderAvailability
                 }
 
                 string? declarationKind = childKind.GetString();
-                if (declarationKind is not ("FunctionDecl" or "VarDecl")) { continue; }
+                if (declarationKind is not ("FunctionDecl" or "VarDecl"))
+                {
+                    continue;
+                }
 
                 if (!child.TryGetProperty("name", out JsonElement identifier) || identifier.ValueKind != JsonValueKind.String)
                 {
@@ -59,7 +65,10 @@ internal static class NativeBindingHeaderAvailability
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (string name in inventory.Functions.Keys.Concat(inventory.Globals.Keys).Order(StringComparer.Ordinal))
         {
-            if (!names.Add(name)) { throw new FormatException($"Duplicate native inventory entry '{name}'."); }
+            if (!names.Add(name))
+            {
+                throw new FormatException($"Duplicate native inventory entry '{name}'.");
+            }
 
             NativeHeaderRequest request = Request(inventory, name);
             NativeBindingCDeclaration.ValidateName(request.Name);
@@ -70,12 +79,12 @@ internal static class NativeBindingHeaderAvailability
                 continue;
             }
 
-            if (declarationKind != (request.IsFunction ? "FunctionDecl" : "VarDecl"))
+            // The reference inventory identifies names, not the selected platform's ABI. PostgreSQL can
+            // declare one name as a function on ARM64 and a dispatch-pointer global on x64.
+            available.Add(request with
             {
-                throw new FormatException($"Native declaration '{request.NativeName}' disagrees with inventory entry '{name}'.");
-            }
-
-            available.Add(request);
+                IsFunction = declarationKind == "FunctionDecl"
+            });
         }
 
         return new(available.AsReadOnly(), absent.AsReadOnly());
@@ -91,7 +100,10 @@ internal static class NativeBindingHeaderAvailability
             return new(name, function.NativeSymbol == name + "__pgrx_cshim" ? name : function.NativeSymbol, true);
         }
 
-        if (raw.Globals.TryGetValue(name, out NativeBindingGlobal? global)) { return new(name, global.NativeSymbol, false); }
+        if (raw.Globals.TryGetValue(name, out NativeBindingGlobal? global))
+        {
+            return new(name, global.NativeSymbol, false);
+        }
 
         throw new FormatException($"Unknown native function or global '{name}'.");
     }

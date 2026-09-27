@@ -63,7 +63,10 @@ internal static class NativeBindingSourceCommand
         cancellationToken.ThrowIfCancellationRequested();
         // Clang is already required for semantic collection. Use it for default native
         // verification too; explicitly selected native compilers keep their own checks.
-        if (arguments.Length == 3) { arguments = [.. arguments, OperatingSystem.IsWindows() ? "cl.exe" : "clang"]; }
+        if (arguments.Length == 3)
+        {
+            arguments = [.. arguments, OperatingSystem.IsWindows() ? "cl.exe" : "clang"];
+        }
         else if (arguments[3].Length == 0)
         {
             arguments = [.. arguments];
@@ -109,7 +112,10 @@ internal static class NativeBindingSourceCommand
     private static string PhysicalDirectory(DirectoryInfo directory)
     {
         // Windows link resolution uses file enumeration, which cannot query a drive root.
-        if (directory.Parent is null) { return directory.FullName; }
+        if (directory.Parent is null)
+        {
+            return directory.FullName;
+        }
 
         DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
         return resolved.Parent is DirectoryInfo parent

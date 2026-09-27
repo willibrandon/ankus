@@ -19,15 +19,27 @@ public sealed class PgSqlTypeAttribute(string name) : Attribute
     /// <summary>
     /// Gets or sets a fixed schema, or null to resolve the type through the installation search path.
     /// </summary>
-    public string? Schema { get; set; }
+    public string? Schema
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether the datum represents an array of the named type.
     /// </summary>
-    public bool IsArray { get; set; }
+    public bool IsArray
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the SQL TABLE output column to bind when the method returns several raw values.
     /// </summary>
-    public string? Column { get; set; }
+    public string? Column
+    {
+        get;
+        set;
+    }
 }

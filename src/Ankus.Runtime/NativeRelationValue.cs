@@ -10,7 +10,10 @@ public partial struct NativeValue
     public readonly T[] ReadRelationVector<T>()
     {
         PgArray<T> array = ReadArray<T>();
-        try { return array.ToVector(); }
+        try
+        {
+            return array.ToVector();
+        }
         catch (Exception primary)
         {
             NativeRelationScope.Release(array, primary);
@@ -24,7 +27,10 @@ public partial struct NativeValue
     /// <returns>The owned relation reference. SQL NULL must be handled by the caller before conversion.</returns>
     public readonly PgRelation ReadRelation()
     {
-        if (IsNull != 0) { throw new InvalidOperationException("SQL NULL is not a relation reference."); }
+        if (IsNull != 0)
+        {
+            throw new InvalidOperationException("SQL NULL is not a relation reference.");
+        }
 
         return PgRelation.Open(checked((uint)Integral));
     }

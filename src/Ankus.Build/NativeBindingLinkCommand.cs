@@ -44,7 +44,10 @@ internal static class NativeBindingLinkCommand
         PostgresInstallation installation = arguments[1].Length == 0
             ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
             : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
-        if (installation.Version.Major != major) { throw new InvalidOperationException("The native call installation does not match the companion."); }
+        if (installation.Version.Major != major)
+        {
+            throw new InvalidOperationException("The native call installation does not match the companion.");
+        }
 
         string cache = arguments.Length == 8 && arguments[7].Length != 0 ? Path.GetFullPath(arguments[7])
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ankus", "bindings");
@@ -64,7 +67,10 @@ internal static class NativeBindingLinkCommand
             else
             {
                 options.AddRange(installation.PreprocessorArguments);
-                if (arguments[6].Length != 0) { options.Add("--target=" + arguments[6]); }
+                if (arguments[6].Length != 0)
+                {
+                    options.Add("--target=" + arguments[6]);
+                }
 
                 options.AddRange(["-std=c11", "-c", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                     "-isystem", installation.ServerIncludeDirectory, "-isystem", installation.IncludeDirectory, "-o", artifact]);
@@ -107,7 +113,10 @@ internal static class NativeBindingLinkCommand
                 }, cancellationToken);
             await PublishManifestAsync(output, Path.Combine(lease.Directory, Path.GetFileName(artifact)) + "\n", cancellationToken);
         }
-        finally { await NativeBuildDirectory.DeleteAsync(stage); }
+        finally
+        {
+            await NativeBuildDirectory.DeleteAsync(stage);
+        }
     }
 
     /// <summary>
@@ -123,7 +132,10 @@ internal static class NativeBindingLinkCommand
     private static async Task PublishManifestAsync(string output, string content, CancellationToken cancellationToken)
     {
         string destination = Path.Combine(output, "native-call-libraries.txt");
-        if (File.Exists(destination) && await File.ReadAllTextAsync(destination, cancellationToken) == content) { return; }
+        if (File.Exists(destination) && await File.ReadAllTextAsync(destination, cancellationToken) == content)
+        {
+            return;
+        }
 
         // The candidate must share the destination filesystem even when compilation
         // uses a short system-temporary path on another volume.
@@ -134,6 +146,9 @@ internal static class NativeBindingLinkCommand
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(candidate, destination, overwrite: true);
         }
-        finally { File.Delete(candidate); }
+        finally
+        {
+            File.Delete(candidate);
+        }
     }
 }

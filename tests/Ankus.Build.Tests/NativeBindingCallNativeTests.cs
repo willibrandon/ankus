@@ -246,7 +246,10 @@ public sealed partial class NativeBindingNativeTests
             await RunAsync(compiler, compile, directory);
             return (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n");
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     private async Task<NativeHeaderRecords> CollectCallRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory)

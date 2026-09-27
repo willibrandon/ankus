@@ -37,10 +37,18 @@ public sealed class PgRangeTypeAttribute(string name) : Attribute
     /// <summary>
     /// Gets or sets the range's fixed schema. External ranges require an explicit schema.
     /// </summary>
-    public string? Schema { get; set; }
+    public string? Schema
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether this extension supplies the range or an external schema already contains it.
     /// </summary>
-    public PgTypeOrigin Origin { get; set; }
+    public PgTypeOrigin Origin
+    {
+        get;
+        set;
+    }
 }

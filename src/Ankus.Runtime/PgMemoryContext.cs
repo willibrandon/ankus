@@ -181,7 +181,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
             }
 
             NativeMemoryContext.CheckProvider(_provider);
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Name, _context = Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Name,
+                _context = Id
+            };
             try
             {
                 NativeMemoryContext.Invoke(ref request, out _);
@@ -207,7 +211,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         get
         {
             EnsureAlive();
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Parent, _context = Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Parent,
+                _context = Id
+            };
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
             return result._context == 0 ? null : new PgMemoryContext(_provider, result._context, owned: false);
         }
@@ -462,7 +470,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     public nuint GetAllocatedBytes()
     {
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Statistics, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Statistics,
+            _context = Id
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         return result._length;
     }
@@ -480,7 +492,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         get
         {
             EnsureAlive();
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.IsEmpty, _context = Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.IsEmpty,
+                _context = Id
+            };
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
             return result._value != 0;
         }
@@ -499,7 +515,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         if (_owned)
         {
             NativeMemoryContext.CheckProvider(_provider);
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Delete, _context = Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Delete,
+                _context = Id
+            };
             NativeMemoryContext.Invoke(ref request, out _);
         }
 
@@ -508,7 +528,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
 
     private static PgMemoryContext? Resolve(NativeMemoryOperation operation, nint value, bool owned)
     {
-        NativeMemoryRequest request = new() { _operation = operation, _value = value };
+        NativeMemoryRequest request = new()
+        {
+            _operation = operation,
+            _value = value
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         return result._context == 0 ? null : new PgMemoryContext(NativeMemoryContext.Provider, result._context, owned);
     }
@@ -536,7 +560,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, nameof(PgMemoryContext));
 
         NativeMemoryContext.CheckProvider(_provider);
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Name, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Name,
+            _context = Id
+        };
         try
         {
             NativeMemoryContext.Invoke(ref request, out _);
@@ -550,14 +578,22 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     private void InvokeContext(NativeMemoryOperation operation)
     {
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = operation, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = operation,
+            _context = Id
+        };
         NativeMemoryContext.Invoke(ref request, out _);
     }
 
     private string ReadText(NativeMemoryOperation operation)
     {
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = operation, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = operation,
+            _context = Id
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         byte[] bytes = new byte[checked((int)result._length)];
         fixed (byte* buffer = bytes)
@@ -602,7 +638,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     private TResult Run<TCallback, TResult>(Func<TCallback, TResult> callback, TCallback callbackValue)
     {
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Switch, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.Switch,
+            _context = Id
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         TResult value = default!;
         Exception? primary = null;
@@ -616,7 +656,11 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
         }
 
         Exception? restoreError = null;
-        NativeMemoryRequest restore = new() { _operation = NativeMemoryOperation.Switch, _context = result._context };
+        NativeMemoryRequest restore = new()
+        {
+            _operation = NativeMemoryOperation.Switch,
+            _context = result._context
+        };
         try
         {
             NativeMemoryContext.Invoke(ref restore, out _);

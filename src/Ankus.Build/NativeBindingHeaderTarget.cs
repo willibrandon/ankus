@@ -64,11 +64,17 @@ internal static class NativeBindingHeaderTarget
             {
                 foreach (JsonElement member in members.EnumerateArray())
                 {
-                    if (!member.TryGetProperty("name", out JsonElement nameProperty)) { continue; }
+                    if (!member.TryGetProperty("name", out JsonElement nameProperty))
+                    {
+                        continue;
+                    }
 
                     string name = nameProperty.GetString()!;
                     if (name is not ("ankus_header_pg_version" or "ankus_header_pointer_size" or "ankus_header_little_endian" or "ankus_header_clang_major") &&
-                        !NativeBindingNumericModel.IsFact(name)) { continue; }
+                        !NativeBindingNumericModel.IsFact(name))
+                    {
+                        continue;
+                    }
 
                     string value = Constant(member, "ConstantExpr");
                     if (!int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int number) ||

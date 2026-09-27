@@ -71,6 +71,9 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreEqual("43|-32|2\n", (await RunAsync(executable, [], directory)).ReplaceLineEndings("\n"));
             Assert.AreSequenceEqual<string>(["absent_value", "provided_value"], records.Graph.Roots.Keys);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

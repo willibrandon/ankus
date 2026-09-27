@@ -161,14 +161,21 @@ public sealed unsafe partial class NodeReferenceTests
             if (request._operation == NativeMemoryOperation.FormatNode)
             {
                 _ = Output(request, failure == 1);
-                if (failure == 2) { throw new PgException("54001", "native traversal failed"); }
+                if (failure == 2)
+                {
+                    throw new PgException("54001", "native traversal failed");
+                }
 
                 return default;
             }
 
             return Respond(fixture, request);
         };
-        SampleNode value = new() { _tag = 7, _number = 99 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 99
+        };
         PgNodeReference<SampleNode> node = PgNodes.Borrow(PgMemoryContext.Current.DangerousBorrow<SampleNode>(&value)!);
         fixture.Requests.Clear();
         s_outputReleases = 0;

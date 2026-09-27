@@ -41,6 +41,9 @@ public sealed class NativeBindingSourceCommandTests(TestContext context)
             Assert.AreSequenceEqual<string>([file], Directory.GetFiles(directory));
             Assert.IsEmpty(Directory.GetDirectories(directory));
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 }

@@ -21,19 +21,31 @@ public sealed class PgOrderingAttribute : Attribute
     /// <summary>
     /// Gets or sets the installation dependency identifier for the completed B-tree operator family and class.
     /// </summary>
-    public string? Id { get; set; }
+    public string? Id
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets installation entities that must precede the generated ordering declarations.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets whether installation SQL is emitted for the B-tree operator family and class.
     /// The default is true. False retains the comparison functions, relational operators and dependency identifier.
     /// Cannot be false when Sql contains a replacement, including an empty string.
     /// </summary>
-    public bool GenerateSql { get; set; } = true;
+    public bool GenerateSql
+    {
+        get;
+        set;
+    } = true;
 
     /// <summary>
     /// Gets or sets literal installation SQL replacing the B-tree operator family and class.
@@ -44,12 +56,20 @@ public sealed class PgOrderingAttribute : Attribute
     /// qualified when a fixed schema is declared, without an argument list. Do not add string quotes around this token.
     /// @MODULE_PATHNAME@ becomes MODULE_PATHNAME. Comparison functions and relational operators remain generated.
     /// </remarks>
-    public string? Sql { get; set; }
+    public string? Sql
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether the literal Sql replacement permits moving the extension to another schema.
     /// The default is false. This option applies only to non-null Sql; fixed schemas and other
     /// non-relocatable declarations can still prevent relocation.
     /// </summary>
-    public bool SqlRelocatable { get; set; }
+    public bool SqlRelocatable
+    {
+        get;
+        set;
+    }
 }

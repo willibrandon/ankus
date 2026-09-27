@@ -47,7 +47,10 @@ public sealed class NativeBindingCallCommandTests(TestContext context)
                 [list, "18", "missing-pg-config", directory], cancellation.Token));
             Assert.AreEqual("existing-call-body", await File.ReadAllTextAsync(source, context.CancellationToken));
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     /// <summary>
@@ -97,6 +100,9 @@ public sealed class NativeBindingCallCommandTests(TestContext context)
             Assert.AreEqual("compiled", await File.ReadAllTextAsync(final, context.CancellationToken));
             Assert.AreSequenceEqual([final], Directory.GetFiles(directory));
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 }

@@ -661,47 +661,83 @@ public sealed class NativeLogTests
         /// <summary>
         /// Gets or sets the controlled native routing result.
         /// </summary>
-        internal bool Enabled { get; set; } = true;
+        internal bool Enabled
+        {
+            get;
+            set;
+        } = true;
 
         /// <summary>
         /// Gets or sets which operation fails, or minus one for success.
         /// </summary>
-        internal int FailOperation { get; set; } = -1;
+        internal int FailOperation
+        {
+            get;
+            set;
+        } = -1;
 
         /// <summary>
         /// Gets or sets whether a failure contains invalid UTF-8 text.
         /// </summary>
-        internal bool MalformedError { get; set; }
+        internal bool MalformedError
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the last report's packed native SQLSTATE.
         /// </summary>
-        internal int SqlState { get; set; }
+        internal int SqlState
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the last report's client query position.
         /// </summary>
-        internal int Position { get; set; }
+        internal int Position
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the last report's internal query position.
         /// </summary>
-        internal int InternalPosition { get; set; }
+        internal int InternalPosition
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the last report's source line.
         /// </summary>
-        internal int Line { get; set; }
+        internal int Line
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of freed outgoing report allocations.
         /// </summary>
-        internal int ReportReleases { get; set; }
+        internal int ReportReleases
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of freed incoming native diagnostic allocations.
         /// </summary>
-        internal int ErrorReleases { get; set; }
+        internal int ErrorReleases
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Restores the previous test callback state.

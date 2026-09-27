@@ -12,7 +12,12 @@ internal static class SpiRange
     /// <returns>The range OID.</returns>
     internal static uint RangeOid(uint subtype) => subtype switch
     {
-        23 => 3904, 20 => 3926, 1700 => 3906, 1082 => 3912, 1114 => 3908, 1184 => 3910,
+        23 => 3904,
+        20 => 3926,
+        1700 => 3906,
+        1082 => 3912,
+        1114 => 3908,
+        1184 => 3910,
         _ => throw new NotSupportedException($"PostgreSQL type OID {subtype} has no supported built-in range."),
     };
 

@@ -21,7 +21,10 @@ public sealed partial class NativeBindingNativeTests
             FormatException failure = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(records, headers));
             Assert.Contains(expected, failure.Message);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -41,8 +44,14 @@ public sealed partial class NativeBindingNativeTests
             string expected = NativeBindingCallSource.Generate(records, Headers);
             NativeHeaderRecords reordered = records with
             {
-                Headers = records.Headers with { Symbols = records.Headers.Symbols.Reverse().ToDictionary() },
-                Graph = records.Graph with { Roots = records.Graph.Roots.Reverse().ToDictionary() },
+                Headers = records.Headers with
+                {
+                    Symbols = records.Headers.Symbols.Reverse().ToDictionary()
+                },
+                Graph = records.Graph with
+                {
+                    Roots = records.Graph.Roots.Reverse().ToDictionary()
+                },
             };
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(reordered, Headers));
             string file = Path.Combine(directory, "checks.c");
@@ -65,7 +74,13 @@ public sealed partial class NativeBindingNativeTests
             Assert.Contains("incompatible reconstructed native type: native_first", signature.Message);
             NativeRecordType[] changedTypes = [.. records.Graph.Types.Select(static type =>
                 type.Kind == "scalar" && type.Name == "int" ? type with { Size = 8, Alignment = 8 } : type)];
-            NativeHeaderRecords changedStorage = records with { Graph = records.Graph with { Types = changedTypes } };
+            NativeHeaderRecords changedStorage = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = changedTypes
+                }
+            };
             await File.WriteAllTextAsync(file, NativeBindingCallSource.Generate(changedStorage, Headers), context.CancellationToken);
             InvalidOperationException storage = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 NativeBindingHeaderCommand.CompileAsync(compiler, options, diagnostics, directory, context.CancellationToken, inspectBodies: true));
@@ -78,8 +93,14 @@ public sealed partial class NativeBindingNativeTests
             {
                 NativeHeaderRecords changedTarget = records with
                 {
-                    Headers = records.Headers with { Target = target },
-                    Graph = records.Graph with { Target = target },
+                    Headers = records.Headers with
+                    {
+                        Target = target
+                    },
+                    Graph = records.Graph with
+                    {
+                        Target = target
+                    },
                 };
                 await File.WriteAllTextAsync(file, NativeBindingCallSource.Generate(changedTarget, Headers), context.CancellationToken);
                 InvalidOperationException mismatch = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
@@ -90,13 +111,37 @@ public sealed partial class NativeBindingNativeTests
             NativeHeaderSymbol first = records.Headers.Symbols["native_first"];
             NativeHeaderFunction function = Assert.IsInstanceOfType<NativeHeaderFunction>(first.Type);
             Dictionary<string, NativeHeaderSymbol> symbols = records.Headers.Symbols.ToDictionary();
-            symbols["native_first"] = first with { Type = function with { Parameters = [] } };
+            symbols["native_first"] = first with
+            {
+                Type = function with
+                {
+                    Parameters = []
+                }
+            };
             FormatException count = Assert.ThrowsExactly<FormatException>(() =>
-                NativeBindingCallSource.Generate(records with { Headers = records.Headers with { Symbols = symbols } }, Headers));
+                NativeBindingCallSource.Generate(records with
+                {
+                    Headers = records.Headers with
+                    {
+                        Symbols = symbols
+                    }
+                }, Headers));
             Assert.Contains("parameter count", count.Message);
-            symbols["native_first"] = first with { Type = function with { Result = new NativeHeaderScalar("void") } };
+            symbols["native_first"] = first with
+            {
+                Type = function with
+                {
+                    Result = new NativeHeaderScalar("void")
+                }
+            };
             FormatException result = Assert.ThrowsExactly<FormatException>(() =>
-                NativeBindingCallSource.Generate(records with { Headers = records.Headers with { Symbols = symbols } }, Headers));
+                NativeBindingCallSource.Generate(records with
+                {
+                    Headers = records.Headers with
+                    {
+                        Symbols = symbols
+                    }
+                }, Headers));
             Assert.Contains("native_first.result", result.Message);
             Assert.Contains("scalar identity", result.Message);
             int aliasIndex = records.Graph.Types.Count;
@@ -106,12 +151,19 @@ public sealed partial class NativeBindingNativeTests
             cyclicRoots["native_first"] = aliasIndex;
             NativeHeaderRecords cyclic = records with
             {
-                Graph = records.Graph with { Roots = cyclicRoots, Types = [.. records.Graph.Types, cyclicAlias] },
+                Graph = records.Graph with
+                {
+                    Roots = cyclicRoots,
+                    Types = [.. records.Graph.Types, cyclicAlias]
+                },
             };
             FormatException alias = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(cyclic, Headers));
             Assert.Contains("type shape", alias.Message);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>

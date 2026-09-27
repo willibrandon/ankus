@@ -279,42 +279,74 @@ public sealed class PgDatumRangeTests
         /// <summary>
         /// Gets or sets the native flags returned for raw bounds.
         /// </summary>
-        internal int Flags { get; set; } = 2;
+        internal int Flags
+        {
+            get;
+            set;
+        } = 2;
 
         /// <summary>
         /// Gets or sets the catalog range identity.
         /// </summary>
-        internal uint RangeOid { get; set; } = 9002;
+        internal uint RangeOid
+        {
+            get;
+            set;
+        } = 9002;
 
         /// <summary>
         /// Gets or sets the subtype obtained independently from the range catalog.
         /// </summary>
-        internal uint Subtype { get; set; } = 9001;
+        internal uint Subtype
+        {
+            get;
+            set;
+        } = 9001;
 
         /// <summary>
         /// Gets or sets observed finite reads.
         /// </summary>
-        internal int Reads { get; set; }
+        internal int Reads
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets observed finite writes.
         /// </summary>
-        internal int Writes { get; set; }
+        internal int Writes
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets native result releases.
         /// </summary>
-        internal int Releases { get; private set; }
+        internal int Releases
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets or sets the last borrowed scalar handle.
         /// </summary>
-        internal PgDatum? Captured { get; set; }
+        internal PgDatum? Captured
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets the last construction's independent flags.
         /// </summary>
-        internal int WrittenFlags { get; private set; }
+        internal int WrittenFlags
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the last construction's raw finite bound bits or NULL markers.
@@ -324,7 +356,11 @@ public sealed class PgDatumRangeTests
         /// <summary>
         /// Gets the selected final result context.
         /// </summary>
-        internal nint Destination { get; private set; }
+        internal nint Destination
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public void Dispose()

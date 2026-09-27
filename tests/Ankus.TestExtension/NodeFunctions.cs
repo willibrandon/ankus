@@ -79,7 +79,11 @@ public static unsafe partial class NodeFunctions
     public static uint NodeIncompatibleBinding()
     {
         using PgMemoryContext owner = PgMemoryContext.Create("native node incompatible binding");
-        ForeignNode value = new() { _tag = (uint)NodeTag.T_RangeTblRef, _index = 9 };
+        ForeignNode value = new()
+        {
+            _tag = (uint)NodeTag.T_RangeTblRef,
+            _index = 9
+        };
         return PgNodes.Borrow(owner.DangerousBorrow<ForeignNode>(&value)!).Tag;
     }
 

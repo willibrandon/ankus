@@ -112,7 +112,10 @@ public sealed class NativeRawCallTests(TestContext context)
             var warnings = new List<PostgresNotice>();
             connection.Notice += (_, args) =>
             {
-                if (args.Notice.InvariantSeverity == "WARNING") { warnings.Add(args.Notice); }
+                if (args.Notice.InvariantSeverity == "WARNING")
+                {
+                    warnings.Add(args.Notice);
+                }
             };
             await transaction.SaveAsync("raw_release_abort", token);
             await using var command = new NpgsqlCommand(

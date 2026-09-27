@@ -7789,3 +7789,77 @@ The phases track implementation of the complete pgrx feature surface.
   Compiler shims, callbacks, variadics,
   globals/hooks, the full feature inventory and PostgreSQL/platform matrix
   remain required for the faithful port.
+
+### Selected-platform declaration kinds and block formatting
+
+[The macOS ARM64 job in CI run 36282996348](https://github.com/willibrandon/ankus/actions/runs/36282996348/job/108518475322)
+for `d46a308` failed during the build, before the full tests could run. PostgreSQL
+18 declares `pg_popcount32` as a function on ARM64 and can expose it as a mutable
+dispatch-pointer global on x64. Availability discovery incorrectly required the
+selected headers to retain the reference inventory's declaration kind.
+
+The reference inventory now supplies names, while the selected headers supply
+declaration kinds as well as exact native types. The standalone header command
+and combined SDK collection use those observed kinds. Duplicate conflicting
+declarations, malformed observations, changes during collection and incompatible
+reconstructed native types still fail validation. This repair adds no warning
+suppression or analyzer relaxation.
+
+`AvailabilityUsesSelectedHeaderDeclarationKinds` checks both transitions without
+mutating the inventory. `HeaderAvailabilityPreservesPlatformDeclarationKinds`
+compiles both function and dispatch-pointer forms, executes exact return-value
+checks and rejects incompatible signatures. The focused selection passes all
+14 cases on Linux x64 in 1.243s. `PackagedBuildToolCollectsSelectedHeaderTypes`
+now includes the real `pg_popcount32` declaration and asserts its ARM64 function
+identity. New hosted verification is pending.
+
+All tracked C# block bodies now use separate brace lines, including short
+conditionals, loops, exception handlers and lambdas. Properties with `get` plus
+`set` or `init` have separate accessor lines, including visibility modifiers.
+The initial formatting pass incorrectly expanded 268 simple getter-only
+declarations. These are restored to one line, including partial and interface
+properties and auto-properties with initializers. The formatter now preserves
+compact declarations, and `AGENTS.md` explicitly records those exceptions.
+A check of all tracked C# accessors reports no remaining violations, and the
+complete whitespace-format verification passes. A syntax-tree and token-value
+comparison verifies that the 256 files changed only for formatting retain their
+code structure and values. The block check also finds no remaining compact C#
+blocks. Final Release after the getter correction passes with zero warnings/errors
+in 1m 02.52s. API freshness passes for 170 pages/2,256 members; the site builds
+212 pages in 3.58s and checks with zero errors, warnings or hints. The first
+plain root test suite found an over-specific new test expectation: PostgreSQL's
+`uint32` includes an intermediate `uint32_t` typedef on Linux. The assertion now
+preserves the public alias while following the typedef chain to check the exact
+unsigned scalar type. That incomplete run requires validation after the correction;
+it is not full-suite success. The corrected packaged regression passes on
+PostgreSQL 18.6/Linux x64: one passed, zero failed or skipped in 2m 47.683s.
+The final plain root complete suite passes all six modules on PostgreSQL
+18.6/Linux x64: 7,657 passed, zero failed, and six Windows-only skips, 7,663 total,
+in 14m 36.225s. Integration completes in 14m 35.669s. The getter correction changes
+whitespace only, with syntax and token equivalence checked; shared build outputs
+were not rebuilt while this suite ran. The final Release result above validates
+the corrected source afterward.
+
+The original hosted Linux job also reached its 30-minute limit during integration
+testing. Its build and all five unit modules had passed; complete backend evidence
+was interrupted. The Windows job also reached its 40-minute limit after its
+11m 52.43s build and all five unit modules passed, interrupting integration tests.
+Following the user's explicit request to increase that limit, Windows now allows
+45 minutes. Linux allows 35 minutes and macOS remains at 30. Every platform
+retains the complete suite. The user also authorizes future increases when measured
+runs need them as the suite grows; current limits and their reasons must be recorded.
+Hosted CI does not block independent development. Prior run outcomes must be
+checked and recorded before both committing and pushing.
+
+The 7,663 cases span six projects: 4,343 across the five unit/generator projects
+and 3,320 integration cases. All six modules pass in the complete local run above.
+
+Immediately before committing this repair, prior hosted outcomes were checked
+again: [CI run 36282996348](https://github.com/willibrandon/ankus/actions/runs/36282996348)
+is terminal with the macOS declaration failure and the Linux/Windows timeout
+outcomes described above. Quality and all three runtime jobs succeeded.
+[Documentation run 36282996370](https://github.com/willibrandon/ankus/actions/runs/36282996370)
+succeeded, including deployment. No newer run is pending. New hosted suites must
+establish the repaired complete platform outcomes; the local regression witnesses
+do not replace macOS or Windows platform evidence. The remaining full-port scope
+from the preceding milestone remains required.

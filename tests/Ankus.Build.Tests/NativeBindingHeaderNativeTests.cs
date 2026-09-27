@@ -6,6 +6,79 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// Native functions and dispatch-pointer globals retain their actual types when the reference platform differs.
+    /// </summary>
+    /// <param name="dispatch">Whether the selected headers expose a dispatch-pointer global.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task HeaderAvailabilityPreservesPlatformDeclarationKinds(bool dispatch)
+    {
+        const string Inventory = """
+            extern "C" {
+                #[link_name = "native_count"]
+                pub fn count(word: u32) -> i32;
+                #[link_name = "native_dispatch"]
+                pub static mut dispatch: Option<unsafe extern "C" fn(word: u32) -> i32>;
+            }
+            """;
+        string headers = "extern int " + (dispatch ? "(*native_count)" : "native_count") + "(unsigned int word);\n" +
+            "extern int " + (dispatch ? "(*native_dispatch)" : "native_dispatch") + "(unsigned int word);\n";
+        NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse(Inventory, 18);
+        NativeHeaderRequest[] reference = [.. inventory.Functions.Keys.Concat(inventory.Globals.Keys)
+            .Select(name => NativeBindingHeaderAvailability.Request(inventory, name))];
+        string directory = Directory.CreateTempSubdirectory("ankus-native-kind-").FullName;
+        try
+        {
+            string file = Path.Combine(directory, "types.c");
+            string ast = Path.Combine(directory, "types.json");
+            string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
+            string[] frontend = OperatingSystem.IsWindows()
+                ? ["/nologo", "/std:c11", "/W4", "/WX", "/Zs", "-Xclang", "-ast-dump=json", file]
+                : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only", "-Xclang", "-ast-dump=json", file];
+            await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateSource(headers, reference), context.CancellationToken);
+            await NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken);
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(ast, context.CancellationToken));
+            NativeBindingAvailability availability = NativeBindingHeaderAvailability.Read(document.RootElement, inventory);
+            Assert.IsEmpty(availability.Absent);
+            Assert.AreSequenceEqual<NativeHeaderRequest>([new("count", "native_count", !dispatch), new("dispatch", "native_dispatch", !dispatch)], availability.Available);
+            IReadOnlyDictionary<string, NativeHeaderSymbol> symbols = NativeBindingHeaderParser.Read(document.RootElement, availability.Available);
+            foreach (NativeHeaderSymbol symbol in symbols.Values)
+            {
+                Assert.AreEqual(!dispatch, symbol.IsFunction);
+                NativeHeaderType callable = dispatch ? Assert.IsInstanceOfType<NativeHeaderPointer>(symbol.Type).Element : symbol.Type;
+                NativeHeaderFunction function = Assert.IsInstanceOfType<NativeHeaderFunction>(callable);
+                Assert.AreEqual(new NativeHeaderScalar("int"), function.Result);
+                Assert.AreSequenceEqual<NativeHeaderType>([new NativeHeaderScalar("unsigned int")], function.Parameters);
+            }
+
+            Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderParser.Read(document.RootElement, reference));
+            string definitions = "static int implementation(unsigned int word) { return word == 0xffffffffU ? 32 : 0; }\n" +
+                (dispatch
+                    ? "int (*native_count)(unsigned int) = implementation;\nint (*native_dispatch)(unsigned int) = implementation;\n"
+                    : "int native_count(unsigned int word) { return implementation(word); }\nint native_dispatch(unsigned int word) { return implementation(word); }\n");
+            string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "types.exe" : "types");
+            string source = NativeBindingHeaderParser.GenerateChecks(headers, symbols) + definitions +
+                "int main(void) { return native_count(0xffffffffU) == 32 && native_dispatch(0U) == 0 ? 0 : 1; }\n";
+            await File.WriteAllTextAsync(file, source, context.CancellationToken);
+            string[] compile = OperatingSystem.IsWindows()
+                ? ["/nologo", "/std:c11", "/W4", "/WX", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
+                : ["-std=c11", "-Wall", "-Wextra", "-Werror", file, "-o", executable];
+            await RunAsync(compiler, compile, directory);
+            Assert.AreEqual("", await RunAsync(executable, [], directory));
+            string incompatible = headers.Replace("unsigned int", "unsigned long long", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateChecks(incompatible, symbols), context.CancellationToken);
+            InvalidOperationException failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                NativeBindingHeaderCommand.CompileAsync(compiler, frontend, ast, directory, context.CancellationToken));
+            Assert.Contains("incompatible reconstructed native type", failure.Message);
+        }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
+    }
+
+    /// <summary>
     /// Structured header types preserve native distinctions and reconstruct compiler-compatible declarations.
     /// </summary>
     [TestMethod]

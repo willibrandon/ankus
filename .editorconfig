@@ -57,10 +57,10 @@ dotnet_style_qualification_for_property = false:error
 dotnet_style_qualification_for_method = false:error
 dotnet_style_qualification_for_event = false:error
 
-# Braces always, blocks on their own lines.
+# Braces always. Preserve compact getter-only declarations; statement blocks use separate lines.
 csharp_prefer_braces = true:warning
-csharp_preserve_single_line_blocks = false:none
-csharp_preserve_single_line_statements = false:none
+csharp_preserve_single_line_blocks = true
+csharp_preserve_single_line_statements = false
 
 # Expressions
 dotnet_style_predefined_type_for_locals_parameters_members = true:error

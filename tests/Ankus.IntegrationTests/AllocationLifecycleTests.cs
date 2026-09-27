@@ -74,11 +74,26 @@ public sealed class AllocationLifecycleTests(TestContext context)
     private static IEnumerable<TestDataRow<(long, long, bool, int, bool)>> Cases(long initialSize, string scale)
     {
         long grownSize = initialSize + Mebibyte;
-        yield return new((initialSize, grownSize, false, 0, false)) { DisplayName = $"{scale}: ordinary allocation and resize" };
-        yield return new((initialSize, grownSize, true, 0, false)) { DisplayName = $"{scale}: no-OOM allocation and resize" };
-        yield return new((initialSize, grownSize, false, 64, false)) { DisplayName = $"{scale}: 64-byte aligned allocation and resize" };
-        yield return new((initialSize, grownSize, true, 64, false)) { DisplayName = $"{scale}: 64-byte aligned no-OOM allocation and resize" };
-        yield return new((initialSize, grownSize, false, 0, true)) { DisplayName = $"{scale}: zeroed allocation and growth" };
+        yield return new((initialSize, grownSize, false, 0, false))
+        {
+            DisplayName = $"{scale}: ordinary allocation and resize"
+        };
+        yield return new((initialSize, grownSize, true, 0, false))
+        {
+            DisplayName = $"{scale}: no-OOM allocation and resize"
+        };
+        yield return new((initialSize, grownSize, false, 64, false))
+        {
+            DisplayName = $"{scale}: 64-byte aligned allocation and resize"
+        };
+        yield return new((initialSize, grownSize, true, 64, false))
+        {
+            DisplayName = $"{scale}: 64-byte aligned no-OOM allocation and resize"
+        };
+        yield return new((initialSize, grownSize, false, 0, true))
+        {
+            DisplayName = $"{scale}: zeroed allocation and growth"
+        };
     }
 
     private async Task AssertLifecycleAsync(NpgsqlConnection connection, int backend, long initialSize, long grownSize, bool tryOperations, int alignment, bool zeroed, CancellationToken token)

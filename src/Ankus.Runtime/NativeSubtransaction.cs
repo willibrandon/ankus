@@ -40,7 +40,10 @@ internal static unsafe class NativeSubtransaction
             handle.Free();
         }
 
-        if (invocation.Failure is { } failure) { ExceptionDispatchInfo.Capture(failure).Throw(); }
+        if (invocation.Failure is { } failure)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
 
         return result;
     }
@@ -62,7 +65,10 @@ internal static unsafe class NativeSubtransaction
     /// </summary>
     internal static void CheckAccess()
     {
-        if (s_current?.Failure is { } failure) { ExceptionDispatchInfo.Capture(failure).Throw(); }
+        if (s_current?.Failure is { } failure)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     /// <summary>
@@ -116,6 +122,10 @@ internal static unsafe class NativeSubtransaction
         /// <summary>
         /// Gets or sets the first error to rethrow after rollback.
         /// </summary>
-        internal Exception? Failure { get; set; }
+        internal Exception? Failure
+        {
+            get;
+            set;
+        }
     }
 }

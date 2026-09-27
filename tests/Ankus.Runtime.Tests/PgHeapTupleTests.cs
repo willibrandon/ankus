@@ -628,10 +628,19 @@ public sealed class PgHeapTupleTests
         byte[] bytes = kind == "short" ? new byte[11] : kind == "trailing" ? [.. IndependentTupleBytes(), 0] : IndependentTupleBytes();
         (int offset, int replacement) = kind switch
         {
-            "type-zero" => (0, 0), "negative-count" => (8, -1), "too-many" => (8, 1665),
-            "name-length" => (32, 64), "flags" => (28, 8), "null-flag" => (57, 2),
-            "negative-payload" => (61, -1), "truncated-payload" => (61, 1), "dropped-value" => (28, 1),
-            "declared-zero" => (12, 0), "base-zero" => (16, 0), "composite-flag" => (28, 4), _ => (-1, 0),
+            "type-zero" => (0, 0),
+            "negative-count" => (8, -1),
+            "too-many" => (8, 1665),
+            "name-length" => (32, 64),
+            "flags" => (28, 8),
+            "null-flag" => (57, 2),
+            "negative-payload" => (61, -1),
+            "truncated-payload" => (61, 1),
+            "dropped-value" => (28, 1),
+            "declared-zero" => (12, 0),
+            "base-zero" => (16, 0),
+            "composite-flag" => (28, 4),
+            _ => (-1, 0),
         };
         if (offset >= 0)
         {

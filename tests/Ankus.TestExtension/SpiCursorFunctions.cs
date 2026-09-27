@@ -240,10 +240,17 @@ public static class SpiCursorFunctions
             {
                 switch (mode)
                 {
-                    case 0: cursor.Fetch(1); break;
-                    case 1: cursor.Dispose(); break;
-                    case 2: cursor.Detach(); break;
-                    default: throw new ArgumentOutOfRangeException(nameof(mode));
+                    case 0:
+                        cursor.Fetch(1);
+                        break;
+                    case 1:
+                        cursor.Dispose();
+                        break;
+                    case 2:
+                        cursor.Detach();
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(mode));
                 }
 
                 return "unexpected success";

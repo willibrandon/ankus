@@ -8,10 +8,18 @@ public sealed class AverageState
     /// <summary>
     /// Gets or sets the checked sum of the input integers.
     /// </summary>
-    public long Sum { get; set; }
+    public long Sum
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the number of nonnull input integers.
     /// </summary>
-    public long Count { get; set; }
+    public long Count
+    {
+        get;
+        set;
+    }
 }

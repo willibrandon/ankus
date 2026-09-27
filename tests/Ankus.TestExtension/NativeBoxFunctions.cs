@@ -69,11 +69,23 @@ public static unsafe class NativeBoxFunctions
         int consumedOperations = 0;
         foreach (Action operation in new Action[]
         {
-            () => { _ = box.Value; },
+            () =>
+            {
+                _ = box.Value;
+            },
             () => box.Value = 99,
-            () => { _ = box.Borrow(); },
-            () => { _ = box.ReleaseToContext(); },
-            () => { _ = box.DangerousGetPointer(); },
+            () =>
+            {
+                _ = box.Borrow();
+            },
+            () =>
+            {
+                _ = box.ReleaseToContext();
+            },
+            () =>
+            {
+                _ = box.DangerousGetPointer();
+            },
         })
         {
             if (IsDisposed(operation))
@@ -242,7 +254,10 @@ public static unsafe class NativeBoxFunctions
         box.Dispose();
         nuint after = owner.GetAllocatedBytes();
         long nativeAfter = Spi.ExecuteScalar<long>("SELECT total_bytes FROM pg_backend_memory_contexts WHERE ident = 'native box individual free'");
-        bool expired = IsDisposed(() => { _ = borrowed.Value; });
+        bool expired = IsDisposed(() =>
+        {
+            _ = borrowed.Value;
+        });
         box.Dispose();
         return $"{allocated > baseline}|{contents.First},{contents.Last}|{after == baseline}|{nativeAfter == (long)baseline}|" +
             $"{owner.IsAlive}|{expired}|{owner.GetAllocatedBytes() == after}";
@@ -272,7 +287,10 @@ public static unsafe class NativeBoxFunctions
             ?? throw new InvalidOperationException("Collected native wrapper lost its non-null pointer.");
         LargeValue contents = borrowed.Value;
         owner.Reset();
-        bool expired = IsDisposed(() => { _ = borrowed.Value; });
+        bool expired = IsDisposed(() =>
+        {
+            _ = borrowed.Value;
+        });
         return $"{collected}|{allocated > baseline}|{retained}|{contents.First},{contents.Last}|{owner.GetAllocatedBytes() == baseline}|{expired}";
     }
 
@@ -315,16 +333,28 @@ public static unsafe class NativeBoxFunctions
         nint identity = anchor.Id;
         switch (cleanup)
         {
-            case 0: anchor.ResetOnly(); break;
-            case 1: anchor.Reset(); break;
-            case 2: parent.ResetChildren(); break;
-            case 3: parent.Dispose(); break;
-            default: throw new ArgumentOutOfRangeException(nameof(cleanup));
+            case 0:
+                anchor.ResetOnly();
+                break;
+            case 1:
+                anchor.Reset();
+                break;
+            case 2:
+                parent.ResetChildren();
+                break;
+            case 3:
+                parent.Dispose();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(cleanup));
         }
 
         string stale = $"{ReadOrStale(() => first.Value)},{ReadOrStale(() => second.Value)},{ReadOrStale(() => inside.Value)}";
         bool writeRejected = IsDisposed(() => first.Value = 99);
-        bool pointerRejected = IsDisposed(() => { _ = inside.DangerousGetPointer(); });
+        bool pointerRejected = IsDisposed(() =>
+        {
+            _ = inside.DangerousGetPointer();
+        });
         string fresh = "deleted";
         if (anchor.IsAlive)
         {
@@ -413,10 +443,19 @@ public static unsafe class NativeBoxFunctions
         int rejected = 0;
         foreach (Action action in new Action[]
         {
-            () => { _ = reference.Value; },
+            () =>
+            {
+                _ = reference.Value;
+            },
             () => reference.Value = 99,
-            () => { _ = reference.DangerousGetPointer(); },
-            () => { _ = tail.Value; },
+            () =>
+            {
+                _ = reference.DangerousGetPointer();
+            },
+            () =>
+            {
+                _ = tail.Value;
+            },
         })
         {
             try
@@ -436,7 +475,10 @@ public static unsafe class NativeBoxFunctions
         int first = allocation.Read<int>();
         allocation.Dispose();
         return $"{shared}|{moved}|{follows}|{afterGrowth}|{rejected}|{afterRegrowth}|{first}|{copy.Value}|" +
-            $"{copy.Context.Id == target.Id}|{ReadOrStale(() => reference.Value)}|{IsDisposed(() => { _ = tail.Value; })}";
+            $"{copy.Context.Id == target.Id}|{ReadOrStale(() => reference.Value)}|{IsDisposed(() =>
+            {
+                _ = tail.Value;
+            })}";
     }
 
     /// <summary>
@@ -617,7 +659,11 @@ public static unsafe class NativeBoxFunctions
         /// <summary>
         /// Carries the initialized value without any native destructor semantics.
         /// </summary>
-        public int Number { get; private set; } = number;
+        public int Number
+        {
+            get;
+            private set;
+        } = number;
 
         /// <summary>
         /// Records a managed disposal when explicitly invoked by the control witness.

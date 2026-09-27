@@ -20,17 +20,29 @@ public sealed class ResultIntConverter : IPgDatumReader<ResultInt>
     /// <summary>
     /// Counts lazy construction independently of reads.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present reads.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Retains the last input solely for checked lifetime probes.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records entry into the lazy result factory.
@@ -61,17 +73,29 @@ public sealed class ResultTextConverter : IPgDatumReader<ResultText>
     /// <summary>
     /// Counts lazy result factory calls.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present reads, including failing reads.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Retains the checked input solely for expiry assertions.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records lazy factory execution.
@@ -109,7 +133,11 @@ public sealed class ResultPositiveConverter : IPgDatumReader<ResultPositive>
     /// <summary>
     /// Counts present result conversions.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <inheritdoc />
     public ResultPositive Read(PgDatum value)
@@ -134,7 +162,11 @@ public sealed class ResultFactoryConverter : IPgDatumReader<ResultFactoryValue>
     /// <summary>
     /// Counts the failing factory invocation.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Throws a deliberate diagnostic inside the native error boundary.

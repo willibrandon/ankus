@@ -325,7 +325,11 @@ public sealed class RelationTests(TestContext context)
                 bool waiting = false;
                 for (int attempt = 0; attempt < 100; attempt++)
                 {
-                    if ((bool)(await command.ExecuteScalarAsync(token))!) { waiting = true; break; }
+                    if ((bool)(await command.ExecuteScalarAsync(token))!)
+                    {
+                        waiting = true;
+                        break;
+                    }
 
                     await Task.Delay(20, token);
                 }
@@ -367,7 +371,10 @@ public sealed class RelationTests(TestContext context)
                     while (await reader.ReadAsync(token))
                     {
                         last = reader.GetValue(0);
-                        if (expected is bool && last is bool) { Assert.AreEqual(expected, last); }
+                        if (expected is bool && last is bool)
+                        {
+                            Assert.AreEqual(expected, last);
+                        }
                     }
                 }
                 while (await reader.NextResultAsync(token));

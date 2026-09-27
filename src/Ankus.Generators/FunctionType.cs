@@ -66,32 +66,56 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets the scalar element contract for a vector or shape-preserving array.
     /// </summary>
-    internal FunctionType? Element { get; private set; }
+    internal FunctionType? Element
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the scalar subtype of a built-in range, independently of an array's element contract.
     /// </summary>
-    internal FunctionType? RangeSubtype { get; private set; }
+    internal FunctionType? RangeSubtype
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the generated enum contract when this is a user-defined enum scalar.
     /// </summary>
-    internal EnumDeclaration? Enumeration { get; private set; }
+    internal EnumDeclaration? Enumeration
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the generated binary storage contract for a custom base type.
     /// </summary>
-    internal CustomTypeDeclaration? CustomType { get; private set; }
+    internal CustomTypeDeclaration? CustomType
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the reusable raw datum conversion contract for this managed scalar.
     /// </summary>
-    internal DatumTypeDeclaration? DatumType { get; private set; }
+    internal DatumTypeDeclaration? DatumType
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the optional named binding for a composite or raw scalar.
     /// </summary>
-    internal SqlTypeReference? Binding { get; private set; }
+    internal SqlTypeReference? Binding
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether this scalar carries an owned PostgreSQL composite or anonymous record.
@@ -156,7 +180,11 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this array is represented by an ordinary managed vector.
     /// </summary>
-    internal bool IsVector { get; private set; }
+    internal bool IsVector
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether this type uses a variable-length native buffer.
@@ -168,8 +196,14 @@ internal sealed class FunctionType
     /// </summary>
     internal string GeometryName => Reader switch
     {
-        "point" => "Point", "lseg" => "LineSegment", "line" => "Line", "box" => "Box",
-        "circle" => "Circle", "path" => "Path", "polygon" => "Polygon", _ => string.Empty,
+        "point" => "Point",
+        "lseg" => "LineSegment",
+        "line" => "Line",
+        "box" => "Box",
+        "circle" => "Circle",
+        "path" => "Path",
+        "polygon" => "Polygon",
+        _ => string.Empty,
     };
 
     /// <summary>
@@ -292,9 +326,15 @@ internal sealed class FunctionType
             FunctionType? subtype = Create(range.TypeArguments[0]);
             string? sql = subtype?.Sql switch
             {
-                "integer" => "int4range", "bigint" => "int8range", "numeric" => "numrange",
-                "date" => "daterange", "timestamp without time zone" => "tsrange", "timestamp with time zone" => "tstzrange",
-                "timestamp" => "tsrange", "timestamptz" => "tstzrange", _ => null,
+                "integer" => "int4range",
+                "bigint" => "int8range",
+                "numeric" => "numrange",
+                "date" => "daterange",
+                "timestamp without time zone" => "tsrange",
+                "timestamp with time zone" => "tstzrange",
+                "timestamp" => "tsrange",
+                "timestamptz" => "tstzrange",
+                _ => null,
             };
             if (sql is null || subtype!.Nullable)
             {
@@ -338,9 +378,14 @@ internal sealed class FunctionType
 
         string? geometry = name switch
         {
-            "global::Ankus.PgPoint" => "point", "global::Ankus.PgLineSegment" => "lseg", "global::Ankus.PgLine" => "line",
-            "global::Ankus.PgBox" => "box", "global::Ankus.PgCircle" => "circle", "global::Ankus.PgPath" => "path",
-            "global::Ankus.PgPolygon" => "polygon", _ => null,
+            "global::Ankus.PgPoint" => "point",
+            "global::Ankus.PgLineSegment" => "lseg",
+            "global::Ankus.PgLine" => "line",
+            "global::Ankus.PgBox" => "box",
+            "global::Ankus.PgCircle" => "circle",
+            "global::Ankus.PgPath" => "path",
+            "global::Ankus.PgPolygon" => "polygon",
+            _ => null,
         };
         if (geometry is not null)
         {

@@ -250,9 +250,18 @@ internal sealed partial class ApiReferenceRenderer
 
     private static string Section(string kind) => kind switch
     {
-        "Class" => "Classes", "Struct" => "Structs", "Interface" => "Interfaces", "Enum" => "Enums",
-        "Delegate" => "Delegates", "Constructor" => "Constructors", "Method" => "Methods", "Property" => "Properties",
-        "Field" => "Fields", "Event" => "Events", "Operator" => "Operators", _ => "Members",
+        "Class" => "Classes",
+        "Struct" => "Structs",
+        "Interface" => "Interfaces",
+        "Enum" => "Enums",
+        "Delegate" => "Delegates",
+        "Constructor" => "Constructors",
+        "Method" => "Methods",
+        "Property" => "Properties",
+        "Field" => "Fields",
+        "Event" => "Events",
+        "Operator" => "Operators",
+        _ => "Members",
     };
 
     private static bool IsPage(YamlMappingNode node)

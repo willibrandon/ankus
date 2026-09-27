@@ -312,17 +312,29 @@ public static class InternalFunctions
         /// <summary>
         /// Gets or sets this payload's internal wrapper.
         /// </summary>
-        internal PgInternal? State { get; set; }
+        internal PgInternal? State
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the accumulated total.
         /// </summary>
-        internal long Total { get; set; }
+        internal long Total
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the controlled callback failure mode.
         /// </summary>
-        internal int Failure { get; set; }
+        internal int Failure
+        {
+            get;
+            set;
+        }
 
         /// <inheritdoc />
         public void Dispose()

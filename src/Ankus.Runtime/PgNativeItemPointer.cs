@@ -75,7 +75,11 @@ public sealed unsafe class PgNativeItemPointer : IDisposable
 
         ArgumentNullException.ThrowIfNull(lifetimeContext);
         nint context = lifetimeContext.GetId();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = context };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = context
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         return new PgNativeItemPointer(NativeMemoryContext.Provider, context, result._value, (nint)address, null, owned: false);
     }
@@ -144,7 +148,11 @@ public sealed unsafe class PgNativeItemPointer : IDisposable
         void* pointer = DangerousGetPointer();
         if (_owned)
         {
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Detach, _context = _allocation!.Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Detach,
+                _context = _allocation!.Id
+            };
             InvokeRequest(ref request);
             _allocation.Id = 0;
         }
@@ -169,7 +177,11 @@ public sealed unsafe class PgNativeItemPointer : IDisposable
         if (_owned && _allocation!.Id != 0)
         {
             NativeMemoryContext.CheckProvider(_provider);
-            NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.Free, _context = _allocation.Id };
+            NativeMemoryRequest request = new()
+            {
+                _operation = NativeMemoryOperation.Free,
+                _context = _allocation.Id
+            };
             InvokeRequest(ref request);
             _allocation.Id = 0;
         }
@@ -215,6 +227,10 @@ public sealed unsafe class PgNativeItemPointer : IDisposable
         /// <summary>
         /// Gets or sets the native allocation identity, or zero after ownership ends.
         /// </summary>
-        internal nint Id { get; set; }
+        internal nint Id
+        {
+            get;
+            set;
+        }
     }
 }

@@ -87,7 +87,10 @@ public static unsafe class NativeRawCall
                 throw;
             }
 
-            if (response._value == 0) { return; }
+            if (response._value == 0)
+            {
+                return;
+            }
 
             string reason = response._value switch
             {

@@ -214,8 +214,14 @@ public sealed class ItemPointerTests(TestContext context)
             Assert.AreEqual("saved", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT datatype.item_pointer_saved()";
             Assert.AreEqual("(17,31)", await command.ExecuteScalarAsync(token));
-            if (commit) { await transaction.CommitAsync(token); }
-            else { await transaction.RollbackAsync(token); }
+            if (commit)
+            {
+                await transaction.CommitAsync(token);
+            }
+            else
+            {
+                await transaction.RollbackAsync(token);
+            }
         }
 
         await using var check = new NpgsqlCommand("SELECT datatype.item_pointer_saved()", connection);

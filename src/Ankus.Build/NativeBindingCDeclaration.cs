@@ -19,7 +19,10 @@ internal static partial class NativeBindingCDeclaration
     {
         ValidateName(name);
         CType type = Parse(catalog, representation);
-        if (type is Atom { Name: "void" }) { throw new FormatException("Native storage cannot have void type."); }
+        if (type is Atom { Name: "void" })
+        {
+            throw new FormatException("Native storage cannot have void type.");
+        }
 
         return type.Declare(name, false);
     }
@@ -35,7 +38,10 @@ internal static partial class NativeBindingCDeclaration
     {
         ValidateName(name);
         CType type = Parse(catalog, representation, allowIncomplete: true);
-        if (type is Atom { Name: "void" }) { throw new FormatException("Native globals cannot have void type."); }
+        if (type is Atom { Name: "void" })
+        {
+            throw new FormatException("Native globals cannot have void type.");
+        }
 
         return type.Declare(name, false);
     }
@@ -74,12 +80,18 @@ internal static partial class NativeBindingCDeclaration
     internal static void ValidateName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        if (!Identifier().IsMatch(name)) { throw new FormatException("Invalid generated C identifier."); }
+        if (!Identifier().IsMatch(name))
+        {
+            throw new FormatException("Invalid generated C identifier.");
+        }
     }
 
     private static void ValidateAbi(string abi)
     {
-        if (abi is not ("C" or "C-unwind")) { throw new FormatException($"Unsupported native function ABI '{abi}'."); }
+        if (abi is not ("C" or "C-unwind"))
+        {
+            throw new FormatException($"Unsupported native function ABI '{abi}'.");
+        }
     }
 
     private static void ValidateFunction(CType result, IReadOnlyList<CType> parameters, bool variadic)
@@ -112,7 +124,10 @@ internal static partial class NativeBindingCDeclaration
         internal override string Declare(string name, bool readOnly)
         {
             string declarator = "*" + (readOnly ? "const " : "") + name;
-            if (Element is Array or Function) { declarator = "(" + declarator + ")"; }
+            if (Element is Array or Function)
+            {
+                declarator = "(" + declarator + ")";
+            }
 
             return Element.Declare(declarator, ReadOnly);
         }
@@ -128,11 +143,17 @@ internal static partial class NativeBindingCDeclaration
     {
         internal override string Declare(string name, bool readOnly)
         {
-            if (readOnly) { throw new FormatException("A function type cannot be const-qualified."); }
+            if (readOnly)
+            {
+                throw new FormatException("A function type cannot be const-qualified.");
+            }
 
             string arguments = Parameters.Count == 0 ? "void" : string.Join(", ", Parameters.Select(
                 static (parameter, index) => parameter.Declare("ankus_arg" + index.ToString(CultureInfo.InvariantCulture), false)));
-            if (Variadic) { arguments += ", ..."; }
+            if (Variadic)
+            {
+                arguments += ", ...";
+            }
 
             return Result.Declare(name + "(" + arguments + ")", false);
         }
@@ -148,17 +169,26 @@ internal static partial class NativeBindingCDeclaration
         /// </summary>
         internal CType ReadType(bool allowIncomplete = false)
         {
-            if (++_depth > 128) { throw new FormatException("Native type nesting exceeds the supported limit."); }
+            if (++_depth > 128)
+            {
+                throw new FormatException("Native type nesting exceeds the supported limit.");
+            }
 
             try
             {
                 if (Take("*"))
                 {
                     bool readOnly = Take("const");
-                    if (!readOnly) { Require("mut"); }
+                    if (!readOnly)
+                    {
+                        Require("mut");
+                    }
 
                     CType element = ReadType();
-                    if (element is Atom { IsUnit: true }) { throw new FormatException("Rust unit and never types cannot be native pointer elements."); }
+                    if (element is Atom { IsUnit: true })
+                    {
+                        throw new FormatException("Rust unit and never types cannot be native pointer elements.");
+                    }
 
                     return new Pointer(element, readOnly);
                 }
@@ -169,7 +199,10 @@ internal static partial class NativeBindingCDeclaration
                     Require(";");
                     SkipTrivia();
                     int start = _position;
-                    while (_position < source.Length && char.IsAsciiDigit(source[_position])) { _position++; }
+                    while (_position < source.Length && char.IsAsciiDigit(source[_position]))
+                    {
+                        _position++;
+                    }
 
                     if (!int.TryParse(source.AsSpan(start, _position - start), NumberStyles.None, CultureInfo.InvariantCulture, out int count) ||
                         count == 0 && !allowIncomplete)
@@ -179,14 +212,24 @@ internal static partial class NativeBindingCDeclaration
 
                     _ = Take("usize");
                     Require("]");
-                    if (element is Atom { Name: "void" }) { throw new FormatException("A native array cannot contain void."); }
+                    if (element is Atom { Name: "void" })
+                    {
+                        throw new FormatException("A native array cannot contain void.");
+                    }
 
                     return new Array(element, count);
                 }
 
-                if (Take("(")) { Require(")"); return new Atom("void", true); }
+                if (Take("("))
+                {
+                    Require(")");
+                    return new Atom("void", true);
+                }
 
-                if (Take("!")) { return new Atom("void", true); }
+                if (Take("!"))
+                {
+                    return new Atom("void", true);
+                }
 
                 string path = ReadPath();
                 if (path is "::core::option::Option" or "core::option::Option")
@@ -197,7 +240,10 @@ internal static partial class NativeBindingCDeclaration
                     SkipTrivia();
                     Require("\"");
                     int start = _position;
-                    while (_position < source.Length && source[_position] != '"') { _position++; }
+                    while (_position < source.Length && source[_position] != '"')
+                    {
+                        _position++;
+                    }
 
                     ValidateAbi(source[start.._position]);
                     Require("\"");
@@ -207,9 +253,15 @@ internal static partial class NativeBindingCDeclaration
                     bool variadic = false;
                     while (!Take(")"))
                     {
-                        if (variadic) { throw new FormatException("Variadic arguments must be last."); }
+                        if (variadic)
+                        {
+                            throw new FormatException("Variadic arguments must be last.");
+                        }
 
-                        if (Take("...")) { variadic = true; }
+                        if (Take("..."))
+                        {
+                            variadic = true;
+                        }
                         else
                         {
                             _ = ReadIdentifier();
@@ -217,7 +269,10 @@ internal static partial class NativeBindingCDeclaration
                             parameters.Add(ReadType());
                         }
 
-                        if (Take(")")) { break; }
+                        if (Take(")"))
+                        {
+                            break;
+                        }
 
                         Require(",");
                     }
@@ -243,7 +298,10 @@ internal static partial class NativeBindingCDeclaration
         internal void End()
         {
             SkipTrivia();
-            if (_position != source.Length) { throw new FormatException("Unexpected trailing native type expression."); }
+            if (_position != source.Length)
+            {
+                throw new FormatException("Unexpected trailing native type expression.");
+            }
         }
 
         private Atom Named(string path)
@@ -270,12 +328,18 @@ internal static partial class NativeBindingCDeclaration
             string native = path switch
             {
                 "bool" => "bool",
-                "i8" => "int8_t", "u8" => "uint8_t",
-                "i16" => "int16_t", "u16" => "uint16_t",
-                "i32" => "int32_t", "u32" => "uint32_t",
-                "i64" => "int64_t", "u64" => "uint64_t",
-                "isize" => "intptr_t", "usize" => "uintptr_t",
-                "f32" => "float", "f64" => "double",
+                "i8" => "int8_t",
+                "u8" => "uint8_t",
+                "i16" => "int16_t",
+                "u16" => "uint16_t",
+                "i32" => "int32_t",
+                "u32" => "uint32_t",
+                "i64" => "int64_t",
+                "u64" => "uint64_t",
+                "isize" => "intptr_t",
+                "usize" => "uintptr_t",
+                "f32" => "float",
+                "f64" => "double",
                 "::core::ffi::c_void" => "void",
                 "::core::ffi::c_char" => "char",
                 "::core::ffi::c_schar" => "signed char",
@@ -299,7 +363,10 @@ internal static partial class NativeBindingCDeclaration
         {
             string path = Take("::") ? "::" : "";
             path += ReadIdentifier();
-            while (Take("::")) { path += "::" + ReadIdentifier(); }
+            while (Take("::"))
+            {
+                path += "::" + ReadIdentifier();
+            }
 
             return path;
         }
@@ -308,25 +375,40 @@ internal static partial class NativeBindingCDeclaration
         {
             SkipTrivia();
             int start = _position;
-            if (_position >= source.Length || !IsNameStart(source[_position])) { throw new FormatException("Expected a native type identifier."); }
+            if (_position >= source.Length || !IsNameStart(source[_position]))
+            {
+                throw new FormatException("Expected a native type identifier.");
+            }
 
-            while (_position < source.Length && (IsNameStart(source[_position]) || char.IsAsciiDigit(source[_position]))) { _position++; }
+            while (_position < source.Length && (IsNameStart(source[_position]) || char.IsAsciiDigit(source[_position])))
+            {
+                _position++;
+            }
 
             return source[start.._position];
         }
 
         private void Require(string token)
         {
-            if (!Take(token)) { throw new FormatException($"Expected '{token}' in native type expression."); }
+            if (!Take(token))
+            {
+                throw new FormatException($"Expected '{token}' in native type expression.");
+            }
         }
 
         private bool Take(string token)
         {
             SkipTrivia();
-            if (!source.AsSpan(_position).StartsWith(token, StringComparison.Ordinal)) { return false; }
+            if (!source.AsSpan(_position).StartsWith(token, StringComparison.Ordinal))
+            {
+                return false;
+            }
 
             int end = _position + token.Length;
-            if (IsNameStart(token[^1]) && end < source.Length && (IsNameStart(source[end]) || char.IsAsciiDigit(source[end]))) { return false; }
+            if (IsNameStart(token[^1]) && end < source.Length && (IsNameStart(source[end]) || char.IsAsciiDigit(source[end])))
+            {
+                return false;
+            }
 
             _position = end;
             return true;
@@ -336,26 +418,50 @@ internal static partial class NativeBindingCDeclaration
         {
             while (_position < source.Length)
             {
-                if (char.IsWhiteSpace(source[_position])) { _position++; continue; }
+                if (char.IsWhiteSpace(source[_position]))
+                {
+                    _position++;
+                    continue;
+                }
 
                 if (source.AsSpan(_position).StartsWith("//", StringComparison.Ordinal))
                 {
-                    while (_position < source.Length && source[_position] != '\n') { _position++; }
+                    while (_position < source.Length && source[_position] != '\n')
+                    {
+                        _position++;
+                    }
 
                     continue;
                 }
 
-                if (!source.AsSpan(_position).StartsWith("/*", StringComparison.Ordinal)) { break; }
+                if (!source.AsSpan(_position).StartsWith("/*", StringComparison.Ordinal))
+                {
+                    break;
+                }
 
                 _position += 2;
                 int depth = 1;
                 while (depth != 0)
                 {
-                    if (_position >= source.Length) { throw new FormatException("Unterminated native type comment."); }
+                    if (_position >= source.Length)
+                    {
+                        throw new FormatException("Unterminated native type comment.");
+                    }
 
-                    if (source.AsSpan(_position).StartsWith("/*", StringComparison.Ordinal)) { depth++; _position += 2; }
-                    else if (source.AsSpan(_position).StartsWith("*/", StringComparison.Ordinal)) { depth--; _position += 2; }
-                    else { _position++; }
+                    if (source.AsSpan(_position).StartsWith("/*", StringComparison.Ordinal))
+                    {
+                        depth++;
+                        _position += 2;
+                    }
+                    else if (source.AsSpan(_position).StartsWith("*/", StringComparison.Ordinal))
+                    {
+                        depth--;
+                        _position += 2;
+                    }
+                    else
+                    {
+                        _position++;
+                    }
                 }
             }
         }

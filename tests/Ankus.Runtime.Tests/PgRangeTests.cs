@@ -188,7 +188,13 @@ public sealed class PgRangeTests
         BinaryPrimitives.WriteInt32BigEndian(data, 3904);
         if (data.Length >= 8)
         {
-            BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(4), kind switch { "flags" => 32, "empty-bounds" => 3, "inclusive-infinite" => 10, _ => 12 });
+            BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(4), kind switch
+            {
+                "flags" => 32,
+                "empty-bounds" => 3,
+                "inclusive-infinite" => 10,
+                _ => 12
+            });
             BinaryPrimitives.WriteInt64BigEndian(data.AsSpan(8), kind == "overflow" ? (long)int.MaxValue + 1 : 4);
             BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(28), kind == "null-bound" ? 1 : 0);
             BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(32), kind == "length" ? int.MaxValue : 0);

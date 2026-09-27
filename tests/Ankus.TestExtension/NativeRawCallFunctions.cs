@@ -49,25 +49,48 @@ public static unsafe class NativeRawCallFunctions
             nuint size = sizeof(int);
             switch (mode)
             {
-                case 0: count = 0; break;
-                case 1: count = 2; break;
-                case 2: arguments[0] = new(0, (nuint)sizeof(nint)); break;
-                case 3: arguments[0] = new((nint)(&address), (nuint)sizeof(nint) - 1); break;
-                case 4: arguments[0] = new((nint)((byte*)(&address) + 1), (nuint)sizeof(nint)); break;
-                case 5: destination = 0; break;
-                case 6: size--; break;
-                case 7: size++; break;
-                default: throw new ArgumentOutOfRangeException(nameof(mode));
+                case 0:
+                    count = 0;
+                    break;
+                case 1:
+                    count = 2;
+                    break;
+                case 2:
+                    arguments[0] = new(0, (nuint)sizeof(nint));
+                    break;
+                case 3:
+                    arguments[0] = new((nint)(&address), (nuint)sizeof(nint) - 1);
+                    break;
+                case 4:
+                    arguments[0] = new((nint)((byte*)(&address) + 1), (nuint)sizeof(nint));
+                    break;
+                case 5:
+                    destination = 0;
+                    break;
+                case 6:
+                    size--;
+                    break;
+                case 7:
+                    size++;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
 
             try
             {
                 NativeRawCall.Invoke((nint)body, arguments[..count], destination, size);
             }
-            catch (InvalidOperationException exception) { failure = exception.Message; }
+            catch (InvalidOperationException exception)
+            {
+                failure = exception.Message;
+            }
         }
 
-        if (failure is null) { throw new InvalidOperationException("The malformed native frame unexpectedly succeeded."); }
+        if (failure is null)
+        {
+            throw new InvalidOperationException("The malformed native frame unexpectedly succeeded.");
+        }
 
         return $"{failure}|{result}|{Parse((nint)body, "42")}";
     }
@@ -90,10 +113,19 @@ public static unsafe class NativeRawCallFunctions
             long holdoffs = Spi.ExecuteScalar<long>("SELECT tests.raw_call_holdoffs()");
             nuint result = 12345;
             PgException? failure = null;
-            try { InvokeFunction((nint)body, functionOid, 0, ref result); }
-            catch (PgException exception) { failure = exception; }
+            try
+            {
+                InvokeFunction((nint)body, functionOid, 0, ref result);
+            }
+            catch (PgException exception)
+            {
+                failure = exception;
+            }
 
-            if (failure is null) { throw new InvalidOperationException("The deliberate native error did not occur."); }
+            if (failure is null)
+            {
+                throw new InvalidOperationException("The deliberate native error did not occur.");
+            }
 
             bool untouched = result == 12345;
             bool restored = owner.Id == PgMemoryContext.Current.Id;
@@ -101,7 +133,10 @@ public static unsafe class NativeRawCallFunctions
             InvokeFunction((nint)body, functionOid, 25, ref result);
             return $"{failure.SqlState}|{failure.Message}|{failure.Detail}|{failure.Hint}|{untouched}|{restored}|{interrupts}|{result}";
         }
-        finally { s_parseBody = previous; }
+        finally
+        {
+            s_parseBody = previous;
+        }
     }
 
     /// <summary>
@@ -113,7 +148,10 @@ public static unsafe class NativeRawCallFunctions
     public static int RawCallNestedTarget(int value)
     {
         int parsed = Parse(s_parseBody, value.ToString(CultureInfo.InvariantCulture));
-        if (value == 0) { throw new PgException("22023", "nested raw failure", "owned managed detail", "retry managed callback"); }
+        if (value == 0)
+        {
+            throw new PgException("22023", "nested raw failure", "owned managed detail", "retry managed callback");
+        }
 
         return parsed + 17;
     }
@@ -129,8 +167,14 @@ public static unsafe class NativeRawCallFunctions
         Exception? failure = null;
         var worker = new Thread(() =>
         {
-            try { Parse((nint)body, "42"); }
-            catch (Exception exception) { failure = exception; }
+            try
+            {
+                Parse((nint)body, "42");
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
         });
         worker.Start();
         worker.Join();
@@ -161,7 +205,10 @@ public static unsafe class NativeRawCallFunctions
             InvokeFunction((nint)body, functionOid, 1, ref held);
             InvokeFunction((nint)body, functionOid, 0, ref retained);
         }
-        finally { InvokeFunction((nint)body, functionOid, -1, ref resumed); }
+        finally
+        {
+            InvokeFunction((nint)body, functionOid, -1, ref resumed);
+        }
 
         return $"{held == before + 0x100000001UL}|{retained == held}|{resumed == before}";
     }
@@ -183,7 +230,10 @@ public static unsafe class NativeRawCallFunctions
             InvokeFunction((nint)body, functionOid, 2, ref result);
             switched = PgMemoryContext.Current.Id == PgMemoryContext.Get(PgMemoryContextKind.Top)!.Id;
         }
-        finally { InvokeFunction((nint)body, functionOid, -2, ref result); }
+        finally
+        {
+            InvokeFunction((nint)body, functionOid, -2, ref result);
+        }
 
         return $"{switched}|{PgMemoryContext.Current.Id == before.Id}";
     }

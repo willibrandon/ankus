@@ -62,7 +62,10 @@ public unsafe partial struct NativeValue
     /// <typeparam name="T">The generated managed type.</typeparam>
     /// <param name="value">The managed value or SQL NULL.</param>
     /// <returns>The owned transport envelope.</returns>
-    public static NativeValue FromCustom<T>(T value) => value is null ? new() { IsNull = 1 } :
+    public static NativeValue FromCustom<T>(T value) => value is null ? new()
+    {
+        IsNull = 1
+    } :
         PgTypeRegistry.Require(typeof(T)).Write(value);
 
     /// <summary>

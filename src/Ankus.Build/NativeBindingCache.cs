@@ -48,7 +48,10 @@ internal static class NativeBindingCache
         Func<string, CancellationToken, Task<IReadOnlyList<NativeBindingCacheFile>>> produce, CancellationToken cancellationToken)
     {
         string entry = Path.Combine(root, key);
-        if (await ValidAsync(entry, key, cancellationToken)) { return entry; }
+        if (await ValidAsync(entry, key, cancellationToken))
+        {
+            return entry;
+        }
 
         string stage = Path.Combine(root, key + ".stage-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stage);
@@ -78,7 +81,10 @@ internal static class NativeBindingCache
             var manifest = new NativeBindingCacheManifest(key, artifacts, dependencies);
             await File.WriteAllTextAsync(Path.Combine(stage, ManifestName), JsonSerializer.Serialize(manifest), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!await ValidAsync(stage, key, cancellationToken)) { throw new IOException("Binding cache artifacts changed before publication."); }
+            if (!await ValidAsync(stage, key, cancellationToken))
+            {
+                throw new IOException("Binding cache artifacts changed before publication.");
+            }
 
             string? previous = null;
             if (Directory.Exists(entry))
@@ -87,21 +93,33 @@ internal static class NativeBindingCache
                 Directory.Move(entry, previous);
             }
 
-            try { Directory.Move(stage, entry); }
+            try
+            {
+                Directory.Move(stage, entry);
+            }
             catch
             {
-                if (previous is not null) { Directory.Move(previous, entry); }
+                if (previous is not null)
+                {
+                    Directory.Move(previous, entry);
+                }
 
                 throw;
             }
 
-            if (previous is not null) { await NativeBuildDirectory.DeleteAsync(previous); }
+            if (previous is not null)
+            {
+                await NativeBuildDirectory.DeleteAsync(previous);
+            }
 
             return entry;
         }
         finally
         {
-            if (Directory.Exists(stage)) { await NativeBuildDirectory.DeleteAsync(stage); }
+            if (Directory.Exists(stage))
+            {
+                await NativeBuildDirectory.DeleteAsync(stage);
+            }
         }
     }
 
@@ -138,7 +156,10 @@ internal static class NativeBindingCache
             CancellationToken = cancellationToken,
         }, async (file, token) =>
         {
-            if (!await MatchesAsync(file.Path, file.Hash, token)) { Interlocked.Exchange(ref changed, 1); }
+            if (!await MatchesAsync(file.Path, file.Hash, token))
+            {
+                Interlocked.Exchange(ref changed, 1);
+            }
         });
         return changed == 0;
     }
@@ -148,7 +169,10 @@ internal static class NativeBindingCache
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            try { return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            try
+            {
+                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
             catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33 ||
                 error.HResult == (OperatingSystem.IsMacOS() ? 35 : 11))
             {
@@ -160,33 +184,51 @@ internal static class NativeBindingCache
     private static async Task<bool> ValidAsync(string directory, string key, CancellationToken cancellationToken)
     {
         string file = Path.Combine(directory, ManifestName);
-        if (!File.Exists(file)) { return false; }
+        if (!File.Exists(file))
+        {
+            return false;
+        }
 
         NativeBindingCacheManifest? manifest;
         try
         {
-            if (new FileInfo(file).Length > 8 * 1024 * 1024) { return false; }
+            if (new FileInfo(file).Length > 8 * 1024 * 1024)
+            {
+                return false;
+            }
 
             await using FileStream stream = File.OpenRead(file);
             manifest = await JsonSerializer.DeserializeAsync<NativeBindingCacheManifest>(stream, cancellationToken: cancellationToken);
         }
-        catch (JsonException) { return false; }
+        catch (JsonException)
+        {
+            return false;
+        }
 
         if (manifest is null || manifest.Key != key || manifest.Artifacts is not { Count: > 0 and <= 100 } ||
-            manifest.Dependencies is null || manifest.Dependencies.Count > 100_000) { return false; }
+            manifest.Dependencies is null || manifest.Dependencies.Count > 100_000)
+        {
+            return false;
+        }
 
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (NativeBindingCacheFile artifact in manifest.Artifacts)
         {
             if (artifact is null || string.IsNullOrEmpty(artifact.Path) || artifact.Path != Path.GetFileName(artifact.Path) ||
                 artifact.Path is "." or ".." or ManifestName || !names.Add(artifact.Path) ||
-                !await MatchesAsync(Path.Combine(directory, artifact.Path), artifact.Hash, cancellationToken)) { return false; }
+                !await MatchesAsync(Path.Combine(directory, artifact.Path), artifact.Hash, cancellationToken))
+            {
+                return false;
+            }
         }
 
         foreach (NativeBindingCacheFile dependency in manifest.Dependencies)
         {
             if (dependency is null || string.IsNullOrEmpty(dependency.Path) || !Path.IsPathFullyQualified(dependency.Path) ||
-                string.IsNullOrEmpty(dependency.Hash)) { return false; }
+                string.IsNullOrEmpty(dependency.Hash))
+            {
+                return false;
+            }
         }
 
         return Directory.GetDirectories(directory).Length == 0 && Directory.GetFiles(directory).Length == names.Count + 1 &&

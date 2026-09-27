@@ -28,7 +28,11 @@ internal sealed class SqlEntity
     /// <summary>
     /// Gets or sets the complete installation SQL for this node.
     /// </summary>
-    internal string Sql { get; set; }
+    internal string Sql
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets the source location used for graph diagnostics.
@@ -63,7 +67,11 @@ internal sealed class SqlEntity
     /// <summary>
     /// Gets or sets the normal, bootstrap, or final positioning discriminator.
     /// </summary>
-    internal int Order { get; set; }
+    internal int Order
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets a human-readable name for diagnostics.

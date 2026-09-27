@@ -66,9 +66,15 @@ internal static class NativeBindingNodeRecords
 
         foreach (NativeBindingSelectionEntry entry in selected)
         {
-            if (entry.Type.CastTags.Any(tag => !catalog.Tags.ContainsKey(tag))) { throw new FormatException("A native node cast references an unknown tag."); }
+            if (entry.Type.CastTags.Any(tag => !catalog.Tags.ContainsKey(tag)))
+            {
+                throw new FormatException("A native node cast references an unknown tag.");
+            }
 
-            if (!graph.Roots.TryGetValue(Prefix + entry.Type.Name, out int root)) { throw new FormatException("A selected native node value is missing from the type graph."); }
+            if (!graph.Roots.TryGetValue(Prefix + entry.Type.Name, out int root))
+            {
+                throw new FormatException("A selected native node value is missing from the type graph.");
+            }
 
             NativeRecordType type = Canonical(root);
             if (type.Kind != "record" || type.Declaration is not int index || !values.TryAdd(index, entry.Type))
@@ -118,7 +124,10 @@ internal static class NativeBindingNodeRecords
 
         foreach (NativeRecordType type in graph.Types.Where(static type => type.Kind == "scalar" && type.Name is "long" or "unsigned long"))
         {
-            if (type.Size != layout.LongSize) { throw new FormatException("Native node observations disagree on C long storage."); }
+            if (type.Size != layout.LongSize)
+            {
+                throw new FormatException("Native node observations disagree on C long storage.");
+            }
         }
 
         IReadOnlyDictionary<int, string> enums = ValidateEnums(graph, catalog, layout);

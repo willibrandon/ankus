@@ -28,17 +28,29 @@ internal sealed unsafe class MemoryContextTestFixture : IDisposable
     /// <summary>
     /// Gets or sets an optional response script invoked after recording each request.
     /// </summary>
-    internal Func<NativeMemoryRequest, NativeMemoryResult>? Handler { get; set; }
+    internal Func<NativeMemoryRequest, NativeMemoryResult>? Handler
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the current context returned by the scripted bridge.
     /// </summary>
-    internal nint Current { get; set; } = 101;
+    internal nint Current
+    {
+        get;
+        set;
+    } = 101;
 
     /// <summary>
     /// Gets the number of released owned diagnostic buffers.
     /// </summary>
-    internal int ErrorReleases { get; private set; }
+    internal int ErrorReleases
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Enters a distinct native callback envelope with the selected stable provider identity.

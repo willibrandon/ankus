@@ -23,82 +23,146 @@ public sealed class PgDiagnostic
     /// <summary>
     /// Gets the optional five-character uppercase ASCII SQLSTATE.
     /// </summary>
-    public string? SqlState { get; init; }
+    public string? SqlState
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets additional detail for clients and the server log.
     /// </summary>
-    public string? Detail { get; init; }
+    public string? Detail
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets a suggested corrective action.
     /// </summary>
-    public string? Hint { get; init; }
+    public string? Hint
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets additional execution context.
     /// </summary>
-    public string? Context { get; init; }
+    public string? Context
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the associated schema name.
     /// </summary>
-    public string? SchemaName { get; init; }
+    public string? SchemaName
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the associated table name.
     /// </summary>
-    public string? TableName { get; init; }
+    public string? TableName
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the associated column name.
     /// </summary>
-    public string? ColumnName { get; init; }
+    public string? ColumnName
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the associated data type name.
     /// </summary>
-    public string? DataTypeName { get; init; }
+    public string? DataTypeName
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the associated constraint name.
     /// </summary>
-    public string? ConstraintName { get; init; }
+    public string? ConstraintName
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the one-based character position in the client query.
     /// </summary>
-    public int Position { get; init; }
+    public int Position
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the internally executed query.
     /// </summary>
-    public string? InternalQuery { get; init; }
+    public string? InternalQuery
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the one-based character position in InternalQuery.
     /// </summary>
-    public int InternalPosition { get; init; }
+    public int InternalPosition
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the source file name when explicitly supplied by the extension.
     /// </summary>
-    public string? File { get; init; }
+    public string? File
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the source line number.
     /// </summary>
-    public int Line { get; init; }
+    public int Line
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets the source routine name.
     /// </summary>
-    public string? Routine { get; init; }
+    public string? Routine
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Gets detail which replaces Detail in the server log and is never sent to clients.
     /// </summary>
-    public string? DetailLog { get; init; }
+    public string? DetailLog
+    {
+        get;
+        init;
+    }
 
     /// <summary>
     /// Creates an ERROR exception preserving every diagnostic field, defaulting an unspecified SQLSTATE to XX000.

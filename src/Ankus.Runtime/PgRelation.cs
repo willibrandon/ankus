@@ -26,7 +26,11 @@ public sealed class PgRelation : IDisposable
     /// <summary>
     /// Gets or sets the checked native identity; zero means this wrapper has been consumed or disposed.
     /// </summary>
-    internal long Identity { get; set; }
+    internal long Identity
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets the exact relation OID, distinct from its row type OID.
@@ -335,7 +339,10 @@ public sealed class PgRelation : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (Identity == 0) { return; }
+        if (Identity == 0)
+        {
+            return;
+        }
 
         NativeBackend.CheckDisposalAccess(_backend);
         NativeBackend.CloseRelation(Identity);

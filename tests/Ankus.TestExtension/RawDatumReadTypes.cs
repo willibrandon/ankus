@@ -30,7 +30,11 @@ public sealed class RawReadNumberConverter : IPgDatumReader<RawReadNumber>, IPgD
     /// <summary>
     /// Counts only actually present mapped reads.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <inheritdoc />
     public RawReadNumber Read(PgDatum value)

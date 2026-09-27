@@ -80,8 +80,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgInitialize] public static void Initialize() { } }");
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..
-            native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)];
+        string loader = native[native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal)..native.LastIndexOf("static void\nankus_ensure_initialized(void)", StringComparison.Ordinal)];
         string[] loaderOrder =
         [
             "if (ankus_initialization_state == 1)",

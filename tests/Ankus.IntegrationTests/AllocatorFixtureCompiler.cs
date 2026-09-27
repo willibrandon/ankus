@@ -122,7 +122,10 @@ internal static class AllocatorFixtureCompiler
             arguments.AddRange(["-o", outputPath, source]);
         }
 
-        if (useC11) { arguments.Insert(0, OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11"); }
+        if (useC11)
+        {
+            arguments.Insert(0, OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11");
+        }
 
         await ProcessRunner.RunCheckedAsync(compiler, arguments, new Dictionary<string, string?>(), cancellationToken,
             workingDirectory: output);

@@ -44,8 +44,14 @@ public sealed class NativeSetTests
             CreationError = failure == 2 ? new InvalidOperationException("factory") : null,
         };
         nint handle = 0;
-        if (failure == 0) { handle = NativeSet.Create<int>(null, owner); }
-        else { Assert.ThrowsExactly<InvalidOperationException>(() => handle = NativeSet.Create(sequence, owner)); }
+        if (failure == 0)
+        {
+            handle = NativeSet.Create<int>(null, owner);
+        }
+        else
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => handle = NativeSet.Create(sequence, owner));
+        }
 
         Assert.AreEqual(nint.Zero, handle);
         Assert.AreEqual(1, owner.Disposals);
@@ -71,8 +77,14 @@ public sealed class NativeSetTests
         Assert.IsTrue(NativeSet.MoveNext(handle, out int value));
         Assert.AreEqual(42, value);
         Assert.AreEqual(0, owner.Disposals);
-        if (fail) { Assert.ThrowsExactly<InvalidOperationException>(() => NativeSet.Dispose(ref handle)); }
-        else { NativeSet.Dispose(ref handle); }
+        if (fail)
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => NativeSet.Dispose(ref handle));
+        }
+        else
+        {
+            NativeSet.Dispose(ref handle);
+        }
 
         Assert.AreEqual(nint.Zero, handle);
         Assert.AreEqual(1, owner.Disposals);
@@ -89,7 +101,11 @@ public sealed class NativeSetTests
         /// <summary>
         /// Gets the exact number of release calls.
         /// </summary>
-        internal int Disposals { get; private set; }
+        internal int Disposals
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public void Dispose() => Disposals++;
@@ -441,57 +457,101 @@ public sealed class NativeSetTests
         /// <summary>
         /// Gets the number of iterator factory calls.
         /// </summary>
-        internal int EnumeratorCount { get; private set; }
+        internal int EnumeratorCount
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of attempted advances.
         /// </summary>
-        internal int MoveNextCount { get; private set; }
+        internal int MoveNextCount
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of attempted current-value reads.
         /// </summary>
-        internal int CurrentReadCount { get; private set; }
+        internal int CurrentReadCount
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of disposal calls, including calls that throw.
         /// </summary>
-        internal int DisposeCount { get; private set; }
+        internal int DisposeCount
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets an optional exception thrown while creating the enumerator.
         /// </summary>
-        internal Exception? CreationError { get; init; }
+        internal Exception? CreationError
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets whether the iterator factory violates its nonnull result contract.
         /// </summary>
-        internal bool ReturnNullEnumerator { get; init; }
+        internal bool ReturnNullEnumerator
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets an optional exception thrown by the selected advance call.
         /// </summary>
-        internal Exception? MoveNextError { get; init; }
+        internal Exception? MoveNextError
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets the one-based advance call that throws the configured exception.
         /// </summary>
-        internal int FailMoveNextOnCall { get; init; } = 1;
+        internal int FailMoveNextOnCall
+        {
+            get;
+            init;
+        } = 1;
 
         /// <summary>
         /// Gets an optional exception thrown while reading the current row.
         /// </summary>
-        internal Exception? CurrentError { get; init; }
+        internal Exception? CurrentError
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets an optional exception thrown after observing disposal.
         /// </summary>
-        internal Exception? DisposeError { get; init; }
+        internal Exception? DisposeError
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets an observation of the caller's state from inside user disposal code.
         /// </summary>
-        internal Action? OnDispose { get; init; }
+        internal Action? OnDispose
+        {
+            get;
+            init;
+        }
 
         /// <inheritdoc />
         public IEnumerator<T> GetEnumerator()

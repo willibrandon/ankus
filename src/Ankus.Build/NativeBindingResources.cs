@@ -17,7 +17,10 @@ internal static class NativeBindingResources
         using Stream source = Open(major, "json");
         NativeBindingCatalog catalog = JsonSerializer.Deserialize<NativeBindingCatalog>(source)
             ?? throw new FormatException("The embedded native binding catalog is empty.");
-        if (catalog.PostgresMajor != major) { throw new FormatException("The embedded native binding catalog has the wrong major."); }
+        if (catalog.PostgresMajor != major)
+        {
+            throw new FormatException("The embedded native binding catalog has the wrong major.");
+        }
 
         return catalog;
     }
@@ -32,7 +35,10 @@ internal static class NativeBindingResources
         using Stream source = Open(major, "raw.json");
         NativeBindingRawCatalog catalog = JsonSerializer.Deserialize<NativeBindingRawCatalog>(source)
             ?? throw new FormatException("The embedded raw declaration catalog is empty.");
-        if (catalog.PostgresMajor != major) { throw new FormatException("The embedded raw declaration catalog has the wrong major."); }
+        if (catalog.PostgresMajor != major)
+        {
+            throw new FormatException("The embedded raw declaration catalog has the wrong major.");
+        }
 
         return catalog;
     }

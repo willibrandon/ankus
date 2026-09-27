@@ -107,7 +107,10 @@ public sealed unsafe class RelationTests
         Assert.AreEqual(kind, relation.Kind);
         bool[] flags = [relation.IsTable, relation.IsMaterializedView, relation.IsIndex, relation.IsView,
             relation.IsSequence, relation.IsCompositeType, relation.IsForeignTable, relation.IsPartitionedTable, relation.IsToast];
-        for (int index = 0; index < flags.Length; index++) { Assert.AreEqual(index == selected, flags[index]); }
+        for (int index = 0; index < flags.Length; index++)
+        {
+            Assert.AreEqual(index == selected, flags[index]);
+        }
     }
 
     /// <summary>
@@ -161,7 +164,10 @@ public sealed unsafe class RelationTests
         fixture.Indexes = [7, 8];
         IReadOnlyList<PgRelation> indexes = relation.GetIndices(PgLockMode.Share);
         Assert.AreSequenceEqual<uint>([7, 8], indexes.Select(static item => item.Oid));
-        foreach (PgRelation item in indexes) { item.Dispose(); }
+        foreach (PgRelation item in indexes)
+        {
+            item.Dispose();
+        }
 
         Assert.HasCount(1, fixture.Active);
         Assert.AreEqual(42U, relation.Oid);
@@ -200,7 +206,10 @@ public sealed unsafe class RelationTests
             Assert.ThrowsExactly<InvalidOperationException>(() => _ = relation.Oid);
             Assert.ThrowsExactly<InvalidOperationException>(relation.Dispose);
         }
-        finally { NativeBackend.Exit(previous); }
+        finally
+        {
+            NativeBackend.Exit(previous);
+        }
 
         previous = NativeBackend.Enter(Fixture.Entry, abortCleanup: true);
         try
@@ -210,7 +219,10 @@ public sealed unsafe class RelationTests
             Assert.AreEqual((byte)1, fixture.Requests[^1]._cleanupOnly);
             Assert.AreEqual(0L, fixture.Requests[^1]._sessionId);
         }
-        finally { NativeBackend.Exit(previous, abortCleanup: true); }
+        finally
+        {
+            NativeBackend.Exit(previous, abortCleanup: true);
+        }
 
         Assert.IsEmpty(fixture.Active);
         Assert.AreEqual(1, fixture.Closes);
@@ -261,13 +273,22 @@ public sealed unsafe class RelationTests
             Assert.AreSequenceEqual<int>([2, 2], converted.Lengths.ToArray());
             Assert.AreSequenceEqual<int>([-3, 4], converted.LowerBounds.ToArray());
         }
-        finally { native.Release(); }
+        finally
+        {
+            native.Release();
+        }
 
         Assert.IsEmpty(fixture.Active);
         source = new PgArray<PgRelationIdentity?>([new(7), new(99)]);
         native = NativeValue.FromArray(source);
-        try { Assert.ThrowsExactly<PgException>(() => native.ReadArray<PgRelation>()); }
-        finally { native.Release(); }
+        try
+        {
+            Assert.ThrowsExactly<PgException>(() => native.ReadArray<PgRelation>());
+        }
+        finally
+        {
+            native.Release();
+        }
 
         Assert.IsEmpty(fixture.Active);
         Assert.AreEqual(4, fixture.Closes);
@@ -398,8 +419,14 @@ public sealed unsafe class RelationTests
 
     private static IEnumerable<uint> Observe(PgRelation relation)
     {
-        try { yield return relation.Oid; }
-        finally { Assert.AreNotEqual(0U, relation.Oid); }
+        try
+        {
+            yield return relation.Oid;
+        }
+        finally
+        {
+            Assert.AreNotEqual(0U, relation.Oid);
+        }
     }
 
     /// <summary>
@@ -434,39 +461,75 @@ public sealed unsafe class RelationTests
         /// <summary>
         /// Gets the exact supplied name.
         /// </summary>
-        internal string? Name { get; private set; }
+        internal string? Name
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets or sets the missing-name response.
         /// </summary>
-        internal bool Missing { get; set; }
+        internal bool Missing
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets the estimate supplied by the backend.
         /// </summary>
-        internal float Estimate { get; set; } = -1;
+        internal float Estimate
+        {
+            get;
+            set;
+        } = -1;
         /// <summary>
         /// Gets or sets the native kind.
         /// </summary>
-        internal char Kind { get; set; } = 'r';
+        internal char Kind
+        {
+            get;
+            set;
+        } = 'r';
         /// <summary>
         /// Gets or sets the index list.
         /// </summary>
-        internal uint[] Indexes { get; set; } = [];
+        internal uint[] Indexes
+        {
+            get;
+            set;
+        } = [];
         /// <summary>
         /// Gets or sets the heap identity.
         /// </summary>
-        internal uint Heap { get; set; }
+        internal uint Heap
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets the signed statistics operand.
         /// </summary>
-        internal long Count { get; private set; }
+        internal long Count
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the number of native close requests.
         /// </summary>
-        internal int Closes { get; private set; }
+        internal int Closes
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the number of allocator-matched result releases.
         /// </summary>
-        internal int Releases { get; private set; }
+        internal int Releases
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Restores backend capability after the test.
@@ -498,13 +561,19 @@ public sealed unsafe class RelationTests
                         fixture.Name = request->_parameters[0]._value.ReadString();
                         if (fixture.Missing)
                         {
-                            if (request->_readOnly != 0) { return 0; }
+                            if (request->_readOnly != 0)
+                            {
+                                return 0;
+                            }
 
                             throw new PgException("42P01", "missing relation");
                         }
                     }
 
-                    if (request->_functionOid == 99) { throw new PgException("42P01", "missing index"); }
+                    if (request->_functionOid == 99)
+                    {
+                        throw new PgException("42P01", "missing index");
+                    }
 
                     result->_cursorId = ++fixture._next;
                     fixture.Active.Add(result->_cursorId, request->_functionOid);
@@ -525,7 +594,10 @@ public sealed unsafe class RelationTests
                         15 => new NativeValue { Integral = 0x12340 },
                         _ => default,
                     };
-                    if (operation == 20) { fixture.Count = request->_parameters[0]._value.Integral; }
+                    if (operation == 20)
+                    {
+                        fixture.Count = request->_parameters[0]._value.Integral;
+                    }
                 }
 
                 return 0;

@@ -281,8 +281,11 @@ public sealed class PgLogTests(TestContext context)
                     break;
                 }
                 catch (NpgsqlException failure) when (failure is not PostgresException ||
-                    failure is PostgresException { SqlState: PostgresErrorCodes.CannotConnectNow or
-                        PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown })
+                    failure is PostgresException
+                    {
+                        SqlState: PostgresErrorCodes.CannotConnectNow or
+                        PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown
+                    })
                 {
                     await Task.Delay(50, deadline.Token);
                 }

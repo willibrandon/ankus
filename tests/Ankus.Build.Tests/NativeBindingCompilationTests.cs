@@ -60,7 +60,10 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             Assert.AreEqual(41, Execute(artifact));
             Assert.HasCount(1, Directory.GetDirectories(Path.Combine(root, "cache")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -101,7 +104,10 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             Assert.HasCount(builds + 1, Directory.GetFiles(source, "binding-compile-*.binlog"));
             Assert.AreEqual(43, Execute(artifact));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
@@ -122,7 +128,10 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             string feed = Directory.CreateDirectory(Path.Combine(configurationDirectory, "feed")).FullName;
             string[] packages = Directory.GetFiles(Path.Combine(initial.Packages, "microsoft.net.illink.tasks"), "*.nupkg", SearchOption.AllDirectories);
             Assert.IsNotEmpty(packages);
-            foreach (string package in packages) { File.Copy(package, Path.Combine(feed, Path.GetFileName(package))); }
+            foreach (string package in packages)
+            {
+                File.Copy(package, Path.Combine(feed, Path.GetFileName(package)));
+            }
 
             var configuration = XDocument.Parse("""
                 <configuration>
@@ -170,7 +179,10 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             await NativeBindingCompilationCommand.RunAsync(Arguments(root, source, settings), context.CancellationToken);
             Assert.AreEqual(41, Execute(Artifact(source)));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     private async Task<string[]> SettingsAsync(string root, string[]? restoreArguments = null)
@@ -208,6 +220,9 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             Assembly assembly = loader.LoadFromStream(stream);
             return (int)assembly.GetType("Probe", throwOnError: true)!.GetMethod("Read")!.Invoke(null, null)!;
         }
-        finally { loader.Unload(); }
+        finally
+        {
+            loader.Unload();
+        }
     }
 }

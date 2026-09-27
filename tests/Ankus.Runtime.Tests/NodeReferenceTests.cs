@@ -21,7 +21,11 @@ public sealed unsafe partial class NodeReferenceTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         fixture.Handler = request => Respond(fixture, request);
-        SampleNode value = new() { _tag = 7, _number = 9 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 9
+        };
         PgNodeReference<SampleNode> leaf = PgNodes.Borrow(PgMemoryContext.Current.DangerousBorrow<SampleNode>(&value)!);
         fixture.Requests.Clear();
         PgNodeReference<NodeHeader>? root = leaf.TryCast<NodeHeader>();
@@ -51,7 +55,10 @@ public sealed unsafe partial class NodeReferenceTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         fixture.Handler = request => Respond(fixture, request);
-        NodeHeader value = new() { _tag = uint.MaxValue };
+        NodeHeader value = new()
+        {
+            _tag = uint.MaxValue
+        };
         PgNodeReference<NodeHeader> root = PgNodes.Borrow(PgMemoryContext.Current.DangerousBorrow<NodeHeader>(&value)!);
         Assert.AreEqual(uint.MaxValue, root.Tag);
         Assert.IsNull(root.TryCast<SampleNode>());
@@ -70,7 +77,10 @@ public sealed unsafe partial class NodeReferenceTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         fixture.Handler = request => Respond(fixture, request);
-        SourceOnlyUnion value = new() { _value = new SampleNode { _tag = 7, _number = 42 } };
+        SourceOnlyUnion value = new()
+        {
+            _value = new SampleNode { _tag = 7, _number = 42 }
+        };
         PgNodeReference<SourceOnlyUnion> union = PgNodes.Borrow(PgMemoryContext.Current.DangerousBorrow<SourceOnlyUnion>(&value)!);
         PgNodeReference<NodeHeader>? root = union.TryCast<NodeHeader>();
         Assert.IsNotNull(root);
@@ -101,7 +111,11 @@ public sealed unsafe partial class NodeReferenceTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         fixture.Handler = request => Respond(fixture, request);
-        SampleNode value = new() { _tag = 7, _number = 9 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 9
+        };
         PgNodeReference<SampleNode> node = PgNodes.Borrow(PgMemoryContext.Current.DangerousBorrow<SampleNode>(&value)!);
         fixture.Handler = request => request._operation == NativeMemoryOperation.NativeBinding
             ? throw new PgException("0A000", "changed active ABI")
@@ -109,13 +123,37 @@ public sealed unsafe partial class NodeReferenceTests
         fixture.Requests.Clear();
         Action access = operation switch
         {
-            0 => () => { _ = node.Value; },
+            0 => () =>
+            {
+                _ = node.Value;
+            }
+            ,
             1 => () => node.Value = default,
-            2 => () => { _ = node.Tag; },
-            3 => () => { _ = node.LifetimeContext; },
-            4 => () => { _ = node.TryCast<NodeHeader>(); },
-            5 => () => { _ = node.DangerousGetPointer(); },
-            6 => () => { _ = node.DangerousToNativeString(); },
+            2 => () =>
+            {
+                _ = node.Tag;
+            }
+            ,
+            3 => () =>
+            {
+                _ = node.LifetimeContext;
+            }
+            ,
+            4 => () =>
+            {
+                _ = node.TryCast<NodeHeader>();
+            }
+            ,
+            5 => () =>
+            {
+                _ = node.DangerousGetPointer();
+            }
+            ,
+            6 => () =>
+            {
+                _ = node.DangerousToNativeString();
+            }
+            ,
             _ => throw new ArgumentOutOfRangeException(nameof(operation)),
         };
         PgException error = Assert.ThrowsExactly<PgException>(access);
@@ -146,19 +184,40 @@ public sealed unsafe partial class NodeReferenceTests
         using var contract = new Contract();
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
-        SampleNode value = new() { _tag = 7, _number = 9 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 9
+        };
         PgNativeReference<SampleNode> reference = PgMemoryContext.Current.DangerousBorrow<SampleNode>(&value)!;
         switch (invalid)
         {
-            case "size": contract.Size = 4; break;
-            case "zero-size": contract.Size = 0; break;
-            case "zero-alignment": contract.Alignment = 0; break;
-            case "non-power-alignment": contract.Alignment = 3; break;
-            case "oversized-alignment": contract.Alignment = 16; break;
-            case "runtime": contract.Runtime = "incompatible-runtime"; break;
-            case "identity": contract.Identity = "short"; break;
-            case "null-identity": contract.Identity = null!; break;
-            default: throw new ArgumentOutOfRangeException(nameof(invalid));
+            case "size":
+                contract.Size = 4;
+                break;
+            case "zero-size":
+                contract.Size = 0;
+                break;
+            case "zero-alignment":
+                contract.Alignment = 0;
+                break;
+            case "non-power-alignment":
+                contract.Alignment = 3;
+                break;
+            case "oversized-alignment":
+                contract.Alignment = 16;
+                break;
+            case "runtime":
+                contract.Runtime = "incompatible-runtime";
+                break;
+            case "identity":
+                contract.Identity = "short";
+                break;
+            case "null-identity":
+                contract.Identity = null!;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(invalid));
         }
 
         fixture.Requests.Clear();
@@ -179,7 +238,11 @@ public sealed unsafe partial class NodeReferenceTests
         using var contract = new Contract();
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
-        SampleNode value = new() { _tag = 7, _number = 9 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 9
+        };
         fixture.Handler = request => Respond(fixture, request);
         PgNativeReference<SampleNode> reference = PgMemoryContext.Current.DangerousBorrow<SampleNode>(&value)!;
         contract.Identity = majorMismatch ? ExpectedIdentity : new string('B', 64);
@@ -225,7 +288,11 @@ public sealed unsafe partial class NodeReferenceTests
         ArgumentNullException error = Assert.ThrowsExactly<ArgumentNullException>(() => PgNodes.Borrow<SampleNode>(null!));
         Assert.AreEqual("reference", error.ParamName);
         using var fixture = new MemoryContextTestFixture();
-        SampleNode value = new() { _tag = 7, _number = 9 };
+        SampleNode value = new()
+        {
+            _tag = 7,
+            _number = 9
+        };
         PgNativeReference<SampleNode> reference;
         using (MemoryContextTestFixture.Enter())
         {
@@ -291,27 +358,47 @@ public sealed unsafe partial class NodeReferenceTests
         /// <summary>
         /// Gets or sets the claimed representation size.
         /// </summary>
-        internal int Size { get; set; } = 8;
+        internal int Size
+        {
+            get;
+            set;
+        } = 8;
 
         /// <summary>
         /// Gets or sets the claimed representation alignment.
         /// </summary>
-        internal int Alignment { get; set; } = 4;
+        internal int Alignment
+        {
+            get;
+            set;
+        } = 4;
 
         /// <summary>
         /// Gets or sets the selected server major.
         /// </summary>
-        internal int Major { get; set; } = 18;
+        internal int Major
+        {
+            get;
+            set;
+        } = 18;
 
         /// <summary>
         /// Gets or sets the claimed full binding identity.
         /// </summary>
-        internal string Identity { get; set; } = ExpectedIdentity;
+        internal string Identity
+        {
+            get;
+            set;
+        } = ExpectedIdentity;
 
         /// <summary>
         /// Gets or sets the claimed runtime ABI.
         /// </summary>
-        internal string Runtime { get; set; } = RuntimeInformation.RuntimeIdentifier;
+        internal string Runtime
+        {
+            get;
+            set;
+        } = RuntimeInformation.RuntimeIdentifier;
 
         /// <summary>
         /// Restores the enclosing test contract.

@@ -34,7 +34,10 @@ internal static partial class NativeObjectSymbols
 
             string architecture = machine switch
             {
-                0x8664 => "x64", 0x14c => "x86", 0xaa64 => "arm64", 0x1c0 or 0x1c4 => "arm",
+                0x8664 => "x64",
+                0x14c => "x86",
+                0xaa64 => "arm64",
+                0x1c0 or 0x1c4 => "arm",
                 _ => throw new FormatException("Unsupported COFF processor."),
             };
             _ = Table((ulong)header.Length, sections, 40);
@@ -70,12 +73,18 @@ internal static partial class NativeObjectSymbols
                 {
                     name = symbol[..8];
                     int end = name.IndexOf((byte)0);
-                    if (end >= 0) { name = name[..end]; }
+                    if (end >= 0)
+                    {
+                        name = name[..end];
+                    }
                 }
 
                 if (section == 0 && UInt32(symbol[8..]) == 0 && storage is 2 or 105)
                 {
-                    if (storage == 105) { Require(auxiliaries > 0, "A weak COFF import requires its auxiliary record."); }
+                    if (storage == 105)
+                    {
+                        Require(auxiliaries > 0, "A weak COFF import requires its auxiliary record.");
+                    }
 
                     Add(name, architecture == "x86");
                 }

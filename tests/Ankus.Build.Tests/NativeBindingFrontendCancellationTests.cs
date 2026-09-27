@@ -79,7 +79,10 @@ public sealed partial class NativeBindingNativeTests
             frontend = NativeBindingHeaderCommand.CompileAsync(executable, [identity, ready], output, directory, cancellation.Token, inspectBodies: true);
             while (!File.Exists(ready))
             {
-                if (frontend.IsCompleted) { await frontend; }
+                if (frontend.IsCompleted)
+                {
+                    await frontend;
+                }
 
                 await Task.Delay(10, context.CancellationToken);
             }
@@ -97,7 +100,10 @@ public sealed partial class NativeBindingNativeTests
         finally
         {
             await cancellation.CancelAsync();
-            if (frontend is not null) { await frontend.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing); }
+            if (frontend is not null)
+            {
+                await frontend.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            }
 
             await DeleteDirectoryAsync(directory);
         }

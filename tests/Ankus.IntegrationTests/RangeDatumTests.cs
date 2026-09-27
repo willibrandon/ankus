@@ -73,8 +73,16 @@ public sealed class RangeDatumTests(TestContext context)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ManagedRangeConstructionCanonicalizes), async (connection, transaction, token) =>
         {
             await using var command = new NpgsqlCommand("SELECT datatype.range_construct($1,$2,$3,$4,$5)::text", connection, transaction);
-            command.Parameters.Add(new() { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = (object?)lower ?? DBNull.Value });
-            command.Parameters.Add(new() { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = (object?)upper ?? DBNull.Value });
+            command.Parameters.Add(new()
+            {
+                NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer,
+                Value = (object?)lower ?? DBNull.Value
+            });
+            command.Parameters.Add(new()
+            {
+                NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer,
+                Value = (object?)upper ?? DBNull.Value
+            });
             command.Parameters.AddWithValue(lowerInclusive);
             command.Parameters.AddWithValue(upperInclusive);
             command.Parameters.AddWithValue(empty);
@@ -95,7 +103,11 @@ public sealed class RangeDatumTests(TestContext context)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(RangePropertiesExposeNativeState), async (connection, transaction, token) =>
         {
             await using var command = new NpgsqlCommand("SELECT datatype.range_inspect($1::int4range)", connection, transaction);
-            command.Parameters.Add(new() { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = (object?)text ?? DBNull.Value });
+            command.Parameters.Add(new()
+            {
+                NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text,
+                Value = (object?)text ?? DBNull.Value
+            });
             Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
 
@@ -138,7 +150,13 @@ public sealed class RangeDatumTests(TestContext context)
         {
             for (int operation = 0; operation < 4; operation++)
             {
-                string expression = operation switch { 0 => "$2::" + type + " + $3::" + type, 1 => "$2::" + type + " * $3::" + type, 2 => "$2::" + type + " - $3::" + type, _ => $"range_merge($2::{type},$3::{type})" };
+                string expression = operation switch
+                {
+                    0 => "$2::" + type + " + $3::" + type,
+                    1 => "$2::" + type + " * $3::" + type,
+                    2 => "$2::" + type + " - $3::" + type,
+                    _ => $"range_merge($2::{type},$3::{type})"
+                };
                 await using var command = new NpgsqlCommand($"SELECT datatype.range_operate($1,$2,$3,$4) = ({expression})::text", connection, transaction);
                 command.Parameters.AddWithValue(type);
                 command.Parameters.AddWithValue(left);

@@ -413,7 +413,10 @@ public sealed partial class ToolCommandTests
         {
             await VerifyNodeBindingRecoveryAsync(helper, output, temporary, token);
         }
-        finally { Directory.Delete(temporary, recursive: true); }
+        finally
+        {
+            Directory.Delete(temporary, recursive: true);
+        }
     }
 
     private static async Task VerifyNodeBindingRecoveryAsync(string helper, string output, string temporary, CancellationToken token)
@@ -434,7 +437,10 @@ public sealed partial class ToolCommandTests
         string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj",
             "native-records.json", "native-availability.json"];
         var expected = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (string name in names) { expected.Add(name, await File.ReadAllBytesAsync(Path.Combine(output, name), token)); }
+        foreach (string name in names)
+        {
+            expected.Add(name, await File.ReadAllBytesAsync(Path.Combine(output, name), token));
+        }
 
         ProcessResult rejected = await ProcessRunner.RunAsync("dotnet",
             [.. command[..^2], Path.Combine(output, "missing-libclang"), cache], environment, token, workingDirectory: s_root);
@@ -447,7 +453,10 @@ public sealed partial class ToolCommandTests
 
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
-        JsonNode records = JsonNode.Parse(expected["native-records.json"], documentOptions: new() { MaxDepth = 512 })!;
+        JsonNode records = JsonNode.Parse(expected["native-records.json"], documentOptions: new()
+        {
+            MaxDepth = 512
+        })!;
         JsonNode range = records["Graph"]!["Declarations"]!.AsArray().Single(static declaration => declaration!["Name"]!.GetValue<string>() == "RangeTblRef")!;
         JsonNode field = range["Fields"]!.AsArray().Single(static member => member!["Name"]!.GetValue<string>() == "rtindex")!;
         Assert.AreEqual(32, field["OffsetBits"]!.GetValue<int>());
@@ -500,7 +509,10 @@ public sealed partial class ToolCommandTests
 
     private static string PhysicalBindingDirectory(DirectoryInfo directory)
     {
-        if (directory.Parent is null) { return directory.FullName; }
+        if (directory.Parent is null)
+        {
+            return directory.FullName;
+        }
 
         DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
         return resolved.Parent is DirectoryInfo parent
@@ -510,7 +522,10 @@ public sealed partial class ToolCommandTests
 
     private static void LinkBindingIntermediates(string project)
     {
-        if (OperatingSystem.IsWindows()) { return; }
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
 
         string intermediate = Path.Combine(project, "obj", "Release", "net10.0", RuntimeInformation.RuntimeIdentifier);
         string physical = Path.Combine(intermediate, "physical bindings");

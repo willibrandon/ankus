@@ -12,7 +12,10 @@ internal static partial class NativeObjectSymbols
             Require(UInt32(header[12..]) == 1, "Expected a relocatable Mach-O object.");
             string architecture = UInt32(header[4..]) switch
             {
-                7 when !wide => "x86", 12 when !wide => "arm", 0x1000007 when wide => "x64", 0x100000c when wide => "arm64",
+                7 when !wide => "x86",
+                12 when !wide => "arm",
+                0x1000007 when wide => "x64",
+                0x100000c when wide => "arm64",
                 _ => throw new FormatException("Unsupported Mach-O processor or word size."),
             };
             uint count = UInt32(header[16..]);
@@ -39,7 +42,10 @@ internal static partial class NativeObjectSymbols
                         ReadOnlySpan<byte> symbol = symbols.Slice(offset, width);
                         ReadOnlySpan<byte> name = Name(strings, UInt32(symbol));
                         ulong value = wide ? UInt64(symbol[8..]) : UInt32(symbol[8..]);
-                        if ((symbol[4] & 0xef) == 1 && symbol[5] == 0 && value == 0) { Add(name, decorated: true); }
+                        if ((symbol[4] & 0xef) == 1 && symbol[5] == 0 && value == 0)
+                        {
+                            Add(name, decorated: true);
+                        }
                     }
                 }
 

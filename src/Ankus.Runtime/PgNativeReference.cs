@@ -182,7 +182,10 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
         InvokeRaw(NativeMemoryOperation.ReadReference, 0, 0);
         return new NativeMemoryRequest
         {
-            _context = _context, _other = _generation, _pointer = _address, _length = _availableLength,
+            _context = _context,
+            _other = _generation,
+            _pointer = _address,
+            _length = _availableLength,
         };
     }
 

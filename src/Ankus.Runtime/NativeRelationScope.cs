@@ -18,7 +18,10 @@ public sealed class NativeRelationScope : IDisposable
     /// <param name="iterator">The generated iterator handle.</param>
     /// <returns>A result scope to create before advancing the iterator.</returns>
     public static NativeRelationScope ForIterator(nint iterator)
-        => new() { _retainedArguments = NativeSet.RelationArguments(iterator) };
+        => new()
+        {
+            _retainedArguments = NativeSet.RelationArguments(iterator)
+        };
 
     /// <summary>
     /// Captures a relation, vector, or shaped array after conversion, including cleanup when recording ownership fails.
@@ -39,14 +42,20 @@ public sealed class NativeRelationScope : IDisposable
             {
                 foreach (PgRelation? item in vector)
                 {
-                    if (item is not null) { Capture(item); }
+                    if (item is not null)
+                    {
+                        Capture(item);
+                    }
                 }
             }
             else if (value is PgArray<PgRelation?> array)
             {
                 foreach (PgRelation? item in array)
                 {
-                    if (item is not null) { Capture(item); }
+                    if (item is not null)
+                    {
+                        Capture(item);
+                    }
                 }
             }
 
@@ -112,12 +121,21 @@ public sealed class NativeRelationScope : IDisposable
         {
             for (int index = relations.Count - 1; index >= 0; index--)
             {
-                try { relations[index].Dispose(); }
-                catch (Exception exception) { failure ??= exception; }
+                try
+                {
+                    relations[index].Dispose();
+                }
+                catch (Exception exception)
+                {
+                    failure ??= exception;
+                }
             }
         }
 
-        if (failure is not null) { ExceptionDispatchInfo.Capture(failure).Throw(); }
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     /// <summary>
@@ -131,11 +149,17 @@ public sealed class NativeRelationScope : IDisposable
         }
         else if (value is PgRelation?[] vector)
         {
-            foreach (PgRelation? item in vector) { Close(item, primary, retained); }
+            foreach (PgRelation? item in vector)
+            {
+                Close(item, primary, retained);
+            }
         }
         else if (value is PgArray<PgRelation?> array)
         {
-            foreach (PgRelation? item in array) { Close(item, primary, retained); }
+            foreach (PgRelation? item in array)
+            {
+                Close(item, primary, retained);
+            }
         }
     }
 
@@ -149,9 +173,18 @@ public sealed class NativeRelationScope : IDisposable
 
     private static void Close(PgRelation? relation, Exception primary, NativeRelationScope? retained)
     {
-        if (relation is not null && retained?._relations?.Contains(relation) == true) { return; }
+        if (relation is not null && retained?._relations?.Contains(relation) == true)
+        {
+            return;
+        }
 
-        try { relation?.Dispose(); }
-        catch (Exception cleanup) { primary.Data["Ankus.RelationCleanup"] = cleanup; }
+        try
+        {
+            relation?.Dispose();
+        }
+        catch (Exception cleanup)
+        {
+            primary.Data["Ankus.RelationCleanup"] = cleanup;
+        }
     }
 }

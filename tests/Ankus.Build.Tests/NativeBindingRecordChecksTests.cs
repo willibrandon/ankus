@@ -153,7 +153,10 @@ public sealed partial class NativeBindingNativeTests
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordChecks.Generate(records, Headers));
             Assert.Contains("C type anchor for every declaration", error.Message);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -288,16 +291,37 @@ public sealed partial class NativeBindingNativeTests
             int second = Array.FindIndex(types, static type => type.Kind == "alias" && type.Name == "Second");
             Assert.IsGreaterThanOrEqualTo(0, first);
             Assert.IsGreaterThanOrEqualTo(0, second);
-            types[first] = mutation == "canonical" ? types[first] with { Canonical = first }
-                : types[first] with { Element = mutation == "self" ? first : second };
-            if (mutation == "mutual") { types[second] = types[second] with { Element = first }; }
+            types[first] = mutation == "canonical" ? types[first] with
+            {
+                Canonical = first
+            }
+                : types[first] with
+                {
+                    Element = mutation == "self" ? first : second
+                };
+            if (mutation == "mutual")
+            {
+                types[second] = types[second] with
+                {
+                    Element = first
+                };
+            }
 
-            NativeHeaderRecords changed = records with { Graph = records.Graph with { Types = types } };
+            NativeHeaderRecords changed = records with
+            {
+                Graph = records.Graph with
+                {
+                    Types = types
+                }
+            };
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordChecks.Generate(changed, Headers));
             Assert.Contains(mutation == "canonical" ? "canonical native type" : "alias or wrapper cycle", error.Message);
             Assert.AreEqual(expected, NativeBindingRecordChecks.Generate(records, Headers));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -318,8 +342,17 @@ public sealed partial class NativeBindingNativeTests
                 NativeRecordDeclaration[] declarations = [.. records.Graph.Declarations];
                 int index = Array.FindIndex(declarations, static declaration => declaration.Name == "Wide");
                 Assert.IsGreaterThanOrEqualTo(0, index);
-                declarations[index] = declarations[index] with { EnumValues = [new("LimitValue", corrupted)] };
-                return records with { Graph = records.Graph with { Declarations = declarations } };
+                declarations[index] = declarations[index] with
+                {
+                    EnumValues = [new("LimitValue", corrupted)]
+                };
+                return records with
+                {
+                    Graph = records.Graph with
+                    {
+                        Declarations = declarations
+                    }
+                };
             });
         Assert.Contains("Native record contract changed: constant LimitValue", diagnostics);
     }
@@ -335,7 +368,10 @@ public sealed partial class NativeBindingNativeTests
         try
         {
             NativeHeaderRecords records = await CollectCallRecordsAsync(measured, requests, directory);
-            if (mutate is not null) { records = mutate(records); }
+            if (mutate is not null)
+            {
+                records = mutate(records);
+            }
 
             string source = NativeBindingRecordChecks.Generate(records, "#define PG_VERSION_NUM 180006\n" + actual);
             string file = Path.Combine(directory, "checks.c");
@@ -346,10 +382,16 @@ public sealed partial class NativeBindingNativeTests
                 ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
                 : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, "-o", executable];
             string diagnostics = await RunAsync(compiler, arguments, directory, expectSuccess: compile);
-            if (compile) { diagnostics = await RunAsync(executable, [], directory, expectSuccess: execute); }
+            if (compile)
+            {
+                diagnostics = await RunAsync(executable, [], directory, expectSuccess: execute);
+            }
 
             return diagnostics;
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

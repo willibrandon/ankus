@@ -14,7 +14,10 @@ internal static partial class NativeBindingRecordChecks
             {
                 NativeRecordDeclaration declaration = _graph.Declarations[index];
                 NativeRecordField[] fields = [.. declaration.Fields.Where(static field => field.BitWidth > 0 && field.Name.Length != 0)];
-                if (fields.Length == 0) { continue; }
+                if (fields.Length == 0)
+                {
+                    continue;
+                }
 
                 string anchor = _anchors[index];
                 _source.AppendLine("    {");
@@ -23,7 +26,10 @@ internal static partial class NativeBindingRecordChecks
                 _source.Append("        uintptr_t alignment = _Alignof(").Append(anchor).AppendLine(");");
                 _source.AppendLine("        unsigned char *bytes = (unsigned char *)(((uintptr_t)allocation + alignment - 1) & ~(alignment - 1));");
                 _source.Append("        const ").Append(anchor).Append(" *value = (const ").Append(anchor).AppendLine(" *)bytes;");
-                foreach (NativeRecordField field in fields) { Bitfield(index, anchor, field); }
+                foreach (NativeRecordField field in fields)
+                {
+                    Bitfield(index, anchor, field);
+                }
 
                 _source.AppendLine("        free(allocation);\n    }");
             }
@@ -38,10 +44,16 @@ internal static partial class NativeBindingRecordChecks
         {
             int width = field.BitWidth!.Value;
             NativeRecordType integer = Canonical(field.Type);
-            if (integer.Kind == "enum") { integer = Canonical(_graph.Declarations[integer.Declaration!.Value].EnumUnderlying!.Value); }
+            if (integer.Kind == "enum")
+            {
+                integer = Canonical(_graph.Declarations[integer.Declaration!.Value].EnumUnderlying!.Value);
+            }
 
             bool signed = Signed(integer);
-            if (width > 128) { throw new FormatException("Native bitfield verification supports at most 128 value bits."); }
+            if (width > 128)
+            {
+                throw new FormatException("Native bitfield verification supports at most 128 value bits.");
+            }
 
             bool extended = width > 64 || integer.Size > 8;
             string wide = extended ? "unsigned __int128" : "uint64_t";

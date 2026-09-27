@@ -61,8 +61,14 @@ public static class NativeSet
         }
         catch
         {
-            try { iterator?.Dispose(); }
-            finally { arguments.Dispose(); }
+            try
+            {
+                iterator?.Dispose();
+            }
+            finally
+            {
+                arguments.Dispose();
+            }
 
             throw;
         }
@@ -155,8 +161,14 @@ public static class NativeSet
         /// </summary>
         public void Dispose()
         {
-            try { iterator.Dispose(); }
-            finally { arguments.Dispose(); }
+            try
+            {
+                iterator.Dispose();
+            }
+            finally
+            {
+                arguments.Dispose();
+            }
         }
     }
 }

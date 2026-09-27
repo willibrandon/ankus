@@ -20,7 +20,10 @@ internal static partial class NativeBindingParser
         ArgumentOutOfRangeException.ThrowIfGreaterThan(postgresMajor, 19);
         string code = MaskTrivia(source);
         Match tagDeclaration = TagDeclaration().Match(code);
-        if (!tagDeclaration.Success) { throw new FormatException("The bindings contain no NodeTag declaration."); }
+        if (!tagDeclaration.Success)
+        {
+            throw new FormatException("The bindings contain no NodeTag declaration.");
+        }
 
         int start = tagDeclaration.Index + tagDeclaration.Length;
         int end = ReadUntil(code, start, '}');
@@ -52,11 +55,17 @@ internal static partial class NativeBindingParser
             foreach (Match field in FieldDeclaration().Matches(code[start..end]))
             {
                 string fieldName = field.Groups["name"].Value;
-                if (!names.Add(fieldName)) { throw new FormatException($"Duplicate field {name}.{fieldName}."); }
+                if (!names.Add(fieldName))
+                {
+                    throw new FormatException($"Duplicate field {name}.{fieldName}.");
+                }
 
                 int fieldStart = start + field.Index + field.Length;
                 int fieldEnd = ReadUntil(code, fieldStart, ',');
-                if (fieldEnd >= end) { throw new FormatException($"Unterminated field {name}.{fieldName}."); }
+                if (fieldEnd >= end)
+                {
+                    throw new FormatException($"Unterminated field {name}.{fieldName}.");
+                }
 
                 fields.Add(new(fieldName, NativeIdentifier(fieldName), source[fieldStart..fieldEnd].Trim()));
             }
@@ -85,7 +94,10 @@ internal static partial class NativeBindingParser
             end = ReadUntil(code, start, '}');
             string body = code[start..end];
             Match storage = EnumStorage().Match(body);
-            if (!storage.Success) { continue; }
+            if (!storage.Success)
+            {
+                continue;
+            }
 
             int storageStart = start + storage.Index + storage.Length;
             string representation = source[storageStart..ReadUntil(code, storageStart, ';')].Trim();
@@ -123,9 +135,15 @@ internal static partial class NativeBindingParser
         foreach ((string alias, string representation) in aliases)
         {
             string target = DirectType(representation);
-            if (!types.ContainsKey(target) || !tags.ContainsKey("T_" + alias)) { continue; }
+            if (!types.ContainsKey(target) || !tags.ContainsKey("T_" + alias))
+            {
+                continue;
+            }
 
-            if (!tagAliases.TryGetValue(target, out List<string>? names)) { tagAliases.Add(target, names = []); }
+            if (!tagAliases.TryGetValue(target, out List<string>? names))
+            {
+                tagAliases.Add(target, names = []);
+            }
 
             names.Add("T_" + alias);
         }
@@ -135,10 +153,19 @@ internal static partial class NativeBindingParser
             foreach (NativeBindingField field in type.IsUnion ? type.Fields : type.Fields.Take(1))
             {
                 string parent = DirectType(field.Representation);
-                if (!types.ContainsKey(parent)) { continue; }
+                if (!types.ContainsKey(parent))
+                {
+                    continue;
+                }
 
-                if (type.IsUnion) { children[name].Add(parent); }
-                else { children[parent].Add(name); }
+                if (type.IsUnion)
+                {
+                    children[name].Add(parent);
+                }
+                else
+                {
+                    children[parent].Add(name);
+                }
             }
         }
 
@@ -149,36 +176,61 @@ internal static partial class NativeBindingParser
             bool root = type.IsUnion
                 ? type.Fields.Any(static field => DirectType(field.Representation) == "Node")
                 : type.Fields.Count != 0 && DirectType(type.Fields[0].Representation) == "NodeTag";
-            if (root) { Resolve(name); }
+            if (root)
+            {
+                Resolve(name);
+            }
         }
 
         if (major <= 14 && resolved.TryGetValue("Value", out SortedSet<string>? valueTags))
         {
             string[] legacy = ["T_Integer", "T_Float", "T_String", "T_BitString", "T_Null"];
-            if (legacy.Any(tag => !tags.ContainsKey(tag))) { throw new FormatException("Legacy Value node tags are incomplete."); }
+            if (legacy.Any(tag => !tags.ContainsKey(tag)))
+            {
+                throw new FormatException("Legacy Value node tags are incomplete.");
+            }
 
             valueTags.UnionWith(legacy);
         }
 
         foreach ((string name, SortedSet<string> accepted) in resolved)
         {
-            types[name] = types[name] with { IsNode = true, CastTags = Array.AsReadOnly(name == "Node" ? [] : accepted.ToArray()) };
+            types[name] = types[name] with
+            {
+                IsNode = true,
+                CastTags = Array.AsReadOnly(name == "Node" ? [] : accepted.ToArray())
+            };
         }
 
         SortedSet<string> Resolve(string name)
         {
-            if (resolved.TryGetValue(name, out SortedSet<string>? known)) { return known; }
+            if (resolved.TryGetValue(name, out SortedSet<string>? known))
+            {
+                return known;
+            }
 
-            if (!visiting.Add(name)) { throw new FormatException($"Cyclic native node inheritance at {name}."); }
+            if (!visiting.Add(name))
+            {
+                throw new FormatException($"Cyclic native node inheritance at {name}.");
+            }
 
             var accepted = new SortedSet<string>(StringComparer.Ordinal);
-            if (tags.ContainsKey("T_" + name)) { accepted.Add("T_" + name); }
+            if (tags.ContainsKey("T_" + name))
+            {
+                accepted.Add("T_" + name);
+            }
 
-            if (tagAliases.TryGetValue(name, out List<string>? names)) { accepted.UnionWith(names); }
+            if (tagAliases.TryGetValue(name, out List<string>? names))
+            {
+                accepted.UnionWith(names);
+            }
 
             if (!types[name].IsUnion)
             {
-                foreach (string child in children[name]) { accepted.UnionWith(Resolve(child)); }
+                foreach (string child in children[name])
+                {
+                    accepted.UnionWith(Resolve(child));
+                }
             }
 
             visiting.Remove(name);
@@ -196,17 +248,32 @@ internal static partial class NativeBindingParser
         for (int index = start; index < code.Length; index++)
         {
             char character = code[index];
-            if (closes.Count == 0 && character == delimiter) { return index; }
+            if (closes.Count == 0 && character == delimiter)
+            {
+                return index;
+            }
 
             if (character is '(' or '[' or '{' || trackAngles && character == '<')
             {
-                closes.Push(character switch { '(' => ')', '[' => ']', '{' => '}', _ => '>' });
+                closes.Push(character switch
+                {
+                    '(' => ')',
+                    '[' => ']',
+                    '{' => '}',
+                    _ => '>'
+                });
             }
             else if (character is ')' or ']' or '}' || trackAngles && character == '>')
             {
-                if (character == '>' && index != 0 && code[index - 1] == '-') { continue; }
+                if (character == '>' && index != 0 && code[index - 1] == '-')
+                {
+                    continue;
+                }
 
-                if (closes.Count == 0 || closes.Pop() != character) { throw new FormatException("Unbalanced bindgen declaration."); }
+                if (closes.Count == 0 || closes.Pop() != character)
+                {
+                    throw new FormatException("Unbalanced bindgen declaration.");
+                }
             }
         }
 
@@ -227,15 +294,28 @@ internal static partial class NativeBindingParser
                 bool closed = false;
                 while (++index < source.Length)
                 {
-                    if (source[index] == '\\') { index++; }
-                    else if (source[index] == '"') { closed = true; break; }
+                    if (source[index] == '\\')
+                    {
+                        index++;
+                    }
+                    else if (source[index] == '"')
+                    {
+                        closed = true;
+                        break;
+                    }
                 }
 
-                if (!closed) { throw new FormatException("Unterminated bindgen string."); }
+                if (!closed)
+                {
+                    throw new FormatException("Unterminated bindgen string.");
+                }
             }
             else if (source[index] == '/' && index + 1 < source.Length && source[index + 1] == '/')
             {
-                while (index + 1 < source.Length && source[index + 1] != '\n') { index++; }
+                while (index + 1 < source.Length && source[index + 1] != '\n')
+                {
+                    index++;
+                }
             }
             else if (source[index] == '/' && index + 1 < source.Length && source[index + 1] == '*')
             {
@@ -243,21 +323,37 @@ internal static partial class NativeBindingParser
                 index++;
                 while (++index + 1 < source.Length)
                 {
-                    if (source[index] == '/' && source[index + 1] == '*') { depth++; index++; }
+                    if (source[index] == '/' && source[index + 1] == '*')
+                    {
+                        depth++;
+                        index++;
+                    }
                     else if (source[index] == '*' && source[index + 1] == '/')
                     {
                         index++;
-                        if (--depth == 0) { break; }
+                        if (--depth == 0)
+                        {
+                            break;
+                        }
                     }
                 }
 
-                if (depth != 0) { throw new FormatException("Unterminated bindgen comment."); }
+                if (depth != 0)
+                {
+                    throw new FormatException("Unterminated bindgen comment.");
+                }
             }
-            else { continue; }
+            else
+            {
+                continue;
+            }
 
             for (int position = start; position <= index; position++)
             {
-                if (code[position] is not ('\r' or '\n')) { code[position] = ' '; }
+                if (code[position] is not ('\r' or '\n'))
+                {
+                    code[position] = ' ';
+                }
             }
         }
 

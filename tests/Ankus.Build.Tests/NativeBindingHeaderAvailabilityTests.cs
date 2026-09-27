@@ -44,7 +44,11 @@ public sealed class NativeBindingHeaderAvailabilityTests
         Assert.ThrowsExactly<NotSupportedException>(() => ((IList<NativeHeaderRequest>)result.Available).Clear());
         Assert.ThrowsExactly<NotSupportedException>(() => ((IList<NativeHeaderRequest>)result.Absent).Clear());
         NativeBindingAvailability reordered = NativeBindingHeaderAvailability.Read(document.RootElement,
-            inventory with { Functions = inventory.Functions.Reverse().ToDictionary(), Globals = inventory.Globals.Reverse().ToDictionary() });
+            inventory with
+            {
+                Functions = inventory.Functions.Reverse().ToDictionary(),
+                Globals = inventory.Globals.Reverse().ToDictionary()
+            });
         Assert.AreSequenceEqual(result.Available, reordered.Available);
         Assert.AreSequenceEqual(result.Absent, reordered.Absent);
     }
@@ -66,7 +70,28 @@ public sealed class NativeBindingHeaderAvailabilityTests
     }
 
     /// <summary>
-    /// Malformed compiler observations and wrong declaration kinds never become ordinary absence.
+    /// Selected headers determine declaration kinds independently of the reference inventory's platform.
+    /// </summary>
+    [TestMethod]
+    public void AvailabilityUsesSelectedHeaderDeclarationKinds()
+    {
+        const string Ast = """
+            {"kind":"TranslationUnitDecl","inner":[
+              {"kind":"VarDecl","name":"native_run"},
+              {"kind":"FunctionDecl","name":"native_state"}
+            ]}
+            """;
+        using JsonDocument document = JsonDocument.Parse(Ast);
+        NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse(Inventory, 18);
+        NativeBindingAvailability result = NativeBindingHeaderAvailability.Read(document.RootElement, inventory);
+        Assert.AreSequenceEqual<NativeHeaderRequest>([new("run", "native_run", false), new("state", "native_state", true)], result.Available);
+        Assert.AreSequenceEqual<NativeHeaderRequest>([new("absent", "absent", true), new("allocate", "allocate", true), new("hidden", "hidden", false)], result.Absent);
+        Assert.Contains("run", inventory.Functions.Keys);
+        Assert.Contains("state", inventory.Globals.Keys);
+    }
+
+    /// <summary>
+    /// Malformed compiler observations and conflicting declaration kinds never become ordinary absence.
     /// </summary>
     /// <param name="ast">An independently invalid compiler observation.</param>
     [TestMethod]
@@ -77,8 +102,6 @@ public sealed class NativeBindingHeaderAvailabilityTests
     [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{}]}")]
     [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":false}]}")]
     [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"FunctionDecl\"}]}")]
-    [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"VarDecl\",\"name\":\"native_run\"}]}")]
-    [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"FunctionDecl\",\"name\":\"native_state\"}]}")]
     [DataRow("{\"kind\":\"TranslationUnitDecl\",\"inner\":[{\"kind\":\"FunctionDecl\",\"name\":\"allocate\"},{\"kind\":\"VarDecl\",\"name\":\"allocate\"}]}")]
     public void InvalidAvailabilityCannotHideAsAbsence(string ast)
     {
@@ -96,7 +119,10 @@ public sealed class NativeBindingHeaderAvailabilityTests
         using JsonDocument document = JsonDocument.Parse("{\"kind\":\"TranslationUnitDecl\"}");
         NativeBindingRawCatalog inventory = NativeBindingRawParser.Parse(Inventory, 18);
         Dictionary<string, NativeBindingFunction> functions = inventory.Functions.ToDictionary();
-        functions["run"] = functions["run"] with { NativeSymbol = "invalid;" };
+        functions["run"] = functions["run"] with
+        {
+            NativeSymbol = "invalid;"
+        };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderAvailability.Read(document.RootElement, inventory with { Functions = functions }));
         Dictionary<string, NativeBindingGlobal> globals = inventory.Globals.ToDictionary();
         globals.Add("run", globals["state"]);

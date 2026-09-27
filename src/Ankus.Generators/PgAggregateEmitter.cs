@@ -61,7 +61,10 @@ internal static class PgAggregateEmitter
 
         string invocation = helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
             "(" + string.Join(", ", arguments) + ")";
-        if (helper.Result.Datum?.HasRelations == true) { invocation = "relationScope.Add(" + invocation + ")"; }
+        if (helper.Result.Datum?.HasRelations == true)
+        {
+            invocation = "relationScope.Add(" + invocation + ")";
+        }
 
         managed.AppendLine("                " + helper.Result.Managed + " value = " + invocation + ";");
         if (helper.Result.IsManagedState)
@@ -228,7 +231,12 @@ internal static class PgAggregateEmitter
             options.Add("SORTOP = " + aggregate.SortOperator);
         }
 
-        options.Add("PARALLEL = " + (aggregate.Parallel switch { 1 => "RESTRICTED", 2 => "SAFE", _ => "UNSAFE" }));
+        options.Add("PARALLEL = " + (aggregate.Parallel switch
+        {
+            1 => "RESTRICTED",
+            2 => "SAFE",
+            _ => "UNSAFE"
+        }));
         if (aggregate.Kind == 2)
         {
             options.Add("HYPOTHETICAL");

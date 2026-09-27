@@ -99,26 +99,56 @@ public sealed class NativeBindingStorageObservationTests
         JsonArray members = root["inner"]![2]!["inner"]!.AsArray();
         switch (change)
         {
-            case "missing": members.RemoveAt(0); break;
-            case "duplicate": members.Add(members[0]!.DeepClone()); break;
+            case "missing":
+                members.RemoveAt(0);
+                break;
+            case "duplicate":
+                members.Add(members[0]!.DeepClone());
+                break;
             case "unexpected":
                 JsonNode extra = members[0]!.DeepClone();
                 extra["name"] = "ankus_storage_other_global_size";
                 members.Add(extra);
                 break;
-            case "missing-expression": members[0]!.AsObject().Remove("inner"); break;
-            case "extra-expression": members[0]!["inner"]!.AsArray().Add(members[0]!["inner"]![0]!.DeepClone()); break;
-            case "missing-value": members[0]!["inner"]![0]!.AsObject().Remove("value"); break;
-            case "numeric-value": members[0]!["inner"]![0]!["value"] = 4; break;
-            case "null-value": members[0]!["inner"]![0]!["value"] = null; break;
-            case "null-name": members[0]!["name"] = null; break;
-            case "wrong-kind": members[0]!["kind"] = "VarDecl"; break;
-            case "wrong-target": root["inner"]![0]!["inner"]![0]!["inner"]![0]!["value"] = "180005"; break;
-            case "invalid-sentinel": members[0]!["inner"]![0]!["value"] = "-2"; break;
-            case "overflow": members[0]!["inner"]![0]!["value"] = "18446744073709551616"; break;
-            case "unexpected-stride": members[2]!["inner"]![0]!["value"] = "1"; break;
-            case "wrong-signedness": members[3]!["inner"]![0]!["value"] = "0"; break;
-            default: Assert.Fail("Unknown invalid compiler storage observation."); break;
+            case "missing-expression":
+                members[0]!.AsObject().Remove("inner");
+                break;
+            case "extra-expression":
+                members[0]!["inner"]!.AsArray().Add(members[0]!["inner"]![0]!.DeepClone());
+                break;
+            case "missing-value":
+                members[0]!["inner"]![0]!.AsObject().Remove("value");
+                break;
+            case "numeric-value":
+                members[0]!["inner"]![0]!["value"] = 4;
+                break;
+            case "null-value":
+                members[0]!["inner"]![0]!["value"] = null;
+                break;
+            case "null-name":
+                members[0]!["name"] = null;
+                break;
+            case "wrong-kind":
+                members[0]!["kind"] = "VarDecl";
+                break;
+            case "wrong-target":
+                root["inner"]![0]!["inner"]![0]!["inner"]![0]!["value"] = "180005";
+                break;
+            case "invalid-sentinel":
+                members[0]!["inner"]![0]!["value"] = "-2";
+                break;
+            case "overflow":
+                members[0]!["inner"]![0]!["value"] = "18446744073709551616";
+                break;
+            case "unexpected-stride":
+                members[2]!["inner"]![0]!["value"] = "1";
+                break;
+            case "wrong-signedness":
+                members[3]!["inner"]![0]!["value"] = "0";
+                break;
+            default:
+                Assert.Fail("Unknown invalid compiler storage observation.");
+                break;
         }
 
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());

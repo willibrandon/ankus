@@ -275,13 +275,25 @@ public static class NativeLayoutTypeFunctions
         PgDatum copy = source.CopyTo(owner);
         result.Dispose();
         int rejected = 0;
-        try { _ = source.Read<Packet>(); }
-        catch (InvalidOperationException) { rejected++; }
+        try
+        {
+            _ = source.Read<Packet>();
+        }
+        catch (InvalidOperationException)
+        {
+            rejected++;
+        }
 
         string description = NativeDescribe(copy.Read<Packet>());
         owner.Reset();
-        try { _ = copy.Read<Packet>(); }
-        catch (InvalidOperationException) { rejected++; }
+        try
+        {
+            _ = copy.Read<Packet>();
+        }
+        catch (InvalidOperationException)
+        {
+            rejected++;
+        }
 
         return description + "|" + rejected.ToString(CultureInfo.InvariantCulture);
     }

@@ -35,7 +35,10 @@ internal static class NativeBindingSignatureCommand
         PostgresInstallation installation = string.IsNullOrEmpty(toolchain[1])
             ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
             : await PostgresInstallation.CreateAsync(toolchain[1], cancellationToken);
-        if (installation.Version.Major != major) { throw new InvalidOperationException("The selected installation has the wrong PostgreSQL major."); }
+        if (installation.Version.Major != major)
+        {
+            throw new InvalidOperationException("The selected installation has the wrong PostgreSQL major.");
+        }
 
         string output = Path.GetFullPath(toolchain[2]);
         Directory.CreateDirectory(output);
@@ -45,7 +48,10 @@ internal static class NativeBindingSignatureCommand
         string observations = await NativeBindingLayoutCommand.CompileProbeAsync(installation, toolchain, source, executable, output, cancellationToken, requireC11: true);
         NativeBindingSignatures signatures = NativeBindingSignatureProbe.Read(catalog, raw, names, observations);
         string expectedRuntime = toolchain.Length >= 6 && toolchain[5].Length != 0 ? toolchain[5] : RuntimeInformation.RuntimeIdentifier;
-        if (signatures.RuntimeIdentifier != expectedRuntime) { throw new InvalidOperationException("Native signatures do not match the requested runtime ABI."); }
+        if (signatures.RuntimeIdentifier != expectedRuntime)
+        {
+            throw new InvalidOperationException("Native signatures do not match the requested runtime ABI.");
+        }
 
         await File.WriteAllTextAsync(Path.Combine(output, "native-signatures.txt"), observations, cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(output, "native-signatures.json"), JsonSerializer.Serialize(signatures, s_jsonOptions) + "\n", cancellationToken);

@@ -22,8 +22,14 @@ public static unsafe class StringInfoFunctions
         buffer.Write('\0');
         byte[] copy = buffer.ToArray();
         string invalid;
-        try { invalid = buffer.ToString(); }
-        catch (DecoderFallbackException) { invalid = "strict"; }
+        try
+        {
+            invalid = buffer.ToString();
+        }
+        catch (DecoderFallbackException)
+        {
+            invalid = "strict";
+        }
 
         buffer.WriteAt(1, [17, 34]);
         byte[] interior = new byte[3];
@@ -48,8 +54,14 @@ public static unsafe class StringInfoFunctions
 
         string before = buffer.ToString();
         bool rejected = false;
-        try { buffer.Write("prefix\uD800"); }
-        catch (EncoderFallbackException) { rejected = true; }
+        try
+        {
+            buffer.Write("prefix\uD800");
+        }
+        catch (EncoderFallbackException)
+        {
+            rejected = true;
+        }
 
         return $"{before}|{buffer.ToString()}|{rejected}|{buffer.CanWrite}";
     }
@@ -63,7 +75,10 @@ public static unsafe class StringInfoFunctions
         using PgMemoryContext owner = PgMemoryContext.Create("StringInfo owner");
         using PgMemoryContext ambient = PgMemoryContext.Create("StringInfo ambient");
         byte[] initial = new byte[900];
-        for (int index = 0; index < initial.Length; index++) { initial[index] = (byte)(index % 251); }
+        for (int index = 0; index < initial.Length; index++)
+        {
+            initial[index] = (byte)(index % 251);
+        }
 
         using PgStringInfoStream buffer = PgStringInfoStream.Create(initial, owner);
         int minimum = buffer.Capacity;
@@ -107,8 +122,15 @@ public static unsafe class StringInfoFunctions
         }
         else if (mode is 3 or 4)
         {
-            try { buffer.DangerousDetachCString(); result = "transferred"; }
-            catch (PgException error) { result = error.SqlState; }
+            try
+            {
+                buffer.DangerousDetachCString();
+                result = "transferred";
+            }
+            catch (PgException error)
+            {
+                result = error.SqlState;
+            }
 
             result += ":" + Convert.ToHexString(buffer.ToArray());
             if (mode == 4)
@@ -120,8 +142,15 @@ public static unsafe class StringInfoFunctions
         }
         else
         {
-            try { buffer.WriteByte(42); result = "mutated"; }
-            catch (NotSupportedException) { result = "read-only"; }
+            try
+            {
+                buffer.WriteByte(42);
+                result = "mutated";
+            }
+            catch (NotSupportedException)
+            {
+                result = "read-only";
+            }
 
             byte* data = buffer.DangerousDetachData();
             result += mode == 2 ? $":{data == null}" : $":{data[0]},{data[1]},{data[2]}";
@@ -154,8 +183,14 @@ public static unsafe class StringInfoFunctions
         }
         else
         {
-            try { buffer.DangerousDetachCString(); }
-            catch (PgException error) { rejection = error.SqlState; }
+            try
+            {
+                buffer.DangerousDetachCString();
+            }
+            catch (PgException error)
+            {
+                rejection = error.SqlState;
+            }
 
             buffer.WriteAt(1, [120]);
             data = buffer.DangerousDetachCString();
@@ -188,9 +223,19 @@ public static unsafe class StringInfoFunctions
             () => PgStringInfoStream.Create(int.MaxValue),
         })
         {
-            try { operation(); }
-            catch (PgException error) { states.Add(error.SqlState); detail ??= error.Detail; }
-            finally { finalized++; }
+            try
+            {
+                operation();
+            }
+            catch (PgException error)
+            {
+                states.Add(error.SqlState);
+                detail ??= error.Detail;
+            }
+            finally
+            {
+                finalized++;
+            }
         }
 
         buffer.WriteByte(33);
@@ -207,14 +252,26 @@ public static unsafe class StringInfoFunctions
         using PgMemoryContext owner = PgMemoryContext.Create("StringInfo lifetime");
         using PgStringInfoStream owned = PgStringInfoStream.Create("live", owner);
         using PgStringInfoStream borrowed = PgStringInfoStream.DangerousBorrow(owned.DangerousGetPointer(), owner)!;
-        if (delete) { owner.Dispose(); }
-        else { owner.Reset(); }
+        if (delete)
+        {
+            owner.Dispose();
+        }
+        else
+        {
+            owner.Reset();
+        }
 
         int stale = 0;
         foreach (PgStringInfoStream buffer in new[] { owned, borrowed })
         {
-            try { buffer.CopyTo(Span<byte>.Empty); }
-            catch (ObjectDisposedException) { stale++; }
+            try
+            {
+                buffer.CopyTo(Span<byte>.Empty);
+            }
+            catch (ObjectDisposedException)
+            {
+                stale++;
+            }
         }
 
         owned.Dispose();
@@ -252,10 +309,21 @@ public static unsafe class StringInfoFunctions
     {
         PgStringInfoStream buffer = s_saved ?? throw new InvalidOperationException("No saved StringInfo.");
         string result;
-        try { buffer.WriteByte(33); result = buffer.ToString(); }
-        catch (ObjectDisposedException) { result = "stale"; }
+        try
+        {
+            buffer.WriteByte(33);
+            result = buffer.ToString();
+        }
+        catch (ObjectDisposedException)
+        {
+            result = "stale";
+        }
 
-        if (release) { buffer.Dispose(); s_saved = null; }
+        if (release)
+        {
+            buffer.Dispose();
+            s_saved = null;
+        }
 
         return result;
     }

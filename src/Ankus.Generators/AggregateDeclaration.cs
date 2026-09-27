@@ -29,12 +29,20 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Gets the aggregate's unquoted SQL name.
     /// </summary>
-    internal string Name { get; private set; } = string.Empty;
+    internal string Name
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the fixed schema, or null for the extension's installation namespace.
     /// </summary>
-    internal string? Schema { get; private set; }
+    internal string? Schema
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the qualified SQL identifier.
@@ -44,47 +52,83 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Gets the normal, ordered-set, or hypothetical-set kind.
     /// </summary>
-    internal int Kind { get; private set; }
+    internal int Kind
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the aggregate-level parallel-safety setting.
     /// </summary>
-    internal int Parallel { get; private set; }
+    internal int Parallel
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the validated textual initial condition, preserving null separately from empty text.
     /// </summary>
-    internal string? Initial { get; private set; }
+    internal string? Initial
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the moving implementation's textual initial condition.
     /// </summary>
-    internal string? MovingInitial { get; private set; }
+    internal string? MovingInitial
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether final receives typed SQL NULL input placeholders.
     /// </summary>
-    internal bool FinalExtra { get; private set; }
+    internal bool FinalExtra
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether moving final receives typed SQL NULL input placeholders.
     /// </summary>
-    internal bool MovingFinalExtra { get; private set; }
+    internal bool MovingFinalExtra
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the resolved final mutation policy, including PostgreSQL's kind-specific default.
     /// </summary>
-    internal int FinalModify { get; private set; }
+    internal int FinalModify
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the resolved moving final mutation policy.
     /// </summary>
-    internal int MovingFinalModify { get; private set; }
+    internal int MovingFinalModify
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets an optional structured sort operator name for SQL emission.
     /// </summary>
-    internal string? SortOperator { get; private set; }
+    internal string? SortOperator
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets aggregated input contracts after the transition state.
@@ -94,7 +138,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Gets ordered direct arguments, which reach final functions but not transitions.
     /// </summary>
-    internal AggregateType[] Direct { get; private set; } = [];
+    internal AggregateType[] Direct
+    {
+        get;
+        private set;
+    } = [];
 
     /// <summary>
     /// Gets the aggregate signature in PostgreSQL's shared function namespace.

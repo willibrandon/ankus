@@ -34,40 +34,147 @@ public sealed class NativeBindingManagedContractTests(TestContext context)
         NativeBindingSource valid = NativeBindingRecordCSharp.Generate(graph);
         NativeRecordType[] types = [.. graph.Types];
         NativeRecordDeclaration declaration = graph.Declarations[0];
-        NativeRecordGraph changed = graph with { Types = types };
+        NativeRecordGraph changed = graph with
+        {
+            Types = types
+        };
         switch (mutation)
         {
-            case "value-cycle": declaration = declaration with { Fields = [declaration.Fields[0] with { Type = 0 }] }; break;
-            case "canonical-wrapper": types[1] = types[1] with { Kind = "alias", Element = 1, SourceDeclaration = "typedef unsigned int count;" }; break;
+            case "value-cycle":
+                declaration = declaration with
+                {
+                    Fields = [declaration.Fields[0] with { Type = 0 }]
+                };
+                break;
+            case "canonical-wrapper":
+                types[1] = types[1] with
+                {
+                    Kind = "alias",
+                    Element = 1,
+                    SourceDeclaration = "typedef unsigned int count;"
+                };
+                break;
             case "enum-cycle":
             case "enum-size":
             case "enum-range":
-                types[0] = types[0] with { Kind = "enum" };
-                declaration = declaration with { Kind = "enum", Fields = [], EnumUnderlying = mutation == "enum-cycle" ? 0 : 1,
-                    EnumValues = [new("Limit", mutation == "enum-range" ? "4294967296" : "1")] };
-                if (mutation == "enum-cycle") { changed = changed with { Types = [types[0]] }; }
+                types[0] = types[0] with
+                {
+                    Kind = "enum"
+                };
+                declaration = declaration with
+                {
+                    Kind = "enum",
+                    Fields = [],
+                    EnumUnderlying = mutation == "enum-cycle" ? 0 : 1,
+                    EnumValues = [new("Limit", mutation == "enum-range" ? "4294967296" : "1")]
+                };
+                if (mutation == "enum-cycle")
+                {
+                    changed = changed with
+                    {
+                        Types = [types[0]]
+                    };
+                }
 
-                if (mutation == "enum-size") { types[1] = types[1] with { Size = 8, Alignment = 8 }; }
+                if (mutation == "enum-size")
+                {
+                    types[1] = types[1] with
+                    {
+                        Size = 8,
+                        Alignment = 8
+                    };
+                }
 
                 break;
-            case "boolean-size": types[1] = types[1] with { Name = "_Bool" }; break;
-            case "integer-size": types[1] = types[1] with { Size = 3, Alignment = 1 }; break;
-            case "field-name": declaration = declaration with { Fields = [declaration.Fields[0] with { Name = "a.b" }] }; break;
-            case "field-bounds": declaration = declaration with { Fields = [declaration.Fields[0] with { OffsetBits = 8 }] }; break;
-            case "zero-value": types[1] = types[1] with { Size = 0, Alignment = 1 }; break;
+            case "boolean-size":
+                types[1] = types[1] with
+                {
+                    Name = "_Bool"
+                };
+                break;
+            case "integer-size":
+                types[1] = types[1] with
+                {
+                    Size = 3,
+                    Alignment = 1
+                };
+                break;
+            case "field-name":
+                declaration = declaration with
+                {
+                    Fields = [declaration.Fields[0] with { Name = "a.b" }]
+                };
+                break;
+            case "field-bounds":
+                declaration = declaration with
+                {
+                    Fields = [declaration.Fields[0] with { OffsetBits = 8 }]
+                };
+                break;
+            case "zero-value":
+                types[1] = types[1] with
+                {
+                    Size = 0,
+                    Alignment = 1
+                };
+                break;
             case "huge-value":
-                types[0] = types[0] with { Size = (long)int.MaxValue + 1 };
-                declaration = declaration with { Size = (long)int.MaxValue + 1 };
+                types[0] = types[0] with
+                {
+                    Size = (long)int.MaxValue + 1
+                };
+                declaration = declaration with
+                {
+                    Size = (long)int.MaxValue + 1
+                };
                 break;
-            case "missing-target": changed = changed with { Target = null! }; break;
-            case "missing-roots": changed = changed with { Roots = null! }; break;
-            case "old-major": changed = changed with { Target = graph.Target with { PostgresVersion = 120000 } }; break;
-            case "new-major": changed = changed with { Target = graph.Target with { PostgresVersion = 200000 } }; break;
-            case "compiler": changed = changed with { Target = graph.Target with { ClangMajor = 0 } }; break;
-            default: throw new ArgumentOutOfRangeException(nameof(mutation));
+            case "missing-target":
+                changed = changed with
+                {
+                    Target = null!
+                };
+                break;
+            case "missing-roots":
+                changed = changed with
+                {
+                    Roots = null!
+                };
+                break;
+            case "old-major":
+                changed = changed with
+                {
+                    Target = graph.Target with
+                    {
+                        PostgresVersion = 120000
+                    }
+                };
+                break;
+            case "new-major":
+                changed = changed with
+                {
+                    Target = graph.Target with
+                    {
+                        PostgresVersion = 200000
+                    }
+                };
+                break;
+            case "compiler":
+                changed = changed with
+                {
+                    Target = graph.Target with
+                    {
+                        ClangMajor = 0
+                    }
+                };
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mutation));
         }
 
-        changed = changed with { Declarations = [declaration] };
+        changed = changed with
+        {
+            Declarations = [declaration]
+        };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordCSharp.Generate(changed));
         Assert.AreEqual(valid, NativeBindingRecordCSharp.Generate(graph));
     }
@@ -78,11 +185,24 @@ public sealed class NativeBindingManagedContractTests(TestContext context)
     [TestMethod]
     public void ManagedRecordContractsValidateHostWithEmptySelection()
     {
-        NativeRecordGraph graph = CreateGraph() with { Roots = new Dictionary<string, int>(), Types = [], Declarations = [] };
+        NativeRecordGraph graph = CreateGraph() with
+        {
+            Roots = new Dictionary<string, int>(),
+            Types = [],
+            Declarations = []
+        };
         const string Harness = "public static class BindingAssertions { public static long[] Run() => [Ankus.Postgres.NativeBinding.Identity.Length]; }";
         Assert.AreSequenceEqual([64L], GeneratedBindingCompilation.Run(NativeBindingRecordCSharp.Generate(graph), Harness, context.CancellationToken));
         string otherHost = OperatingSystem.IsWindows() ? "linux-x64" : "win-x64";
-        NativeRecordGraph changed = graph with { Target = graph.Target with { RuntimeIdentifier = otherHost, PointerSize = 8, IsLittleEndian = true } };
+        NativeRecordGraph changed = graph with
+        {
+            Target = graph.Target with
+            {
+                RuntimeIdentifier = otherHost,
+                PointerSize = 8,
+                IsLittleEndian = true
+            }
+        };
         TypeInitializationException error = Assert.ThrowsExactly<TypeInitializationException>(() =>
             GeneratedBindingCompilation.Run(NativeBindingRecordCSharp.Generate(changed), Harness, context.CancellationToken));
         Assert.IsInstanceOfType<PlatformNotSupportedException>(error.InnerException);
@@ -101,9 +221,15 @@ public sealed class NativeBindingManagedContractTests(TestContext context)
     [DataRow("root")]
     public void ManagedRecordContractsRetainCompleteIdentity(string mutation)
     {
-        NativeRecordGraph graph = CreateGraph() with { Roots = new Dictionary<string, int> { ["z"] = 0, ["a"] = 0 } };
+        NativeRecordGraph graph = CreateGraph() with
+        {
+            Roots = new Dictionary<string, int> { ["z"] = 0, ["a"] = 0 }
+        };
         NativeBindingSource expected = NativeBindingRecordCSharp.Generate(graph);
-        Assert.AreEqual(expected, NativeBindingRecordCSharp.Generate(graph with { Roots = new Dictionary<string, int> { ["a"] = 0, ["z"] = 0 } }));
+        Assert.AreEqual(expected, NativeBindingRecordCSharp.Generate(graph with
+        {
+            Roots = new Dictionary<string, int> { ["a"] = 0, ["z"] = 0 }
+        }));
         NativeRecordGraph changed = mutation switch
         {
             "version" => graph with { Target = graph.Target with { PostgresVersion = 180005 } },

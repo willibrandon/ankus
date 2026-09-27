@@ -18,7 +18,7 @@ public sealed partial class ToolCommandTests
         string helper = await ReadPackagedBuildToolAsync();
         string output = Path.Combine(s_root, "native header types");
         string selection = Path.Combine(s_root, "native header symbols.txt");
-        string[] names = ["ConditionVariableSleep", "ExecutorRun", "ExecutorRun_hook", "pg_atomic_read_u32", "proc_exit"];
+        string[] names = ["ConditionVariableSleep", "ExecutorRun", "ExecutorRun_hook", "pg_atomic_read_u32", "pg_popcount32", "proc_exit"];
         await File.WriteAllLinesAsync(selection, names, token);
         ProcessResult result = await RunDotnetAsync(
             [helper, "binding-header-types", selection, MajorText(), s_installation.PgConfigPath, output], token);
@@ -65,6 +65,35 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("qualified", qualified.GetProperty("Kind").GetString());
         Assert.AreEqual(2, qualified.GetProperty("Modifiers").GetInt32());
         Assert.AreEqual("pg_atomic_uint32", qualified.GetProperty("Underlying").GetProperty("Name").GetString());
+
+        JsonElement popcount = symbols.GetProperty("pg_popcount32");
+        bool isFunction = popcount.GetProperty("IsFunction").GetBoolean();
+        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            Assert.IsTrue(isFunction);
+        }
+
+        Assert.AreEqual("pg_popcount32", popcount.GetProperty("NativeName").GetString());
+        JsonElement callable = popcount.GetProperty("Type");
+        if (!isFunction)
+        {
+            Assert.AreEqual("pointer", callable.GetProperty("Kind").GetString());
+            callable = callable.GetProperty("Element");
+        }
+
+        Assert.AreEqual("function", callable.GetProperty("Kind").GetString());
+        Assert.AreEqual("int", callable.GetProperty("Result").GetProperty("Name").GetString());
+        JsonElement word = Assert.ContainsSingle(callable.GetProperty("Parameters").EnumerateArray());
+        Assert.AreEqual("alias", word.GetProperty("Kind").GetString());
+        Assert.AreEqual("uint32", word.GetProperty("Name").GetString());
+        JsonElement scalar = word.GetProperty("Underlying");
+        while (scalar.GetProperty("Kind").GetString() == "alias")
+        {
+            scalar = scalar.GetProperty("Underlying");
+        }
+
+        Assert.AreEqual("scalar", scalar.GetProperty("Kind").GetString());
+        Assert.AreEqual("unsigned int", scalar.GetProperty("Name").GetString());
 
         JsonElement condition = symbols.GetProperty("ConditionVariableSleep").GetProperty("Type")
             .GetProperty("Parameters")[0].GetProperty("Element");

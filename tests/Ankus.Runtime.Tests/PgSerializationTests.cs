@@ -480,7 +480,9 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void CodecRejectsAbsentAndIncompleteRootValues()
     {
-        var emptyCodec = new ScalarCodec<int>(static (ref PgTypeReader reader) => 1, static (writer, item) => { });
+        var emptyCodec = new ScalarCodec<int>(static (ref PgTypeReader reader) => 1, static (writer, item) =>
+        {
+        });
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => emptyCodec.Parse("")).SqlState);
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => emptyCodec.Parse(" \r\n\t")).SqlState);
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => emptyCodec.Read([])).SqlState);

@@ -24,7 +24,9 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     /// <summary>
     /// Creates an unbound NIL list without accessing PostgreSQL or allocating native storage.
     /// </summary>
-    public PgList() { }
+    public PgList()
+    {
+    }
 
     /// <summary>
     /// Gets the current number of cells after checking the list's lifetime.
@@ -106,7 +108,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         }
 
         ulong[] bits = new ulong[values.Length];
-        for (int index = 0; index < values.Length; index++) { bits[index] = NativeListValues.ToBits(values[index]); }
+        for (int index = 0; index < values.Length; index++)
+        {
+            bits[index] = NativeListValues.ToBits(values[index]);
+        }
 
         EnsureBound();
         Transfer(NativeListOperation.Add, bits);
@@ -121,11 +126,17 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     public bool TryAdd(T item)
     {
         EnsureLive();
-        if (_handle == 0) { return false; }
+        if (_handle == 0)
+        {
+            return false;
+        }
 
         Span<ulong> bits = stackalloc ulong[1] { NativeListValues.ToBits(item) };
         bool added = Transfer(NativeListOperation.TryAdd, bits)._value != 0;
-        if (added) { _version++; }
+        if (added)
+        {
+            _version++;
+        }
 
         return added;
     }
@@ -220,7 +231,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         int count = Count;
         for (int index = 0; index < count; index++)
         {
-            if (EqualityComparer<T>.Default.Equals(this[index], item)) { return index; }
+            if (EqualityComparer<T>.Default.Equals(this[index], item))
+            {
+                return index;
+            }
         }
 
         return -1;
@@ -241,7 +255,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     public bool Remove(T item)
     {
         int index = IndexOf(item);
-        if (index < 0) { return false; }
+        if (index < 0)
+        {
+            return false;
+        }
 
         RemoveAt(index);
         return true;
@@ -264,7 +281,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     public void Clear()
     {
         EnsureLive();
-        if (_handle != 0) { Invoke(NativeListOperation.Clear); }
+        if (_handle != 0)
+        {
+            Invoke(NativeListOperation.Clear);
+        }
 
         _version++;
     }
@@ -290,7 +310,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
             _version++;
         }
 
-        for (int offset = 0; offset < count; offset++) { result[offset] = NativeListValues.FromBits<T>(bits[offset]); }
+        for (int offset = 0; offset < count; offset++)
+        {
+            result[offset] = NativeListValues.FromBits<T>(bits[offset]);
+        }
 
         return result;
     }
@@ -303,11 +326,17 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     public void CopyTo(Span<T> destination, int sourceIndex = 0)
     {
         ValidateRange(sourceIndex, destination.Length);
-        if (destination.IsEmpty) { return; }
+        if (destination.IsEmpty)
+        {
+            return;
+        }
 
         ulong[] bits = new ulong[destination.Length];
         Transfer(NativeListOperation.Read, bits, sourceIndex);
-        for (int index = 0; index < destination.Length; index++) { destination[index] = NativeListValues.FromBits<T>(bits[index]); }
+        for (int index = 0; index < destination.Length; index++)
+        {
+            destination[index] = NativeListValues.FromBits<T>(bits[index]);
+        }
     }
 
     /// <summary>
@@ -421,9 +450,15 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     /// </summary>
     public void Dispose()
     {
-        if (_disposed) { return; }
+        if (_disposed)
+        {
+            return;
+        }
 
-        if (_handle != 0) { Invoke(NativeListOperation.Dispose); }
+        if (_handle != 0)
+        {
+            Invoke(NativeListOperation.Dispose);
+        }
 
         _disposed = true;
     }
@@ -434,7 +469,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     internal unsafe bool Initialize(ReadOnlySpan<T> values, PgMemoryContext owner, nint address, bool borrow)
     {
         ulong[] bits = new ulong[values.Length];
-        for (int index = 0; index < values.Length; index++) { bits[index] = NativeListValues.ToBits(values[index]); }
+        for (int index = 0; index < values.Length; index++)
+        {
+            bits[index] = NativeListValues.ToBits(values[index]);
+        }
 
         nint context = owner.GetId();
         nint provider = NativeMemoryContext.Provider;
@@ -453,7 +491,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
             if (result._pointer == 0)
             {
-                if (borrow) { return false; }
+                if (borrow)
+                {
+                    return false;
+                }
 
                 throw new InvalidOperationException("PostgreSQL did not return a list identity.");
             }
@@ -484,7 +525,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
                 _value = count,
             };
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
-            if (result._pointer == 0) { throw new InvalidOperationException("PostgreSQL did not return a defaults list identity."); }
+            if (result._pointer == 0)
+            {
+                throw new InvalidOperationException("PostgreSQL did not return a defaults list identity.");
+            }
 
             _provider = provider;
             _handle = result._pointer;
@@ -497,7 +541,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     private void EnsureBound()
     {
         EnsureLive();
-        if (_handle == 0) { Initialize([], PgMemoryContext.Current, 0, borrow: false); }
+        if (_handle == 0)
+        {
+            Initialize([], PgMemoryContext.Current, 0, borrow: false);
+        }
     }
 
     /// <summary>
@@ -506,7 +553,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     private void EnsureLive()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_handle != 0) { NativeMemoryContext.CheckProvider(_provider); }
+        if (_handle != 0)
+        {
+            NativeMemoryContext.CheckProvider(_provider);
+        }
     }
 
     /// <summary>
@@ -535,7 +585,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     /// </summary>
     private unsafe NativeMemoryResult Transfer(NativeListOperation operation, Span<ulong> bits, int index = 0)
     {
-        fixed (ulong* data = bits) { return Invoke(operation, (nint)data, bits.Length, index); }
+        fixed (ulong* data = bits)
+        {
+            return Invoke(operation, (nint)data, bits.Length, index);
+        }
     }
 
     /// <summary>
@@ -583,7 +636,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
             get
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
-                if (_index < 0 || _finished) { throw new InvalidOperationException("The enumerator is not positioned on a cell."); }
+                if (_index < 0 || _finished)
+                {
+                    throw new InvalidOperationException("The enumerator is not positioned on a cell.");
+                }
 
                 Check();
                 return _current;
@@ -603,7 +659,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_finished)
             {
-                if (!ownsList) { Check(); }
+                if (!ownsList)
+                {
+                    Check();
+                }
 
                 return false;
             }
@@ -617,7 +676,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
                 return true;
             }
 
-            if (ownsList) { list.Dispose(); }
+            if (ownsList)
+            {
+                list.Dispose();
+            }
 
             _finished = true;
             return false;
@@ -633,9 +695,15 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         /// </summary>
         public void Dispose()
         {
-            if (_disposed) { return; }
+            if (_disposed)
+            {
+                return;
+            }
 
-            if (ownsList) { list.Dispose(); }
+            if (ownsList)
+            {
+                list.Dispose();
+            }
 
             _disposed = true;
         }
@@ -646,7 +714,10 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         private void Check()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_version != list._version) { throw new InvalidOperationException("The PostgreSQL list changed during enumeration."); }
+            if (_version != list._version)
+            {
+                throw new InvalidOperationException("The PostgreSQL list changed during enumeration.");
+            }
 
             _ = list.Inspect();
         }

@@ -188,7 +188,12 @@ internal static class OperatorCastDeclaration
 
         string signature = source + " AS " + target;
         string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type!.Sql));
-        string suffix = castContext switch { 1 => " AS ASSIGNMENT", 2 => " AS IMPLICIT", _ => string.Empty };
+        string suffix = castContext switch
+        {
+            1 => " AS ASSIGNMENT",
+            2 => " AS IMPLICIT",
+            _ => string.Empty
+        };
         return ("CREATE CAST (" + signature + ") WITH FUNCTION " + function.QualifiedName + "(" + arguments + ")" + suffix + ";\n", signature);
 
         (string, string)? Invalid(string reason)

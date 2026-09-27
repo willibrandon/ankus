@@ -25,10 +25,16 @@ internal static class NativeBindingRecordWorker
     /// </summary>
     internal static async Task RunAsync(string[] arguments)
     {
-        if (arguments.Length != 1) { throw new ArgumentException("Expected binding-records-worker <request-json>.", nameof(arguments)); }
+        if (arguments.Length != 1)
+        {
+            throw new ArgumentException("Expected binding-records-worker <request-json>.", nameof(arguments));
+        }
 
         var input = new FileInfo(arguments[0]);
-        if (input.Length > 64 * 1024 * 1024) { throw new InvalidDataException("Native record request exceeds the byte limit."); }
+        if (input.Length > 64 * 1024 * 1024)
+        {
+            throw new InvalidDataException("Native record request exceeds the byte limit.");
+        }
 
         await using FileStream stream = input.OpenRead();
         NativeRecordRequest request = await JsonSerializer.DeserializeAsync<NativeRecordRequest>(stream, JsonOptions)
@@ -92,7 +98,10 @@ internal static class NativeBindingRecordWorker
             }
             catch
             {
-                if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
 
                 await process.WaitForExitAsync(CancellationToken.None);
                 await Task.WhenAll(copy, diagnostics);
@@ -122,7 +131,10 @@ internal static class NativeBindingRecordWorker
         foreach ((string name, NativeHeaderRequest symbol) in request.Symbols)
         {
             NativeBindingCDeclaration.ValidateName(name);
-            if (symbol is null || symbol.Name != name) { throw new FormatException("Inconsistent native record symbol selection."); }
+            if (symbol is null || symbol.Name != name)
+            {
+                throw new FormatException("Inconsistent native record symbol selection.");
+            }
 
             NativeBindingCDeclaration.ValidateName(symbol.NativeName);
         }

@@ -93,23 +93,43 @@ public sealed class MappedOperatorReader : IPgDatumReader<MappedOperatorKey>
     /// <summary>
     /// Gets the number of lazy constructor attempts.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
     /// <summary>
     /// Gets the number of present operands decoded.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
     /// <summary>
     /// Gets or sets whether the first constructor fails in this backend.
     /// </summary>
-    public static bool FailFactory { get; set; }
+    public static bool FailFactory
+    {
+        get;
+        set;
+    }
     /// <summary>
     /// Gets the last copied callback operand.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
     /// <summary>
     /// Gets the exact nominal operand identity.
     /// </summary>
-    public static uint TypeOid { get; private set; }
+    public static uint TypeOid
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records lazy construction and optionally raises an ordinary managed error.
@@ -159,7 +179,11 @@ public sealed class MappedOperatorStorageConverter : IPgDatumReader<MappedOperat
     /// <summary>
     /// Gets the present write count.
     /// </summary>
-    public static int Writes { get; private set; }
+    public static int Writes
+    {
+        get;
+        private set;
+    }
     /// <inheritdoc />
     public MappedOperatorStorage Read(PgDatum value) => new(unchecked((int)value.DangerousGetBits()));
     /// <inheritdoc />
@@ -211,11 +235,19 @@ public sealed class MappedOperatorPairReader : IPgDatumReader<MappedOperatorPair
     /// <summary>
     /// Gets the last native callback handle.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
     /// <summary>
     /// Gets the last detached managed pair.
     /// </summary>
-    public static MappedOperatorPair Last { get; private set; }
+    public static MappedOperatorPair Last
+    {
+        get;
+        private set;
+    }
     /// <inheritdoc />
     public unsafe MappedOperatorPair Read(PgDatum value)
     {

@@ -70,7 +70,11 @@ public sealed class PgAggregateContext
     /// <summary>
     /// Gets the enclosing aggregate callback while this scope remains active.
     /// </summary>
-    internal PgAggregateContext? Parent { get; private set; }
+    internal PgAggregateContext? Parent
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Releases the enclosing context link and returns the context to restore after this callback exits.

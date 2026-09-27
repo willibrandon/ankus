@@ -38,7 +38,10 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     /// </summary>
     internal NativeClangUnit Load(string ast)
     {
-        if (new FileInfo(ast).Length > 512 * 1024 * 1024) { throw new InvalidDataException("Native serialized AST exceeds the byte limit."); }
+        if (new FileInfo(ast).Length > 512 * 1024 * 1024)
+        {
+            throw new InvalidDataException("Native serialized AST exceeds the byte limit.");
+        }
 
         bool retained = false;
         DangerousAddRef(ref retained);
@@ -51,11 +54,17 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
             _ = Export("clang_disposeTranslationUnit");
             _ = Export("clang_disposeIndex");
             index = ((delegate* unmanaged[Cdecl]<int, int, nint>)Export("clang_createIndex"))(0, 0);
-            if (index == 0) { throw new InvalidOperationException("Cannot create the selected Clang index."); }
+            if (index == 0)
+            {
+                throw new InvalidOperationException("Cannot create the selected Clang index.");
+            }
 
             filename = Marshal.StringToCoTaskMemUTF8(ast);
             int error = ((delegate* unmanaged[Cdecl]<nint, nint, nint*, int>)Export("clang_createTranslationUnit2"))(index, filename, &result);
-            if (error != 0 || result == 0) { throw new InvalidOperationException($"Clang could not load the selected compiler's AST (error {error}). Use a matching libclang library."); }
+            if (error != 0 || result == 0)
+            {
+                throw new InvalidOperationException($"Clang could not load the selected compiler's AST (error {error}). Use a matching libclang library.");
+            }
 
             var unit = new NativeClangUnit(result, index, this);
             index = 0;
@@ -75,11 +84,20 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
         finally
         {
             Marshal.FreeCoTaskMem(filename);
-            if (result != 0) { ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeTranslationUnit"))(result); }
+            if (result != 0)
+            {
+                ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeTranslationUnit"))(result);
+            }
 
-            if (index != 0) { ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeIndex"))(index); }
+            if (index != 0)
+            {
+                ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeIndex"))(index);
+            }
 
-            if (retained) { DangerousRelease(); }
+            if (retained)
+            {
+                DangerousRelease();
+            }
         }
     }
 
@@ -88,8 +106,14 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     /// </summary>
     internal string Text(NativeClangString value)
     {
-        try { return Marshal.PtrToStringUTF8(((delegate* unmanaged[Cdecl]<NativeClangString, nint>)Export("clang_getCString"))(value)) ?? ""; }
-        finally { ((delegate* unmanaged[Cdecl]<NativeClangString, void>)Export("clang_disposeString"))(value); }
+        try
+        {
+            return Marshal.PtrToStringUTF8(((delegate* unmanaged[Cdecl]<NativeClangString, nint>)Export("clang_getCString"))(value)) ?? "";
+        }
+        finally
+        {
+            ((delegate* unmanaged[Cdecl]<NativeClangString, void>)Export("clang_disposeString"))(value);
+        }
     }
 
     /// <summary>
@@ -136,7 +160,10 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
     {
         _ = Export("clang_PrintingPolicy_dispose");
         nint policy = ((delegate* unmanaged[Cdecl]<NativeClangCursor, nint>)Export("clang_getCursorPrintingPolicy"))(value);
-        if (policy == 0) { throw new InvalidOperationException("Missing Clang declaration printing policy."); }
+        if (policy == 0)
+        {
+            throw new InvalidOperationException("Missing Clang declaration printing policy.");
+        }
 
         try
         {
@@ -147,7 +174,10 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
                 ? Text(((delegate* unmanaged[Cdecl]<NativeClangType, nint, NativeClangString>)Export("clang_getTypePrettyPrinted"))(observed, policy))
                 : Text(((delegate* unmanaged[Cdecl]<NativeClangCursor, nint, NativeClangString>)Export("clang_getCursorPrettyPrinted"))(value, policy));
         }
-        finally { ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_PrintingPolicy_dispose"))(policy); }
+        finally
+        {
+            ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_PrintingPolicy_dispose"))(policy);
+        }
     }
 
     /// <summary>
@@ -164,7 +194,10 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
             visit.Error?.Throw();
             return visit.Cursors;
         }
-        finally { state.Free(); }
+        finally
+        {
+            state.Free();
+        }
     }
 
     /// <summary>
@@ -181,7 +214,10 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
             visit.Error?.Throw();
             return visit.Cursors;
         }
-        finally { state.Free(); }
+        finally
+        {
+            state.Free();
+        }
     }
 
     /// <inheritdoc />
@@ -207,10 +243,16 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
                     errors.Add(Text(((delegate* unmanaged[Cdecl]<nint, uint, NativeClangString>)Export("clang_formatDiagnostic"))(diagnostic, 0)));
                 }
             }
-            finally { ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeDiagnostic"))(diagnostic); }
+            finally
+            {
+                ((delegate* unmanaged[Cdecl]<nint, void>)Export("clang_disposeDiagnostic"))(diagnostic);
+            }
         }
 
-        if (errors.Count != 0) { throw new InvalidOperationException("Native record inspection failed: " + string.Join(Environment.NewLine, errors)); }
+        if (errors.Count != 0)
+        {
+            throw new InvalidOperationException("Native record inspection failed: " + string.Join(Environment.NewLine, errors));
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -222,15 +264,27 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
             visit.Add(cursor);
             return visit.Recursive ? 2U : 1U;
         }
-        catch (Exception error) { visit.Error = ExceptionDispatchInfo.Capture(error); return 0; }
+        catch (Exception error)
+        {
+            visit.Error = ExceptionDispatchInfo.Capture(error);
+            return 0;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
     private static uint VisitField(NativeClangCursor cursor, nint state)
     {
         var visit = (CursorVisit)GCHandle.FromIntPtr(state).Target!;
-        try { visit.Add(cursor); return 1; }
-        catch (Exception error) { visit.Error = ExceptionDispatchInfo.Capture(error); return 0; }
+        try
+        {
+            visit.Add(cursor);
+            return 1;
+        }
+        catch (Exception error)
+        {
+            visit.Error = ExceptionDispatchInfo.Capture(error);
+            return 0;
+        }
     }
 
     /// <summary>
@@ -252,14 +306,21 @@ internal sealed unsafe class NativeClang(string path) : SafeHandle(NativeLibrary
         /// <summary>
         /// A managed failure to rethrow only after returning through the native frame.
         /// </summary>
-        internal ExceptionDispatchInfo? Error { get; set; }
+        internal ExceptionDispatchInfo? Error
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Adds one observation within the finite traversal bound.
         /// </summary>
         internal void Add(NativeClangCursor cursor)
         {
-            if (Cursors.Count == 100_000) { throw new InvalidDataException("Native cursor traversal exceeds the supported declaration limit."); }
+            if (Cursors.Count == 100_000)
+            {
+                throw new InvalidDataException("Native cursor traversal exceeds the supported declaration limit.");
+            }
 
             Cursors.Add(cursor);
         }

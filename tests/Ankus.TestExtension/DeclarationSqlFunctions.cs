@@ -110,7 +110,11 @@ public static class DeclarationSqlFunctions
     {
         /// <inheritdoc />
         public override NativeValue Parse(string text) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)
-            ? new() { Tag = 0xA5, Number = number } : throw new PgException("22P02", "replacement native input failed");
+            ? new()
+            {
+                Tag = 0xA5,
+                Number = number
+            } : throw new PgException("22P02", "replacement native input failed");
 
         /// <inheritdoc />
         public override string Format(NativeValue value) => value.Number.ToString(CultureInfo.InvariantCulture);

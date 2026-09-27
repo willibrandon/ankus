@@ -441,12 +441,20 @@ public sealed class PgNativeTypeCodecTests
         /// <summary>
         /// Gets the number of text input callbacks.
         /// </summary>
-        public int ParseCalls { get; private set; }
+        public int ParseCalls
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets the number of text output callbacks.
         /// </summary>
-        public int FormatCalls { get; private set; }
+        public int FormatCalls
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public override uint Parse(string text)
@@ -476,7 +484,11 @@ public sealed class PgNativeTypeCodecTests
         /// <summary>
         /// Gets the logical output position, including the two-byte prefix.
         /// </summary>
-        public int WrittenCount { get; private set; } = 2;
+        public int WrittenCount
+        {
+            get;
+            private set;
+        } = 2;
 
         /// <inheritdoc />
         public void Advance(int count)

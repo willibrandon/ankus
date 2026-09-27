@@ -18,12 +18,20 @@ public sealed class SpiCursor : IDisposable
     /// <summary>
     /// Gets the PostgreSQL portal name, which can be used to find a detached cursor in the same transaction.
     /// </summary>
-    public string Name { get; internal set; } = string.Empty;
+    public string Name
+    {
+        get;
+        internal set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets or sets the native identity. Zero means this object owns no cursor.
     /// </summary>
-    internal long Identity { get; set; }
+    internal long Identity
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Fetches up to the requested number of rows in the forward direction.

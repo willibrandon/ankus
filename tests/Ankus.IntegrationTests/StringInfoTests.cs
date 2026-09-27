@@ -111,8 +111,14 @@ public sealed class StringInfoTests(TestContext context)
             Assert.AreEqual("saved", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT datatype.string_info_saved(false)";
             Assert.AreEqual("saved!", await command.ExecuteScalarAsync(token));
-            if (commit) { await transaction.CommitAsync(token); }
-            else { await transaction.RollbackAsync(token); }
+            if (commit)
+            {
+                await transaction.CommitAsync(token);
+            }
+            else
+            {
+                await transaction.RollbackAsync(token);
+            }
         }
 
         await using var check = new NpgsqlCommand("SELECT datatype.string_info_saved(true)", connection);

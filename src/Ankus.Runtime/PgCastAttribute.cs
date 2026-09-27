@@ -19,10 +19,18 @@ public sealed class PgCastAttribute(PgCastContext context = PgCastContext.Explic
     /// <summary>
     /// Gets or sets the dependency identifier for the cast, independently of its backing function.
     /// </summary>
-    public string? Id { get; set; }
+    public string? Id
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets declarations that must precede CREATE CAST.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 }

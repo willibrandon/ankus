@@ -17,27 +17,47 @@ internal static class ExplicitMappingState
     /// <summary>
     /// Gets or sets the count of all lazily selected converter instances.
     /// </summary>
-    internal static int Constructions { get; set; }
+    internal static int Constructions
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the count of int4 reads.
     /// </summary>
-    internal static int IntReads { get; set; }
+    internal static int IntReads
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the count of int8 reads.
     /// </summary>
-    internal static int LongReads { get; set; }
+    internal static int LongReads
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the count of metadata-only int2 reads.
     /// </summary>
-    internal static int ShortReads { get; set; }
+    internal static int ShortReads
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets a checked handle without extending its native lifetime.
     /// </summary>
-    internal static PgDatum? Captured { get; set; }
+    internal static PgDatum? Captured
+    {
+        get;
+        set;
+    }
 }
 
 /// <summary>

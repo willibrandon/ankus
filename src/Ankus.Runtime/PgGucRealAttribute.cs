@@ -18,10 +18,18 @@ public sealed class PgGucRealAttribute(string name, double defaultValue, string 
     /// <summary>
     /// Gets or sets the inclusive minimum value.
     /// </summary>
-    public double Minimum { get; set; } = double.MinValue;
+    public double Minimum
+    {
+        get;
+        set;
+    } = double.MinValue;
 
     /// <summary>
     /// Gets or sets the inclusive maximum value.
     /// </summary>
-    public double Maximum { get; set; } = double.MaxValue;
+    public double Maximum
+    {
+        get;
+        set;
+    } = double.MaxValue;
 }

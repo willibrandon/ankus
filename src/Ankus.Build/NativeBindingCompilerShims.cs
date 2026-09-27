@@ -14,7 +14,10 @@ internal static class NativeBindingCompilerShims
     /// <param name="symbols">The complete set of declarations being checked in this translation unit.</param>
     internal static void Write(StringBuilder source, IEnumerable<NativeHeaderSymbol> symbols)
     {
-        if (!symbols.Any(static symbol => symbol.IsFunction && symbol.NativeName == "pg_spin_delay_impl")) { return; }
+        if (!symbols.Any(static symbol => symbol.IsFunction && symbol.NativeName == "pg_spin_delay_impl"))
+        {
+            return;
+        }
 
         source.AppendLine("""
             #if defined(pg_spin_delay_impl)

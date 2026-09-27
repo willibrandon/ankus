@@ -21,11 +21,17 @@ public sealed unsafe class PgTransactionTests
         Assert.ThrowsExactly<ArgumentNullException>(() => PgTransaction.RegisterCallback(PgTransactionEvent.Commit, null!));
         Assert.ThrowsExactly<ArgumentNullException>(() => PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Commit, null!));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
-            PgTransaction.RegisterCallback((PgTransactionEvent)8, static () => { }));
+            PgTransaction.RegisterCallback((PgTransactionEvent)8, static () =>
+            {
+            }));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
-            PgTransaction.RegisterSubtransactionCallback((PgSubtransactionEvent)4, static (_, _) => { }));
+            PgTransaction.RegisterSubtransactionCallback((PgSubtransactionEvent)4, static (_, _) =>
+            {
+            }));
         Assert.ThrowsExactly<InvalidOperationException>(() =>
-            PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { }));
+            PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+            {
+            }));
     }
 
     /// <summary>
@@ -35,10 +41,18 @@ public sealed unsafe class PgTransactionTests
     public void RegistrationInstallsStableNativeDispatchers()
     {
         using var fixture = new TransactionFixture();
-        using PgTransactionCallback first = PgTransaction.RegisterCallback(PgTransactionEvent.PreCommit, static () => { });
-        using PgTransactionCallback second = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { });
-        using PgSubtransactionCallback sub = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Start, static (_, _) => { });
-        using PgSubtransactionCallback anotherSub = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Commit, static (_, _) => { });
+        using PgTransactionCallback first = PgTransaction.RegisterCallback(PgTransactionEvent.PreCommit, static () =>
+        {
+        });
+        using PgTransactionCallback second = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+        {
+        });
+        using PgSubtransactionCallback sub = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Start, static (_, _) =>
+        {
+        });
+        using PgSubtransactionCallback anotherSub = PgTransaction.RegisterSubtransactionCallback(PgSubtransactionEvent.Commit, static (_, _) =>
+        {
+        });
         Assert.AreSequenceEqual([1, 2], fixture.DispatcherRequests);
         Assert.AreNotEqual(nint.Zero, fixture.Callback);
         Assert.IsTrue(first.IsPending);
@@ -213,7 +227,9 @@ public sealed unsafe class PgTransactionTests
         Assert.IsNull(fixture.DispatchTransaction(PgTransactionEvent.Commit, 0));
         Assert.IsNotNull(terminal);
         Assert.Contains("active PostgreSQL backend thread", terminal);
-        using PgTransactionCallback next = PgTransaction.RegisterCallback(PgTransactionEvent.Abort, static () => { });
+        using PgTransactionCallback next = PgTransaction.RegisterCallback(PgTransactionEvent.Abort, static () =>
+        {
+        });
         Assert.IsTrue(next.IsPending);
     }
 
@@ -240,7 +256,9 @@ public sealed unsafe class PgTransactionTests
     public void CancellationRequiresTheOwningBackendThread()
     {
         using var fixture = new TransactionFixture();
-        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { });
+        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+        {
+        });
         Exception? failure = null;
         var thread = new Thread(() =>
         {
@@ -267,10 +285,14 @@ public sealed unsafe class PgTransactionTests
     {
         using var fixture = new TransactionFixture { FailRegistration = true };
         PgException error = Assert.ThrowsExactly<PgException>(() =>
-            PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { }));
+            PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+            {
+            }));
         Assert.AreEqual("55000", error.SqlState);
         fixture.FailRegistration = false;
-        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { });
+        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+        {
+        });
         Assert.IsTrue(registration.IsPending);
         Assert.AreSequenceEqual([1, 1], fixture.DispatcherRequests);
     }
@@ -282,7 +304,9 @@ public sealed unsafe class PgTransactionTests
     public void DispatcherRejectsMalformedNativeEventsAndRecovers()
     {
         using var fixture = new TransactionFixture();
-        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () => { });
+        using PgTransactionCallback registration = PgTransaction.RegisterCallback(PgTransactionEvent.Commit, static () =>
+        {
+        });
         PgException kind = Assert.IsInstanceOfType<PgException>(fixture.Dispatch(2, 0, 0, 0, BackendPointer));
         Assert.Contains("kind is invalid", kind.Message);
         PgException @event = Assert.IsInstanceOfType<PgException>(fixture.Dispatch(0, 8, 0, 0, BackendPointer));
@@ -368,7 +392,11 @@ public sealed unsafe class PgTransactionTests
         /// <summary>
         /// Gets the registered managed callback pointer.
         /// </summary>
-        internal nint Callback { get; set; }
+        internal nint Callback
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets the native registration requests.
@@ -383,12 +411,20 @@ public sealed unsafe class PgTransactionTests
         /// <summary>
         /// Gets or sets whether dispatcher registration returns an owned failure.
         /// </summary>
-        internal bool FailRegistration { get; set; }
+        internal bool FailRegistration
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the dropped-receipt callback count.
         /// </summary>
-        internal int RootedCallbackCalls { get; set; }
+        internal int RootedCallbackCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Dispatches one outer-transaction event.

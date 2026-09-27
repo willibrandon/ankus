@@ -14,32 +14,56 @@ internal sealed class FunctionDeclaration
     /// <summary>
     /// Gets the fixed schema, or null to use the extension's installation schema.
     /// </summary>
-    internal string? Schema { get; private set; }
+    internal string? Schema
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the quoted function name, qualified when a fixed schema is declared.
     /// </summary>
-    internal string QualifiedName { get; private set; } = string.Empty;
+    internal string QualifiedName
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the named SQL argument declarations, including variadic and default clauses.
     /// </summary>
-    internal string Arguments { get; private set; } = string.Empty;
+    internal string Arguments
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the validated SQL execution options.
     /// </summary>
-    internal string Options { get; private set; } = string.Empty;
+    internal string Options
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets whether the declaration replaces an existing compatible function.
     /// </summary>
-    internal bool Replace { get; private set; }
+    internal bool Replace
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether PostgreSQL skips this function when any SQL input is null.
     /// </summary>
-    internal bool Strict { get; private set; }
+    internal bool Strict
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Resolves schema inheritance, parameter contracts, and planner/execution options for one function.

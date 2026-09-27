@@ -22,8 +22,20 @@ internal static class PgGucEmitter
     internal static string Emit(GucDeclaration declaration, string callback, StringBuilder managed, StringBuilder native)
     {
         string symbol = callback.Replace("ankus_managed_", "ankus_guc_");
-        string field = declaration.Kind switch { 0 => "boolean", 1 or 4 => "integer", 2 => "real", _ => "string" };
-        string type = declaration.Kind switch { 0 => "bool", 1 or 4 => "int", 2 => "double", _ => "char *" };
+        string field = declaration.Kind switch
+        {
+            0 => "boolean",
+            1 or 4 => "integer",
+            2 => "real",
+            _ => "string"
+        };
+        string type = declaration.Kind switch
+        {
+            0 => "bool",
+            1 or 4 => "int",
+            2 => "double",
+            _ => "char *"
+        };
         string boot = NativeConstant(declaration.Default);
         native.AppendLine($"static {type} {symbol}_value = {boot};");
         if (declaration.Kind == 4)
@@ -138,7 +150,10 @@ internal static class PgGucEmitter
 
             string reader = declaration.Kind switch
             {
-                0 => "ReadBoolean", 1 => "ReadInt32", 2 => "ReadDouble", 4 => "ReadEnum",
+                0 => "ReadBoolean",
+                1 => "ReadInt32",
+                2 => "ReadDouble",
+                4 => "ReadEnum",
                 _ => property.NullableAnnotation == NullableAnnotation.Annotated ? "ReadString" : "ReadRequiredString",
             };
             string read = $"global::Ankus.NativeGuc.{reader}({SymbolDisplay.FormatLiteral(declaration.Name, quote: true)})";

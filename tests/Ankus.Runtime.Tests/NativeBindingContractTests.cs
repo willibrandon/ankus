@@ -61,20 +61,38 @@ public sealed unsafe class NativeBindingContractTests
         {
             Validate();
             nint previous = NativeMemoryContext.Enter(0);
-            try { Assert.ThrowsExactly<InvalidOperationException>(Validate); }
-            finally { NativeMemoryContext.Exit(previous); }
+            try
+            {
+                Assert.ThrowsExactly<InvalidOperationException>(Validate);
+            }
+            finally
+            {
+                NativeMemoryContext.Exit(previous);
+            }
 
             Exception? workerFailure = null;
             var worker = new Thread(() =>
             {
-                try { Assert.ThrowsExactly<InvalidOperationException>(Validate); }
-                catch (Exception exception) { workerFailure = exception; }
+                try
+                {
+                    Assert.ThrowsExactly<InvalidOperationException>(Validate);
+                }
+                catch (Exception exception)
+                {
+                    workerFailure = exception;
+                }
             });
             worker.Start();
             worker.Join();
-            if (workerFailure is not null) { ExceptionDispatchInfo.Capture(workerFailure).Throw(); }
+            if (workerFailure is not null)
+            {
+                ExceptionDispatchInfo.Capture(workerFailure).Throw();
+            }
 
-            using (MemoryContextTestFixture.Enter(29)) { Validate(); }
+            using (MemoryContextTestFixture.Enter(29))
+            {
+                Validate();
+            }
 
             Validate();
         }

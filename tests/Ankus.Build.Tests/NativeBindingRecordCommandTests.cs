@@ -48,6 +48,9 @@ public sealed class NativeBindingRecordCommandTests(TestContext context)
                 [list, "18", "missing-pg-config", directory], cancellation.Token));
             Assert.AreEqual("existing-contract", await File.ReadAllTextAsync(contract, context.CancellationToken));
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 }

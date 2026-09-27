@@ -42,7 +42,10 @@ internal static class NativeBindingCallModel
             }
 
             NativeRecordType declared = graph.Types[graph.Roots[name]];
-            while (declared.Function is null && declared.Element is int element) { declared = graph.Types[element]; }
+            while (declared.Function is null && declared.Element is int element)
+            {
+                declared = graph.Types[element];
+            }
 
             if (declared.Function is not NativeRecordFunction written || function.Parameters.Count != shape.Parameters.Count ||
                 function.Parameters.Count != written.Parameters.Count)
@@ -54,7 +57,10 @@ internal static class NativeBindingCallModel
             for (int index = 0; index < written.Parameters.Count; index++)
             {
                 int storage = written.Parameters[index];
-                if (graph.Types[graph.Types[storage].Canonical].Kind is "array" or "function") { storage = shape.Parameters[index]; }
+                if (graph.Types[graph.Types[storage].Canonical].Kind is "array" or "function")
+                {
+                    storage = shape.Parameters[index];
+                }
 
                 parameters.Add(Value(function.Parameters[index], storage, name));
             }
@@ -90,10 +96,17 @@ internal static class NativeBindingCallModel
         {
             switch (type)
             {
-                case NativeHeaderAlias alias: type = alias.Underlying; break;
-                case NativeHeaderQualified qualified: type = qualified.Underlying; break;
-                case NativeHeaderAdjusted adjusted: type = adjusted.Adjusted; break;
-                default: return type;
+                case NativeHeaderAlias alias:
+                    type = alias.Underlying;
+                    break;
+                case NativeHeaderQualified qualified:
+                    type = qualified.Underlying;
+                    break;
+                case NativeHeaderAdjusted adjusted:
+                    type = adjusted.Adjusted;
+                    break;
+                default:
+                    return type;
             }
         }
     }

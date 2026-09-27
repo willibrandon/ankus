@@ -36,11 +36,20 @@ public sealed partial class NativeBindingNativeTests
 
             Dictionary<string, int> roots = records.Graph.Roots.ToDictionary();
             roots["native_global"] = records.Graph.Types.Count;
-            NativeHeaderRecords invalid = records with { Graph = records.Graph with { Roots = roots } };
+            NativeHeaderRecords invalid = records with
+            {
+                Graph = records.Graph with
+                {
+                    Roots = roots
+                }
+            };
             Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordCSharp.Generate(invalid, ["native_second"]));
             Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordCSharp.Generate(invalid, []));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -58,18 +67,35 @@ public sealed partial class NativeBindingNativeTests
             foreach ((int width, long maximum, long allowance) in new (int, long, long)[] { (4, uint.MaxValue, 11), (8, long.MaxValue, 23) })
             {
                 NativeRecordType[] types = [.. records.Graph.Types];
-                types[index] = types[index] with { Size = maximum - allowance, Alignment = 1 };
-                NativeRecordGraph graph = records.Graph with { Target = records.Graph.Target with { PointerSize = width }, Types = types };
+                types[index] = types[index] with
+                {
+                    Size = maximum - allowance,
+                    Alignment = 1
+                };
+                NativeRecordGraph graph = records.Graph with
+                {
+                    Target = records.Graph.Target with
+                    {
+                        PointerSize = width
+                    },
+                    Types = types
+                };
                 NativeBindingCallFrame frame = NativeBindingCallFrameLayout.Create(graph, call);
                 Assert.AreEqual(maximum, frame.AllocationSize);
                 Assert.AreSequenceEqual<long>([2 * width], frame.Arguments);
                 Assert.AreEqual(width, frame.Alignment);
-                types[index] = types[index] with { Size = maximum - allowance + 1 };
+                types[index] = types[index] with
+                {
+                    Size = maximum - allowance + 1
+                };
                 FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingCallFrameLayout.Create(graph, call));
                 Assert.Contains("address space", error.Message);
             }
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -100,15 +126,26 @@ public sealed partial class NativeBindingNativeTests
                 "attributes" => symbol with { Attributes = ["ColdAttr"] },
                 _ => symbol with { ParameterNames = ["other"] },
             };
-            NativeHeaderRecords remapped = records with { Headers = records.Headers with { Symbols = new Dictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal)
-                { ["call"] = changed } } };
+            NativeHeaderRecords remapped = records with
+            {
+                Headers = records.Headers with
+                {
+                    Symbols = new Dictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal)
+                    {
+                        ["call"] = changed
+                    }
+                }
+            };
             NativeBindingSource actual = NativeBindingRecordCSharp.Generate(remapped, ["call"]);
             Assert.AreNotEqual(original.AbiIdentity, actual.AbiIdentity);
             Assert.AreNotEqual(original.AssemblyName, actual.AssemblyName);
             Assert.AreEqual(original, NativeBindingRecordCSharp.Generate(records, ["call"]));
             Assert.AreEqual(NativeBindingRecordCSharp.Generate(records.Graph), NativeBindingRecordCSharp.Generate(remapped.Graph));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -126,8 +163,14 @@ public sealed partial class NativeBindingNativeTests
                 [new("first", "first", true), new("second", "second", true), new("current", "current", false)], directory);
             NativeHeaderRecords reordered = records with
             {
-                Headers = records.Headers with { Symbols = records.Headers.Symbols.Reverse().ToDictionary(StringComparer.Ordinal) },
-                Graph = records.Graph with { Roots = records.Graph.Roots.Reverse().ToDictionary(StringComparer.Ordinal) },
+                Headers = records.Headers with
+                {
+                    Symbols = records.Headers.Symbols.Reverse().ToDictionary(StringComparer.Ordinal)
+                },
+                Graph = records.Graph with
+                {
+                    Roots = records.Graph.Roots.Reverse().ToDictionary(StringComparer.Ordinal)
+                },
             };
             Assert.AreEqual(NativeBindingRecordCSharp.Generate(records, ["first", "second"]),
                 NativeBindingRecordCSharp.Generate(reordered, ["second", "first"]));
@@ -135,7 +178,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreNotEqual(full.AbiIdentity, NativeBindingRecordCSharp.Generate(records, ["first"]).AbiIdentity);
             Assert.AreNotEqual(full.AbiIdentity, NativeBindingRecordCSharp.Generate(records, []).AbiIdentity);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -175,6 +221,9 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, ["NativeMethods"]);
             Assert.AreSequenceEqual<long>([1, 0], GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

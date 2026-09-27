@@ -297,7 +297,11 @@ public static class PolymorphicAggregateFunctions
         /// <summary>
         /// Gets or sets an aggregate-owned raw value.
         /// </summary>
-        public PgAnyElement? Value { get; set; }
+        public PgAnyElement? Value
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Records each release.

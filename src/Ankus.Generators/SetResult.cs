@@ -13,27 +13,47 @@ internal sealed class SetResult
     /// <summary>
     /// Gets the managed iterator element type, including tuple names and nullable annotations.
     /// </summary>
-    internal string Managed { get; private set; } = string.Empty;
+    internal string Managed
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the ordered output conversion contracts.
     /// </summary>
-    internal FunctionType[] Columns { get; private set; } = [];
+    internal FunctionType[] Columns
+    {
+        get;
+        private set;
+    } = [];
 
     /// <summary>
     /// Gets the managed source types corresponding to output columns.
     /// </summary>
-    internal ITypeSymbol[] Types { get; private set; } = [];
+    internal ITypeSymbol[] Types
+    {
+        get;
+        private set;
+    } = [];
 
     /// <summary>
     /// Gets the column names for TABLE, or null for scalar SETOF.
     /// </summary>
-    internal string[]? Names { get; private set; }
+    internal string[]? Names
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets expressions that read each output column from the iterator's current value.
     /// </summary>
-    internal string[] Values { get; private set; } = [];
+    internal string[] Values
+    {
+        get;
+        private set;
+    } = [];
 
     /// <summary>
     /// Gets the complete SQL return clause following RETURNS.

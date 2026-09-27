@@ -214,7 +214,11 @@ public static class CustomOperatorFunctions
         public override Packed Parse(string text)
         {
             string[] parts = text.Split(':');
-            return new() { Number = int.Parse(parts[0], CultureInfo.InvariantCulture), Salt = byte.Parse(parts[1], CultureInfo.InvariantCulture) };
+            return new()
+            {
+                Number = int.Parse(parts[0], CultureInfo.InvariantCulture),
+                Salt = byte.Parse(parts[1], CultureInfo.InvariantCulture)
+            };
         }
 
         /// <inheritdoc />

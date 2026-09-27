@@ -63,7 +63,10 @@ internal static class NativeBindingCallCommand
         }
         finally
         {
-            if (File.Exists(temporary)) { File.Delete(temporary); }
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
         }
     }
 }

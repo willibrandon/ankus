@@ -318,10 +318,18 @@ public sealed partial class ToolCommandTests(TestContext context)
         JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath, context.CancellationToken))!;
         switch (failure)
         {
-            case "major": manifest["postgresMajor"] = DifferentMajor(); break;
-            case "runtime": manifest["runtimeIdentifier"] = "wrong-architecture"; break;
-            case "path": manifest["library"] = "../outside.so"; break;
-            case "missing": File.Delete(Path.Combine(source, "extension", manifest["sql"]!.GetValue<string>())); break;
+            case "major":
+                manifest["postgresMajor"] = DifferentMajor();
+                break;
+            case "runtime":
+                manifest["runtimeIdentifier"] = "wrong-architecture";
+                break;
+            case "path":
+                manifest["library"] = "../outside.so";
+                break;
+            case "missing":
+                File.Delete(Path.Combine(source, "extension", manifest["sql"]!.GetValue<string>()));
+                break;
         }
 
         await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString(), context.CancellationToken);

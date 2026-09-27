@@ -246,12 +246,20 @@ public sealed class PgTypeTextCodecTests
         /// <summary>
         /// Gets how many input conversions reached this specific instance.
         /// </summary>
-        public int ParseCalls { get; private set; }
+        public int ParseCalls
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Gets how many output conversions reached this specific instance.
         /// </summary>
-        public int FormatCalls { get; private set; }
+        public int FormatCalls
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public override Reading Parse(string text)

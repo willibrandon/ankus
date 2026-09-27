@@ -666,14 +666,30 @@ public sealed unsafe class PgVarlenaTests
         NativeValue envelope = InputEnvelope(input);
         switch (invalidField)
         {
-            case "header": envelope.Integral = 0; break;
-            case "writable": Writability(ref envelope) = 2; break;
-            case "negative writable": Writability(ref envelope) = -1; break;
-            case "oid": TypeOid(ref envelope) = 54322; break;
-            case "marker": Marker(ref envelope) = 0; break;
-            case "null": envelope.IsNull = 1; break;
-            case "data": Payload(ref envelope) = null; break;
-            case "negative length": PayloadLength(ref envelope) = -1; break;
+            case "header":
+                envelope.Integral = 0;
+                break;
+            case "writable":
+                Writability(ref envelope) = 2;
+                break;
+            case "negative writable":
+                Writability(ref envelope) = -1;
+                break;
+            case "oid":
+                TypeOid(ref envelope) = 54322;
+                break;
+            case "marker":
+                Marker(ref envelope) = 0;
+                break;
+            case "null":
+                envelope.IsNull = 1;
+                break;
+            case "data":
+                Payload(ref envelope) = null;
+                break;
+            case "negative length":
+                PayloadLength(ref envelope) = -1;
+                break;
         }
 
         Assert.ThrowsExactly<InvalidOperationException>(() => envelope.ReadVarlena<Value>());
@@ -895,7 +911,10 @@ public sealed unsafe class PgVarlenaTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.Context);
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.Clone());
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.IntoDatum());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => { _ = value.DangerousGetPointer(); });
+        Assert.ThrowsExactly<ObjectDisposedException>(() =>
+        {
+            _ = value.DangerousGetPointer();
+        });
     }
 
     /// <summary>
@@ -909,7 +928,10 @@ public sealed unsafe class PgVarlenaTests
         Assert.ThrowsExactly<InvalidOperationException>(() => value.Context);
         Assert.ThrowsExactly<InvalidOperationException>(() => value.Clone());
         Assert.ThrowsExactly<InvalidOperationException>(() => value.IntoDatum());
-        Assert.ThrowsExactly<InvalidOperationException>(() => { _ = value.DangerousGetPointer(); });
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        {
+            _ = value.DangerousGetPointer();
+        });
     }
 
     /// <summary>
@@ -1080,7 +1102,9 @@ public sealed unsafe class PgVarlenaTests
         /// <summary>
         /// Produces a nondefault value only when explicitly invoked.
         /// </summary>
-        public ConstructedValue() : this(99) { }
+        public ConstructedValue() : this(99)
+        {
+        }
     }
 
     /// <summary>

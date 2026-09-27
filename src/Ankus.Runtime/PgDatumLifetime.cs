@@ -16,7 +16,11 @@ internal sealed class PgDatumLifetime
         ObjectDisposedException.ThrowIf(!context.IsAlive, context);
         _provider = NativeMemoryContext.Provider;
         ContextId = context.Id;
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = ContextId };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = ContextId
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         Generation = unchecked((nuint)result._value);
     }
@@ -37,7 +41,11 @@ internal sealed class PgDatumLifetime
     internal void Validate()
     {
         NativeMemoryContext.CheckProvider(_provider);
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = ContextId };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = ContextId
+        };
         try
         {
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);

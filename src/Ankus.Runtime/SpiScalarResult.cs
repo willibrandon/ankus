@@ -46,13 +46,22 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
         }
         catch (Exception primary)
         {
-            try { PgResultCleanup.Dispose(raw, primary); }
-            finally { ownership?.ReleaseAfterFailure(primary); }
+            try
+            {
+                PgResultCleanup.Dispose(raw, primary);
+            }
+            finally
+            {
+                ownership?.ReleaseAfterFailure(primary);
+            }
 
             throw;
         }
 
-        try { PgResultCleanup.Dispose(raw, null); }
+        try
+        {
+            PgResultCleanup.Dispose(raw, null);
+        }
         catch (Exception cleanup)
         {
             ownership.ReleaseAfterFailure(cleanup);

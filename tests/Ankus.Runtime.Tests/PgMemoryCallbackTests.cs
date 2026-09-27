@@ -35,7 +35,9 @@ public sealed unsafe class PgMemoryCallbackTests
         PgMemoryContext context = PgMemoryContext.Current;
         fixture.Requests.Clear();
         fixture.Handler = static _ => throw new PgException("55000", "deleted context");
-        Assert.ThrowsExactly<ObjectDisposedException>(() => context.RegisterResetCallback(static () => { }));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => context.RegisterResetCallback(static () =>
+        {
+        }));
         NativeMemoryRequest request = Assert.ContainsSingle(fixture.Requests);
         Assert.AreEqual(NativeMemoryOperation.Name, request._operation);
         Assert.AreEqual(1, fixture.ErrorReleases);
@@ -50,8 +52,12 @@ public sealed unsafe class PgMemoryCallbackTests
         using var fixture = new MemoryContextTestFixture();
         using MemoryContextTestFixture.Scope scope = MemoryContextTestFixture.Enter();
         PgMemoryContext context = PgMemoryContext.Current;
-        using PgMemoryCallback first = context.RegisterResetCallback(static () => { });
-        using PgMemoryCallback second = context.RegisterResetCallback(static () => { });
+        using PgMemoryCallback first = context.RegisterResetCallback(static () =>
+        {
+        });
+        using PgMemoryCallback second = context.RegisterResetCallback(static () =>
+        {
+        });
         NativeMemoryRequest[] registrations = [.. fixture.Requests.Where(static request => request._operation == NativeMemoryOperation.RegisterCallback)];
         Assert.HasCount(2, registrations);
         Assert.IsTrue(first.IsPending);
@@ -354,7 +360,9 @@ public sealed unsafe class PgMemoryCallbackTests
         PgMemoryCallback registration;
         using (MemoryContextTestFixture.Enter())
         {
-            registration = PgMemoryContext.Current.RegisterResetCallback(static () => { });
+            registration = PgMemoryContext.Current.RegisterResetCallback(static () =>
+            {
+            });
         }
 
         Assert.ThrowsExactly<InvalidOperationException>(registration.Dispose);

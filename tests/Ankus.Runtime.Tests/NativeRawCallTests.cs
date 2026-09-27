@@ -107,28 +107,49 @@ public sealed unsafe class NativeRawCallTests
         using (MemoryContextTestFixture.Enter())
         {
             nint hidden = NativeMemoryContext.Enter(0);
-            try { Assert.ThrowsExactly<InvalidOperationException>(() => NativeRawCall.Invoke(1, [], 0, 0)); }
-            finally { NativeMemoryContext.Exit(hidden); }
+            try
+            {
+                Assert.ThrowsExactly<InvalidOperationException>(() => NativeRawCall.Invoke(1, [], 0, 0));
+            }
+            finally
+            {
+                NativeMemoryContext.Exit(hidden);
+            }
 
             nint previous = NativeBackend.Enter(0, abortCleanup: true);
             try
             {
                 NativeRawCall.Invoke(4, [], 0, 0);
             }
-            finally { NativeBackend.Exit(previous, abortCleanup: true); }
+            finally
+            {
+                NativeBackend.Exit(previous, abortCleanup: true);
+            }
 
             Exception? workerFailure = null;
             var worker = new Thread(() =>
             {
-                try { Assert.ThrowsExactly<InvalidOperationException>(() => NativeRawCall.Invoke(1, [], 0, 0)); }
-                catch (Exception exception) { workerFailure = exception; }
+                try
+                {
+                    Assert.ThrowsExactly<InvalidOperationException>(() => NativeRawCall.Invoke(1, [], 0, 0));
+                }
+                catch (Exception exception)
+                {
+                    workerFailure = exception;
+                }
             });
             worker.Start();
             worker.Join();
-            if (workerFailure is not null) { ExceptionDispatchInfo.Capture(workerFailure).Throw(); }
+            if (workerFailure is not null)
+            {
+                ExceptionDispatchInfo.Capture(workerFailure).Throw();
+            }
 
             Assert.AreSequenceEqual<nint>([4], fixture.Requests.Select(static request => request._pointer));
-            using (MemoryContextTestFixture.Enter(29)) { NativeRawCall.Invoke(2, [], 0, 0); }
+            using (MemoryContextTestFixture.Enter(29))
+            {
+                NativeRawCall.Invoke(2, [], 0, 0);
+            }
 
             NativeRawCall.Invoke(3, [], 0, 0);
         }

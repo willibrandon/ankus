@@ -69,7 +69,10 @@ internal static class NativeBindingCompilationCommand
             "SSL_CERT_FILE", "SSL_CERT_DIR", "LANG", "LC_ALL", "DOTNET_ROOT", "DOTNET_ROOT_X64", "DOTNET_ROOT_ARM64"];
         KeyValuePair<string, string?>[] environment = [.. start.Environment.Where(pair => environmentNames.Contains(pair.Key, StringComparer.OrdinalIgnoreCase))];
         start.Environment.Clear();
-        foreach (KeyValuePair<string, string?> pair in environment) { start.Environment.Add(pair); }
+        foreach (KeyValuePair<string, string?> pair in environment)
+        {
+            start.Environment.Add(pair);
+        }
 
         start.Environment["MSBuildSDKsPath"] = Path.Combine(sdk, "Sdks");
         start.Environment["DOTNET_MSBUILD_SDK_RESOLVER_CLI_DIR"] = Path.GetDirectoryName(host);
@@ -96,7 +99,12 @@ internal static class NativeBindingCompilationCommand
             File.Copy(explicitFiles[0], Path.Combine(work, "native-binding.g.cs"));
             await File.WriteAllTextAsync(Path.Combine(work, "global.json"), JsonSerializer.Serialize(new
             {
-                sdk = new { version = arguments[4], rollForward = "disable", allowPrerelease = true },
+                sdk = new
+                {
+                    version = arguments[4],
+                    rollForward = "disable",
+                    allowPrerelease = true
+                },
             }), cancellationToken);
             start.WorkingDirectory = work;
             foreach (string argument in new[] { "exec", "--fx-version", Environment.Version.ToString(), Path.Combine(sdk, "MSBuild.dll"),
@@ -110,7 +118,10 @@ internal static class NativeBindingCompilationCommand
             var restoreStart = new ProcessStartInfo(host) { UseShellExecute = false, WorkingDirectory = work };
             restoreStart.Environment["MSBuildSDKsPath"] = Path.Combine(sdk, "Sdks");
             restoreStart.Environment["DOTNET_MSBUILD_SDK_RESOLVER_CLI_DIR"] = Path.GetDirectoryName(host);
-            foreach (string argument in start.ArgumentList) { restoreStart.ArgumentList.Add(argument); }
+            foreach (string argument in start.ArgumentList)
+            {
+                restoreStart.ArgumentList.Add(argument);
+            }
 
             restoreStart.ArgumentList.Add("-target:Restore");
             await CompileAsync(restoreStart, cancellationToken);
@@ -200,7 +211,10 @@ internal static class NativeBindingCompilationCommand
 
             Console.WriteLine($"Managed binding compilation: {(compiled ? "built" : "reused")} {assembly}");
         }
-        finally { await NativeBuildDirectory.DeleteAsync(work); }
+        finally
+        {
+            await NativeBuildDirectory.DeleteAsync(work);
+        }
     }
 
     private static XElement Property(string name, string value) => new(name, NativeBindingSourceCommand.EscapeProperty(value));
@@ -230,7 +244,10 @@ internal static class NativeBindingCompilationCommand
         var files = new List<string>();
         foreach (JsonProperty library in assets.RootElement.GetProperty("libraries").EnumerateObject())
         {
-            if (library.Value.GetProperty("type").GetString() != "package") { continue; }
+            if (library.Value.GetProperty("type").GetString() != "package")
+            {
+                continue;
+            }
 
             string path = library.Value.GetProperty("path").GetString()!;
             string directory = folders.Select(folder => Path.Combine(folder, path)).First(Directory.Exists);
@@ -244,15 +261,24 @@ internal static class NativeBindingCompilationCommand
     {
         cancellationToken.ThrowIfCancellationRequested();
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the binding compiler.");
-        try { await process.WaitForExitAsync(cancellationToken); }
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
         catch
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
 
             await process.WaitForExitAsync(CancellationToken.None);
             throw;
         }
 
-        if (process.ExitCode != 0) { throw new InvalidOperationException($"The binding compiler exited with {process.ExitCode}."); }
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException($"The binding compiler exited with {process.ExitCode}.");
+        }
     }
 }

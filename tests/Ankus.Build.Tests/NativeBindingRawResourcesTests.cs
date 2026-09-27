@@ -37,7 +37,10 @@ public sealed class NativeBindingRawResourcesTests
         NativeBindingFunction executor = catalog.Functions["ExecutorRun"];
         NativeBindingParameter[] expected = [
             new("queryDesc", "*mut QueryDesc"), new("direction", "ScanDirection::Type"), new("count", "uint64")];
-        if (major <= 17) { expected = [.. expected, new("execute_once", "bool")]; }
+        if (major <= 17)
+        {
+            expected = [.. expected, new("execute_once", "bool")];
+        }
 
         Assert.AreSequenceEqual(expected, executor.Parameters);
         Assert.AreEqual("ExecutorRun", executor.NativeSymbol);

@@ -30,7 +30,10 @@ internal static class NativeBindingStorageCommand
         string output = Path.GetFullPath(arguments[3]);
         var observations = new StringBuilder();
         KeyValuePair<string, NativeHeaderSymbol>[][] batches = [.. catalog.Symbols.Chunk(256)];
-        if (batches.Length == 0) { batches = [[]]; }
+        if (batches.Length == 0)
+        {
+            batches = [[]];
+        }
 
         for (int index = 0; index < batches.Length; index++)
         {

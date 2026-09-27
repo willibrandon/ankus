@@ -16,7 +16,10 @@ public sealed partial class NativeBindingNativeTests
             using (FileStream held = File.Open(file, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read))
             {
                 cleanup = DeleteDirectoryAsync(directory);
-                if (OperatingSystem.IsWindows()) { Assert.IsFalse(cleanup.IsCompleted, "Windows cannot delete a file whose handle denies delete sharing."); }
+                if (OperatingSystem.IsWindows())
+                {
+                    Assert.IsFalse(cleanup.IsCompleted, "Windows cannot delete a file whose handle denies delete sharing.");
+                }
             }
 
             await cleanup;
@@ -24,8 +27,14 @@ public sealed partial class NativeBindingNativeTests
         }
         finally
         {
-            if (cleanup is not null) { await cleanup; }
-            else { await DeleteDirectoryAsync(directory); }
+            if (cleanup is not null)
+            {
+                await cleanup;
+            }
+            else
+            {
+                await DeleteDirectoryAsync(directory);
+            }
         }
     }
 

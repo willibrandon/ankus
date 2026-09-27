@@ -18,10 +18,18 @@ public sealed class PgGucIntAttribute(string name, int defaultValue, string shor
     /// <summary>
     /// Gets or sets the inclusive minimum value.
     /// </summary>
-    public int Minimum { get; set; } = int.MinValue;
+    public int Minimum
+    {
+        get;
+        set;
+    } = int.MinValue;
 
     /// <summary>
     /// Gets or sets the inclusive maximum value.
     /// </summary>
-    public int Maximum { get; set; } = int.MaxValue;
+    public int Maximum
+    {
+        get;
+        set;
+    } = int.MaxValue;
 }

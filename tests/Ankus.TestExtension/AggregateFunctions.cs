@@ -344,17 +344,29 @@ public static class AggregateFunctions
         /// <summary>
         /// Gets or sets the sum accumulated in the current group or frame.
         /// </summary>
-        public long Sum { get; set; }
+        public long Sum
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the owned query plan used by the cleanup probe.
         /// </summary>
-        public SpiPreparedStatement? Plan { get; set; }
+        public SpiPreparedStatement? Plan
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the owned cursor used by the cleanup probe.
         /// </summary>
-        public SpiCursor? Cursor { get; set; }
+        public SpiCursor? Cursor
+        {
+            get;
+            set;
+        }
 
         /// <inheritdoc />
         public void Dispose()

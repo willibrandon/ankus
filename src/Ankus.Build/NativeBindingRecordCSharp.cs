@@ -81,11 +81,21 @@ internal static partial class NativeBindingRecordCSharp
             while (pending.TryPop(out (int Index, bool Leaving) frame))
             {
                 int canonical = graph.Types[frame.Index].Canonical;
-                if (frame.Leaving) { states[canonical] = 2; continue; }
+                if (frame.Leaving)
+                {
+                    states[canonical] = 2;
+                    continue;
+                }
 
-                if (states[canonical] == 2) { continue; }
+                if (states[canonical] == 2)
+                {
+                    continue;
+                }
 
-                if (states[canonical] == 1) { throw new FormatException("Native value storage contains a cycle without a pointer boundary."); }
+                if (states[canonical] == 1)
+                {
+                    throw new FormatException("Native value storage contains a cycle without a pointer boundary.");
+                }
 
                 states[canonical] = 1;
                 pending.Push((canonical, true));
@@ -135,23 +145,35 @@ internal static partial class NativeBindingRecordCSharp
         /// </summary>
         internal NativeBindingSource Generate()
         {
-            if (calls is not null) { _names.Add("NativeMethods"); }
+            if (calls is not null)
+            {
+                _names.Add("NativeMethods");
+            }
 
             if (nodes is not null)
             {
                 foreach ((int index, NativeBindingType type) in nodes.Values.OrderBy(static pair => pair.Value.Name, StringComparer.Ordinal))
                 {
-                    if (!_names.Add(type.Name)) { throw new FormatException("A native node name conflicts with its companion metadata."); }
+                    if (!_names.Add(type.Name))
+                    {
+                        throw new FormatException("A native node name conflicts with its companion metadata.");
+                    }
 
                     _declarations.Add(index, type.Name);
                 }
 
-                if (!_names.Add("NodeTag")) { throw new FormatException("A native node value conflicts with its discriminator name."); }
+                if (!_names.Add("NodeTag"))
+                {
+                    throw new FormatException("A native node value conflicts with its discriminator name.");
+                }
 
                 _declarations.Add(nodes.NodeTag, "NodeTag");
                 foreach ((int index, string name) in nodes.Enums.OrderBy(static pair => pair.Value, StringComparer.Ordinal))
                 {
-                    if (!_names.Add(name)) { throw new FormatException("A native enum name conflicts with another companion declaration."); }
+                    if (!_names.Add(name))
+                    {
+                        throw new FormatException("A native enum name conflicts with another companion declaration.");
+                    }
 
                     _declarations.Add(index, name);
                 }
@@ -169,7 +191,10 @@ internal static partial class NativeBindingRecordCSharp
 
             for (int index = 0; index < graph.Declarations.Count; index++)
             {
-                if (_declarations.ContainsKey(index)) { continue; }
+                if (_declarations.ContainsKey(index))
+                {
+                    continue;
+                }
 
                 NativeRecordDeclaration declaration = graph.Declarations[index];
                 string name = declaration.Name.Length != 0 ? declaration.Name : aliases.GetValueOrDefault(index) ?? "NativeAnonymous" + Number(index);
@@ -178,13 +203,22 @@ internal static partial class NativeBindingRecordCSharp
 
             for (int index = 0; index < graph.Types.Count; index++)
             {
-                if (graph.Types[index].Size > 0) { _ = Map(index); }
+                if (graph.Types[index].Size > 0)
+                {
+                    _ = Map(index);
+                }
             }
 
             Header();
-            for (int index = 0; index < graph.Declarations.Count; index++) { Declaration(index); }
+            for (int index = 0; index < graph.Declarations.Count; index++)
+            {
+                Declaration(index);
+            }
 
-            if (calls is not null) { Methods(calls); }
+            if (calls is not null)
+            {
+                Methods(calls);
+            }
 
             foreach ((int index, string name) in _opaqueValues)
             {
@@ -216,13 +250,19 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             string body = _source.ToString().ReplaceLineEndings("\n");
-            NativeRecordGraph ordered = graph with { Roots = graph.Roots.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal) };
+            NativeRecordGraph ordered = graph with
+            {
+                Roots = graph.Roots.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal)
+            };
             string contract = JsonSerializer.Serialize(ordered, NativeBindingRecordWorker.JsonOptions);
             if (headers is not null)
             {
-                NativeHeaderCatalog orderedHeaders = headers with { Symbols = headers.Symbols.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                    .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal) };
+                NativeHeaderCatalog orderedHeaders = headers with
+                {
+                    Symbols = headers.Symbols.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                    .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal)
+                };
                 contract += "\n" + JsonSerializer.Serialize(orderedHeaders, NativeBindingRecordWorker.JsonOptions);
             }
 
@@ -267,13 +307,20 @@ internal static partial class NativeBindingRecordCSharp
                 return;
             }
 
-            if (declaration.Kind == "enum") { Enum(declaration, name, nodes?.NodeTag == index); return; }
+            if (declaration.Kind == "enum")
+            {
+                Enum(declaration, name, nodes?.NodeTag == index);
+                return;
+            }
 
             int size = Size(declaration.Size);
             Summary("Retains the complete selected-header native record. Addresses have caller-owned lifetimes.");
             NativeBindingType? node = nodes?.Values.GetValueOrDefault(index);
             int pack = node is null ? 1 : Size(declaration.Alignment);
-            if (pack > 128) { throw new FormatException("The existing node layout requires unsupported managed packing."); }
+            if (pack > 128)
+            {
+                throw new FormatException("The existing node layout requires unsupported managed packing.");
+            }
 
             Layout(size, pack);
             Line($"public struct @{name} : global::Ankus.{(node?.IsNode == true ? "IPgNativeNode" : "IPgNativeType")}\n{{");
@@ -295,7 +342,10 @@ internal static partial class NativeBindingRecordCSharp
 
             foreach ((NativeRecordField field, int position) in declaration.Fields.Select(static (field, position) => (field, position)))
             {
-                if (field.BitWidth is not null && field.Name.Length == 0) { continue; }
+                if (field.BitWidth is not null && field.Name.Length == 0)
+                {
+                    continue;
+                }
 
                 string member = field.Name.Length != 0 ? field.Name == name ? Unique(members, "Native_" + field.Name) : field.Name
                     : Unique(members, "Anonymous" + Number(position));
@@ -306,15 +356,25 @@ internal static partial class NativeBindingRecordCSharp
                     continue;
                 }
 
-                if (field.BitWidth is int width) { Bitfield(field, member, bits, width); continue; }
+                if (field.BitWidth is int width)
+                {
+                    Bitfield(field, member, bits, width);
+                    continue;
+                }
 
                 Value value = Map(field.Type);
                 Summary("Accesses the measured native field.", "    ");
                 Line($"    [global::System.Runtime.InteropServices.FieldOffset({Number(field.OffsetBits / 8)})]");
-                if (value.Code == "bool") { Line("    [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.U1)]"); }
+                if (value.Code == "bool")
+                {
+                    Line("    [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.U1)]");
+                }
 
                 Line($"    public {Hide(member)}{value.Code} @{member};");
-                if (field.IsAnonymous) { Promote(type.Declaration!.Value, "@" + member, members, name, field.OffsetBits, node is not null); }
+                if (field.IsAnonymous)
+                {
+                    Promote(type.Declaration!.Value, "@" + member, members, name, field.OffsetBits, node is not null);
+                }
             }
 
             Line("}\n");
@@ -335,14 +395,20 @@ internal static partial class NativeBindingRecordCSharp
                     continue;
                 }
 
-                if (field.Name.Length == 0) { continue; }
+                if (field.Name.Length == 0)
+                {
+                    continue;
+                }
 
                 string nativeMember = field.Name == _declarations[index] ? Unique(nestedNames, "Native_" + field.Name) : field.Name;
                 string name = field.Name == containingName || !members.Add(field.Name) ? Unique(members, "Native_" + field.Name) : field.Name;
                 NativeRecordType type = Canonical(field.Type);
                 if (type.Kind == "array" && type.Count is null or 0)
                 {
-                    Flexible(field with { OffsetBits = checked(offset + field.OffsetBits) }, name, members, typedAddress ? containingName : null);
+                    Flexible(field with
+                    {
+                        OffsetBits = checked(offset + field.OffsetBits)
+                    }, name, members, typedAddress ? containingName : null);
                     continue;
                 }
 
@@ -417,7 +483,10 @@ internal static partial class NativeBindingRecordCSharp
         private void Enum(NativeRecordDeclaration declaration, string name, bool nodeTag)
         {
             Value underlying = nodeTag ? new("uint", sizeof(uint), false) : Map(declaration.EnumUnderlying!.Value);
-            if (underlying.Signed is null || underlying.Size > 8 || underlying.Code == "bool") { throw new FormatException("Invalid native enum representation."); }
+            if (underlying.Signed is null || underlying.Size > 8 || underlying.Code == "bool")
+            {
+                throw new FormatException("Invalid native enum representation.");
+            }
 
             Summary("Retains the selected-header native enum values and integer representation.");
             Line($"public enum @{name} : {underlying.Code}\n{{");
@@ -426,10 +495,19 @@ internal static partial class NativeBindingRecordCSharp
             foreach (NativeRecordConstant constant in declaration.EnumValues)
             {
                 BigInteger value = BigInteger.Parse(constant.Value, CultureInfo.InvariantCulture);
-                if (value < (underlying.Signed.Value ? -limit : BigInteger.Zero) || value >= limit) { throw new FormatException("Native enum value exceeds its integer representation."); }
+                if (value < (underlying.Signed.Value ? -limit : BigInteger.Zero) || value >= limit)
+                {
+                    throw new FormatException("Native enum value exceeds its integer representation.");
+                }
 
                 Summary("Retains the exact native enum constant.", "    ");
-                string suffix = underlying.Code switch { "uint" => "U", "long" => "L", "ulong" => "UL", _ => "" };
+                string suffix = underlying.Code switch
+                {
+                    "uint" => "U",
+                    "long" => "L",
+                    "ulong" => "UL",
+                    _ => ""
+                };
                 string member = constant.Name == name || constant.Name == "value__" ? Unique(members, "Native_" + constant.Name) : constant.Name;
                 Line($"    @{member} = {constant.Value}{suffix},");
             }
@@ -441,7 +519,10 @@ internal static partial class NativeBindingRecordCSharp
         {
             NativeRecordType type = Canonical(index);
             index = graph.Types[index].Canonical;
-            if (_types.TryGetValue(index, out Value? known)) { return known; }
+            if (_types.TryGetValue(index, out Value? known))
+            {
+                return known;
+            }
 
             int size = Size(type.Size);
             Value value;
@@ -451,12 +532,18 @@ internal static partial class NativeBindingRecordCSharp
                 bool? sign = native.EnumUnderlying is int underlying ? Map(underlying).Signed : null;
                 value = new("@" + _declarations[declaration], size, sign);
             }
-            else if (type.Kind == "pointer") { value = new("nint", size, null); }
+            else if (type.Kind == "pointer")
+            {
+                value = new("nint", size, null);
+            }
             else if (type.Kind == "array")
             {
                 Value element = Map(type.Element!.Value);
                 int count = Size(type.Count);
-                if ((long)count * element.Size != size) { throw new FormatException("The native array requires its exact managed element stride."); }
+                if ((long)count * element.Size != size)
+                {
+                    throw new FormatException("The native array requires its exact managed element stride.");
+                }
 
                 if (!_arrays.TryGetValue((element.Code, count), out string? name))
                 {
@@ -466,7 +553,10 @@ internal static partial class NativeBindingRecordCSharp
 
                 value = new("@" + name, size, null);
             }
-            else if (type.Kind == "scalar" && Scalar(type, size) is Value scalar) { value = scalar; }
+            else if (type.Kind == "scalar" && Scalar(type, size) is Value scalar)
+            {
+                value = scalar;
+            }
             else
             {
                 string name = Unique(_names, "NativeValue" + Number(index));
@@ -491,7 +581,10 @@ internal static partial class NativeBindingRecordCSharp
             };
             if (type.Name == "_Bool")
             {
-                if (size != 1) { throw new FormatException("Native Boolean storage requires an exact one-byte CLR Boolean representation."); }
+                if (size != 1)
+                {
+                    throw new FormatException("Native Boolean storage requires an exact one-byte CLR Boolean representation.");
+                }
 
                 return new("bool", 1, false);
             }
@@ -500,9 +593,16 @@ internal static partial class NativeBindingRecordCSharp
             {
                 string code = (size, signed) switch
                 {
-                    (1, true) => "sbyte", (1, false) => "byte", (2, true) => "short", (2, false) => "ushort",
-                    (4, true) => "int", (4, false) => "uint", (8, true) => "long", (8, false) => "ulong",
-                    (16, true) => "global::System.Int128", (16, false) => "global::System.UInt128",
+                    (1, true) => "sbyte",
+                    (1, false) => "byte",
+                    (2, true) => "short",
+                    (2, false) => "ushort",
+                    (4, true) => "int",
+                    (4, false) => "uint",
+                    (8, true) => "long",
+                    (8, false) => "ulong",
+                    (16, true) => "global::System.Int128",
+                    (16, false) => "global::System.UInt128",
                     _ => throw new FormatException("The native integer representation has no exact CLR integer type."),
                 };
                 return new(code, size, signed);
@@ -510,14 +610,22 @@ internal static partial class NativeBindingRecordCSharp
 
             NativeFloatingModel? floating = type.Name switch
             {
-                "float" => graph.Target.Numeric.Float, "double" => graph.Target.Numeric.Double,
-                "long double" => graph.Target.Numeric.LongDouble, _ => null,
+                "float" => graph.Target.Numeric.Float,
+                "double" => graph.Target.Numeric.Double,
+                "long double" => graph.Target.Numeric.LongDouble,
+                _ => null,
             };
             if (graph.Target.Numeric.Radix == 2 && floating is not null)
             {
-                if (size == 4 && floating == new NativeFloatingModel(24, -125, 128)) { return new("float", 4, null); }
+                if (size == 4 && floating == new NativeFloatingModel(24, -125, 128))
+                {
+                    return new("float", 4, null);
+                }
 
-                if (size == 8 && floating == new NativeFloatingModel(53, -1021, 1024)) { return new("double", 8, null); }
+                if (size == 8 && floating == new NativeFloatingModel(53, -1021, 1024))
+                {
+                    return new("double", 8, null);
+                }
             }
 
             return null;
@@ -563,7 +671,10 @@ internal static partial class NativeBindingRecordCSharp
             NativeBindingCDeclaration.ValidateName(candidate);
             string result = candidate;
             int suffix = 0;
-            while (!names.Add(result)) { result = candidate + "_" + Number(++suffix); }
+            while (!names.Add(result))
+            {
+                result = candidate + "_" + Number(++suffix);
+            }
 
             return result;
         }

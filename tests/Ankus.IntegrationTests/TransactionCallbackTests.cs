@@ -333,8 +333,11 @@ public sealed class TransactionCallbackTests(TestContext context)
                 break;
             }
             catch (NpgsqlException error) when (error is not PostgresException ||
-                error is PostgresException { SqlState: PostgresErrorCodes.CannotConnectNow or
-                    PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown })
+                error is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.CannotConnectNow or
+                    PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown
+                })
             {
                 await Task.Delay(50, deadline.Token);
             }

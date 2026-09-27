@@ -208,7 +208,10 @@ public static partial class GucFunctions
             try
             {
                 PgLog.Write(PgLogLevel.Fatal, new PgDiagnostic(Control == "check-log-fatal-unrepresentable" ?
-                    "Unrepresentable 🐘" : "Check requested termination.") { SqlState = "P0001" });
+                    "Unrepresentable 🐘" : "Check requested termination.")
+                {
+                    SqlState = "P0001"
+                });
             }
             finally
             {

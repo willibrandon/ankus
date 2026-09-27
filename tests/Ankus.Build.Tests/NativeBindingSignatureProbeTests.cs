@@ -99,6 +99,9 @@ public sealed class NativeBindingSignatureProbeTests
             ["alpha"] = s_raw.Functions["alpha"] with { NativeSymbol = "x; injected" },
         };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingSignatureProbe.GenerateSource(s_catalog,
-            s_raw with { Functions = invalidLinkage }, ["alpha"], ""));
+            s_raw with
+            {
+                Functions = invalidLinkage
+            }, ["alpha"], ""));
     }
 }

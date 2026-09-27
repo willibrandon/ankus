@@ -83,6 +83,9 @@ public sealed partial class NativeBindingNativeTests
             await RunAsync(compiler, arguments, directory);
             return await File.ReadAllBytesAsync(output, context.CancellationToken);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

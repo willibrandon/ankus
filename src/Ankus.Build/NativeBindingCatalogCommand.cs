@@ -28,7 +28,10 @@ internal static class NativeBindingCatalogCommand
             string path = Path.Combine(arguments[1], $"pg{major}.json");
             string content = JsonSerializer.Serialize(catalog, options) + "\n";
             await WriteAsync(path, content, arguments.Length == 3);
-            NativeBindingRawCatalog raw = NativeBindingRawParser.Parse(source, major) with { SourceRevision = Revision };
+            NativeBindingRawCatalog raw = NativeBindingRawParser.Parse(source, major) with
+            {
+                SourceRevision = Revision
+            };
             await WriteAsync(Path.Combine(arguments[1], $"pg{major}.raw.json"),
                 JsonSerializer.Serialize(raw, options) + "\n", arguments.Length == 3);
             string headers = await ReadSourceAsync(arguments[0], Revision, $"pgrx-pg-sys/include/pg{major}.h");
@@ -46,9 +49,15 @@ internal static class NativeBindingCatalogCommand
 
     private static async Task WriteAsync(string path, string content, bool check)
     {
-        if (File.Exists(path) && File.ReadAllText(path) == content) { return; }
+        if (File.Exists(path) && File.ReadAllText(path) == content)
+        {
+            return;
+        }
 
-        if (check) { throw new InvalidOperationException($"Native binding input is stale: {path}"); }
+        if (check)
+        {
+            throw new InvalidOperationException($"Native binding input is stale: {path}");
+        }
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, content);

@@ -220,47 +220,91 @@ public sealed class CatalogLookupTests
         /// <summary>
         /// Gets or sets the next copied native OID.
         /// </summary>
-        internal uint Result { get; set; }
+        internal uint Result
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets whether dispatch produces an owned diagnostic.
         /// </summary>
-        internal bool Fail { get; set; }
+        internal bool Fail
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets the captured operation family.
         /// </summary>
-        internal byte Operation { get; private set; }
+        internal byte Operation
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the captured lookup selector.
         /// </summary>
-        internal int Suboperation { get; private set; }
+        internal int Suboperation
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the requested result type identity.
         /// </summary>
-        internal uint ResultOid { get; private set; }
+        internal uint ResultOid
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets the exact argument type identities.
         /// </summary>
-        internal uint[] Types { get; private set; } = [];
+        internal uint[] Types
+        {
+            get;
+            private set;
+        } = [];
         /// <summary>
         /// Gets the copied arguments.
         /// </summary>
-        internal object?[] Values { get; private set; } = [];
+        internal object?[] Values
+        {
+            get;
+            private set;
+        } = [];
         /// <summary>
         /// Gets the native dispatch count.
         /// </summary>
-        internal int Executions { get; private set; }
+        internal int Executions
+        {
+            get;
+            private set;
+        }
         /// <summary>
         /// Gets or sets the released input buffer count.
         /// </summary>
-        internal int ParameterReleases { get; set; }
+        internal int ParameterReleases
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets the released result count.
         /// </summary>
-        internal int ResultReleases { get; set; }
+        internal int ResultReleases
+        {
+            get;
+            set;
+        }
         /// <summary>
         /// Gets or sets the released diagnostic buffer count.
         /// </summary>
-        internal int ErrorReleases { get; set; }
+        internal int ErrorReleases
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Enters a thread-local scripted backend scope.

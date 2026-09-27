@@ -153,11 +153,15 @@ public static class MemoryContextFunctions
                 switch (operation)
                 {
                     case 0:
-                        using (selected.Allocate(invalidSize)) { }
+                        using (selected.Allocate(invalidSize))
+                        {
+                        }
 
                         break;
                     case 1:
-                        using (selected.TryAllocate(invalidSize)) { }
+                        using (selected.TryAllocate(invalidSize))
+                        {
+                        }
 
                         break;
                     case 2:

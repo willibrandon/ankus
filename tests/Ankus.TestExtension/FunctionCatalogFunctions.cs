@@ -53,9 +53,19 @@ public static class FunctionCatalogFunctions
     {
         bool cleaned = false;
         string state;
-        try { _ = Evaluate(PgFunctions.GetInfo(oid)!); state = "missing"; }
-        catch (PgException exception) { state = exception.SqlState; }
-        finally { cleaned = true; }
+        try
+        {
+            _ = Evaluate(PgFunctions.GetInfo(oid)!);
+            state = "missing";
+        }
+        catch (PgException exception)
+        {
+            state = exception.SqlState;
+        }
+        finally
+        {
+            cleaned = true;
+        }
 
         return $"{state}|{cleaned}|{Spi.ExecuteScalar<int>("SELECT 42")}";
     }
@@ -73,7 +83,10 @@ public static class FunctionCatalogFunctions
     {
         using PgMemoryContext owner = PgMemoryContext.Create("catalog defaults");
         using PgList<nint>? first = info.GetDefaultArguments(owner);
-        if (first is null) { return null; }
+        if (first is null)
+        {
+            return null;
+        }
 
         using PgList<nint> second = info.GetDefaultArguments(owner)!;
         if (first.Count != info.DefaultArgumentCount || second.Count != first.Count ||
@@ -89,11 +102,20 @@ public static class FunctionCatalogFunctions
         first.Dispose();
         string?[] copied = Spi.ExecuteScalar<string?[]>("SELECT tests.default_values($1)",
             SpiParameter.Create((long)second.DangerousGetPointer()));
-        if (values.Length != copied.Length) { throw new InvalidOperationException("Default order mismatch."); }
+        if (values.Length != copied.Length)
+        {
+            throw new InvalidOperationException("Default order mismatch.");
+        }
 
         owner.Reset();
-        try { _ = second.Count; throw new InvalidOperationException("Defaults survived owner reset."); }
-        catch (ObjectDisposedException) { }
+        try
+        {
+            _ = second.Count;
+            throw new InvalidOperationException("Defaults survived owner reset.");
+        }
+        catch (ObjectDisposedException)
+        {
+        }
 
         return values;
     }

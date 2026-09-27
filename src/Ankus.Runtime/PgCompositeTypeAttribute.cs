@@ -16,11 +16,19 @@ public sealed class PgCompositeTypeAttribute(string name) : Attribute
     /// <summary>
     /// Gets or sets the schema identifier. An omitted schema leaves the SQL type name unqualified.
     /// </summary>
-    public string? Schema { get; set; }
+    public string? Schema
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the exact SQL TABLE column name to bind when a result contains multiple composite columns.
     /// A single composite output is selected automatically when this value is omitted.
     /// </summary>
-    public string? Column { get; set; }
+    public string? Column
+    {
+        get;
+        set;
+    }
 }

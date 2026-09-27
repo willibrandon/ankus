@@ -17,7 +17,10 @@ public sealed class PgFunctionInfo
     /// </summary>
     internal PgFunctionInfo(uint oid, ReadOnlySpan<NativeValue> values)
     {
-        if (values.Length != 24) { throw new InvalidOperationException("Invalid function catalog field count."); }
+        if (values.Length != 24)
+        {
+            throw new InvalidOperationException("Invalid function catalog field count.");
+        }
 
         Oid = oid;
         OwnerOid = Read<uint>(values[0], 26);

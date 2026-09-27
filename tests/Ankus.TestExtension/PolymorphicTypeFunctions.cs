@@ -38,7 +38,11 @@ public static class PolymorphicTypeFunctions
         /// <summary>
         /// Gets or sets the optional next variant.
         /// </summary>
-        public Message? Next { get; set; }
+        public Message? Next
+        {
+            get;
+            set;
+        }
     }
 
     /// <summary>

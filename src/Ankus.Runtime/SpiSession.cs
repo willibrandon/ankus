@@ -23,7 +23,11 @@ public sealed class SpiSession
     /// <summary>
     /// Gets or sets the native session identity. Zero denotes an inactive scope.
     /// </summary>
-    internal long Identity { get; set; }
+    internal long Identity
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Plans one SQL statement within this session and returns its owned JSON EXPLAIN output.

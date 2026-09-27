@@ -854,8 +854,11 @@ uses a unique system temporary directory so long project output paths do not
 exceed Windows' process working-directory limit. Large temporary AST files are
 removed after compiler/worker completion, including failed collection. A first
 top-level header observation partitions the raw inventory into present and
-explicitly absent declarations. Nested variables do not satisfy global requests,
-and a changed declaration kind or malformed observation fails collection.
+explicitly absent declarations. Names come from the reference inventory; declaration
+kinds and types come from the selected headers. For example, PostgreSQL can expose
+`pg_popcount32` as a function on ARM64 and a dispatch-pointer global on x64. Nested
+declarations cannot satisfy requests. Conflicting declarations, malformed observations,
+or changes between the initial observation and measured collection fail validation.
 
 The SDK's internal `binding-compile` command prepares an isolated project with
 the consumer's selected SDK, runtime reference and package directory. The consumer's

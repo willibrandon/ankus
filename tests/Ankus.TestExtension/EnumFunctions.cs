@@ -211,11 +211,23 @@ public static class EnumFunctions
         int failures = 0;
         for (int i = 0; i < 20; i++)
         {
-            try { _ = PgEnums.GetValueOid(EnumMood.Low); }
-            catch (PgException error) when (error.SqlState == "22P02") { failures++; }
+            try
+            {
+                _ = PgEnums.GetValueOid(EnumMood.Low);
+            }
+            catch (PgException error) when (error.SqlState == "22P02")
+            {
+                failures++;
+            }
 
-            try { _ = PgEnums.Lookup(0); }
-            catch (PgException error) when (error.SqlState == "22P03") { failures++; }
+            try
+            {
+                _ = PgEnums.Lookup(0);
+            }
+            catch (PgException error) when (error.SqlState == "22P03")
+            {
+                failures++;
+            }
         }
 
         return $"{failures}:{PgEnums.Lookup(PgEnums.GetValueOid(EnumMood.Medium)).Label}";
@@ -249,8 +261,14 @@ public static class EnumFunctions
         uint before = PgEnums.GetTypeOid<EnumMood>();
         EnumMood nested = Spi.ExecuteScalar<EnumMood>("SELECT enum_values.enum_scalar($1,1)", SpiParameter.Create(value));
         bool caught = false;
-        try { Spi.Execute("SELECT enum_values.enum_undefined()"); }
-        catch (PgException error) when (error.SqlState == "38000") { caught = true; }
+        try
+        {
+            Spi.Execute("SELECT enum_values.enum_undefined()");
+        }
+        catch (PgException error) when (error.SqlState == "38000")
+        {
+            caught = true;
+        }
 
         return caught && nested == value && PgEnums.GetTypeOid<EnumMood>() == before &&
             PgEnums.Lookup(PgEnums.GetValueOid(value)).Label == PgEnums.GetLabel(value);

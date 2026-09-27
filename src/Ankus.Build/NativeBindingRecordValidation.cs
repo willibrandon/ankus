@@ -47,9 +47,15 @@ internal static class NativeBindingRecordValidation
             }
 
             Storage(type.Size, type.Alignment);
-            if (type.Element is int element) { _ = Type(element); }
+            if (type.Element is int element)
+            {
+                _ = Type(element);
+            }
 
-            if (type.Declaration is int declaration) { _ = Declaration(declaration); }
+            if (type.Declaration is int declaration)
+            {
+                _ = Declaration(declaration);
+            }
 
             bool indirect = type.Kind is "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex" or "typeof";
             bool tagged = type.Kind is "record" or "enum";
@@ -83,14 +89,23 @@ internal static class NativeBindingRecordValidation
 
             if (canonical.Kind == "function" || (canonical.Kind == "scalar" && canonical.Name == "void"))
             {
-                if (type.Size is not null || type.Alignment is not null) { throw new FormatException("A non-object native type has object storage."); }
+                if (type.Size is not null || type.Alignment is not null)
+                {
+                    throw new FormatException("A non-object native type has object storage.");
+                }
             }
 
             if (type.Kind is "array" or "vector")
             {
-                if (type.Count < 0 || (type.Kind == "vector" && type.Count is null or 0)) { throw new FormatException("Invalid native array/vector extent."); }
+                if (type.Count < 0 || (type.Kind == "vector" && type.Count is null or 0))
+                {
+                    throw new FormatException("Invalid native array/vector extent.");
+                }
 
-                if (canonical.Kind == "array" && type.Count is null && type.Size is not null) { throw new FormatException("An incomplete native array cannot have a total size."); }
+                if (canonical.Kind == "array" && type.Count is null && type.Size is not null)
+                {
+                    throw new FormatException("An incomplete native array cannot have a total size.");
+                }
 
                 NativeRecordType item = Type(type.Element!.Value);
                 if (canonical.Kind == type.Kind && type.Count is long count && item.Size is long stride && type.Size is long size &&
@@ -109,7 +124,10 @@ internal static class NativeBindingRecordValidation
                     throw new FormatException("Invalid native function shape.");
                 }
 
-                foreach (int parameter in function.Parameters) { _ = Type(parameter); }
+                foreach (int parameter in function.Parameters)
+                {
+                    _ = Type(parameter);
+                }
             }
 
             if (tagged && Declaration(type.Declaration!.Value).Kind == "enum" != (type.Kind == "enum"))
@@ -136,7 +154,10 @@ internal static class NativeBindingRecordValidation
             }
 
             Storage(declaration.Size, declaration.Alignment);
-            if (declaration.Name.Length != 0) { NativeBindingCDeclaration.ValidateName(declaration.Name); }
+            if (declaration.Name.Length != 0)
+            {
+                NativeBindingCDeclaration.ValidateName(declaration.Name);
+            }
 
             totalFields += declaration.Fields.Count;
             totalConstants += declaration.EnumValues.Count;
@@ -149,7 +170,10 @@ internal static class NativeBindingRecordValidation
                 throw new FormatException("Invalid fields or enum values for the native declaration.");
             }
 
-            if (declaration.EnumUnderlying is int underlying) { _ = Type(underlying); }
+            if (declaration.EnumUnderlying is int underlying)
+            {
+                _ = Type(underlying);
+            }
 
             var constantNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (NativeRecordConstant constant in declaration.EnumValues)
@@ -174,7 +198,10 @@ internal static class NativeBindingRecordValidation
 
                 NativeRecordType fieldType = Type(field.Type);
                 NativeRecordType canonicalField = Type(fieldType.Canonical);
-                if (field.Name.Length != 0) { NativeBindingCDeclaration.ValidateName(field.Name); }
+                if (field.Name.Length != 0)
+                {
+                    NativeBindingCDeclaration.ValidateName(field.Name);
+                }
 
                 if ((!field.IsAnonymous && field.Name.Length == 0 && field.BitWidth is null) ||
                     (field.IsAnonymous && canonicalField.Kind != "record") ||
@@ -199,24 +226,39 @@ internal static class NativeBindingRecordValidation
         var pending = new Queue<int>(graph.Roots.Values);
         while (pending.TryDequeue(out int typeIndex))
         {
-            if (!visitedTypes.Add(typeIndex)) { continue; }
+            if (!visitedTypes.Add(typeIndex))
+            {
+                continue;
+            }
 
             NativeRecordType type = Type(typeIndex);
             pending.Enqueue(type.Canonical);
-            if (type.Element is int element) { pending.Enqueue(element); }
+            if (type.Element is int element)
+            {
+                pending.Enqueue(element);
+            }
 
             if (type.Function is NativeRecordFunction function)
             {
                 pending.Enqueue(function.Result);
-                foreach (int parameter in function.Parameters) { pending.Enqueue(parameter); }
+                foreach (int parameter in function.Parameters)
+                {
+                    pending.Enqueue(parameter);
+                }
             }
 
             if (type.Declaration is int declarationIndex && visitedDeclarations.Add(declarationIndex))
             {
                 NativeRecordDeclaration declaration = Declaration(declarationIndex);
-                foreach (NativeRecordField field in declaration.Fields) { pending.Enqueue(field.Type); }
+                foreach (NativeRecordField field in declaration.Fields)
+                {
+                    pending.Enqueue(field.Type);
+                }
 
-                if (declaration.EnumUnderlying is int underlying) { pending.Enqueue(underlying); }
+                if (declaration.EnumUnderlying is int underlying)
+                {
+                    pending.Enqueue(underlying);
+                }
             }
         }
 
@@ -248,22 +290,34 @@ internal static class NativeBindingRecordValidation
         byte[] states = new byte[graph.Types.Count];
         for (int index = 0; index < graph.Types.Count; index++)
         {
-            if (states[index] != 0 || !IsWrapper(graph.Types[index].Kind)) { continue; }
+            if (states[index] != 0 || !IsWrapper(graph.Types[index].Kind))
+            {
+                continue;
+            }
 
             var path = new List<int>();
             int current = index;
             while (IsWrapper(graph.Types[current].Kind))
             {
-                if (states[current] == 2) { break; }
+                if (states[current] == 2)
+                {
+                    break;
+                }
 
-                if (states[current] == 1) { throw new FormatException("Native type shape has an alias or wrapper cycle."); }
+                if (states[current] == 1)
+                {
+                    throw new FormatException("Native type shape has an alias or wrapper cycle.");
+                }
 
                 states[current] = 1;
                 path.Add(current);
                 current = graph.Types[current].Element!.Value;
             }
 
-            foreach (int visited in path) { states[visited] = 2; }
+            foreach (int visited in path)
+            {
+                states[visited] = 2;
+            }
         }
     }
 

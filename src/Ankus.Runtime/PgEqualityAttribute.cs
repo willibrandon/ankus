@@ -17,10 +17,18 @@ public sealed class PgEqualityAttribute : Attribute
     /// <summary>
     /// Gets or sets the installation dependency identifier for the generated equality operators.
     /// </summary>
-    public string? Id { get; set; }
+    public string? Id
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets installation entities that must precede the generated equality operators.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 }

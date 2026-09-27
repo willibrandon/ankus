@@ -81,20 +81,35 @@ internal static partial class NativeObjectSymbols
         {
             if (decorated)
             {
-                if (name.IsEmpty || name[0] != (byte)'_') { return; }
+                if (name.IsEmpty || name[0] != (byte)'_')
+                {
+                    return;
+                }
 
                 name = name[1..];
             }
 
-            if (!name.StartsWith(_prefix)) { return; }
+            if (!name.StartsWith(_prefix))
+            {
+                return;
+            }
 
-            try { _symbols.Add(s_utf8.GetString(name)); }
-            catch (DecoderFallbackException error) { throw new FormatException("Generated native import is not valid UTF-8.", error); }
+            try
+            {
+                _symbols.Add(s_utf8.GetString(name));
+            }
+            catch (DecoderFallbackException error)
+            {
+                throw new FormatException("Generated native import is not valid UTF-8.", error);
+            }
         }
 
         private static void Require(bool condition, string message)
         {
-            if (!condition) { throw new FormatException(message); }
+            if (!condition)
+            {
+                throw new FormatException(message);
+            }
         }
     }
 }

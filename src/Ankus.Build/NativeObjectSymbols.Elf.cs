@@ -15,7 +15,10 @@ internal static partial class NativeObjectSymbols
                 "Expected a current relocatable ELF object.");
             string architecture = UInt16(header[18..]) switch
             {
-                3 when !wide => "x86", 40 when !wide => "arm", 62 when wide => "x64", 183 when wide => "arm64",
+                3 when !wide => "x86",
+                40 when !wide => "arm",
+                62 when wide => "x64",
+                183 when wide => "arm64",
                 _ => throw new FormatException("Unsupported ELF processor or word size."),
             };
             ulong sectionOffset = wide ? UInt64(header[40..]) : UInt32(header[32..]);
@@ -36,7 +39,10 @@ internal static partial class NativeObjectSymbols
             for (int index = 0; index < sections.Length / width; index++)
             {
                 ReadOnlySpan<byte> section = sections.Slice(index * width, width);
-                if (UInt32(section[4..]) != 2) { continue; }
+                if (UInt32(section[4..]) != 2)
+                {
+                    continue;
+                }
 
                 int symbolWidth = wide ? 24 : 16;
                 ulong size = ElfSize(section, wide);
@@ -78,7 +84,10 @@ internal static partial class NativeObjectSymbols
 
                     int binding = symbol[wide ? 4 : 12] >> 4;
                     ulong value = wide ? UInt64(symbol[8..]) : UInt32(symbol[4..]);
-                    if (sectionIndex == 0 && binding is 1 or 2 && value == 0) { Add(name, decorated: false); }
+                    if (sectionIndex == 0 && binding is 1 or 2 && value == 0)
+                    {
+                        Add(name, decorated: false);
+                    }
                 }
             }
 

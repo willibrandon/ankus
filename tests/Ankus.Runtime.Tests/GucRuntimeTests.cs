@@ -763,62 +763,110 @@ public sealed class GucRuntimeTests
         /// <summary>
         /// Gets or sets the allocation-free scalar reply.
         /// </summary>
-        internal NativeValue Value { get; set; }
+        internal NativeValue Value
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the owned string reply.
         /// </summary>
-        internal string? Text { get; set; }
+        internal string? Text
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether the reply is a nullable string.
         /// </summary>
-        internal bool ReturnText { get; set; }
+        internal bool ReturnText
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets raw bytes for malformed UTF-8 and envelope probes.
         /// </summary>
-        internal byte[]? Bytes { get; set; }
+        internal byte[]? Bytes
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether the native call fails after returning a partial value.
         /// </summary>
-        internal bool Fail { get; set; }
+        internal bool Fail
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the copied setting name.
         /// </summary>
-        internal string? Name { get; set; }
+        internal string? Name
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the requested native setting kind.
         /// </summary>
-        internal int Kind { get; set; }
+        internal int Kind
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the UTF-8 byte length from the fallback request.
         /// </summary>
-        internal int NameByteLength { get; set; }
+        internal int NameByteLength
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the fallback operation discriminator.
         /// </summary>
-        internal SpiOperation Operation { get; set; }
+        internal SpiOperation Operation
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the dedicated read callback count.
         /// </summary>
-        internal int ReadCalls { get; set; }
+        internal int ReadCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the backend callback count.
         /// </summary>
-        internal int BackendCalls { get; set; }
+        internal int BackendCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the count of released native value and diagnostic allocations.
         /// </summary>
-        internal int Releases { get; set; }
+        internal int Releases
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Restores any enclosing controlled native state.

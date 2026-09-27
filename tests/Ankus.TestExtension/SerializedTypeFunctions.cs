@@ -65,12 +65,20 @@ public static class SerializedTypeFunctions
         /// Gets the renamed required integer.
         /// </summary>
         [JsonPropertyName("n")]
-        public int Number { get; init; }
+        public int Number
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets or sets an optional string that must be present in input.
         /// </summary>
-        public required string? Text { get; set; }
+        public required string? Text
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets an unsupported property excluded from the serialized contract.
@@ -88,7 +96,11 @@ public static class SerializedTypeFunctions
         /// <summary>
         /// Gets or sets the optional next node.
         /// </summary>
-        public Node? Next { get; set; }
+        public Node? Next
+        {
+            get;
+            set;
+        }
     }
 
     /// <summary>

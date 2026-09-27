@@ -30,7 +30,11 @@ public sealed class PgItemPointerTests
         (uint block, ushort offset) = special;
         Assert.AreEqual(uint.MaxValue, block);
         Assert.AreEqual(ushort.MaxValue, offset);
-        Assert.AreEqual(new PgItemPointer(17, 31), special with { BlockNumber = 17, OffsetNumber = 31 });
+        Assert.AreEqual(new PgItemPointer(17, 31), special with
+        {
+            BlockNumber = 17,
+            OffsetNumber = 31
+        });
         Assert.AreEqual(new PgItemPointer(uint.MaxValue, 0xfffd), PgItemPointer.MovedPartitions);
         Assert.IsTrue(PgItemPointer.MovedPartitions.IndicatesMovedPartitions);
         Assert.IsFalse(new PgItemPointer(17, 0xfffd).IndicatesMovedPartitions);
@@ -182,7 +186,10 @@ public sealed class PgItemPointerTests
     [TestMethod]
     public void CorruptTransportIsRejected()
     {
-        NativeValue value = new() { Integral = -1 };
+        NativeValue value = new()
+        {
+            Integral = -1
+        };
         Assert.ThrowsExactly<OverflowException>(() => value.ReadItemPointer());
         value.Integral = 4294967296L;
         Assert.ThrowsExactly<OverflowException>(() => value.ReadItemPointer());

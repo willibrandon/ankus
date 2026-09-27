@@ -56,10 +56,18 @@ public sealed class PgDatumTypeAttribute(string name, Type converter) : Attribut
     /// <summary>
     /// Gets or sets the fixed schema. External mappings require an explicit schema.
     /// </summary>
-    public string? Schema { get; set; }
+    public string? Schema
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether the SQL type is supplied by this extension or an existing external schema.
     /// </summary>
-    public PgTypeOrigin Origin { get; set; }
+    public PgTypeOrigin Origin
+    {
+        get;
+        set;
+    }
 }

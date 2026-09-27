@@ -12,13 +12,25 @@ internal static class NativeListValues
     /// </summary>
     internal static int GetKind<T>() where T : unmanaged
     {
-        if (typeof(T) == typeof(nint)) { return 1; }
+        if (typeof(T) == typeof(nint))
+        {
+            return 1;
+        }
 
-        if (typeof(T) == typeof(int)) { return 2; }
+        if (typeof(T) == typeof(int))
+        {
+            return 2;
+        }
 
-        if (typeof(T) == typeof(uint)) { return 3; }
+        if (typeof(T) == typeof(uint))
+        {
+            return 3;
+        }
 
-        if (typeof(T) == typeof(PgTransactionId)) { return 4; }
+        if (typeof(T) == typeof(PgTransactionId))
+        {
+            return 4;
+        }
 
         throw new NotSupportedException("PostgreSQL list cells support only nint, int, uint (OID), and PgTransactionId.");
     }
@@ -28,13 +40,25 @@ internal static class NativeListValues
     /// </summary>
     internal static ulong ToBits<T>(T value) where T : unmanaged
     {
-        if (typeof(T) == typeof(nint)) { return (nuint)Unsafe.As<T, nint>(ref value); }
+        if (typeof(T) == typeof(nint))
+        {
+            return (nuint)Unsafe.As<T, nint>(ref value);
+        }
 
-        if (typeof(T) == typeof(int)) { return unchecked((uint)Unsafe.As<T, int>(ref value)); }
+        if (typeof(T) == typeof(int))
+        {
+            return unchecked((uint)Unsafe.As<T, int>(ref value));
+        }
 
-        if (typeof(T) == typeof(uint)) { return Unsafe.As<T, uint>(ref value); }
+        if (typeof(T) == typeof(uint))
+        {
+            return Unsafe.As<T, uint>(ref value);
+        }
 
-        if (typeof(T) == typeof(PgTransactionId)) { return Unsafe.As<T, PgTransactionId>(ref value).Value; }
+        if (typeof(T) == typeof(PgTransactionId))
+        {
+            return Unsafe.As<T, PgTransactionId>(ref value).Value;
+        }
 
         throw new NotSupportedException("Unsupported PostgreSQL list cell type.");
     }
@@ -57,7 +81,10 @@ internal static class NativeListValues
             return Unsafe.As<int, T>(ref value);
         }
 
-        if (typeof(T) == typeof(uint)) { return Unsafe.As<uint, T>(ref narrow); }
+        if (typeof(T) == typeof(uint))
+        {
+            return Unsafe.As<uint, T>(ref narrow);
+        }
 
         if (typeof(T) == typeof(PgTransactionId))
         {

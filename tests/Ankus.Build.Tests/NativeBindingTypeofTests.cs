@@ -75,7 +75,10 @@ public sealed partial class NativeBindingNativeTests
             string diagnostic = await RunAsync(compiler, arguments, directory, expectSuccess: false);
             Assert.Contains("incompatible reconstructed native type: copy", diagnostic);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -105,12 +108,18 @@ public sealed partial class NativeBindingNativeTests
             NativeBindingSignatureValidation.Validate(records);
             NativeHeaderRecords changed = await CollectCallRecordsAsync(Common + "extern " + replacement + "; extern __typeof__(value) copy;", requests, directory);
             FormatException failure = Assert.ThrowsExactly<FormatException>(() =>
-                NativeBindingSignatureValidation.Validate(records with { Headers = changed.Headers }));
+                NativeBindingSignatureValidation.Validate(records with
+                {
+                    Headers = changed.Headers
+                }));
             Assert.Contains("copy", failure.Message);
             Assert.Contains(expected, failure.Message);
             NativeBindingSignatureValidation.Validate(records);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -130,13 +139,28 @@ public sealed partial class NativeBindingNativeTests
             NativeHeaderQualified parameter = Assert.IsInstanceOfType<NativeHeaderQualified>(Assert.ContainsSingle(function.Parameters));
             Assert.AreEqual(NativeHeaderQualifiers.Const, parameter.Modifiers);
             Dictionary<string, NativeHeaderSymbol> changed = records.Headers.Symbols.ToDictionary();
-            changed["invoke"] = symbol with { Type = function with { Parameters = [parameter.Underlying] } };
+            changed["invoke"] = symbol with
+            {
+                Type = function with
+                {
+                    Parameters = [parameter.Underlying]
+                }
+            };
             FormatException failure = Assert.ThrowsExactly<FormatException>(() =>
-                NativeBindingSignatureValidation.Validate(records with { Headers = records.Headers with { Symbols = changed } }));
+                NativeBindingSignatureValidation.Validate(records with
+                {
+                    Headers = records.Headers with
+                    {
+                        Symbols = changed
+                    }
+                }));
             Assert.Contains("invoke.argument0", failure.Message);
             Assert.Contains("type qualifiers", failure.Message);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>

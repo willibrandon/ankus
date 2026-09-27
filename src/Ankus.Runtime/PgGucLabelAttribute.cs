@@ -15,5 +15,9 @@ public sealed class PgGucLabelAttribute(string name) : Attribute
     /// <summary>
     /// Gets or sets whether the label remains accepted while omitted from lists of available values.
     /// </summary>
-    public bool Hidden { get; set; }
+    public bool Hidden
+    {
+        get;
+        set;
+    }
 }

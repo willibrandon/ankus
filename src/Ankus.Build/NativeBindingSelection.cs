@@ -38,7 +38,10 @@ internal static partial class NativeBindingSelection
             var visited = new HashSet<string>(StringComparer.Ordinal);
             while (ArrayElement(resolved) is string element)
             {
-                if (!visited.Add(resolved)) { throw new FormatException($"Cyclic native array representation at {root}.{path}."); }
+                if (!visited.Add(resolved))
+                {
+                    throw new FormatException($"Cyclic native array representation at {root}.{path}.");
+                }
 
                 resolved = ResolveAlias(catalog, element);
                 path += "[0]";
@@ -59,7 +62,10 @@ internal static partial class NativeBindingSelection
 
         void Add(NativeBindingType type, string root, string path)
         {
-            if (selected.ContainsKey(type.Name)) { return; }
+            if (selected.ContainsKey(type.Name))
+            {
+                return;
+            }
 
             var entry = new NativeBindingSelectionEntry(type, root, path);
             selected.Add(type.Name, entry);
@@ -79,7 +85,10 @@ internal static partial class NativeBindingSelection
         string resolved = Normalize(representation);
         while (catalog.Aliases.TryGetValue(resolved, out string? target))
         {
-            if (!visited.Add(resolved)) { throw new FormatException($"Cyclic native typedef at {resolved}."); }
+            if (!visited.Add(resolved))
+            {
+                throw new FormatException($"Cyclic native typedef at {resolved}.");
+            }
 
             resolved = Normalize(target);
         }
@@ -95,7 +104,10 @@ internal static partial class NativeBindingSelection
     internal static string? ArrayElement(string representation)
     {
         Match array = ArrayPattern().Match(representation);
-        if (array.Success) { return array.Groups["element"].Value.Trim(); }
+        if (array.Success)
+        {
+            return array.Groups["element"].Value.Trim();
+        }
 
         const string Prefix = "__IncompleteArrayField<";
         return representation.StartsWith(Prefix, StringComparison.Ordinal) && representation.EndsWith('>')

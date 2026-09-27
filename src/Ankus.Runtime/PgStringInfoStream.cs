@@ -89,7 +89,11 @@ public sealed unsafe class PgStringInfoStream : Stream
         ArgumentNullException.ThrowIfNull(lifetimeContext);
         nint context = lifetimeContext.GetId();
         nint provider = NativeMemoryContext.Provider;
-        NativeMemoryRequest capture = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = context };
+        NativeMemoryRequest capture = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = context
+        };
         NativeMemoryContext.Invoke(ref capture, out NativeMemoryResult generation);
         var borrowed = new PgStringInfoStream(provider, context, (nint)address, generation._value, readOnly: false);
         NativeMemoryResult state = borrowed.Invoke(NativeStringInfoOperation.Inspect);

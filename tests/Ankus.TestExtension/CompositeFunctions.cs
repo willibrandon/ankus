@@ -250,14 +250,29 @@ public static class CompositeFunctions
         {
             switch (scenario)
             {
-                case 0: _ = value.Get<int>("name"); break;
-                case 1: value.Set("age", "wrong"); break;
-                case 2: _ = value.Get<string>("Name"); break;
-                case 3: _ = value.Get<int>(-1); break;
-                case 4: value.Set(value.Count, 1); break;
-                case 5: _ = PgTupleDescriptor.Load("tuple_values.pack").CreateArray([value]); break;
-                case 6: PgTupleDescriptor.Load("tuple_values.pack").CreateTuple().Set("leader", PgTupleDescriptor.Load("tuple_values.other_dog").CreateTuple()); break;
-                default: throw new ArgumentOutOfRangeException(nameof(scenario));
+                case 0:
+                    _ = value.Get<int>("name");
+                    break;
+                case 1:
+                    value.Set("age", "wrong");
+                    break;
+                case 2:
+                    _ = value.Get<string>("Name");
+                    break;
+                case 3:
+                    _ = value.Get<int>(-1);
+                    break;
+                case 4:
+                    value.Set(value.Count, 1);
+                    break;
+                case 5:
+                    _ = PgTupleDescriptor.Load("tuple_values.pack").CreateArray([value]);
+                    break;
+                case 6:
+                    PgTupleDescriptor.Load("tuple_values.pack").CreateTuple().Set("leader", PgTupleDescriptor.Load("tuple_values.other_dog").CreateTuple());
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(scenario));
             }
         }
         catch (Exception error) when (error is InvalidCastException or ArgumentException)
@@ -518,15 +533,18 @@ public static class CompositeFunctions
         SpiParameter parameter = SpiParameter.Create(value);
         switch (mode)
         {
-            case 0: return value;
-            case 1: return Spi.ExecuteScalar<T>(sql, parameter);
+            case 0:
+                return value;
+            case 1:
+                return Spi.ExecuteScalar<T>(sql, parameter);
             case 2:
                 using (SpiPreparedStatement plan = Spi.PrepareWithTypeOids(sql, parameter.TypeOid))
                 {
                     return plan.ExecuteScalar<T>(parameter);
                 }
 
-            case 3: return Spi.Connect(session => session.ExecuteScalar<T>(sql, parameter));
+            case 3:
+                return Spi.Connect(session => session.ExecuteScalar<T>(sql, parameter));
             case 4:
                 using (SpiCursor cursor = Spi.OpenCursor(sql, parameter))
                 {
@@ -552,7 +570,8 @@ public static class CompositeFunctions
                 SpiRow edited = Spi.Query("SELECT 42 AS value")[0];
                 edited.Set("value", value);
                 return Spi.ExecuteScalar<T>(sql, SpiParameter.Create(edited.Get<T>(0)));
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
     }
 }

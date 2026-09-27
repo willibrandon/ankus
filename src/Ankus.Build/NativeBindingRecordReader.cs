@@ -38,7 +38,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
             }
 
             NativeClangCursor[] references = [.. library.Children(alias, recursive: true).Where(static cursor => cursor.Kind == 101)];
-            if (references.Length != 1) { throw new FormatException("A native record root must reference exactly one symbol."); }
+            if (references.Length != 1)
+            {
+                throw new FormatException("A native record root must reference exactly one symbol.");
+            }
 
             NativeClangCursor declaration = CursorTransform(references[0], "clang_getCursorReferenced");
             if (declaration.Kind != (expected.IsFunction ? 8 : 9) || library.Name(declaration) != expected.NativeName)
@@ -49,7 +52,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
             roots.Add(name, TypeId(library.Type(declaration)));
         }
 
-        if (roots.Count != requests.Count) { throw new FormatException("Missing requested native record roots."); }
+        if (roots.Count != requests.Count)
+        {
+            throw new FormatException("Missing requested native record roots.");
+        }
 
         int typeIndex = 0;
         int declarationIndex = 0;
@@ -77,14 +83,26 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
     {
         int canonical = TypeId(library.Transform(type, "clang_getCanonicalType"));
         NativeHeaderQualifiers qualifiers = NativeHeaderQualifiers.None;
-        if (TypeFlag(type, "clang_isConstQualifiedType")) { qualifiers |= NativeHeaderQualifiers.Const; }
+        if (TypeFlag(type, "clang_isConstQualifiedType"))
+        {
+            qualifiers |= NativeHeaderQualifiers.Const;
+        }
 
-        if (TypeFlag(type, "clang_isVolatileQualifiedType")) { qualifiers |= NativeHeaderQualifiers.Volatile; }
+        if (TypeFlag(type, "clang_isVolatileQualifiedType"))
+        {
+            qualifiers |= NativeHeaderQualifiers.Volatile;
+        }
 
-        if (TypeFlag(type, "clang_isRestrictQualifiedType")) { qualifiers |= NativeHeaderQualifiers.Restrict; }
+        if (TypeFlag(type, "clang_isRestrictQualifiedType"))
+        {
+            qualifiers |= NativeHeaderQualifiers.Restrict;
+        }
 
         string spelling = library.PrintType(type, root);
-        if (spelling.Length == 0 || spelling.Length > 1_048_576) { throw new FormatException("Invalid native type spelling."); }
+        if (spelling.Length == 0 || spelling.Length > 1_048_576)
+        {
+            throw new FormatException("Invalid native type spelling.");
+        }
 
         string kind;
         string name = "";
@@ -96,7 +114,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         switch (type.Kind)
         {
             case 1 when IsTypeOf(spelling):
-                if (canonical == TypeId(type)) { throw new FormatException("A native typeof expression has no resolved canonical type."); }
+                if (canonical == TypeId(type))
+                {
+                    throw new FormatException("A native typeof expression has no resolved canonical type.");
+                }
 
                 kind = "typeof";
                 element = canonical;
@@ -148,7 +169,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
                 }
 
                 int convention = ((delegate* unmanaged[Cdecl]<NativeClangType, int>)library.Export("clang_getFunctionTypeCallingConv"))(type);
-                if (convention is < 0 or >= 100) { throw new FormatException("Unavailable native calling convention."); }
+                if (convention is < 0 or >= 100)
+                {
+                    throw new FormatException("Unavailable native calling convention.");
+                }
 
                 function = new(TypeId(library.Transform(type, "clang_getResultType")), parameters, variadic, prototype, convention);
                 break;
@@ -159,7 +183,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
                 if (type.Kind == 112)
                 {
                     long extent = library.Measure(type, "clang_getArraySize");
-                    if (extent < 0) { throw new FormatException("Native array extent is unavailable or exceeds Int64."); }
+                    if (extent < 0)
+                    {
+                        throw new FormatException("Native array extent is unavailable or exceeds Int64.");
+                    }
 
                     count = extent;
                 }
@@ -170,7 +197,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
                 kind = "vector";
                 element = TypeId(library.Transform(type, "clang_getElementType"));
                 count = library.Measure(type, "clang_getNumElements");
-                if (count <= 0) { throw new FormatException("Invalid native vector extent."); }
+                if (count <= 0)
+                {
+                    throw new FormatException("Invalid native vector extent.");
+                }
 
                 break;
             case 119:
@@ -207,7 +237,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         while (true)
         {
             int end = remaining.IndexOf(' ');
-            if (end < 0 || remaining[..end] is not ("const" or "volatile" or "restrict")) { break; }
+            if (end < 0 || remaining[..end] is not ("const" or "volatile" or "restrict"))
+            {
+                break;
+            }
 
             remaining = remaining[(end + 1)..].TrimStart();
         }
@@ -218,7 +251,13 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
 
     private NativeRecordDeclaration ReadDeclaration(NativeClangCursor cursor, NativeClangType type)
     {
-        string kind = cursor.Kind switch { 2 => "struct", 3 => "union", 5 => "enum", _ => throw new FormatException("Unsupported native tag declaration.") };
+        string kind = cursor.Kind switch
+        {
+            2 => "struct",
+            3 => "union",
+            5 => "enum",
+            _ => throw new FormatException("Unsupported native tag declaration.")
+        };
         bool anonymous = CursorFlag(cursor, "clang_Cursor_isAnonymous");
         string name = anonymous ? "" : library.Name(cursor);
         if (name.Length != 0)
@@ -226,16 +265,28 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
             // libclang gives an unnamed tag its typedef's name, but that name cannot be
             // used after 'struct', 'union' or 'enum'. Preserve only actual C tag names.
             string spelling = library.PrintType(type, cursor);
-            if (spelling == name) { name = ""; }
-            else if (spelling != kind + " " + name) { throw new FormatException("Unsupported native tag naming form: " + spelling); }
+            if (spelling == name)
+            {
+                name = "";
+            }
+            else if (spelling != kind + " " + name)
+            {
+                throw new FormatException("Unsupported native tag naming form: " + spelling);
+            }
         }
 
-        if (name.Length != 0) { NativeBindingCDeclaration.ValidateName(name); }
+        if (name.Length != 0)
+        {
+            NativeBindingCDeclaration.ValidateName(name);
+        }
 
         long? size = Layout(type, "clang_Type_getSizeOf");
         long? alignment = Layout(type, "clang_Type_getAlignOf");
         bool complete = size.HasValue;
-        if (complete != alignment.HasValue) { throw new FormatException("Inconsistent native tag completeness."); }
+        if (complete != alignment.HasValue)
+        {
+            throw new FormatException("Inconsistent native tag completeness.");
+        }
 
         var fields = new List<NativeRecordField>();
         var constants = new List<NativeRecordConstant>();
@@ -243,7 +294,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         if (kind == "enum")
         {
             NativeClangCursor definition = CursorTransform(cursor, "clang_getCursorDefinition");
-            if (definition.Kind == 5) { cursor = definition; }
+            if (definition.Kind == 5)
+            {
+                cursor = definition;
+            }
 
             NativeClangType representation = ((delegate* unmanaged[Cdecl]<NativeClangCursor, NativeClangType>)library.Export("clang_getEnumDeclIntegerType"))(cursor);
             if (representation.Kind != 0)
@@ -258,7 +312,10 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
                 bool unsigned = canonicalKind is >= 4 and <= 12;
                 foreach (NativeClangCursor member in library.Children(cursor).Where(static child => child.Kind == 7))
                 {
-                    if (++_constantCount > 1_000_000) { throw new InvalidDataException("Native record graph exceeds the enum constant limit."); }
+                    if (++_constantCount > 1_000_000)
+                    {
+                        throw new InvalidDataException("Native record graph exceeds the enum constant limit.");
+                    }
 
                     string value = unsigned
                         ? ((delegate* unmanaged[Cdecl]<NativeClangCursor, ulong>)library.Export("clang_getEnumConstantDeclUnsignedValue"))(member).ToString(CultureInfo.InvariantCulture)
@@ -271,17 +328,26 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         {
             foreach (NativeClangCursor field in library.Fields(type))
             {
-                if (++_fieldCount > 1_000_000) { throw new InvalidDataException("Native record graph exceeds the field limit."); }
+                if (++_fieldCount > 1_000_000)
+                {
+                    throw new InvalidDataException("Native record graph exceeds the field limit.");
+                }
 
                 NativeClangType fieldType = library.Type(field);
                 NativeClangCursor fieldDeclaration = library.Declaration(library.Transform(fieldType, "clang_getCanonicalType"));
                 bool anonymousField = CursorFlag(fieldDeclaration, "clang_Cursor_isAnonymousRecordDecl");
                 string fieldName = anonymousField ? "" : library.Name(field);
-                if (fieldName.Length != 0) { NativeBindingCDeclaration.ValidateName(fieldName); }
+                if (fieldName.Length != 0)
+                {
+                    NativeBindingCDeclaration.ValidateName(fieldName);
+                }
 
                 long offset = ((delegate* unmanaged[Cdecl]<NativeClangCursor, long>)library.Export("clang_Cursor_getOffsetOfField"))(field);
                 int width = ((delegate* unmanaged[Cdecl]<NativeClangCursor, int>)library.Export("clang_getFieldDeclBitWidth"))(field);
-                if (offset < 0 || width < -1) { throw new FormatException("Unavailable native field layout."); }
+                if (offset < 0 || width < -1)
+                {
+                    throw new FormatException("Unavailable native field layout.");
+                }
 
                 fields.Add(new(fieldName, TypeId(fieldType), offset, width == -1 ? null : width, anonymousField, library.Print(field)));
             }
@@ -292,14 +358,23 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
 
     private int TypeId(NativeClangType type)
     {
-        if (type.Kind == 0) { throw new FormatException("Invalid native record type."); }
+        if (type.Kind == 0)
+        {
+            throw new FormatException("Invalid native record type.");
+        }
 
         for (int i = 0; i < _nativeTypes.Count; i++)
         {
-            if (((delegate* unmanaged[Cdecl]<NativeClangType, NativeClangType, uint>)library.Export("clang_equalTypes"))(_nativeTypes[i], type) != 0) { return i; }
+            if (((delegate* unmanaged[Cdecl]<NativeClangType, NativeClangType, uint>)library.Export("clang_equalTypes"))(_nativeTypes[i], type) != 0)
+            {
+                return i;
+            }
         }
 
-        if (_nativeTypes.Count == 100_000) { throw new InvalidDataException("Native record graph exceeds the type limit."); }
+        if (_nativeTypes.Count == 100_000)
+        {
+            throw new InvalidDataException("Native record graph exceeds the type limit.");
+        }
 
         _nativeTypes.Add(type);
         _types.Add(null);
@@ -318,10 +393,16 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
 
         foreach (int index in indices)
         {
-            if (((delegate* unmanaged[Cdecl]<NativeClangCursor, NativeClangCursor, uint>)library.Export("clang_equalCursors"))(_nativeDeclarations[index].Cursor, cursor) != 0) { return index; }
+            if (((delegate* unmanaged[Cdecl]<NativeClangCursor, NativeClangCursor, uint>)library.Export("clang_equalCursors"))(_nativeDeclarations[index].Cursor, cursor) != 0)
+            {
+                return index;
+            }
         }
 
-        if (_declarations.Count == 100_000) { throw new InvalidDataException("Native record graph exceeds the declaration limit."); }
+        if (_declarations.Count == 100_000)
+        {
+            throw new InvalidDataException("Native record graph exceeds the declaration limit.");
+        }
 
         int next = _declarations.Count;
         indices.Add(next);
@@ -366,20 +447,32 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
             }
             else if (cursor.Kind == 9 && library.Name(cursor) == "ankus_header_runtime_identifier")
             {
-                if (runtime is not null) { throw new FormatException("Duplicate native record runtime identifier."); }
+                if (runtime is not null)
+                {
+                    throw new FormatException("Duplicate native record runtime identifier.");
+                }
 
                 _ = library.Export("clang_EvalResult_dispose");
                 nint evaluation = ((delegate* unmanaged[Cdecl]<NativeClangCursor, nint>)library.Export("clang_Cursor_Evaluate"))(cursor);
-                if (evaluation == 0) { throw new FormatException("Unavailable native record runtime identifier."); }
+                if (evaluation == 0)
+                {
+                    throw new FormatException("Unavailable native record runtime identifier.");
+                }
 
                 try
                 {
                     int kind = ((delegate* unmanaged[Cdecl]<nint, int>)library.Export("clang_EvalResult_getKind"))(evaluation);
-                    if (kind != 4) { throw new FormatException("Native record runtime identifier is not a string literal."); }
+                    if (kind != 4)
+                    {
+                        throw new FormatException("Native record runtime identifier is not a string literal.");
+                    }
 
                     runtime = Marshal.PtrToStringUTF8(((delegate* unmanaged[Cdecl]<nint, nint>)library.Export("clang_EvalResult_getAsStr"))(evaluation));
                 }
-                finally { ((delegate* unmanaged[Cdecl]<nint, void>)library.Export("clang_EvalResult_dispose"))(evaluation); }
+                finally
+                {
+                    ((delegate* unmanaged[Cdecl]<nint, void>)library.Export("clang_EvalResult_dispose"))(evaluation);
+                }
             }
         }
 

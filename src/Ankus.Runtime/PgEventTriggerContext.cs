@@ -49,7 +49,11 @@ public sealed class PgEventTriggerContext
     /// <summary>
     /// Gets the enclosing managed event invocation, restored after this callback exits.
     /// </summary>
-    internal PgEventTriggerContext? Parent { get; private set; }
+    internal PgEventTriggerContext? Parent
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Releases the enclosing invocation link while returning the context to restore on successful exit.

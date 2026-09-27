@@ -40,7 +40,10 @@ internal static class NativeBindingSourceCache
             NativeBindingPreprocessed observation = await NativeBindingPreprocessor.ObserveAsync(compiler, options, headers, directory, cancellationToken);
             string library = arguments.Length >= 9 && arguments[8].Length != 0 ? Path.GetFullPath(arguments[8])
                 : await NativeBindingRecordCommand.FindLibraryAsync(compiler, observation.ClangMajor, cancellationToken);
-            if (!File.Exists(library)) { throw new FileNotFoundException("Cannot locate the selected libclang library.", library); }
+            if (!File.Exists(library))
+            {
+                throw new FileNotFoundException("Cannot locate the selected libclang library.", library);
+            }
 
             NativeBindingCacheFile[] tools = await NativeBindingCache.SnapshotAsync(ToolFiles(compiler, library), cancellationToken);
             string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
@@ -106,7 +109,10 @@ internal static class NativeBindingSourceCache
         }
         finally
         {
-            if (Directory.Exists(directory)) { await NativeBuildDirectory.DeleteAsync(directory); }
+            if (Directory.Exists(directory))
+            {
+                await NativeBuildDirectory.DeleteAsync(directory);
+            }
         }
     }
 

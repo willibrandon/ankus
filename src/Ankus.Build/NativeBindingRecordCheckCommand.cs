@@ -23,7 +23,10 @@ internal static class NativeBindingRecordCheckCommand
 
         cancellationToken.ThrowIfCancellationRequested();
         var input = new FileInfo(arguments[0]);
-        if (input.Length > 512 * 1024 * 1024) { throw new InvalidDataException("Native record contract exceeds the byte limit."); }
+        if (input.Length > 512 * 1024 * 1024)
+        {
+            throw new InvalidDataException("Native record contract exceeds the byte limit.");
+        }
 
         NativeHeaderRecords records;
         await using (FileStream stream = input.OpenRead())
@@ -72,6 +75,9 @@ internal static class NativeBindingRecordCheckCommand
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(file, Path.Combine(output, "native-record-checks.c"), overwrite: true);
         }
-        finally { await NativeBuildDirectory.DeleteAsync(directory); }
+        finally
+        {
+            await NativeBuildDirectory.DeleteAsync(directory);
+        }
     }
 }

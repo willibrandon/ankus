@@ -249,11 +249,20 @@ public static class SpiSessionFunctions
                 {
                     switch (mode)
                     {
-                        case 0: session.Execute("SELECT 1"); break;
-                        case 1: statement.Execute(); break;
-                        case 2: statement.Keep(); break;
-                        case 3: statement.Dispose(); break;
-                        default: throw new ArgumentOutOfRangeException(nameof(mode));
+                        case 0:
+                            session.Execute("SELECT 1");
+                            break;
+                        case 1:
+                            statement.Execute();
+                            break;
+                        case 2:
+                            statement.Keep();
+                            break;
+                        case 3:
+                            statement.Dispose();
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(mode));
                     }
 
                     return "unexpected success";
@@ -309,13 +318,26 @@ public static class SpiSessionFunctions
             session.Prepare("SELECT 42");
             switch (mode)
             {
-                case 0: session.Execute("SELECT 1 / 0"); break;
-                case 1: session.Execute("SELECT pg_sleep(5)"); break;
-                case 2: session.Query("CREATE TEMP TABLE forbidden (value int)", readOnly: true, limit: 0); break;
-                case 3: session.Prepare("SELECT $1", typeof(int)).Execute(SpiParameter.Create("bad")); break;
-                case 4: session.Query("SELECT 1", readOnly: false, limit: -1); break;
-                case 5: session.Prepare("SELECT missing_column"); break;
-                default: throw new ArgumentOutOfRangeException(nameof(mode));
+                case 0:
+                    session.Execute("SELECT 1 / 0");
+                    break;
+                case 1:
+                    session.Execute("SELECT pg_sleep(5)");
+                    break;
+                case 2:
+                    session.Query("CREATE TEMP TABLE forbidden (value int)", readOnly: true, limit: 0);
+                    break;
+                case 3:
+                    session.Prepare("SELECT $1", typeof(int)).Execute(SpiParameter.Create("bad"));
+                    break;
+                case 4:
+                    session.Query("SELECT 1", readOnly: false, limit: -1);
+                    break;
+                case 5:
+                    session.Prepare("SELECT missing_column");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
         });
 

@@ -51,8 +51,11 @@ public static class EventTriggerFunctions
 
             switch (mode)
             {
-                case "managed_error": throw new InvalidOperationException("managed event failure");
-                case "wait": Spi.Execute("SELECT pg_sleep(30)"); break;
+                case "managed_error":
+                    throw new InvalidOperationException("managed event failure");
+                case "wait":
+                    Spi.Execute("SELECT pg_sleep(30)");
+                    break;
                 case "retain":
                     s_retainedContext = context;
                     s_retainedCommands = s_commands;
@@ -158,7 +161,9 @@ public static class EventTriggerFunctions
                     }
 
                     break;
-                case "emoji": Audit(context, "encoding", "😀"); break;
+                case "emoji":
+                    Audit(context, "encoding", "😀");
+                    break;
             }
         }
         finally
@@ -302,10 +307,18 @@ public static class EventTriggerFunctions
         {
             switch (context.Kind)
             {
-                case PgEventTriggerKind.DdlCommandEnd: context.GetDdlCommands(); break;
-                case PgEventTriggerKind.SqlDrop: context.GetDroppedObjects(); break;
-                case PgEventTriggerKind.TableRewrite: context.GetTableRewrite(); break;
-                default: context.GetDdlCommands(); break;
+                case PgEventTriggerKind.DdlCommandEnd:
+                    context.GetDdlCommands();
+                    break;
+                case PgEventTriggerKind.SqlDrop:
+                    context.GetDroppedObjects();
+                    break;
+                case PgEventTriggerKind.TableRewrite:
+                    context.GetTableRewrite();
+                    break;
+                default:
+                    context.GetDdlCommands();
+                    break;
             }
 
             return "unexpected success";

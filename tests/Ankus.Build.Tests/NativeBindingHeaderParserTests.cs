@@ -115,29 +115,75 @@ public sealed class NativeBindingHeaderParserTests
         JsonNode argument = function["inner"]![1]!;
         switch (change)
         {
-            case "root": root["kind"] = "FunctionDecl"; break;
-            case "missing": nodes.RemoveAt(1); break;
-            case "duplicate-alias": nodes.Add(alias.DeepClone()); break;
-            case "duplicate-declaration": nodes.Add(nodes[0]!.DeepClone()); break;
-            case "reference-name": parts[0]!["inner"]![0]!["referencedDecl"]!["name"] = "another"; break;
-            case "reference-id": parts[0]!["inner"]![0]!["referencedDecl"]!["id"] = "absent"; break;
-            case "reference-kind": parts[0]!["inner"]![0]!["referencedDecl"]!["kind"] = "VarDecl"; break;
-            case "alias-kind": alias["inner"]![0]!["kind"] = "PointerType"; break;
-            case "expression": parts[0]!["kind"] = "CallExpr"; break;
-            case "missing-type": parts.RemoveAt(1); break;
-            case "extra-type": parts.Add(function.DeepClone()); break;
-            case "parameter-count": nodes[0]!["inner"]!.AsArray().RemoveAt(0); break;
-            case "calling-convention": function["cc"] = "stdcall"; break;
-            case "register-parameters": function["regParm"] = 2; break;
-            case "variadic-flag": function["variadic"] = "true"; break;
-            case "unknown-type": argument["kind"] = "AtomicType"; break;
-            case "unknown-scalar": argument["inner"]![0]!["inner"]![0]!["type"]!["qualType"] = "invented"; break;
-            case "empty-qualifiers": argument["inner"]![0]!["qualifiers"] = ""; break;
-            case "duplicate-qualifier": argument["inner"]![0]!["qualifiers"] = "const const"; break;
-            case "unknown-qualifier": argument["inner"]![0]!["qualifiers"] = "atomic"; break;
-            case "pointer-children": argument["inner"]!.AsArray().Clear(); break;
-            case "unprototyped-parameters": function["kind"] = "FunctionNoProtoType"; break;
-            default: Assert.Fail("Unknown invalid observation."); break;
+            case "root":
+                root["kind"] = "FunctionDecl";
+                break;
+            case "missing":
+                nodes.RemoveAt(1);
+                break;
+            case "duplicate-alias":
+                nodes.Add(alias.DeepClone());
+                break;
+            case "duplicate-declaration":
+                nodes.Add(nodes[0]!.DeepClone());
+                break;
+            case "reference-name":
+                parts[0]!["inner"]![0]!["referencedDecl"]!["name"] = "another";
+                break;
+            case "reference-id":
+                parts[0]!["inner"]![0]!["referencedDecl"]!["id"] = "absent";
+                break;
+            case "reference-kind":
+                parts[0]!["inner"]![0]!["referencedDecl"]!["kind"] = "VarDecl";
+                break;
+            case "alias-kind":
+                alias["inner"]![0]!["kind"] = "PointerType";
+                break;
+            case "expression":
+                parts[0]!["kind"] = "CallExpr";
+                break;
+            case "missing-type":
+                parts.RemoveAt(1);
+                break;
+            case "extra-type":
+                parts.Add(function.DeepClone());
+                break;
+            case "parameter-count":
+                nodes[0]!["inner"]!.AsArray().RemoveAt(0);
+                break;
+            case "calling-convention":
+                function["cc"] = "stdcall";
+                break;
+            case "register-parameters":
+                function["regParm"] = 2;
+                break;
+            case "variadic-flag":
+                function["variadic"] = "true";
+                break;
+            case "unknown-type":
+                argument["kind"] = "AtomicType";
+                break;
+            case "unknown-scalar":
+                argument["inner"]![0]!["inner"]![0]!["type"]!["qualType"] = "invented";
+                break;
+            case "empty-qualifiers":
+                argument["inner"]![0]!["qualifiers"] = "";
+                break;
+            case "duplicate-qualifier":
+                argument["inner"]![0]!["qualifiers"] = "const const";
+                break;
+            case "unknown-qualifier":
+                argument["inner"]![0]!["qualifiers"] = "atomic";
+                break;
+            case "pointer-children":
+                argument["inner"]!.AsArray().Clear();
+                break;
+            case "unprototyped-parameters":
+                function["kind"] = "FunctionNoProtoType";
+                break;
+            default:
+                Assert.Fail("Unknown invalid observation.");
+                break;
         }
 
         Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderParser.Read(root.ToJsonString(), [new("call", "native_call", true)]));

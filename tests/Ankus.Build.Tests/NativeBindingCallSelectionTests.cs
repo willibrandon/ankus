@@ -117,13 +117,22 @@ public sealed partial class NativeBindingNativeTests
 
             Dictionary<string, int> changedRoots = records.Graph.Roots.ToDictionary();
             changedRoots["native_global"] = records.Graph.Types.Count;
-            NativeHeaderRecords invalid = records with { Graph = records.Graph with { Roots = changedRoots } };
+            NativeHeaderRecords invalid = records with
+            {
+                Graph = records.Graph with
+                {
+                    Roots = changedRoots
+                }
+            };
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(invalid, MixedCallHeaders, ["native_first"]));
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallSource.Generate(invalid, MixedCallHeaders, []));
             Assert.AreEqual(expected, NativeBindingCallSource.Generate(records, MixedCallHeaders, ["native_first", "native_second"]));
             Assert.AreEqual(companion, NativeBindingRecordCSharp.Generate(records.Graph));
             Assert.HasCount(5, records.Graph.Roots);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

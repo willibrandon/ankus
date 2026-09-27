@@ -43,7 +43,10 @@ internal static class NativeBindingSignatureValidation
             int depth = 0, NativeHeaderQualifiers headerQualifiers = NativeHeaderQualifiers.None,
             NativeHeaderQualifiers graphQualifiers = NativeHeaderQualifiers.None)
         {
-            if (depth >= 128) { throw Invalid(path, "type nesting or alias cycle"); }
+            if (depth >= 128)
+            {
+                throw Invalid(path, "type nesting or alias cycle");
+            }
 
             if (!canonical)
             {
@@ -54,7 +57,10 @@ internal static class NativeBindingSignatureValidation
             var aliases = new List<string>();
             while (true)
             {
-                if (depth++ >= 128) { throw Invalid(path, "type nesting or alias cycle"); }
+                if (depth++ >= 128)
+                {
+                    throw Invalid(path, "type nesting or alias cycle");
+                }
 
                 if (header is NativeHeaderQualified qualified)
                 {
@@ -93,7 +99,10 @@ internal static class NativeBindingSignatureValidation
                     aliases.Add(alias.Name);
                     if (!canonical)
                     {
-                        if (type.Kind != "alias" || type.Name != alias.Name) { throw Invalid(path, "typedef identity"); }
+                        if (type.Kind != "alias" || type.Name != alias.Name)
+                        {
+                            throw Invalid(path, "typedef identity");
+                        }
 
                         Compare(header, type.Canonical, path, canonical: true, parameter, depth, headerQualifiers, graphQualifiers);
                         graphQualifiers |= type.Qualifiers;
@@ -116,7 +125,10 @@ internal static class NativeBindingSignatureValidation
             switch (header)
             {
                 case NativeHeaderScalar scalar when type.Kind == "scalar":
-                    if (Scalar(scalar.Name) != Scalar(type.Name)) { throw Invalid(path, "scalar identity"); }
+                    if (Scalar(scalar.Name) != Scalar(type.Name))
+                    {
+                        throw Invalid(path, "scalar identity");
+                    }
 
                     break;
                 case NativeHeaderRecord record when type.Kind == "record":
@@ -129,7 +141,10 @@ internal static class NativeBindingSignatureValidation
                     Compare(pointer.Element, type.Element!.Value, path + ".element", canonical, depth: depth);
                     break;
                 case NativeHeaderArray array when type.Kind == "array":
-                    if (array.Count != (ulong?)type.Count) { throw Invalid(path, "array extent"); }
+                    if (array.Count != (ulong?)type.Count)
+                    {
+                        throw Invalid(path, "array extent");
+                    }
 
                     // libclang can place an element qualifier on the array; propagate it through every dimension.
                     Compare(array.Element, type.Element!.Value, path + ".element", canonical, depth: depth,
@@ -143,7 +158,10 @@ internal static class NativeBindingSignatureValidation
                         throw Invalid(path, "function prototype or calling convention");
                     }
 
-                    if (function.Parameters.Count != shape.Parameters.Count) { throw Invalid(path, "parameter count"); }
+                    if (function.Parameters.Count != shape.Parameters.Count)
+                    {
+                        throw Invalid(path, "parameter count");
+                    }
 
                     Compare(function.Result, shape.Result, path + ".result", canonical, depth: depth);
                     for (int argument = 0; argument < function.Parameters.Count; argument++)
@@ -153,7 +171,8 @@ internal static class NativeBindingSignatureValidation
                     }
 
                     break;
-                default: throw Invalid(path, "type shape");
+                default:
+                    throw Invalid(path, "type shape");
             }
 
             void Tag(string name, string kind, bool? complete)
@@ -164,7 +183,10 @@ internal static class NativeBindingSignatureValidation
                     throw Invalid(path, "tag identity or completeness");
                 }
 
-                if (name.Length != 0) { return; }
+                if (name.Length != 0)
+                {
+                    return;
+                }
 
                 foreach (string alias in aliases)
                 {

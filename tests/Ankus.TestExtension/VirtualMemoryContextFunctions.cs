@@ -349,13 +349,26 @@ public static unsafe class VirtualMemoryContextFunctions
         {
             switch (operation)
             {
-                case 0: state.Owner.Reset(); break;
-                case 1: state.Owner.ResetOnly(); break;
-                case 2: parent.Reset(); break;
-                case 3: parent.ResetChildren(); break;
-                case 4: parent.ResetOnly(); break;
-                case 5: state.Owner.ResetChildren(); break;
-                default: throw new ArgumentOutOfRangeException(nameof(operation));
+                case 0:
+                    state.Owner.Reset();
+                    break;
+                case 1:
+                    state.Owner.ResetOnly();
+                    break;
+                case 2:
+                    parent.Reset();
+                    break;
+                case 3:
+                    parent.ResetChildren();
+                    break;
+                case 4:
+                    parent.ResetOnly();
+                    break;
+                case 5:
+                    state.Owner.ResetChildren();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(operation));
             }
         }
         catch (PgException error)
@@ -541,62 +554,110 @@ public static unsafe class VirtualMemoryContextFunctions
         /// <summary>
         /// Gets or sets the owner name captured while live.
         /// </summary>
-        internal string OwnerName { get; init; } = string.Empty;
+        internal string OwnerName
+        {
+            get;
+            init;
+        } = string.Empty;
 
         /// <summary>
         /// Gets or sets whether factory current matched injection.
         /// </summary>
-        internal bool FactoryCurrent { get; init; }
+        internal bool FactoryCurrent
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets or sets whether native allocation ownership matched injection.
         /// </summary>
-        internal bool ActualOwner { get; init; }
+        internal bool ActualOwner
+        {
+            get;
+            init;
+        }
 
         /// <summary>
         /// Gets or sets the number of enumerator acquisitions.
         /// </summary>
-        internal int Enumerators { get; set; }
+        internal int Enumerators
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether GetEnumerator ran in the injected owner.
         /// </summary>
-        internal bool EnumeratorCurrent { get; set; }
+        internal bool EnumeratorCurrent
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of MoveNext calls.
         /// </summary>
-        internal int Moves { get; set; }
+        internal int Moves
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of yielded rows.
         /// </summary>
-        internal int Rows { get; set; }
+        internal int Rows
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of expired prior scratch allocations.
         /// </summary>
-        internal int ExpiredScratch { get; set; }
+        internal int ExpiredScratch
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the exact disposal count.
         /// </summary>
-        internal int Disposals { get; set; }
+        internal int Disposals
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the copied cleanup observations.
         /// </summary>
-        internal string Cleanup { get; set; } = "none";
+        internal string Cleanup
+        {
+            get;
+            set;
+        } = "none";
 
         /// <summary>
         /// Gets or sets the previous row's checked scratch allocation.
         /// </summary>
-        internal PgContextValue<int>? Scratch { get; set; }
+        internal PgContextValue<int>? Scratch
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the maximum observed scratch allocation.
         /// </summary>
-        internal nuint MaximumScratch { get; set; }
+        internal nuint MaximumScratch
+        {
+            get;
+            set;
+        }
     }
 
     /// <summary>

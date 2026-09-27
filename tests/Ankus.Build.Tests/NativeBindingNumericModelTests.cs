@@ -36,8 +36,20 @@ public sealed partial class NativeBindingHeaderTargetTests
         var expectedTarget = new NativeHeaderTarget(180006, "linux-x64", 8, true, 21, expected);
         string serialized = JsonSerializer.Serialize(actual, NativeBindingRecordWorker.JsonOptions);
         Assert.AreEqual(expectedTarget, JsonSerializer.Deserialize<NativeHeaderTarget>(serialized, NativeBindingRecordWorker.JsonOptions));
-        Assert.AreNotEqual(expectedTarget with { Numeric = expected with { CharIsSigned = !charIsSigned } }, actual);
-        Assert.AreNotEqual(expectedTarget with { Numeric = expected with { LongDouble = new(precision + 1, minimum, maximum) } }, actual);
+        Assert.AreNotEqual(expectedTarget with
+        {
+            Numeric = expected with
+            {
+                CharIsSigned = !charIsSigned
+            }
+        }, actual);
+        Assert.AreNotEqual(expectedTarget with
+        {
+            Numeric = expected with
+            {
+                LongDouble = new(precision + 1, minimum, maximum)
+            }
+        }, actual);
 
         void Set(string name, int value) => NumericFact(root, name)["inner"]![0]!["value"] = value.ToString(CultureInfo.InvariantCulture);
     }
@@ -105,8 +117,14 @@ public sealed partial class NativeBindingHeaderTargetTests
     {
         JsonNode root = NativeNumericModelFixture.AddFacts(JsonNode.Parse(Ast)!);
         JsonNode fact = NumericFact(root, name);
-        if (value == "duplicate") { root["inner"]![0]!["inner"]!.AsArray().Add(fact.DeepClone()); }
-        else { fact["inner"]![0]!["value"] = value; }
+        if (value == "duplicate")
+        {
+            root["inner"]![0]!["inner"]!.AsArray().Add(fact.DeepClone());
+        }
+        else
+        {
+            fact["inner"]![0]!["value"] = value;
+        }
 
         using JsonDocument document = JsonDocument.Parse(root.ToJsonString());
         Assert.ThrowsExactly<FormatException>(() => NativeBindingHeaderTarget.Read(document.RootElement, 18));

@@ -59,6 +59,12 @@ before changing an area.
   deliberate command or API boundary instead of access to another assembly's
   internals.
 - Do not leave an extra blank line immediately after an opening brace.
+- Put block braces on their own lines, including short `if`, `else`, and loop
+  bodies. Do not compress statements and their braces onto one line.
+- Keep simple getter-only declarations on one line, including auto-properties,
+  partial properties, interface properties, and any initializer.
+  Properties with `get` and `set` or `init` use separate accessor lines inside
+  the property braces, including accessors with visibility modifiers.
 - Leave a blank line after a closing block brace before the next statement or
   declaration. Keep connected `else`, `catch`, and `finally` clauses together;
   adjacent enclosing closing braces do not need a blank line. IDE2003 enforces
@@ -84,7 +90,8 @@ before changing an area.
 - Verify observable boundaries, errors, ownership, and same-session recovery;
   test counts and generated-source substrings alone do not prove parity.
 - Keep CI feedback under 10 minutes where possible, with a default 20-minute
-  timeout per job. Increase timeouts when needed, but never exceed 40 minutes. Run
+  timeout per job. Increase timeouts when measured runs need more time as the
+  suite grows, and record the reason and current platform limits. Run
   independent platform checks in parallel, measure cold-cache builds, and cancel
   superseded runs. Do not hide missing validation to meet the budget.
 - Run the complete test suite in each platform job; do not shard it. CI runs on
@@ -110,7 +117,7 @@ before changing an area.
 - Validate the site with `pnpm build` and `pnpm check` in `docs/`, and check API
   freshness as documented in `docs/contributing/api-reference.md`.
 - Commit and push coherent verified milestones, then monitor and repair CI.
-  Continue development while CI runs. Before every commit, check and record
+  Continue development while CI runs. Before every commit and push, check and record
   previous CI run outcomes, including runs still in progress, and resolve reported
   failures as work proceeds. Do not wait for hosted CI to finish before continuing
   independent work or committing a locally verified milestone.

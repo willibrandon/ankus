@@ -46,7 +46,10 @@ public static unsafe class MemoryAllocationFunctions
             overflow = true;
         }
 
-        string nativeLimit = CaptureState(() => { using PgAllocation invalid = owner.Allocate<byte>(0x40000000); });
+        string nativeLimit = CaptureState(() =>
+        {
+            using PgAllocation invalid = owner.Allocate<byte>(0x40000000);
+        });
         return $"{integers.Length}|{integers.Read<long>()},{integers.Read<long>(sizeof(long))},{integers.Read<long>(sizeof(long) * 2)}|" +
             $"{Convert.ToHexString(ReadBytes(zeroes))}|{Convert.ToHexString(ReadBytes(tried))}|{Convert.ToHexString(ReadBytes(copied))}|" +
             $"{typedCopy.Length}|{typedCopy.Read<long>()},{typedCopy.Read<long>(sizeof(long))},{typedCopy.Read<long>(sizeof(long) * 2)}|" +
@@ -208,11 +211,15 @@ public static unsafe class MemoryAllocationFunctions
             switch (operation)
             {
                 case 0:
-                    using (owner.Allocate(invalidSize, options, alignment)) { }
+                    using (owner.Allocate(invalidSize, options, alignment))
+                    {
+                    }
 
                     break;
                 case 1:
-                    using (owner.TryAllocate(invalidSize, options, alignment)) { }
+                    using (owner.TryAllocate(invalidSize, options, alignment))
+                    {
+                    }
 
                     break;
                 case 2:
@@ -330,7 +337,10 @@ public static unsafe class MemoryAllocationFunctions
             _ => throw new ArgumentOutOfRangeException(nameof(invalidPart)),
         };
         PgMemoryContext original = PgMemoryContext.Current;
-        string state = CaptureState(() => { using PgMemoryContext invalid = PgMemoryContext.Create("invalid allocation sizing", options: options); });
+        string state = CaptureState(() =>
+        {
+            using PgMemoryContext invalid = PgMemoryContext.Create("invalid allocation sizing", options: options);
+        });
         long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'invalid allocation sizing'");
         return $"{state}|{remaining}|{PgMemoryContext.Current.Id == original.Id}";
     }
@@ -389,7 +399,10 @@ public static unsafe class MemoryAllocationFunctions
         {
             if (mode == 5)
             {
-                PgMemoryContext.RunTransient("allocation transient", transient => { result = Work(transient); }, parent, PgMemoryContextOptions.Small);
+                PgMemoryContext.RunTransient("allocation transient", transient =>
+                {
+                    result = Work(transient);
+                }, parent, PgMemoryContextOptions.Small);
             }
             else
             {
@@ -482,12 +495,18 @@ public static unsafe class MemoryAllocationFunctions
         byte[] pattern = Pattern(128, 3);
         original.Write(pattern);
         nint pointer = (nint)original.DangerousGetPointer();
-        string duplicate = CaptureState(() => { using PgAllocation invalid = owner.DangerousAdopt((void*)pointer, 128, huge, alignment); });
+        string duplicate = CaptureState(() =>
+        {
+            using PgAllocation invalid = owner.DangerousAdopt((void*)pointer, 128, huge, alignment);
+        });
         void* detached = original.DangerousDetach();
         bool samePointer = detached == (void*)pointer;
         string detachedState = ReadOrStale(original);
         original.Dispose();
-        string wrong = CaptureState(() => { using PgAllocation invalid = wrongOwner.DangerousAdopt((void*)pointer, 128, huge, alignment); });
+        string wrong = CaptureState(() =>
+        {
+            using PgAllocation invalid = wrongOwner.DangerousAdopt((void*)pointer, 128, huge, alignment);
+        });
         using PgAllocation adopted = owner.DangerousAdopt(detached, 128, huge, alignment);
         bool preserved = ReadBytes(adopted).AsSpan().SequenceEqual(pattern);
         bool actualOwner = adopted.Context.Id == owner.Id;

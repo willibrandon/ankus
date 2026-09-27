@@ -154,7 +154,11 @@ public sealed unsafe partial class PgMemoryContext
 
         ArgumentOutOfRangeException.ThrowIfLessThan(byteLength, (nuint)sizeof(T));
         EnsureAlive();
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = Id };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = Id
+        };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         return new PgNativeReference<T>(_provider, Id, result._value, (nint)address, byteLength);
     }

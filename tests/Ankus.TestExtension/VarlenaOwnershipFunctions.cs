@@ -175,19 +175,24 @@ public static class VarlenaOwnershipFunctions
         VarlenaClear();
         switch (mode)
         {
-            case 0: s_saved = value; break;
+            case 0:
+                s_saved = value;
+                break;
             case 1:
                 Packet changed = value.Value;
                 changed.Leaf.Number++;
                 value.Value = changed;
                 s_saved = value;
                 break;
-            case 2: s_saved = value.Clone(); break;
+            case 2:
+                s_saved = value.Clone();
+                break;
             case 3:
                 s_owner = PgMemoryContext.Create("retained varlena ownership", PgMemoryContext.Get(PgMemoryContextKind.TopTransaction));
                 s_saved = value.Clone(s_owner);
                 break;
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
 
         return mode;
@@ -627,20 +632,50 @@ public static class VarlenaOwnershipFunctions
     private static unsafe int Reject<T>(PgVarlena<T> value) where T : unmanaged
     {
         int count = 0;
-        try { _ = value.Value; }
-        catch (ObjectDisposedException) { count++; }
+        try
+        {
+            _ = value.Value;
+        }
+        catch (ObjectDisposedException)
+        {
+            count++;
+        }
 
-        try { _ = value.IsBorrowed; }
-        catch (ObjectDisposedException) { count++; }
+        try
+        {
+            _ = value.IsBorrowed;
+        }
+        catch (ObjectDisposedException)
+        {
+            count++;
+        }
 
-        try { _ = value.Context; }
-        catch (ObjectDisposedException) { count++; }
+        try
+        {
+            _ = value.Context;
+        }
+        catch (ObjectDisposedException)
+        {
+            count++;
+        }
 
-        try { _ = value.DangerousGetPointer(); }
-        catch (ObjectDisposedException) { count++; }
+        try
+        {
+            _ = value.DangerousGetPointer();
+        }
+        catch (ObjectDisposedException)
+        {
+            count++;
+        }
 
-        try { _ = value.IntoDatum(); }
-        catch (ObjectDisposedException) { count++; }
+        try
+        {
+            _ = value.IntoDatum();
+        }
+        catch (ObjectDisposedException)
+        {
+            count++;
+        }
 
         return count;
     }

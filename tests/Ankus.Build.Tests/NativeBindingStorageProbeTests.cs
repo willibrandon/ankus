@@ -255,13 +255,28 @@ public sealed class NativeBindingStorageProbeTests
         var empty = new NativeHeaderCatalog(s_target, new Dictionary<string, NativeHeaderSymbol>());
         Assert.IsEmpty(NativeBindingStorageProbe.Read(empty, Header).Symbols);
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(
-            empty with { Target = s_target with { PointerSize = 4 } }, ""));
+            empty with
+            {
+                Target = s_target with
+                {
+                    PointerSize = 4
+                }
+            }, ""));
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(
-            empty with { Target = s_target with { ClangMajor = 0 } }, ""));
+            empty with
+            {
+                Target = s_target with
+                {
+                    ClangMajor = 0
+                }
+            }, ""));
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(GlobalCatalog(new NativeHeaderScalar("void")), ""));
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(FunctionCatalog(new NativeHeaderScalar("void")), ""));
         NativeHeaderCatalog badFunction = GlobalCatalog(s_integer);
-        badFunction = badFunction with { Symbols = new Dictionary<string, NativeHeaderSymbol> { ["state"] = badFunction.Symbols["state"] with { IsFunction = true } } };
+        badFunction = badFunction with
+        {
+            Symbols = new Dictionary<string, NativeHeaderSymbol> { ["state"] = badFunction.Symbols["state"] with { IsFunction = true } }
+        };
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(badFunction, ""));
         var badName = new NativeHeaderCatalog(s_target, new Dictionary<string, NativeHeaderSymbol> { ["bad;"] = Symbol("bad", s_integer, false) });
         Assert.ThrowsExactly<FormatException>(() => NativeBindingStorageProbe.GenerateSource(badName, ""));

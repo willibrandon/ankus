@@ -170,8 +170,14 @@ public static unsafe partial class NodeFunctions
         using PgNativeBox<RangeTblRef> box = external.CreateBox(new RangeTblRef { type = NodeTag.T_RangeTblRef, rtindex = 9 });
         PgNodeReference<RangeTblRef> old = PgNodes.Borrow(anchor.DangerousBorrow<RangeTblRef>(box.DangerousGetPointer())!);
         string initial = old.DangerousToNativeString();
-        if (delete) { anchor.Dispose(); }
-        else { anchor.Reset(); }
+        if (delete)
+        {
+            anchor.Dispose();
+        }
+        else
+        {
+            anchor.Reset();
+        }
 
         string fresh = delete ? "deleted" : PgNodes.Borrow(anchor.DangerousBorrow<RangeTblRef>(box.DangerousGetPointer())!).DangerousToNativeString();
         bool stale;

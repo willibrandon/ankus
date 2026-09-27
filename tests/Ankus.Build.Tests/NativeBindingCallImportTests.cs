@@ -58,7 +58,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreEqual(companion, NativeBindingRecordCSharp.Generate(records.Graph));
             Assert.HasCount(6, records.Graph.Roots);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -83,26 +86,61 @@ public sealed partial class NativeBindingNativeTests
             NativeHeaderTarget target = records.Headers.Target;
             int separator = target.RuntimeIdentifier.LastIndexOf('-');
             string other = target.RuntimeIdentifier[..(separator + 1)] + (target.RuntimeIdentifier.EndsWith("-x64", StringComparison.Ordinal) ? "arm64" : "x64");
-            NativeHeaderTarget foreign = target with { RuntimeIdentifier = other };
-            NativeHeaderRecords incompatible = records with { Headers = records.Headers with { Target = foreign }, Graph = records.Graph with { Target = foreign } };
+            NativeHeaderTarget foreign = target with
+            {
+                RuntimeIdentifier = other
+            };
+            NativeHeaderRecords incompatible = records with
+            {
+                Headers = records.Headers with
+                {
+                    Target = foreign
+                },
+                Graph = records.Graph with
+                {
+                    Target = foreign
+                }
+            };
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallImports.Generate(incompatible, ImportHeaders, selected));
             string processor = target.RuntimeIdentifier.EndsWith("-x64", StringComparison.Ordinal) ? "x86_64" : "aarch64";
             string foreignFormat = processor + (OperatingSystem.IsWindows() ? "-unknown-linux-gnu" : "-pc-windows-msvc");
             byte[] foreignImage = await CompileNativeObjectAsync(Import("native_tracked"), foreignFormat);
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallImports.Generate(records, ImportHeaders, foreignImage));
-            NativeHeaderTarget reversed = target with { IsLittleEndian = !target.IsLittleEndian };
-            NativeHeaderRecords wrongByteOrder = records with { Headers = records.Headers with { Target = reversed }, Graph = records.Graph with { Target = reversed } };
+            NativeHeaderTarget reversed = target with
+            {
+                IsLittleEndian = !target.IsLittleEndian
+            };
+            NativeHeaderRecords wrongByteOrder = records with
+            {
+                Headers = records.Headers with
+                {
+                    Target = reversed
+                },
+                Graph = records.Graph with
+                {
+                    Target = reversed
+                }
+            };
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallImports.Generate(wrongByteOrder, ImportHeaders, selected));
             Dictionary<string, int> roots = records.Graph.Roots.ToDictionary();
             roots["native_global"] = records.Graph.Types.Count;
-            NativeHeaderRecords invalidGraph = records with { Graph = records.Graph with { Roots = roots } };
+            NativeHeaderRecords invalidGraph = records with
+            {
+                Graph = records.Graph with
+                {
+                    Roots = roots
+                }
+            };
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallImports.Generate(invalidGraph, ImportHeaders, selected));
             byte[] empty = await CompileNativeObjectAsync("int no_imports(void) { return 42; }");
             Assert.ThrowsExactly<FormatException>(() => NativeBindingCallImports.Generate(invalidGraph, ImportHeaders, empty));
             Assert.AreEqual(expected, NativeBindingCallImports.Generate(records, ImportHeaders, selected));
             Assert.AreEqual(companion, NativeBindingRecordCSharp.Generate(records.Graph));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
 
         static string Import(string name) => $"extern void *ankus_native_body_{name}(void); void *entry(void) {{ return ankus_native_body_{name}(); }}";
     }

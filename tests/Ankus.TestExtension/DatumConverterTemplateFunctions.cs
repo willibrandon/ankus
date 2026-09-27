@@ -59,32 +59,56 @@ public static class TemplateConverterObservations
     /// <summary>
     /// Gets the narrow factory count.
     /// </summary>
-    public static int IntFactories { get; private set; }
+    public static int IntFactories
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the wide factory count.
     /// </summary>
-    public static int LongFactories { get; private set; }
+    public static int LongFactories
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the raw-only factory count.
     /// </summary>
-    public static int ShortFactories { get; private set; }
+    public static int ShortFactories
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets or sets the total reader invocation count.
     /// </summary>
-    public static int Reads { get; set; }
+    public static int Reads
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the total writer invocation count.
     /// </summary>
-    public static int Writes { get; set; }
+    public static int Writes
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the last borrowed native operand.
     /// </summary>
-    public static PgDatum? Captured { get; set; }
+    public static PgDatum? Captured
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Records only supported concrete numeric constructions.

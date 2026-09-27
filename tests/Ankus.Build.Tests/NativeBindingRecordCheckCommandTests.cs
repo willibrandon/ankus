@@ -59,7 +59,10 @@ public sealed partial class NativeBindingNativeTests
             string Source(string headers) => NativeBindingRecordChecks.Generate(records, "#define PG_VERSION_NUM 180006\n" + headers) +
                 NativeBindingRecordChecks.ExecutableEntryPoint;
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
 
         static async Task VerifyAsync(string file, string stage, CancellationToken token)
         {
@@ -88,6 +91,10 @@ public sealed partial class NativeBindingNativeTests
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() =>
             NativeBindingRecordCheckCommand.RunAsync(["missing", "", "unused"], cancellation.Token));
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => NativeBindingRecordCheckCommand.PublishAsync("unused", "",
-            static (_, _, _) => { Assert.Fail("Cancelled verification must not run."); return Task.CompletedTask; }, cancellation.Token));
+            static (_, _, _) =>
+            {
+                Assert.Fail("Cancelled verification must not run.");
+                return Task.CompletedTask;
+            }, cancellation.Token));
     }
 }

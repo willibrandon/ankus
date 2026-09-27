@@ -69,14 +69,20 @@ internal static class NativeBindingHeaderParser
     internal static IReadOnlyDictionary<string, NativeHeaderSymbol> Read(JsonElement root, IReadOnlyList<NativeHeaderRequest> requests)
     {
         SortedDictionary<string, NativeHeaderRequest> selected = Select(requests);
-        if (Text(root, "kind") != "TranslationUnitDecl") { throw Invalid("Expected a complete C translation unit."); }
+        if (Text(root, "kind") != "TranslationUnitDecl")
+        {
+            throw Invalid("Expected a complete C translation unit.");
+        }
 
         var declarations = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         Index(root);
         var symbols = new SortedDictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal);
         foreach (JsonElement node in Children(root))
         {
-            if (Text(node, "kind") != "TypedefDecl" || !Text(node, "name").StartsWith(AliasPrefix, StringComparison.Ordinal)) { continue; }
+            if (Text(node, "kind") != "TypedefDecl" || !Text(node, "name").StartsWith(AliasPrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
 
             string name = Text(node, "name")[AliasPrefix.Length..];
             if (!selected.TryGetValue(name, out NativeHeaderRequest? request) || symbols.ContainsKey(name))
@@ -85,15 +91,27 @@ internal static class NativeBindingHeaderParser
             }
 
             JsonElement expressionType = SingleChild(node);
-            if (Text(expressionType, "kind") != "TypeOfExprType") { throw Invalid("Header alias does not use typeof."); }
+            if (Text(expressionType, "kind") != "TypeOfExprType")
+            {
+                throw Invalid("Header alias does not use typeof.");
+            }
 
             JsonElement[] parts = Children(expressionType);
-            if (parts.Length != 2) { throw Invalid("Incomplete typeof type information."); }
+            if (parts.Length != 2)
+            {
+                throw Invalid("Incomplete typeof type information.");
+            }
 
             JsonElement expression = parts[0];
-            while (Text(expression, "kind") == "ParenExpr") { expression = SingleChild(expression); }
+            while (Text(expression, "kind") == "ParenExpr")
+            {
+                expression = SingleChild(expression);
+            }
 
-            if (Text(expression, "kind") != "DeclRefExpr") { throw Invalid("Header alias does not name a native declaration."); }
+            if (Text(expression, "kind") != "DeclRefExpr")
+            {
+                throw Invalid("Header alias does not name a native declaration.");
+            }
 
             JsonElement reference = Object(expression, "referencedDecl");
             string expectedKind = request.IsFunction ? "FunctionDecl" : "VarDecl";
@@ -109,7 +127,10 @@ internal static class NativeBindingHeaderParser
             string[] parameterNames = [.. members.Where(static child => Text(child, "kind") == "ParmVarDecl")
                 .Select(static child => OptionalText(child, "name") ?? "")];
             NativeHeaderType canonical = type;
-            while (canonical is NativeHeaderAlias alias) { canonical = alias.Underlying; }
+            while (canonical is NativeHeaderAlias alias)
+            {
+                canonical = alias.Underlying;
+            }
 
             NativeHeaderFunction? function = canonical as NativeHeaderFunction;
             if (request.IsFunction && (function is null || function.Parameters.Count != parameterNames.Length))
@@ -125,30 +146,48 @@ internal static class NativeBindingHeaderParser
                 OptionalText(declaration, "storageClass") ?? "", Array.AsReadOnly(attributes)));
         }
 
-        if (symbols.Count != selected.Count) { throw Invalid("Missing requested native header aliases."); }
+        if (symbols.Count != selected.Count)
+        {
+            throw Invalid("Missing requested native header aliases.");
+        }
 
         return new ReadOnlyDictionary<string, NativeHeaderSymbol>(symbols);
 
         void Index(JsonElement node)
         {
-            if (node.ValueKind != JsonValueKind.Object) { throw Invalid("Invalid compiler node."); }
+            if (node.ValueKind != JsonValueKind.Object)
+            {
+                throw Invalid("Invalid compiler node.");
+            }
 
             // Clang writes an empty object for an absent statement child (for example a for-loop initializer).
-            if (!node.EnumerateObject().Any()) { return; }
+            if (!node.EnumerateObject().Any())
+            {
+                return;
+            }
 
             string kind = Text(node, "kind");
             if (kind is "FunctionDecl" or "VarDecl" or "RecordDecl" or "EnumDecl")
             {
                 string id = Text(node, "id");
-                if (!declarations.TryAdd(id, node)) { throw Invalid("Duplicate compiler declaration identity."); }
+                if (!declarations.TryAdd(id, node))
+                {
+                    throw Invalid("Duplicate compiler declaration identity.");
+                }
             }
 
-            foreach (JsonElement child in Children(node)) { Index(child); }
+            foreach (JsonElement child in Children(node))
+            {
+                Index(child);
+            }
         }
 
         NativeHeaderType ReadType(JsonElement node, int depth)
         {
-            if (depth >= 128) { throw Invalid("Native header type nesting exceeds the supported limit."); }
+            if (depth >= 128)
+            {
+                throw Invalid("Native header type nesting exceeds the supported limit.");
+            }
 
             string kind = Text(node, "kind");
             JsonElement[] inner = Children(node);
@@ -176,7 +215,10 @@ internal static class NativeBindingHeaderParser
                     }
 
                     string recordName = Text(recordReference, "name");
-                    if (recordName.Length != 0) { NativeBindingCDeclaration.ValidateName(recordName); }
+                    if (recordName.Length != 0)
+                    {
+                        NativeBindingCDeclaration.ValidateName(recordName);
+                    }
 
                     bool foundRecord = declarations.TryGetValue(Text(recordReference, "id"), out JsonElement record);
                     if (foundRecord && (Text(record, "kind") != Text(recordReference, "kind") || (OptionalText(record, "name") ?? "") != recordName))
@@ -193,7 +235,10 @@ internal static class NativeBindingHeaderParser
                     }
 
                     string tag = foundRecord ? Text(record, "tagUsed") : Text(Object(node, "type"), "qualType").Split(' ')[0];
-                    if (tag is not ("struct" or "union")) { throw Invalid("Missing native record tag information."); }
+                    if (tag is not ("struct" or "union"))
+                    {
+                        throw Invalid("Missing native record tag information.");
+                    }
 
                     return new NativeHeaderRecord(recordName, tag == "union", foundRecord ? Boolean(record, "completeDefinition") : null);
                 case "TypedefType":
@@ -225,13 +270,19 @@ internal static class NativeBindingHeaderParser
                     if (kind == "ConstantArrayType")
                     {
                         if (!node.TryGetProperty("size", out JsonElement count) || count.ValueKind != JsonValueKind.Number ||
-                            !count.TryGetUInt64(out ulong extent)) { throw Invalid("Invalid native array extent."); }
+                            !count.TryGetUInt64(out ulong extent))
+                        {
+                            throw Invalid("Invalid native array extent.");
+                        }
 
                         size = extent;
                     }
 
                     string? modifier = OptionalText(node, "sizeModifier");
-                    if (modifier is not (null or "static")) { throw Invalid("Unsupported native array size modifier."); }
+                    if (modifier is not (null or "static"))
+                    {
+                        throw Invalid("Unsupported native array size modifier.");
+                    }
 
                     string? bracketQualifiers = OptionalText(node, "indexTypeQualifiers");
                     return new NativeHeaderArray(ReadType(inner[0], depth + 1), size, modifier == "static",
@@ -273,7 +324,10 @@ internal static class NativeBindingHeaderParser
         {
             NativeBindingCDeclaration.ValidateName(request.Name);
             NativeBindingCDeclaration.ValidateName(request.NativeName);
-            if (!selected.TryAdd(request.Name, request)) { throw Invalid("Duplicate native header request."); }
+            if (!selected.TryAdd(request.Name, request))
+            {
+                throw Invalid("Duplicate native header request.");
+            }
         }
 
         return selected;
@@ -291,7 +345,10 @@ internal static class NativeBindingHeaderParser
                 "restrict" or "__restrict" or "__restrict__" => NativeHeaderQualifiers.Restrict,
                 _ => throw Invalid($"Unsupported native qualifier '{qualifier}'."),
             };
-            if ((qualifiers & value) != 0) { throw Invalid("Duplicate native type qualifier."); }
+            if ((qualifiers & value) != 0)
+            {
+                throw Invalid("Duplicate native type qualifier.");
+            }
 
             qualifiers |= value;
         }
@@ -312,7 +369,10 @@ internal static class NativeBindingHeaderParser
 
     private static void RequireChildren(JsonElement[] children, int count)
     {
-        if (children.Length != count) { throw Invalid("Unexpected native type child count."); }
+        if (children.Length != count)
+        {
+            throw Invalid("Unexpected native type child count.");
+        }
     }
 
     private static JsonElement Object(JsonElement node, string name)

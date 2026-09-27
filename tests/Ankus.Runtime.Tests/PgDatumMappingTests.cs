@@ -504,7 +504,11 @@ public sealed unsafe class PgDatumMappingTests
         /// <summary>
         /// Gets or sets the current catalog identity returned on the next lookup.
         /// </summary>
-        internal uint Oid { get; set; } = 9001;
+        internal uint Oid
+        {
+            get;
+            set;
+        } = 9001;
 
         /// <summary>
         /// Gets captured exact names and optional fixed schemas.
@@ -519,7 +523,11 @@ public sealed unsafe class PgDatumMappingTests
         /// <summary>
         /// Gets the number of raw input copies.
         /// </summary>
-        internal int Copies { get; private set; }
+        internal int Copies
+        {
+            get;
+            private set;
+        }
 
         /// <inheritdoc />
         public void Dispose()

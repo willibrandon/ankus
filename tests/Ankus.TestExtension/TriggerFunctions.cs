@@ -41,15 +41,26 @@ public static class TriggerFunctions
         string action = context.Arguments.Count == 0 ? "observe" : context.Arguments[0];
         switch (action)
         {
-            case "observe": return row;
-            case "skip": return null;
-            case "all_null": return context.Descriptor.CreateTuple();
-            case "old": return context.Old;
-            case "foreign": return PgTupleDescriptor.Load("trigger_values.foreign_row").CreateTuple();
-            case "retain": s_context = context; return row;
-            case "error": throw new PgException("P0001", "trigger rejected row", "owned trigger detail", "retry a valid row");
-            case "managed_error": throw new InvalidOperationException("managed trigger failure");
-            case "wait": Spi.Execute("SELECT pg_sleep(30)"); return row;
+            case "observe":
+                return row;
+            case "skip":
+                return null;
+            case "all_null":
+                return context.Descriptor.CreateTuple();
+            case "old":
+                return context.Old;
+            case "foreign":
+                return PgTupleDescriptor.Load("trigger_values.foreign_row").CreateTuple();
+            case "retain":
+                s_context = context;
+                return row;
+            case "error":
+                throw new PgException("P0001", "trigger rejected row", "owned trigger detail", "retry a valid row");
+            case "managed_error":
+                throw new InvalidOperationException("managed trigger failure");
+            case "wait":
+                Spi.Execute("SELECT pg_sleep(30)");
+                return row;
             case "recover":
                 string recovery = Spi.Connect(session =>
                 {
@@ -101,7 +112,8 @@ public static class TriggerFunctions
                 PgHeapTuple emoji = row!.Clone();
                 emoji.Set("note", "😀");
                 return emoji;
-            default: throw new ArgumentException("Unknown trigger action.", nameof(context));
+            default:
+                throw new ArgumentException("Unknown trigger action.", nameof(context));
         }
     }
 
@@ -396,7 +408,8 @@ public static class TriggerFunctions
                 }
 
                 return result;
-            default: return ResultText(Spi.Query(sql));
+            default:
+                return ResultText(Spi.Query(sql));
         }
     }
 
@@ -417,7 +430,8 @@ public static class TriggerFunctions
             case PgTriggerOperation.Delete:
                 Spi.Execute("DELETE FROM trigger_values.rows WHERE id=$1", SpiParameter.Create(context.Old!.Get<int?>("id")));
                 break;
-            default: throw new InvalidOperationException("A view cannot receive a row TRUNCATE trigger.");
+            default:
+                throw new InvalidOperationException("A view cannot receive a row TRUNCATE trigger.");
         }
     }
 

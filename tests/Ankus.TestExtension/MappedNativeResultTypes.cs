@@ -15,22 +15,38 @@ public sealed class NativeOidConverter : IPgDatumReader<NativeOid>
     /// <summary>
     /// Gets or sets the reader failure selected by this backend's fixture.
     /// </summary>
-    public static int Mode { get; set; }
+    public static int Mode
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets the number of lazy constructions.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the number of present reads.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets a checked input retained only to prove result-owner cleanup.
     /// </summary>
-    public static PgDatum? Captured { get; private set; }
+    public static PgDatum? Captured
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records construction independently of native invocation.
@@ -67,7 +83,11 @@ public sealed class NativeOidFactoryConverter : IPgDatumReader<NativeOidFactory>
     /// <summary>
     /// Gets the number of failed constructions.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Fails after a native result has already been captured.
@@ -97,7 +117,11 @@ public sealed class NativeOidWriter : IPgDatumWriter<NativeWriteOid>
     /// <summary>
     /// Gets the construction count.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records an unwanted eager construction if preflight fails.
@@ -124,7 +148,11 @@ public sealed class NativeLiveConverter : IPgDatumReader<NativeLive>
     /// <summary>
     /// Gets the last present input's nominal identity.
     /// </summary>
-    public static uint LastOid { get; private set; }
+    public static uint LastOid
+    {
+        get;
+        private set;
+    }
 
     /// <inheritdoc />
     public NativeLive Read(PgDatum value)

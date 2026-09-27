@@ -19,7 +19,11 @@ internal sealed class PgFunctionStateScope(nint provider, nint identity, nint ow
     internal PgMemoryContext GetMemoryContext()
     {
         NativeMemoryContext.CheckProvider(provider);
-        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CaptureGeneration, _context = owner };
+        NativeMemoryRequest request = new()
+        {
+            _operation = NativeMemoryOperation.CaptureGeneration,
+            _context = owner
+        };
         try
         {
             NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);

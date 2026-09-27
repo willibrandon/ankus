@@ -15,57 +15,101 @@ internal sealed class GucDeclaration
     /// <summary>
     /// Gets the defining partial property.
     /// </summary>
-    internal IPropertySymbol Property { get; private set; } = null!;
+    internal IPropertySymbol Property
+    {
+        get;
+        private set;
+    } = null!;
 
     /// <summary>
     /// Gets the exact PostgreSQL setting name.
     /// </summary>
-    internal string Name { get; private set; } = string.Empty;
+    internal string Name
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the stable transport kind: Boolean, integer, real, string, or enum.
     /// </summary>
-    internal int Kind { get; private set; }
+    internal int Kind
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the validated boot value, using a dense ordinal for an enum.
     /// </summary>
-    internal object? Default { get; private set; }
+    internal object? Default
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the retained short description.
     /// </summary>
-    internal string ShortDescription { get; private set; } = string.Empty;
+    internal string ShortDescription
+    {
+        get;
+        private set;
+    } = string.Empty;
 
     /// <summary>
     /// Gets the optional retained long description.
     /// </summary>
-    internal string? LongDescription { get; private set; }
+    internal string? LongDescription
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the stable PostgreSQL setting context.
     /// </summary>
-    internal int Context { get; private set; }
+    internal int Context
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the stable flag bits mapped through target PostgreSQL headers.
     /// </summary>
-    internal int Flags { get; private set; }
+    internal int Flags
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the unit choice mapped through target PostgreSQL headers.
     /// </summary>
-    internal int Unit { get; private set; }
+    internal int Unit
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the integer or real lower bound.
     /// </summary>
-    internal object? Minimum { get; private set; }
+    internal object? Minimum
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the integer or real upper bound.
     /// </summary>
-    internal object? Maximum { get; private set; }
+    internal object? Maximum
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets declaration-ordered enum labels and their dense values, retaining aliases and hidden entries.
@@ -75,17 +119,29 @@ internal sealed class GucDeclaration
     /// <summary>
     /// Gets the optional normalization and validation callback.
     /// </summary>
-    internal IMethodSymbol? Check { get; private set; }
+    internal IMethodSymbol? Check
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the optional accepted-value notification callback.
     /// </summary>
-    internal IMethodSymbol? Assign { get; private set; }
+    internal IMethodSymbol? Assign
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets the optional display callback.
     /// </summary>
-    internal IMethodSymbol? Show { get; private set; }
+    internal IMethodSymbol? Show
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets whether registration or access can call managed hook code.
@@ -169,10 +225,14 @@ internal sealed class GucDeclaration
 
         var result = new GucDeclaration
         {
-            Property = property, Name = name, Kind = kind,
-            Default = attribute.ConstructorArguments[1].Value, ShortDescription = description,
+            Property = property,
+            Name = name,
+            Kind = kind,
+            Default = attribute.ConstructorArguments[1].Value,
+            ShortDescription = description,
             LongDescription = AttributeValues.Get<string?>(attribute, "LongDescription", null),
-            Context = AttributeValues.Get(attribute, "Context", 6), Flags = AttributeValues.Get(attribute, "Flags", 0),
+            Context = AttributeValues.Get(attribute, "Context", 6),
+            Flags = AttributeValues.Get(attribute, "Flags", 0),
             Unit = AttributeValues.Get(attribute, "Unit", 0),
         };
         if (result.LongDescription is not null && !SqlText.IsText(result.LongDescription) || result.Context is < 0 or > 6 ||
@@ -240,9 +300,15 @@ internal sealed class GucDeclaration
 
             switch (role)
             {
-                case "Check": result.Check = candidates[0]; break;
-                case "Assign": result.Assign = candidates[0]; break;
-                case "Show": result.Show = candidates[0]; break;
+                case "Check":
+                    result.Check = candidates[0];
+                    break;
+                case "Assign":
+                    result.Assign = candidates[0];
+                    break;
+                case "Show":
+                    result.Show = candidates[0];
+                    break;
             }
         }
 

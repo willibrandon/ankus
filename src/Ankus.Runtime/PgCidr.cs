@@ -15,13 +15,17 @@ public readonly record struct PgCidr : IComparable<PgCidr>
     /// </summary>
     /// <param name="address">The network address.</param>
     /// <param name="prefixLength">The network prefix length.</param>
-    public PgCidr(IPAddress address, int prefixLength) : this(new PgInet(address, prefixLength)) { }
+    public PgCidr(IPAddress address, int prefixLength) : this(new PgInet(address, prefixLength))
+    {
+    }
 
     /// <summary>
     /// Copies a .NET IPNetwork, rejecting scoped IPv6 addresses.
     /// </summary>
     /// <param name="network">The network to copy.</param>
-    public PgCidr(IPNetwork network) : this(network.BaseAddress, network.PrefixLength) { }
+    public PgCidr(IPNetwork network) : this(network.BaseAddress, network.PrefixLength)
+    {
+    }
 
     /// <summary>
     /// Creates a network from an inet value whose host bits are already zero.

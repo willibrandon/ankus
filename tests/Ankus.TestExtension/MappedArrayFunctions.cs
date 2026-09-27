@@ -250,7 +250,13 @@ public static class MappedArrayFunctions
     [PgFunction(Name = "denied")]
     public static int Denied(int surface, int width, int kind)
     {
-        string array = kind switch { 0 => "NULL::integer[]", 1 => "ARRAY[]::integer[]", 2 => "ARRAY[NULL]::integer[]", _ => "ARRAY[7]" };
+        string array = kind switch
+        {
+            0 => "NULL::integer[]",
+            1 => "ARRAY[]::integer[]",
+            2 => "ARRAY[NULL]::integer[]",
+            _ => "ARRAY[7]"
+        };
         string sql = $"SELECT nextval('mapped_array_effect'), {array}, {array}";
         if (width == 1)
         {
@@ -266,7 +272,13 @@ public static class MappedArrayFunctions
         }
         else
         {
-            ReadMappedInt?[]? values = kind switch { 0 => null, 1 => [], 2 => [null], _ => [new(7)] };
+            ReadMappedInt?[]? values = kind switch
+            {
+                0 => null,
+                1 => [],
+                2 => [null],
+                _ => [new(7)]
+            };
             Spi.Execute("SELECT nextval('mapped_array_effect'),$1", SpiParameter.Create(values));
         }
 
@@ -550,7 +562,12 @@ public static class MappedArrayFunctions
     [PgFunction(Name = "live")]
     public static string Live(int kind, bool save)
     {
-        ArrayLive?[]? values = kind switch { 0 => [new(7), null, new(11)], 1 => [], _ => null };
+        ArrayLive?[]? values = kind switch
+        {
+            0 => [new(7), null, new(11)],
+            1 => [],
+            _ => null
+        };
         SpiParameter parameter = SpiParameter.Create(values);
         if (save)
         {

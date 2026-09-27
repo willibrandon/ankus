@@ -24,21 +24,39 @@ public static unsafe class NativeCallBindingFunctions
         int otherMajor = major;
         switch (mode)
         {
-            case 0: incompatible[0] ^= 1; break;
-            case 1: incompatible[^1] ^= 1; break;
-            case 2: incompatible = []; break;
-            case 3: incompatible = identity[..^1]; break;
-            case 4: incompatible = [.. identity, 0]; break;
-            case 5: otherMajor++; break;
-            case 6: otherMajor = 0; break;
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            case 0:
+                incompatible[0] ^= 1;
+                break;
+            case 1:
+                incompatible[^1] ^= 1;
+                break;
+            case 2:
+                incompatible = [];
+                break;
+            case 3:
+                incompatible = identity[..^1];
+                break;
+            case 4:
+                incompatible = [.. identity, 0];
+                break;
+            case 5:
+                otherMajor++;
+                break;
+            case 6:
+                otherMajor = 0;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
 
         ulong value = 0xfedcba9876543210;
         ulong result = 0;
         NativeRawCall.ValidateBinding(identity, major);
         NativeRawCall.Invoke((nint)body, [new((nint)(&value), sizeof(ulong))], (nint)(&result), sizeof(ulong));
-        if (result != value) { throw new InvalidOperationException("The initial checked call lost its native value."); }
+        if (result != value)
+        {
+            throw new InvalidOperationException("The initial checked call lost its native value.");
+        }
 
         result = 12345;
         PgException? failure = null;
@@ -47,9 +65,15 @@ public static unsafe class NativeCallBindingFunctions
             NativeRawCall.ValidateBinding(incompatible, otherMajor);
             NativeRawCall.Invoke((nint)body, [new((nint)(&value), sizeof(ulong))], (nint)(&result), sizeof(ulong));
         }
-        catch (PgException error) { failure = error; }
+        catch (PgException error)
+        {
+            failure = error;
+        }
 
-        if (failure is null) { throw new InvalidOperationException("The incompatible call binding was accepted."); }
+        if (failure is null)
+        {
+            throw new InvalidOperationException("The incompatible call binding was accepted.");
+        }
 
         ulong rejected = result;
         value = ulong.MaxValue;

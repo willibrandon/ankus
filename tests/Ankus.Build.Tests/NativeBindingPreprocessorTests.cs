@@ -51,7 +51,10 @@ public sealed partial class NativeBindingNativeTests
                 => NativeBindingPreprocessor.ObserveAsync(OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang",
                     arguments, Source, working, context.CancellationToken);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -79,7 +82,10 @@ public sealed partial class NativeBindingNativeTests
             await File.WriteAllTextAsync(file, prefix + "-fpack-struct=1\n", context.CancellationToken);
             Assert.AreEqual(original, await NativeBindingPreprocessor.ObserveAsync(compiler, options, Source, directory, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -103,6 +109,9 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreEqual(64, recovered.Hash.Length);
             Assert.AreEqual(recovered, await NativeBindingPreprocessor.ObserveAsync(compiler, [], "int value;\n", directory, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

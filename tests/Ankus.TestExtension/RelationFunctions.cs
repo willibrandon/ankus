@@ -59,7 +59,10 @@ public static class RelationFunctions
     public static PgJsonb Descriptor(uint oid)
     {
         PgTupleDescriptor descriptor;
-        using (PgRelation relation = PgRelation.Open(oid)) { descriptor = relation.TupleDescriptor; }
+        using (PgRelation relation = PgRelation.Open(oid))
+        {
+            descriptor = relation.TupleDescriptor;
+        }
 
         return PgJsonb.Serialize(descriptor, RelationJsonContext.Default.PgTupleDescriptor);
     }
@@ -92,7 +95,10 @@ public static class RelationFunctions
         }
         finally
         {
-            foreach (PgRelation item in indexes) { item.Dispose(); }
+            foreach (PgRelation item in indexes)
+            {
+                item.Dispose();
+            }
         }
     }
 
@@ -104,8 +110,14 @@ public static class RelationFunctions
     {
         string name = mode switch
         {
-            1 => "AccessShareLock", 2 => "RowShareLock", 3 => "RowExclusiveLock", 4 => "ShareUpdateExclusiveLock",
-            5 => "ShareLock", 6 => "ShareRowExclusiveLock", 7 => "ExclusiveLock", 8 => "AccessExclusiveLock",
+            1 => "AccessShareLock",
+            2 => "RowShareLock",
+            3 => "RowExclusiveLock",
+            4 => "ShareUpdateExclusiveLock",
+            5 => "ShareLock",
+            6 => "ShareRowExclusiveLock",
+            7 => "ExclusiveLock",
+            8 => "AccessExclusiveLock",
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };
         bool before = HasLock(oid, name);
@@ -134,8 +146,14 @@ public static class RelationFunctions
     {
         PgRelation relation = s_retained ?? throw new InvalidOperationException("No retained relation.");
         string state;
-        try { state = relation.Oid.ToString(CultureInfo.InvariantCulture); }
-        catch (PgException error) { state = error.SqlState; }
+        try
+        {
+            state = relation.Oid.ToString(CultureInfo.InvariantCulture);
+        }
+        catch (PgException error)
+        {
+            state = error.SqlState;
+        }
         finally
         {
             relation.Dispose();
@@ -159,13 +177,19 @@ public static class RelationFunctions
             PgDatum datum = relation.ToDatum(PgMemoryContext.Current);
             using PgRelation raw = datum.Read<PgRelation>();
             using PgRelation called = PgFunctions.Call<PgRelation>("to_regclass", PgFunctionArgument.Create(relation.Name));
-            if (called.Oid != relation.Oid) { throw new InvalidOperationException("Function-call regclass identity mismatch."); }
+            if (called.Oid != relation.Oid)
+            {
+                throw new InvalidOperationException("Function-call regclass identity mismatch.");
+            }
 
             return $"{scalar.Oid}|{array[0]!.Oid}|{array[1] is null}|{array[2]!.Oid}|{raw.Oid}|{datum.TypeOid}";
         }
         finally
         {
-            foreach (PgRelation? item in array) { item?.Dispose(); }
+            foreach (PgRelation? item in array)
+            {
+                item?.Dispose();
+            }
         }
     }
 
@@ -198,7 +222,10 @@ public static class RelationFunctions
         }
         finally
         {
-            foreach (PgRelation? relation in array) { relation?.Dispose(); }
+            foreach (PgRelation? relation in array)
+            {
+                relation?.Dispose();
+            }
         }
     }
 
@@ -216,7 +243,10 @@ public static class RelationFunctions
                 yield return relation.Name + index.ToString(CultureInfo.InvariantCulture);
             }
         }
-        finally { s_iteratorDisposals++; }
+        finally
+        {
+            s_iteratorDisposals++;
+        }
     }
 
     /// <summary>
@@ -259,7 +289,10 @@ public static class RelationFunctions
             _ = Spi.ExecuteScalar<int>("SELECT 1/0");
             yield return relation.Name;
         }
-        finally { s_iteratorDisposals++; }
+        finally
+        {
+            s_iteratorDisposals++;
+        }
     }
 
     /// <summary>
@@ -292,8 +325,15 @@ public static class RelationFunctions
     [PgFunction]
     public static string NameError(string name)
     {
-        try { using PgRelation relation = PgRelation.Open(name); return relation.Name; }
-        catch (PgException error) { return error.SqlState; }
+        try
+        {
+            using PgRelation relation = PgRelation.Open(name);
+            return relation.Name;
+        }
+        catch (PgException error)
+        {
+            return error.SqlState;
+        }
     }
 
     /// <summary>
@@ -314,11 +354,17 @@ public static class RelationFunctions
             _ = Spi.ExecuteScalars<PgRelation?[], PgRelation, int>(
                 "SELECT ARRAY[$1::regclass,NULL,$1::regclass],$1::regclass,'not an integer'::text", SpiParameter.Create(oid));
         }
-        catch (InvalidCastException) { caught = true; }
+        catch (InvalidCastException)
+        {
+            caught = true;
+        }
 
         bool leaked = HasLock(oid, "AccessShareLock");
         (PgRelation relation, int answer) = Spi.ExecuteScalars<PgRelation, int>("SELECT $1::regclass,42", SpiParameter.Create(oid));
-        using (relation) { return caught && !leaked && relation.Oid == oid && answer == 42; }
+        using (relation)
+        {
+            return caught && !leaked && relation.Oid == oid && answer == 42;
+        }
     }
 
     /// <summary>
@@ -328,8 +374,14 @@ public static class RelationFunctions
     public static bool CommitFault(uint oid)
     {
         bool caught = false;
-        try { using PgRelation relation = PgRelation.Open(oid, PgLockMode.RowExclusive); }
-        catch (PgException error) { caught = error.SqlState == "P0001" && error.Message == "relation commit fault"; }
+        try
+        {
+            using PgRelation relation = PgRelation.Open(oid, PgLockMode.RowExclusive);
+        }
+        catch (PgException error)
+        {
+            caught = error.SqlState == "P0001" && error.Message == "relation commit fault";
+        }
 
         bool leaked = HasLock(oid, "RowExclusiveLock");
         using PgRelation retry = PgRelation.Open(oid);
@@ -348,7 +400,10 @@ public static class RelationFunctions
             using PgRelation owned = mode == 0 ? PgRelation.DangerousAdopt((void*)(nint)address)! : borrowed!.DangerousTakeOwnership();
             return false;
         }
-        catch (PgException error) { return error.SqlState == "P0001" && error.Message == "relation commit fault"; }
+        catch (PgException error)
+        {
+            return error.SqlState == "P0001" && error.Message == "relation commit fault";
+        }
     }
 
     /// <summary>
@@ -370,9 +425,19 @@ public static class RelationFunctions
     {
         string state;
         bool cleaned = false;
-        try { using PgRelation relation = PgRelation.Open(oid); state = relation.Name; }
-        catch (PgException error) { state = error.SqlState; }
-        finally { cleaned = true; }
+        try
+        {
+            using PgRelation relation = PgRelation.Open(oid);
+            state = relation.Name;
+        }
+        catch (PgException error)
+        {
+            state = error.SqlState;
+        }
+        finally
+        {
+            cleaned = true;
+        }
 
         return $"{state}|{cleaned}|{Spi.ExecuteScalar<int>("SELECT 42")}";
     }

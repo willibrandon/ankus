@@ -34,7 +34,8 @@ internal static class NativeNumericModelFixture
         {
             members.Add(new JsonObject
             {
-                ["name"] = "ankus_header_" + names[index], ["kind"] = "EnumConstantDecl",
+                ["name"] = "ankus_header_" + names[index],
+                ["kind"] = "EnumConstantDecl",
                 ["inner"] = new JsonArray(new JsonObject { ["kind"] = "ConstantExpr", ["value"] = values[index].ToString(CultureInfo.InvariantCulture) }),
             });
         }

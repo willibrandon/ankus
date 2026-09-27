@@ -22,17 +22,29 @@ public sealed class U24DatumConverter : IPgDatumReader<MappedU24>, IPgDatumWrite
     /// <summary>
     /// Counts converter construction, which must occur only on a present conversion.
     /// </summary>
-    public static int Constructions { get; private set; }
+    public static int Constructions
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present reads.
     /// </summary>
-    public static int Reads { get; private set; }
+    public static int Reads
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Counts present writes.
     /// </summary>
-    public static int Writes { get; private set; }
+    public static int Writes
+    {
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Records lazy construction inside the managed boundary.

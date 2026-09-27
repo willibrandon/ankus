@@ -63,9 +63,15 @@ internal static class NativeBindingSignatureProbe
         source.AppendLine("    printf(\"signatures|1|%d|%zu|%d|%s-%s\\n\", PG_VERSION_NUM, sizeof(void*), *((unsigned char*)&endian) == 1, ANKUS_NATIVE_OS, ANKUS_NATIVE_ARCH);");
         foreach ((string name, NativeBindingFunction function) in functions)
         {
-            for (int index = 0; index < function.Parameters.Count; index++) { WriteValue(name, index.ToString(CultureInfo.InvariantCulture)); }
+            for (int index = 0; index < function.Parameters.Count; index++)
+            {
+                WriteValue(name, index.ToString(CultureInfo.InvariantCulture));
+            }
 
-            if (HasResult(function)) { WriteValue(name, "result"); }
+            if (HasResult(function))
+            {
+                WriteValue(name, "result");
+            }
         }
 
         source.AppendLine("    return 0;");
@@ -140,7 +146,10 @@ internal static class NativeBindingSignatureProbe
     private static ReadOnlyDictionary<string, NativeBindingFunction> Select(NativeBindingCatalog catalog, NativeBindingRawCatalog raw,
         IReadOnlyList<string> names)
     {
-        if (catalog.PostgresMajor != raw.PostgresMajor) { throw new FormatException("Native type and signature catalogs have different majors."); }
+        if (catalog.PostgresMajor != raw.PostgresMajor)
+        {
+            throw new FormatException("Native type and signature catalogs have different majors.");
+        }
 
         var selected = new SortedDictionary<string, NativeBindingFunction>(StringComparer.Ordinal);
         foreach (string name in names)

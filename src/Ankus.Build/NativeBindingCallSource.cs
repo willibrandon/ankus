@@ -55,7 +55,10 @@ internal static class NativeBindingCallSource
 
             bool hasResult = contract.Result is not null;
             string resultAlias = prefix + "_result";
-            if (contract.Result is NativeBindingCallValue result) { WriteType(source, records.Graph, result, resultAlias); }
+            if (contract.Result is NativeBindingCallValue result)
+            {
+                WriteType(source, records.Graph, result, resultAlias);
+            }
 
             source.AppendLine("#if !defined(_WIN32)\n__attribute__((visibility(\"hidden\")))\n#endif");
             source.AppendLine(CultureInfo.InvariantCulture,
@@ -80,7 +83,10 @@ internal static class NativeBindingCallSource
                 string.Create(CultureInfo.InvariantCulture, $"*({alias} *) arguments[{index}].data")));
             string call = "(" + NativeBindingCompilerShims.Reference(contract.Symbol) + ")(" + arguments + ")";
             source.AppendLine(hasResult ? $"    {resultAlias} value = {call};" : $"    {call};");
-            if (hasResult) { source.AppendLine("    memcpy(result, &value, sizeof(value));"); }
+            if (hasResult)
+            {
+                source.AppendLine("    memcpy(result, &value, sizeof(value));");
+            }
 
             source.AppendLine("    return ANKUS_CALL_OK;");
             source.AppendLine("}");

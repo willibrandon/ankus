@@ -111,8 +111,14 @@ public static unsafe class ItemPointerFunctions
         PgItemPointer location = borrowed.Read<PgItemPointer>();
         PgDatum copy = borrowed.CopyTo(PgMemoryContext.Current);
         bool wrongType = false;
-        try { _ = borrowed.Read<uint>(); }
-        catch (InvalidCastException) { wrongType = true; }
+        try
+        {
+            _ = borrowed.Read<uint>();
+        }
+        catch (InvalidCastException)
+        {
+            wrongType = true;
+        }
 
         temporary.Reset();
         bool stale = IsStale(() => borrowed.Read<PgItemPointer>());
@@ -154,7 +160,10 @@ public static unsafe class ItemPointerFunctions
     {
         using PgMemoryContext anchor = PgMemoryContext.Create("tid stack anchor");
         using PgNativeItemPointer? value = PgNativeItemPointer.DangerousBorrow((void*)state.Datum.DangerousGetBits(), anchor);
-        if (mode == 2) { return value is null ? "null" : "unexpected"; }
+        if (mode == 2)
+        {
+            return value is null ? "null" : "unexpected";
+        }
 
         PgItemPointer initial = value!.Value;
         if (mode == 1)
@@ -181,8 +190,14 @@ public static unsafe class ItemPointerFunctions
         using PgNativeItemPointer external = PgNativeItemPointer.DangerousBorrow(value.DangerousGetPointer(), owner)!;
         using PgNativeItemPointer clone = value.CloneInto(PgMemoryContext.Current);
         PgItemPointer copied = value.Value;
-        if (delete) { owner.Dispose(); }
-        else { owner.Reset(); }
+        if (delete)
+        {
+            owner.Dispose();
+        }
+        else
+        {
+            owner.Reset();
+        }
 
         return $"{IsStale(() => value.Value)}|{IsStale(() => borrowed.Value)}|{IsStale(() => external.Value)}|{copied}|{clone.Value}";
     }
@@ -204,8 +219,16 @@ public static unsafe class ItemPointerFunctions
     [PgFunction]
     public static string ItemPointerSaved()
     {
-        try { return s_saved is null ? "missing" : s_saved.Value.ToString(); }
-        catch (ObjectDisposedException) { s_saved?.Dispose(); s_saved = null; return "stale"; }
+        try
+        {
+            return s_saved is null ? "missing" : s_saved.Value.ToString();
+        }
+        catch (ObjectDisposedException)
+        {
+            s_saved?.Dispose();
+            s_saved = null;
+            return "stale";
+        }
     }
 
     /// <summary>
@@ -215,9 +238,18 @@ public static unsafe class ItemPointerFunctions
     public static int ItemPointerAllocator()
     {
         int result = 0;
-        try { using PgNativeItemPointer value = PgNativeItemPointer.Create(default); }
-        catch (PgException error) when (error.SqlState == "XX000") { result = 10; }
-        finally { result++; }
+        try
+        {
+            using PgNativeItemPointer value = PgNativeItemPointer.Create(default);
+        }
+        catch (PgException error) when (error.SqlState == "XX000")
+        {
+            result = 10;
+        }
+        finally
+        {
+            result++;
+        }
 
         return result;
     }
@@ -233,7 +265,14 @@ public static unsafe class ItemPointerFunctions
     /// </summary>
     private static bool IsStale(Func<PgItemPointer> action)
     {
-        try { _ = action(); return false; }
-        catch (ObjectDisposedException) { return true; }
+        try
+        {
+            _ = action();
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
+        }
     }
 }

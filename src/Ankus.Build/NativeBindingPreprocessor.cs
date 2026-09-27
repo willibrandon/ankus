@@ -32,7 +32,10 @@ internal static class NativeBindingPreprocessor
         int major = 0;
         foreach (string line in File.ReadLines(output))
         {
-            if (!line.StartsWith(Version, StringComparison.Ordinal)) { continue; }
+            if (!line.StartsWith(Version, StringComparison.Ordinal))
+            {
+                continue;
+            }
 
             if (major != 0 || !int.TryParse(line.AsSpan(Version.Length), NumberStyles.None, CultureInfo.InvariantCulture, out major) || major < 20)
             {
@@ -40,7 +43,10 @@ internal static class NativeBindingPreprocessor
             }
         }
 
-        if (major == 0) { throw new FormatException("Native preprocessing did not retain its Clang identity."); }
+        if (major == 0)
+        {
+            throw new FormatException("Native preprocessing did not retain its Clang identity.");
+        }
 
         // Ask the driver for its effective frontend command. Default and explicit
         // configuration files can change semantic options without changing C tokens.

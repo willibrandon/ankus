@@ -26,7 +26,10 @@ public sealed class ClusterPortHandoffTests(TestContext context)
             await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, (attempt, reservation) =>
             {
                 attempts.Add(attempt);
-                if (attempts.Count == 1) { competitor = reservation.TakeListener(); }
+                if (attempts.Count == 1)
+                {
+                    competitor = reservation.TakeListener();
+                }
             }, context.CancellationToken);
 
             Assert.HasCount(2, attempts);
@@ -82,11 +85,17 @@ public sealed class ClusterPortHandoffTests(TestContext context)
                 Assert.Contains($"Is another postmaster already running on port {attempt.Port}?", attempt.ReadServerLog());
             }
 
-            foreach (TcpListener competitor in competitors) { await AssertListenerAliveAsync(competitor); }
+            foreach (TcpListener competitor in competitors)
+            {
+                await AssertListenerAliveAsync(competitor);
+            }
         }
         finally
         {
-            foreach (TcpListener competitor in competitors) { competitor.Stop(); }
+            foreach (TcpListener competitor in competitors)
+            {
+                competitor.Stop();
+            }
         }
     }
 

@@ -129,16 +129,35 @@ public static class PgLogFunctions
         {
             switch (mode)
             {
-                case 0: PgLog.Write((PgLogLevel)(-1), "bad"); break;
-                case 1: PgLog.IsEnabled((PgLogLevel)13); break;
-                case 2: PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("bad") { SqlState = "bad" }); break;
-                case 3: PgLog.Write(PgLogLevel.Error, new PgDiagnostic("bad") { SqlState = "00000" }); break;
-                case 4: PgLog.Write(PgLogLevel.Warning, "bad\0message"); break;
-                case 5: PgLog.Write(PgLogLevel.Warning, "\uD800"); break;
-                case 6: PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("bad") { Detail = "\uD800" }); break;
-                case 7: PgLog.Write(PgLogLevel.Warning, (PgDiagnostic)null!); break;
-                case 8: PgLog.Write(PgLogLevel.Warning, "🐘"); break;
-                default: throw new ArgumentOutOfRangeException(nameof(mode));
+                case 0:
+                    PgLog.Write((PgLogLevel)(-1), "bad");
+                    break;
+                case 1:
+                    PgLog.IsEnabled((PgLogLevel)13);
+                    break;
+                case 2:
+                    PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("bad") { SqlState = "bad" });
+                    break;
+                case 3:
+                    PgLog.Write(PgLogLevel.Error, new PgDiagnostic("bad") { SqlState = "00000" });
+                    break;
+                case 4:
+                    PgLog.Write(PgLogLevel.Warning, "bad\0message");
+                    break;
+                case 5:
+                    PgLog.Write(PgLogLevel.Warning, "\uD800");
+                    break;
+                case 6:
+                    PgLog.Write(PgLogLevel.Warning, new PgDiagnostic("bad") { Detail = "\uD800" });
+                    break;
+                case 7:
+                    PgLog.Write(PgLogLevel.Warning, (PgDiagnostic)null!);
+                    break;
+                case 8:
+                    PgLog.Write(PgLogLevel.Warning, "🐘");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
         }
         catch (Exception error)

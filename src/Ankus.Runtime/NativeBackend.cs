@@ -297,7 +297,9 @@ public static unsafe partial class NativeBackend
     {
         var request = new NativeSpiRequest
         {
-            _operation = SpiOperation.FreePlan, _plan = plan, _sessionId = session?.Identity ?? 0,
+            _operation = SpiOperation.FreePlan,
+            _plan = plan,
+            _sessionId = session?.Identity ?? 0,
         };
         NativeSpiResult result = default;
         try

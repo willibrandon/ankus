@@ -24,21 +24,37 @@ public sealed class PgSqlFileAttribute(string name, string path) : Attribute
     /// <summary>
     /// Gets or sets identifiers of declarations that must run before this file.
     /// </summary>
-    public string[] Requires { get; set; } = [];
+    public string[] Requires
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets identifiers of declarations that must run after this file.
     /// </summary>
-    public string[] Before { get; set; } = [];
+    public string[] Before
+    {
+        get;
+        set;
+    } = [];
 
     /// <summary>
     /// Gets or sets whether this file runs first, last, or according to its explicit dependencies.
     /// </summary>
-    public PgSqlOrder Order { get; set; }
+    public PgSqlOrder Order
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets whether every object and reference in this file permits extension schema relocation.
     /// The default is false.
     /// </summary>
-    public bool Relocatable { get; set; }
+    public bool Relocatable
+    {
+        get;
+        set;
+    }
 }

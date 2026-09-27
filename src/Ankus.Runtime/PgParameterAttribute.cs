@@ -10,11 +10,19 @@ public sealed class PgParameterAttribute : Attribute
     /// <summary>
     /// Gets or sets the exact quoted SQL argument name. The default is the C# parameter name converted to snake_case.
     /// </summary>
-    public string? Name { get; set; }
+    public string? Name
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets a trusted SQL default expression, overriding any C# optional default.
     /// PostgreSQL validates the expression during extension installation.
     /// </summary>
-    public string? Default { get; set; }
+    public string? Default
+    {
+        get;
+        set;
+    }
 }

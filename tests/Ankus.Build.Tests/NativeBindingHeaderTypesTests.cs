@@ -40,8 +40,15 @@ public sealed class NativeBindingHeaderTypesTests
         Assert.AreEqual("int (*(*invoke)(void))(long ankus_arg0)", new NativeHeaderPointer(factory).Declare("invoke"));
         var noPrototype = new NativeHeaderFunction(new NativeHeaderScalar("void"), [], false, false, false);
         Assert.AreEqual("void invoke()", noPrototype.Declare("invoke"));
-        Assert.AreEqual("void invoke(void)", (noPrototype with { HasPrototype = true }).Declare("invoke"));
-        Assert.AreEqual("void invoke(void) __attribute__((noreturn))", (noPrototype with { HasPrototype = true, DoesNotReturn = true }).Declare("invoke"));
+        Assert.AreEqual("void invoke(void)", (noPrototype with
+        {
+            HasPrototype = true
+        }).Declare("invoke"));
+        Assert.AreEqual("void invoke(void) __attribute__((noreturn))", (noPrototype with
+        {
+            HasPrototype = true,
+            DoesNotReturn = true
+        }).Declare("invoke"));
         Assert.ThrowsExactly<InvalidOperationException>(() => (noPrototype with { HasPrototype = true, IsVariadic = true }).Declare("invoke"));
     }
 

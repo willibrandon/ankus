@@ -74,7 +74,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
             Assert.AreEqual(binding, NativeBindingRecordCSharp.Generate(graph));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -146,7 +149,10 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -209,7 +215,10 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -274,7 +283,10 @@ public sealed partial class NativeBindingNativeTests
             string harness = Harness.Replace("__NATIVE_BYTES__", bytes, StringComparison.Ordinal);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -341,7 +353,10 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -412,7 +427,10 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -483,7 +501,10 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     private async Task<long[]> RunRecordWitnessAsync(string source, string directory)
@@ -568,6 +589,9 @@ public sealed partial class NativeBindingNativeTests
             long[] expected = await RunRecordWitnessAsync(Headers + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 }

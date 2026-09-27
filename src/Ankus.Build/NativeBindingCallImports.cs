@@ -28,7 +28,10 @@ internal static class NativeBindingCallImports
         int separator = target.RuntimeIdentifier.LastIndexOf('-');
         string format = separator < 0 ? "" : target.RuntimeIdentifier[..separator] switch
         {
-            "win" => "coff", "osx" => "mach-o", "linux" or "linux-musl" => "elf", _ => "",
+            "win" => "coff",
+            "osx" => "mach-o",
+            "linux" or "linux-musl" => "elf",
+            _ => "",
         };
         if (format != imports.Format || target.RuntimeIdentifier[(separator + 1)..] != imports.Architecture ||
             target.IsLittleEndian != imports.IsLittleEndian)

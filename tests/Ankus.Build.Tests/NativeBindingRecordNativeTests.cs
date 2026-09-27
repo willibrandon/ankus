@@ -152,7 +152,10 @@ public sealed partial class NativeBindingNativeTests
 
             NativeRecordDeclaration Record(int type) => graph.Declarations[graph.Types[graph.Types[type].Canonical].Declaration!.Value];
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -237,7 +240,10 @@ public sealed partial class NativeBindingNativeTests
                 ? OperatingSystem.IsWindows() ? 11 : 10 : 1,
                 foreignFunction.CallingConvention);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -255,11 +261,20 @@ public sealed partial class NativeBindingNativeTests
             string input = Path.Combine(directory, "native-record-request.json");
             NativeRecordRequest? request = JsonSerializer.Deserialize<NativeRecordRequest>(await File.ReadAllTextAsync(input, context.CancellationToken), NativeBindingRecordWorker.JsonOptions);
             Assert.IsNotNull(request);
-            NativeRecordRequest mismatch = request with { Target = request.Target with { PostgresVersion = 170011 } };
+            NativeRecordRequest mismatch = request with
+            {
+                Target = request.Target with
+                {
+                    PostgresVersion = 170011
+                }
+            };
             InvalidOperationException failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 NativeBindingRecordWorker.InspectAsync(mismatch, directory, context.CancellationToken));
             Assert.Contains("target does not match", failure.Message);
-            NativeRecordRequest missing = request with { Symbols = new Dictionary<string, NativeHeaderRequest>() };
+            NativeRecordRequest missing = request with
+            {
+                Symbols = new Dictionary<string, NativeHeaderRequest>()
+            };
             failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 NativeBindingRecordWorker.InspectAsync(missing, directory, context.CancellationToken));
             Assert.Contains("Unexpected or duplicate native record root", failure.Message);
@@ -267,7 +282,10 @@ public sealed partial class NativeBindingNativeTests
             string invalid = Path.Combine(directory, "invalid.ast");
             await File.WriteAllTextAsync(invalid, "not a compiler AST", context.CancellationToken);
             failure = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-                NativeBindingRecordWorker.InspectAsync(request with { Ast = invalid }, directory, context.CancellationToken));
+                NativeBindingRecordWorker.InspectAsync(request with
+                {
+                    Ast = invalid
+                }, directory, context.CancellationToken));
             Assert.Contains("could not load the selected compiler's AST", failure.Message);
             NativeRecordGraph recovered = await NativeBindingRecordWorker.InspectAsync(request, directory, context.CancellationToken);
             Assert.AreEqual(JsonSerializer.Serialize(expected, NativeBindingRecordWorker.JsonOptions),
@@ -280,7 +298,10 @@ public sealed partial class NativeBindingNativeTests
             await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => NativeBindingRecordWorker.InspectAsync(request, directory, cancellation.Token));
             Assert.AreSequenceEqual(before, await File.ReadAllBytesAsync(observations, context.CancellationToken));
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -300,7 +321,10 @@ public sealed partial class NativeBindingNativeTests
             Assert.IsEmpty(graph.Types);
             Assert.IsEmpty(graph.Declarations);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     /// <summary>
@@ -318,7 +342,10 @@ public sealed partial class NativeBindingNativeTests
                 CollectRecordsAsync(Headers, [new("current", "current", false)], directory));
             Assert.Contains("enum constants exceed the supported 64-bit representation", failure.Message);
         }
-        finally { await DeleteDirectoryAsync(directory); }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
+        }
     }
 
     private Task<NativeRecordGraph> CollectRecordsAsync(string headers, NativeHeaderRequest[] requests, string directory, params string[] frontendOptions)
@@ -349,7 +376,10 @@ public sealed partial class NativeBindingNativeTests
     private static NativeRecordType DeclaredType(NativeRecordGraph graph, int index)
     {
         NativeRecordType type = graph.Types[index];
-        while (type.Kind == "elaborated") { type = graph.Types[type.Element!.Value]; }
+        while (type.Kind == "elaborated")
+        {
+            type = graph.Types[type.Element!.Value];
+        }
 
         return type;
     }

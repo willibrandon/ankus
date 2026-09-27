@@ -294,7 +294,11 @@ public sealed class PgAggregateTests
         AssertInvalidState(() => NativeAggregate.Read<int>(Scalar(long.MaxValue)));
         AssertInvalidState(() => NativeAggregate.Read<int>(pointer));
         Assert.AreEqual(42, NativeAggregate.Read<int>(Scalar(registration.Id))!.Value);
-        NativeValue badNull = new() { IsNull = 1, Integral = registration.Id };
+        NativeValue badNull = new()
+        {
+            IsNull = 1,
+            Integral = registration.Id
+        };
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(badNull));
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Read<int>(new NativeValue { IsNull = 2 }));
     }
@@ -1072,7 +1076,11 @@ public sealed class PgAggregateTests
         /// <summary>
         /// Gets the number of times payload cleanup ran.
         /// </summary>
-        internal int DisposeCount { get; private set; }
+        internal int DisposeCount
+        {
+            get;
+            private set;
+        }
 
         /// <summary>
         /// Records cleanup before invoking any user action.
@@ -1112,7 +1120,11 @@ public sealed class PgAggregateTests
         /// <summary>
         /// Gets or sets whether the owning native reset was invoked.
         /// </summary>
-        internal bool Released { get; set; }
+        internal bool Released
+        {
+            get;
+            set;
+        }
     }
 
     /// <summary>
@@ -1135,87 +1147,155 @@ public sealed class PgAggregateTests
         /// <summary>
         /// Gets or sets the most recent registration attempt, including failures.
         /// </summary>
-        internal Registration? Last { get; set; }
+        internal Registration? Last
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets an action invoked while the managed root must already be registered.
         /// </summary>
-        internal Action<nint>? DuringAdoption { get; set; }
+        internal Action<nint>? DuringAdoption
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native adoption reports a controlled PostgreSQL error.
         /// </summary>
-        internal bool FailAdoption { get; set; }
+        internal bool FailAdoption
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native adoption incorrectly succeeds without a header pointer.
         /// </summary>
-        internal bool MissingPointer { get; set; }
+        internal bool MissingPointer
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether resolving aggregate storage returns an invalid zero identity.
         /// </summary>
-        internal bool MemoryIdentityMissing { get; set; }
+        internal bool MemoryIdentityMissing
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets whether native comparison reports a controlled PostgreSQL error.
         /// </summary>
-        internal bool FailComparison { get; set; }
+        internal bool FailComparison
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the comparison result returned by the native ordering API.
         /// </summary>
-        internal nint Comparison { get; set; }
+        internal nint Comparison
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of native adoption calls.
         /// </summary>
-        internal int AdoptionCalls { get; set; }
+        internal int AdoptionCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of native comparisons.
         /// </summary>
-        internal int CompareCalls { get; set; }
+        internal int CompareCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the number of SPI calls that reached the native guard.
         /// </summary>
-        internal int BackendCalls { get; set; }
+        internal int BackendCalls
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets a named composite array OID returned by the controlled catalog lookup, or zero to reject lookup.
         /// </summary>
-        internal uint TupleArrayTypeOid { get; set; }
+        internal uint TupleArrayTypeOid
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the composite element OID supplied to the controlled catalog lookup.
         /// </summary>
-        internal uint ArrayElementTypeOid { get; set; }
+        internal uint ArrayElementTypeOid
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the selected ordering key passed to native code.
         /// </summary>
-        internal int SortKey { get; set; }
+        internal int SortKey
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the left operand's declared PostgreSQL type.
         /// </summary>
-        internal uint LeftType { get; set; }
+        internal uint LeftType
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the right operand's declared PostgreSQL type.
         /// </summary>
-        internal uint RightType { get; set; }
+        internal uint RightType
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the copied left native comparison operand.
         /// </summary>
-        internal object? Left { get; set; }
+        internal object? Left
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Gets or sets the copied right native comparison operand.
         /// </summary>
-        internal object? Right { get; set; }
+        internal object? Right
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// Resets every adopted state and restores the previous thread fixture.

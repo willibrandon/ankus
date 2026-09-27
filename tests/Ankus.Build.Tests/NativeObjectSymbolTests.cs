@@ -116,9 +116,14 @@ public sealed class NativeObjectSymbolTests
 
     private static Sample Create(string kind) => kind switch
     {
-        "coff" => Coff(false), "big-coff" => Coff(true),
-        "elf32" => Elf(false, true), "elf64" => Elf(true, true), "elf64-be" => Elf(true, false),
-        "mach32" => Mach(false, true), "mach64" => Mach(true, true), "mach64-be" => Mach(true, false),
+        "coff" => Coff(false),
+        "big-coff" => Coff(true),
+        "elf32" => Elf(false, true),
+        "elf64" => Elf(true, true),
+        "elf64-be" => Elf(true, false),
+        "mach32" => Mach(false, true),
+        "mach64" => Mach(true, true),
+        "mach64-be" => Mach(true, false),
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -215,7 +220,13 @@ public sealed class NativeObjectSymbolTests
             int start = header + index * width;
             Put(start, 4, (uint)nameIndex);
             image[start + (wide ? 4 : 12)] = index is 0 or 5 ? (byte)0 : index == 2 ? (byte)0x22 : (byte)0x12;
-            Put(start + (wide ? 6 : 14), 2, index switch { 3 or 5 => 1, 4 => 0xfff2, 6 => 0xffff, _ => 0 });
+            Put(start + (wide ? 6 : 14), 2, index switch
+            {
+                3 or 5 => 1,
+                4 => 0xfff2,
+                6 => 0xffff,
+                _ => 0
+            });
             Put(start + (wide ? 8 : 4), wide ? 8 : 4, index == 4 ? 8UL : 0UL);
             nameIndex += names[index].Length + 1;
         }
@@ -287,7 +298,14 @@ public sealed class NativeObjectSymbolTests
         {
             int start = symbols + index * width;
             Put(start, 4, (uint)nameIndex);
-            image[start + 4] = index switch { 1 => 0x11, 3 => 0xf, 5 => 0xe, 6 => 0xe0, _ => 1 };
+            image[start + 4] = index switch
+            {
+                1 => 0x11,
+                3 => 0xf,
+                5 => 0xe,
+                6 => 0xe0,
+                _ => 1
+            };
             image[start + 5] = index is 3 or 5 ? (byte)1 : (byte)0;
             Put(start + 6, 2, index == 2 ? 0x40UL : 0UL);
             Put(start + 8, wide ? 8 : 4, index == 4 ? 16UL : 0UL);

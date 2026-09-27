@@ -103,27 +103,47 @@ public static class DatumRangeObservations
     /// <summary>
     /// Gets or sets the number of scalar converter constructions.
     /// </summary>
-    public static int Factories { get; set; }
+    public static int Factories
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets finite bound reads.
     /// </summary>
-    public static int Reads { get; set; }
+    public static int Reads
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets finite bound writes.
     /// </summary>
-    public static int Writes { get; set; }
+    public static int Writes
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the last borrowed finite bound.
     /// </summary>
-    public static PgDatum? Captured { get; set; }
+    public static PgDatum? Captured
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets a native word whose owner remains with the calling function.
     /// </summary>
-    public static PgDatum? Alias { get; set; }
+    public static PgDatum? Alias
+    {
+        get;
+        set;
+    }
 }
 
 /// <summary>
