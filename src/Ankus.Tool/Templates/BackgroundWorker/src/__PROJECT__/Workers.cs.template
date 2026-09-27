@@ -1,0 +1,53 @@
+using Ankus;
+
+namespace __NAMESPACE__;
+
+public static class Workers
+{
+    private static readonly PgAtomic<int> ProcessId = new("__WORKER_STATE__.pid");
+    private static readonly PgAtomic<int> Result = new("__WORKER_STATE__.value");
+
+    [PgModuleLoad]
+    public static void Register()
+    {
+        PgSharedMemory.Initialize(ProcessId);
+        PgSharedMemory.Initialize(Result);
+        PgBackgroundWorker.Register(new("__EXTENSION__ worker", "__PROJECT__", nameof(Run))
+        {
+            DatabaseAccess = true,
+            Argument = 42,
+            RestartDelay = TimeSpan.FromSeconds(5),
+        });
+    }
+
+    [PgBackgroundWorker]
+    public static void Run(nuint argument)
+    {
+        PgBackgroundWorker.Connect("postgres");
+        ProcessId.Exchange(Environment.ProcessId);
+        do
+        {
+            if ((PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Reload) & PgBackgroundWorkerSignals.Reload) != 0)
+            {
+                PgBackgroundWorker.ReloadConfiguration();
+            }
+
+            int value = PgBackgroundWorker.RunTransaction(() => Spi.ExecuteScalar<int>("SELECT 42"));
+            if ((nuint)value != argument)
+            {
+                throw new InvalidOperationException("Worker query returned an unexpected value.");
+            }
+
+            Result.Exchange(value);
+        }
+        while (PgBackgroundWorker.Wait(TimeSpan.FromSeconds(10)));
+
+        ProcessId.Exchange(0);
+    }
+
+    [PgFunction]
+    public static int WorkerProcess() => ProcessId.Value;
+
+    [PgFunction]
+    public static int WorkerResult() => Result.Value;
+}

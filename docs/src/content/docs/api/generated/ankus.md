@@ -28,6 +28,10 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAtomic](/api/ankus.pgatomic/)
 - [PgAtomicValue](/api/ankus.pgatomicvalue/)
 - [PgAtomic&lt;T&gt;](/api/ankus.pgatomic-1/)
+- [PgBackgroundWorker](/api/ankus.pgbackgroundworker/)
+- [PgBackgroundWorkerAttribute](/api/ankus.pgbackgroundworkerattribute/)
+- [PgBackgroundWorkerHandle](/api/ankus.pgbackgroundworkerhandle/)
+- [PgBackgroundWorkerOptions](/api/ankus.pgbackgroundworkeroptions/)
 - [PgBuiltInOids](/api/ankus.pgbuiltinoids/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)
@@ -137,6 +141,9 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAggregateKind](/api/ankus.pgaggregatekind/)
 - [PgAllocationOptions](/api/ankus.pgallocationoptions/)
 - [PgArgumentMode](/api/ankus.pgargumentmode/)
+- [PgBackgroundWorkerSignals](/api/ankus.pgbackgroundworkersignals/)
+- [PgBackgroundWorkerStartTime](/api/ankus.pgbackgroundworkerstarttime/)
+- [PgBackgroundWorkerStatus](/api/ankus.pgbackgroundworkerstatus/)
 - [PgBuiltInOid](/api/ankus.pgbuiltinoid/)
 - [PgCastContext](/api/ankus.pgcastcontext/)
 - [PgDateTimePart](/api/ankus.pgdatetimepart/)
@@ -167,6 +174,7 @@ Assembly: `Ankus.Runtime.dll`
 ## Structs
 
 - [PgAtomicValue&lt;T&gt;](/api/ankus.pgatomicvalue-1/)
+- [PgBackgroundWorkerState](/api/ankus.pgbackgroundworkerstate/)
 - [PgBox](/api/ankus.pgbox/)
 - [PgCidr](/api/ankus.pgcidr/)
 - [PgCircle](/api/ankus.pgcircle/)

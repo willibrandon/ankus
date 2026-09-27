@@ -285,6 +285,10 @@ internal enum NativeMemoryOperation
     /// Initializes, prepares, acquires or queries selected-header PostgreSQL spinlock storage.
     /// </summary>
     SpinLock = 36,
+    /// <summary>
+    /// Registers or controls native background workers and their guarded worker operations.
+    /// </summary>
+    BackgroundWorker = 37,
 }
 
 /// <summary>

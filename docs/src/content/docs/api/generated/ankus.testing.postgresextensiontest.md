@@ -83,3 +83,35 @@ The fixture to dispose after all tests finish.
 PostgreSQL 18 and later use a per-cluster extension search path. Earlier versions run from an isolated,
 relocatable copy of the selected installation.
 Server logs and build logs remain in the project's bin/ankus-test-logs directory.
+
+<a id="member-96deb75b043968f2"></a>
+
+### StartAsync(string, bool, PostgresInstallation?, CancellationToken)
+
+Publishes and installs an extension in an isolated cluster, optionally loading its library during shared preload.
+
+```csharp
+public static Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload, PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPath` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The extension project file.
+
+`sharedPreload` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether PostgreSQL must load the published library before starting backends.
+
+`installation` — [PostgresInstallation](/api/ankus.pgconfig.postgresinstallation/)
+
+The selected installation, or null to use the ordinary fixture discovery.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels discovery, publication or startup.
+
+Returns: [Task&lt;PostgresExtensionTest&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The fixture that owns the cluster and temporary published library.

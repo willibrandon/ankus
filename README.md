@@ -328,6 +328,12 @@ before a parallel worker's first executor entry. It precedes `PgInitialize`,
 which waits for worker restoration where required. See
 [extension initialization](docs/src/content/docs/initialization.md).
 
+Use `[PgBackgroundWorker]` for a PostgreSQL worker process with a managed entry.
+`PgBackgroundWorker` provides static and dynamic registration, lifecycle
+observation, native signal/latch handling and guarded transaction callbacks.
+Workers can attach the same shared-memory descriptors as ordinary backends.
+See [background workers](docs/src/content/docs/background-workers.md).
+
 Declare PostgreSQL settings with `[PgGucBool]`, `[PgGucInt]`, `[PgGucReal]`,
 `[PgGucString]`, or `[PgGucEnum]` on static partial getters. PostgreSQL owns their
 storage, startup source priority, permissions, SET/RESET behavior, and transaction restoration. See

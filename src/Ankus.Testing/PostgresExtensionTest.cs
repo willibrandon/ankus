@@ -49,7 +49,19 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// relocatable copy of the selected installation.
     /// Server logs and build logs remain in the project's bin/ankus-test-logs directory.
     /// </remarks>
-    public static async Task<PostgresExtensionTest> StartAsync(string projectPath,
+    public static Task<PostgresExtensionTest> StartAsync(string projectPath,
+        PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
+        => StartAsync(projectPath, sharedPreload: false, installation, cancellationToken);
+
+    /// <summary>
+    /// Publishes and installs an extension in an isolated cluster, optionally loading its library during shared preload.
+    /// </summary>
+    /// <param name="projectPath">The extension project file.</param>
+    /// <param name="sharedPreload">Whether PostgreSQL must load the published library before starting backends.</param>
+    /// <param name="installation">The selected installation, or null to use the ordinary fixture discovery.</param>
+    /// <param name="cancellationToken">Cancels discovery, publication or startup.</param>
+    /// <returns>The fixture that owns the cluster and temporary published library.</returns>
+    public static async Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload,
         PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
@@ -105,6 +117,12 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                     .ConfigureAwait(false);
                 stagedInstallation.InstallExtensionFiles(output);
                 clusterInstallation = stagedInstallation.Installation;
+            }
+
+            if (sharedPreload)
+            {
+                string library = Path.GetFileNameWithoutExtension(manifest.Library).Replace("'", "''", StringComparison.Ordinal);
+                configuration.Add($"shared_preload_libraries = '{library}'");
             }
 
             cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions

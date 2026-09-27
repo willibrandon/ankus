@@ -65,7 +65,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_FORMAT_NODE = 33,
             ANKUS_MEMORY_NATIVE_CALL = 34,
             ANKUS_MEMORY_SHARED = 35,
-            ANKUS_MEMORY_SPIN = 36
+            ANKUS_MEMORY_SPIN = 36,
+            ANKUS_MEMORY_WORKER = 37
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -918,7 +919,7 @@ internal static class NativeMemoryBridge
             result->length = request->length;
         }
 
-        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + NativeSharedMemoryBridge.Source + NativeSpinLockBridge.Source + """
+        """ + NativeStringInfoBridge.Source + NativeListBridge.Source + NativeItemPointerMemoryBridge.Source + NativeBindingBridge.Source + NativeNodeBridge.Source + NativeRawCallBridge.Source + NativeSharedMemoryBridge.Source + NativeSpinLockBridge.Source + NativeBackgroundWorkerBridge.Source + """
 
         static void
         ankus_memory_execute(AnkusMemoryApi *api, AnkusMemoryRequest *request, AnkusMemoryResult *result)
@@ -982,6 +983,9 @@ internal static class NativeMemoryBridge
                     break;
                 case ANKUS_MEMORY_SPIN:
                     ankus_memory_spin(request, result);
+                    break;
+                case ANKUS_MEMORY_WORKER:
+                    ankus_memory_worker(request, result);
                     break;
                 case ANKUS_MEMORY_LIST:
                     ankus_list_execute(request, result);
@@ -1335,6 +1339,12 @@ internal static class NativeMemoryBridge
             AnkusMemoryResult *result, AnkusError *error)
         {
             memset(error, 0, sizeof(*error));
+            if (request->operation == ANKUS_MEMORY_WORKER && request->flags == 6)
+            {
+                ankus_worker_release(request);
+                return 0;
+            }
+
             if (request->operation == ANKUS_MEMORY_SHARED && request->flags == 5)
             {
                 /* Lease release never allocates or raises ERROR. It remains available

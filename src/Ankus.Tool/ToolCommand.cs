@@ -54,12 +54,15 @@ internal static class ToolCommand
         var name = new Argument<string>("name") { Description = "C# project name, such as Acme.Search." };
         var output = new Option<string?>("--output", "-o") { Description = "New directory (default: the project name)." };
         var extension = new Option<string?>("--extension-name") { Description = "SQL extension name (default: snake_case project name)." };
+        var worker = new Option<bool>("--background-worker") { Description = "Include a preloaded PostgreSQL worker and its backend test." };
         command.Arguments.Add(name);
         command.Options.Add(output);
         command.Options.Add(extension);
+        command.Options.Add(worker);
         command.SetAction(async (result, token) =>
         {
-            string path = await ProjectScaffolder.CreateAsync(result.GetValue(name)!, result.GetValue(output), result.GetValue(extension), token);
+            string path = await ProjectScaffolder.CreateAsync(result.GetValue(name)!, result.GetValue(output),
+                result.GetValue(extension), result.GetValue(worker), token);
             Console.WriteLine($"Created extension solution at {path}");
             Console.WriteLine("Run dotnet test from that directory to build and test the extension in PostgreSQL 18.");
             Console.WriteLine("Run ankus publish to publish using your registered PostgreSQL installation.");

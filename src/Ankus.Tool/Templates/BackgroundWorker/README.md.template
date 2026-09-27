@@ -1,0 +1,46 @@
+# __PROJECT__
+
+A PostgreSQL extension with a managed background worker compiled with .NET Native AOT.
+Requires .NET 10, a native C toolchain and PostgreSQL 18 with server headers.
+
+Register PostgreSQL, then run the managed and native tests:
+
+```console
+ankus init --pg18 /path/to/pg_config
+dotnet test
+```
+
+The backend fixture publishes the library and starts an isolated cluster with
+shared preload enabled. Its worker test verifies that another PostgreSQL process
+executes a transaction and publishes the result through shared memory.
+Build and server logs remain under `src/__PROJECT__/bin/ankus-test-logs/`.
+
+Publish and install the extension:
+
+```console
+ankus publish
+ankus install
+```
+
+Add the library to `postgresql.conf`, preserving any other preloaded libraries,
+then restart PostgreSQL:
+
+```ini
+shared_preload_libraries = '__PROJECT__'
+```
+
+Install the SQL declarations and inspect the worker:
+
+```sql
+CREATE EXTENSION __EXTENSION__;
+SELECT worker_process(), worker_result();
+```
+
+The worker connects to `postgres` using the bootstrap superuser, executes
+`SELECT 42` in its own transaction and waits ten seconds between observations.
+Adapt the database, role and query in `src/__PROJECT__/Workers.cs` for your use
+case. Configuration reload wakes the worker; server shutdown terminates it.
+An unsuccessful worker exit restarts after five seconds.
+
+Ordinary SQL functions remain in `Functions.cs`. Package versions live in
+`global.json` and `Directory.Packages.props`.

@@ -9,6 +9,7 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     private bool _alive = true;
     private List<NativeSharedMemoryLease>? _locks;
     private List<NativeSpinLockLease>? _spinLocks;
+    private List<NativeBackgroundWorkerLease>? _workers;
 
     /// <summary>
     /// Gets the nesting depth that owns this unique lease.
@@ -54,6 +55,16 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
             _locks = null;
         }
 
+        if (_workers is not null)
+        {
+            for (int index = _workers.Count - 1; index >= 0; index--)
+            {
+                _workers[index].Dispose();
+            }
+
+            _workers = null;
+        }
+
         _alive = false;
     }
 
@@ -78,6 +89,16 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     /// Stops retaining a released or failed spinlock acquisition.
     /// </summary>
     internal void Unregister(NativeSpinLockLease lease) => _spinLocks?.Remove(lease);
+
+    /// <summary>
+    /// Retains a prepared worker handle so callback exit releases forgotten observation storage.
+    /// </summary>
+    internal void Register(NativeBackgroundWorkerLease lease) => (_workers ??= []).Add(lease);
+
+    /// <summary>
+    /// Stops retaining a released or unsuccessful worker registration handle.
+    /// </summary>
+    internal void Unregister(NativeBackgroundWorkerLease lease) => _workers?.Remove(lease);
 
     /// <summary>
     /// Rejects expired, foreign-thread or foreign-provider access before touching input storage.

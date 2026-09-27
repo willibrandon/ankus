@@ -43,14 +43,15 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
-        string native = ManifestValue(compilation, "Ankus.NativeSource");
+        string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("#include \"storage/spin.h\"", native);
         Assert.Contains("sizeof(slock_t) <= sizeof(uint64)", native);
         Assert.Contains("offsetof(AnkusSpinLockAlignment, value) <= sizeof(uint64)", native);
         Assert.Contains("ANKUS_MEMORY_SPIN = 36", native);
         Assert.Contains("request->operation != ANKUS_MEMORY_SPIN", native);
-        string spin = native[native.IndexOf("typedef struct AnkusSpinLockAlignment", StringComparison.Ordinal)..
-            native.IndexOf("ankus_memory_execute(AnkusMemoryApi", StringComparison.Ordinal)];
+        int operation = native.IndexOf("ankus_memory_spin(", StringComparison.Ordinal);
+        int end = native.IndexOf("\n}\n", operation, StringComparison.Ordinal) + 3;
+        string spin = native[native.IndexOf("typedef struct AnkusSpinLockAlignment", StringComparison.Ordinal)..end];
         Assert.Contains("SpinLockInit(lock);", spin);
         Assert.Contains("SpinLockAcquire(lock);", spin);
         Assert.Contains("SpinLockRelease((slock_t *) address);", spin);

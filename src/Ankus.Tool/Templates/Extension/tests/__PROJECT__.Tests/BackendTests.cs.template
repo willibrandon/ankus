@@ -6,13 +6,13 @@ using Npgsql;
 namespace __NAMESPACE__.Tests;
 
 [TestClass]
-public sealed class BackendTests(TestContext context)
+public sealed partial class BackendTests(TestContext context)
 {
     private static PostgresExtensionTest? s_extension;
 
     [ClassInitialize]
     public static async Task InitializeAsync(TestContext context)
-        => s_extension = await PostgresExtensionTest.StartAsync(ProjectPath(), cancellationToken: context.CancellationToken);
+        => s_extension = await PostgresExtensionTest.StartAsync(ProjectPath(), sharedPreload: __PRELOAD__, cancellationToken: context.CancellationToken);
 
     [ClassCleanup]
     public static async Task CleanupAsync()

@@ -210,7 +210,8 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(extension + ".control", manifest.Control);
         Assert.AreEqual(extension + "--3.2.1.sql", manifest.Sql);
         Assert.IsTrue(File.Exists(Path.Combine(output, manifest.Library)));
-        Assert.IsEmpty(Directory.GetFiles(output, "Ankus.*.dll"));
+        Assert.IsEmpty(Directory.GetFiles(output, "Ankus.*.dll")
+            .Where(path => !string.Equals(Path.GetFileName(path), manifest.Library, StringComparison.Ordinal)));
         return output;
     }
 

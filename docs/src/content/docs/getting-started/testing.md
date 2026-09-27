@@ -42,6 +42,17 @@ cluster startup, then executes `CREATE EXTENSION`. It leaves the selected
 installation untouched. Supply an explicit `PostgresInstallation` to test a
 particular version.
 
+For workers and shared-memory extensions, enable shared preload in the fixture:
+
+```csharp
+await using PostgresExtensionTest extension = await PostgresExtensionTest.StartAsync(
+    projectPath, sharedPreload: true, cancellationToken: context.CancellationToken);
+```
+
+The fixture loads the published library before starting backends, then creates
+the extension's SQL objects. `ankus new MyWorker --background-worker` generates
+this setup and a test that observes a worker running in a separate process.
+
 `RunInTransactionAsync` opens a connection and rolls back when the callback
 finishes, including after assertion failures. Parallel tests use independent
 connections. The generated fixture shares one cluster for its test class and

@@ -91,6 +91,7 @@ export default defineConfig({
             { label: 'Catalog lookups and OIDs', slug: 'catalog-lookups' },
             { label: 'Relation access', slug: 'relations' },
             { label: 'Extension initialization', slug: 'initialization' },
+            { label: 'Background workers', slug: 'background-workers' },
             { label: 'Configuration settings', slug: 'configuration' },
             { label: 'Sets and tables', slug: 'sets-and-tables' },
             { label: 'Composite values', slug: 'composites' },

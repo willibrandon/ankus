@@ -108,3 +108,7 @@ PostgreSQL's Unix process model.
 To share values across backends, register static `PgLwLock<T>` or `PgAtomic<T>` descriptors from
 `PgModuleLoad` using `PgSharedMemory.Initialize`. See
 [shared memory, locks and atomics](/shared-memory/) for storage and guard lifetimes.
+
+To register a PostgreSQL process that runs a managed entry, use
+`PgBackgroundWorker.Register` during shared preload. See
+[background workers](/background-workers/) for registration, signals and database transactions.

@@ -34,6 +34,48 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Background-worker APIs, generated native entries, a public sample and
+`ankus new --background-worker` are implemented. Static/dynamic registration,
+callback-owned observation handles, native signals/latches, name/OID connections
+and guarded transaction callbacks preserve PostgreSQL process and ownership
+semantics. Dynamic metadata that PostgreSQL would alter is rejected; extra
+payloads retain exact UTF-8. Disposing a handle releases observation storage
+without terminating the worker.
+
+The final full Linux x64/PostgreSQL 18.6 suite passes **8,088 tests, zero failures
+and six Windows-only skips, 8,094 total**, in 13m08.957s. This includes the final
+preload-phase guard, native worker lifecycle, public sample and generated-project
+tests. All 57 new Runtime cases and 25 new compiler cases pass; the complete
+generator module passes 2,100/2,100. The complete Windows Runtime suite passes
+1,747/1,747 with zero skips in 1.599s.
+
+All three native worker cases have passing Windows x64/PostgreSQL 17.11 evidence
+across two runs: lifecycle and the generated scaffold pass in the first run;
+the sample passes its rerun in 6m34.755s after a publication assertion was corrected
+to exempt the manifest's declared native library. Native evidence covers shared
+state, commit/rollback and commit failure recovery, reload/interrupt/termination,
+restart, slot exhaustion, field capacities, untracked waits and detached-worker
+lifetime. The sample verifies a fresh observation after another database is created.
+
+The final Linux Release build passes with zero warnings/errors in 1m02.53s.
+Windows Release builds pass in 3m21.18s and 3m18.79s before the final preload guard;
+the final integration-test rebuild and native publication also pass there.
+API freshness verifies 200 pages/2,437 members; the site builds 244 pages and
+checks with zero errors/warnings/hints. Actual postmaster-death observation,
+SIGCHLD, additional connection failures/roles, registration allocation faults
+and the complete PostgreSQL 13–19/platform matrix remain required. This milestone
+does not establish complete worker or full-port parity.
+
+The preceding mutation [CI 36338481778](https://github.com/willibrandon/ankus/actions/runs/36338481778)
+passes quality, all runtime jobs and the complete Linux (36m22s), macOS
+(47m17s) and Windows (56m50s) suites.
+[Docs 36338481755](https://github.com/willibrandon/ankus/actions/runs/36338481755)
+passes. All jobs are terminal and successful at the 2026-09-27 18:49 UTC check.
+The first local worker attempts stopped during native fixture compilation;
+signal parameters now match the selected headers, and the worker bridge declares
+its callback type independently of the SPI bridge. These attempts provide no
+worker execution evidence.
+
 Exclusive lightweight-lock and spinlock guards now expose `Mutate` callbacks
 over original protected storage. Ordinary fields, inline atomics and bounded
 collection views update their actual shared bytes. Aliases cannot borrow,
@@ -57,7 +99,8 @@ pages describe mutation, readonly access and guard lifetime rules.
 
 The preceding lightweight-lock reader [CI 36335688901](https://github.com/willibrandon/ankus/actions/runs/36335688901)
 passes every runtime build, quality and full Linux (35m12s). macOS and Windows
-are still running at the latest check; their full results remain pending.
+were superseded by the mutation push after 42m43s and 42m33s respectively; their
+retained logs contain no failed test, but their full results remain unverified.
 [Docs 36335688785](https://github.com/willibrandon/ankus/actions/runs/36335688785)
 passes. A running job is not counted as platform proof.
 
@@ -66,8 +109,9 @@ passes every runtime build, quality, full Linux (31m18s) and full macOS
 (30m04s); Windows was still running at the pre-commit check and was subsequently
 superseded by the lightweight-lock reader push.
 [Docs 36333403092](https://github.com/willibrandon/ankus/actions/runs/36333403092)
-passes. Complete hosted Windows validation and its timeout outcome remain
-pending; a running or superseded job is not counted as platform proof.
+passes. Complete hosted Windows validation was pending at that milestone;
+the subsequent mutation run passes. A running or superseded job is not counted
+as platform proof.
 
 The preceding collection [CI 36325012375](https://github.com/willibrandon/ankus/actions/runs/36325012375)
 passes quality, every runtime job and macOS (34m41s). Linux fails during backend
@@ -80,16 +124,16 @@ retirement/restart cycles. The unrepaired control also passes the stress probe;
 this is a source-identified ordering race, not a deterministic stress reproduction.
 The GUC repair requires the unique session's exact server-log diagnostic and a
 healthy independent observer even when Windows reports a connection reset.
-The later hosted Linux run passes. Hosted validation of the Windows repair and
-resolution of its timeout remain pending. Every workflow job retains the
-requested 60-minute limit.
+The later mutation run passes all three complete platform suites, including
+Windows within its timeout. Every workflow job retains the requested
+60-minute limit; the 56m50s Windows result leaves little margin.
 
 A broader local Windows run on PostgreSQL 17.7 exposed six allocator failures.
 The same source snapshot passes the complete integration module on PostgreSQL
 17.11: **3,323 passed, zero failures, two Linux-only skips, 3,325 total**, in
 23m45.280s. Focused passing evidence above does not establish full-suite support
-for the older patch. High-level background workers, the remaining full-port
-API/behavior audit and the complete PostgreSQL 13–19/platform matrix remain
+for the older patch. Remaining worker boundaries, the full-port API/behavior
+audit and the complete PostgreSQL 13–19/platform matrix remain
 required work.
 
 ### Managed preload validation history
@@ -2602,7 +2646,7 @@ The target architecture consists of:
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
 | `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
-| `background_worker` | `BackgroundWorker` registration (C# `void(Datum)` via function pointer) | ☐ |
+| `background_worker` | `[PgBackgroundWorker]`, `PgBackgroundWorkerOptions`, `PgBackgroundWorker` and callback-owned handles | Static/dynamic registration, generated `void(nuint)` entries, lifecycle, signals/latches, connections and transaction callbacks implemented; validation and remaining requirements recorded above |
 | `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, cancellable cleanup and actual huge-size allocation/resize implemented; datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgLockMode` | Checked cache references, exact locks, live metadata, index/heap access, descriptors, ownership transfer, statistics and regclass transport implemented; raw RelationData bindings and complete platform/version evidence remain required |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
@@ -2634,7 +2678,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 
 | Source command | Required equivalent behavior | Evidence / status |
 |---|---|---|
-| `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. Background-worker template awaits worker API |
+| `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. `--background-worker` adds a preloaded worker, shared results and a real backend test |
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: installed CLI registration with locked/atomic configuration updates; provisioning pending |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `src/Ankus.Testing`; development CLI pending |
@@ -2727,7 +2771,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `xid.rs` | Transaction identifier wrappers and conversions | Implemented: distinct `PgTransactionId`/xid scalar and array datum contracts, pgrx-compatible invalid-to-NULL output, wrap-aware full-ID expansion and typed callback-only `PgSubtransactionId`; PostgreSQL 18.6/Linux x64 executed, PG13–19 headers source-reviewed, remaining matrix pending |
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
-| `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
+| `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Partial: generated entries, checked registration, callback-owned observation handles, native signal/latch operations, name/OID connections and recoverable transaction callbacks implemented. Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11 lifecycle evidence includes restart, exhaustion, commit failures, signal delivery and detached-worker lifetime. Actual postmaster-death observation, SIGCHLD, additional connection failures/roles, registration allocation faults and the full version/platform matrix remain required |
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
@@ -2858,11 +2902,12 @@ The phases track implementation of the complete pgrx feature surface.
   - [x] checked native PgVarlena borrowing, copy-on-write, cloning and explicit datum transfer for packed layouts
   - [ ] Complete default CBOR/JSON custom-type serialization (concrete contracts and tagged variants implemented; additional shapes remain), broader native layouts and remaining borrowed storage APIs
   - [x] Typed GUCs/hooks/extras, prefixes/logging, source/privilege/worker/lifetime/package witnesses on PostgreSQL 18.6/Linux x64
-  - [ ] Remaining GUC raw/preload parity and complete version/platform validation; background workers
+  - [x] Static/dynamic background workers, generated entries, lifecycle, signals/latches, connections and transaction callbacks
+  - [ ] Remaining GUC raw/preload parity, worker failure/signal boundaries and complete version/platform validation
 - [ ] **P4 — Tooling** (`ankus` dotnet tool)
   - [x] Packable `Ankus.Tool`, top-level entry point, System.CommandLine 2.0.12
   - [x] `init`, `info`, `build`, `publish`, and `install` commands, registered installations and explicit overrides
-  - [x] `new` creates version-matched extension/MSTest solutions with CPM and discoverable native tests
+  - [x] `new` creates version-matched extension/MSTest solutions with CPM and discoverable native tests, including the background-worker option
   - [ ] Provisioning/downloads, specialized templates, `schema`, `test`, `run`, server lifecycle and `package` commands
   - [x] Publish native library, `.control`, and versioned `.sql` artifacts
   - [x] Native/SQL installation and DESTDIR staging with target/artifact validation
@@ -9403,3 +9448,82 @@ jobs retain the requested 60-minute limit and complete unsharded suites.
 
 High-level background workers, the remaining full-port API/behavior audit and
 the complete PostgreSQL 13–19/platform matrix remain required.
+
+### Background workers — implementation and validation
+
+`[PgBackgroundWorker]` generates an exported PostgreSQL `void(Datum)` entry
+bound to an accessible synchronous static C# `void(nuint)` method. ANKUS022
+rejects invalid signatures, inaccessible/generic containers, conflicting metadata
+and invalid or duplicate native symbols. The entry establishes native signal
+handlers and backend capabilities, unwinds managed code and its cleanup before
+raising owned PostgreSQL errors, and uses the existing fork-aware runtime.
+No runtime patch or package-version change is needed for this milestone.
+
+`PgBackgroundWorkerOptions` preserves the by-value argument, startup/restart
+timing, database flag, notification PID and text. Selected headers determine
+field capacities. Dynamic metadata rejects PostgreSQL's lossy ASCII replacement;
+static metadata and extra text preserve strict UTF-8. Native registration rejects
+invalid preload/backend phases. Observation handles own native storage within
+the originating callback, thread and process. Explicit disposal and callback
+return release that storage while leaving independently registered workers alive.
+
+`PgBackgroundWorker` provides current registration identity, native signal
+observation, latch waits, reload, name/OID connections and synchronous transaction
+callbacks. Managed exceptions abort and retain their identity; native startup,
+query and commit errors return owned diagnostics after cleanup. Later transactions
+can succeed. Native signal handlers only record flags and wake PostgreSQL's latch.
+
+| Requirement | Evidence |
+|---|---|
+| Exact options, durations, words, UTF-8 and defaults | `WorkerOptionsPreserveValues`, `WorkerOptionsRejectInvalidValues`, `WorkerRegistrationPreservesDefaultsAndRestartBoundaries`, `WorkerDynamicMetadataRejectsLossyConversion` |
+| Registration, lifecycle, notification outcomes and malformed replies | `WorkerRegistrationValidatesReplies`, `WorkerHandlesPreserveLifecycle`, `WorkerHandlesRejectInvalidReplies`, `WorkerWaitsPreserveOutcomes` |
+| Callback/thread/provider lifetime and disposal without termination | `WorkerHandlesValidateOwnership`, native detached-worker heartbeats across SQL callbacks |
+| Owned identity, names/OIDs, signals and exact timeout bounds | `WorkerContextPreservesIdentityAndConnections`, `WorkerIdentityRejectsMalformedNativeText`, `WorkerSignalsAndTimeoutsPreserveBoundaries` |
+| Transactions, exception identity, owned diagnostics, cleanup and recovery | `WorkerTransactionsPreserveBoundaries`, `WorkerTransactionsRejectInvalidCallbacks`, `WorkerOperationsPreserveOwnedErrors` |
+| Valid declarations, composed phases, symbol boundaries and diagnostics | `WorkerEntriesCompile`, `WorkerEntriesPreserveSymbolBoundaries`, `WorkerEntriesComposeWithInitializationAndSql`, `WorkerEntriesRejectInvalidDeclarations` |
+| Actual startup/shutdown, shared state, commit/rollback, restart, exhaustion and capacities | `BackgroundWorkersRegisterAndShareState` |
+| Public sample observes a newly created database in another process | `BackgroundWorkerSamplePublishesSharedObservations` |
+| Packaged worker scaffold runs all six generated managed/backend tests | `NewBackgroundWorkerSolutionRunsManagedAndBackendTests` |
+
+The 57 direct cases pass; the complete Windows Runtime module passes
+1,747/1,747 in 1.599s. All 25 worker compiler cases pass; the complete generator
+module passes 2,100/2,100 in 22.838s. Three focused native worker cases pass on
+Linux x64/PostgreSQL 18.6 in 5m42.664s. After the final preload guard and stronger
+sample observation, plain full `dotnet test` passes **8,088 tests, zero failures
+and six Windows-only skips, 8,094 total**, in 13m08.957s (integration 13m08.173s).
+Windows x64/PostgreSQL 17.11 passes lifecycle and scaffold in the first native
+run; the sample passes its corrected rerun in 6m34.755s. These are focused Windows
+results, not a claim that the complete current Windows suite has run locally.
+
+Initial native compilation exposed selected-header signal parameters and a
+memory-only bridge's dependency on an SPI typedef; both were corrected. Runtime
+execution exposed dynamic text sanitization and a sample observation race;
+validation now rejects lossy input and waits for the exact new committed count.
+The first full run was stopped after an existing spinlock source-slice assertion
+included the new worker bridge; it now bounds the spinlock operation precisely
+while retaining its no-interrupt assertion. A Windows publication assertion now
+exempts only the manifest's native library from the unwanted-Ankus-DLL check.
+The final passing runs include these repairs; no analyzer severity was reduced.
+
+Release passes with zero warnings/errors on Linux (final 1m02.53s) and Windows
+(3m21.18s and 3m18.79s before the last native guard; final test rebuild/publication
+also pass). Generated API freshness verifies 200 pages/2,437 members; site build
+produces 244 pages and checking reports zero errors/warnings/hints. README,
+public worker/initialization/testing guides, generated API pages, the database
+observer sample and `ankus new --background-worker` describe the implemented
+consumer workflows. Static assertion and pseudo-mutation review found and filled
+direct-test gaps in owned errors, malformed text, default transport, symbol
+capacity and dynamic sanitization; no executed mutation or coverage percentage
+is claimed.
+
+Postmaster-death observation, SIGCHLD, additional connection failures/roles,
+registration allocation faults and the complete PostgreSQL 13–19/platform matrix
+remain required, alongside the full-port feature inventory above.
+
+Immediately before committing, the 2026-09-27 19:25 UTC check confirms preceding
+[CI 36338481778](https://github.com/willibrandon/ankus/actions/runs/36338481778)
+and [Docs 36338481755](https://github.com/willibrandon/ankus/actions/runs/36338481755)
+are terminal and successful. Quality, every runtime job and the complete Linux
+(36m22s), macOS (47m17s) and Windows (56m50s) suites pass. Outcomes are checked
+and recorded again immediately before push. All workflow jobs retain the
+requested one-hour limit and full suites; work continues while new CI runs.

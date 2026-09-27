@@ -62,12 +62,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             static (attributeContext, _) => attributeContext.TargetSymbol)
             .Where(static symbol => symbol is IMethodSymbol)
             .Select(static (symbol, _) => (IMethodSymbol)symbol);
+        IncrementalValuesProvider<IMethodSymbol> workers = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgBackgroundWorkerAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValueProvider<ImmutableArray<IMethodSymbol>> methods = functions.Collect().Combine(operators.Collect()).Combine(casts.Collect())
             .Combine(triggers.Collect()).Combine(eventTriggers.Collect()).Combine(initializers.Collect())
             .Select(static (input, _) => input.Left.Left.Left.Left.Left.AddRange(input.Left.Left.Left.Left.Right).AddRange(input.Left.Left.Left.Right)
                 .AddRange(input.Left.Left.Right).AddRange(input.Left.Right).AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(moduleLoads.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
+            .Combine(workers.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -190,6 +196,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasGucCheck = gucs.Any(static guc => guc.Check is not null);
         bool hasGucShow = gucs.Any(static guc => guc.Show is not null);
         bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks;
+        List<BackgroundWorkerDeclaration> workers = BackgroundWorkerDeclaration.Select(methods, context);
+        bool hasWorkers = workers.Count != 0;
         bool hasFunctionCallbacks = hasNativeCallbacks || !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
@@ -419,7 +427,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         (IMethodSymbol? initializer, IMethodSymbol? moduleLoad) = InitializeDeclaration.Select(methods, context);
-        bool ensureManagedReady = initializer is not null || moduleLoad is not null || hasGucHooks || hasNativeCallbacks;
+        bool ensureManagedReady = initializer is not null || moduleLoad is not null || hasGucHooks || hasNativeCallbacks || hasWorkers;
         if (ensureManagedReady)
         {
             native.AppendLine("static void ankus_ensure_initialized(void);");
@@ -497,7 +505,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(PgModuleLoadEmitter.State);
         }
 
-        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks || hasGucHooks)
+        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks || hasGucHooks || hasWorkers)
         {
             native.AppendLine(NativeForkHostBridge.Source);
         }
@@ -526,7 +534,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         GucPrefixDeclaration.Emit(prefixes, native, registration);
-        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks)
+        if (initializer is not null || moduleLoad is not null || hasNativeCallbacks || hasWorkers)
         {
             native.AppendLine(NativeErrorBridge.InitializationLogging);
             native.AppendLine(NativeSharedMemoryBridge.Initialization);
@@ -538,10 +546,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             PgModuleLoadEmitter.Emit(moduleLoad, GetCallbackName(moduleLoad, "module_load"), managed, native);
         }
 
-        if (initializer is not null || moduleLoad is not null || gucs.Count != 0 || !prefixes.IsEmpty || hasNativeCallbacks)
+        if (initializer is not null || moduleLoad is not null || gucs.Count != 0 || !prefixes.IsEmpty || hasNativeCallbacks || hasWorkers)
         {
             PgInitializeEmitter.Emit(initializer, initializer is null ? null : GetCallbackName(initializer, "initialize"),
-                hasGucHooks, registration.ToString(), managed, native, exports, hasNativeCallbacks, moduleLoad is not null);
+                hasGucHooks, registration.ToString(), managed, native, exports, hasNativeCallbacks || hasWorkers, moduleLoad is not null);
         }
 
         if (hasNativeCallbacks)
@@ -554,11 +562,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             context.AddSource("NativeCallbackProperties.g.cs", PgNativeCallbackEmitter.Emit(callbacks));
         }
 
+        foreach (BackgroundWorkerDeclaration worker in workers)
+        {
+            PgBackgroundWorkerEmitter.Emit(worker, GetCallbackName(worker.Method, "worker"), managed, native, exports);
+        }
+
         var operatorEntities = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool hasVarlenaReader = false;
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
-            if (aggregateMethods.Contains(method) || InitializeDeclaration.IsInitializer(method))
+            if (aggregateMethods.Contains(method) || InitializeDeclaration.IsInitializer(method) || BackgroundWorkerDeclaration.IsWorker(method))
             {
                 continue;
             }

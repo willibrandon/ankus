@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -26,9 +27,10 @@ internal static partial class ProjectScaffolder
     /// <param name="name">The portable C# project name, optionally containing namespace segments.</param>
     /// <param name="output">The destination directory, or null to use the project name.</param>
     /// <param name="extension">The SQL extension name, or null to derive it from the project name.</param>
+    /// <param name="backgroundWorker">Whether to include a preloaded worker and its backend test.</param>
     /// <param name="token">Cancellation for template I/O and the final move.</param>
     /// <returns>The absolute destination path.</returns>
-    internal static async Task<string> CreateAsync(string name, string? output, string? extension, CancellationToken token)
+    internal static async Task<string> CreateAsync(string name, string? output, string? extension, bool backgroundWorker, CancellationToken token)
     {
         ValidateName(name);
         extension ??= ToExtensionName(name);
@@ -52,6 +54,8 @@ internal static partial class ProjectScaffolder
             ["__NAMESPACE__"] = string.Join('.', name.Split('.').Select(static part => s_keywords.Contains(part) ? "@" + part : part)),
             ["__EXTENSION__"] = extension,
             ["__VERSION__"] = version,
+            ["__PRELOAD__"] = backgroundWorker ? "true" : "false",
+            ["__WORKER_STATE__"] = "ankus.worker." + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(extension)))[..24],
         };
         string parent = Path.GetDirectoryName(destination)!;
         Directory.CreateDirectory(parent);
@@ -59,13 +63,19 @@ internal static partial class ProjectScaffolder
         Directory.CreateDirectory(staging);
         try
         {
-            foreach (string source in Directory.EnumerateFiles(templateRoot, "*.template", SearchOption.AllDirectories))
+            string[] roots = backgroundWorker
+                ? [templateRoot, Path.Combine(AppContext.BaseDirectory, "Templates", "BackgroundWorker")]
+                : [templateRoot];
+            foreach (string root in roots)
             {
-                string relative = Replace(Path.GetRelativePath(templateRoot, source)[..^".template".Length], replacements);
-                string target = Path.Combine(staging, relative);
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                string text = Replace(await File.ReadAllTextAsync(source, token), replacements);
-                await File.WriteAllTextAsync(target, text, new UTF8Encoding(false), token);
+                foreach (string source in Directory.EnumerateFiles(root, "*.template", SearchOption.AllDirectories))
+                {
+                    string relative = Replace(Path.GetRelativePath(root, source)[..^".template".Length], replacements);
+                    string target = Path.Combine(staging, relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    string text = Replace(await File.ReadAllTextAsync(source, token), replacements);
+                    await File.WriteAllTextAsync(target, text, new UTF8Encoding(false), token);
+                }
             }
 
             token.ThrowIfCancellationRequested();
@@ -84,7 +94,7 @@ internal static partial class ProjectScaffolder
     private static string Replace(string value, Dictionary<string, string> replacements)
         => TokenPattern().Replace(value, match => replacements[match.Value]);
 
-    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|VERSION)__", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("__(PROJECT|NAMESPACE|EXTENSION|VERSION|PRELOAD|WORKER_STATE)__", RegexOptions.CultureInvariant)]
     private static partial Regex TokenPattern();
 
     private static void ValidateName(string name)
