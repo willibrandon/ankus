@@ -25,6 +25,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAnyArray](/api/ankus.pganyarray/)
 - [PgAnyElement](/api/ankus.pganyelement/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
+- [PgAtomic](/api/ankus.pgatomic/)
+- [PgAtomic&lt;T&gt;](/api/ankus.pgatomic-1/)
 - [PgBuiltInOids](/api/ankus.pgbuiltinoids/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)

@@ -13,6 +13,36 @@ namespace Ankus;
 public static class PgSharedMemory
 {
     /// <summary>
+    /// Registers a zero-initialized atomic scalar.
+    /// </summary>
+    /// <typeparam name="T">The supported unmanaged scalar type.</typeparam>
+    /// <param name="storage">The static named atomic descriptor.</param>
+    public static void Initialize<T>(PgAtomic<T> storage) where T : unmanaged
+        => Initialize(storage, static () => default);
+
+    /// <summary>
+    /// Registers an atomic scalar whose factory runs only when PostgreSQL creates its shared storage.
+    /// </summary>
+    /// <typeparam name="T">The supported unmanaged scalar type.</typeparam>
+    /// <param name="storage">The static named atomic descriptor.</param>
+    /// <param name="initializer">The factory run at shared-memory startup.</param>
+    public static unsafe void Initialize<T>(PgAtomic<T> storage, Func<T> initializer) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(initializer);
+        storage.Register((destination, length) =>
+        {
+            if (destination == 0 || length != (nuint)sizeof(T))
+            {
+                throw new InvalidOperationException("The PostgreSQL atomic initializer has invalid value storage.");
+            }
+
+            T value = initializer();
+            Unsafe.WriteUnaligned((void*)destination, value);
+        });
+    }
+
+    /// <summary>
     /// Registers a reader/writer lock with a zero-initialized value.
     /// </summary>
     /// <typeparam name="T">The unmanaged value shared by PostgreSQL processes.</typeparam>

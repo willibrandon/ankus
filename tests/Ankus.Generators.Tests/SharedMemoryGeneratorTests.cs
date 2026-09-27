@@ -36,7 +36,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("#if PG_VERSION_NUM < 150000\n            ankus_shared_request_one(entry);", native);
         Assert.DoesNotContain("MainLWLockArray[21]", native);
         string startup = native[native.IndexOf("static void\nankus_shared_startup(void)", StringComparison.Ordinal)..];
-        AssertOrdered(startup, ["ankus_shared_previous_startup();", "ankus_shared_attach(entry, true);"]);
+        AssertOrdered(startup, ["ankus_shared_previous_startup();", "ankus_shared_attach(entry, !IsUnderPostmaster);"]);
         string attach = native[native.IndexOf("static void\nankus_shared_attach", StringComparison.Ordinal)..];
         AssertOrdered(attach, ["if (!found)", "if (!create)", "ankus_shared_initialize(entry->initialize", "header->initialized = true;"]);
         string release = native[native.IndexOf("static void\nankus_shared_release", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];

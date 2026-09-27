@@ -294,7 +294,9 @@ See [memory contexts](docs/src/content/docs/memory-contexts.md).
 Use static `PgLwLock<T>` descriptors and `PgSharedMemory.Initialize` during shared
 preload to share unmanaged values between backends. Disposable shared and
 exclusive guards use PostgreSQL lightweight locks and copy values with checked
-callback lifetimes. See [shared memory and locks](docs/src/content/docs/shared-memory.md).
+callback lifetimes. `PgAtomic<T>` provides scalar reads, exchanges, comparisons
+and integer updates across backends and managed threads with .NET `Interlocked`
+semantics. See [shared memory, locks and atomics](docs/src/content/docs/shared-memory.md).
 
 Use `PgStringInfoStream` for a PostgreSQL-owned growable buffer with ordinary
 stream writes, strict UTF-8 text, exact binary copies, checked context lifetimes,

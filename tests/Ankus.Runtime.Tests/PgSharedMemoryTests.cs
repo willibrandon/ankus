@@ -21,7 +21,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         Assert.AreEqual("name", Assert.ThrowsExactly<ArgumentNullException>(() => new PgLwLock<int>(null!)).ParamName);
         Assert.AreEqual("name", Assert.ThrowsExactly<ArgumentException>(() => new PgLwLock<int>(string.Empty)).ParamName);
         Assert.AreEqual("name", Assert.ThrowsExactly<ArgumentException>(() => new PgLwLock<int>("a\0b")).ParamName);
-        Assert.AreEqual("storage", Assert.ThrowsExactly<ArgumentNullException>(() => PgSharedMemory.Initialize<int>(null!)).ParamName);
+        Assert.AreEqual("storage", Assert.ThrowsExactly<ArgumentNullException>(() => PgSharedMemory.Initialize((PgLwLock<int>)null!)).ParamName);
         var storage = new PgLwLock<int>("exact name 🐘");
         Assert.AreEqual("exact name 🐘", storage.Name);
         Assert.AreEqual("initializer", Assert.ThrowsExactly<ArgumentNullException>(() => PgSharedMemory.Initialize(storage, null!)).ParamName);

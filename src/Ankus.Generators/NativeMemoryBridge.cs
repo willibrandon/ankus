@@ -109,10 +109,12 @@ internal static class NativeMemoryBridge
 
         static int ankus_memory_invoke(AnkusMemoryApi *, AnkusMemoryRequest *, AnkusMemoryResult *, AnkusError *);
         static char ankus_memory_provider;
+        static void ankus_shared_prepare(void);
 
         static void
         ankus_memory_initialize(AnkusMemoryApi *memory)
         {
+            ankus_shared_prepare();
             memset(memory, 0, sizeof(*memory));
             memory->provider = (intptr_t) &ankus_memory_provider;
             memory->current = CurrentMemoryContext;

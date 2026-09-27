@@ -13,6 +13,7 @@ internal static class NativeSharedMemoryBridge
         #include "storage/shmem.h"
         #include "storage/lwlock.h"
         #include "storage/proc.h"
+        #include "port/atomics.h"
 
         /* PostgreSQL 19 keeps the unchanged 48-byte index key private. */
         #if PG_VERSION_NUM >= 190000
@@ -30,6 +31,7 @@ internal static class NativeSharedMemoryBridge
             const char *name;
             const unsigned char *identity;
             size_t size;
+            uint32 kind;
             intptr_t cookie;
             AnkusSharedManagedInitializer initialize;
         } AnkusSharedDefinition;
@@ -38,10 +40,23 @@ internal static class NativeSharedMemoryBridge
         {
             uint64 magic;
             size_t size;
+            uint32 kind;
             unsigned char identity[32];
             LWLock *lock;
             bool initialized;
         } AnkusSharedHeader;
+
+        typedef struct AnkusSharedAccess
+        {
+            pg_atomic_uint64 address;
+            pg_atomic_uint32 readers;
+            pg_atomic_uint32 process_id;
+        } AnkusSharedAccess;
+
+        StaticAssertDecl(sizeof(AnkusSharedAccess) == 16, "Ankus atomic access requires native 64-bit atomics");
+        StaticAssertDecl(offsetof(AnkusSharedAccess, address.value) == 0, "Ankus atomic address layout changed");
+        StaticAssertDecl(offsetof(AnkusSharedAccess, readers.value) == 8, "Ankus atomic reader layout changed");
+        StaticAssertDecl(offsetof(AnkusSharedAccess, process_id.value) == 12, "Ankus atomic process layout changed");
 
         typedef struct AnkusSharedStorage
         {
@@ -49,12 +64,14 @@ internal static class NativeSharedMemoryBridge
             char name[ANKUS_SHARED_NAME_LENGTH];
             unsigned char identity[32];
             size_t size;
+            uint32 kind;
             intptr_t cookie;
             AnkusSharedManagedInitializer initialize;
             AnkusSharedHeader *header;
             LWLock *lock;
             uint64 lease;
             bool exclusive;
+            AnkusSharedAccess access;
             struct AnkusSharedStorage *next;
         } AnkusSharedStorage;
 
@@ -63,10 +80,80 @@ internal static class NativeSharedMemoryBridge
         static uint64 ankus_shared_next_storage = 1;
         static uint64 ankus_shared_next_lease = 1;
         static uint32 ankus_shared_held_count;
+        static bool ankus_shared_has_atomic;
+        static int ankus_shared_exit_pid;
         static shmem_startup_hook_type ankus_shared_previous_startup;
         #if PG_VERSION_NUM >= 150000
         static shmem_request_hook_type ankus_shared_previous_request;
         #endif
+
+        static void
+        ankus_shared_close(AnkusSharedStorage *entry)
+        {
+            pg_atomic_fetch_or_u32(&entry->access.readers, 0x80000000U);
+            pg_atomic_write_u32(&entry->access.process_id, 0);
+            while ((pg_atomic_read_u32(&entry->access.readers) & 0x7fffffffU) != 0)
+            {
+                pg_usleep(1000L);
+            }
+
+            pg_atomic_write_u64(&entry->access.address, 0);
+        }
+
+        static void
+        ankus_shared_retire(void)
+        {
+            /* Unix checkpoints have already drained managed service threads.
+             * Windows workers can still be active: close admission and wait for
+             * each finite operation before PostgreSQL unmaps this process's segment. */
+            for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
+            {
+                if (entry->kind == 1)
+                {
+                    ankus_shared_close(entry);
+                }
+            }
+        }
+
+        static void
+        ankus_shared_before_exit(int code, Datum argument)
+        {
+            (void) code;
+            (void) argument;
+            ankus_shared_retire();
+            ankus_shared_exit_pid = 0;
+        }
+
+        static void
+        ankus_shared_prepare(void)
+        {
+            if (!ankus_shared_has_atomic || ankus_shared_exit_pid == MyProcPid ||
+                (IsUnderPostmaster && MyProc == NULL))
+            {
+                return;
+            }
+
+            /* Unix children clear inherited exit callbacks. Publish their process identity
+             * only after the new callback owns address retirement in this process. */
+            before_shmem_exit(ankus_shared_before_exit, (Datum) 0);
+            ankus_shared_exit_pid = MyProcPid;
+            for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
+            {
+                if (entry->kind == 1)
+                {
+                    if (pg_atomic_read_u32(&entry->access.process_id) != (uint32) MyProcPid)
+                    {
+                        /* Fork copies the parent's process-local reader count, but none
+                         * of its other threads. Their leases cannot survive in this child.
+                         * Keep an unpublished address closed until startup attaches it. */
+                        pg_atomic_write_u32(&entry->access.readers,
+                            pg_atomic_read_u64(&entry->access.address) == 0 ? 0x80000000U : 0);
+                    }
+
+                    pg_atomic_write_u32(&entry->access.process_id, (uint32) MyProcPid);
+                }
+            }
+        }
 
         static void *
         ankus_shared_data(AnkusSharedHeader *header)
@@ -77,14 +164,18 @@ internal static class NativeSharedMemoryBridge
         static Size
         ankus_shared_size(AnkusSharedStorage *entry)
         {
-            return add_size(MAXALIGN(sizeof(AnkusSharedHeader)), entry->size);
+            Size value_size = entry->kind == 1 && entry->size < sizeof(uint64) ? sizeof(uint64) : entry->size;
+            return add_size(MAXALIGN(sizeof(AnkusSharedHeader)), value_size);
         }
 
         static void
         ankus_shared_request_one(AnkusSharedStorage *entry)
         {
             RequestAddinShmemSpace(ankus_shared_size(entry));
-            RequestNamedLWLockTranche(entry->name, 1);
+            if (entry->kind == 0)
+            {
+                RequestNamedLWLockTranche(entry->name, 1);
+            }
         }
 
         #if PG_VERSION_NUM >= 150000
@@ -142,17 +233,23 @@ internal static class NativeSharedMemoryBridge
                     }
 
                     memset(header, 0, ankus_shared_size(entry));
-                    header->magic = UINT64CONST(0x414e4b5553534801);
+                    header->magic = UINT64CONST(0x414e4b5553534802);
                     header->size = entry->size;
+                    header->kind = entry->kind;
                     memcpy(header->identity, entry->identity, sizeof(header->identity));
-                    header->lock = &GetNamedLWLockTranche(entry->name)->lock;
+                    if (entry->kind == 0)
+                    {
+                        header->lock = &GetNamedLWLockTranche(entry->name)->lock;
+                    }
+
                     ankus_shared_initialize(entry->initialize, entry->cookie, ankus_shared_data(header), entry->size);
                     header->initialized = true;
                 }
 
-                if (header->magic != UINT64CONST(0x414e4b5553534801) || header->size != entry->size ||
+                if (header->magic != UINT64CONST(0x414e4b5553534802) || header->size != entry->size || header->kind != entry->kind ||
                     memcmp(header->identity, entry->identity, sizeof(header->identity)) != 0 || !header->initialized ||
-                    header->lock == NULL || !ShmemAddrIsValid(header->lock))
+                    (entry->kind == 0 && (header->lock == NULL || !ShmemAddrIsValid(header->lock))) ||
+                    (entry->kind == 1 && header->lock != NULL))
                 {
                     ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
                         errmsg("Ankus shared memory '%s' has a conflicting or incomplete value layout", entry->name)));
@@ -162,8 +259,19 @@ internal static class NativeSharedMemoryBridge
                  * Only this shared pointer is retained; GetNamedLWLockTranche depends
                  * on a postmaster-private request array unavailable in Windows children. */
                 entry->lock = header->lock;
-                LWLockRegisterTranche(entry->lock->tranche, entry->name);
+                if (entry->kind == 0)
+                {
+                    LWLockRegisterTranche(entry->lock->tranche, entry->name);
+                }
+
                 entry->header = header;
+                if (entry->kind == 1)
+                {
+                    pg_atomic_write_u64(&entry->access.address, (uint64) (uintptr_t) ankus_shared_data(header));
+                    pg_atomic_write_u32(&entry->access.process_id, (uint32) MyProcPid);
+                    pg_memory_barrier();
+                    pg_atomic_write_u32(&entry->access.readers, 0);
+                }
             }
             PG_FINALLY();
             {
@@ -186,6 +294,11 @@ internal static class NativeSharedMemoryBridge
              * retaining its loaded modules and managed descriptors. Retire every
              * address before invoking hooks for the replacement shared segment. */
             ankus_shared_held_count = 0;
+            if (ankus_shared_has_atomic)
+            {
+                ankus_shared_retire();
+            }
+
             for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
             {
                 entry->header = NULL;
@@ -193,6 +306,7 @@ internal static class NativeSharedMemoryBridge
                 entry->lease = 0;
             }
 
+            ankus_shared_prepare();
             if (ankus_shared_previous_startup != NULL)
             {
                 ankus_shared_previous_startup();
@@ -200,7 +314,7 @@ internal static class NativeSharedMemoryBridge
 
             for (AnkusSharedStorage *entry = ankus_shared_storage; entry != NULL; entry = entry->next)
             {
-                ankus_shared_attach(entry, true);
+                ankus_shared_attach(entry, !IsUnderPostmaster);
             }
         }
 
@@ -230,7 +344,9 @@ internal static class NativeSharedMemoryBridge
             AnkusSharedDefinition *definition = (AnkusSharedDefinition *) request->data;
             if (definition == NULL || definition->name == NULL || definition->name[0] == '\0' ||
                 strlen(definition->name) >= ANKUS_SHARED_NAME_LENGTH || definition->identity == NULL ||
-                definition->size == 0 || definition->cookie == 0 || definition->initialize == NULL)
+                definition->size == 0 || definition->kind > 1 ||
+                (definition->kind == 1 && definition->size != 1 && definition->size != 2 && definition->size != 4 && definition->size != 8) ||
+                definition->cookie == 0 || definition->initialize == NULL)
             {
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                     errmsg("invalid Ankus shared-memory name, value size or initializer")));
@@ -255,8 +371,12 @@ internal static class NativeSharedMemoryBridge
             strlcpy(entry->name, definition->name, sizeof(entry->name));
             memcpy(entry->identity, definition->identity, sizeof(entry->identity));
             entry->size = definition->size;
+            entry->kind = definition->kind;
             entry->cookie = definition->cookie;
             entry->initialize = definition->initialize;
+            pg_atomic_init_u64(&entry->access.address, 0);
+            pg_atomic_init_u32(&entry->access.readers, 0x80000000U);
+            pg_atomic_init_u32(&entry->access.process_id, 0);
             PG_TRY();
             {
                 (void) ankus_shared_size(entry);
@@ -271,9 +391,13 @@ internal static class NativeSharedMemoryBridge
                         ankus_shared_previous_request = shmem_request_hook;
                         shmem_request_hook = ankus_shared_request;
         #endif
-                        ankus_shared_previous_startup = shmem_startup_hook;
-                        shmem_startup_hook = ankus_shared_startup;
                     }
+                }
+
+                if (ankus_shared_storage == NULL)
+                {
+                    ankus_shared_previous_startup = shmem_startup_hook;
+                    shmem_startup_hook = ankus_shared_startup;
                 }
             }
             PG_CATCH();
@@ -292,7 +416,13 @@ internal static class NativeSharedMemoryBridge
             }
 
             ankus_shared_last_storage = entry;
+            ankus_shared_has_atomic |= entry->kind == 1;
             result->value = (intptr_t) entry->id;
+            if (entry->kind == 1)
+            {
+                result->data = (intptr_t) &entry->access;
+                result->length = sizeof(entry->access);
+            }
         }
 
         static void
@@ -352,6 +482,12 @@ internal static class NativeSharedMemoryBridge
             }
 
             ankus_shared_attach(entry, false);
+            if (entry->kind != 0)
+            {
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
+                    errmsg("Ankus atomic storage does not use lightweight-lock operations")));
+            }
+
             if (request->flags == 1 || request->flags == 2)
             {
                 if (LWLockHeldByMe(entry->lock))

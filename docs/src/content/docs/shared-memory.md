@@ -1,6 +1,6 @@
 ---
-title: Shared memory and locks
-description: Share unmanaged values between PostgreSQL backends with native reader/writer locks.
+title: Shared memory, locks and atomics
+description: Share unmanaged values between PostgreSQL backends with native reader/writer locks and atomic scalars.
 ---
 
 Use `PgLwLock<T>` for a value shared by PostgreSQL processes. Keep the descriptor
@@ -95,5 +95,54 @@ guard no longer permits access, and disposing it cannot release a later
 acquisition of the same lock. After recovery, acquire a new guard before accessing
 the value. Shared-memory writes made before an error remain visible.
 
-Atomics, bounded shared collections, spinlock conveniences and high-level
-background-worker APIs are still being ported.
+## Atomic scalars
+
+Use `PgAtomic<T>` when a single scalar needs atomic reads and updates across
+PostgreSQL processes and managed threads:
+
+```csharp
+public static class SharedRequests
+{
+    private static readonly PgAtomic<long> Completed = new("my_extension.completed");
+
+    [PgModuleLoad]
+    public static void Register() => PgSharedMemory.Initialize(Completed);
+
+    [PgFunction]
+    public static long RecordCompletion() => Completed.Increment();
+
+    [PgFunction]
+    public static long ReadCompleted() => Completed.Value;
+}
+```
+
+Register the descriptor during shared preload, just like a `PgLwLock<T>`.
+The supported scalar types are `bool`, `char`, signed and unsigned 8-, 16-,
+32- and 64-bit integers, `nint`, `nuint`, `float`, `double`, and enums.
+Other unmanaged types, including `decimal` and structs, are rejected.
+
+`Value` reads or replaces the scalar atomically. `Exchange(value)` returns the
+old value. `CompareExchange(value, comparand)` replaces it only when the current
+bits match `comparand`; it returns the old value whether comparison succeeds
+or fails. Floating-point comparisons distinguish NaN payloads and positive
+from negative zero.
+
+Integer `Add`, `Subtract`, `Increment` and `Decrement` wrap on overflow and
+return the new value. Integer and Boolean `And`, `Or` and `Xor` return the old
+value. These operations use .NET `Interlocked` ordering. Separate operations
+on multiple descriptors do not form an atomic transaction; use a lock around
+an unmanaged aggregate when its fields must change together.
+
+Once startup has attached the value, managed worker threads can access it
+without a PostgreSQL callback or a lock guard. Registration and initialization
+still belong to PostgreSQL startup. An operation checks that the current process
+has attached and protects the address while accessing it. New operations fail
+during shared-memory retirement; replacement storage becomes available after
+startup initializes it. Writes survive SQL errors and rollback, and ordinary
+backend attachment preserves the existing value.
+
+In a Unix postmaster, follow the [preload thread lifetime rules](/initialization/#preloading).
+
+General immutable shared views, aggregate atomic fields, bounded shared
+collections, spinlock conveniences and high-level background-worker APIs are
+still being ported.

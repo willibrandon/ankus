@@ -34,22 +34,31 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-Commit `9a8e907` adds named unmanaged shared storage and PostgreSQL lightweight
-reader/writer lock guards. Real-server witnesses cover Linux x64/PostgreSQL 18.6
-and Windows x64/PostgreSQL 17.7, including startup failures, independent backends,
-contention, error recovery and shared-segment recreation after a backend crash.
+Shared scalar atomics extend the named unmanaged storage and lightweight locks
+introduced in `9a8e907`. `PgAtomic<T>` preserves primitive and enum bits with .NET
+Interlocked semantics across PostgreSQL processes and managed threads. Native
+admission protects each operation while shutdown retires shared addresses.
+Real-server witnesses cover Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL
+17.7, including startup failures, exact scalar updates, contention, error recovery
+and an original postmaster timer accessing replacement shared memory after a
+backend crash. General shared aggregate/immutable views remain required.
 
-The latest full Linux run passes **7,841 tests, zero failures and six Windows-only
-skips, 7,847 total**, in 10m30.871s. It includes the bounded
-package-consumer fixture and MSBuild worker-lifetime fix described at the end of
-this tracker. The Release build has zero warnings/errors. The corresponding
-Windows x64/PostgreSQL 17.7 consumer rerun passes all 74 cases with successful
-class cleanup in 18m05.184s.
+The latest full Linux run passes **7,865 tests, zero failures and six Windows-only
+skips, 7,871 total**, in 10m41.815s. The focused native atomic and existing lock
+tests pass 2/2 on Linux in 4m01.575s and 2/2 on Windows in 7m04.799s, with clean
+fixture teardown. The direct Runtime focus passes 37 cases and the generator
+focus passes two. Documentation generates 221 pages, site checking reports zero
+errors/warnings/hints, and API freshness verifies 178 pages/2,286 members.
+The final Linux Release solution build passes with zero warnings/errors in 58.85s;
+the Windows Release solution and final affected-project builds also pass.
 
-Hosted CI for `9a8e907` passes quality, runtime, Linux and macOS; Windows timed out
-at one hour. Full hosted Windows validation and the complete PostgreSQL/platform
-matrix remain required. Atomics, bounded shared collections, spinlocks and
-high-level background workers are still being ported; the full goal is incomplete.
+Hosted [CI 36313857919](https://github.com/willibrandon/ankus/actions/runs/36313857919)
+for the fixture milestone `d6b5cd5` passes every job: the full Linux job takes
+31m04s, macOS 38m21s and Windows 54m25s. Docs 36313857910 also passes. This resolves
+the preceding Windows timeout within the unchanged one-hour limit. The complete
+PostgreSQL/platform matrix remains required. Hosted validation of the new scalar
+atomics is pending; general shared views, bounded shared collections, spinlocks and high-level
+background workers remain full-port work.
 
 ### Managed preload validation history
 
@@ -2687,7 +2696,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `callbacks.rs` | Transaction/subtransaction callbacks, unregister and error cleanup | Partial: all event mappings, one-shot/repeating lifetimes, cancellation, nested dispatch and guarded errors implemented; two-phase, parallel-worker and matrix execution pending |
 | `guc.rs`, `PostgresGucEnum`, `pg_guc_hook` | Bool/int/real/string/enum settings, contexts/flags/bounds, hidden/named enum entries, check/assign/show hooks and structured errors | Partial: native-backed typed declarations, hooks/extra, prefixes/logging, source/privilege/transaction/reload semantics, actual worker propagation, bounded lifetime measurements, cold package consumers and managed preload verified above. Raw-placeholder treatment, mixed-encoding preload and the full matrix remain required |
 | `bgworkers.rs` | Static/dynamic workers, startup/restart/shutdown, handles, signals/latches and backend connections | Pending |
-| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; atomics, bounded containers, spinlock conveniences and remaining platform/version evidence are required |
+| `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics across processes and managed threads, error cleanup, contention and shared-segment recreation verified on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.7; general shared aggregate/immutable views, bounded containers, spinlock conveniences and remaining platform/version evidence are required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
 | `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Pending |
@@ -8824,3 +8833,83 @@ the `95031c5` CI and Docs passed. These outcomes will be checked and recorded ag
 immediately before pushing. The next hosted run must validate the full platform
 suites with the bounded consumer fixture; the earlier timeout is not treated as
 successful validation.
+
+### Shared scalar atomics — Linux and Windows validation
+
+The implementation adds static `PgAtomic<T>` descriptors registered through
+`PgSharedMemory.Initialize`. Primitive and enum scalars retain their exact bits
+through .NET `Interlocked` reads, exchanges and comparisons. Integer arithmetic
+wraps with return-new semantics; integer and Boolean bitwise updates return the
+old value. This scalar surface does not complete pgrx's general shared aggregate
+and immutable-view contracts.
+
+The native protocol distinguishes atomic values from lock-protected storage,
+reserves padding for narrow atomic instructions, and compiles its admission-slot
+layout against the selected PostgreSQL headers. Managed operations do not call
+PostgreSQL from worker threads. Native attachment publishes the address after
+initialization; shutdown closes reader admission before retiring the segment.
+Windows attaches during shared-memory startup, and Unix children reset inherited
+process-local reader counts before publishing their own process identity.
+
+The final direct Runtime focus passes 37 cases, including existing lock cases,
+invalid initializer buffers and the reader-limit boundary. Both generator cases
+pass. Arithmetic retries release admission between individual compare/exchange
+attempts so retirement does not depend on another process ceasing updates.
+README and the public shared-memory guide describe the API, exact update semantics
+and remaining scope. Public documentation builds 221 pages, site checks have zero
+errors/warnings/hints, and API freshness verifies 178 pages and 2,286 members.
+
+The stronger native run caught an unused C helper during a retirement experiment.
+The final native retirement path calls its helpers directly and does not require
+resuming a dormant runtime; warning enforcement is unchanged. A permanently
+running explicit postmaster thread was rejected by the Unix runtime's checkpoint.
+Inspection of PostgreSQL's postmaster rules and the pinned runtime confirms that
+Unix checkpoints require those threads to finish, rather than parking arbitrary
+user stacks. The cross-platform witness therefore retains one timer callback,
+which the runtime can drain and resume, and excludes inherited child copies with
+its captured owner PID. This still exercises active Windows readers and an
+original callback accessing replacement storage. The public initialization guide
+now explains the preload thread lifetime contract.
+
+The explicit-thread variant passes on Windows x64/PostgreSQL 17.7 in 7m23.052s.
+The final timer-based native witnesses pass 2/2 on Linux x64/PostgreSQL 18.6 in
+4m01.575s and 2/2 on Windows x64/PostgreSQL 17.7 in 7m04.799s, with zero
+failures/skips and successful fixture cleanup. They prove independent backend
+and managed-thread updates, exact scalar bits, unchanged state after failed CAS,
+error/rollback persistence, and the original postmaster timer callback writing
+its captured epoch into replacement storage. The complete root `dotnet test` run
+passes on Linux x64/PostgreSQL 18.6: **7,865 passed, zero failed, six Windows-only
+skips, 7,871 total**, in 10m41.815s (integration 10m41.059s). The preceding hosted
+CI run for `d6b5cd5` is fully successful: Linux 31m04s, macOS 38m21s and Windows
+54m25s. Docs 36313857910 also passes. This resolves the earlier Windows timeout;
+all limits remain one hour and no suites are omitted or sharded.
+
+The final Release solution build passes on Linux with zero warnings/errors in
+58.85s. Windows Release solution and affected generator/integration builds also
+pass. These local gates include the final native retirement implementation and
+timer witness. The hosted scalar-atomic platform run is still required.
+
+| Requirement | Concrete evidence |
+|---|---|
+| Supported types and invalid inputs | `AtomicDescriptorsRejectInvalidContracts`, `AtomicScalarOperationsPreserveExactBits`: invalid names/types fail, every scalar width and enum retains exact exchange/CAS values and surrounding bytes |
+| Registration and initialization | `AtomicRegistrationPreservesIdentityAndInitialization`, `AtomicRegistrationFailureCanRetryWithoutOldInitializer`, `AtomicInitializerRejectsInvalidStorageBeforeCallingFactory`: exact identity/kind/size, deferred/idempotent initialization, stale factory rejection, zero/default retry and untouched invalid buffers |
+| Admission and address lifetime | `AtomicRegistrationRejectsInvalidAccessStorage`, `AtomicAccessRejectsUnpublishedOrInvalidStorage`, `AtomicAdmissionAcceptsLastAvailableReader`, `AtomicAdmissionPreservesActiveLeaseAndReplacementSegment`: invalid slots, process ownership, reader limits, closed admission, balanced disposal and replacement addresses |
+| Arithmetic and bitwise return contracts | `AtomicArithmeticPreservesDotNetReturnAndWrapContracts`: every integer width wraps, arithmetic returns the new value and integer/Boolean bitwise updates return the old value |
+| Floating-point bit identity | `AtomicFloatingPointOperationsPreserveNaNPayloadsAndSignedZero`: distinct NaN payloads and signed zero remain distinct comparands |
+| Managed thread access | `AtomicOperationsWorkAcrossThreadsWithoutBackendCalls`: exact total under contention, no worker errors, no PostgreSQL requests after registration and zero retained admissions |
+| Generated contracts | `AtomicRegistrationCompilesWithSelectedHeaderLifetime`: compiling C# consumer, selected-header layout, publication/retirement order, process attachment and native request shape |
+| Native processes and replacement storage | `SharedAtomicsPreserveValuesAcrossProcessesAndThreads`: packaged Native AOT on the two stated platforms; first backend access on a managed worker, two synchronized backends, owned startup errors, transaction/error persistence and captured timer epoch after a test-owned backend crash |
+| Existing lock behavior | `SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` passes alongside the new atomic witness on both platforms |
+
+General shared aggregate/immutable views, bounded shared containers, spinlocks,
+high-level background workers and the complete PostgreSQL/platform matrix remain
+required. Scalar support and these focused platform witnesses do not complete
+the faithful port.
+
+Immediately before this milestone's commit, hosted outcomes were refreshed:
+[CI 36313857919](https://github.com/willibrandon/ankus/actions/runs/36313857919)
+and [Docs 36313857910](https://github.com/willibrandon/ankus/actions/runs/36313857910)
+for `d6b5cd5` both pass. The preceding `9a8e907` and `8f2d1e0` CI runs remain
+recorded as Windows timeouts; their Docs runs passed. Outcomes are checked and
+recorded again immediately before pushing. The new run must establish the scalar
+milestone's complete hosted platform results.

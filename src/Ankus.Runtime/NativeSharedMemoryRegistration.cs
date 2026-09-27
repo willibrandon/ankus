@@ -8,10 +8,11 @@ namespace Ankus;
 /// <summary>
 /// Roots one process-local initializer and identifies its native shared-memory descriptor.
 /// </summary>
-internal sealed unsafe class NativeSharedMemoryRegistration(string name, string identity, int size)
+internal sealed unsafe class NativeSharedMemoryRegistration(string name, string identity, int size, bool atomic = false)
 {
     private nint _provider;
     private nint _handle;
+    private nint _access;
 
     /// <summary>
     /// Registers the descriptor once; failure retains the ability to retry.
@@ -38,6 +39,7 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
                     _name = (nint)text,
                     _identity = (nint)type,
                     _size = (nuint)size,
+                    _kind = atomic ? 1u : 0u,
                     _cookie = cookie,
                     _initialize = (nint)(delegate* unmanaged[Cdecl]<nint, nint, nuint, NativeCallbackContext*, int>)&NativeSharedMemoryInitializer.Invoke,
                 };
@@ -52,8 +54,15 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
                     throw new InvalidOperationException("PostgreSQL did not return a shared-memory registration.");
                 }
 
+                if (atomic && (result._data == 0 || (nuint)result._data % sizeof(long) != 0 ||
+                    result._length != (nuint)sizeof(NativeSharedMemoryAccess)))
+                {
+                    throw new InvalidOperationException("PostgreSQL returned invalid atomic access storage.");
+                }
+
                 _provider = provider;
                 _handle = result._value;
+                Volatile.Write(ref _access, result._data);
             }
         }
         catch
@@ -61,6 +70,53 @@ internal sealed unsafe class NativeSharedMemoryRegistration(string name, string 
             NativeSharedMemoryInitializer.Remove(cookie);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Borrows a published atomic address without invoking PostgreSQL or requiring a backend thread.
+    /// </summary>
+    /// <returns>A bounded operation lease that prevents shared-memory retirement until disposal.</returns>
+    internal NativeSharedMemoryAccessLease Open()
+    {
+        nint location = Volatile.Read(ref _access);
+        if (location == 0)
+        {
+            throw new InvalidOperationException("Register the PostgreSQL atomic descriptor during shared preload before accessing it.");
+        }
+
+        var access = (NativeSharedMemoryAccess*)location;
+        if (Volatile.Read(ref access->_processId) != Environment.ProcessId)
+        {
+            throw new InvalidOperationException("PostgreSQL atomic storage has not attached in this process.");
+        }
+
+        while (true)
+        {
+            int readers = Volatile.Read(ref access->_readers);
+            if (readers < 0)
+            {
+                throw new InvalidOperationException("PostgreSQL atomic storage is not initialized or is being retired.");
+            }
+
+            if (readers == int.MaxValue)
+            {
+                throw new InvalidOperationException("The PostgreSQL atomic reader limit has been reached.");
+            }
+
+            if (Interlocked.CompareExchange(ref access->_readers, readers + 1, readers) == readers)
+            {
+                break;
+            }
+        }
+
+        nint value = (nint)Volatile.Read(ref access->_address);
+        if (value == 0 || (nuint)value % (nuint)Math.Min(size, sizeof(long)) != 0)
+        {
+            Interlocked.Decrement(ref access->_readers);
+            throw new InvalidOperationException("PostgreSQL atomic storage has an invalid value address.");
+        }
+
+        return new NativeSharedMemoryAccessLease(location, value);
     }
 
     /// <summary>
@@ -119,6 +175,11 @@ internal struct NativeSharedMemoryDefinition
     /// Gives the exact unmanaged value size.
     /// </summary>
     internal nuint _size;
+
+    /// <summary>
+    /// Selects a lightweight lock (zero) or atomic storage (one).
+    /// </summary>
+    internal uint _kind;
 
     /// <summary>
     /// Identifies the process-local rooted factory.

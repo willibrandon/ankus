@@ -99,6 +99,12 @@ in one backend do not change another backend or the postmaster. Tasks, timers,
 garbage collection, finalizers, and managed configuration hooks continue to work
 after startup. Extension projects use this automatically; no host setup is needed.
 
-To share values across backends, register static `PgLwLock<T>` descriptors from
+On Linux and macOS, the postmaster retires runtime service threads between managed
+callbacks so PostgreSQL can fork safely. Complete explicitly created threads before
+returning from a preload callback. Timers and queued work resume when the runtime
+reenters or a backend starts; a continuously running postmaster thread does not fit
+PostgreSQL's Unix process model.
+
+To share values across backends, register static `PgLwLock<T>` or `PgAtomic<T>` descriptors from
 `PgModuleLoad` using `PgSharedMemory.Initialize`. See
-[shared memory and locks](/shared-memory/) for storage and guard lifetimes.
+[shared memory, locks and atomics](/shared-memory/) for storage and guard lifetimes.

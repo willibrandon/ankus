@@ -23,6 +23,54 @@ Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object)
 
 ## Methods
 
+<a id="member-554c0da59336a05c"></a>
+
+### Initialize&lt;T&gt;(PgAtomic&lt;T&gt;)
+
+Registers a zero-initialized atomic scalar.
+
+```csharp
+public static void Initialize<T>(PgAtomic<T> storage) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The supported unmanaged scalar type.
+
+Parameters:
+
+`storage` — <code>PgAtomic&lt;T&gt;</code>
+
+The static named atomic descriptor.
+
+<a id="member-050c8a78e41c8aba"></a>
+
+### Initialize&lt;T&gt;(PgAtomic&lt;T&gt;, Func&lt;T&gt;)
+
+Registers an atomic scalar whose factory runs only when PostgreSQL creates its shared storage.
+
+```csharp
+public static void Initialize<T>(PgAtomic<T> storage, Func<T> initializer) where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+The supported unmanaged scalar type.
+
+Parameters:
+
+`storage` — <code>PgAtomic&lt;T&gt;</code>
+
+The static named atomic descriptor.
+
+`initializer` — [Func&lt;T&gt;](https://learn.microsoft.com/dotnet/api/system.func-1)
+
+The factory run at shared-memory startup.
+
 <a id="member-04e14b2877c03b5a"></a>
 
 ### Initialize&lt;T&gt;(PgLwLock&lt;T&gt;)
