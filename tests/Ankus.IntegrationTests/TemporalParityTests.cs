@@ -31,11 +31,24 @@ public sealed class TemporalParityTests(TestContext context)
     public Task DateFieldsMatchPostgresAcrossFullRange(string value)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(DateFieldsMatchPostgresAcrossFullRange), async (connection, transaction, token) =>
         {
-            string parts = DatePartsSql;
+            bool nativeDateExtraction = PostgresFixture.Cluster.Installation.Version.Major >= 14;
+            if (!nativeDateExtraction)
+            {
+                await using var settings = new NpgsqlCommand("SET LOCAL DateStyle = 'ISO, YMD'", connection, transaction);
+                await settings.ExecuteNonQueryAsync(token);
+            }
+
+            // PostgreSQL 13 extracts dates through timestamp, whose finite range is smaller.
+            // Its native ISO date output and date subtraction still cover every stored date.
+            string parts = nativeDateExtraction ? DatePartsSql : """
+                (CASE WHEN right(value::text,3) = ' BC' THEN -1 ELSE 1 END) * split_part(value::text,'-',1)::bigint,
+                split_part(value::text,'-',2)::bigint, split_part(split_part(value::text,'-',3),' ',1)::bigint
+                """;
+            string julian = nativeDateExtraction ? "extract(julian FROM value)::bigint" : "(value - date '4714-11-24 BC')::bigint";
+            string epoch = nativeDateExtraction ? "extract(epoch FROM value)::bigint" : "(value - date '1970-01-01')::bigint * 86400";
             await using var command = new NpgsqlCommand($"""
                 WITH input AS (SELECT $1::date AS value)
-                SELECT ARRAY[{parts},{parts}, extract(julian FROM value)::bigint,
-                    (value - date '1970-01-01')::bigint, extract(epoch FROM value)::bigint],
+                SELECT ARRAY[{parts},{parts},{julian},(value - date '1970-01-01')::bigint,{epoch}],
                     datatype.parity_date_fields(value) FROM input
                 """, connection, transaction);
             command.Parameters.AddWithValue(value);

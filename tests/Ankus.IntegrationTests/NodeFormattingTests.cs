@@ -66,7 +66,7 @@ public sealed partial class NodeTests
     /// </summary>
     [TestMethod]
     public Task NativeNodeFormattingTraversesNestedValues()
-        => CheckAsync("SELECT datatype.node_format_nested(false)", "{COLLATEEXPR :arg {RANGETBLREF :rtindex 9} :collOid 123 :location -1}");
+        => CheckAsync("SELECT datatype.node_format_nested(false)", NestedNodeText);
 
     /// <summary>
     /// Incomplete concrete roots fail before native traversal and leave the same backend usable.
@@ -127,7 +127,7 @@ public sealed partial class NodeTests
             Assert.AreEqual("54001", error.SqlState);
             Assert.AreEqual("stack depth limit exceeded", error.MessageText);
             command.CommandText = "SELECT datatype.node_format_nested(false)";
-            Assert.AreEqual("{COLLATEEXPR :arg {RANGETBLREF :rtindex 9} :collOid 123 :location -1}", await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(NestedNodeText, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus node formatting' OR ident = 'nested native node'";
             Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         }
@@ -164,7 +164,8 @@ public sealed partial class NodeTests
             command.CommandText = "SELECT public.node_format_alias(convert_to('café name', current_setting('server_encoding')))";
             Assert.AreEqual("{ALIAS :aliasname café\\ name :colnames <>}", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT public.node_format_alias(convert_to('', current_setting('server_encoding')))";
-            Assert.AreEqual("{ALIAS :aliasname \"\" :colnames <>}", await command.ExecuteScalarAsync(token));
+            string emptyName = PostgresFixture.Cluster.Installation.Version.Major >= 16 ? "\"\"" : "<>";
+            Assert.AreEqual($"{{ALIAS :aliasname {emptyName} :colnames <>}}", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT public.node_format_alias(NULL)";
             Assert.AreEqual("{ALIAS :aliasname <> :colnames <>}", await command.ExecuteScalarAsync(token));
         }
@@ -174,4 +175,11 @@ public sealed partial class NodeTests
             await drop.ExecuteNonQueryAsync(CancellationToken.None);
         }
     }
+
+    /// <summary>
+    /// Gets the selected server's complete native rendering, including its historical CollateExpr spelling.
+    /// </summary>
+    private static string NestedNodeText => PostgresFixture.Cluster.Installation.Version.Major >= 15
+        ? "{COLLATEEXPR :arg {RANGETBLREF :rtindex 9} :collOid 123 :location -1}"
+        : "{COLLATE :arg {RANGETBLREF :rtindex 9} :collOid 123 :location -1}";
 }

@@ -106,6 +106,10 @@ on success and error. PostgreSQL errors return through the native guard before
 becoming managed exceptions. Unknown tags retain PostgreSQL's warning and
 fallback output. Formatting is explicit because it accesses a live backend and
 traverses native pointers; ordinary debugger display does not perform that work.
+The diagnostic text follows the selected PostgreSQL version. For example,
+`CollateExpr` renders as `COLLATE` on PostgreSQL 13/14 and `COLLATEEXPR` on 15+.
+Before PostgreSQL 16, empty and null string members both render as `<>`; newer
+versions distinguish an empty string as `""`.
 Planner/executor integration, broader raw bindings and complete version/platform
 validation remain in progress.
 

@@ -34,6 +34,17 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Native storage, node-format and full-range date tests now use the selected
+server's observable contracts without dropping boundary or recovery assertions.
+All 30 affected node/TOAST cases pass on Linux x64/PostgreSQL 13.23 and 14.20,
+four formatting cases pass on 15.19, and all fourteen date-boundary cases pass
+on 13.23. The final plain PostgreSQL 18.6 suite passes **8,263 tests, zero
+failures and six Windows-only skips, 8,269 total**, in 12m34.903s. Release,
+generated API and site checks pass. The complete PostgreSQL 13.23 diagnostic
+records **8,161 passes, 102 failures and six Windows-only skips**; remaining
+native-version contracts and a parallel GUC query timeout require follow-up.
+The complete PostgreSQL 13–19/platform matrix and other full-port work remain open.
+
 Relation metadata now preserves PostgreSQL 13 index descriptors without trying
 to look up their absent row type. Typed tuple, array and SPI factories reject
 those descriptors explicitly. All 44 managed tuple tests and 44 relation cases
@@ -10969,5 +10980,63 @@ at `bfa6bcc`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
 test jobs remain in progress without a reported failure.
 [Docs 36394682505](https://github.com/willibrandon/ankus/actions/runs/36394682505)
 passes. The preceding `277b031` platform jobs were cancelled when superseded
+and do not provide completed-suite evidence. Previous outcomes are checked and
+recorded again immediately before pushing.
+
+## Native storage, diagnostic text and full-range date observations
+
+TOAST integration checks now select explicit `pglz` compression and inspect its
+method on PostgreSQL 14+, while PostgreSQL 13's single compression method is
+proved through independently observed stored size. Text, bytea and long JSON
+string payloads must be smaller than their uncompressed byte lengths. Numeric
+storage is compared with a native arithmetic result's uncompressed binary size,
+so compact numeric representation alone cannot satisfy the compression check.
+External TOAST storage, exact Unicode/binary content, seven-byte packed numeric
+storage and all 50,000 decimal digits with their scale remain asserted.
+
+Native node-format checks retain the selected server's complete output:
+PostgreSQL 13/14's `COLLATE` spelling becomes `COLLATEEXPR` in 15, and empty
+strings share the null `<>` token until 16. The runtime continues to expose
+PostgreSQL's actual diagnostic text. The public raw-values guide documents these
+version differences. Exact nested fields, UTF8/LATIN1 encoding and escaping,
+eight repeated recursion errors, formatting-context reclamation and same-backend
+recovery remain required. All 30 affected node/TOAST cases pass without
+failures/skips on Linux x64/PostgreSQL 13.23 in 2m54.716s and 14.20 in
+2m23.448s; all four affected formatting cases also pass on 15.19 in 2m41.705s.
+
+The PostgreSQL 13 full-range date oracle now reads native ISO date output and
+uses native date subtraction for Julian/Unix days and exact epoch seconds.
+Its `EXTRACT(date)` operation converts through timestamp and therefore cannot
+observe dates near the maximum supported date. PostgreSQL 14+ retains native
+date extraction. All fourteen existing boundary, BC/leap-year and epoch inputs
+remain in the test. DateStyle setup executes separately from the parameterized
+query, preserving the driver's single-statement parameter contract.
+
+All **14 date-boundary cases pass without failures/skips** on Linux
+x64/PostgreSQL 13.23 in 2m13.204s, including the full-range maximum and BC leap
+dates. Release builds with zero warnings/errors in 1m38.87s. Generated API
+freshness passes for 200 pages/2,437 members; the site builds 245 pages and its
+check reports zero errors/warnings/hints. Plain full Linux x64/PostgreSQL 18.6
+`dotnet test` passes **8,263 tests, zero failures and six Windows-only skips,
+8,269 total**, in 12m34.903s (integration 12m34.281s). This run overlaps an
+isolated version diagnostic and is not a cold-cache timing baseline.
+
+The full Linux x64/PostgreSQL 13.23 diagnostic records **8,161 passes,
+102 failures and six Windows-only skips, 8,269 total**, in 11m16.599s
+(integration 11m14.866s). All managed test modules pass. Remaining failures
+include allocator availability/alignment, numeric and temporal version
+contracts, selected-header package assumptions, event-trigger availability and
+a parallel function-local GUC query timeout. That query previously completed
+in under a second; its 30-second timeout and callback-extra validation failures
+during cancellation cleanup require investigation rather than a larger timeout.
+The complete PostgreSQL 13–19/platform matrix and other faithful-port work
+remain required.
+
+The 2026-09-28 08:43 UTC pre-commit check records
+[CI 36396998055](https://github.com/willibrandon/ankus/actions/runs/36396998055)
+at `85e00bc`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
+test jobs remain in progress without a reported failure.
+[Docs 36396998230](https://github.com/willibrandon/ankus/actions/runs/36396998230)
+passes. The preceding `bfa6bcc` platform jobs were cancelled when superseded
 and do not provide completed-suite evidence. Previous outcomes are checked and
 recorded again immediately before pushing.

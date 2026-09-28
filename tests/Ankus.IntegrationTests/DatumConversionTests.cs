@@ -189,12 +189,17 @@ public sealed class DatumConversionTests(TestContext context)
             {
                 string text = string.Concat(Enumerable.Repeat("PostgreSQL 🐘 café ", 4000));
                 byte[] bytes = [.. Enumerable.Range(0, 65536).Select(static value => (byte)(value % 256))];
+                string compression = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? """
+                        ALTER TABLE toast_values ALTER COLUMN value SET COMPRESSION pglz;
+                        ALTER TABLE toast_values ALTER COLUMN bytes SET COMPRESSION pglz;
+                        """
+                    : "";
                 string setup = $"""
                     CREATE TEMP TABLE toast_values (value text, bytes bytea);
                     ALTER TABLE toast_values ALTER COLUMN value SET STORAGE {storage};
                     ALTER TABLE toast_values ALTER COLUMN bytes SET STORAGE {storage};
-                    ALTER TABLE toast_values ALTER COLUMN value SET COMPRESSION pglz;
-                    ALTER TABLE toast_values ALTER COLUMN bytes SET COMPRESSION pglz;
+                    {compression}
                     """;
                 await using (var configure = new NpgsqlCommand(setup, connection, transaction))
                 {
@@ -208,8 +213,11 @@ public sealed class DatumConversionTests(TestContext context)
                     await insert.ExecuteNonQueryAsync(token);
                 }
 
+                string compressed = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? "pg_column_compression(value) = 'pglz' AND pg_column_compression(bytes) = 'pglz'"
+                    : "pg_column_size(value) < octet_length(value) AND pg_column_size(bytes) < octet_length(bytes)";
                 string storageCheck = storage == "EXTENDED"
-                    ? "SELECT pg_column_compression(value) = 'pglz' AND pg_column_compression(bytes) = 'pglz' FROM toast_values"
+                    ? $"SELECT {compressed} FROM toast_values"
                     : "SELECT pg_relation_size(reltoastrelid) > 0 FROM pg_class WHERE oid = 'pg_temp.toast_values'::regclass";
                 await using (var check = new NpgsqlCommand(storageCheck, connection, transaction))
                 {

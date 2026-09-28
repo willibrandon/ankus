@@ -171,20 +171,28 @@ public sealed class ExtendedDatumTests(TestContext context)
             async (connection, transaction, token) =>
             {
                 string text = "\"" + string.Concat(Enumerable.Repeat("café 🐘 ", 8000)) + "\"";
+                string compression = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? """
+                        ALTER TABLE json_toast ALTER COLUMN j SET COMPRESSION pglz;
+                        ALTER TABLE json_toast ALTER COLUMN b SET COMPRESSION pglz;
+                        """
+                    : "";
                 await using var command = new NpgsqlCommand($"""
                     CREATE TEMP TABLE json_toast (j json, b jsonb);
                     ALTER TABLE json_toast ALTER COLUMN j SET STORAGE {storage};
                     ALTER TABLE json_toast ALTER COLUMN b SET STORAGE {storage};
-                    ALTER TABLE json_toast ALTER COLUMN j SET COMPRESSION pglz;
-                    ALTER TABLE json_toast ALTER COLUMN b SET COMPRESSION pglz;
+                    {compression}
                     """, connection, transaction);
                 await command.ExecuteNonQueryAsync(token);
                 command.CommandText = "INSERT INTO json_toast VALUES ($1::json, $1::jsonb)";
                 command.Parameters.AddWithValue(text);
                 await command.ExecuteNonQueryAsync(token);
                 command.Parameters.Clear();
+                string compressed = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? "pg_column_compression(j) = 'pglz' AND pg_column_compression(b) = 'pglz'"
+                    : "pg_column_size(j) < octet_length(j::text) AND pg_column_size(b) < octet_length(b::text)";
                 command.CommandText = storage == "EXTENDED"
-                    ? "SELECT pg_column_compression(j) = 'pglz' AND pg_column_compression(b) = 'pglz' FROM json_toast"
+                    ? $"SELECT {compressed} FROM json_toast"
                     : "SELECT pg_relation_size(reltoastrelid) > 0 FROM pg_class WHERE oid = 'pg_temp.json_toast'::regclass";
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
                 command.CommandText = "SELECT datatype.exchange_json(j, 4)::text, datatype.exchange_jsonb(b, 4)::text FROM json_toast";

@@ -293,10 +293,13 @@ public sealed class NumericTests(TestContext context)
             async (connection, transaction, token) =>
             {
                 string text = string.Concat(Enumerable.Repeat("1234567890", 5000)) + ".1234500";
+                string compression = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? "ALTER TABLE numeric_toast ALTER COLUMN value SET COMPRESSION pglz;"
+                    : "";
                 await using var command = new NpgsqlCommand($"""
                     CREATE TEMP TABLE numeric_toast(value numeric);
                     ALTER TABLE numeric_toast ALTER COLUMN value SET STORAGE {storage};
-                    ALTER TABLE numeric_toast ALTER COLUMN value SET COMPRESSION pglz;
+                    {compression}
                     INSERT INTO numeric_toast VALUES (1.23);
                     SELECT pg_column_size(value), datatype.exchange_numeric(value, 4)::text FROM numeric_toast
                     """, connection, transaction);
@@ -311,8 +314,11 @@ public sealed class NumericTests(TestContext context)
                 command.Parameters.AddWithValue(text);
                 await command.ExecuteNonQueryAsync(token);
                 command.Parameters.Clear();
+                string compressed = PostgresFixture.Cluster.Installation.Version.Major >= 14
+                    ? "pg_column_compression(value) = 'pglz'"
+                    : "pg_column_size(value) < pg_column_size(value + 0::numeric)";
                 command.CommandText = storage == "EXTENDED"
-                    ? "SELECT pg_column_compression(value) = 'pglz' FROM numeric_toast"
+                    ? $"SELECT {compressed} FROM numeric_toast"
                     : "SELECT pg_relation_size(reltoastrelid) > 0 FROM pg_class WHERE oid = 'pg_temp.numeric_toast'::regclass";
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
                 command.CommandText = "SELECT datatype.exchange_numeric(value, 4)::text FROM numeric_toast";
