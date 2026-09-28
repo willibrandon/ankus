@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>A native custom scan that traces PostgreSQL sequential scans.</Description>
+    <AnkusExtensionName>ankus_trace_scan</AnkusExtensionName>
+  </PropertyGroup>
+  <Import Project="../../src/Ankus.Sdk/Ankus.Sdk.targets" />
+</Project>

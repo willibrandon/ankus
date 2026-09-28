@@ -4,6 +4,7 @@
     <Project Path="samples/Ankus.Examples.BackgroundWorkers/Ankus.Examples.BackgroundWorkers.csproj" />
     <Project Path="samples/Ankus.Examples.Composites/Ankus.Examples.Composites.csproj" />
     <Project Path="samples/Ankus.Examples.Configuration/Ankus.Examples.Configuration.csproj" />
+    <Project Path="samples/Ankus.Examples.CustomScans/Ankus.Examples.CustomScans.csproj" />
     <Project Path="samples/Ankus.Examples.CustomTypes/Ankus.Examples.CustomTypes.csproj" />
     <Project Path="samples/Ankus.Examples.Enums/Ankus.Examples.Enums.csproj" />
     <Project Path="samples/Ankus.Examples.EventTriggers/Ankus.Examples.EventTriggers.csproj" />

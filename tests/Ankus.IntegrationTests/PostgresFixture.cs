@@ -34,6 +34,8 @@ internal static class PostgresFixture
                 CREATE EXTENSION ankus_hello;
                 CREATE SCHEMA datatype;
                 CREATE EXTENSION ankus_test WITH SCHEMA datatype;
+                CREATE SCHEMA customscan;
+                CREATE EXTENSION ankus_trace_scan WITH SCHEMA customscan;
                 CREATE SCHEMA tests;
                 CREATE TABLE tests.rollback_probe (value integer NOT NULL);
                 CREATE FUNCTION tests.insert_probe() RETURNS void LANGUAGE sql AS

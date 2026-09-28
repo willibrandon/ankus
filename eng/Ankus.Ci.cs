@@ -72,11 +72,23 @@ try
             break;
 
         case "runtime-test":
+        case "runtime-test-build":
             RequireArguments(args, 3);
             ValidateRuntimeIdentity(repositoryRoot);
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
             ConfigureHeaderFrontend(repositoryRoot);
+            BuildTests(repositoryRoot);
+            if (args[0] == "runtime-test")
+            {
+                RunRuntimeTests(repositoryRoot);
+            }
+
+            break;
+
+        case "runtime-test-run":
+            RequireArguments(args, 1);
+            ValidateRuntimeIdentity(repositoryRoot);
             RunRuntimeTests(repositoryRoot);
             break;
 
@@ -578,7 +590,6 @@ static void WriteEnvironment(string name, string value)
 
 static void RunRuntimeTests(string repositoryRoot)
 {
-    BuildTests(repositoryRoot);
     string integrationTestModule = "tests/Ankus.IntegrationTests/bin/Release/net10.0/Ankus.IntegrationTests.dll";
     Task integrationTests = Task.Run(() => RunTestModule(repositoryRoot, integrationTestModule));
     Task unitTests = Task.Run(() => RunUnitTestModules(repositoryRoot));

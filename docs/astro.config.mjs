@@ -112,6 +112,7 @@ export default defineConfig({
             { label: 'Arrays', slug: 'arrays' },
             { label: 'Polymorphic values', slug: 'polymorphic-values' },
             { label: 'Raw values and custom types', slug: 'raw-values' },
+            { label: 'Custom scan providers', slug: 'custom-scans' },
             { label: 'Internal state', slug: 'internal-state' },
             { label: 'JSON and UUID values', slug: 'json-and-uuid' },
             { label: 'Numeric values', slug: 'numeric' },

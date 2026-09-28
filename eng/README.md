@@ -20,6 +20,8 @@ repository root with `dotnet run --file`.
 | `runtime-build` | Build and stage one runtime for CI. |
 | `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
+| `runtime-test-build` | Prepare the staged runtime's PostgreSQL toolchain and build all test projects before saving CI caches. |
+| `runtime-test-run` | Run every already-built test module using the PostgreSQL and compiler environment prepared by `runtime-test-build`. |
 | `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
 | `unit-test` | Build and run the five unit test modules. |
 | `release-managed` | Pack the managed NuGet packages. |
@@ -41,6 +43,14 @@ compiler without installing or changing anything:
 ```text
 dotnet run --file ./eng/Ankus.Ci.cs -- header-frontend-check /path/to/clang
 ```
+
+Platform CI separates `runtime-test-build` and `runtime-test-run` so it can save
+the native binding cache before the complete suite starts. The build command
+exports the selected PostgreSQL installation and compiler path to subsequent
+GitHub Actions steps. `AnkusBindingCacheDirectory` selects the restored cache;
+normal header preprocessing, native ABI verification and content checks still
+run before reuse. The full suite remains in one platform job with a 60-minute
+timeout. `runtime-test` retains the combined local command.
 
 See the [.NET file-based app documentation](https://learn.microsoft.com/dotnet/core/sdk/file-based-apps)
 for SDK behavior.

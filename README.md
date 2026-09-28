@@ -246,6 +246,10 @@ managed handler through a generated native function-pointer property, including
 explicit hook installation, previous-hook chaining and restoration. Variadic
 calls remain in progress.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
+The [custom-scan sample](samples/Ankus.Examples.CustomScans) uses these method
+tables to trace actual sequential paths, child-plan execution, rescans and
+EXPLAIN. See [custom scan providers](docs/src/content/docs/custom-scans.md) for
+registration and native plan/state ownership.
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
 arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a

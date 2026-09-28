@@ -34,6 +34,29 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The standalone custom-scan trace sample now executes real native paths, plans
+and child scans. Its thirteen cases verify exact projected rows and SQL NULL,
+rescans, cached plans, backward reads, EXPLAIN, managed/native errors,
+same-session recovery, actual parallel workers and concurrent-update rechecks.
+The provider preserves PostgreSQL's slot contract with `ExecCopySlot` into its
+own scan slot. Its fixture publishes and loads the standalone extension,
+keeping its planner hook separate from deliberately failing test initializers.
+All 26 combined custom-scan and initialization cases pass on Linux
+x64/PostgreSQL 18.6 (2m30.708s) and Windows x64/PostgreSQL 17.11 (3m39.787s).
+Final plain full Linux `dotnet test` passes **8,132 tests, zero failures and six
+Windows-only skips, 8,138 total**, in 13m58.212s (integration 13m57.534s).
+Final Release builds have zero warnings/errors on Linux and Windows; API
+freshness verifies 200 pages/2,437 members and the site builds 245 pages with
+zero check diagnostics. Full custom-scan parity and the complete
+version/platform matrix remain required.
+
+The prior Windows CI job reached its one-hour limit after a clean 15m28.99s
+build, passing unit modules and an unfinished integration suite. CI now
+persists the existing content-verified native binding cache between runs and
+saves it after building, before running tests. Cold source collection alone
+cost about five minutes in that job. Full suites, native validation and the
+one-hour limit remain; hosted cache timing improvement is not yet measured.
+
 Generated `<Record>_<Field>Callback` types now preserve canonical pointer storage
 and guarded invocation while letting method-table handlers use names derived
 from native declarations. Seven binding cases pass on Linux and Windows; four
@@ -56,8 +79,12 @@ Linux-only skips before backend tests can run. The handler now checks `SIGTERM`
 and accounts for PostgreSQL 19's additional signal metadata while retaining the
 selected-header signature. The exact strict Clang command fails before the fix
 and passes afterwards; all four allocation cases pass on Linux x64/PostgreSQL
-18.6 (1m34.949s) and Windows x64/PostgreSQL 17.11 (3m11.515s). Fresh hosted macOS
-execution remains required. No diagnostic is suppressed or relaxed. In that
+18.6 (1m34.949s) and Windows x64/PostgreSQL 17.11 (3m11.515s). The subsequent
+macOS ARM64/PostgreSQL 18 [job 108729659266](https://github.com/willibrandon/ankus/actions/runs/36357983412/job/108729659266)
+passes the complete suite at `c01ed61`: 8,116 passed, zero failed and nine
+platform-specific skips, 8,125 total, in a 52m55s job (integration 45m16.124s).
+This confirms the fixture repair on macOS; it does not yet validate the new
+custom-scan sample there. No diagnostic is suppressed or relaxed. In the original
 hosted run, quality, all runtime jobs and Ubuntu's full suite (41m27s) pass;
 Windows remains in progress at the 2026-09-27 22:28 UTC pre-commit check.
 [Docs 36352480612](https://github.com/willibrandon/ankus/actions/runs/36352480612)
@@ -2851,7 +2878,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
-| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method-table storage and field-named native callbacks execute on Linux/Windows; actual planner/executor provider protocols and full platform/version evidence remain required |
+| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method tables and field-named callbacks support a real trace provider; registration, paths/plans/states, projection, rescan, EXPLAIN, cached plans, backward reads, parallel child scans, concurrent-update rechecks and error cleanup pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Own DSM, mark/restore, reparameterization and full platform/version evidence remain required |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, static managed callbacks with nested capability/lease restoration, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; remaining callback/lifetime conveniences, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, static managed native callbacks, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Remaining hook protocols, variadics, callback/lifetime conveniences, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
@@ -3012,6 +3039,9 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Generated public API reference from XML comments, following the `Dotsider.DocGenerator` design
 - [ ] **P7 — Custom scan + nodes**
    - [ ] Full custom scan provider API, native callbacks, and lifecycle integration
+     - [x] Trace provider sample with real paths/plans, child execution, projection, rescan, EXPLAIN, cached methods and query-context cleanup
+     - [x] Backend tests for backward reads, actual parallel child scans, concurrent-update rechecks and managed/native error recovery on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+     - [ ] Provider-owned parallel DSM, mark/restore, reparameterization and complete PostgreSQL/platform validation
    - [ ] PostgreSQL node representations and pgrx node support APIs
    - [ ] Corresponding examples and backend-executed tests
 
@@ -9848,4 +9878,116 @@ package job pass; all three platform suites are still running without a reported
 failure. [Docs 36355439000](https://github.com/willibrandon/ankus/actions/runs/36355439000)
 passes. No pending platform suite is counted as completed evidence. The prior
 run's Windows cancellation and repaired macOS failure are recorded above.
+Outcomes are checked and recorded again immediately before push.
+
+### Custom scans — real trace provider and executor boundaries
+
+`Ankus.Examples.CustomScans` uses the selected-header native API and field-named
+callbacks to register an `Ankus Trace` provider. Its relation hook preserves the
+previous hook, retains each ordinary or partial sequential path as a child and
+keeps the original costs and parameters. Real CustomScan plans preserve child
+qualification and projection shape; native states embed the exact selected-header
+CustomScanState prefix. Begin/end and rescan delegate to the child executor.
+EXPLAIN reports per-node rows, calls and rescans. Native method tables and names
+belong to a child of TopMemoryContext, with cleanup before failed publication
+and backend lifetime after successful registry publication.
+
+The fixture publishes and installs the standalone Native AOT sample, keeping its
+module registration and planner hook separate from the general test extension's
+deliberately failing initializers. The project is included in the solution and
+builds in Release. Its public guide and README describe session loading,
+the default-off GUC, method-table lifetime, native slot contracts, error cleanup
+and optional capabilities.
+
+| Requirement | Actual backend evidence |
+|---|---|
+| Paths, plans, child rows and projection | `TraceScanReturnsExactRows` requires a real Custom Scan/Seq Scan plan, exact projected integer extremes, text, SQL NULL, filtering, EOF and lifecycle counts |
+| Empty, singleton and early stop | Three `TraceScanHandlesResultBoundaries` cases check complete exact result sequences and execution/cleanup counts |
+| EXPLAIN versus execution | `TraceScanExplainsExecution` checks zero observations before execution and independent exact child/custom rows and counters after ANALYZE |
+| Parameters and rescans | `TraceScanRescansParameterizedChildren` requires six exact ordered threshold/value pairs, actual loops, rescans and reclaimed state |
+| Cached method lifetime | `TraceScanPreparedPlansRetainMethods` retains one plan across transactions and disabling future tracing, with exact repeated results; its additional collection probe runs in the separate test extension |
+| Backward reads | `TraceScanReadsBackward` checks exact forward/backward/forward row identities through a scroll cursor |
+| Errors and recovery | Two `TraceScanErrorsUnwindAndRecover` cases require exact managed/native diagnostics, managed unwind, query-context cleanup and a healthy exact result in the original backend |
+| Real parallel execution | `TraceScanRunsInParallelWorkers` requires actual launched workers, a parallel-aware child, non-leader process IDs, all 30,000 values exactly once and a healthy subsequent query |
+| Concurrent updates | Two `TraceScanRechecksConcurrentUpdates` cases observe an actual row-lock wait, then verify replacement tuples that still qualify or no longer qualify, exact stored/returned values and context cleanup |
+
+The first eight-case run exposed a real PostgreSQL assertion during outer
+projection: returning the child's heap slot violated the custom node's virtual
+slot expectation. The access callback now uses ExecCopySlot into its own scan
+slot and clears that slot at EOF. EvalPlanQual recheck fetches the replacement
+through the child into the same slot. The final thirteen-case Linux
+x64/PostgreSQL 18.6 run passes with zero failures/skips in 1m51.629s. All thirteen
+cases also pass on Windows x64/PostgreSQL 17.11 in 3m51.105s. Those focused runs
+used linked sample source. The first full Linux attempt then exposed fixture
+coupling: its early planner-hook registration retried a deliberately failed
+general-extension initializer during the rollback test's ordinary table query.
+The run was cancelled after recording the failure. The fixture now loads the
+standalone sample as a separate extension; the existing initialization test and
+callback initialization rules remain unchanged. All 26 combined custom-scan and
+initialization cases pass on Linux x64/PostgreSQL 18.6 in 2m30.708s and Windows
+x64/PostgreSQL 17.11 in 3m39.787s after the separation.
+Two test expectations were also corrected: PostgreSQL sum(bigint) returns
+numeric, and EXPLAIN's Actual Rows can use decimal JSON notation. Namespace DDL
+in other tests correctly invalidates prepared plans in every backend, so only
+the exact single-plan lifetime witness runs serially; its assertion is retained.
+
+Final Release builds after fixture separation pass with zero warnings/errors on
+Linux (1m02.25s) and Windows (2m49.39s). API freshness verifies 200 pages/2,437
+members. The site builds 245 pages and checks with zero errors/warnings/hints.
+Final plain full Linux `dotnet test` passes **8,132 tests, zero failures and six
+Windows-only skips, 8,138 total**, in 13m58.212s (integration 13m57.534s).
+Assertion and pseudo-mutation review covers exact values, result boundaries,
+diagnostics, lifecycle and plan shape; no executed mutation score or coverage
+percentage is claimed.
+
+The trace provider does not advertise mark/restore or its own shared-memory
+protocol. Provider-owned DSM, mark/restore, reparameterization, independent
+predecessor-hook/registry-error witnesses, the remaining raw API inventory and
+the complete PostgreSQL 13–19/platform matrix remain required full-port work.
+No analyzer standard, warning severity, runtime patch or CI timeout changes.
+
+The preceding [CI 36355439020](https://github.com/willibrandon/ankus/actions/runs/36355439020)
+was superseded by the field-callback milestone push. Linux, macOS and Windows
+jobs conclude cancelled after 42m25s, 42m28s and 42m24s respectively. Ubuntu's
+retained log prints all six passing module summaries (8,108 passed, six skips),
+including 3,344 integration cases in 36m03.476s, before cancellation; its job
+conclusion remains cancelled. The other two platform logs have no final
+integration summary, so no complete platform pass is claimed. Quality, all
+runtime jobs and [Docs 36355439000](https://github.com/willibrandon/ankus/actions/runs/36355439000)
+pass.
+
+For `c01ed61`, [CI 36357983412](https://github.com/willibrandon/ankus/actions/runs/36357983412)
+now has complete Ubuntu and macOS passes. Ubuntu reports 8,119 passed and six
+platform-specific skips in a 42m37s job (integration 35m53.990s). macOS reports
+8,116 passed and nine platform-specific skips in a 52m55s job (integration
+45m16.124s). Both have 8,125 total tests and zero failures. The macOS result
+confirms the signal-handler compilation repair against a real PostgreSQL server.
+Windows reaches the 60-minute limit and concludes cancelled after 60m34s,
+including runner cleanup. Its annotation explicitly reports the one-hour
+maximum. The build passes with zero warnings/errors in 15m28.99s; every unit
+module passes, but the integration suite has no final result. Its two Linux-only
+skips are not evidence that the remaining integration cases completed.
+Quality, all runtime-package jobs and
+[Docs 36357983399](https://github.com/willibrandon/ankus/actions/runs/36357983399)
+pass.
+
+The Windows build log shows roughly five minutes of cold native-header
+collection before generating the shared companion. CI previously retained
+NuGet and runtime caches but discarded the existing content-verified binding
+cache. Platform jobs now restore that cache by platform/PostgreSQL version,
+build, save it, then execute every test module. Saving before execution keeps
+the cache even when the later suite times out. The combined `runtime-test`
+command remains available; two explicit CI phases reuse the same build and
+test implementations, selected PostgreSQL environment and compiler path.
+Native preprocessing, ABI checks, dependency/artifact hashes and all analyzer
+standards remain enabled. The CI app compiles, the workflow parses with all
+three platform entries and the correct restore/build/save/test order, and
+MSBuild resolves the configured cache directory from the environment. No
+hosted speedup or successful Windows full-suite result is claimed yet; the
+first cold run will populate the new cache. The one-hour timeout is unchanged.
+Immediately before committing, the 2026-09-28 00:21 UTC check confirms
+CI 36357983412 is terminal: Ubuntu and macOS pass, Windows is cancelled by its
+explicit one-hour timeout, and quality/all runtime jobs pass. Docs 36357983399
+passes. The Windows log and timeout annotation were inspected; the cache change
+addresses observed cold binding work without claiming a completed Windows run.
 Outcomes are checked and recorded again immediately before push.

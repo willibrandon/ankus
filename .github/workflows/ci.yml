@@ -125,6 +125,8 @@ jobs:
             postgresql: 17
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      AnkusBindingCacheDirectory: ${{ github.workspace }}/artifacts/binding-cache
     steps:
       - uses: actions/checkout@v5
 
@@ -158,11 +160,29 @@ jobs:
           path: ~/.nuget/packages
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
-      - name: Run full PostgreSQL tests
+      - name: Restore native binding cache
+        uses: actions/cache/restore@v5
+        id: binding-cache
+        with:
+          path: artifacts/binding-cache
+          key: bindings-v1-${{ runner.os }}-${{ runner.arch }}-pg${{ matrix.postgresql }}-${{ github.sha }}
+          restore-keys: bindings-v1-${{ runner.os }}-${{ runner.arch }}-pg${{ matrix.postgresql }}-
+
+      - name: Build PostgreSQL tests
         run: >-
-          dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test
+          dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build
           ${{ matrix.rid }}
           ${{ matrix.postgresql }}
+
+      - name: Save native binding cache
+        if: steps.binding-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: artifacts/binding-cache
+          key: ${{ steps.binding-cache.outputs.cache-primary-key }}
+
+      - name: Run full PostgreSQL tests
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
       - uses: actions/upload-artifact@v7
         if: failure()
