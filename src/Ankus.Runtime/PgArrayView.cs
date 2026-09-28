@@ -12,6 +12,7 @@ namespace Ankus;
 /// Dispose explicitly created views while their backend is active. Copy Datum or a cell to
 /// another memory context before its source expires when an independent lifetime is needed.
 /// Copied type and shape metadata remain readable after disposal; native access does not.
+/// Resetting only the source context also expires all views and cells, even when private child contexts survive.
 /// Indexed access is O(n); enumeration visits the elements in one linear pass.
 /// </remarks>
 public sealed class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
@@ -38,7 +39,7 @@ public sealed class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
         _context = PgMemoryContext.Create("Ankus borrowed array", parent);
         try
         {
-            var lifetime = new PgDatumLifetime(_context, value.Lifetime.Scope);
+            var lifetime = new PgDatumLifetime(_context, source: value.Lifetime);
             (_datum, ElementTypeOid, _lengths, _lowerBounds, Count, HasNulls) = NativeBackend.BorrowArray(value, lifetime);
             lifetime.Scope?.Register(this);
         }
@@ -179,7 +180,7 @@ public sealed class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
             _context = PgMemoryContext.Create("Ankus borrowed array iterator", view._context);
             try
             {
-                _lifetime = new PgDatumLifetime(_context, _array.Lifetime.Scope);
+                _lifetime = new PgDatumLifetime(_context, source: _array.Lifetime);
                 _iterator = NativeBackend.CreateArrayIterator(_array, _lifetime);
             }
             catch (Exception primary)

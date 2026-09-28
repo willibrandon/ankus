@@ -67,12 +67,34 @@ public sealed partial class BorrowedArrayTests(TestContext context)
     [DataRow(0)]
     [DataRow(1)]
     [DataRow(2)]
+    [DataRow(3)]
     public async Task BorrowedArrayOwnersInvalidateEscapedViews(int mode)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.AreSequenceEqual<string?>(["ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException",
             "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException",
             "owned", "2", "4", "True"], await Scalar<string?[]>(connection, $"SELECT borrowed_arrays.array_view_owners({mode})"));
+        Assert.AreEqual(connection.ProcessID, await Scalar<int>(connection, "SELECT pg_backend_pid()"));
+    }
+
+    /// <summary>
+    /// Source-only resets expire nested aliases while live child contexts are explicitly cleaned up and copies survive.
+    /// </summary>
+    [TestMethod]
+    public async Task BorrowedArrayNestedSourcesExpireWithoutDeletingChildren()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        for (int index = 0; index < 3; index++)
+        {
+            Assert.AreSequenceEqual<string?>(["True", "True", "3", "3", "ObjectDisposedException",
+                "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException",
+                "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException", "ObjectDisposedException",
+                "ObjectDisposedException", "owned", "[4:5]={owned,NULL}", "2", "4", "42"],
+                await Scalar<string?[]>(connection, "SELECT borrowed_arrays.array_view_source_reset()"));
+            Assert.AreEqual(0L, await Scalar<long>(connection,
+                "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident LIKE 'Ankus borrowed array%'"));
+        }
+
         Assert.AreEqual(connection.ProcessID, await Scalar<int>(connection, "SELECT pg_backend_pid()"));
     }
 

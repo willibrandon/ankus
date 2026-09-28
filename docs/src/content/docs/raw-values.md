@@ -399,7 +399,9 @@ For an array datum, `using PgArrayView view = value.Read<PgArrayView>()` borrows
 its native cells under the source lifetime. It retains exact array and element
 OIDs, dimensions, lower bounds and typed NULL cells. Dispose the view before its
 owner ends; copy `view.Datum` or a cell to another context when it must outlive
-that owner. See [borrowed native arrays](/arrays/#borrowed-native-arrays) for
+that owner. Resetting only the source context invalidates borrowed aliases too;
+live child contexts do not extend the lifetime of their source bytes.
+See [borrowed native arrays](/arrays/#borrowed-native-arrays) for
 direct function parameters, native flattening and callback cleanup.
 
 Reading, formatting or copying an existing domain value does not rerun its

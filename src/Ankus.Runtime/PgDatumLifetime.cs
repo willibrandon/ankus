@@ -7,14 +7,17 @@ internal sealed class PgDatumLifetime
 {
     private readonly nint _provider;
     private readonly int _thread = Environment.CurrentManagedThreadId;
+    private readonly PgDatumLifetime? _source;
 
     /// <summary>
     /// Captures the generation of a live context.
     /// </summary>
     /// <param name="context">The native storage lifetime anchor.</param>
     /// <param name="scope">The optional callback lease required in addition to the native owner.</param>
-    internal PgDatumLifetime(PgMemoryContext context, NativeBorrowScope? scope = null)
+    /// <param name="source">The optional source whose bytes remain borrowed by this owner.</param>
+    internal PgDatumLifetime(PgMemoryContext context, NativeBorrowScope? scope = null, PgDatumLifetime? source = null)
     {
+        source?.Validate();
         ObjectDisposedException.ThrowIf(!context.IsAlive, context);
         _provider = NativeMemoryContext.Provider;
         ContextId = context.Id;
@@ -25,7 +28,8 @@ internal sealed class PgDatumLifetime
         };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         Generation = unchecked((nuint)result._value);
-        Scope = scope;
+        Scope = scope ?? source?.Scope;
+        _source = source;
     }
 
     /// <summary>
@@ -58,6 +62,17 @@ internal sealed class PgDatumLifetime
     /// Rejects stale context generations and access from another backend provider or thread.
     /// </summary>
     internal void Validate()
+    {
+        for (PgDatumLifetime? current = this; current is not null; current = current._source)
+        {
+            current.ValidateContext();
+        }
+    }
+
+    /// <summary>
+    /// Checks one owner without assuming its parent's generation is unchanged while its child survives.
+    /// </summary>
+    private void ValidateContext()
     {
         CheckThread();
         Scope?.Validate();

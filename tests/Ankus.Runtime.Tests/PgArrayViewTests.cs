@@ -10,6 +10,48 @@ namespace Ankus.Runtime.Tests;
 public sealed class PgArrayViewTests
 {
     /// <summary>
+    /// Resetting only the source rejects native access even when a view's child context remains alive.
+    /// </summary>
+    /// <param name="nested">Whether an intermediate borrowed array contributes another lifetime dependency.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void BorrowedArrayRejectsSourceOnlyGenerationChanges(bool nested)
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture);
+        PgDatum source = PgDatum.DangerousCreate(123, 1009, PgMemoryContext.Current);
+        using var first = new PgArrayView(source);
+        using PgArrayView? second = nested ? new PgArrayView(first.Datum) : null;
+        PgArrayView view = second ?? first;
+        PgDatum escaped = view.Datum;
+        using IEnumerator<PgDatum> cursor = view.GetEnumerator();
+        script.Cells.Enqueue((7001, false, true));
+        Assert.IsTrue(cursor.MoveNext());
+        PgDatum cell = cursor.Current;
+        Func<NativeMemoryRequest, NativeMemoryResult> previous = fixture.Handler!;
+        fixture.Handler = request => request._operation == NativeMemoryOperation.CaptureGeneration && request._context == 101
+            ? new NativeMemoryResult { _value = 902 }
+            : previous(request);
+        int operations = script.Requests.Count;
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view[0]);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => view.GetEnumerator());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => cursor.MoveNext());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = cursor.Current);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => cell.DangerousGetBits());
+        Assert.HasCount(operations, script.Requests);
+        Assert.AreEqual(3, view.Count);
+        Assert.AreEqual(1009U, view.TypeOid);
+        Assert.IsEmpty(script.Deleted);
+        cursor.Dispose();
+        view.Dispose();
+        Assert.AreSequenceEqual<nint>(nested ? [204, 203] : [203, 202], script.Deleted);
+    }
+
+    /// <summary>
     /// Null and stale inputs reject before allocating a child context or calling the array bridge.
     /// </summary>
     [TestMethod]

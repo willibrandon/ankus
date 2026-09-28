@@ -35,11 +35,13 @@ Linux, and macOS.
 ## Current verified milestone
 
 `PgArrayView` now borrows native array cells with exact type/shape/NULL metadata,
-independent iterators and checked source and callback lifetimes. All **40 affected
+independent iterators and checked source and callback lifetimes. Source-only
+resets also expire nested views, cursors and escaped cells even when their private
+child contexts survive. All **42 affected
 backend cases pass without failures/skips** on Linux x64/PostgreSQL **13.23,
 18.6 and 19 beta 3**. The final complete PostgreSQL 18.6/Linux x64 suite uses
-GCC 13.3 and passes **8,399 tests, zero failures and six Windows-only skips,
-8,405 total**, in 12m18.812s. Generated native contracts support GCC 13 and
+GCC 13.3 and passes **8,403 tests, zero failures and six Windows-only skips,
+8,409 total**, in 12m35.104s. Generated native contracts support GCC 13 and
 MSVC without weakening type checks; 321 native-contract cases and complete
 PostgreSQL 17.7/18.1 header verification also pass on Windows x64. Release, API
 freshness and site checks pass. Typed borrowed
@@ -11963,3 +11965,55 @@ addressed here, and macOS remains in progress. Docs 36446187447 passes. Older
 superseded CI runs are cancelled and their documentation runs pass. These
 outcomes are recorded again immediately before pushing; an unfinished platform
 run is not counted as completed validation.
+
+## Borrowed source generation dependencies
+
+Reviewing borrowed buffer ownership exposes a gap in `PgArrayView`: PostgreSQL's
+`MemoryContextResetOnly` frees the source's storage while preserving child
+contexts. Checking only a view's private child generation can therefore accept
+expired source bytes. Two scripted regressions reproduce the failure for direct
+and nested views without dereferencing freed storage: an unexpected array
+operation reaches the scripted native bridge instead of being rejected.
+
+`PgDatumLifetime` now retains an optional immutable source dependency, and array
+views and cursors retain that dependency when creating their private contexts.
+Validation checks the whole chain without recursive managed calls. Escaped array
+and cell datums retain it too; independent copies use their new owner's lifetime.
+Cleanup can still release private contexts after the source expires.
+The runtime scope passes **21 tests, zero failures/skips**, in 1.790s, including
+both baseline regressions. All **42 affected backend cases pass with zero
+failures/skips** on PostgreSQL 18.6/Linux x64 in 3m13.745s (integration
+3m12.843s). The nested-view case observes three live private native contexts
+both before and after source-only reset, rejects all expired aliases, preserves
+independent array/cell copies and copied metadata, and leaves zero view contexts
+after return. It repeats in the same backend three times. Older-version
+validation also passes all **42 cases with zero failures/skips** on PostgreSQL
+13.23/Linux x64 in 3m12.234s (integration 3m11.201s) and PostgreSQL 19 beta 3/Linux
+x64 in 3m31.678s (integration 3m30.834s). Release passes with zero warnings/errors
+in 1m28.70s. API freshness covers 201 pages/2,450 members, the site builds 246
+pages and its check has zero diagnostics. The arrays/raw-values guides and
+generated API remarks explicitly describe source-only reset invalidation.
+The final plain root suite on PostgreSQL 18.6/Linux x64 with GCC 13.3 passes
+**8,403 tests, zero failures and six Windows-only skips, 8,409 total**, in
+12m35.104s. All **3,520 integration cases pass** in 12m32.821s. The exact
+regression evidence is:
+
+| Requirement | Executed evidence |
+|---|---|
+| Reject direct and transitive source expiry before native access | `BorrowedArrayRejectsSourceOnlyGenerationChanges` passes both direct/nested rows after reproducing both failures before the fix; cursor `Current`, escaped datum bits and cleanup are checked independently. |
+| Preserve source-only reset semantics with real PostgreSQL | `BorrowedArrayOwnersInvalidateEscapedViews` includes `ResetOnly`; `BorrowedArrayNestedSourcesExpireWithoutDeletingChildren` observes three child contexts both before and after reset and exact rejection of every expired alias. |
+| Preserve independent copies, metadata and same-session recovery | `BorrowedArrayNestedSourcesExpireWithoutDeletingChildren` checks literal copied array/cell values, dimensions, zero remaining private contexts after each of three calls and an unchanged backend PID. |
+
+The borrowed-container family and all other visible full-port requirements remain
+required. This correction does not claim complete borrowed-buffer coverage or
+new Windows/macOS backend evidence.
+
+Immediately before this commit, CI 36450560775 for `f6c40e2` has passed quality,
+all three runtime jobs and all three PostgreSQL test-build steps, including the
+previously failing Windows native contracts. Its full Linux, macOS and Windows
+suites are still running. The reported predecessor 36446187352 is cancelled:
+Linux passed, Windows failed with the qualifier issue fixed in `f6c40e2`, and
+macOS was superseded before completion. Docs 36446187447 passes; older
+superseded CI runs are cancelled and their documentation runs pass. These
+outcomes are checked and recorded again before pushing. No incomplete hosted
+suite is counted as completed platform evidence.

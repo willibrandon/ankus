@@ -269,7 +269,10 @@ string? text = first.ToPostgresString();
 use a callback-owned snapshot. A view constructed from a datum shares that
 datum's lifetime. Dispose explicitly created views and iterators while their
 backend is active. Disposing the view, resetting or deleting its source owner,
-or expiring its input callback invalidates all native aliases. Copied type and
+or expiring its input callback invalidates all native aliases. `ResetOnly()`
+also expires views, escaped cells and iterators, even though their private child
+contexts survive. A view constructed from another view retains the original
+source lifetime as well. Copied type and
 shape metadata remain readable. Native access must stay on the originating
 backend thread.
 

@@ -75,7 +75,7 @@ public static partial class BorrowedArrayFunctions
     /// <summary>
     /// Expires a view or its source and checks escaped datums, cursors and an independent copy.
     /// </summary>
-    /// <param name="mode">Zero disposes the view, one resets its source, and two deletes its source.</param>
+    /// <param name="mode">Zero disposes the view, one resets its source, two deletes it, and three resets only the source.</param>
     /// <returns>Exact rejection types, preserved metadata and copied native contents.</returns>
     [PgFunction]
     public static string?[] ArrayViewOwners(int mode)
@@ -100,6 +100,9 @@ public static partial class BorrowedArrayFunctions
                 break;
             case 2:
                 source.Dispose();
+                break;
+            case 3:
+                source.ResetOnly();
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(mode));
