@@ -52,9 +52,11 @@ The small three-consumer scheduling change resolves the reported Windows CI
 timeout: complete hosted CI **36471639303** passes on all three platforms,
 including Windows x64/PostgreSQL 17 in **52m55s** under the unchanged hour limit.
 Later runtime-dispatch CI **36482900415** passes Linux in **33m11s** and macOS
-in **42m23s**; Windows remains in progress at this milestone's precommit check.
-Quality, runtime and Docs checks pass. These hosted results are distinguished
-from the generated-signature milestone's local validation.
+in **42m23s**; its unfinished Windows job was cancelled when superseded.
+Generated-signature CI **36488639696** has successful runtime jobs, with quality
+and all three platform suites still running at the overview update's precommit
+check. Docs **36488639684** passes. These hosted results are distinguished from
+the generated-signature milestone's local validation.
 
 Earlier verified milestones follow in reverse chronological order.
 
@@ -3046,16 +3048,16 @@ The target architecture consists of:
 | Type mapping (`FromDatum`/`IntoDatum`) | Typed converters and explicit raw PostgreSQL values | Built-ins, declared enum/custom-codec mappings, raw PgDatum bindings and reusable PgDatumType scalar/vector/shaped-array readers/writers are implemented for documented callback, parameter, raw-read and typed scalar-result paths, including unsafe native-address results with caller-supplied type/ABI obligations. Readable scalar mappings can also supply generated equality, ordering and hashing families. Finite fully constructed generic roots support default and explicit per-construction SQL metadata with supplied or statically inferred, constraint-checked closed converters. Nested SQL array containers are rejected, matching pgrx; multidimensional values use one shaped array. Broader metadata and mapped container contracts, ordinary row/composite conversions and complete matrix validation remain required. |
 | `Spi` | typed commands/results, sessions, prepared statements, cursors, tuple access | Partial: atomic commands, scoped sessions/plans, typed results, cursors, row edits, quoting and JSON EXPLAIN |
 | `PgError` | `PgException` + logging helpers | Owned diagnostics, context, objects, positions/location; `PgLog` severities and structured reporting |
-| `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | ☐ |
+| `pgrx::guc` | `[PgGucInt/Real/String/Bool/Enum]` (registered in `_PG_init`) | Typed native storage, hooks, source/transaction/reload semantics, worker propagation and shared preload implemented; remaining requirements and platform/version evidence are tracked in the runtime inventory below |
 | `background_worker` | `[PgBackgroundWorker]`, `PgBackgroundWorkerOptions`, `PgBackgroundWorker` and callback-owned handles | Static/dynamic registration, generated `void(nuint)` entries, lifecycle, signals/latches, connections and transaction callbacks implemented; validation and remaining requirements recorded above |
 | `palloc`/`MemoryContextManager`, `PgBox`, `PBox` | `PgMemoryContext`, `PgAllocation`, `PgMemoryCallback`, `PgNativeBox<T>`, `PgContextValue<T>`, `PgNativeReference<T>` | Checked contexts, virtual context parameters, typed/aligned allocation, sized native ownership and borrowed references, exact copies, raw transfer, transient sizing, borrowed Slab/Generation/Bump and controlled native failure witnesses, cancellable cleanup and actual huge-size allocation/resize implemented; datum/node APIs and full version/platform requirements listed above |
 | `pgrx::rel` (`PgRelation`) | `PgRelation`, `PgLockMode` | Checked cache references, exact locks, live metadata, index/heap access, descriptors, ownership transfer, statistics and regclass transport implemented; raw RelationData bindings and complete platform/version evidence remain required |
 | `iter`, `pg_sys` tuple-store APIs | generated native materialization with spill and bounded row storage | Set results implemented; standalone tuple-store API pending |
-| `callbacks` (transaction/subtransaction callbacks) | `PgTransaction` outer/subtransaction registration with cancellable receipts | Partial: all event mappings, typed subtransaction IDs and callback lifetimes implemented; commit/abort/savepoint behavior verified on PostgreSQL 18.6/Linux x64; two-phase, parallel-worker and matrix execution pending |
+| `callbacks` (transaction/subtransaction callbacks) | `PgTransaction` outer/subtransaction registration with cancellable receipts | Event mappings, typed subtransaction IDs, callback lifetimes, preparation/durability and actual parallel-worker completion/error behavior implemented and verified in the transaction-callback milestones; the complete platform/version matrix remains required |
 | `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | Versioned built-in constants, tagged OID conversion, type/operator lookup, owned PgProc metadata/default trees and checked relation access implemented; complete platform/version evidence remains required |
 | `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
-| `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | ☐ |
-| `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | ☐ |
+| `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | Selected-header records, enums, functions, globals, indirect calls, static callbacks and selected helpers implemented; variadics, remaining conveniences/protocols and the complete platform/version matrix remain required |
+| `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | Checked native node views and a real custom-scan provider with parallel execution, parameter remapping, registry/lifetime/error handling and older-version adaptation implemented; remaining contracts and the complete platform/version matrix remain required |
 | `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
 | `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time assembly metadata extraction |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
@@ -3118,7 +3120,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 
 | Feature family | Required behavior | Status |
 |---|---|---|
-| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented, including finite fully constructed generic mapped roots. Nested SQL containers, broader generic mapping forms and the full platform/version matrix remain required. |
+| `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented, including finite fully constructed generic mapped roots. Nested SQL array containers are rejected, matching pgrx; multidimensional values use one shaped array. Broader generic mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
 | `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar/array signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
@@ -3128,7 +3130,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
 | `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal, raw and custom-codec bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; heterogeneous ANY and full matrix remain required |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
-| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Manual raw mappings and the complete platform/version matrix remain required. |
+| `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum and readable manual PgDatumType scalar mappings, including finite closed generic roots, with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Owned mapping providers order helpers after type completion; external SQL types retain their ownership. The complete platform/version matrix remains required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, guarded static native callbacks, module magic, immediate `[PgModuleLoad]` registration and backend/shared-preload `[PgInitialize]` with retry/recursion handling; callback workers verified on Linux x64/PG18.6 and Windows x64/PG17.7, remaining platform/version matrix required |
@@ -3144,7 +3146,7 @@ alongside the source-level macro inventory.
 | Source | Required behavior | Status |
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
-| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
+| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Explicit PgDatum bindings support cstring I/O, but first-class owned/borrowed byte-preserving C strings remain required alongside broader layouts and complete platform/version evidence |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. `PgArrayView<T>` adds checked typed cells, finite raw/SPI/function result factories, NULL element-identity validation, original native parameter transport and concrete generated scalar/SETOF/TABLE/aggregate signatures with retained callback snapshots. Complete platform/version evidence remains required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. `PgInternal` retains managed payloads or borrows native words with exact type, NULL/zero, owner cleanup and alias checks; generated scalar/set/table/aggregate callbacks, moving state and parallel worker transport are verified in its recorded milestone. The complete version/platform matrix remains required. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
@@ -3176,7 +3178,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
-| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method tables and field-named callbacks support a real trace provider; paths/plans/states, projection, rescan, EXPLAIN, cached plans, backward reads, provider-owned parallel DSM, index/index-only mark/restore, provider-owned parameter expressions and partition-child remapping, independent predecessor chaining, native registry identity/lifetime/error boundaries, concurrent-update rechecks and error cleanup pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Older parameter-helper ABI adaptation and full platform/version evidence remain required |
+| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method tables and field-named callbacks support a real trace provider; paths/plans/states, projection, rescan, EXPLAIN, cached plans, backward reads, provider-owned parallel DSM, index/index-only mark/restore, provider-owned parameter expressions and partition-child remapping, independent predecessor chaining, native registry identity/lifetime/error boundaries, concurrent-update rechecks and error cleanup pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Older parameter-helper ABI adaptation and worker error recovery are implemented, with PostgreSQL 15.19/Linux x64 evidence in their later milestones. The complete platform/version matrix remains required |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, static managed callbacks with nested capability/lease restoration, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; remaining callback/lifetime conveniences, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, static managed native callbacks, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Remaining hook protocols, variadics, callback/lifetime conveniences, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
@@ -12677,3 +12679,49 @@ complete platform CI **36471639303** remains green. Outcomes are checked and
 recorded again before pushing. The generated typed-array milestone is locally
 verified; the full faithful-port inventory and complete platform/version
 validation remain open.
+
+Generated typed callbacks are pushed as **aee5d7b**. New CI **36488639696** is
+queued and Docs **36488639684** is running. Superseded CI **36482900415** is
+cancelled: Linux, macOS, quality and runtime passes remain recorded, while its
+unfinished Windows job is explicitly cancelled rather than counted as platform
+proof. Docs **36482900706** passed. All local validation fixtures are idle;
+development continues with reconciliation of the remaining port inventory.
+
+## Public overview and parity inventory reconciliation
+
+The README introduction and documentation landing page now describe the
+implemented background-worker, shared-memory, native-hook, custom-scan and
+generated native-binding capabilities alongside SQL extension declarations.
+The landing page links directly to their extension-author guides. This expands
+the overview without claiming complete pgrx parity.
+
+Reconciled stale inventory rows against the existing implementation and recorded
+milestones: configuration and raw native APIs, prepared/parallel transaction
+callbacks, manual mapped equality/ordering/hashing and older custom-scan
+parameter/worker behavior. Nested SQL array containers remain an intentional
+rejection matching pgrx; multidimensional values use a single shaped array.
+These corrections record work already implemented and verified, not new runtime
+features or newly executed platform evidence. Full matrix requirements remain.
+
+The read-only pgrx conversion review identifies first-class owned and borrowed
+C strings as a remaining gap. `datum/from.rs` copies `CString` and borrows or
+context-copies `CStr`; `datum/into.rs` copies their exact bytes plus the zero
+terminator into PostgreSQL storage. Ankus's existing explicitly bound `PgDatum`
+supports raw `cstring` custom I/O, while its generated text-I/O helper transcodes
+between UTF-8 and server encoding. Neither establishes a first-class,
+byte-preserving owned/borrowed C-string contract. That requirement is now
+explicit in the datum inventory; no new C-string API is claimed here.
+
+Documentation-only validation on Linux x64: Release passes with zero warnings
+or errors in **1m41.20s**; API freshness verifies **204 pages/2,484 members**;
+the site builds **250 pages**, and its check reports zero errors, warnings or
+hints. The built landing-page links and native-guide anchors are verified.
+Production code and tests are unchanged; the previous complete PostgreSQL
+18.6/Linux x64 result remains **8,714 passed, zero failures, six Windows-only
+skips**, with the recorded PostgreSQL 13.23/19 beta 3 array checks.
+
+Immediately before committing, CI **36488639696** for `aee5d7b` has all three
+runtime jobs passing and quality plus all three complete platform suites still
+running, with no reported failure. Docs **36488639684** passes. Pending or
+cancelled suites are not counted as completed platform evidence. CI outcomes
+are checked again before push; all one-hour limits and unsharded suites remain.

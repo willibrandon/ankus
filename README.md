@@ -2,7 +2,10 @@
 
 Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
 Define PostgreSQL functions, aggregates, operators, casts, triggers, custom types, and
-configuration settings in C#. Publish them together as a native extension.
+configuration settings in C#. Run background workers, share memory between backends,
+and extend the planner and executor with native hooks and custom scan providers.
+Access PostgreSQL's native APIs through generated bindings. Publish it all as a
+native extension.
 
 [Read the documentation](https://willibrandon.github.io/ankus/).
 
