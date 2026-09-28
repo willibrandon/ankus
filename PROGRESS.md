@@ -34,6 +34,14 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Independent native probes now verify the trace provider's predecessor-hook and
+registry boundaries. All 73 custom-scan and initialization cases pass on Linux
+x64/PostgreSQL 18.6 in 2m13.335s and Windows x64/PostgreSQL 17.11 in
+3m40.975s, including seventeen new boundary cases. Release builds and API/site
+checks pass. Final plain full Linux `dotnet test` passes 8,179 tests with zero
+failures and six Windows-only skips, 8,185 total, in 10m46.793s (integration
+10m46.216s).
+
 The trace provider now retains native outer-variable expressions, remaps them
 through partition ancestry and places them in the final plan's expression list
 for PostgreSQL's reference adjustments. All 43 custom-scan cases pass on Linux
@@ -50,7 +58,14 @@ repeated binding collection and compilation caused by changing package paths.
 The same three Linux backend cases improve from 5m03.583s to 3m53.082s (23.2%);
 all eleven affected Windows cases pass. Complete Linux verification passes
 8,153 tests with zero failures and six platform skips in 11m18.383s. CI now
-retains per-module TRX timing reports; hosted savings remain to be measured.
+retains per-module TRX timing reports. The first completed hosted Ubuntu result
+with reuse passes in 34m57s overall, with a 28m02.838s integration module,
+compared with 41m49s and 35m42.554s in the preceding completed Ubuntu run.
+This is an observed improvement across runs, not an isolated CI benchmark.
+The macOS ARM64 job also passes in 45m38s, with a 35m32.998s integration
+module; Windows x64 passes in 53m41s, with a 38m03.125s integration module.
+Further optimization is deferred
+until those timings identify a concrete need, keeping this investigation bounded.
 
 The trace provider now wraps index and index-only children and delegates native
 mark/restore to children whose access method supports it. Real Merge Joins with
@@ -2929,7 +2944,7 @@ complete implementations. AOT serialization must use statically generated metada
 | `shmem.rs`, `atomics.rs`, `lwlock.rs`, `spinlock.rs` | Shared memory registration, synchronization, atomics, lock lifecycle and preload initialization | Partial: named unmanaged values, ordered preload initializers, shared/exclusive guards, primitive/enum scalar atomics, scoped immutable aggregate views, inline atomic fields, bounded list/deque/map views and local/inline spinlocks are implemented. Lightweight-lock and spinlock guards provide scoped original readonly access; exclusive guards also provide scoped mutations with alias and child-lock protection. Shared values, mutation/queue persistence, error cleanup, contention and segment recreation pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Remaining platform/version evidence is required |
 | `nodes.rs`, `pgrx-pg-sys/src/node.rs` | Node tags/type checks, allocation, conversion/string output, planner/executor node access | Partial: selected-header generated declarations, checked tag/cast views, zeroed tagged allocation and guarded native formatting with ABI, bounds and original-lifetime validation; planner/executor integration, broader ownership/callback witnesses and the full version/platform matrix remain required |
 | `pg_sys` hooks and `pgrx-examples/hooks` | Planner/executor, utility, parse, authentication and other exposed hooks; chaining and version-specific callback signatures | Partial: typed static managed callbacks, explicit global installation, previous-hook chaining/fallback and restoration implemented. Actual executor chains, managed/native errors and recovery pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 18.1; initialization/shared preload/parallel workers pass on Linux. Remaining hook protocols, examples and full version/platform validation are required |
-| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method tables and field-named callbacks support a real trace provider; registration, paths/plans/states, projection, rescan, EXPLAIN, cached plans, backward reads, provider-owned parallel DSM, index/index-only mark/restore, provider-owned parameter expressions and partition-child remapping, concurrent-update rechecks and error cleanup pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Older parameter-helper ABI adaptation, hook/registry boundaries and full platform/version evidence remain required |
+| `pg_sys` custom scan structures/functions | Provider registration, paths/plans/states, executor lifecycle and supporting node/tuple APIs | Partial: selected-header method tables and field-named callbacks support a real trace provider; paths/plans/states, projection, rescan, EXPLAIN, cached plans, backward reads, provider-owned parallel DSM, index/index-only mark/restore, provider-owned parameter expressions and partition-child remapping, independent predecessor chaining, native registry identity/lifetime/error boundaries, concurrent-update rechecks and error cleanup pass on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Older parameter-helper ABI adaptation and full platform/version evidence remain required |
 | `ffi.rs`, `pg_sys.rs`, `pgrx-pg-sys/src/submodules/{ffi,panic,pg_try,thread_check}.rs` | Native call guards, nested recovery, thread affinity, interrupts, deterministic managed cleanup | Partial: function/SPI boundaries, guarded selected-header fixed and indirect calls, global access, static managed callbacks with nested capability/lease restoration, and explicit nested `PgTransaction.RunInSubtransaction` recovery implemented; remaining callback/lifetime conveniences, variadics and the complete matrix remain required |
 | `pgrx-pg-sys/src/submodules/{elog,errcodes,panic,ffi,pg_try}.rs` | All log levels and SQLSTATE values; full diagnostics/context/object/location fields; catch/filter/rethrow behavior | Partial: all pgrx log levels, owned diagnostics, managed catch/filter/rethrow and unwind; PgSqlStates supplies the complete named PostgreSQL 13–19 beta catalog union with native aliases and exact custom string codes; remaining guard/raw APIs and full matrix validation pending |
 | `pgrx-pg-sys/src/{include,include.rs,cshim.rs,libpq.rs,port.rs,cstr.rs}` | PG13–19 functions, globals, constants, structs, unions, callbacks, inline/macro shims and string utilities | Partial: pinned PG13–19 inventories and a shared selected-header node/function/global companion with guarded fixed and indirect calls, static managed native callbacks, qualified global value/address access, and selected alignment, memory, buffer/page, tuple and spinlock helpers are connected to the SDK and actual Native AOT/backend execution. Remaining hook protocols, variadics, callback/lifetime conveniences, atomic/locking APIs, remaining handwritten conveniences/string utilities and the complete version/platform matrix remain required |
@@ -3082,7 +3097,7 @@ The phases track implementation of the complete pgrx feature surface.
     - [x] Concise guides, short explanations, and restrained formatting for the implemented APIs
     - [x] Verify site build, navigation, links, search, and desktop/mobile layouts
      - [x] Package-based setup guide, validated with isolated NuGet consumers
-     - [ ] Public hosting and canonical site URL/sitemap
+     - [x] Public hosting and canonical site URL/sitemap; deployed HTML and 244 canonical sitemap entries verified on 2026-09-28
   - [ ] `samples/` mirroring pgrx-examples (aggs, gucs, triggers, bgworker, customscan…)
     - [x] Published range example mirroring pgrx's nine constructors/comparison functions and stored-range sequence
     - [x] README and verified datum-boundary design notes (`docs/contributing/native-boundary.md`)
@@ -3095,6 +3110,7 @@ The phases track implementation of the complete pgrx feature surface.
      - [x] Provider-owned parallel DSM initialization, worker attachment, reinitialization, shutdown snapshots and error recovery on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
      - [x] Index/index-only mark and restore, backward cursors, parameterized rescans, parallel children and error recovery on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
      - [x] Provider-owned parameter expressions and partition-child remapping on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
+     - [x] Independent predecessor chaining and native registry identity, name boundaries, lifetime, cleanup and recovery on Linux x64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11
      - [ ] Older parameter-helper ABI adaptation and complete PostgreSQL/platform validation
    - [ ] PostgreSQL node representations and pgrx node support APIs
    - [ ] Corresponding examples and backend-executed tests
@@ -10285,3 +10301,84 @@ The previous `35c7970` run finished as cancelled overall: its full Ubuntu result
 above passed, while macOS and Windows were superseded, not timed out or proven
 successful. CI is checked and recorded again immediately before push; ongoing
 hosted jobs do not block this independently verified milestone.
+
+### Independent custom-scan hooks and registry boundaries
+
+Explicit test-extension probes now install a predecessor relation hook before
+the standalone trace provider loads and exercise PostgreSQL's real method
+registry. The production provider's existing behavior satisfies these native
+contracts. The probes use the generated typed callbacks, guarded methods and
+backend-owned method tables; they require no additional extension project,
+production friend assembly or automatic hook installation in the general test
+extension. Public and sample guides now explain name limits, backend lifetime,
+rollback semantics, predecessor ordering and error propagation.
+
+| Contract | Native evidence |
+|---|---|
+| Predecessor ordering and exact arguments | `TraceScanChainsPredecessorBeforeWrapping` checks disabled/enabled/disabled stages, original paths and pointer identity against actual planner arrays at range-table index two, real EXPLAIN nodes and exact nullable/UTF8 rows |
+| Nested managed/native failures | Four `TraceScanPredecessorErrorsUnwindAndRecover` cases check exact diagnostics, managed finally execution, no executor state after rejected planning, original backend PID and healthy retry with either enabled setting |
+| Native name and transaction lifetime | Four `TraceScanRegistryOwnsNamesBeyondTransactions` cases retain empty, singleton and 63-byte ASCII/UTF8 names, exact native addresses and live owner contexts after SQL rollback and collection |
+| Case sensitivity and backend isolation | `TraceScanRegistryUsesCaseSensitiveBackendNames` retains two distinct cased names and owners; neither entry is present in another backend |
+| Missing names | `TraceScanRegistryDistinguishesMissingMethods` checks optional null, required 42704 diagnostics and same-backend recovery |
+| Native length rejection and cleanup | Four `TraceScanRegistryRejectsLongNativeNames` cases check 64/65-byte ASCII/UTF8 names, exact XX000 diagnostics, no leaked attempted owner, absent rejected entries and healthy results in the original backend |
+| Duplicate registration and cached methods | `TraceScanRegistryDuplicatesPreserveCachedPlans` checks 42710, unchanged original table identity, reclaimed attempted storage and exact cached-plan execution after error, collection and disabling future tracing |
+| Actual module-load collision | `TraceScanRegistryCollisionsRejectModuleLoad` reserves the native name before loading the sample, then checks repeated 42710 failures, unchanged registered table, reclaimed sample method owners, preserved predecessor and exact healthy rows in the original backend |
+
+The length-rejection cases catch the actual ERROR inside a temporary PL/pgSQL
+function and return stacked diagnostics unchanged, then verify backend identity
+and cleanup. This permits native same-session recovery despite the pinned
+Npgsql driver's policy of closing connections for class XX errors. Native
+context assertions use `pg_backend_memory_contexts.ident`; successful retained
+owners provide a positive witness for the failed-owner zero-count checks.
+
+All 73 combined custom-scan and initialization cases pass on Linux
+x64/PostgreSQL 18.6 in 2m13.335s (module 2m12.626s), and on Windows
+x64/PostgreSQL 17.11 in 3m40.975s. Linux Release takes 1m10.21s and Windows
+Release takes 2m10.72s, both with zero warnings/errors. API freshness verifies 200 pages/
+2,437 members; the site builds 245 pages and checks with zero diagnostics.
+Final plain full Linux `dotnet test` passes **8,179 tests, zero failures and six
+Windows-only skips, 8,185 total**, in 10m46.793s (integration 10m46.216s).
+
+The documentation hosting checklist was stale. The current
+[Docs 36369419508](https://github.com/willibrandon/ankus/actions/runs/36369419508)
+has successful build and deployment jobs. Direct HTTP checks on 2026-09-28
+confirm the [public site](https://willibrandon.github.io/ankus/) returns 200 with
+the matching canonical URL; its [sitemap index](https://willibrandon.github.io/ankus/sitemap-index.xml)
+references a live sitemap containing 244 URLs under that canonical base.
+The tracker now marks this existing hosting requirement verified.
+
+Older parameter-helper ABI adaptation, other raw hook protocols, remaining
+raw APIs and the complete PostgreSQL 13–19/platform matrix remain required.
+Runtime identity, analyzer standards, complete unsharded CI suites and their
+one-hour job limit are unchanged.
+
+Immediately before committing, the 2026-09-28 03:16 UTC check of
+[CI 36369419494](https://github.com/willibrandon/ankus/actions/runs/36369419494)
+at `2ea0de1` confirms quality, all runtime jobs and both full Ubuntu and macOS
+suites pass. Ubuntu x64/PostgreSQL 18 reports 8,162 passed, zero failures and
+six platform skips in a 34m57s job (integration 28m02.838s). macOS
+ARM64/PostgreSQL 18 reports 8,159 passed, zero failures and nine platform skips
+in a 45m38s job (integration 35m32.998s). These results validate the preceding
+parameter-remapping milestone and include the package-fixture reuse change;
+they do not yet cover this milestone's seventeen new cases. Windows remains
+in progress without a reported failure; Docs 36369419508 passes. The preceding
+`8d23bc0` CI run was superseded before its platform suites completed, with
+successful quality/runtime jobs and Docs. Cancelled suites are not platform
+proof. CI is checked and recorded again immediately before pushing.
+
+The bounded timing investigation stops at the existing package reuse fix and
+retained per-module timing reports. The latest Ubuntu integration observation
+is 7m39.716s shorter than the preceding completed run at `35c7970`; other
+changes between those commits prevent attributing the entire difference to
+reuse. The controlled three-case local comparison above remains the measured
+23.2% improvement. Further CI tuning requires a concrete failing outcome or
+timing bottleneck; no sharding, timeout increase or validation reduction is added.
+
+The 2026-09-28 03:16 UTC pre-push recheck observes Windows finish successfully,
+making CI 36369419494 fully green. Windows x64/PostgreSQL 17 reports 8,165
+passed, zero failures and three platform skips, 8,168 total, in a 53m41s job
+(integration 38m03.125s). Its completed job log was inspected. The unpublished
+milestone is amended only to record this newly completed platform result;
+source and validation inputs are unchanged. All three platforms now have
+complete hosted evidence with the package reuse fix and the existing one-hour
+limit. This closes the bounded CI investigation without additional tuning.

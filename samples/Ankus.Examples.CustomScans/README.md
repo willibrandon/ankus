@@ -46,3 +46,6 @@ for PostgreSQL's reference adjustments. EXPLAIN reports `Trace Parameters` and
 `Trace Parameter Remaps` without evaluating the original clauses again.
 Disabling the setting affects future planning; already prepared custom plans
 continue using the registered methods until PostgreSQL discards them.
+The predecessor planner hook still runs while tracing is disabled. Native
+method registration lasts for the backend lifetime, including across SQL
+rollback; a duplicate name cannot replace an existing provider's table.

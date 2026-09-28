@@ -55,7 +55,27 @@ Register `CustomScanMethods` from `[PgModuleLoad]` with
 pointer; it does not copy the table or provide an unregister operation. The
 table, its name and all method tables referenced by cached plans need storage
 that survives individual queries and transactions. The sample allocates them in
-a child of `TopMemoryContext`. Keep previous planner hooks and invoke them when chaining.
+a child of `TopMemoryContext`.
+
+Registry keys are case-sensitive. A name must fit the selected headers'
+`EXTNODENAME_MAX_LEN`, including its terminating zero byte; PostgreSQL checks
+encoded bytes, not managed character counts. Duplicate registration raises a
+native error and leaves the original method table installed.
+`NativeMethods.GetCustomScanMethods` returns the retained table, returns a null
+address for an optional missing lookup, or raises an error when the requested
+name is required. These calls use the generated native error guard.
+
+Registration belongs to the backend, not to a SQL transaction. Rolling back the
+registering transaction does not remove its entry. Keep successful registrations
+alive until the backend exits, and reclaim attempted storage when registration
+fails. A different backend has its own registry and must load the provider too.
+
+Keep previous planner hooks when installing a provider. The trace sample invokes
+its predecessor with the original planner, relation, range-table index and entry
+before checking its own enabled setting or wrapping paths. Disabling tracing
+therefore preserves the other provider's behavior. Errors from that predecessor
+propagate through the guarded callback boundary; managed frames unwind before
+PostgreSQL receives ERROR, and the hook chain remains available after recovery.
 
 ## Planning and execution
 
