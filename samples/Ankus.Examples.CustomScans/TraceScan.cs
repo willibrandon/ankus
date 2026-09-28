@@ -105,7 +105,12 @@ public static unsafe partial class TraceScan
                         name = NativeMethods.pstrdup((nint)text);
                     }
 
-                    nint paths = Allocate(new CustomPathMethods { CustomName = name, PlanCustomPath = Planner });
+                    nint paths = Allocate(new CustomPathMethods
+                    {
+                        CustomName = name,
+                        PlanCustomPath = Planner,
+                        ReparameterizeCustomPathByChild = ParameterMapper,
+                    });
                     nint executor = Allocate(new CustomExecMethods
                     {
                         CustomName = name,
@@ -201,6 +206,7 @@ public static unsafe partial class TraceScan
             path->flags = !original->parallel_aware && NativeMethods.ExecSupportsMarkRestore(child)
                 ? 2U : 0U; // CUSTOMPATH_SUPPORT_MARK_RESTORE follows the actual child access method.
             path->custom_paths = NativeMethods.lappend(0, child);
+            path->custom_private = CaptureParameters(child);
             path->methods = s_pathMethods;
             cells[index].ptr_value = (nint)path;
         }
@@ -221,6 +227,13 @@ public static unsafe partial class TraceScan
         plan->scan.plan.targetlist = targetList;
         plan->custom_scan_tlist = NativeMethods.copyObjectImpl(child->targetlist);
         plan->custom_plans = children;
+        nint parameters = ((CustomPath*)path)->custom_private;
+        if (parameters != 0)
+        {
+            plan->custom_exprs = NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 0));
+            plan->custom_private = NativeMethods.lappend(0, NativeMethods.copyObjectImpl(NativeMethods.list_nth(parameters, 1)));
+        }
+
         plan->flags = ((CustomPath*)path)->flags;
         if (NativeMethods.ExecSupportsBackwardScan((nint)child))
         {
@@ -342,8 +355,8 @@ public static unsafe partial class TraceScan
     /// </summary>
     private static void Explain(nint address, nint ancestors, nint output)
     {
-        _ = ancestors;
         var state = (State*)address;
+        ExplainParameters(address, ancestors, output);
         Property("Trace Rows\0"u8, state->_rows, output);
         Property("Trace Calls\0"u8, state->_calls, output);
         Property("Trace Rescans\0"u8, state->_rescans, output);

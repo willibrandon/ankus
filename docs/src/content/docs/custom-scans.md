@@ -98,7 +98,34 @@ have returned. A raw unmanaged call must not let longjmp cross managed code.
 
 Advertise only capabilities the provider implements. The trace sample delegates
 reads and supported direction changes, marks and restores index positions, and
-coordinates parallel observations. Child reparameterization remains in progress.
+coordinates parallel observations. It also remaps its own parameter expressions
+when PostgreSQL selects an outer partition for a parameterized join.
+
+## Parameters and partition ancestry
+
+PostgreSQL reparameterizes a custom path's child paths. Expressions retained in
+`CustomPath.custom_private` belong to the provider, which must transform them
+through `CustomPathMethods.ReparameterizeCustomPathByChild` when an outer
+partition replaces its parent relation.
+
+The sample retains copied direct outer variables from the path's parameter
+clauses. Its callback uses `NativeMethods.adjust_appendrel_attrs_multilevel`
+with the chosen child and its top parent, so column positions follow the whole
+partition ancestry, including reordered and dropped columns. It returns new
+native nodes rather than mutating another path's data.
+
+During plan creation, these expressions move into `CustomScan.custom_exprs`.
+PostgreSQL then performs its ordinary outer-variable-to-parameter and plan
+reference adjustments. Keep expressions needing those adjustments out of opaque
+private plan data. Native copyable nodes also allow prepared plans to retain the
+expressions after the original planning memory is reclaimed.
+
+EXPLAIN's `Trace Parameters` displays the retained variables through PostgreSQL's
+deparser and ancestor plan context. `Trace Parameter Remaps` counts the provider's
+partition transformations. These diagnostics do not evaluate the original
+clauses or repeat their volatile calls. Variables behind placeholder evaluation
+barriers are left to the child; the list is diagnostic, not a complete inventory
+of every dependency. Unparameterized paths omit both fields.
 
 ## Marking and restoring positions
 

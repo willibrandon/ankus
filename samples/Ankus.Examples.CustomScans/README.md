@@ -40,5 +40,9 @@ native state prefix, scan projection, rescan, EXPLAIN and context cleanup.
 access methods support it. `Trace Marks` and `Trace Restores` in EXPLAIN observe
 those callbacks during merge joins. Backward scanning is advertised only when
 the actual child plan supports it; sequential children do not gain mark/restore.
+`TraceScan.Parameters.cs` retains copyable outer-variable expressions, maps them
+through partition ancestry, and places them in the final plan's expression list
+for PostgreSQL's reference adjustments. EXPLAIN reports `Trace Parameters` and
+`Trace Parameter Remaps` without evaluating the original clauses again.
 Disabling the setting affects future planning; already prepared custom plans
 continue using the registered methods until PostgreSQL discards them.

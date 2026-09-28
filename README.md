@@ -249,8 +249,9 @@ See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-
 The [custom-scan sample](samples/Ankus.Examples.CustomScans) uses these method
 tables to trace actual sequential and index paths, child-plan execution, rescans
 and EXPLAIN. Index children retain their supported backward and mark/restore
-capabilities. Parallel scans combine observations in PostgreSQL-owned shared memory
-using native atomics. See [custom scan providers](docs/src/content/docs/custom-scans.md)
+capabilities. Parameter diagnostics follow partition ancestry without reevaluating
+the child's clauses. Parallel scans combine observations in PostgreSQL-owned shared
+memory using native atomics. See [custom scan providers](docs/src/content/docs/custom-scans.md)
 for registration, plan/state ownership and parallel lifecycle requirements.
 
 Use `PgFunctions.Call<T>` to call a PostgreSQL function by name or OID, with typed
