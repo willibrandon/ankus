@@ -128,7 +128,7 @@ public sealed partial class CustomScanTests
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await OpenAsync(token);
         await CreateIndexInputAsync(connection, indexOnly, token);
-        await using var command = new NpgsqlCommand("SET enable_material = off; SET enable_memoize = off", connection);
+        await using var command = new NpgsqlCommand("SET enable_material = off; " + DisableMemoizeSql(), connection);
         await command.ExecuteNonQueryAsync(token);
         const string Query = """
             SELECT threshold,value,label FROM (VALUES (0),(1),(2)) AS limits(threshold)

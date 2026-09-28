@@ -406,7 +406,7 @@ public static unsafe class AllocatorContextFunctions
     }
 
     private static long CatalogBytes()
-        => Spi.ExecuteScalar<long>("SELECT total_bytes FROM pg_backend_memory_contexts WHERE name = 'Ankus fixture allocator'");
+        => Spi.ExecuteScalar<long>("SELECT total_bytes FROM ankus_test_memory.contexts WHERE name = 'Ankus fixture allocator'");
 
     private static string ReadOrStale(Func<int> read)
     {

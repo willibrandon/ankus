@@ -185,7 +185,7 @@ public sealed class InitializationTests(TestContext context)
     }
 
     /// <summary>
-    /// Session preload runs the initializer with database access before the first client command in each backend.
+    /// Session preload runs before the first client command and preserves the selected server's transaction boundary.
     /// </summary>
     [TestMethod]
     public async Task SessionPreloadInitializesBeforeFirstFunction()
@@ -200,7 +200,9 @@ public sealed class InitializationTests(TestContext context)
         foreach (NpgsqlConnection connection in new[] { first, second })
         {
             await using var command = new NpgsqlCommand("SET ankus_test.initialization = 'managed-error'; SELECT initialization_state()", connection);
-            Assert.AreEqual("1|1|default|42", await command.ExecuteScalarAsync(token));
+            Assert.AreEqual($"1|1|default|{SessionPreloadAnswer}", await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT 42";
+            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
         }
     }
 
@@ -253,8 +255,15 @@ public sealed class InitializationTests(TestContext context)
         await using var recovered = new NpgsqlConnection(builder.ConnectionString);
         await recovered.OpenAsync(token);
         await using var command = new NpgsqlCommand("SELECT datatype.initialization_state()", recovered);
-        Assert.AreEqual("1|1|default|42", await command.ExecuteScalarAsync(token));
+        Assert.AreEqual($"1|1|default|{SessionPreloadAnswer}", await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT 42";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
     }
+
+    /// <summary>
+    /// Gets the expected SQL result or the witnessed rejection outside older session-preload transactions.
+    /// </summary>
+    private static int SessionPreloadAnswer => PostgresFixture.Cluster.Installation.Version.Major >= 15 ? 42 : -1;
 
     /// <summary>
     /// Shared preload supplies managed state and runtime services in every backend process.

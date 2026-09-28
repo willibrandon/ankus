@@ -85,7 +85,7 @@ public static class AllocationLifecycleFunctions
         => allocation.Alignment == 0 || (nuint)allocation.DangerousGetPointer() % allocation.Alignment == 0;
 
     private static long CatalogBytes()
-        => Spi.ExecuteScalar<long>("SELECT coalesce(sum(total_bytes), 0)::bigint FROM pg_backend_memory_contexts WHERE ident = '" + ContextName + "'");
+        => Spi.ExecuteScalar<long>("SELECT coalesce(sum(total_bytes), 0)::bigint FROM ankus_test_memory.contexts WHERE ident = '" + ContextName + "'");
 
     private static void Resize(PgAllocation allocation, nuint length, bool tryOperation, bool zeroed)
     {

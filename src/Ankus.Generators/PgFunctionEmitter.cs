@@ -251,7 +251,10 @@ internal static class PgFunctionEmitter
             {
                 string field = parameter.Field.ToLowerInvariant();
                 string cast = parameter.Managed == "sbyte" ? "(int8) " : string.Empty;
-                source.AppendLine($"{inputIndent}        arguments[{argument}].{field} = {cast}PG_GETARG_{parameter.Reader}({argument});");
+                string reader = parameter.Reader == "TRANSACTIONID"
+                    ? $"DatumGetTransactionId(PG_GETARG_DATUM({argument}))"
+                    : $"PG_GETARG_{parameter.Reader}({argument})";
+                source.AppendLine($"{inputIndent}        arguments[{argument}].{field} = {cast}{reader};");
             }
 
             source.AppendLine(inputIndent + "    }");

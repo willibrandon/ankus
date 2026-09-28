@@ -219,7 +219,7 @@ public static class SetFunctions
         SetReset();
         session.Execute("CREATE TEMP TABLE set_recovery_writes(value int); INSERT INTO set_recovery_writes VALUES (1)");
         using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM set_recovery_writes");
-        const string contexts = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus set row', 'SRF multi-call context', 'Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+        const string contexts = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus set row', 'SRF multi-call context', 'Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
         long before = session.ExecuteScalar<long>(contexts);
         int failures = 0;
         for (int index = 0; index < 20; index++)
@@ -341,7 +341,7 @@ public static class SetFunctions
     {
         for (int index = 1; index <= count; index++)
         {
-            long bytes = Spi.ExecuteScalar<long>("SELECT COALESCE(max(total_bytes),0)::bigint FROM pg_backend_memory_contexts WHERE name = 'Ankus set row'");
+            long bytes = Spi.ExecuteScalar<long>("SELECT COALESCE(max(total_bytes),0)::bigint FROM ankus_test_memory.contexts WHERE name = 'Ankus set row'");
             s_maxRowBytes = Math.Max(s_maxRowBytes, bytes);
             string prefix = index.ToString(CultureInfo.InvariantCulture);
             yield return (index, prefix + new string('x', checked(width - prefix.Length)));

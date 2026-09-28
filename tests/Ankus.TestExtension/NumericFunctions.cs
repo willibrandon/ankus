@@ -197,7 +197,7 @@ public static class NumericFunctions
         => Spi.Connect(session =>
         {
             const string count = """
-                SELECT count(*) FROM pg_backend_memory_contexts
+                SELECT count(*) FROM ankus_test_memory.contexts
                 WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')
                 """;
             long before = session.ExecuteScalar<long>(count);

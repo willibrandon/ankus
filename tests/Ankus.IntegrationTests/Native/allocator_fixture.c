@@ -17,8 +17,88 @@
 #include "utils/rel.h"
 #include "utils/resowner.h"
 #include "access/xact.h"
+#include "miscadmin.h"
 
 PG_MODULE_MAGIC;
+
+#if PG_VERSION_NUM < 140000
+/* PostgreSQL 13 has native allocator counters but no SQL memory-context catalog. */
+PG_FUNCTION_INFO_V1(ankus_test_memory_contexts);
+PGDLLEXPORT Datum
+ankus_test_memory_contexts(PG_FUNCTION_ARGS)
+{
+    ReturnSetInfo *result = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc descriptor;
+    if (result == NULL || !IsA(result, ReturnSetInfo) ||
+        (result->allowedModes & SFRM_Materialize) == 0 ||
+        get_call_result_type(fcinfo, NULL, &descriptor) != TYPEFUNC_COMPOSITE)
+    {
+        ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("Memory observations require a materialized row result")));
+    }
+
+    MemoryContext previous = MemoryContextSwitchTo(result->econtext->ecxt_per_query_memory);
+    result->returnMode = SFRM_Materialize;
+    result->setDesc = descriptor;
+    result->setResult = tuplestore_begin_heap(true, false, work_mem);
+    MemoryContextSwitchTo(previous);
+
+    MemoryContext current = TopMemoryContext;
+    while (current != NULL)
+    {
+        CHECK_FOR_INTERRUPTS();
+        MemoryContextCounters counters = {0};
+        current->methods->stats(current, NULL, NULL, &counters);
+        const char *name = current->name;
+        const char *ident = current->ident;
+        if (ident != NULL && name != NULL && strcmp(name, "dynahash") == 0)
+        {
+            name = ident;
+            ident = NULL;
+        }
+
+        Datum values[7] = {0};
+        bool nulls[7] = {false};
+        nulls[0] = name == NULL;
+        nulls[1] = ident == NULL;
+        if (name != NULL)
+        {
+            values[0] = CStringGetTextDatum(name);
+        }
+
+        if (ident != NULL)
+        {
+            values[1] = CStringGetTextDatum(ident);
+        }
+
+        values[2] = Int64GetDatum(counters.totalspace);
+        values[3] = Int64GetDatum(counters.nblocks);
+        values[4] = Int64GetDatum(counters.freespace);
+        values[5] = Int64GetDatum(counters.freechunks);
+        values[6] = Int64GetDatum(counters.totalspace - counters.freespace);
+        tuplestore_putvalues(result->setResult, descriptor, values, nulls);
+        if (current->firstchild != NULL)
+        {
+            current = current->firstchild;
+        }
+        else
+        {
+            while (current != NULL && current->nextchild == NULL)
+            {
+                current = current->parent;
+            }
+
+            if (current != NULL)
+            {
+                current = current->nextchild;
+            }
+        }
+    }
+
+    tuplestore_donestoring(result->setResult);
+    return (Datum) 0;
+}
+#endif
 
 static bool relation_fail_commit = false;
 static int relation_commit_skip = 0;

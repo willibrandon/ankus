@@ -216,7 +216,9 @@ public sealed class FunctionCallTests(TestContext context)
             Assert.AreEqual(15, await ScalarAsync<int>(connection, "SELECT datatype.call_variadic('pg_temp.total',0,false)", token));
         }
 
-        string arrayOid = byOid ? "'pg_catalog.array_append(anycompatiblearray,anycompatible)'::regprocedure::oid" : "0::oid";
+        string arraySignature = PostgresFixture.Cluster.Installation.Version.Major >= 14
+            ? "anycompatiblearray,anycompatible" : "anyarray,anyelement";
+        string arrayOid = byOid ? $"'pg_catalog.array_append({arraySignature})'::regprocedure::oid" : "0::oid";
         int[] result = await ScalarAsync<int[]>(connection, $"SELECT datatype.call_polymorphic({arrayOid})", token);
         Assert.AreSequenceEqual([3, 5, 7], result);
     }

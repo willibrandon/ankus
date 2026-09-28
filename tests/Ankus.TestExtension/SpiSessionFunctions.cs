@@ -34,7 +34,7 @@ public static class SpiSessionFunctions
     public static string SessionNested()
         => Spi.Connect(outer =>
         {
-            const string sql = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Proc'";
+            const string sql = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Proc'";
             long before = outer.ExecuteScalar<long>(sql);
             string nested = Spi.Connect(inner =>
             {
@@ -355,7 +355,7 @@ public static class SpiSessionFunctions
                 session.Query("SELECT repeat('large value', 1000) FROM generate_series(1, 10)");
             }
 
-            long contexts = session.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI TupTable'");
+            long contexts = session.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI TupTable'");
             return rows.Count + ":" + contexts + ":" + session.ExecuteScalar<int>("SELECT 42");
         });
 

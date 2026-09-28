@@ -68,8 +68,20 @@ public static unsafe partial class TraceScan
         nint expressions = NativeMethods.adjust_appendrel_attrs_multilevel(root, NativeMethods.list_nth(data, 0),
             child, relation->top_parent);
 #endif
-        int remaps = ((Integer*)NativeMethods.list_nth(data, 1))->ival;
+        int remaps = ReadParameterRemaps(NativeMethods.list_nth(data, 1));
         return NativeMethods.lappend(NativeMethods.lappend(0, expressions), NativeMethods.makeInteger(checked(remaps + 1)));
+    }
+
+    /// <summary>
+    /// Reads the counter from the selected server's integer value-node representation.
+    /// </summary>
+    private static int ReadParameterRemaps(nint address)
+    {
+#if ANKUS_PG13 || ANKUS_PG14
+        return ((Value*)address)->val.ival;
+#else
+        return ((Integer*)address)->ival;
+#endif
     }
 
     /// <summary>
@@ -98,6 +110,6 @@ public static unsafe partial class TraceScan
             NativeMethods.ExplainPropertyList((nint)label, values, output);
         }
 
-        Property("Trace Parameter Remaps\0"u8, ((Integer*)NativeMethods.list_nth(plan->custom_private, 0))->ival, output);
+        Property("Trace Parameter Remaps\0"u8, ReadParameterRemaps(NativeMethods.list_nth(plan->custom_private, 0)), output);
     }
 }

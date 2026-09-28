@@ -246,7 +246,7 @@ public static class ArrayFunctions
             using SpiPreparedStatement plan = session.Prepare("SELECT $1", typeof(PgArray<int?>));
             int failures = 0;
             int unwound = 0;
-            const string contexts = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus SPI operation', 'CurTransactionContext')";
+            const string contexts = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'CurTransactionContext')";
             long before = session.ExecuteScalar<long>(contexts);
             for (int index = 0; index < 30; index++)
             {

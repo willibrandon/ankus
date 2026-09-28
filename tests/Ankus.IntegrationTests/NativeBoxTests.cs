@@ -151,7 +151,7 @@ public sealed class NativeBoxTests(TestContext context)
             Assert.AreEqual("73|73|73|True", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT datatype.native_box_saved_state()";
             Assert.AreEqual("73|73|73|True", await command.ExecuteScalarAsync(token));
-            command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'saved native typed value'";
+            command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'saved native typed value'";
             Assert.AreEqual(1L, await command.ExecuteScalarAsync(token));
             if (commit)
             {
@@ -165,7 +165,7 @@ public sealed class NativeBoxTests(TestContext context)
 
         await using var check = new NpgsqlCommand("SELECT datatype.native_box_saved_state()", connection);
         Assert.AreEqual("stale|stale|stale|False", await check.ExecuteScalarAsync(token));
-        check.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'saved native typed value'";
+        check.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'saved native typed value'";
         Assert.AreEqual(0L, await check.ExecuteScalarAsync(token));
         await AssertRecoveredAsync(check, backend, token);
     }
@@ -193,7 +193,7 @@ public sealed class NativeBoxTests(TestContext context)
                 await transaction.RollbackAsync("native_box_scope", token);
                 command.CommandText = "SELECT datatype.native_box_saved_state()";
                 Assert.AreEqual(subtransaction ? "stale|stale|stale|False" : "73|73|73|True", await command.ExecuteScalarAsync(token));
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'saved native typed value'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'saved native typed value'";
                 Assert.AreEqual(subtransaction ? 0L : 1L, await command.ExecuteScalarAsync(token));
                 await AssertRecoveredAsync(command, backend, token);
             }, context.CancellationToken);
@@ -205,7 +205,7 @@ public sealed class NativeBoxTests(TestContext context)
             await using var command = new NpgsqlCommand(sql, connection, transaction);
             Assert.AreEqual(expected, Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token)));
             command.CommandText = """
-                SELECT count(*) FROM pg_backend_memory_contexts
+                SELECT count(*) FROM ankus_test_memory.contexts
                 WHERE ident LIKE 'native box %' OR ident LIKE 'native raw reference %'
                    OR ident LIKE 'native allocation view %' OR ident LIKE 'native generation %'
                    OR ident = 'raw generation failed reset'

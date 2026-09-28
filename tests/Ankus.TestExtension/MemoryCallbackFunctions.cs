@@ -263,7 +263,7 @@ public static class MemoryCallbackFunctions
         }
 
         PgLog.Write(PgLogLevel.Debug1, "Memory callback restored logging.");
-        long leaked = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident LIKE 'forbidden callback %'");
+        long leaked = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident LIKE 'forbidden callback %'");
         return $"{string.Join(',', states)}|{copied}|{independentValue}|{deniedCapabilities}|{ReadOrStale(value)}|{callback.IsPending}|{leaked}|{Spi.ExecuteScalar<int>("SELECT 42")}";
     }
 

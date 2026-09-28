@@ -255,16 +255,16 @@ public static unsafe class MemoryAllocationFunctions
         PgMemoryContext original = PgMemoryContext.Current;
         using PgMemoryContext owner = PgMemoryContext.Create("allocation sizing probe", options: options);
         nuint initial = owner.GetAllocatedBytes();
-        long nativeInitial = Spi.ExecuteScalar<long>("SELECT total_bytes FROM pg_backend_memory_contexts WHERE ident = 'allocation sizing probe'");
+        long nativeInitial = Spi.ExecuteScalar<long>("SELECT total_bytes FROM ankus_test_memory.contexts WHERE ident = 'allocation sizing probe'");
         using PgAllocation value = owner.AllocateZeroed(65536);
         value.Write(731);
         bool grew = owner.GetAllocatedBytes() > initial;
         int copied = value.Read<int>();
         owner.Reset();
         nuint afterReset = owner.GetAllocatedBytes();
-        long nativeAfterReset = Spi.ExecuteScalar<long>("SELECT total_bytes FROM pg_backend_memory_contexts WHERE ident = 'allocation sizing probe'");
+        long nativeAfterReset = Spi.ExecuteScalar<long>("SELECT total_bytes FROM ankus_test_memory.contexts WHERE ident = 'allocation sizing probe'");
         owner.Dispose();
-        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'allocation sizing probe'");
+        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'allocation sizing probe'");
         return $"{initial}|{nativeInitial}|{grew}|{copied}|{afterReset}|{nativeAfterReset}|{remaining}|{PgMemoryContext.Current.Id == original.Id}";
     }
 
@@ -315,7 +315,7 @@ public static unsafe class MemoryAllocationFunctions
         (long resetBytes, long resetBlocks) = ReadBlockGrowthStatistics();
         string stale = ReadOrStale(values[0]);
         owner.Dispose();
-        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'allocation block growth probe'");
+        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'allocation block growth probe'");
         return $"{initialBytes}|{firstGrowth}|{maximumGrowth}|{cappedBlocks >= 3}|{cappedRemainder}|{nativeStatisticsMatch}|{retainedValues}|" +
             $"{resetBytes}|{resetBlocks}|{stale}|{remaining}|{PgMemoryContext.Current.Id == original.Id}";
     }
@@ -341,7 +341,7 @@ public static unsafe class MemoryAllocationFunctions
         {
             using PgMemoryContext invalid = PgMemoryContext.Create("invalid allocation sizing", options: options);
         });
-        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'invalid allocation sizing'");
+        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'invalid allocation sizing'");
         return $"{state}|{remaining}|{PgMemoryContext.Current.Id == original.Id}";
     }
 
@@ -431,7 +431,7 @@ public static unsafe class MemoryAllocationFunctions
         string partial = $"{owner.IsAlive}|{ReadOrStale(allocation)}|{older?.IsPending},{newer?.IsPending}|{string.Join(',', events)}";
         owner.Dispose();
         owner.Dispose();
-        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'allocation transient'");
+        long remaining = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'allocation transient'");
         return $"{outcome}|{selected}|{parentMatches}|{partial}|{string.Join(',', events)}|{owner.IsAlive}|{ReadOrStale(allocation)}|" +
             $"{older?.IsPending},{newer?.IsPending}|{remaining}|{parent.IsAlive}|{PgMemoryContext.Current.Id == original.Id}";
     }
@@ -561,9 +561,10 @@ public static unsafe class MemoryAllocationFunctions
     /// Retains an adopted aligned huge-policy chunk across SQL callbacks under a transaction-owned context.
     /// </summary>
     /// <param name="subtransaction">Whether the native owner belongs to the current subtransaction.</param>
+    /// <param name="alignment">The alignment supported by the selected server.</param>
     /// <returns>The exact adopted value and native policy metadata.</returns>
     [PgFunction]
-    public static string MemoryTransferredSave(bool subtransaction)
+    public static string MemoryTransferredSave(bool subtransaction, int alignment)
     {
         s_transferredValue?.Dispose();
         s_transferredOwner?.Dispose();
@@ -571,10 +572,10 @@ public static unsafe class MemoryAllocationFunctions
             ?? throw new InvalidOperationException("No transaction context for the transferred allocation.");
         PgMemoryContext owner = PgMemoryContext.Create("saved transferred allocation", parent);
         s_transferredOwner = owner;
-        using PgAllocation original = owner.AllocateZeroed<long>(4, PgAllocationOptions.Huge, 4096);
+        using PgAllocation original = owner.AllocateZeroed<long>(4, PgAllocationOptions.Huge, (nuint)alignment);
         original.Write(731);
         void* pointer = original.DangerousDetach();
-        PgAllocation adopted = owner.DangerousAdopt(pointer, sizeof(long) * 4, huge: true, alignment: 4096);
+        PgAllocation adopted = owner.DangerousAdopt(pointer, sizeof(long) * 4, huge: true, alignment: (nuint)alignment);
         s_transferredValue = adopted;
         adopted.Reallocate(64, zeroNewMemory: true);
         return $"{adopted.Read<int>()}|{adopted.Context.Id == owner.Id}|{adopted.Length}|{(int)adopted.Options}|{adopted.Alignment}";
@@ -593,11 +594,11 @@ public static unsafe class MemoryAllocationFunctions
     }
 
     private static long CountNestedTransients()
-        => Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'nested allocation transient'");
+        => Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'nested allocation transient'");
 
     private static (long Bytes, long Blocks) ReadBlockGrowthStatistics()
     {
-        SpiResult result = Spi.Query("SELECT total_bytes, total_nblocks FROM pg_backend_memory_contexts WHERE ident = 'allocation block growth probe'");
+        SpiResult result = Spi.Query("SELECT total_bytes, total_nblocks FROM ankus_test_memory.contexts WHERE ident = 'allocation block growth probe'");
         if (result.Count != 1)
         {
             throw new InvalidOperationException("The block-growth context must have exactly one native statistics row.");

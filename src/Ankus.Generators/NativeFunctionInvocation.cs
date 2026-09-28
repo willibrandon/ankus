@@ -97,7 +97,9 @@ internal static class NativeFunctionInvocation
             FuncCall *syntax = makeNode(FuncCall);
             syntax->funcname = parts;
             syntax->func_variadic = request->variadic;
+        #if PG_VERSION_NUM >= 140000
             syntax->funcformat = COERCE_EXPLICIT_CALL;
+        #endif
             syntax->location = -1;
             Node *resolved = ParseFuncOrColumn(parse, parts, arguments, NULL, syntax, false, -1);
             if (!IsA(resolved, FuncExpr))
@@ -122,7 +124,11 @@ internal static class NativeFunctionInvocation
                 lfirst(list_nth_cell(expression->args, index)) = coerced;
             }
 
+        #if PG_VERSION_NUM >= 140000
             expression->args = expand_function_arguments(expression->args, false, expression->funcresulttype, tuple);
+        #else
+            expression->args = expand_function_arguments(expression->args, expression->funcresulttype, tuple);
+        #endif
             ReleaseSysCache(tuple);
             return expression;
         }

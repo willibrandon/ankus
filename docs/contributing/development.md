@@ -57,6 +57,13 @@ publishes the extensions, starts an isolated cluster, installs the extensions,
 and invokes their functions through SQL. Test transactions roll back before their
 connections close. The cluster shuts down after the run.
 
+Memory cleanup checks query `ankus_test_memory.contexts`, installed by the test
+extension. On PostgreSQL 14 and later this view reads the server's memory-context
+catalog. PostgreSQL 13 uses the standalone C allocator fixture to walk the actual
+native context tree and collect allocator counters. These observations remain
+independent of the Ankus memory APIs under test and are available in dedicated
+encoding databases as well as the shared fixture database.
+
 Every repository project inherits `MSTestAnalysisMode=All` and
 `TreatWarningsAsErrors=true` from `Directory.Build.props`. Fix analyzer findings
 without suppressing diagnostics or reducing the enforced analysis mode.

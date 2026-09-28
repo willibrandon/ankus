@@ -158,7 +158,7 @@ public sealed class MemoryContextTests(TestContext context)
                     Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
                 command.CommandText = "SELECT datatype.memory_sequence_disposals()";
                 Assert.AreEqual(before + 1, await command.ExecuteScalarAsync(token));
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'memory sequence'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'memory sequence'";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
@@ -182,7 +182,7 @@ public sealed class MemoryContextTests(TestContext context)
                 await command.ExecuteNonQueryAsync(token);
                 command.CommandText = "SELECT datatype.memory_sequence_disposals()";
                 Assert.AreEqual(before + 1, await command.ExecuteScalarAsync(token));
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'memory sequence'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'memory sequence'";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 

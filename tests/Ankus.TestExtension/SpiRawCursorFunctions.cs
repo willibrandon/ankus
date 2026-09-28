@@ -128,7 +128,7 @@ public static class SpiRawCursorFunctions
     [PgFunction]
     public static string RawCursorRecover()
     {
-        const string contexts = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'Ankus raw SPI result'";
+        const string contexts = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus raw SPI result'";
         long before = Spi.ExecuteScalar<long>(contexts);
         string error = "unexpected success";
         using (SpiCursor cursor = Spi.OpenCursor("SELECT 1 / (3 - n) FROM generate_series(1, 3) AS s(n)"))

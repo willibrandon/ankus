@@ -128,7 +128,7 @@ public sealed partial class NodeTests
             Assert.AreEqual("stack depth limit exceeded", error.MessageText);
             command.CommandText = "SELECT datatype.node_format_nested(false)";
             Assert.AreEqual("{COLLATEEXPR :arg {RANGETBLREF :rtindex 9} :collOid 123 :location -1}", await command.ExecuteScalarAsync(token));
-            command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'Ankus node formatting' OR ident = 'nested native node'";
+            command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus node formatting' OR ident = 'nested native node'";
             Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         }
 

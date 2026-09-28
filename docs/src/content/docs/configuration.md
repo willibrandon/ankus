@@ -50,11 +50,13 @@ database, role, database-and-role, then client connection options. A session
 the original source when a deferred definition adopts a startup placeholder,
 including definitions loaded through `session_preload_libraries`.
 
-Placeholder adoption also retains the original setter's identity and privilege
-context. Loading a library as a superuser does not authorize another role's
-earlier setting. PostgreSQL rechecks applicable parameter grants during adoption,
-including separately saved `SET` and `SET LOCAL` states. A rejected replay warns
-and preserves the preceding accepted value.
+Placeholder adoption retains the original privilege context. Loading a library
+as a superuser does not authorize a setting previously supplied without the
+required privileges. PostgreSQL 15 and later also retain the setter's role
+identity and recheck applicable parameter grants during adoption, including
+separately saved `SET` and `SET LOCAL` states. PostgreSQL 13 and 14 use their
+native privilege-context checks and do not have per-parameter grants. A rejected
+replay warns and preserves the preceding accepted value.
 
 ## Reserving a prefix
 

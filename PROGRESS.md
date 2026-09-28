@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The PostgreSQL 13/14 bridge now uses the selected headers' actual function-call,
+GUC, logging and datum contracts. Independent native allocator observations keep
+memory ownership checks executable on PostgreSQL 13. All 335 affected cases pass
+without failures or skips on Linux x64/PostgreSQL 13.23 and 14.20. The final plain
+PostgreSQL 18.6 suite passes **8,203 tests, zero failures and six Windows-only
+skips, 8,209 total**, in 13m00.338s. Release, all 2,100 generator tests, API
+freshness and site checks pass. Broader PostgreSQL 14 diagnostics identify
+additional required version-contract work, recorded in the latest evidence
+section; full older-version and platform validation is not complete.
+
 The SDK now defines one selected-major compilation symbol, and the trace
 provider selects the matching parameter-helper ABI. Sixteen new SDK/native
 helper cases pass on Linux and Windows. On Linux x64/PostgreSQL 15.19, all
@@ -41,9 +51,9 @@ helper cases pass on Linux and Windows. On Linux x64/PostgreSQL 15.19, all
 102 affected cases pass on Windows x64/PostgreSQL 17.11. Final Release builds
 and API/site checks pass. Plain full Linux `dotnet test` against PostgreSQL
 18.6 passes **8,195 tests, zero failures and six Windows-only skips, 8,201
-total**, in 11m37.486s (integration 11m36.805s). PostgreSQL 15's eleven failed
-parallel-worker cases are recorded below as required compatibility work; the
-full older-version/platform matrix is not complete.
+total**, in 11m37.486s (integration 11m36.805s). PostgreSQL 15's initial eleven
+parallel-worker failures were subsequently resolved by the older-worker recovery
+milestone recorded below; the full older-version/platform matrix is not complete.
 
 Independent native probes now verify the trace provider's predecessor-hook and
 registry boundaries. All 73 custom-scan and initialization cases pass on Linux
@@ -10582,3 +10592,112 @@ check confirms the preceding CI run is complete with only the diagnosed Windows
 failure; all other jobs and Docs 36377069224 pass. The local repair is verified
 on Linux and Windows; replacement hosted results remain pending. Previous CI
 outcomes are checked and recorded again immediately before pushing.
+
+### PostgreSQL 13/14 native contracts and independent memory observations
+
+Real PostgreSQL 13.23 compilation exposed version-specific native declarations:
+older function-call argument expansion and parse nodes, missing direct header
+includes, the pre-15 GUC setter without role OIDs, and the transaction-ID datum
+reader. The generated bridge now uses each selected header's actual contract.
+The custom-scan sample reads the older `Value` union on PostgreSQL 13/14 and the
+dedicated `Integer` node on later versions. Planner declaration evidence uses
+PostgreSQL's native LIKE implementation and matching support routine, available
+throughout the supported version range.
+
+The first executable Linux x64/PostgreSQL 13.23 affected run passes 177 of 206
+cases, with 29 failures and no skips, in 3m13.686s. PostgreSQL 14.20 passes 204
+of the same 206 cases, with two failures and no skips, in 2m59.517s. The failures
+identify fixture assumptions about newer polymorphic signatures, Memoize,
+memory-context catalogs and session-preload transactions. These are diagnostic
+runs, not passing version validation.
+
+The test extension now installs an explicit `ankus_test_memory.contexts` view.
+PostgreSQL 14 and later retain their actual catalog as the source. PostgreSQL 13
+uses the standalone native allocator fixture to traverse real backend contexts
+and collect native allocator counters, independently of Ankus's memory APIs.
+Existing ownership, cleanup and byte-accounting assertions query that view,
+including in separately created encoding databases. No observations are replaced
+by constants or empty results.
+
+PostgreSQL 13/14 session preload happens outside a transaction; PostgreSQL 15+
+moved it inside the startup transaction. The initializer fixture reads its mode
+through a typed GUC, explicitly witnesses SQL rejection outside a transaction,
+and retains real SQL execution where available. Source-priority tests exercise
+captured superuser context on 13/14 and current parameter grants on 15+, retaining
+independent session/local history checks. The public initialization,
+configuration and function-call recovery guides describe those native boundaries.
+The expanded checks and final milestone gates are recorded below. Full
+PostgreSQL 13–19/platform proof and the remaining faithful-port requirements
+are still required.
+
+The expanded runs each execute 335 cases: **314 pass and 21 fail, with no
+skips**, on PostgreSQL 13.23 in 2m25.105s and PostgreSQL 14.20 in 2m31.372s.
+All earlier GUC, preload, function-call, enum and custom-scan failures are fixed.
+The remaining failures are memory tests assuming PostgreSQL 16+ alignment and
+chunk-offset limits. Read-only pgrx source confirms its aligned allocator is also
+restricted to PostgreSQL 16+. Older-version cases now check exact `0A000`
+diagnostics, native context cleanup, savepoint recovery and successful ordinary
+allocations. Adoption/transaction ownership still runs on every version, using
+native-default alignment on 13/14 and 4,096-byte alignment on 16+. The valid
+pre-16 maximum block configuration remains accepted. Newer assertions retain
+their complete aligned-allocation success and invalid-size contracts; no test
+is skipped and no production limit is relaxed.
+
+The corrected Linux x64/PostgreSQL 13.23 scope now passes **all 335 cases, zero
+failures and zero skips**, in 2m29.605s. This includes independent native memory
+inventory/size/growth/deletion checks, older privilege transitions, real parallel
+worker restoration and recovery, session preload, function metadata and calls,
+custom-scan parameter remapping and exact transaction-ID/enum behavior. API
+freshness checks 200 pages/2,437 members; the 245-page documentation site builds
+and its check reports zero diagnostics.
+
+The same corrected scope passes **335 cases, zero failures and zero skips** on
+Linux x64/PostgreSQL 14.20 in 2m35.159s. Both versions execute the following
+boundaries; these are affected-scope results, not full-suite platform proof.
+
+| Required boundary | Backend evidence on both PostgreSQL 13.23 and 14.20 |
+| --- | --- |
+| Native calls, overloads, defaults, exact identity and error recovery | `FunctionCallTests`, including `DefaultExpressionsRemainTypedAndExecuteOnce` and `ErrorsPreserveDiagnosticsRollbackAndSameBackendRecovery` |
+| Transaction IDs and enum ownership | `TransactionIdsRemainDistinctFromOidsAcrossOwners`, `EnumOwnershipPathsPreserveIdentity`, `EnumGuardedRecoveryPreservesStateAndCleansContexts` |
+| Original privilege context, source precedence and stacked restoration | `PlaceholderAdoptionRetainsOriginalSetterPrivileges`, `PlaceholderMaskedAndLocalStatesRetainTheirOwnPrivileges`, both startup-source tests |
+| Startup without SQL, failure cleanup and a healthy subsequent connection | `SessionPreloadInitializesBeforeFirstFunction`, `SessionPreloadFailureUnwindsAndPreservesServer` |
+| Worker settings, parallel diagnostics and actual parameter remapping | `GucParallelTests`, `CustomScanTests` |
+| Independent native allocation observation and ownership transitions | `NativeInventoryProvesOwnedAndBorrowedContextLifetimes`, all sizing/growth cases, `AdoptedAllocationsRespectSubtransactionOwnership` |
+| Native version limits and recovery after rejection | All older over-alignment rows assert the exact error, unchanged context inventory, ordinary allocation values and original backend identity |
+
+The final Release build completes with zero warnings/errors in 1m15.23s, and
+all 2,100 generator tests pass without skips in 23.282s. A broader PostgreSQL
+14.20 diagnostic run executes all 8,209 discovered tests: 8,005 pass, 198 fail,
+and six Windows-only cases skip, in 3m20.064s. Of the failures, 83 share one
+package-fixture initialization failure because the isolated validation checkout
+lacked the runtime package payload. That checkout now has the matching immutable
+payload; its completed package rerun is recorded below. The other 115 failures require
+further version-specific fixture and native-contract work, including allocator
+availability/accounting, numeric scales, temporal values and diagnostics, node
+formatting, prefix behavior, parameter grants, and event triggers. This is
+recorded failure evidence, not full PostgreSQL 14 validation. The complete
+supported version and platform matrix and remaining full-port scope remain
+required.
+
+After staging the runtime package correctly, the PostgreSQL 14 package scope
+executes all 83 cases: **79 pass, four fail, zero skip**, in 10m06.958s.
+The remaining package failures are selected-header declarations in a generated
+consumer, two prefix-reservation expectations, and a worker readiness query
+using the PostgreSQL 17+ wait-event spelling. These are additional required
+compatibility work, separate from the 335 passing affected cases above.
+
+Final plain full Linux x64 `dotnet test` against PostgreSQL 18.6 passes **8,203
+tests, zero failures and six Windows-only skips**, 8,209 total, in 13m00.338s
+(integration 12m59.699s). This run overlaps independent PostgreSQL 14 validation
+in a separate checkout and is not a cold-cache performance measurement. No
+runtime patch, CI timeout, sharding or diagnostic-standard changes are included.
+
+The 2026-09-28 06:17 UTC pre-commit check records
+[CI 36382510666](https://github.com/willibrandon/ankus/actions/runs/36382510666)
+at `4c7fe76` with successful quality, all three runtime jobs, Ubuntu and macOS;
+Windows remains in progress without a reported failure. Ubuntu's completed log
+reports 8,203 passes, zero failures and six platform skips in a 34m07s job
+(integration 27m38.273s). [Docs 36382510680](https://github.com/willibrandon/ankus/actions/runs/36382510680)
+also passes. These hosted results cover the preceding recovery/SDK-fixture
+commit; the local evidence above covers this milestone. Previous run outcomes
+are checked and recorded again immediately before pushing.

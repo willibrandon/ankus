@@ -135,10 +135,17 @@ with an explicit composite descriptor, use `PgFunctionArgument.Create(parameter)
 ## Errors and permissions
 
 Calls by name or OID use the current role and honor `EXECUTE` permissions, security-definer
-functions, and function-local settings. A PostgreSQL error during native execution
-becomes a `PgException`; the failed call's transactional database changes roll
-back, and the caller can catch the error and continue. Managed results are copied
-before native execution storage is freed.
+functions, and function-local settings. Where PostgreSQL permits internal
+subtransactions, an error during native execution becomes a `PgException` after
+the failed call's transactional database changes roll back. The caller can catch
+the error and continue. Managed results are copied before native execution
+storage is freed.
+
+PostgreSQL 13–16 prohibit internal subtransactions during parallel execution.
+In that mode, a native error ends the current managed callback: catching it does
+not permit further ordinary backend calls, and the original error is reported
+after managed cleanup finishes. See [parallel error recovery](/spi/#errors-and-transactions)
+for resource disposal and recovery through an enclosing transaction or savepoint.
 
 A mapped reader runs after native execution completes. Catching its managed
 conversion error does not roll back the function's completed database changes.

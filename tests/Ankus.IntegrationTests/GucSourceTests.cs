@@ -69,41 +69,40 @@ public sealed class GucSourceTests(TestContext context)
     }
 
     /// <summary>
-    /// Definition replay evaluates the original setter's current grant, independently of the superuser loader.
+    /// Definition replay uses the original privilege context or current parameter grant, independently of the loader.
     /// </summary>
-    /// <param name="grantAtSet">Whether the placeholder setter initially has a parameter grant.</param>
-    /// <param name="grantAtLoad">Whether that grant exists when the typed definition replaces the placeholder.</param>
+    /// <param name="privilegedAtSet">Whether the placeholder setter initially has the required privilege.</param>
+    /// <param name="privilegedAtLoad">Whether that privilege exists when the definition replaces the placeholder.</param>
     [TestMethod]
     [DataRow(false, false)]
     [DataRow(false, true)]
     [DataRow(true, false)]
     [DataRow(true, true)]
-    public async Task PlaceholderAdoptionRechecksOriginalSetterGrant(bool grantAtSet, bool grantAtLoad)
+    public async Task PlaceholderAdoptionRetainsOriginalSetterPrivileges(bool privilegedAtSet, bool privilegedAtLoad)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         string role = "guc_source_" + Guid.NewGuid().ToString("N");
         await ExecuteAsync(connection, $"CREATE ROLE {role}");
         try
         {
-            if (grantAtSet)
+            if (privilegedAtSet)
             {
-                await ExecuteAsync(connection, $"GRANT SET ON PARAMETER ankus_guc.privileged TO {role}");
+                await SetPrivilegeAsync(connection, role, true);
             }
 
             await ExecuteAsync(connection, $"SET ROLE {role}; SET ankus_guc.privileged = '11'; RESET ROLE");
             Assert.AreEqual("11", await ScalarAsync(connection, "SHOW ankus_guc.privileged"));
-            if (grantAtSet != grantAtLoad)
+            if (privilegedAtSet != privilegedAtLoad)
             {
-                await ExecuteAsync(connection, grantAtLoad
-                    ? $"GRANT SET ON PARAMETER ankus_guc.privileged TO {role}"
-                    : $"REVOKE SET ON PARAMETER ankus_guc.privileged FROM {role}");
+                await SetPrivilegeAsync(connection, role, privilegedAtLoad);
             }
 
             var notices = new List<PostgresNotice>();
             connection.Notice += (_, args) => notices.Add(args.Notice);
             await ExecuteAsync(connection, "LOAD 'Ankus.TestExtension'");
-            Assert.AreEqual(grantAtLoad ? "11|1|session" : "1|1|default", await MetadataAsync(connection, "ankus_guc.privileged"));
-            if (grantAtLoad)
+            bool accepted = PostgresFixture.Cluster.Installation.Version.Major >= 15 ? privilegedAtLoad : privilegedAtSet;
+            Assert.AreEqual(accepted ? "11|1|session" : "1|1|default", await MetadataAsync(connection, "ankus_guc.privileged"));
+            if (accepted)
             {
                 Assert.IsEmpty(notices);
             }
@@ -124,13 +123,13 @@ public sealed class GucSourceTests(TestContext context)
     }
 
     /// <summary>
-    /// SET and SET LOCAL retain independent roles when a placeholder stack is replayed and committed.
+    /// SET and SET LOCAL retain independent privileges when a placeholder stack is replayed and committed.
     /// </summary>
     /// <param name="localGranted">Whether the local setter, rather than the masked session setter, has the grant.</param>
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public async Task PlaceholderMaskedAndLocalStatesRecheckTheirOwnRoles(bool localGranted)
+    public async Task PlaceholderMaskedAndLocalStatesRetainTheirOwnPrivileges(bool localGranted)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         string sessionRole = "guc_session_" + Guid.NewGuid().ToString("N");
@@ -138,7 +137,7 @@ public sealed class GucSourceTests(TestContext context)
         await ExecuteAsync(connection, $"CREATE ROLE {sessionRole}; CREATE ROLE {localRole}");
         try
         {
-            await ExecuteAsync(connection, $"GRANT SET ON PARAMETER ankus_guc.privileged TO {(localGranted ? localRole : sessionRole)}");
+            await SetPrivilegeAsync(connection, localGranted ? localRole : sessionRole, true);
             await ExecuteAsync(connection, "SET ankus_guc.privileged = '11'");
             await ExecuteAsync(connection, $"""
                 BEGIN;
@@ -163,6 +162,15 @@ public sealed class GucSourceTests(TestContext context)
             await DropRolesAsync(sessionRole, localRole);
         }
     }
+
+    /// <summary>
+    /// Sets the selected server's real privilege for a superuser-only custom setting.
+    /// </summary>
+    private Task SetPrivilegeAsync(NpgsqlConnection connection, string role, bool granted)
+        => ExecuteAsync(connection, PostgresFixture.Cluster.Installation.Version.Major >= 15
+            ? granted ? $"GRANT SET ON PARAMETER ankus_guc.privileged TO {role}"
+                : $"REVOKE SET ON PARAMETER ankus_guc.privileged FROM {role}"
+            : $"ALTER ROLE {role} {(granted ? "SUPERUSER" : "NOSUPERUSER")}");
 
     /// <summary>
     /// Checks startup/reset storage, managed reads, session overrides, and transaction restoration in a fresh backend.

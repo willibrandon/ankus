@@ -9,6 +9,7 @@ internal static class NativeTemporalOperations
     /// Gets the typed native function table and invocation code.
     /// </summary>
     internal const string Source = """
+        #include "access/xact.h"
         #include "utils/fmgrprotos.h"
         #include "utils/json.h"
         #include "utils/datetime.h"

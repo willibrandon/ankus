@@ -85,7 +85,7 @@ public sealed class AllocatorRegistryFailureTests(TestContext context)
                 }
 
                 command.Parameters.Clear();
-                command.CommandText = "SELECT pg_backend_pid(), 42, count(*)::integer FROM pg_backend_memory_contexts WHERE name LIKE 'Ankus registry fault%'";
+                command.CommandText = "SELECT pg_backend_pid(), 42, count(*)::integer FROM ankus_test_memory.contexts WHERE name LIKE 'Ankus registry fault%'";
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
                 Assert.AreEqual(backend, reader.GetInt32(0));

@@ -242,7 +242,7 @@ public sealed partial class CustomScanTests
             ANALYZE trace_outer; ANALYZE trace_inner;
             SET enable_partitionwise_join = on;
             SET enable_hashjoin = off; SET enable_mergejoin = off;
-            SET enable_material = off; SET enable_memoize = off;
+            SET enable_material = off; {DisableMemoizeSql()}
             SET max_parallel_workers_per_gather = 0;
             """;
         await command.ExecuteNonQueryAsync(token);
@@ -254,6 +254,13 @@ public sealed partial class CustomScanTests
 
         await SelectIndexPathsAsync(connection, indexOnly, token);
     }
+
+    /// <summary>
+    /// Disables memoization on servers that implement it, preserving genuine repeated child execution.
+    /// </summary>
+    private static string DisableMemoizeSql(bool local = false)
+        => PostgresFixture.Cluster.Installation.Version.Major >= 14
+            ? $"SET {(local ? "LOCAL " : string.Empty)}enable_memoize = off;" : string.Empty;
 
     /// <summary>
     /// Reads exact typed and nullable outer/inner projections from the original backend.

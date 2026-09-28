@@ -245,12 +245,12 @@ public static class MemoryContextFunctions
         bool transaction = PgMemoryContext.Get(PgMemoryContextKind.TopTransaction) is not null;
         owner.Parent?.Dispose();
         bool borrowed = top.IsAlive;
-        long before = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'Ankus inventory probe'");
+        long before = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus inventory probe'");
         nuint size = owner.GetAllocatedBytes();
         using PgAllocation allocation = owner.Allocate(65536);
         bool grew = owner.GetAllocatedBytes() > size;
         owner.Dispose();
-        long after = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'Ankus inventory probe'");
+        long after = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus inventory probe'");
         return $"{top.Parent is null}|{parent}|{currentSelector}|{transaction}|{borrowed}|{before}|{after}|{grew}";
     }
 
@@ -344,9 +344,9 @@ public static class MemoryContextFunctions
     public static string MemoryEncodedName()
     {
         using PgMemoryContext owner = PgMemoryContext.Create("memory café");
-        long count = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = $1",
+        long count = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = $1",
             SpiParameter.Create("memory café"));
-        long before = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'Ankus memory context'");
+        long before = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus memory context'");
         string state = "representable";
         try
         {
@@ -358,7 +358,7 @@ public static class MemoryContextFunctions
         }
 
         owner.Reset();
-        long after = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'Ankus memory context'");
+        long after = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus memory context'");
         return $"{owner.Name}|{count}|{state}|{after - before}|{Spi.ExecuteScalar<int>("SELECT 42")}";
     }
 

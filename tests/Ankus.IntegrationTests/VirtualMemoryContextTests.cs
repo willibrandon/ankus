@@ -511,7 +511,7 @@ public sealed class VirtualMemoryContextTests(TestContext context)
 
     private static async Task AssertRecoveredAsync(NpgsqlCommand command, int backend, CancellationToken token, long expectedContexts = 0)
     {
-        command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident LIKE 'virtual context %'";
+        command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident LIKE 'virtual context %'";
         Assert.AreEqual(expectedContexts, await command.ExecuteScalarAsync(token));
         command.CommandText = "SELECT 42";
         Assert.AreEqual(42, await command.ExecuteScalarAsync(token));

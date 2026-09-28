@@ -12,7 +12,7 @@ public sealed class MemoryCallbackTests(TestContext context)
     private const string SpiCleanupState = "1|query:denied,plan:denied,cursor:denied,log:denied,cursor:disposed,plan:disposed|False|disposed,disposed|";
     private const string SpiResourceCounts = """
         SELECT ARRAY[
-            (SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan'),
+            (SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'),
             (SELECT count(*) FROM pg_cursors)]
         """;
 
@@ -287,7 +287,7 @@ public sealed class MemoryCallbackTests(TestContext context)
                     Assert.AreEqual(SpiCleanupState + "False", await command.ExecuteScalarAsync(token));
                 }
 
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'memory callback SPI owner'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'memory callback SPI owner'";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
                 await AssertRecoveredAsync(command, backend, token);
             }, context.CancellationToken);
@@ -468,7 +468,7 @@ public sealed class MemoryCallbackTests(TestContext context)
     {
         await using var command = new NpgsqlCommand("SELECT datatype.memory_callback_implicit_state()", connection);
         Assert.AreEqual("B73,A73|False,False|False|stale", await command.ExecuteScalarAsync(token));
-        command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'implicit memory callback'";
+        command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'implicit memory callback'";
         Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         await AssertRecoveredAsync(command, backend, token);
         command.CommandText = "BEGIN; COMMIT; SELECT datatype.memory_callback_implicit_state()";

@@ -225,7 +225,7 @@ public static class RangeFunctions
     {
         session.Execute("CREATE TEMP TABLE range_writes(value int); INSERT INTO range_writes VALUES (1)");
         using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM range_writes");
-        const string contexts = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+        const string contexts = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
         long before = session.ExecuteScalar<long>(contexts);
         int failures = 0;
         int finalized = 0;

@@ -375,7 +375,7 @@ public sealed class SetReturningTests(TestContext context)
             await command.ExecuteNonQueryAsync(token);
             const string resourceCounts = """
                 SELECT ARRAY[
-                    (SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan'),
+                    (SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'),
                     (SELECT count(*) FROM pg_cursors)]
                 """;
             command.CommandText = resourceCounts;

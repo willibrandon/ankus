@@ -21,7 +21,7 @@ public sealed class FunctionDeclarationTests(TestContext context)
                 await using var command = new NpgsqlCommand("""
                     SELECT provolatile::text, proparallel::text, proisstrict, prosecdef, proleakproof, procost, proargnames,
                            (SELECT proconfig FROM pg_proc WHERE oid = 'ankus_contract.declaration_path()'::regprocedure),
-                           (SELECT prosupport::regproc::text FROM pg_proc WHERE oid = 'ankus_contract.declaration_prefix(text,text)'::regprocedure)
+                           (SELECT prosupport::regproc::text FROM pg_proc WHERE oid = 'ankus_contract.declaration_like(text,text)'::regprocedure)
                     FROM pg_proc WHERE oid = 'ankus_contract.declaration_identity(int)'::regprocedure
                     """, connection, transaction);
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
@@ -34,7 +34,7 @@ public sealed class FunctionDeclarationTests(TestContext context)
                 Assert.AreEqual(2.5f, reader.GetFloat(5));
                 Assert.AreSequenceEqual(["input_value"], reader.GetFieldValue<string[]>(6));
                 Assert.AreSequenceEqual(["search_path=pg_catalog, ankus_contract, pg_temp"], reader.GetFieldValue<string[]>(7));
-                Assert.AreEqual("text_starts_with_support", reader.GetString(8));
+                Assert.AreEqual("textlike_support", reader.GetString(8));
             }, context.CancellationToken);
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed class FunctionDeclarationTests(TestContext context)
     [DataRow("ankus_contract.declaration_default_variadic()", "0")]
     [DataRow("ankus_contract.declaration_default_variadic(3, 4)", "7")]
     [DataRow("ankus_contract.declaration_struct_defaults()", "00000000-0000-0000-0000-000000000000:0:0001-01-01:0:0:0:0:0:null:0,0,0")]
-    [DataRow("ankus_contract.declaration_prefix('café', 'caf')", "true")]
+    [DataRow("ankus_contract.declaration_like('café', 'caf%')", "true")]
     [DataRow("ankus_contract.declaration_nested()", "123")]
     [DataRow("public.declaration_existing()", "52")]
     [DataRow("ankus_contract.declaration_na_n()", "NaN")]

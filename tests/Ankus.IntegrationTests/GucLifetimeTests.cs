@@ -196,8 +196,8 @@ public sealed class GucLifetimeTests(TestContext context)
     private async Task<long[]> AllocationsAsync(NpgsqlConnection connection) =>
         Assert.IsInstanceOfType<long[]>(await ScalarAsync(connection, """
             SELECT ARRAY[
-                (SELECT used_bytes FROM pg_backend_memory_contexts WHERE name = 'GUCMemoryContext'),
-                (SELECT count(*) FROM pg_backend_memory_contexts WHERE name LIKE 'Ankus configuration %'),
+                (SELECT used_bytes FROM ankus_test_memory.contexts WHERE name = 'GUCMemoryContext'),
+                (SELECT count(*) FROM ankus_test_memory.contexts WHERE name LIKE 'Ankus configuration %'),
                 datatype.guc_lifetime_malloc_bytes()]
             """));
 

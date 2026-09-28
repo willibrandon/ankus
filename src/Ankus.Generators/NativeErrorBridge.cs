@@ -12,6 +12,11 @@ internal static class NativeErrorBridge
         #include "utils/memutils.h"
         #include "miscadmin.h"
         #include "tcop/dest.h"
+        #if PG_VERSION_NUM < 140000
+        #include "postmaster/postmaster.h"
+        #include "tcop/tcopprot.h"
+        #include "utils/guc.h"
+        #endif
 
         enum AnkusDiagnosticField
         {

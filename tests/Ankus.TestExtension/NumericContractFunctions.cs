@@ -184,7 +184,7 @@ public static class NumericContractFunctions
             session.Execute("INSERT INTO numeric_contract_writes VALUES (1)");
             using SpiPreparedStatement plan = session.Prepare("SELECT $1 + 2", typeof(int));
             const string contexts = """
-                SELECT count(*) FROM pg_backend_memory_contexts
+                SELECT count(*) FROM ankus_test_memory.contexts
                 WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')
                 """;
             long before = session.ExecuteScalar<long>(contexts);

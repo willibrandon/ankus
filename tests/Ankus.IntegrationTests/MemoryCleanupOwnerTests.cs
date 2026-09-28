@@ -27,7 +27,7 @@ public sealed class MemoryCleanupOwnerTests(TestContext context)
                 await using var command = new NpgsqlCommand($"SELECT datatype.memory_error_cleanup_phase({operation})", connection, transaction);
                 Assert.AreEqual($"{trigger}|pending:False|55006:Guarded memory operations are unavailable during ErrorContext cleanup|55006:Guarded SPI operations are unavailable during ErrorContext cleanup|False|{alive}|73|42|42",
                     await command.ExecuteScalarAsync(token));
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan' OR ident IN ('error-handler callback', 'independent error-handler payload')";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan' OR ident IN ('error-handler callback', 'independent error-handler payload')";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
                 command.CommandText = "SELECT 42";
                 Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
@@ -156,7 +156,7 @@ public sealed class MemoryCleanupOwnerTests(TestContext context)
                     }
                 }
 
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'error context notice child' OR name = 'Ankus error report'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'error context notice child' OR name = 'Ankus error report'";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
                 command.CommandText = "SELECT 42";
                 Assert.AreEqual(42, await command.ExecuteScalarAsync(token));

@@ -218,7 +218,7 @@ public sealed class ListTests(TestContext context)
                 Assert.IsNull(error.Hint);
                 await transaction.RollbackAsync("bump_capability", token);
                 await transaction.ReleaseAsync("bump_capability", token);
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus list fault', 'Ankus fault bump')";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus list fault', 'Ankus fault bump')";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
             }
             else

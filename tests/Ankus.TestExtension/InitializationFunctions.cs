@@ -3,12 +3,18 @@ namespace Ankus.TestExtension;
 /// <summary>
 /// Exercises backend initialization, error recovery, recursive loading, and managed state lifetime.
 /// </summary>
-public static class InitializationFunctions
+public static partial class InitializationFunctions
 {
     private static int s_attempts;
     private static int s_finallyCount;
     private static string? s_mode;
     private static int s_answer;
+
+    /// <summary>
+    /// Gets the initialization mode without requiring a transaction during older session preload.
+    /// </summary>
+    [PgGucString("ankus_test.initialization", "default", "Initialization test mode")]
+    public static partial string Mode { get; }
 
     /// <summary>
     /// Initializes this backend according to a session-local test setting.
@@ -19,7 +25,7 @@ public static class InitializationFunctions
         s_attempts++;
         try
         {
-            s_mode = Spi.ExecuteScalar<string?>("SELECT current_setting('ankus_test.initialization', true)") ?? "default";
+            s_mode = Mode;
             switch (s_mode)
             {
                 case "managed-error":
@@ -60,6 +66,22 @@ public static class InitializationFunctions
                 case "sql-rollback":
                     Spi.Execute("INSERT INTO initialization_probe VALUES (99)");
                     throw new PgException("P0001", "Rollback initialization SQL.");
+            }
+
+            using PgMemoryContext? transaction = PgMemoryContext.Get(PgMemoryContextKind.TopTransaction);
+            if (transaction is null)
+            {
+                try
+                {
+                    _ = Spi.ExecuteScalar<int>("SELECT 42");
+                }
+                catch (InvalidOperationException error) when (error.Message == "PostgreSQL APIs can only be used on the active PostgreSQL backend thread.")
+                {
+                    s_answer = -1;
+                    return;
+                }
+
+                throw new InvalidOperationException("SQL unexpectedly succeeded outside a transaction.");
             }
 
             s_answer = Spi.ExecuteScalar<int>("SELECT 42");

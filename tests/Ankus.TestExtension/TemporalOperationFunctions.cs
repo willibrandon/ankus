@@ -127,10 +127,10 @@ public static class TemporalOperationFunctions
         => Spi.Connect(session =>
         {
             const string contexts = """
-                SELECT count(*) FROM pg_backend_memory_contexts
+                SELECT count(*) FROM ankus_test_memory.contexts
                 WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')
                 """;
-            const string connections = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Proc'";
+            const string connections = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Proc'";
             long before = session.ExecuteScalar<long>(contexts);
             long connectionsBefore = session.ExecuteScalar<long>(connections);
             using SpiPreparedStatement plan = session.Prepare("SELECT $1 + 2", typeof(int));

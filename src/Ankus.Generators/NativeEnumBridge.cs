@@ -13,6 +13,7 @@ internal static class NativeEnumBridge
         #include "access/genam.h"
         #include "access/table.h"
         #include "catalog/dependency.h"
+        #include "catalog/indexing.h"
         #include "catalog/namespace.h"
         #include "catalog/pg_extension.h"
         #include "catalog/pg_enum.h"

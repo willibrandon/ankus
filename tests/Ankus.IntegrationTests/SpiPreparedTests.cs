@@ -295,7 +295,7 @@ public sealed class SpiPreparedTests(TestContext context)
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
         int backend = connection.ProcessID;
-        await using var count = new NpgsqlCommand("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan'", connection);
+        await using var count = new NpgsqlCommand("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'", connection);
         long before = Assert.IsInstanceOfType<long>(await count.ExecuteScalarAsync(token));
         await using (var configure = new NpgsqlCommand("SET statement_timeout = '100ms'", connection))
         {
@@ -327,7 +327,7 @@ public sealed class SpiPreparedTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
-        await using var count = new NpgsqlCommand("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan'", connection);
+        await using var count = new NpgsqlCommand("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'", connection);
         long before = Assert.IsInstanceOfType<long>(await count.ExecuteScalarAsync(token));
         await using var run = new NpgsqlCommand("SELECT datatype.prepared_scoped($1)", connection);
         run.Parameters.AddWithValue(fail);

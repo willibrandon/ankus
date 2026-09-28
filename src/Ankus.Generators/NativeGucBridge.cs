@@ -327,7 +327,9 @@ internal static class NativeGucBridge
             bool reload_pending = false;
             GucContext reload_context = PGC_INTERNAL;
             GucSource reload_source = PGC_S_DEFAULT;
+        #if PG_VERSION_NUM >= 150000
             Oid reload_role = InvalidOid;
+        #endif
         #ifdef WIN32
             if (existing != NULL && IsUnderPostmaster && existing->scontext == PGC_SIGHUP &&
                 (context == PGC_BACKEND || context == PGC_SU_BACKEND))
@@ -338,7 +340,9 @@ internal static class NativeGucBridge
                     reload_value = pstrdup(*placeholder->variable);
                 reload_context = existing->scontext;
                 reload_source = existing->source;
+        #if PG_VERSION_NUM >= 150000
                 reload_role = existing->srole;
+        #endif
             }
         #endif
             switch (definition->kind)
@@ -373,9 +377,14 @@ internal static class NativeGucBridge
 
             if (reload_pending)
             {
+        #if PG_VERSION_NUM >= 150000
                 int result = set_config_option_ext(definition->name, reload_value,
                     reload_context, reload_source, reload_role,
                     GUC_ACTION_SET, true, ERROR, true);
+        #else
+                int result = set_config_option(definition->name, reload_value,
+                    reload_context, reload_source, GUC_ACTION_SET, true, ERROR, true);
+        #endif
                 if (reload_value != NULL)
                     pfree(reload_value);
                 if (result <= 0)
@@ -1311,9 +1320,14 @@ internal static class NativeGucBridge
                     {
                         existing->flags |= GUC_ALLOW_IN_PARALLEL;
                         error_context_stack = &error_context;
+        #if PG_VERSION_NUM >= 150000
                         result = set_config_option_ext(definition->name, value,
                             existing->scontext, existing->source, existing->srole,
                             GUC_ACTION_SET, true, ERROR, true);
+        #else
+                        result = set_config_option(definition->name, value,
+                            existing->scontext, existing->source, GUC_ACTION_SET, true, ERROR, true);
+        #endif
                     }
                     PG_FINALLY();
                     {

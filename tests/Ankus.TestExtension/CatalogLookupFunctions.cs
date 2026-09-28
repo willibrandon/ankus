@@ -108,7 +108,7 @@ public static class CatalogLookupFunctions
         }
 
         nuint after = transaction.GetAllocatedBytes();
-        long retained = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE name='Ankus SPI operation'");
+        long retained = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE name='Ankus SPI operation'");
         return $"128|{retained}|{(after <= baseline + 65536 ? "bounded" : "grew")}";
 
         void Probe()

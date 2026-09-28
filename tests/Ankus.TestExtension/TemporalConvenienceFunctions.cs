@@ -139,7 +139,7 @@ public static class TemporalConvenienceFunctions
         session.Execute("CREATE TEMP TABLE convenience_writes(value int)");
         session.Execute("INSERT INTO convenience_writes VALUES (1)");
         using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM convenience_writes");
-        const string count = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+        const string count = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
         long before = session.ExecuteScalar<long>(count);
         int finalized = 0;
         string failure = "no error";

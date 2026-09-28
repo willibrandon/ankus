@@ -176,7 +176,7 @@ public static class PgLogFunctions
     [PgFunction]
     public static long LogContextGrowth()
     {
-        const string count = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'CurTransactionContext'";
+        const string count = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'CurTransactionContext'";
         var diagnostic = new PgDiagnostic(new string('x', 10000)) { File = "logging.cs", Routine = "repeat" };
         PgLog.Write(PgLogLevel.ServerOnly, diagnostic);
         long before = Spi.ExecuteScalar<long>(count);

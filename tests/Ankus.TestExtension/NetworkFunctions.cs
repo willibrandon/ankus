@@ -117,7 +117,7 @@ public static class NetworkFunctions
     {
         session.Execute("CREATE TEMP TABLE network_writes(value int); INSERT INTO network_writes VALUES (1)");
         using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM network_writes");
-        const string contexts = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+        const string contexts = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
         long before = session.ExecuteScalar<long>(contexts);
         int invalid = 0;
         int finalized = 0;

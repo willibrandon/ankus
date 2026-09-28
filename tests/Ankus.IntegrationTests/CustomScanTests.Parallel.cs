@@ -21,7 +21,7 @@ public sealed partial class CustomScanTests
         await using NpgsqlConnection connection = await OpenAsync(token);
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token);
         string table = await CreateParallelInputAsync(connection, token);
-        await using var command = new NpgsqlCommand("SET LOCAL enable_material = off; SET LOCAL enable_memoize = off", connection);
+        await using var command = new NpgsqlCommand("SET LOCAL enable_material = off; " + DisableMemoizeSql(true), connection);
         await command.ExecuteNonQueryAsync(token);
         string query = $"""
             SELECT iteration, array_agg(value ORDER BY value)

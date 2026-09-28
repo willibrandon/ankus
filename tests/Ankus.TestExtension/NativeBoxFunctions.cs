@@ -253,7 +253,7 @@ public static unsafe class NativeBoxFunctions
         LargeValue contents = borrowed.Value;
         box.Dispose();
         nuint after = owner.GetAllocatedBytes();
-        long nativeAfter = Spi.ExecuteScalar<long>("SELECT total_bytes FROM pg_backend_memory_contexts WHERE ident = 'native box individual free'");
+        long nativeAfter = Spi.ExecuteScalar<long>("SELECT total_bytes FROM ankus_test_memory.contexts WHERE ident = 'native box individual free'");
         bool expired = IsDisposed(() =>
         {
             _ = borrowed.Value;
@@ -398,7 +398,7 @@ public static unsafe class NativeBoxFunctions
         string first = $"{ReadOrStale(() => parentRaw.Value)},{ReadOrStale(() => childRaw.Value)},{ReadOrStale(() => grandchildRaw.Value)}|" +
             $"{ReadOrStale(() => parentBox.Value)},{ReadOrStale(() => childBox.Value)},{ReadOrStale(() => grandchildBox.Value)}|" +
             $"{parent.IsAlive},{child.IsAlive},{grandchild.IsAlive}";
-        long inventory = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE ident LIKE 'native generation tree %'");
+        long inventory = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE ident LIKE 'native generation tree %'");
         bool sameIdentities = identities.SequenceEqual([parent.Id, child.Id, grandchild.Id]);
         PgMemoryContext selected = operation == 1 ? child : parent;
         int offset = operation == 1 ? 1 : 0;

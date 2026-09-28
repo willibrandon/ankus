@@ -290,7 +290,7 @@ public static class TemporalFunctions
     public static long TemporalContextGrowth()
         => Spi.Connect(session =>
         {
-            const string countSql = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'CurTransactionContext'";
+            const string countSql = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'CurTransactionContext'";
             long before = session.ExecuteScalar<long>(countSql);
             for (int index = 0; index < 100; index++)
             {

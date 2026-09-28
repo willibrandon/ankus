@@ -47,7 +47,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        Assert.Contains("PG_GETARG_TRANSACTIONID(0)", native);
+        Assert.Contains("DatumGetTransactionId(PG_GETARG_DATUM(0))", native);
         Assert.Contains("TransactionIdGetDatum(result.integral)", native);
         Assert.Contains("case XIDOID: return TransactionIdGetDatum(value->integral);", native);
         Assert.Contains("case XIDOID: value->integral = DatumGetTransactionId(datum); break;", native);

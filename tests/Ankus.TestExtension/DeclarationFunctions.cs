@@ -118,10 +118,12 @@ public static class DeclarationFunctions
             $"{instant.MicrosecondsSinceEpoch}:{time.Time.Microseconds}:{time.OffsetSeconds}:{number.Text}:{json.Text}:{interval.Months},{interval.Days},{interval.Microseconds}";
 
     /// <summary>
-    /// Installs an existing PostgreSQL planner support routine on an equivalent prefix function.
+    /// Installs an existing PostgreSQL planner support routine on an equivalent LIKE function.
     /// </summary>
-    [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, SupportFunction = "pg_catalog.text_starts_with_support")]
-    public static bool DeclarationPrefix(string value, string prefix) => value.StartsWith(prefix, StringComparison.Ordinal);
+    [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, SupportFunction = "pg_catalog.textlike_support")]
+    public static bool DeclarationLike(string value, string pattern, PgFunctionContext call)
+        => PgFunctions.Call<bool>("pg_catalog.textlike", new PgFunctionCallOptions { CollationOid = call.CollationOid },
+            PgFunctionArgument.Create(value), PgFunctionArgument.Create(pattern));
 
     /// <summary>
     /// Overrides the containing schema with a quoted Unicode identifier.

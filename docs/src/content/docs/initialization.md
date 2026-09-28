@@ -89,6 +89,12 @@ Use `session_preload_libraries` to initialize separately in each backend:
 session_preload_libraries = 'Ankus.Examples.Initialization'
 ```
 
+PostgreSQL 15 and later load session libraries inside the startup transaction,
+so an initializer can use `Spi`. PostgreSQL 13 and 14 load them after that
+transaction ends: configuration reads, logging and memory operations remain
+available, but SQL is rejected. Perform database work from a later function call
+on those versions.
+
 Use `shared_preload_libraries` to initialize once before PostgreSQL creates its
 backends:
 

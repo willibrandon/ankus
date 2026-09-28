@@ -32,7 +32,7 @@ public sealed class SpiSessionTests(TestContext context)
             async (connection, transaction, token) =>
             {
                 await using var count = new NpgsqlCommand(
-                    "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('SPI Proc', 'SPI Plan')", connection, transaction);
+                    "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('SPI Proc', 'SPI Plan')", connection, transaction);
                 long before = Assert.IsInstanceOfType<long>(await count.ExecuteScalarAsync(token));
                 await using var command = new NpgsqlCommand($"SELECT ({expression})::text", connection, transaction);
                 Assert.AreEqual((object?)expected ?? DBNull.Value, await command.ExecuteScalarAsync(token));
@@ -94,7 +94,7 @@ public sealed class SpiSessionTests(TestContext context)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
-        await using var count = new NpgsqlCommand("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'SPI Plan'", connection);
+        await using var count = new NpgsqlCommand("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'", connection);
         long before = Assert.IsInstanceOfType<long>(await count.ExecuteScalarAsync(token));
         await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
         {
@@ -137,7 +137,7 @@ public sealed class SpiSessionTests(TestContext context)
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
         int backend = connection.ProcessID;
         await using var count = new NpgsqlCommand(
-            "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('SPI Proc', 'SPI Plan')", connection);
+            "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('SPI Proc', 'SPI Plan')", connection);
         long before = Assert.IsInstanceOfType<long>(await count.ExecuteScalarAsync(token));
         await using var command = new NpgsqlCommand("SELECT datatype.session_fail($1)", connection);
         command.Parameters.AddWithValue(mode);
@@ -165,7 +165,7 @@ public sealed class SpiSessionTests(TestContext context)
         Assert.AreEqual(PostgresErrorCodes.QueryCanceled, error.SqlState);
         command.CommandText = "SET statement_timeout = 0";
         await command.ExecuteNonQueryAsync(token);
-        command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('SPI Proc', 'SPI Plan')";
+        command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('SPI Proc', 'SPI Plan')";
         Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         command.CommandText = "SELECT datatype.session_nested()";
         Assert.AreEqual("1|2:rejected|1", await command.ExecuteScalarAsync(token));

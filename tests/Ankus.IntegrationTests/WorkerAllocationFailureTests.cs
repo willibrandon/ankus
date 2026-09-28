@@ -84,7 +84,7 @@ public sealed class WorkerAllocationFailureTests(TestContext context)
 
                 await using var recovered = new NpgsqlCommand("""
                     SELECT pg_backend_pid(), 42, count(*)::integer
-                    FROM pg_backend_memory_contexts WHERE name = 'Ankus background-worker handle'
+                    FROM ankus_test_memory.contexts WHERE name = 'Ankus background-worker handle'
                     """, connection, transaction);
                 await using NpgsqlDataReader reader = await recovered.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));

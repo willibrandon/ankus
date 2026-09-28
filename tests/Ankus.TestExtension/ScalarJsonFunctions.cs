@@ -43,7 +43,7 @@ public static class ScalarJsonFunctions
         session.Execute("CREATE TEMP TABLE scalar_json_writes(value int)");
         session.Execute("INSERT INTO scalar_json_writes VALUES (1)");
         using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM scalar_json_writes");
-        const string countSql = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+        const string countSql = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
         long before = session.ExecuteScalar<long>(countSql);
         string failure = "no error";
         int finalized = 0;

@@ -142,7 +142,7 @@ public static class DiagnosticFunctions
             }
         }
 
-        long contexts = Spi.ExecuteScalar<long>("SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'Ankus error diagnostics'");
+        long contexts = Spi.ExecuteScalar<long>("SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus error diagnostics'");
         return contexts == 0 ? recovered : -1;
     }
 }

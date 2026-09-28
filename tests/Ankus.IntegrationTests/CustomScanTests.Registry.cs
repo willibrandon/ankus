@@ -264,7 +264,7 @@ public sealed partial class CustomScanTests
             Assert.IsNull(error.Hint);
             command.CommandText = "SELECT datatype.custom_scan_registry_lookup('Ankus Trace', false)";
             Assert.AreEqual(original, await command.ExecuteScalarAsync(token));
-            command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'Ankus Trace methods'";
+            command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus Trace methods'";
             Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
             command.CommandText = RegistryOwnersQuery;
             Assert.AreEqual(1L, await command.ExecuteScalarAsync(token));
@@ -290,7 +290,7 @@ public sealed partial class CustomScanTests
     /// <summary>
     /// Observes retained native contexts rather than relying on managed callback counters for registration cleanup.
     /// </summary>
-    private const string RegistryOwnersQuery = "SELECT count(*) FROM pg_backend_memory_contexts WHERE ident = 'Ankus registry probe'";
+    private const string RegistryOwnersQuery = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'Ankus registry probe'";
 
     /// <summary>
     /// Constructs independent ASCII and UTF8 byte boundaries without embedding zero bytes in PostgreSQL text.

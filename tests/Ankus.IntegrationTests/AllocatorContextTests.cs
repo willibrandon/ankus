@@ -306,7 +306,7 @@ public sealed class AllocatorContextTests(TestContext context)
                 Assert.AreEqual("allocator-fixture.cs", notice.File);
                 Assert.AreEqual("73", notice.Line);
                 Assert.AreEqual("AllocatorCaptureNotice", notice.Routine);
-                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name = 'Ankus error report'";
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus error report'";
                 Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
                 command.CommandText = "COMMIT";
                 await command.ExecuteNonQueryAsync(token);
@@ -363,7 +363,7 @@ public sealed class AllocatorContextTests(TestContext context)
 
     private static async Task AssertEmptyAndRecoveredAsync(NpgsqlCommand command, int backend, CancellationToken token)
     {
-        command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus allocator fixture', 'Ankus fixture allocator', 'Ankus fixture café', 'Ankus context name', 'Ankus error report')";
+        command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus allocator fixture', 'Ankus fixture allocator', 'Ankus fixture café', 'Ankus context name', 'Ankus error report')";
         Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
         command.CommandText = "SELECT 42";
         Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
