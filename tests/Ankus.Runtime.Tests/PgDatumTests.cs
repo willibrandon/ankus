@@ -108,6 +108,41 @@ public sealed class PgDatumTests
     }
 
     /// <summary>
+    /// Unique callback leases expire independently of unchanged native context identities and generations.
+    /// </summary>
+    [TestMethod]
+    public void CallbackLeasesExpireEvenWhenNativeContextRemainsAlive()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        PgDatum outer;
+        PgDatum inner;
+        using (MemoryContextTestFixture.Enter())
+        {
+            outer = new PgDatum(42, 23, false, new PgDatumLifetime(PgMemoryContext.Current, NativeMemoryContext.BorrowScope));
+            using (MemoryContextTestFixture.Enter())
+            {
+                inner = new PgDatum(7, 23, false, new PgDatumLifetime(PgMemoryContext.Current, NativeMemoryContext.BorrowScope));
+                Assert.AreEqual((nuint)42, outer.DangerousGetBits());
+                Assert.AreEqual((nuint)7, inner.DangerousGetBits());
+            }
+
+            fixture.Requests.Clear();
+            Assert.ThrowsExactly<ObjectDisposedException>(() => inner.DangerousGetBits());
+            Assert.IsEmpty(fixture.Requests);
+            Assert.AreEqual((nuint)42, outer.DangerousGetBits());
+        }
+
+        using (MemoryContextTestFixture.Enter())
+        {
+            Assert.IsTrue(PgMemoryContext.Current.IsAlive);
+            fixture.Requests.Clear();
+            Assert.ThrowsExactly<ObjectDisposedException>(() => outer.DangerousGetBits());
+            Assert.ThrowsExactly<ObjectDisposedException>(() => inner.DangerousGetBits());
+            Assert.IsEmpty(fixture.Requests);
+        }
+    }
+
+    /// <summary>
     /// A failed raw conversion cannot replace an existing managed cell or change its type.
     /// </summary>
     [TestMethod]

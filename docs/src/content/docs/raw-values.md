@@ -395,6 +395,13 @@ binds an entire array of the named type, preserving shape and NULL cells.
 C# value; `ToPostgresString()` calls the type's output function. A nullable wrapper
 accepts SQL NULL. A zero datum is a present value, not NULL.
 
+For an array datum, `using PgArrayView view = value.Read<PgArrayView>()` borrows
+its native cells under the source lifetime. It retains exact array and element
+OIDs, dimensions, lower bounds and typed NULL cells. Dispose the view before its
+owner ends; copy `view.Datum` or a cell to another context when it must outlive
+that owner. See [borrowed native arrays](/arrays/#borrowed-native-arrays) for
+direct function parameters, native flattening and callback cleanup.
+
 Reading, formatting or copying an existing domain value does not rerun its
 constraints. This preserves historical values after `ADD CHECK ... NOT VALID`
 and domain-typed NULLs produced by outer joins, including for NOT NULL domains.

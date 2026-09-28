@@ -85,6 +85,7 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `TimeSpan`, `PgInterval` | `interval` |
 | `T[]`, `PgArray<T>` | Array of the corresponding scalar SQL type |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
+| `PgArrayView` | `anyarray`, with [borrowed native cells](/arrays/#borrowed-native-arrays) |
 | `[PgEnum]` C# enums | Generated PostgreSQL enum types |
 | `[PgDatumType]` classes, structs and enums | The converter's declared existing SQL type, also usable as an array element |
 | `void` result | `void` |

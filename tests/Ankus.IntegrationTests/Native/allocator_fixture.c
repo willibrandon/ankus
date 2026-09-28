@@ -18,8 +18,38 @@
 #include "utils/resowner.h"
 #include "access/xact.h"
 #include "miscadmin.h"
+#include "borrowed_array_fixture.h"
 
 PG_MODULE_MAGIC;
+
+/* Independent observation through deconstruct_array, not the borrowed-view iterator path. */
+PG_FUNCTION_INFO_V1(ankus_test_array_bits);
+PGDLLEXPORT Datum
+ankus_test_array_bits(PG_FUNCTION_ARGS)
+{
+    ArrayType *array = (ArrayType *) (uintptr_t) PG_GETARG_INT64(0);
+    int16 length;
+    bool by_value;
+    char alignment;
+    Datum *cells;
+    bool *nulls;
+    int count;
+    get_typlenbyvalalign(ARR_ELEMTYPE(array), &length, &by_value, &alignment);
+    deconstruct_array(array, ARR_ELEMTYPE(array), length, by_value, alignment, &cells, &nulls, &count);
+    Datum *observed = palloc(sizeof(Datum) * (count + 1));
+    bool *absent = palloc0(sizeof(bool) * (count + 1));
+    observed[0] = Int64GetDatum((int64) (uintptr_t) array);
+    for (int index = 0; index < count; index++)
+    {
+        observed[index + 1] = Int64GetDatum((int64) (uintptr_t) cells[index]);
+        absent[index + 1] = nulls[index];
+    }
+
+    int dimensions[1] = {count + 1};
+    int bounds[1] = {1};
+    PG_RETURN_ARRAYTYPE_P(construct_md_array(observed, absent, 1, dimensions, bounds, INT8OID,
+        sizeof(int64), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE));
+}
 
 #if PG_VERSION_NUM < 140000
 /* PostgreSQL 13 has native allocator counters but no SQL memory-context catalog. */

@@ -37,6 +37,26 @@ public partial struct NativeValue
     }
 
     /// <summary>
+    /// Borrows a generated scalar array argument until its unique managed callback exits.
+    /// </summary>
+    /// <returns>The view with original storage or a private PostgreSQL detoast allocation.</returns>
+    public readonly PgArrayView ReadBorrowedArray()
+    {
+        var lifetime = new PgDatumLifetime(PgMemoryContext.Current, NativeMemoryContext.BorrowScope);
+        return new PgArrayView(new PgDatum(unchecked((nuint)Integral), unchecked((uint)_auxiliary2), IsNull != 0, lifetime));
+    }
+
+    /// <summary>
+    /// Copies an array argument before a set iterator or aggregate retains it across managed callbacks.
+    /// </summary>
+    /// <returns>A checked view over an independent snapshot in the callback result owner.</returns>
+    public readonly PgArrayView ReadOwnedArrayView()
+    {
+        NativeValue value = this;
+        return PgMemoryContext.Callback.Run(() => new PgArrayView(value.ReadPolymorphic()));
+    }
+
+    /// <summary>
     /// Writes a checked raw or polymorphic result with its exact type for native return validation.
     /// </summary>
     /// <param name="datum">The live native value.</param>
@@ -44,6 +64,11 @@ public partial struct NativeValue
     public static NativeValue FromPolymorphic(PgDatum datum)
     {
         ArgumentNullException.ThrowIfNull(datum);
+        if (datum.Lifetime.Scope is not null)
+        {
+            datum = datum.CopyTo(PgMemoryContext.Callback);
+        }
+
         NativeValue value = datum.ToNative();
         value._auxiliary1 = -6;
         value.Integral = datum.TypeOid;

@@ -10,7 +10,7 @@ internal static class PgPolymorphic
     /// </summary>
     /// <typeparam name="T">The requested result representation.</typeparam>
     /// <returns>Whether the type is a supported polymorphic wrapper.</returns>
-    internal static bool Is<T>() => typeof(T) == typeof(PgAnyElement) || typeof(T) == typeof(PgAnyArray);
+    internal static bool Is<T>() => typeof(T) == typeof(PgAnyElement) || typeof(T) == typeof(PgAnyArray) || typeof(T) == typeof(PgArrayView);
 
     /// <summary>
     /// Wraps a present value or returns a null wrapper while retaining the source lifetime.
@@ -26,7 +26,8 @@ internal static class PgPolymorphic
             return default!;
         }
 
-        object wrapper = typeof(T) == typeof(PgAnyArray) ? new PgAnyArray(value) : new PgAnyElement(value);
+        object wrapper = typeof(T) == typeof(PgArrayView) ? new PgArrayView(value) :
+            typeof(T) == typeof(PgAnyArray) ? new PgAnyArray(value) : new PgAnyElement(value);
         return (T)wrapper;
     }
 }

@@ -249,7 +249,15 @@ internal static partial class NativeBindingRecordChecks
                 NativeRecordType type = Canonical(index);
                 if (type.Declaration is int declaration)
                 {
-                    AddAnchor(declaration, "__typeof_unqual__(" + expression + ")");
+                    if (!_graph.Declarations[declaration].IsComplete)
+                    {
+                        // Opaque declarations use their native tag in AnchorDeclarations; lvalue conversion requires a complete type.
+                        return;
+                    }
+
+                    // The comma expression applies lvalue conversion without promoting enum types.
+                    // Unlike __typeof_unqual__, this also works with pre-C23 GCC toolchains.
+                    AddAnchor(declaration, "__typeof__(((void)0, (" + expression + ")))");
                     return;
                 }
 

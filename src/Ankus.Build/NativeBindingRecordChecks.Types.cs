@@ -110,8 +110,7 @@ internal static partial class NativeBindingRecordChecks
             }
 
             NativeRecordFunction function = type.Function ?? throw new FormatException("Native function has no prototype representation.");
-            string parameters = string.Join(", ", function.Parameters.Select(parameter => Canonical(parameter).Kind is "array" or "function"
-                ? TypeName(parameter) : "__typeof_unqual__(" + TypeName(parameter) + ")"));
+            string parameters = string.Join(", ", function.Parameters.Select(NormalizeParameter));
             if (function.HasPrototype && function.IsVariadic)
             {
                 parameters += ", ...";
@@ -124,6 +123,20 @@ internal static partial class NativeBindingRecordChecks
             _source.Append("typedef ").Append(TypeName(function.Result)).Append(' ').Append(name).Append('(').Append(parameters).Append(')')
                 .Append(Convention(function)).AppendLine(";");
             return name;
+        }
+
+        /// <summary>
+        /// Removes top-level parameter qualifiers without converting incomplete values or promoting enums.
+        /// </summary>
+        private string NormalizeParameter(int index)
+        {
+            NativeRecordType type = Canonical(index);
+            if (type.Declaration is int declaration && !_graph.Declarations[declaration].IsComplete)
+            {
+                return _anchors[declaration];
+            }
+
+            return type.Kind is "array" or "function" ? TypeName(index) : "__typeof__(((void)0, *(" + TypeName(index) + " *)0))";
         }
 
         /// <summary>

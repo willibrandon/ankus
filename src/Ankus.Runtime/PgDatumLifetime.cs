@@ -6,12 +6,14 @@ namespace Ankus;
 internal sealed class PgDatumLifetime
 {
     private readonly nint _provider;
+    private readonly int _thread = Environment.CurrentManagedThreadId;
 
     /// <summary>
     /// Captures the generation of a live context.
     /// </summary>
     /// <param name="context">The native storage lifetime anchor.</param>
-    internal PgDatumLifetime(PgMemoryContext context)
+    /// <param name="scope">The optional callback lease required in addition to the native owner.</param>
+    internal PgDatumLifetime(PgMemoryContext context, NativeBorrowScope? scope = null)
     {
         ObjectDisposedException.ThrowIf(!context.IsAlive, context);
         _provider = NativeMemoryContext.Provider;
@@ -23,7 +25,13 @@ internal sealed class PgDatumLifetime
         };
         NativeMemoryContext.Invoke(ref request, out NativeMemoryResult result);
         Generation = unchecked((nuint)result._value);
+        Scope = scope;
     }
+
+    /// <summary>
+    /// Gets the callback lease inherited by borrowed inputs and their derived elements.
+    /// </summary>
+    internal NativeBorrowScope? Scope { get; }
 
     /// <summary>
     /// Gets the registered context identity.
@@ -36,10 +44,23 @@ internal sealed class PgDatumLifetime
     internal nuint Generation { get; }
 
     /// <summary>
+    /// Rejects a foreign thread before native validation or resource disposal.
+    /// </summary>
+    internal void CheckThread()
+    {
+        if (_thread != Environment.CurrentManagedThreadId)
+        {
+            throw new InvalidOperationException("A PostgreSQL datum must remain on its originating backend thread.");
+        }
+    }
+
+    /// <summary>
     /// Rejects stale context generations and access from another backend provider or thread.
     /// </summary>
     internal void Validate()
     {
+        CheckThread();
+        Scope?.Validate();
         NativeMemoryContext.CheckProvider(_provider);
         NativeMemoryRequest request = new()
         {

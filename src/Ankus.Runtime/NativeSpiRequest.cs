@@ -148,4 +148,9 @@ internal unsafe struct NativeSpiRequest
     /// Borrows the managed state handle for a synchronous subtransaction callback.
     /// </summary>
     internal nint _callbackState;
+
+    /// <summary>
+    /// Borrows an array cursor only after validating its bookkeeping context and the array's lifetime.
+    /// </summary>
+    internal nint _arrayIterator;
 }

@@ -92,6 +92,7 @@ internal static class NativeSpiBridge
             uint8 variadic;
             PGFunction native_function;
             intptr_t callback_state;
+            void *array_iterator;
         } AnkusRequest;
 
         typedef struct AnkusColumn

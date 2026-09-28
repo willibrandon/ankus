@@ -10,6 +10,7 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
     private List<NativeSharedMemoryLease>? _locks;
     private List<NativeSpinLockLease>? _spinLocks;
     private List<NativeBackgroundWorkerLease>? _workers;
+    private List<PgArrayView>? _arrays;
 
     /// <summary>
     /// Gets the nesting depth that owns this unique lease.
@@ -65,8 +66,23 @@ internal sealed class NativeBorrowScope(nint provider, int depth, NativeBorrowSc
             _workers = null;
         }
 
+        while (_arrays is { Count: > 0 })
+        {
+            _arrays[^1].Dispose();
+        }
+
         _alive = false;
     }
+
+    /// <summary>
+    /// Retains a borrowed input view so callback exit releases forgotten native cursor and detoast storage.
+    /// </summary>
+    internal void Register(PgArrayView view) => (_arrays ??= []).Add(view);
+
+    /// <summary>
+    /// Stops retaining a view after successful explicit or callback cleanup.
+    /// </summary>
+    internal void Unregister(PgArrayView view) => _arrays?.Remove(view);
 
     /// <summary>
     /// Retains a lock lease before acquisition so callback exit releases forgotten guards.

@@ -128,6 +128,11 @@ internal sealed class FunctionType
     internal bool IsPolymorphic => Reader is "anyelement" or "anyarray";
 
     /// <summary>
+    /// Gets whether the resolved array is exposed through a checked borrowed native view.
+    /// </summary>
+    internal bool IsBorrowedArray => Managed == "global::Ankus.PgArrayView";
+
+    /// <summary>
     /// Gets whether the scalar uses an explicitly bound raw datum.
     /// </summary>
     internal bool IsRaw => Reader == "datum";
@@ -362,7 +367,7 @@ internal sealed class FunctionType
             return new(name, "internal", "internal", "internal", string.Empty, nullable, reference: true);
         }
 
-        if (name is "global::Ankus.PgAnyElement" or "global::Ankus.PgAnyArray")
+        if (name is "global::Ankus.PgAnyElement" or "global::Ankus.PgAnyArray" or "global::Ankus.PgArrayView")
         {
             string sql = name == "global::Ankus.PgAnyElement" ? "anyelement" : "anyarray";
             return new(name, sql, sql, sql, string.Empty, nullable, reference: true);

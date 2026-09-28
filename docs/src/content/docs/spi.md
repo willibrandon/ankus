@@ -90,6 +90,10 @@ type, including types without a C# mapping. SQL NULL becomes a null wrapper.
 These values survive SPI session disposal and belong to the current function
 call or iterator. `CopyTo(context)` gives them another memory owner.
 
+`PgArrayView` exposes [borrowed native cells](/arrays/#borrowed-native-arrays)
+from a callback-owned result snapshot. Dispose the view while the backend is
+active, and use `view.Datum.CopyTo(context)` to retain a separate value.
+
 Reading scalars does not limit command execution. For example, an
 `INSERT ... RETURNING` command completes all its writes even though only its first
 row's requested cells are copied.

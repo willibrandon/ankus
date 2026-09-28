@@ -150,10 +150,11 @@ internal static class NativeDatumBridge
             }
         }
 
+        """ + NativeArrayViewBridge.Source + """
         static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->scalar_operation < 0 || request->scalar_operation > 4)
+            if (request->scalar_operation < 0 || request->scalar_operation > 8)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));
             if (request->parameter_count != 1 || request->parameters == NULL)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Datum operations require one value")));
@@ -167,6 +168,17 @@ internal static class NativeDatumBridge
                 ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Parameter type OID %u does not exist", parameter->type_oid)));
             if (request->scalar_operation >= 2)
                 ankus_datum_context(request->result_context, request->result_generation);
+
+            if (request->scalar_operation >= 5)
+            {
+                AnkusDatumReference reference;
+                memcpy(&reference, value->data, sizeof(reference));
+                ankus_datum_context(reference.context, reference.generation);
+                if (value->is_null)
+                    ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("A borrowed array requires a non-NULL datum")));
+                ankus_array_view_operation(request, result, (Datum) reference.bits, getBaseType(parameter->type_oid));
+                return;
+            }
 
             /* Access existing storage without assigning it back through domain constraints. */
             Datum datum = ankus_raw_parameter(parameter);

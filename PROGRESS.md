@@ -34,6 +34,18 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+`PgArrayView` now borrows native array cells with exact type/shape/NULL metadata,
+independent iterators and checked source and callback lifetimes. All **40 affected
+backend cases pass without failures/skips** on Linux x64/PostgreSQL **13.23,
+18.6 and 19 beta 3**. The final complete PostgreSQL 18.6/Linux x64 suite uses
+GCC 13.3 and passes **8,399 tests, zero failures and six Windows-only skips,
+8,405 total**, in 12m03.983s. Generated native contracts now support that older
+compiler without weakening type checks. Release, API freshness and site checks pass. Typed borrowed
+arrays/slices, text/bytea views, the complete platform/version matrix,
+intermittent GUC query stall and other faithful-port requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 PostgreSQL 19 beta 3 now publishes and passes the complete Native AOT/backend
 suite on Linux x64. Both PostgreSQL **18.6 and 19 beta 3** pass **8,347 tests,
 zero failures and six Windows-only skips, 8,353 total**, in 13m21.443s and
@@ -44,8 +56,6 @@ shared-memory and allocator cases also pass on PostgreSQL 13.23. Release, API
 freshness and site checks pass. The complete platform/version matrix, borrowed
 array/text/bytea APIs, intermittent GUC query stall and other faithful-port
 requirements remain open.
-
-Earlier verified milestones follow in reverse chronological order.
 
 Anonymous C structs and unions now expose their promoted members directly on
 the enclosing managed record. Complete PostgreSQL 19 beta 3 binding generation
@@ -3082,7 +3092,7 @@ alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer; broader layouts and borrowed text/bytea views remain |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. Raw borrowed views remain required |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors and retained-input snapshots; typed borrowed arrays/slices and complete platform/version evidence remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
@@ -11760,3 +11770,143 @@ without a reported failure.
 passes. Older superseded CI runs are cancelled and their documentation runs
 successful; cancellation is not completed platform evidence. Outcomes are checked
 and recorded again immediately before pushing, without waiting for hosted CI.
+
+## Borrowed native array views
+
+The current candidate adds `PgArrayView`: exact array/element OIDs, copied shape
+and lower bounds, typed NULL cells, checked raw datums, indexed/subscript access
+and independent native iterators. Flat storage is borrowed directly; PostgreSQL
+flattening and cursor bookkeeping belong to child contexts. Disposing an iterator
+does not invalidate its escaped cells; disposing the view or resetting/deleting
+the source invalidates every native alias. Existing owned raw conversions retain
+their copying behavior. Datum lifetimes also reject a foreign originating thread
+before native access or disposal.
+
+All **13 focused runtime cases pass, zero failures/skips**, in 1.964s. The initial
+backend attempt stops during fixture publication because new test helpers use an
+incorrect SPI method name and leave rejected constructor results unused; all
+18 reported failures share that setup error, with no backend execution. After
+correcting the helpers, all **19 initial array backend cases pass, zero
+failures/skips**, on PostgreSQL 18.6/Linux x64 in 2m37.726s. They verify literal
+metadata and values, independently deconstructed native addresses, NULL/zero
+partitions, cursor interleaving/disposal, source reset/deletion, exact bounds and
+recovery, and historical domain/composite identity without read-time constraint
+revalidation.
+
+Generated direct array parameters and callback ownership are implemented in the
+same candidate. All **11 affected generator cases pass, zero failures/skips**,
+in 3.643s, including valid nullable scalar/set signatures and rejected unresolved
+or nested wrapper signatures. Callback-created views inherit the unique managed
+lease; their child storage is cleaned up at callback exit, and scoped raw results
+are copied to the result owner before that cleanup. Retained set and aggregate
+inputs use independent snapshots. All **28 callback-phase backend cases pass,
+zero failures/skips**, in 2m39.755s. The final focused runtime scope passes
+**17 cases, zero failures/skips**, in 1.827s, including unique callback leases
+whose native context remains alive after the callback expires.
+
+The expanded 39-case backend run reports **34 passes and five failures**. The
+new physical-storage tests expose an incorrect test observer: labels assigned
+by `PgMemoryContext.Create` appear in PostgreSQL's `ident`, not `name`. Every
+new context-count query and the independent allocation-owner witness now read
+the correct field, including earlier zero-count assertions. The corrected
+**40-case backend scope passes with zero failures/skips** on PostgreSQL
+18.6/Linux x64 in 3m05.032s (integration 3m04.142s). It includes an added
+managed-error cleanup and same-session recovery case. Flat, short, compressed,
+external and expanded forms are independently classified in C; forty repeated
+view/cursor cycles assert two live private contexts and none retained. Original
+generated-input addresses, SPI/function/raw result paths, empty cursors and
+unregistered enums also pass.
+
+The same **40 backend cases pass with zero failures/skips** on PostgreSQL
+13.23/Linux x64 in 2m57.874s (integration 2m56.388s) and PostgreSQL 19 beta 3/Linux
+x64 in 3m15.730s (integration 3m14.723s). The first isolated PostgreSQL 13 attempt
+stops at restore because its local runtime payload is not configured; supplying
+the existing verified runtime allows the complete affected scope to run. No
+runtime patch or payload changed.
+
+| Required behavior | Executed evidence |
+|---|---|
+| Exact shape, lower bounds, NULL and present-zero cells | `BorrowedArraysPreserveExactShapeTypesAndNulls`, `BorrowedArrayBoundsRejectAndRecover`, `BorrowedArrayEmptyCursorsAndBoundsRemainExact` |
+| Original native array and cell addresses | `BorrowedArrayCellsShareNativeStorage`, `GeneratedBorrowedArrayInputsRetainOriginalNativeAddresses` |
+| Independent cursor state and escaped cell lifetime | `BorrowedArrayIteratorsAdvanceIndependently`, `CursorsKeepSeparateHandlesAndCellsKeepArrayLifetime` |
+| Disposal, reset, deletion, thread/provider rejection and independent copies | `BorrowedArrayOwnersInvalidateEscapedViews`, `BorrowedArrayRejectsForeignBackendAccess`, `InvalidInputsCannotAllocateBorrowedArrayOwners` |
+| Callback expiry, nested parent liveness and error recovery | `CallbackLeasesExpireEvenWhenNativeContextRemainsAlive`, `BorrowedArrayCallbackLeasesExpireWithoutInvalidatingParents`, `BorrowedArrayCallbackErrorsReleaseStorageAndRecover` |
+| Return transfer, lazy sets and aggregate retention | `BorrowedArrayReturnsSurviveCallbackCleanup`, `BorrowedArrayCellReturnsPreserveNullZeroAndOwnedBytes`, `BorrowedArrayRetainedInputsSurviveSetAndAggregateCallbacks` |
+| Physical storage forms, native owners and repeated cleanup | `BorrowedArrayToastAndCleanupMatchPostgres`, `MalformedMetadataReleasesResponseAndOwner`, `BorrowedArrayConstructionErrorsPreserveBackend` |
+| Exact domain, composite, enum and query/call identities | `BorrowedArraysRetainDomainAndCompositeIdentity`, `BorrowedArraysRetainUnregisteredEnumIdentity`, `BorrowedArraySpiAndFunctionPathsPreserveTypesAndOwners` |
+
+Release passes with zero warnings/errors in 1m27.75s. API freshness passes for
+201 pages/2,450 members; the site builds 246 pages and its check reports zero
+diagnostics. The arrays, raw values, SPI, function-call and introductory guides
+and README describe checked borrowing and independent copies. The final plain
+root PostgreSQL 18.6/Linux x64 suite passes all six modules: **8,398 passes,
+zero failures and six Windows-only skips, 8,404 total**, in 11m18.615s
+(integration 11m16.366s). It runs all 3,518 integration cases against a real
+PostgreSQL server. These local runs reuse existing caches; their durations are
+not cold-cache measurements. This is not a completed borrowed-container family
+or a claim of full-port parity; typed borrowed arrays/slices, text/bytea views
+and the other visible full-port requirements remain required.
+
+Immediately before this commit, `7e0cd61`
+[CI 36433752947](https://github.com/willibrandon/ankus/actions/runs/36433752947)
+has successful quality, all three runtime jobs, and complete macOS
+ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17 suites. Their downloaded test
+reports each contain 8,353 cases: macOS has **8,344 passes, zero failures and
+nine platform-specific skips**; Windows has **8,350 passes, zero failures and
+three Linux-only skips**. The final precommit check then finds Linux cancelled
+at the one-hour job timeout. Its downloaded report contains **978 build-test
+passes, seven failures and six Windows-only skips**; no completed integration
+report is available. The seven native compiler failures use
+`__typeof_unqual__`, unsupported by the runner's older GCC. The repair and
+complete local revalidation are recorded below; the cancelled Linux run is
+not counted as completed platform proof.
+[Docs 36433752989](https://github.com/willibrandon/ankus/actions/runs/36433752989)
+passes. Older superseded CI runs are cancelled and their documentation runs
+successful. These are preceding-commit outcomes, separate from the borrowed-array
+candidate's local verification. Outcomes are checked and recorded again
+immediately before pushing.
+
+## GCC 13 native contract compatibility
+
+The preceding Linux run's seven build-test failures reproduce locally with
+GCC 13.3: the selected-node scope reports **five passes and seven failures**.
+Generated declaration anchors and function parameter normalization used
+`__typeof_unqual__`, which that compiler does not accept in the required C11
+mode. Complete values now use `__typeof__` with an unevaluated comma expression
+to remove only top-level qualifiers without promoting enum types. Opaque
+declarations retain their real native tags; pointer qualification, record
+identity, layout and exact root checks remain enforced.
+
+The new `NativeRecordChecksPreserveQualifiedAnonymousDeclarations` regression
+compiles and executes qualified anonymous records, nested members, enums,
+opaque handles and qualified function parameters with both the independent
+Clang frontend and the platform C compiler. Removing a root qualifier must
+still fail with the exact root-type diagnostic. An initial Release attempt
+catches incomplete types being subjected to lvalue conversion; extending the
+regression reproduces that failure before correcting opaque-type handling.
+The final affected scope passes **59 cases, zero failures/skips**, with GCC
+13.3 in 5.203s. Release then passes with zero warnings/errors in 1m43.87s;
+API freshness covers 201 pages/2,450 members, the site builds 246 pages, and
+its check reports zero diagnostics. No warnings or analyzers are suppressed.
+
+A separate cold collection with GCC 13.3 now verifies all **1,336 native
+declarations, 9,245 available inventory entries, 499 native values and 3,694
+fields** against PostgreSQL 18.6. The previous generator exceeds a bounded
+55-second diagnostic run on the same path. Limiting that old compiler run to
+its first error immediately identifies the unsupported declaration anchor.
+The original small native call fixture and allocator fault fixture both compile
+quickly with GCC 13; they do not reproduce the stall. The exact `binding-layouts`
+command used by `PackagedBuildToolMeasuresSelectedNativeHeaders` also exceeds
+55 seconds with the previous generator and completes successfully with the
+correction. This identifies a matching integration path through the failing
+compiler checks.
+
+The final plain root suite with GCC 13.3 on PostgreSQL 18.6/Linux x64 passes
+all six modules: **8,399 passes, zero failures and six Windows-only skips,
+8,405 total**, in 12m03.983s (integration 12m02.492s). All **3,518 integration
+cases pass**, including the installed package's selected-header layout test,
+which reports 53.816s. This full run uses existing caches; the separate native
+collection above supplies cold-collection evidence only. A fresh precommit
+check confirms the preceding CI outcomes recorded above. A new hosted run
+must still confirm that the Linux timeout is resolved. No CI timeout, analysis
+mode or runtime patch changed.

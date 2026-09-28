@@ -32,6 +32,11 @@ type and belong to the current function call or iterator. SQL NULL returns a
 null wrapper. Use `CopyTo(context)` to give a value another owner. An array call
 checks the declared result is an array before invoking the function.
 
+Use `Call<PgArrayView>` to inspect [borrowed native cells](/arrays/#borrowed-native-arrays)
+in the array result snapshot. Its type checks follow the same array contract.
+Dispose the view while the backend is active; `view.Datum.CopyTo(context)` gives
+the value an independent owner.
+
 Reusable [`PgDatumType` mappings](/raw-values/#reusable-scalar-mappings) can also
 be the result of a named or OID call. Only a reader is required. Ankus checks the
 declared result's exact mapped type before invoking the function or evaluating

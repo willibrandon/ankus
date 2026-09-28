@@ -3,6 +3,33 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// Anonymous declaration anchors remove expression qualifiers while retaining the actual root and member contracts.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeRecordChecksPreserveQualifiedAnonymousDeclarations()
+    {
+        const string Headers = """
+            typedef const struct {
+                int value;
+                const struct { short flag; } nested;
+                enum { Absent = -7, Present = 19 } kind;
+            } Entry;
+            typedef const struct Opaque Opaque;
+            extern volatile Entry current;
+            extern Opaque *opaque;
+            extern void consume(Entry entry, const int count, const int * const address, Opaque *handle, Opaque value);
+            """;
+        NativeHeaderRequest[] requests = [new("current", "current", false), new("opaque", "opaque", false), new("consume", "consume", true)];
+        await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true, nativeCompiler: false);
+        await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true,
+            compilerOverride: OperatingSystem.IsWindows() ? "cl.exe" : "cc");
+        string changed = Headers.Replace("extern volatile Entry", "extern Entry", StringComparison.Ordinal);
+        string diagnostics = await VerifyRecordChecksAsync(Headers, changed, requests, compile: false, execute: false,
+            compilerOverride: OperatingSystem.IsWindows() ? "cl.exe" : "cc");
+        Assert.Contains("Native record contract changed: root type current", diagnostics);
+    }
+
+    /// <summary>
     /// Actual compiler objects retain packed storage, recursive pointers, qualified members, enums and bitfields.
     /// </summary>
     [TestMethod]
@@ -361,7 +388,7 @@ public sealed partial class NativeBindingNativeTests
     /// Compiles and executes generated checks against independently supplied declarations in the production C compiler.
     /// </summary>
     private async Task<string> VerifyRecordChecksAsync(string measured, string actual, NativeHeaderRequest[] requests, bool compile, bool execute, bool nativeCompiler = true,
-        Func<NativeHeaderRecords, NativeHeaderRecords>? mutate = null)
+        Func<NativeHeaderRecords, NativeHeaderRecords>? mutate = null, string? compilerOverride = null)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-record-checks-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -377,7 +404,7 @@ public sealed partial class NativeBindingNativeTests
             string file = Path.Combine(directory, "checks.c");
             await File.WriteAllTextAsync(file, source + NativeBindingRecordChecks.ExecutableEntryPoint, context.CancellationToken);
             string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "checks.exe" : "checks");
-            string compiler = OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang";
+            string compiler = compilerOverride ?? (OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang");
             string[] arguments = OperatingSystem.IsWindows()
                 ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
                 : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, "-o", executable];

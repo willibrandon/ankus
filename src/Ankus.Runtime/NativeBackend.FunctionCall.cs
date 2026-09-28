@@ -158,7 +158,7 @@ public static unsafe partial class NativeBackend
         if (PgPolymorphic.Is<T>())
         {
             var lifetime = new PgDatumLifetime(PgMemoryContext.Callback);
-            uint expected = typeof(T) == typeof(PgAnyArray) ? 2277U : 2283U;
+            uint expected = typeof(T) == typeof(PgAnyArray) || typeof(T) == typeof(PgArrayView) ? 2277U : 2283U;
             return RunFunction(name, oid, options, arguments, expected, lifetime, result =>
                 PgPolymorphic.Read<T>(new PgDatum(unchecked((nuint)result._text.Integral),
                     result._resultTypeOid, result._text.IsNull != 0, lifetime)));

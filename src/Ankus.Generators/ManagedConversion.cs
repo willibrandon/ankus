@@ -18,6 +18,7 @@ internal static class ManagedConversion
             _ when type.CustomType is not null => slot + ".ReadCustom<" + type.Managed + ">()",
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
             _ when type.IsInternal => slot + ".ReadInternal()",
+            _ when type.IsBorrowedArray => slot + (borrowVarlena ? ".ReadBorrowedArray()" : ".ReadOwnedArrayView()"),
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
             _ when type.Element?.IsRelation == true && type.IsVector => slot + ".ReadRelationVector<" + type.ElementManaged + ">()",
             _ when type.Element is not null => slot +

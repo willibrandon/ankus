@@ -219,3 +219,61 @@ with PostgreSQL types that have no C# mapping.
 
 The array and cells belong to the function call or iterator. `CopyTo(context)`
 gives them another owner; resetting or deleting that context invalidates them.
+
+## Borrowed native arrays
+
+Use `PgArrayView` for an `anyarray` parameter whose elements you want to inspect
+without first copying a flat native array. It exposes exact `TypeOid` and
+`ElementTypeOid`, `Rank`, `Count`, `Lengths`, `LowerBounds`, and `HasNulls`.
+Each cell is a checked `PgDatum`; a NULL cell retains its element type and is
+distinct from a present zero value.
+
+```csharp
+[PgFunction]
+public static string?[] DescribeCells(PgArrayView values)
+    => [.. values.Select(static cell => cell.ToPostgresString())];
+```
+
+```sql
+SELECT describe_cells(ARRAY[0, NULL, -7]); -- {0,NULL,-7}
+```
+
+The view preserves native dimensions and lower bounds. `values[0]` selects the
+first cell in row-major order; `values.GetValue(-1, 6)` uses PostgreSQL
+subscripts. Indexed access may scan preceding cells. Use `foreach` for a linear
+pass. Enumerators advance independently, and disposing one does not invalidate
+cells already obtained from it.
+
+Flat arrays and their by-reference cells share the original native storage.
+PostgreSQL flattens packed, compressed, external or expanded arrays into a private
+child context when necessary. Reading existing domain arrays or domain elements
+does not recheck their constraints. Enum and composite element OIDs remain exact.
+
+Direct scalar parameters expire when their managed callback exits; Ankus also
+releases any remaining private view and iterator contexts then. Nested callbacks
+have separate lifetimes. Retained set and aggregate inputs receive independent
+snapshots so they remain valid across callbacks. Returning a borrowed array or
+cell transfers a copy to the result owner before the input expires.
+
+You can also construct a view from a live raw datum or request one through SPI:
+
+```csharp
+using PgArrayView values = Spi.ExecuteScalar<PgArrayView>(
+    "SELECT '[-1:1]={first,NULL,last}'::text[]");
+PgDatum first = values.GetValue(-1);
+string? text = first.ToPostgresString();
+```
+
+`PgFunctions.Call<PgArrayView>()`, `datum.Read<PgArrayView>()`, and
+`new PgArrayView(datum)` expose the same checked view. SPI and function results
+use a callback-owned snapshot. A view constructed from a datum shares that
+datum's lifetime. Dispose explicitly created views and iterators while their
+backend is active. Disposing the view, resetting or deleting its source owner,
+or expiring its input callback invalidates all native aliases. Copied type and
+shape metadata remain readable. Native access must stay on the originating
+backend thread.
+
+Use `view.Datum.CopyTo(owner)` or `cell.CopyTo(owner)` before the source expires
+to retain an independent value. A nullable `PgArrayView?` parameter accepts
+whole-array SQL NULL; `Read<PgArrayView?>()` returns null for it. The explicit
+constructor requires a present array. Empty arrays have rank zero and no cells.

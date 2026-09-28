@@ -12,6 +12,14 @@ internal static class AllocatorFixtureCompiler
     /// Gets SQL that installs the native fixture functions in an existing tests schema.
     /// </summary>
     internal const string InstallationSql = """
+        CREATE FUNCTION tests.array_bits(bigint) RETURNS bigint[]
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_bits' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.array_storage(regprocedure, anyarray, integer) RETURNS text[]
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_storage' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.array_argument(regprocedure, anyarray) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_argument' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.array_owner(bigint) RETURNS text
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_owner' LANGUAGE c STRICT;
         CREATE TABLE tests.relation_locks_1 (x integer);
         CREATE TABLE tests.relation_locks_8 (x integer);
         CREATE FUNCTION tests.relation_commit_fault(regprocedure, oid) RETURNS boolean
