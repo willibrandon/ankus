@@ -12262,3 +12262,53 @@ Docs **36460964424** passes. Older superseded CI runs are cancelled and their
 recorded completed platform results remain distinguished from unfinished jobs.
 Previous outcomes are checked and recorded again before pushing. No analyzer
 mode, warning, assertion, test scope, concurrency limit or CI timeout is relaxed.
+
+## Windows CI timeout and package-consumer concurrency
+
+The final pre-push check of CI **36460964301** confirms Windows job
+**109059853660** exceeded its **60-minute** limit; it was not cancelled by a
+replacement push. Its build step took **12m51s** and full-test step **45m42s**.
+All five managed modules passed. The interrupted integration report contains
+**3,305 passes, zero failures and two Linux-only skips**; the remaining cases
+did not complete, so this is not a passing Windows suite. Linux and macOS passed
+in **35m27s** and **46m50s** respectively, as did quality, runtime and docs jobs.
+
+The Windows report shows approximately **13m16s** in integration assembly setup
+and **29m41s** from the first package-consumer start to the last completed
+parallel package consumer. Test completion continued through the job deadline.
+The consumer fixture now permits **three** simultaneous cases instead of two,
+using its existing slot ownership, isolated pre-18 installations and cleanup.
+Shared sample operations retain their existing serialization. The complete
+suite, cold-restore cases, analyzer standards and 60-minute job limit remain
+unchanged. Correctness and timing validation follow; no improvement or resolved
+hosted timeout is claimed before those runs complete.
+
+The three simultaneous enum-only/schema-only consumers pass on PostgreSQL
+**18.6/Linux x64**, zero failures/skips, in **4m23.770s**, including fixture
+publication, fresh package setup, real SQL assertions and cleanup. Release
+passes with zero warnings/errors in **2m04.52s**; API freshness checks
+**203 pages/2,471 members**, and site build/check passes at **249 pages** with
+zero diagnostics. The complete Linux suite and native Windows consumer class
+are running. Initial local Windows attempts stopped before test bodies because
+the reused validation checkout retained an obsolete renamed source file and
+the launcher inherited conflicting executable-search paths; only that owned
+checkout and process environment were corrected.
+
+The complete plain root suite on PostgreSQL **18.6/Linux x64** now passes
+**8,536 tests, zero failures and six Windows-only skips, 8,542 total**, in
+**11m42.456s**. All **3,613 integration cases pass** in **11m40.041s**.
+The immediately preceding two-slot run took **12m02.084s** overall; this one
+run is **19.628s shorter**, not proof of a comparable hosted improvement.
+The package class's recorded first-start/last-end interval decreases from about
+**8m52s to 8m08s**. These local observations include fixture and scheduling
+effects; the Windows consumer run also shared the validation host during the
+new run. Hosted Windows must still demonstrate completion below the deadline.
+
+Immediately before committing the scheduling change, previous CI
+**36460964301** remains completed with Windows timed out and all other jobs
+passed; Docs **36460964424** passes. Older superseded runs remain cancelled.
+The native Windows x64/PostgreSQL 17 consumer-class verification is still
+running, with **27 completed passes and no failures** at this snapshot; it is
+not counted as a completed class or platform suite. The earlier native-array
+milestone and this locally verified scheduling change will share the next push.
+Previous hosted outcomes are checked and recorded again before pushing.

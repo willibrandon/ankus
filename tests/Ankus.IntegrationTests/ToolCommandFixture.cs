@@ -9,7 +9,7 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 public sealed partial class ToolCommandTests
 {
-    private const int ConcurrentCases = 2;
+    private const int ConcurrentCases = 3;
 
     private static readonly SemaphoreSlim s_caseSlots = new(ConcurrentCases, ConcurrentCases);
     private static readonly SemaphoreSlim s_sampleProjectLock = new(1, 1);
@@ -19,7 +19,7 @@ public sealed partial class ToolCommandTests
     private bool _ownsCaseSlot;
 
     /// <summary>
-    /// Reserves one of two independent package-consumer slots before executing a test.
+    /// Reserves one of three independent package-consumer slots before executing a test.
     /// </summary>
     [TestInitialize]
     public async Task ReserveCaseAsync()
