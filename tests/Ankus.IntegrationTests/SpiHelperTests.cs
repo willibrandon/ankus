@@ -60,7 +60,7 @@ public sealed class SpiHelperTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
-    /// Verifies literal escaping is valid with either standard_conforming_strings setting and cannot change the SQL structure.
+    /// Verifies exact escaping, native setting availability and recovery without allowing values to change SQL structure.
     /// </summary>
     /// <param name="value">The arbitrary literal value.</param>
     /// <param name="expected">The escaped SQL literal.</param>
@@ -70,15 +70,33 @@ public sealed class SpiHelperTests(TestContext context)
     [DataRow("a\\b", "E'a\\\\b'")]
     [DataRow("café 🐘\nline", "'café 🐘\nline'")]
     [DataRow("'; SELECT 99; --", "'''; SELECT 99; --'")]
-    public Task LiteralQuotingRoundTripsUnderBothEscapeSettings(string value, string expected)
-        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(LiteralQuotingRoundTripsUnderBothEscapeSettings),
+    public Task LiteralQuotingPreservesNativeEscapeSettings(string value, string expected)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(LiteralQuotingPreservesNativeEscapeSettings),
             async (connection, transaction, token) =>
             {
+                int backend = connection.ProcessID;
                 foreach (string setting in s_escapeSettings)
                 {
                     await using var configure = new NpgsqlCommand($"SET LOCAL standard_conforming_strings = {setting}",
                         connection, transaction);
-                    await configure.ExecuteNonQueryAsync(token);
+                    if (PostgresFixture.Cluster.Installation.Version.Major >= 19 && setting == "off")
+                    {
+                        await transaction.SaveAsync("escape_setting", token);
+                        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => configure.ExecuteNonQueryAsync(token));
+                        Assert.AreEqual(PostgresErrorCodes.FeatureNotSupported, error.SqlState);
+                        Assert.AreEqual("non-standard string literals are not supported", error.MessageText);
+                        await transaction.RollbackAsync("escape_setting", token);
+                        await transaction.ReleaseAsync("escape_setting", token);
+                        configure.CommandText = "SHOW standard_conforming_strings";
+                        Assert.AreEqual("on", await configure.ExecuteScalarAsync(token));
+                    }
+                    else
+                    {
+                        await configure.ExecuteNonQueryAsync(token);
+                        configure.CommandText = "SHOW standard_conforming_strings";
+                        Assert.AreEqual(setting, await configure.ExecuteScalarAsync(token));
+                    }
+
                     await using var command = new NpgsqlCommand("SELECT datatype.sql_quote_literal($1)", connection, transaction);
                     command.Parameters.AddWithValue(value);
                     Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
@@ -86,6 +104,8 @@ public sealed class SpiHelperTests(TestContext context)
                     command.Parameters.AddWithValue("odd\"name; SELECT 99; --");
                     Assert.AreEqual(value, await command.ExecuteScalarAsync(token));
                 }
+
+                Assert.AreEqual(backend, connection.ProcessID);
             }, context.CancellationToken);
 
     /// <summary>

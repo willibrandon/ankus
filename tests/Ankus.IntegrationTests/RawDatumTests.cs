@@ -167,7 +167,9 @@ public sealed class RawDatumTests(TestContext context)
         Assert.AreSequenceEqual<int?>([70000, 70000, null], await Scalar<int?[]>(connection,
             $"SELECT array_agg(length(value)) FROM raw_values.{function}(repeat('owned 🐘',10000)) value"));
         Assert.AreEqual("owned", await Scalar<string>(connection, $"SELECT value FROM raw_values.{function}('owned') value LIMIT 1"));
-        Assert.AreSequenceEqual<string?>(["0/2|owned", null], await Scalar<string?[]>(connection,
+        string position = PostgresFixture.Cluster.Installation.Version.Major >= 19 ? "0/00000002" : "0/2";
+        Assert.AreEqual(position, await Scalar<string>(connection, "SELECT '0/2'::pg_lsn::text"));
+        Assert.AreSequenceEqual<string?>([position + "|owned", null], await Scalar<string?[]>(connection,
             "SELECT array_agg(position::text||'|'||description) FROM raw_values.raw_table('0/2','owned')"));
     }
 

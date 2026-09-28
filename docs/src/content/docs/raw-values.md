@@ -20,8 +20,8 @@ must still match the supported casting contract. An incompatible tag or prefix
 fails the build. Reusing cached declarations repeats the native checks against
 the selected headers.
 
-PostgreSQL 19 beta 3 extension publication remains incomplete while configuration
-and shared-memory API compatibility is being finished.
+PostgreSQL 19 beta support is still under validation across the supported
+platforms.
 
 Native declarations retain PostgreSQL names and mutable fields:
 
@@ -379,9 +379,12 @@ public static PgDatum? Echo(
 ```
 
 ```sql
-SELECT echo('0/1234'::pg_lsn); -- 0/1234
+SELECT echo('0/1234'::pg_lsn); -- 0/1234 on PostgreSQL 13–18
 SELECT echo(NULL::pg_lsn);    -- NULL
 ```
+
+Native text output follows the selected server version. PostgreSQL 19 formats
+this `pg_lsn` value as `0/00001234`; its underlying value is unchanged.
 
 Every raw parameter and result needs a binding. `Name` is the exact catalog
 identifier, such as `int4`, without quotes or a schema prefix. `Schema` selects

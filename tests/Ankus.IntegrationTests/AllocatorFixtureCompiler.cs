@@ -78,7 +78,7 @@ internal static class AllocatorFixtureCompiler
         => await CompileModuleAsync(installation, source, outputPath, false, cancellationToken);
 
     /// <summary>
-    /// Compiles a native fixture with an explicit C11 mode when generated contracts require it.
+    /// Compiles a native fixture with C11 and the platform extensions required by the selected PostgreSQL headers.
     /// </summary>
     /// <param name="installation">The selected backend installation.</param>
     /// <param name="source">The C translation unit.</param>
@@ -124,7 +124,7 @@ internal static class AllocatorFixtureCompiler
 
         if (useC11)
         {
-            arguments.Insert(0, OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11");
+            arguments.Insert(0, OperatingSystem.IsWindows() ? "/std:c11" : "-std=gnu11");
         }
 
         await ProcessRunner.RunCheckedAsync(compiler, arguments, new Dictionary<string, string?>(), cancellationToken,

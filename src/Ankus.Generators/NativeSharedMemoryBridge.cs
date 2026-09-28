@@ -259,10 +259,14 @@ internal static class NativeSharedMemoryBridge
                  * Only this shared pointer is retained; GetNamedLWLockTranche depends
                  * on a postmaster-private request array unavailable in Windows children. */
                 entry->lock = header->lock;
+        #if PG_VERSION_NUM < 190000
                 if (entry->kind == 0)
                 {
                     LWLockRegisterTranche(entry->lock->tranche, entry->name);
                 }
+        #endif
+                /* PostgreSQL 19 retains tranche names in shared memory when
+                 * initializing the requested locks; no process registration is needed. */
 
                 entry->header = header;
                 if (entry->kind != 0)

@@ -207,7 +207,9 @@ These functions use the server's keyword table and `quote_all_identifiers` setti
 
 `Spi.QuoteLiteral(text)` produces a SQL text literal, escaping apostrophes and
 backslashes. Its output is valid with either `standard_conforming_strings`
-setting. Quoting uses server-encoding conversion and the active backend thread;
+setting on PostgreSQL 13–18. PostgreSQL 19 requires that setting to stay `on`
+and rejects `off`; explicit escape literals still work. Quoting uses
+server-encoding conversion and the active backend thread;
 embedded zero characters and malformed UTF-16 are rejected before native calls.
 
 ## JSON query plans

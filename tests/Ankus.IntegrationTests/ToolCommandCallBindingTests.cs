@@ -47,7 +47,7 @@ public sealed partial class ToolCommandTests
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32"),
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32_msvc"),
                 "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
-            : [.. s_installation.PreprocessorArguments, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2",
+            : [.. s_installation.PreprocessorArguments, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2",
                 "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", executable];
         await ProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: output);
         ProcessResult execution = await ProcessRunner.RunCheckedAsync(executable, [], s_environment, token, workingDirectory: output);

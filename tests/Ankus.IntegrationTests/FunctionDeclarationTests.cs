@@ -211,9 +211,11 @@ public sealed class FunctionDeclarationTests(TestContext context)
                 PostgresException conflict = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
                 Assert.AreEqual(PostgresErrorCodes.ObjectNotInPrerequisiteState, conflict.SqlState);
                 await transaction.RollbackAsync("existing", token);
+                string escapeSetting = PostgresFixture.Cluster.Installation.Version.Major >= 19 ? "on" : "off";
+                command.CommandText = $"SET LOCAL standard_conforming_strings TO {escapeSetting}; SHOW standard_conforming_strings";
+                Assert.AreEqual(escapeSetting, await command.ExecuteScalarAsync(token));
                 command.CommandText = """
                     DROP SCHEMA ankus_contract;
-                    SET LOCAL standard_conforming_strings TO off;
                     CREATE EXTENSION ankus_test WITH SCHEMA datatype;
                     SELECT ankus_contract.declaration_defaults()
                     """;

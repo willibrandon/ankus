@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -89,13 +90,39 @@ public sealed partial class AggregateTests
                 "SELECT aggregate_values.native_min(value) FROM aggregate_values.minimum_input", token));
             string plan = await Scalar<string>(connection, transaction,
                 "EXPLAIN(FORMAT JSON) SELECT aggregate_values.native_min(value) FROM aggregate_values.minimum_input", token);
-            Assert.Contains("minimum_input_idx", plan);
-            Assert.Contains("Limit", plan);
-            Assert.DoesNotContain("Aggregate", plan);
+            using (JsonDocument document = JsonDocument.Parse(plan))
+            {
+                JsonElement[] nodes = [.. PlanNodes(document.RootElement[0].GetProperty("Plan"))];
+                Assert.Contains(node => node.GetProperty("Node Type").GetString() is "Index Scan" or "Index Only Scan" &&
+                    node.GetProperty("Index Name").GetString() == "minimum_input_idx", nodes);
+                Assert.Contains(node => node.GetProperty("Node Type").GetString() == "Limit", nodes);
+                Assert.DoesNotContain(node => node.GetProperty("Node Type").GetString() == "Aggregate", nodes);
+            }
+
             await using var command = new NpgsqlCommand(
                 "SELECT aggregate_values.native_min(value) FROM aggregate_values.minimum_input WHERE value IS NULL", connection, transaction);
             Assert.AreSame(DBNull.Value, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT aggregate_values.native_min(value) FROM aggregate_values.minimum_input WHERE false";
             Assert.AreSame(DBNull.Value, await command.ExecuteScalarAsync(token));
         });
+
+    /// <summary>
+    /// Visits actual plan nodes without treating explanatory metadata as executable operations.
+    /// </summary>
+    /// <param name="node">The root of the native plan subtree.</param>
+    /// <returns>The root and each descendant plan node.</returns>
+    private static IEnumerable<JsonElement> PlanNodes(JsonElement node)
+    {
+        yield return node;
+        if (node.TryGetProperty("Plans", out JsonElement plans))
+        {
+            foreach (JsonElement child in plans.EnumerateArray())
+            {
+                foreach (JsonElement descendant in PlanNodes(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+    }
 }

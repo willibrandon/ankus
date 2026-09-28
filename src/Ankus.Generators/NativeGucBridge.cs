@@ -21,6 +21,14 @@ internal static class NativeGucBridge
         #include <limits.h>
         #include <math.h>
 
+        /* PostgreSQL 19 embeds typed bodies in the generic record instead of
+         * placing a generic prefix in each separately typed record. */
+        #if PG_VERSION_NUM >= 190000
+        #define ANKUS_GUC_RECORD(setting, kind) (&(setting)->_##kind)
+        #else
+        #define ANKUS_GUC_RECORD(setting, kind) ((struct config_##kind *) (setting))
+        #endif
+
         struct AnkusError;
         struct AnkusRequest;
         struct AnkusResult;
@@ -235,11 +243,11 @@ internal static class NativeGucBridge
                 return false;
             switch (definition->kind)
             {
-                case 0: return existing->vartype == PGC_BOOL && ((struct config_bool *) existing)->variable == definition->variable;
-                case 1: return existing->vartype == PGC_INT && ((struct config_int *) existing)->variable == definition->variable;
-                case 2: return existing->vartype == PGC_REAL && ((struct config_real *) existing)->variable == definition->variable;
-                case 3: return existing->vartype == PGC_STRING && ((struct config_string *) existing)->variable == definition->variable;
-                case 4: return existing->vartype == PGC_ENUM && ((struct config_enum *) existing)->variable == definition->variable;
+                case 0: return existing->vartype == PGC_BOOL && ANKUS_GUC_RECORD(existing, bool)->variable == definition->variable;
+                case 1: return existing->vartype == PGC_INT && ANKUS_GUC_RECORD(existing, int)->variable == definition->variable;
+                case 2: return existing->vartype == PGC_REAL && ANKUS_GUC_RECORD(existing, real)->variable == definition->variable;
+                case 3: return existing->vartype == PGC_STRING && ANKUS_GUC_RECORD(existing, string)->variable == definition->variable;
+                case 4: return existing->vartype == PGC_ENUM && ANKUS_GUC_RECORD(existing, enum)->variable == definition->variable;
                 default: return false;
             }
         }
@@ -334,7 +342,7 @@ internal static class NativeGucBridge
             if (existing != NULL && IsUnderPostmaster && existing->scontext == PGC_SIGHUP &&
                 (context == PGC_BACKEND || context == PGC_SU_BACKEND))
             {
-                struct config_string *placeholder = (struct config_string *) existing;
+                struct config_string *placeholder = ANKUS_GUC_RECORD(existing, string);
                 reload_pending = true;
                 if (*placeholder->variable != NULL)
                     reload_value = pstrdup(*placeholder->variable);
@@ -1255,14 +1263,15 @@ internal static class NativeGucBridge
     /// </summary>
     private const string WorkerRestore = """
         static bool
-        ankus_guc_string_referenced(struct config_string *setting, const char *value)
+        ankus_guc_string_referenced(struct config_generic *setting, const char *value)
         {
-            if (value == *setting->variable || value == setting->reset_val || value == setting->boot_val)
+            struct config_string *body = ANKUS_GUC_RECORD(setting, string);
+            if (value == *body->variable || value == body->reset_val || value == body->boot_val)
             {
                 return true;
             }
 
-            for (GucStack *stack = setting->gen.stack; stack != NULL; stack = stack->prev)
+            for (GucStack *stack = setting->stack; stack != NULL; stack = stack->prev)
             {
                 if (value == stack->prior.val.stringval || value == stack->masked.val.stringval)
                 {
@@ -1281,6 +1290,9 @@ internal static class NativeGucBridge
                 return true;
             }
 
+        #if PG_VERSION_NUM >= 190000
+            void *reset = setting->reset_extra;
+        #else
             void *reset = NULL;
             switch (setting->vartype)
             {
@@ -1290,6 +1302,7 @@ internal static class NativeGucBridge
                 case PGC_STRING: reset = ((struct config_string *) setting)->reset_extra; break;
                 case PGC_ENUM: reset = ((struct config_enum *) setting)->reset_extra; break;
             }
+        #endif
 
             if (extra == reset)
             {
@@ -1323,11 +1336,11 @@ internal static class NativeGucBridge
             config_var_value current = {0};
             switch (setting->vartype)
             {
-                case PGC_BOOL: current.val.boolval = *((struct config_bool *) setting)->variable; break;
-                case PGC_INT: current.val.intval = *((struct config_int *) setting)->variable; break;
-                case PGC_REAL: current.val.realval = *((struct config_real *) setting)->variable; break;
-                case PGC_STRING: current.val.stringval = *((struct config_string *) setting)->variable; break;
-                case PGC_ENUM: current.val.enumval = *((struct config_enum *) setting)->variable; break;
+                case PGC_BOOL: current.val.boolval = *ANKUS_GUC_RECORD(setting, bool)->variable; break;
+                case PGC_INT: current.val.intval = *ANKUS_GUC_RECORD(setting, int)->variable; break;
+                case PGC_REAL: current.val.realval = *ANKUS_GUC_RECORD(setting, real)->variable; break;
+                case PGC_STRING: current.val.stringval = *ANKUS_GUC_RECORD(setting, string)->variable; break;
+                case PGC_ENUM: current.val.enumval = *ANKUS_GUC_RECORD(setting, enum)->variable; break;
             }
 
             current.extra = setting->extra;
@@ -1338,7 +1351,7 @@ internal static class NativeGucBridge
             stack->srole = setting->srole;
         #endif
             if (setting->vartype == PGC_STRING && old.val.stringval != NULL &&
-                !ankus_guc_string_referenced((struct config_string *) setting, old.val.stringval))
+                !ankus_guc_string_referenced(setting, old.val.stringval))
             {
                 ankus_guc_free(old.val.stringval);
             }
@@ -1368,7 +1381,11 @@ internal static class NativeGucBridge
                     return value == NULL && existing->source != PGC_S_DEFAULT ? "" : value;
                 }
                 case 4:
+        #if PG_VERSION_NUM >= 190000
+                    return config_enum_lookup_by_value(existing,
+        #else
                     return config_enum_lookup_by_value((struct config_enum *) existing,
+        #endif
                         *((int *) definition->variable));
                 default:
                     elog(ERROR, "invalid Ankus configuration kind");

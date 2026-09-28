@@ -34,6 +34,19 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+PostgreSQL 19 beta 3 now publishes and passes the complete Native AOT/backend
+suite on Linux x64. Both PostgreSQL **18.6 and 19 beta 3** pass **8,347 tests,
+zero failures and six Windows-only skips, 8,353 total**, in 13m21.443s and
+11m45.867s respectively. Configuration record access and shared lock naming
+follow the selected headers; native text output, escape settings and planner
+tests retain exact version-specific contracts. All 170 affected configuration,
+shared-memory and allocator cases also pass on PostgreSQL 13.23. Release, API
+freshness and site checks pass. The complete platform/version matrix, borrowed
+array/text/bytea APIs, intermittent GUC query stall and other faithful-port
+requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Anonymous C structs and unions now expose their promoted members directly on
 the enclosing managed record. Complete PostgreSQL 19 beta 3 binding generation
 and independently verified cache reuse pass on Linux x64: **1,396 native
@@ -11662,3 +11675,88 @@ suites remain in progress without a reported failure.
 passes. Older superseded CI runs are cancelled; cancelled suites do not establish
 completed platform evidence. Outcomes are checked and recorded again before
 pushing, without waiting for the active hosted suites.
+
+## PostgreSQL 19 native bridge compatibility
+
+The generated configuration bridge now follows PostgreSQL 19's native layout:
+the generic configuration record contains the typed bodies and reset extra data.
+Earlier versions retain their separately typed records with a generic prefix.
+Ownership checks, current values, Windows reload placeholders, string-reference
+accounting, worker rollback history and enum lookup all use the selected version's
+actual fields. Existing checked values and extra-data ownership remain intact.
+
+PostgreSQL 19 keeps extension LWLock tranche names in shared memory. The bridge
+uses that native registration and retains the older per-process registration on
+13–18. Shared-pointer checks, names, locking and cleanup are unchanged. Explicit
+substring indexing also fixes the prerelease allocation guard's compiler warning
+without changing which native versions accept aligned no-OOM allocations. Native
+test fixtures now use the same GNU C11 mode as production on non-Windows platforms,
+retaining all warning errors and the existing Windows C11 mode.
+
+All **170 affected configuration, shared-memory and allocator cases pass with
+zero failures/skips** on Linux x64/PostgreSQL 19 beta 3 in 4m31.526s and
+PostgreSQL 13.23 in 5m49.433s (integration 5m48.289s). These execute real published
+Native AOT extensions. The shared-memory package verifies the actual LWLock wait
+event name, competing backends, preload, errors, restart and recovery. The GUC
+cases cover all five kinds, NULL/Unicode values, sources, placeholders, worker
+normalization, accepted extra data and transaction restoration.
+
+The first complete beta run after publication is repaired records **8,337 passes,
+10 failures and six Windows-only skips, 8,353 total**, in 12m25.987s (integration
+12m24.451s). All six modules execute; the remaining failures identify selected
+server semantics and fixture assumptions:
+
+- Two raw-set cases expected the older `pg_lsn` text. PostgreSQL 19 prints the
+  low half with eight hexadecimal digits. Assertions now retain exact versioned
+  text and independently verify the native SQL literal before comparing the
+  extension's rows; owned storage, NULL and early-exit assertions remain.
+- Five quoting cases and the fixed-schema lifecycle case attempted to disable
+  `standard_conforming_strings`, which PostgreSQL 19 rejects. The quoting cases
+  now require its exact `0A000` diagnostic, savepoint recovery, retained `on`
+  setting, exact quoted SQL/results and the original backend. Versions 13–18
+  still exercise and verify both accepted settings. Extension lifecycle/default
+  values run with the supported setting and retain their ownership assertions.
+- One packaged native-call fixture still selected strict C11 instead of GNU C11.
+  Both remaining packaged native compiler paths are aligned with the selected
+  PostgreSQL headers; their native values and cache/recovery assertions remain.
+- The aggregate index-optimization case found the word `Aggregate` in new
+  `Replaces: MinMaxAggregate` EXPLAIN metadata. Its actual plan correctly uses
+  an index and limit. The test now parses real `Node Type` and `Index Name`
+  properties, requiring the expected index and limit and rejecting an actual
+  aggregate node, while retaining minimum/NULL/empty result assertions.
+
+| Requirement | Executed regression |
+|---|---|
+| GUC type, ownership, values and reset/history data | `DefaultsAndMetadataPreserveNativeTypes`, `PlaceholderStacksSurviveRegistrationAndRollback`, `HooksRestoreValuesAndExtraAcrossLocalAndSavepoints` |
+| Worker normalization and same-session error recovery | `WorkerSetRejectsAndLeaderRecovers`, `WorkerFunctionSettingsRestoreValueAndExtra` |
+| Shared native lock naming, values and backend recovery | `SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` |
+| Native allocation flags, exact bytes and owner cleanup | `AllocationPoliciesPreserveBytesOwnershipAndReclamation` |
+| Native LSN text, raw owned rows and NULL | `RawSetsRetainRowsNullsAndAllowEarlyExit` |
+| Native escape-setting support, diagnostics and recovery | `LiteralQuotingPreservesNativeEscapeSettings`, `FixedSchemasParticipateInExtensionLifecycle` |
+| Executable packaged native calls and shared managed type identity | `PackagedBuildToolGeneratesExecutableNativeCalls`, `SdkSharesNativeTypesAcrossProjectsAndPublishesThem` |
+| Actual optimized planner nodes and aggregate values | `SortOperatorEnablesIndexMinimumWithoutChangingResults` |
+
+Final Release passes with zero warnings/errors in 1m29.28s. API freshness passes
+for 200 pages/2,437 members; the documentation build emits 245 pages and its check
+reports zero diagnostics. The SPI and native-value guides describe the selected
+server behavior. All **11 corrected focused beta regressions pass, zero failures
+or skips**, in 5m00.836s (integration 4m59.905s). The final plain root PostgreSQL
+18.6/Linux x64 suite passes all six modules: **8,347 passes, zero failures and
+six Windows-only skips, 8,353 total**, in 13m21.443s (integration 13m19.831s).
+The corrected complete PostgreSQL 19 beta 3/Linux x64 suite passes all six
+modules with the same **8,347 passes, zero failures and six Windows-only skips,
+8,353 total**, in 11m45.867s (integration 11m43.612s). Each full run executes
+all 3,478 integration cases against a real server. These overlapping local runs
+use existing caches; their durations are not cold-cache measurements.
+The full platform/version matrix, intermittent GUC query stall, borrowed
+array/text/bytea APIs and other full-port requirements remain open.
+
+Immediately before this commit, `721d5bf`
+[CI 36429362472](https://github.com/willibrandon/ankus/actions/runs/36429362472)
+has successful quality and all three runtime jobs. The complete Linux/PostgreSQL
+18, macOS ARM64/PostgreSQL 18 and Windows/PostgreSQL 17 suites remain in progress
+without a reported failure.
+[Docs 36429362373](https://github.com/willibrandon/ankus/actions/runs/36429362373)
+passes. Older superseded CI runs are cancelled and their documentation runs
+successful; cancellation is not completed platform evidence. Outcomes are checked
+and recorded again immediately before pushing, without waiting for hosted CI.

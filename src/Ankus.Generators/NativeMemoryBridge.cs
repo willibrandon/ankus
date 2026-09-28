@@ -623,7 +623,7 @@ internal static class NativeMemoryBridge
                 /* PostgreSQL prereleases share PG_VERSION_NUM, including the unfixed betas. */
                 if ((flags & MCXT_ALLOC_NO_OOM) != 0 &&
                     (strstr(PG_VERSION, "devel") != NULL ||
-                        (strncmp(PG_VERSION, "19beta", 6) == 0 && atoi(PG_VERSION + 6) < 3)))
+                        (strncmp(PG_VERSION, "19beta", 6) == 0 && atoi(&PG_VERSION[6]) < 3)))
                 {
                     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                         errmsg("aligned no-OOM allocation requires PostgreSQL 19 beta 3 or later")));
