@@ -12409,3 +12409,22 @@ recorded Windows timeout and other platform passes; older superseded runs are
 cancelled. The current Windows run is retained to establish whether the small
 consumer-concurrency fix completes under the existing hour limit. Development
 continues, and outcomes will be checked and recorded again before pushing.
+
+The final result of CI **36471639303** for `651c978` is **success** across every
+job. Windows x64/PostgreSQL 18 completes in **52m55s**, within the unchanged
+60-minute limit. Its build takes **12m03s**; the integration report records
+**3,611 passes, zero failures and two Linux-only skips, 3,613 total**, in
+**39m01.135s**. Linux completes in **32m33s** and macOS ARM64 in **39m59s**;
+macOS records the same **3,611 passes and two Linux-only skips**, with its
+integration report spanning **30m50.434s**. All managed modules, quality,
+runtime jobs and Docs **36471639684** pass. This closes the reported Windows
+timeout with the small three-consumer scheduling change. These are complete
+platform runs, but their timing differences are not a controlled benchmark.
+
+Immediately before the reporting commit and typed-collection push, previous
+CI **36471639303** and Docs **36471639684** are complete and green. The older
+Windows timeout and superseded cancellations retain their recorded outcomes.
+The verified typed-collection milestone is **17affbe**; its subsequent runtime
+dispatch work remains uncommitted until its own validation completes. The
+remaining typed-array integrations and all other full-port requirements remain
+required.
