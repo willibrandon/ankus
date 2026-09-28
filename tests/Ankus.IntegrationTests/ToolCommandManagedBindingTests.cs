@@ -62,6 +62,12 @@ public sealed partial class ToolCommandTests
             new XAttribute("Include", providerProject))));
         string nativeProvider = await CompileBindingProviderAsync(root, token);
         project.Root.Add(new XElement("ItemGroup", new XElement("NativeLibrary", new XAttribute("Include", nativeProvider))));
+        if (s_installation.Version.Major < 16)
+        {
+            project.Root.Add(new XElement("ItemGroup", new XElement("DirectPInvoke",
+                new XAttribute("Include", "BindingProvider.Native!_PG_output_plugin_init"))));
+        }
+
         project.Save(consumerProject);
         await File.WriteAllTextAsync(Path.Combine(provider, "BindingProvider.cs"), """
             using Ankus.Postgres;
@@ -75,7 +81,7 @@ public sealed partial class ToolCommandTests
         await File.WriteAllTextAsync(Path.Combine(consumer, "BindingConsumer.cs"), """
             using Ankus;
             using Ankus.Postgres;
-            public static class BindingConsumer
+            public static partial class BindingConsumer
             {
                 [PgFunction]
                 public static int NativeBindingRoundTrip(int input)
@@ -207,9 +213,22 @@ public sealed partial class ToolCommandTests
                 public static unsafe bool NativeLinkedProvider()
                 {
                     OutputPluginCallbacks callbacks = new() { startup_cb = new(17), shutdown_cb = new(23) };
+            #if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
+                    InitializeLinkedProvider((nint)(&callbacks));
+            #else
                     NativeMethods._PG_output_plugin_init((nint)(&callbacks));
+            #endif
                     return callbacks.startup_cb.IsNull && callbacks.shutdown_cb.DangerousGetAddress() == 23;
                 }
+
+            #if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
+                /// <summary>
+                /// Calls the fixture-owned initializer, which only updates callback storage and cannot raise PostgreSQL ERROR.
+                /// </summary>
+                [System.Runtime.InteropServices.LibraryImport("BindingProvider.Native", EntryPoint = "_PG_output_plugin_init")]
+                [System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
+                private static partial void InitializeLinkedProvider(nint callbacks);
+            #endif
 
                 [PgFunction]
                 public static unsafe int NativeNodeCall(int input)
@@ -217,11 +236,26 @@ public sealed partial class ToolCommandTests
                     nint address = NativeMethods.makeInteger(input);
                     try
                     {
+            #if ANKUS_PG13 || ANKUS_PG14
+                        Value value = *(Value*)address;
+            #else
                         Integer value = *(Integer*)address;
-                        if (value.type != NodeTag.T_Integer) { throw new System.InvalidOperationException("Unexpected native node tag."); }
+            #endif
+                        if (value.type != NodeTag.T_Integer)
+                        {
+                            throw new System.InvalidOperationException("Unexpected native node tag.");
+                        }
+
+            #if ANKUS_PG13 || ANKUS_PG14
+                        return value.val.ival;
+            #else
                         return value.ival;
+            #endif
                     }
-                    finally { NativeMethods.pfree(address); }
+                    finally
+                    {
+                        NativeMethods.pfree(address);
+                    }
                 }
 
                 [PgFunction]
@@ -517,6 +551,8 @@ public sealed partial class ToolCommandTests
             Assert.AreEqual(int.MinValue, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_node_call(2147483647)";
             Assert.AreEqual(int.MaxValue, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT native_node_call(0)";
+            Assert.AreEqual(0, await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT native_header_helper_values()";
             Assert.AreEqual("16|FEDCBA9876543218|199|16|FFFFFFFFFFFFFFD6|True|True|True|True|True|True|True|True|True|True|True|True",
                 await command.ExecuteScalarAsync(token));

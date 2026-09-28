@@ -119,7 +119,7 @@ public sealed partial class ToolCommandTests
                 Assert.AreNotEqual(connection.ProcessID, process, "Every value must be evaluated in an actual worker.");
                 AssertNativeCallbackSnapshot(snapshot, process, inheritedInitializer,
                     preloaded ? "unavailable" : "42",
-                    preloaded || OperatingSystem.IsWindows() && s_installation.Version.Major < 18 ? "unavailable" : "42");
+                    preloaded || s_installation.Version.Major < 18 ? "unavailable" : "42");
                 long count = reader.GetInt64(1);
                 Assert.IsGreaterThan(0L, count);
                 rows += count;

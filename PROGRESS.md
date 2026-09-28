@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The packaged native-binding test now follows selected-header availability and
+worker startup ordering on older PostgreSQL. Its complete publish/load/preload/
+rebuild/clean sequence passes on Linux x64/PostgreSQL 13.23 and 15.19. The final
+plain PostgreSQL 18.6 suite passes **8,263 tests, zero failures and six
+Windows-only skips, 8,269 total**, in 12m45.819s. Release, generated API and
+site checks pass. Separate stronger worker-error assertions reproduce a GUC
+cleanup defect on PostgreSQL 15.19; that defect and the earlier PostgreSQL 13
+query timeout remain required follow-up. Full PostgreSQL 13–19/platform parity
+and other faithful-port work remain incomplete.
+
 Native storage, node-format and full-range date tests now use the selected
 server's observable contracts without dropping boundary or recovery assertions.
 All 30 affected node/TOAST cases pass on Linux x64/PostgreSQL 13.23 and 14.20,
@@ -11038,5 +11048,59 @@ at `85e00bc`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
 test jobs remain in progress without a reported failure.
 [Docs 36396998230](https://github.com/willibrandon/ankus/actions/runs/36396998230)
 passes. The preceding `bfa6bcc` platform jobs were cancelled when superseded
+and do not provide completed-suite evidence. Previous outcomes are checked and
+recorded again immediately before pushing.
+
+## Selected-header native provider and worker-phase evidence
+
+The packaged binding fixture no longer assumes that every supported header
+declares `_PG_output_plugin_init` or uses the newer `Integer` node structure.
+PostgreSQL 13–15 uses an explicit `LibraryImport`/`DirectPInvoke` for the
+fixture-owned initializer, linked through its existing native archive. That
+initializer only updates callback storage and cannot raise PostgreSQL `ERROR`.
+PostgreSQL 16+ retains generated guarded `NativeMethods` coverage. PostgreSQL
+13/14 reads the selected `Value.val.ival` layout; 15+ reads `Integer.ival`.
+Signed minimum, maximum, zero and ordinary values, native node tags and matching
+`pfree` cleanup remain checked. The public build-settings guide explains the
+selected-header boundary and the error-guard obligation for explicit imports.
+
+Worker lifecycle snapshots now require early module-registration SQL to be
+unavailable on every platform before PostgreSQL 18. This matches native library
+restoration ordering and the existing production deferral, rather than assuming
+that only Windows restores libraries early. Ready-phase SQL, nested callback
+capabilities, exact native values, per-process ownership, hook ordering, preload,
+initialization retry, shared type identity, rebuild and clean assertions remain
+intact.
+
+On Linux x64/PostgreSQL 13.23, the complete packaged binding case and all eighteen
+existing GUC worker cases pass **19 tests, zero failures and zero skips** in
+5m13.437s. PostgreSQL 15.19 passes the complete package case in 4m40.362s,
+covering its newer node structure with the earlier native import and worker
+registration contracts. Release builds with zero warnings/errors in 1m27.59s.
+API freshness passes for 200 pages/2,437 members; the site builds 245 pages with
+zero check errors/warnings/hints. Plain full Linux x64/PostgreSQL 18.6
+`dotnet test` passes **8,263 tests, zero failures and six Windows-only skips,
+8,269 total**, in 12m45.819s (integration 12m44.779s). Concurrent isolated
+version checks mean this is not a cold-cache timing baseline.
+
+The earlier PostgreSQL 13 function-local GUC timeout does not recur: that case
+passes in 0.721s. Its cause remains unresolved. However, inspection of the
+passing scope's server log finds additional assignment-extra `FATAL` failures
+while workers clean up after expected forbidden configuration changes. Two
+stronger assertions in an isolated follow-up now fail on unchanged production
+code on PostgreSQL 15.19 in 2m20.824s, specifically detecting those unexpected
+cleanup failures after the original error and leader-recovery checks succeed.
+Native deferred-restoration history and its value/extra ownership are under
+investigation. This independently reproduced cleanup defect is not established
+as the cause of the timeout, and neither issue is deferred from full-port scope.
+The complete PostgreSQL 13–19/platform matrix and other port requirements remain
+open; focused passes do not replace the earlier complete diagnostic inventory.
+
+The 2026-09-28 09:03 UTC pre-commit check records
+[CI 36399145420](https://github.com/willibrandon/ankus/actions/runs/36399145420)
+at `9df3bdc`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
+test jobs remain in progress without a reported failure.
+[Docs 36399145419](https://github.com/willibrandon/ankus/actions/runs/36399145419)
+passes. The preceding `85e00bc` platform jobs were cancelled when superseded
 and do not provide completed-suite evidence. Previous outcomes are checked and
 recorded again immediately before pushing.

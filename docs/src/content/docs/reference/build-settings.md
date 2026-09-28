@@ -61,6 +61,13 @@ archive on Windows. PostgreSQL and the native linker resolve the function's
 actual definition; its generated `NativeMethods` entry retains the native error
 guard.
 
+`NativeMethods` includes only declarations present in the selected headers.
+For a function owned by your native library whose declaration is absent from
+those headers, use an explicit .NET `LibraryImport` with its matching
+`DirectPInvoke` item and `NativeLibrary` input. A direct import does not add an
+Ankus error guard: any PostgreSQL operation that can raise `ERROR` must be
+guarded entirely in native code before control returns to managed code.
+
 ## Project SDK
 
 An extension uses `Ankus.Sdk` as its project SDK. The SDK sets `PublishAot` and
