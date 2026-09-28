@@ -77,21 +77,9 @@ internal static class NativeBindingSourceCommand
         NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(major);
         string cache = arguments.Length == 10 && arguments[9].Length != 0 ? Path.GetFullPath(arguments[9])
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ankus", "bindings");
-        await using NativeBindingCacheLease lease = await NativeBindingSourceCache.GetAsync(catalog,
+        await NativeBindingSourceCache.CopyAsync(catalog,
             arguments.Length == 10 ? arguments[..9] : arguments, cache, cancellationToken);
         string output = Path.GetFullPath(arguments[2]);
-        Directory.CreateDirectory(output);
-        foreach (string name in NativeBindingSourceCache.Artifacts)
-        {
-            string source = Path.Combine(lease.Directory, name);
-            string destination = Path.Combine(output, name);
-            if (!File.Exists(destination) || await NativeBindingCache.HashAsync(destination, cancellationToken) !=
-                await NativeBindingCache.HashAsync(source, cancellationToken))
-            {
-                File.Copy(source, destination, overwrite: true);
-            }
-        }
-
         await WriteIfChangedAsync(Path.Combine(output, "Ankus.NativeBindings.csproj"), CreateProject(output), cancellationToken);
         string assembly = (await File.ReadAllTextAsync(Path.Combine(output, "native-binding.assembly-name"), cancellationToken)).Trim();
         Console.WriteLine($"Managed bindings: {assembly}");

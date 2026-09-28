@@ -19,12 +19,13 @@ version as the installed tool. Backend tests use an isolated PostgreSQL 18+ clus
 Use `Ankus.Sdk` as the project SDK, with the version available from your NuGet feed:
 
 ```xml
-<Project Sdk="Ankus.Sdk/1.0.0">
+<Project Sdk="Ankus.Sdk/0.1.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnkusExtensionName>hello</AnkusExtensionName>
+    <AnkusExtensionVersion>0.1.0</AnkusExtensionVersion>
   </PropertyGroup>
 </Project>
 ```
@@ -63,7 +64,7 @@ Use the runtime identifier for the machine running PostgreSQL and set
 | `Ankus.Testing` | Isolated PostgreSQL clusters for ordinary .NET test projects |
 | `Ankus.Tool` | The `ankus` .NET tool: project creation, registration, publishing, and installation |
 
-Install `Ankus.Tool` with `dotnet tool install --global Ankus.Tool`. Register PostgreSQL with
+Install `Ankus.Tool` with `dotnet tool install --global Ankus.Tool --version 0.1.0`. Register PostgreSQL with
 `ankus init --pg18 /path/to/pg_config`, then run `ankus publish` and
 `ankus install --from /path/to/publish`.
 

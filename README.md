@@ -37,19 +37,20 @@ and load the published Native AOT library into an isolated PostgreSQL 18 cluster
 Extension projects use the `Ankus.Sdk` NuGet project SDK:
 
 ```xml
-<Project Sdk="Ankus.Sdk/1.0.0">
+<Project Sdk="Ankus.Sdk/0.1.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnkusExtensionName>hello</AnkusExtensionName>
+    <AnkusExtensionVersion>0.1.0</AnkusExtensionVersion>
   </PropertyGroup>
 </Project>
 ```
 
 The SDK includes matching runtime and source-generator packages plus the native
 build helper. See [package setup](docs/contributing/development.md#build-the-packages)
-for the local NuGet feed; public publication is pending.
+for the local NuGet feed; the initial `0.1.0` release is pending.
 
 See [development and testing](docs/contributing/development.md) for prerequisites,
 PostgreSQL discovery, and the integration harness.
@@ -398,7 +399,7 @@ Ankus.Examples.Hello.sql
 ankus.extension.json
 extension/
     ankus_hello.control
-    ankus_hello--1.0.0.sql
+    ankus_hello--0.1.0.sql
 ```
 
 `AnkusExtensionName` selects the extension name; its default is the assembly name

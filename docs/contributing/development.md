@@ -97,6 +97,12 @@ CI saves each module's TRX report, including individual test durations, in the
 `test-results-<rid>` artifact on successful and failed runs. A cancelled module
 may not finish its report; uploads include only reports that were written.
 
+Binding-source cache readers copy verified artifacts into private temporary
+directories before releasing the cache lock. Each consumer then compiles and
+runs its own native ABI checks independently. Failed verification preserves the
+consumer's existing outputs; concurrent builds retain the same content and
+header checks as sequential builds.
+
 Native binding probes and SDK record verification remove their temporary
 directories after the compiler and probe processes exit. Production commands and
 their tests share bounded Windows file-release retries; persistent access or
@@ -192,7 +198,7 @@ This produces `Ankus.Sdk`, `Ankus.Runtime`, `Ankus.Generators`, `Ankus.PgConfig`
 matching runtime/generator versions. It uses NuGet's MSBuild SDK resolver.
 
 Add the absolute feed path to a consumer's `NuGet.Config` and use
-`<Project Sdk="Ankus.Sdk/1.0.0">`. Both the SDK resolver and package restore read
+`<Project Sdk="Ankus.Sdk/0.1.0">`. Both the SDK resolver and package restore read
 that configuration. The consumer needs its own `TargetFramework`, nullable, and
 implicit-using settings; it does not import repository build files.
 
@@ -202,7 +208,7 @@ Pack and install from the local feed:
 
 ```console
 dotnet pack src/Ankus.Tool -c Release -o artifacts/packages
-dotnet tool install Ankus.Tool --tool-path artifacts/tools --add-source artifacts/packages --version 1.0.0
+dotnet tool install Ankus.Tool --tool-path artifacts/tools --add-source artifacts/packages --version 0.1.0
 ```
 
 Invoke `artifacts/tools/ankus` (`ankus.exe` on Windows), or put that directory on

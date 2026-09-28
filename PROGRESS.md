@@ -31,6 +31,7 @@ Linux, and macOS.
 | .NET SDK | 10.0.400; `global.json` uses `rollForward: latestMajor` |
 | C toolchain | clang 21 + lld; GCC 14 used for the local PostgreSQL build |
 | Primary test target | **PostgreSQL 18** |
+| Initial Ankus release (planned) | **0.1.0** |
 
 ## Current verified milestone
 
@@ -12849,3 +12850,77 @@ checked again before push. A separate Windows performance investigation is
 starting at the user's request: the same run's build step takes **11m51s** on
 Windows, **8m54s** on macOS and **5m49s** on Linux. No optimization or speedup is
 claimed yet; all full suites, analyzer settings and one-hour limits remain.
+
+## Windows CI performance — independent native cache verification
+
+The final C-string pre-push check confirms CI **36489705448** passed every
+job, including Windows x64/PostgreSQL **17.11** in **57m01s**. Linux took
+**32m53s** and macOS **39m12s**. All three suites completed; the Windows result
+leaves little margin within the unchanged 60-minute limit. Its integration
+module took **43m11.744s**, versus **26m20.705s** on Linux and **29m31.472s** on
+macOS. The 83 package-consumer cases spanned **26m48s**, **16m51s** and
+**19m41s** respectively. These intervals include scheduling effects and must
+not be added to cumulative individual-test durations.
+
+The binding-source cache held its exclusive lease while each consumer compiled
+and executed native ABI checks. That serialized independent publishes even
+though the fixture already allowed three concurrent consumers. Readers now
+copy the verified cache artifacts into a private temporary directory while
+holding the lease, release it, then perform every native declaration, layout
+and current-input check on their own snapshot. Consumer output remains
+untouched until verification succeeds. Cache content validation, producer
+locking, analyzer modes, full platform suites and job limits are unchanged.
+
+On PostgreSQL **18.6/Linux x64**, three warmed source consumers took **9.361s**
+before the change and **4.443s** afterward; their completions changed from
+**3.380/6.398/9.359s** to **3.722/4.053/4.441s**. Cold collection measured
+**11.576s → 11.931s**, and a single warm consumer **3.323s → 3.565s**. This
+repairs concurrent serialization rather than speeding up an individual native
+check. These are local measurements, not a hosted Windows speedup claim.
+Ten cache tests pass, including corrupt content, changed dependencies,
+cancellation, ownership and failed replacement. Packaged native verification,
+concurrent recovery, Windows measurements and complete validation follow.
+
+Native Windows x64/PostgreSQL **17.7** measurements also improve: three warmed
+consumers take **30.720s → 18.504s**. Cold collection takes
+**24.337s → 20.795s**, and single-consumer warm execution
+**14.909s → 10.993s**. These measurements use the same installed native
+toolchain and independent caches; machine load and filesystem caching affect
+individual durations. The concurrent bottleneck improves on both measured
+platforms, while the next complete hosted run must establish job-level savings.
+
+The user has set the intended initial Ankus release to **0.1.0**. Installation
+commands, SDK pins, package documentation and sample extension versions are
+aligned with that release. The shared `VersionPrefix` is **0.1.0**, and MSBuild
+evaluates both `Version` and `PackageVersion` as **0.1.0**. New extension
+templates start at **0.1.0**, with real extension-version and generated-solution
+assertions updated accordingly. The generated native companion retains its
+fixed internal assembly version; this is an ABI identity, not an Ankus release.
+Historical prototype versions remain historical evidence. No NuGet publication
+is authorized or performed.
+
+`PackagedNodeBindingFailurePreservesCompanionAndRecovers` passes on PostgreSQL
+**18.6/Linux x64** in **4m20.868s**, including fixture setup. It rejects false
+field offsets and false availability even with matching cache hashes, preserves
+existing output byte-for-byte on failure, then verifies two concurrent recovered
+consumers against identical source artifacts and checks temporary cleanup.
+The existing ten `NativeBindingCacheTests` pass in **1.683s**. Windows source
+measurements also produce byte-identical generated C# before and after the
+locking change. Release passes with zero warnings/errors in **1m27.11s**;
+API freshness verifies **206 pages/2,518 members**; the site builds **252 pages**
+and checks with zero errors, warnings or hints. A fresh tool-created solution
+pins `Ankus.Sdk` and `Ankus.Testing` to **0.1.0** and emits extension version
+**0.1.0**. The complete plain `dotnet test` suite passes **8,784 tests, zero
+failures and six Windows-only skips, 8,790 total**, on PostgreSQL **18.6/Linux
+x64**, in **10m33.096s**. The integration module passes in **10m30.950s**.
+This full-suite run is **21.441s longer** than the preceding C-string run;
+the isolated lock-contention improvement does not establish an overall local
+suite speedup. Hosted Windows job-level performance remains to be measured.
+
+Immediately before committing, CI **36495722741** has passed quality and all
+runtime jobs; its full Linux, macOS and Windows jobs remain in progress, with
+no reported failure. Docs **36495722766** passes. Previous CI **36489705448**
+and Docs **36489705388** are fully successful; superseded **36488639696** is
+cancelled, not passing platform evidence. Outcomes are checked again before
+push. The faithful port remains incomplete; the full tooling, API and
+PostgreSQL/platform requirements above are retained.

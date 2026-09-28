@@ -20,9 +20,9 @@ internal static class NativeBindingSourceCache
     ]);
 
     /// <summary>
-    /// Leases content-verified generated sources after current header and native compiler checks succeed.
+    /// Copies content-verified sources after checking a private snapshot against the current native compiler and headers.
     /// </summary>
-    internal static async Task<NativeBindingCacheLease> GetAsync(NativeBindingCatalog catalog,
+    internal static async Task CopyAsync(NativeBindingCatalog catalog,
         string[] arguments, string cache, CancellationToken cancellationToken)
     {
         string directory = Directory.CreateTempSubdirectory("ankus-source-").FullName;
@@ -59,7 +59,9 @@ internal static class NativeBindingSourceCache
                 Runtime = Environment.Version.ToString(),
             }))));
             bool produced = false;
-            NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(Path.Combine(cache, "sources"), key, async (stage, token) =>
+            string snapshot = Path.Combine(directory, "sources");
+            Directory.CreateDirectory(snapshot);
+            await using (NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(Path.Combine(cache, "sources"), key, async (stage, token) =>
             {
                 produced = true;
                 string[] selected = [arguments[0], arguments[1], stage,
@@ -80,41 +82,54 @@ internal static class NativeBindingSourceCache
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[4]), binding.AbiIdentity + "\n", token);
                 await VerifyObservationAsync(token);
                 return tools;
-            }, cancellationToken);
-            try
+            }, cancellationToken))
             {
-                if (!produced)
+                // Keep the shared entry stable only until its artifacts have been copied.
+                // Each consumer can then run its own native checks without blocking peers.
+                foreach (string artifact in Artifacts)
                 {
-                    await using FileStream stream = File.OpenRead(Path.Combine(lease.Directory, Artifacts[0]));
-                    NativeHeaderRecords records = await JsonSerializer.DeserializeAsync<NativeHeaderRecords>(stream,
-                        NativeBindingRecordWorker.JsonOptions, cancellationToken) ?? throw new FormatException("Missing cached native declarations.");
-                    await NativeBindingCollectionCommand.VerifyAsync(records, roots.Source, installation, arguments, directory, cancellationToken);
-                    NativeBindingSelectedNodes nodes = NativeBindingNodeAvailability.Read(catalog, records.Graph);
-                    string[] selected = [arguments[0], arguments[1], directory,
-                        arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7]];
-                    NativeBindingLayout layout = await NativeBindingLayoutCommand.MeasureAsync(nodes, selected, cancellationToken);
-                    _ = NativeBindingNodeRecords.Create(records.Graph, nodes.Catalog, layout);
-                    foreach (string artifact in Artifacts.Skip(5))
-                    {
-                        if (await NativeBindingCache.HashAsync(Path.Combine(directory, artifact), cancellationToken) !=
-                            await NativeBindingCache.HashAsync(Path.Combine(lease.Directory, artifact), cancellationToken))
-                        {
-                            throw new IOException("Current native node observations disagree with the cached companion contract.");
-                        }
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    File.Copy(Path.Combine(lease.Directory, artifact), Path.Combine(snapshot, artifact));
+                }
+            }
 
-                    await VerifyObservationAsync(cancellationToken);
+            if (!produced)
+            {
+                await using FileStream stream = File.OpenRead(Path.Combine(snapshot, Artifacts[0]));
+                NativeHeaderRecords records = await JsonSerializer.DeserializeAsync<NativeHeaderRecords>(stream,
+                    NativeBindingRecordWorker.JsonOptions, cancellationToken) ?? throw new FormatException("Missing cached native declarations.");
+                await NativeBindingCollectionCommand.VerifyAsync(records, roots.Source, installation, arguments, directory, cancellationToken);
+                NativeBindingSelectedNodes nodes = NativeBindingNodeAvailability.Read(catalog, records.Graph);
+                string[] selected = [arguments[0], arguments[1], directory,
+                    arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7]];
+                NativeBindingLayout layout = await NativeBindingLayoutCommand.MeasureAsync(nodes, selected, cancellationToken);
+                _ = NativeBindingNodeRecords.Create(records.Graph, nodes.Catalog, layout);
+                foreach (string artifact in Artifacts.Skip(5))
+                {
+                    if (await NativeBindingCache.HashAsync(Path.Combine(directory, artifact), cancellationToken) !=
+                        await NativeBindingCache.HashAsync(Path.Combine(snapshot, artifact), cancellationToken))
+                    {
+                        throw new IOException("Current native node observations disagree with the cached companion contract.");
+                    }
                 }
 
-                Console.WriteLine(produced ? "Native binding sources: collected and verified." : "Native binding sources: reused after native verification.");
-                await NativeBuildDirectory.DeleteAsync(directory);
-                return lease;
+                await VerifyObservationAsync(cancellationToken);
             }
-            catch
+
+            string output = Path.GetFullPath(arguments[2]);
+            Directory.CreateDirectory(output);
+            foreach (string name in Artifacts)
             {
-                await lease.DisposeAsync();
-                throw;
+                string source = Path.Combine(snapshot, name);
+                string destination = Path.Combine(output, name);
+                if (!File.Exists(destination) || await NativeBindingCache.HashAsync(destination, cancellationToken) !=
+                    await NativeBindingCache.HashAsync(source, cancellationToken))
+                {
+                    File.Copy(source, destination, overwrite: true);
+                }
             }
+
+            Console.WriteLine(produced ? "Native binding sources: collected and verified." : "Native binding sources: reused after native verification.");
 
             async Task VerifyObservationAsync(CancellationToken token)
             {

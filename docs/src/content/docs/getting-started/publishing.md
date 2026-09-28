@@ -19,7 +19,7 @@ target server's operating system and architecture.
 Register the installation with the Ankus tool:
 
 ```console
-dotnet tool install --global Ankus.Tool --version 1.0.0
+dotnet tool install --global Ankus.Tool --version 0.1.0
 ankus init --pg18 /path/to/postgresql/bin/pg_config
 ```
 
@@ -45,7 +45,7 @@ dotnet publish src/Hello/Hello.csproj -c Release -r linux-x64 -o publish -p:Anku
 The SDK supplies Native AOT settings and native build integration. No Ankus source
 checkout is needed, and the server does not need an installed .NET runtime.
 
-For a project named `Hello`, with extension name `hello` and version `1.0.0`, the
+For a project named `Hello`, with extension name `hello` and version `0.1.0`, the
 output includes:
 
 ```text
@@ -54,7 +54,7 @@ Hello.sql
 ankus.extension.json
 extension/
   hello.control
-  hello--1.0.0.sql
+  hello--0.1.0.sql
 ```
 
 The library suffix is `.dll` on Windows and `.dylib` on macOS.

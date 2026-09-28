@@ -93,7 +93,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         new XDocument(new XElement("Project", new XAttribute("Sdk", "Ankus.Sdk/" + s_version),
             new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"),
                 new XElement("Nullable", "enable"), new XElement("ImplicitUsings", "enable"),
-                new XElement("TreatWarningsAsErrors", "true"), new XElement("AnkusExtensionName", "ankus_tool_probe"))))
+                new XElement("TreatWarningsAsErrors", "true"), new XElement("AnkusExtensionName", "ankus_tool_probe"),
+                new XElement("AnkusExtensionVersion", "0.1.0"))))
             .Save(s_project);
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Hello", "Hello.cs"), Path.Combine(projectDirectory, "Hello.cs"));
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Initialization", "Startup.cs"),
@@ -269,7 +270,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(s_installation.Version.Major, manifest.PostgresMajor);
         Assert.AreEqual(RuntimeInformation.RuntimeIdentifier, manifest.RuntimeIdentifier);
         Assert.AreEqual("ankus_tool_probe.control", manifest.Control);
-        Assert.AreEqual("ankus_tool_probe--1.0.0.sql", manifest.Sql);
+        Assert.AreEqual("ankus_tool_probe--0.1.0.sql", manifest.Sql);
         string stage = CreateDirectory();
         ProcessResult result = await InvokeAsync(
             ["install", "--home", s_home, "--pg", MajorText(), "--from", s_published, "--destdir", stage], token);
@@ -770,7 +771,9 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual(s_version, global.RootElement.GetProperty("msbuild-sdks").GetProperty("Ankus.Sdk").GetString());
         Assert.AreEqual("Microsoft.Testing.Platform", global.RootElement.GetProperty("test").GetProperty("runner").GetString());
         string project = Path.Combine(output, "src", "Acme.HTTPProbe", "Acme.HTTPProbe.csproj");
-        Assert.AreEqual("acme_http_probe", XDocument.Load(project).Descendants("AnkusExtensionName").Single().Value);
+        XDocument extension = XDocument.Load(project);
+        Assert.AreEqual("acme_http_probe", extension.Descendants("AnkusExtensionName").Single().Value);
+        Assert.AreEqual("0.1.0", extension.Descendants("AnkusExtensionVersion").Single().Value);
         XDocument packages = XDocument.Load(Path.Combine(output, "Directory.Packages.props"));
         Assert.AreEqual(s_version, packages.Descendants("PackageVersion").Single(element => (string?)element.Attribute("Include") == "Ankus.Testing").Attribute("Version")!.Value);
         Assert.IsFalse(File.Exists(Path.Combine(output, ".editorconfig")));
@@ -849,7 +852,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             XDocument document = XDocument.Load(project);
             document.Root!.Add(new XElement("Target", new XAttribute("Name", "FailExtensionLoad"),
                 new XAttribute("AfterTargets", "_PublishAnkusSchema"),
-                new XElement("WriteLinesToFile", new XAttribute("File", "$(PublishDir)extension/failure_probe--1.0.0.sql"),
+                new XElement("WriteLinesToFile", new XAttribute("File", "$(PublishDir)extension/failure_probe--0.1.0.sql"),
                     new XAttribute("Lines", "SELECT 1 / 0%3B"))));
             document.Save(project);
         }

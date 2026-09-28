@@ -8,7 +8,7 @@ description: Declare C# methods, map PostgreSQL types, and handle SQL NULL.
 Install `Ankus.Tool` from your configured NuGet feed, then create a solution:
 
 ```console
-dotnet tool install --global Ankus.Tool --version 1.0.0
+dotnet tool install --global Ankus.Tool --version 0.1.0
 ankus new Hello
 cd Hello
 ```
@@ -20,12 +20,13 @@ managed tests, and tests that load the native extension into PostgreSQL.
 The generated `src/Hello/Hello.csproj` uses `Ankus.Sdk`:
 
 ```xml
-<Project Sdk="Ankus.Sdk/1.0.0">
+<Project Sdk="Ankus.Sdk/0.1.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnkusExtensionName>hello</AnkusExtensionName>
+    <AnkusExtensionVersion>0.1.0</AnkusExtensionVersion>
   </PropertyGroup>
 </Project>
 ```

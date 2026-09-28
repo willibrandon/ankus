@@ -758,12 +758,25 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", expected["native-node-availability.json"], token);
-        ProcessResult recovered = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
-        recovered.EnsureSuccess("dotnet", command);
-        Assert.Contains("Native binding sources: reused after native verification.", recovered.StandardOutput);
+        string concurrentOutput = Path.Combine(temporary, "concurrent consumer");
+        string[] concurrentCommand = [.. command];
+        concurrentCommand[4] = concurrentOutput;
+        ProcessResult[] recovered = await Task.WhenAll(
+            ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root),
+            ProcessRunner.RunAsync("dotnet", concurrentCommand, environment, token, workingDirectory: s_root));
+        foreach (ProcessResult result in recovered)
+        {
+            result.EnsureSuccess("dotnet", command);
+            Assert.Contains("Native binding sources: reused after native verification.", result.StandardOutput);
+        }
+
         foreach (string name in names)
         {
             Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
+            if (name != "Ankus.NativeBindings.csproj")
+            {
+                Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(concurrentOutput, name), token), name);
+            }
         }
 
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
