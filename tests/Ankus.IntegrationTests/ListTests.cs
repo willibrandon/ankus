@@ -29,7 +29,8 @@ public sealed class ListTests(TestContext context)
     [DataRow(12, "XX000|1|1|0|retry|0")]
     [DataRow(13, "XX000|1|1|0|retry|0")]
     public Task NativeFaultsAndRepeatedReleasePreserveOwnership(int mode, string expected)
-        => CheckAsync($"SELECT tests.list_fault({mode})", expected);
+        => CheckAsync($"SELECT tests.list_fault({mode})", expected,
+            mode == 12 && PostgresFixture.Cluster.Installation.Version.Major < 17);
 
     /// <summary>
     /// Each native tag selects the correct union member with exact boundary values, including zero transaction IDs.
@@ -202,14 +203,32 @@ public sealed class ListTests(TestContext context)
     /// <summary>
     /// Compares exact callback output and then independently verifies same-session backend recovery.
     /// </summary>
-    private Task CheckAsync(string sql, string expected)
+    private Task CheckAsync(string sql, string expected, bool unavailableBump = false)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ListTests), async (connection, transaction, token) =>
         {
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand(sql, connection, transaction);
-            Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+            if (unavailableBump)
+            {
+                await transaction.SaveAsync("bump_capability", token);
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("0A000", error.SqlState);
+                Assert.AreEqual("Bump allocator probes require PostgreSQL 17 or later", error.MessageText);
+                Assert.IsNull(error.Detail);
+                Assert.IsNull(error.Hint);
+                await transaction.RollbackAsync("bump_capability", token);
+                await transaction.ReleaseAsync("bump_capability", token);
+                command.CommandText = "SELECT count(*) FROM pg_backend_memory_contexts WHERE name IN ('Ankus list fault', 'Ankus fault bump')";
+                Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+            }
+            else
+            {
+                Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+            }
+
             command.CommandText = "SELECT 42";
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
-            Assert.AreEqual(backend, connection.ProcessID);
+            command.CommandText = "SELECT pg_backend_pid()";
+            Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
 }

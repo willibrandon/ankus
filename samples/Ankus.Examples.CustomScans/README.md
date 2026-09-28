@@ -23,6 +23,10 @@ creation, begin, execution, end, rescan, managed unwind and native query-context
 cleanup, in that order. Returned arrays are snapshots. Counters in parallel
 workers belong to those workers; they are not summed into the leader's counters.
 
+Parallel execution is verified on PostgreSQL 17 and 18. PostgreSQL 15's
+worker initialization and guarded SQL recovery remain incomplete; successful
+parameter remapping alone does not establish older-worker support.
+
 Parallel-aware trace nodes additionally report shared rows, executor calls,
 worker attachments, worker shutdowns and the DSM execution generation in
 EXPLAIN. `TraceScan.Parallel.cs` implements PostgreSQL's estimate, initialize,
@@ -44,6 +48,9 @@ the actual child plan supports it; sequential children do not gain mark/restore.
 through partition ancestry, and places them in the final plan's expression list
 for PostgreSQL's reference adjustments. EXPLAIN reports `Trace Parameters` and
 `Trace Parameter Remaps` without evaluating the original clauses again.
+The SDK's selected-major compilation symbol chooses PostgreSQL 13–15's
+relation-id helper arguments or PostgreSQL 16 and later's relation pointers;
+PostgreSQL 13–14's unsigned variable index is converted with overflow checking.
 Disabling the setting affects future planning; already prepared custom plans
 continue using the registered methods until PostgreSQL discards them.
 The predecessor planner hook still runs while tracing is disabled. Native

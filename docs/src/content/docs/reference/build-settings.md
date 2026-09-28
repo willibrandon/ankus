@@ -22,6 +22,24 @@ Set extension properties in your project file:
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 | `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |
 
+The SDK also defines one C# compilation symbol for the selected major:
+`ANKUS_PG13` through `ANKUS_PG19`. It uses the final `AnkusPostgresMajor`
+setting, including project or command-line overrides, and preserves existing
+framework and consumer symbols. Use these symbols when a native declaration
+changes between server versions:
+
+```csharp
+#if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
+// Use the declaration supplied by PostgreSQL 13–15 headers.
+#else
+// Use the declaration supplied by PostgreSQL 16 and later headers.
+#endif
+```
+
+Build a separate native library against each target major's headers. A runtime
+version check cannot make references to absent fields or different native
+signatures compile; select that source at compile time.
+
 Binding reuse checks file contents and current compiler inputs. Native layout
 and declaration checks still run against the selected installation. Each project
 receives its own companion files, so cleaning one project does not remove another

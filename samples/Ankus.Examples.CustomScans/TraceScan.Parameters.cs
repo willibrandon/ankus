@@ -31,8 +31,17 @@ public static unsafe partial class TraceScan
         for (int index = 0; index < count; index++)
         {
             nint expression = NativeMethods.list_nth(variables, index);
-            if (((Node*)expression)->type == NodeTag.T_Var &&
-                NativeMethods.bms_is_member(((Var*)expression)->varno, information->ppi_req_outer))
+            if (((Node*)expression)->type != NodeTag.T_Var)
+            {
+                continue;
+            }
+
+#if ANKUS_PG13 || ANKUS_PG14
+            int relationIndex = checked((int)((Var*)expression)->varno);
+#else
+            int relationIndex = ((Var*)expression)->varno;
+#endif
+            if (NativeMethods.bms_is_member(relationIndex, information->ppi_req_outer))
             {
                 parameters = NativeMethods.list_append_unique(parameters, NativeMethods.copyObjectImpl(expression));
             }
@@ -51,8 +60,14 @@ public static unsafe partial class TraceScan
             return 0;
         }
 
+        var relation = (RelOptInfo*)child;
+#if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
         nint expressions = NativeMethods.adjust_appendrel_attrs_multilevel(root, NativeMethods.list_nth(data, 0),
-            child, ((RelOptInfo*)child)->top_parent);
+            relation->relids, relation->top_parent_relids);
+#else
+        nint expressions = NativeMethods.adjust_appendrel_attrs_multilevel(root, NativeMethods.list_nth(data, 0),
+            child, relation->top_parent);
+#endif
         int remaps = ((Integer*)NativeMethods.list_nth(data, 1))->ival;
         return NativeMethods.lappend(NativeMethods.lappend(0, expressions), NativeMethods.makeInteger(checked(remaps + 1)));
     }

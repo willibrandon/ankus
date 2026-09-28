@@ -68,7 +68,8 @@ internal static class NativeBindingHeaderHelpers
         [
             Macro("BufferGetBlock", "Block", "Buffer value", "return BufferGetBlock(value);"),
             Macro("BufferGetPage", "Page", "Buffer value", "return BufferGetPage(value);"),
-            Macro("BufferGetPageSize", "Size", "Buffer value", "return BufferGetPageSize(value);"),
+            // The macro only reads its argument inside AssertMacro, which disappears in release servers.
+            Macro("BufferGetPageSize", "Size", "Buffer value", "(void)value; return BufferGetPageSize(value);"),
             Macro("PageIsEmpty", "bool", "Page value", "return PageIsEmpty(value);"),
             Macro("PageIsNew", "bool", "Page value", "return PageIsNew(value);"),
             Macro("PageGetItemId", "ItemId", "Page value, OffsetNumber offset", "return PageGetItemId(value, offset);"),

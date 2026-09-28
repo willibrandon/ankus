@@ -141,6 +141,20 @@ fault_read(AnkusMemoryApi *api, intptr_t allocation)
     return value;
 }
 
+/* Bump-specific probes must reject unsupported server versions explicitly. */
+static MemoryContext
+fault_create_bump(MemoryContext parent)
+{
+#if PG_VERSION_NUM >= 170000
+    return BumpContextCreate(parent, "Ankus fault bump", ALLOCSET_SMALL_SIZES);
+#else
+    (void) parent;
+    ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+        errmsg("Bump allocator probes require PostgreSQL 17 or later")));
+    return NULL;
+#endif
+}
+
 PG_FUNCTION_INFO_V1(ankus_test_allocator_registry_fault);
 PGDLLEXPORT Datum
 ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
@@ -155,17 +169,24 @@ ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
     char *volatile report = NULL;
     PG_TRY();
     {
-        /* Bump payload remains live while every fault is exercised, including
-         * Slab ERROR and raw AllocSet adoption failures. */
-        MemoryContext bump = BumpContextCreate(root, "Ankus registry fault control",
-            ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE);
+        /* Keep an independent payload live through every fault. Bump proves
+         * headerless ownership on supporting servers; older servers use AllocSet. */
+#if PG_VERSION_NUM >= 170000
+        MemoryContext control_context = fault_create_bump(root);
+        fault_require(IsA(control_context, BumpContext), "the control allocator is not Bump");
+        const char *control_kind = "bump";
+#else
+        MemoryContext control_context = AllocSetContextCreate(root, "Ankus registry fault control", ALLOCSET_SMALL_SIZES);
+        fault_require(IsA(control_context, AllocSetContext), "the control allocator is not AllocSet");
+        const char *control_kind = "allocset";
+#endif
         fault_owner = mode == 3 ? SlabContextCreate(root, "Ankus registry fault slab", 8192, 64) :
-            mode >= 5 ? AllocSetContextCreate(root, "Ankus registry fault adoption", ALLOCSET_SMALL_SIZES) : bump;
+            mode >= 5 ? AllocSetContextCreate(root, "Ankus registry fault adoption", ALLOCSET_SMALL_SIZES) : control_context;
         AnkusMemoryApi api;
         ankus_memory_initialize(&api);
-        uint64 bump_id = ankus_memory_context_id(bump);
+        uint64 control_id = ankus_memory_context_id(control_context);
         uint64 owner_id = ankus_memory_context_id(fault_owner);
-        AnkusMemoryResult control = fault_invoke_success(&api, ANKUS_MEMORY_ALLOCATE, (intptr_t) bump_id, 0, 64);
+        AnkusMemoryResult control = fault_invoke_success(&api, ANKUS_MEMORY_ALLOCATE, (intptr_t) control_id, 0, 64);
         int64 control_value = 1193046;
         fault_invoke_success(&api, ANKUS_MEMORY_WRITE, control.pointer, (intptr_t) &control_value, sizeof(control_value));
         void *raw = mode >= 5 ? MemoryContextAlloc(fault_owner, 64) : NULL;
@@ -219,8 +240,8 @@ ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
             fault_require(GetMemoryChunkContext(raw) == fault_owner, "failed adoption changed raw ownership");
         }
 
-        fault_require(fault_invoke_success(&api, ANKUS_MEMORY_OWNER, control.pointer, 0, 0).context == (intptr_t) bump_id,
-            "the live Bump allocation lost its registered owner");
+        fault_require(fault_invoke_success(&api, ANKUS_MEMORY_OWNER, control.pointer, 0, 0).context == (intptr_t) control_id,
+            "the live control allocation lost its registered owner");
         char sqlstate[6];
         strlcpy(sqlstate, status == 0 ? "00000" : unpack_sql_state(error.sqlstate), sizeof(sqlstate));
         char message[sizeof(error.message)];
@@ -240,9 +261,9 @@ ankus_test_allocator_registry_fault(PG_FUNCTION_ARGS)
             fault_require(fault_published_count() == before_published, "free after retry retained its registry record");
         }
 
-        report = psprintf("%d|%s|%s|%d|%d|%d|%d|%d|" INT64_FORMAT "|" INT64_FORMAT "|" INT64_FORMAT,
+        report = psprintf("%d|%s|%s|%d|%d|%d|%d|%d|" INT64_FORMAT "|" INT64_FORMAT "|" INT64_FORMAT "|%s",
             status, sqlstate, message, allocated, freed, fault_storage_calls, live_delta, published_delta,
-            observed_control, observed_raw, observed_retry);
+            observed_control, observed_raw, observed_retry, control_kind);
     }
     PG_FINALLY();
     {
@@ -299,7 +320,7 @@ ankus_test_stringinfo_fault(PG_FUNCTION_ARGS)
         request.value = 4096;
         if (mode >= 8)
         {
-            MemoryContext special = mode == 8 ? BumpContextCreate(root, "Ankus StringInfo bump", ALLOCSET_SMALL_SIZES) :
+            MemoryContext special = mode == 8 ? fault_create_bump(root) :
                 SlabContextCreate(root, "Ankus StringInfo slab", 8192, 64);
             request.context = (intptr_t) ankus_memory_context_id(special);
         }
@@ -554,7 +575,7 @@ ankus_test_list_fault(PG_FUNCTION_ARGS)
         {
             if (mode >= 12)
             {
-                MemoryContext special = mode == 12 ? BumpContextCreate(root, "Ankus list bump", ALLOCSET_SMALL_SIZES) :
+                MemoryContext special = mode == 12 ? fault_create_bump(root) :
                     SlabContextCreate(root, "Ankus list slab", 8192, 64);
                 request.context = (intptr_t) ankus_memory_context_id(special);
                 before_live = fault_live_records;

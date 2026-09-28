@@ -3,6 +3,68 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// The older macro retains its configured block size and assertion-only argument checks in both server build modes.
+    /// </summary>
+    /// <param name="major">The selected major with a macro-based page-size helper.</param>
+    /// <param name="assertions">Whether PostgreSQL assertion expressions evaluate their arguments.</param>
+    [TestMethod]
+    [DataRow(13, false)]
+    [DataRow(13, true)]
+    [DataRow(14, false)]
+    [DataRow(14, true)]
+    [DataRow(15, false)]
+    [DataRow(15, true)]
+    public async Task NativeBufferPageSizePreservesAssertionModes(int major, bool assertions)
+    {
+        const string Headers = """
+            #include <stdbool.h>
+            #include <stddef.h>
+            #include <stdlib.h>
+            typedef int Buffer;
+            typedef size_t Size;
+            #define BLCKSZ 16384
+            int validations;
+            bool BufferIsValid(Buffer value) { ++validations; return value != 0; }
+            #if ASSERTIONS
+            #define AssertMacro(condition) ((void)((condition) || (abort(), 0)))
+            #else
+            #define AssertMacro(condition) ((void)true)
+            #endif
+            #define BufferGetPageSize(buffer) (AssertMacro(BufferIsValid(buffer)), (Size)BLCKSZ)
+            """;
+        NativeBindingHeaderHelper helper = NativeBindingHeaderHelpers.Read(major).Single(static value => value.Name == "BufferGetPageSize");
+        NativeHeaderRequest request = NativeBindingHeaderAvailability.Request(NativeBindingRawParser.Parse("", major), "BufferGetPageSize");
+        string headers = "#define ASSERTIONS " + (assertions ? "1" : "0") + "\n" + Headers + "\n" + helper.Source;
+        const string Main = """
+            #include <stdio.h>
+            #define REQUIRE(expression) do { if (!(expression)) { fprintf(stderr, "line %d: %s\n", __LINE__, #expression); return 1; } } while (0)
+            int main(void)
+            {
+                Buffer values[] = {-8, -1, 1, 16};
+                for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
+                {
+                    Size result = 41;
+                    AnkusNativeCallArgument arguments[] = {{ &values[i], sizeof(values[i]) }};
+                    REQUIRE(ankus_native_call_BufferGetPageSize(arguments, 1, &result, sizeof(result)) == ANKUS_CALL_OK);
+                    REQUIRE(result == 16384);
+                    REQUIRE(ankus_native_call_BufferGetPageSize(arguments, 0, &result, sizeof(result)) == ANKUS_CALL_COUNT);
+                    REQUIRE(result == 16384);
+                }
+            #if ASSERTIONS
+                REQUIRE(validations == 4);
+            #else
+                REQUIRE(ankus_header_BufferGetPageSize(0) == 16384);
+                REQUIRE(validations == 0);
+            #endif
+                puts("configured page size and assertion semantics preserved");
+                return 0;
+            }
+            """;
+        Assert.AreEqual("configured page size and assertion semantics preserved\n",
+            await ExecuteNativeCallsAsync(headers, [request], null, Main, major: major));
+    }
+
+    /// <summary>
     /// Buffer validity retains local, invalid and shared values across the PostgreSQL 16 macro transition.
     /// </summary>
     /// <param name="major">The selected PostgreSQL major.</param>

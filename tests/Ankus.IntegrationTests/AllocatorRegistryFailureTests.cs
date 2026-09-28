@@ -11,25 +11,25 @@ namespace Ankus.IntegrationTests;
 public sealed class AllocatorRegistryFailureTests(TestContext context)
 {
     /// <summary>
-    /// Failure before Bump allocation leaves existing payloads live and permits a successful retry.
+    /// Failure before native allocation leaves existing payloads live and permits a successful retry.
     /// </summary>
     /// <param name="mode">The native allocation-record failure to inject.</param>
     /// <param name="allocated">The number of temporary records successfully allocated.</param>
     [TestMethod]
     [DataRow(1, 0)]
     [DataRow(2, 1)]
-    public Task RegistryExhaustionPrecedesBumpStorageAndPreservesLivePayload(int mode, int allocated)
+    public Task RegistryExhaustionPrecedesNativeStorageAndPreservesLivePayload(int mode, int allocated)
         => CheckAsync(mode, 1, "53200", "unable to register an Ankus allocation", allocated, 0, 0);
 
     /// <summary>
-    /// An actual Slab wrong-size ERROR releases the unpublished record and keeps a separate Bump payload readable.
+    /// An actual Slab wrong-size ERROR releases the unpublished record and keeps a separate control payload readable.
     /// </summary>
     [TestMethod]
     public Task SlabAllocatorErrorReleasesUnpublishedReservationAndAllowsRetry()
         => CheckAsync(3, 1, "XX000", "unexpected alloc chunk size 63 (expected 64)", 1, 1, 0);
 
     /// <summary>
-    /// A controlled NO_OOM NULL releases its unpublished record and preserves existing Bump storage.
+    /// A controlled NO_OOM NULL releases its unpublished record and preserves existing control storage.
     /// </summary>
     [TestMethod]
     public Task NoOomNullReleasesUnpublishedReservationAndAllowsRetry()
@@ -69,7 +69,7 @@ public sealed class AllocatorRegistryFailureTests(TestContext context)
                 {
                     string report = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token));
                     string[] fields = report.Split('|');
-                    Assert.HasCount(11, fields);
+                    Assert.HasCount(12, fields);
                     Assert.AreEqual(status, int.Parse(fields[0], CultureInfo.InvariantCulture));
                     Assert.AreEqual(sqlState, fields[1]);
                     Assert.AreEqual(message, fields[2]);
@@ -78,9 +78,10 @@ public sealed class AllocatorRegistryFailureTests(TestContext context)
                     Assert.AreEqual(storageCalls, int.Parse(fields[5], CultureInfo.InvariantCulture), "Payload calls before failure.");
                     Assert.AreEqual(0, int.Parse(fields[6], CultureInfo.InvariantCulture), "Outstanding native bookkeeping change.");
                     Assert.AreEqual(0, int.Parse(fields[7], CultureInfo.InvariantCulture), "Published checked allocations change.");
-                    Assert.AreEqual(1193046L, long.Parse(fields[8], CultureInfo.InvariantCulture), "Existing Bump payload.");
+                    Assert.AreEqual(1193046L, long.Parse(fields[8], CultureInfo.InvariantCulture), "Existing control payload.");
                     Assert.AreEqual(rawValue, long.Parse(fields[9], CultureInfo.InvariantCulture), "Raw ownership after failed adoption.");
                     Assert.AreEqual(7654321L, long.Parse(fields[10], CultureInfo.InvariantCulture), "Payload after successful retry.");
+                    Assert.AreEqual(PostgresFixture.Cluster.Installation.Version.Major >= 17 ? "bump" : "allocset", fields[11]);
                 }
 
                 command.Parameters.Clear();

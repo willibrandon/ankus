@@ -34,6 +34,17 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The SDK now defines one selected-major compilation symbol, and the trace
+provider selects the matching parameter-helper ABI. Sixteen new SDK/native
+helper cases pass on Linux and Windows. On Linux x64/PostgreSQL 15.19, all
+51 scoped SDK, initialization, allocator and parameter contracts pass; all
+102 affected cases pass on Windows x64/PostgreSQL 17.11. Final Release builds
+and API/site checks pass. Plain full Linux `dotnet test` against PostgreSQL
+18.6 passes **8,195 tests, zero failures and six Windows-only skips, 8,201
+total**, in 11m37.486s (integration 11m36.805s). PostgreSQL 15's eleven failed
+parallel-worker cases are recorded below as required compatibility work; the
+full older-version/platform matrix is not complete.
+
 Independent native probes now verify the trace provider's predecessor-hook and
 registry boundaries. All 73 custom-scan and initialization cases pass on Linux
 x64/PostgreSQL 18.6 in 2m13.335s and Windows x64/PostgreSQL 17.11 in
@@ -2596,7 +2607,7 @@ that emits a notice as well as direct managed logging. Actual PG19 execution rem
 | Headerless Bump rejection without lost ownership | `BumpUnsupportedOperationsRetainPointerLengthContentsAndCheckedOwner`, `RawTransferAdoptsSupportedKindsAndRejectsBumpWithoutLosingBytes` |
 | Typed values, one-byte no-OOM allocation, generations and native cleanup | `TypedContextValuesRetainValuesAndFailedBumpDisposalCanReleaseOwnership`, `RepeatedResetPreservesContextIdentityAndExpiresEachAllocationGeneration`, `NativeParentDeletionRunsCallbacksAndInvalidatesBorrowedContextAndAliases`, `TransactionCleanupRunsCallbacksBeforeExpiringBorrowedAllocations` |
 | Encoded names/diagnostics, notices and caller recovery | `SpecialCurrentContextPreservesEncodedNamesAndOwnedDiagnostics`, `ErrorContextChildNoticePreservesDiagnosticsAndRestoresLiveCaller` |
-| Registry failure, native allocator ERROR/NULL, adoption retry and record cleanup | `RegistryExhaustionPrecedesBumpStorageAndPreservesLivePayload`, `SlabAllocatorErrorReleasesUnpublishedReservationAndAllowsRetry`, `NoOomNullReleasesUnpublishedReservationAndAllowsRetry`, `FailedAdoptionRetainsRawOwnershipUntilSuccessfulRetry` |
+| Registry failure, native allocator ERROR/NULL, adoption retry and record cleanup | `RegistryExhaustionPrecedesNativeStorageAndPreservesLivePayload`, `SlabAllocatorErrorReleasesUnpublishedReservationAndAllowsRetry`, `NoOomNullReleasesUnpublishedReservationAndAllowsRetry`, `FailedAdoptionRetainsRawOwnershipUntilSuccessfulRetry` |
 
 The fault module compiles the exact emitted bridge with translation-unit-local allocation controls.
 It counts real C record acquisition/release and payload-boundary calls, checks independent retained
@@ -10382,3 +10393,89 @@ milestone is amended only to record this newly completed platform result;
 source and validation inputs are unchanged. All three platforms now have
 complete hosted evidence with the package reuse fix and the existing one-hour
 limit. This closes the bounded CI investigation without additional tuning.
+
+### Selected-major compilation and older custom-scan parameters
+
+The shared SDK targets now append an exact `ANKUS_PG13` through `ANKUS_PG19`
+compiler symbol after consumer properties are evaluated. The custom-scan
+provider selects PostgreSQL 13–15's relation-id-set helper arguments and
+PostgreSQL 16 and later's relation pointers; it checks the unsigned-to-signed
+variable-index conversion only for PostgreSQL 13–14. Public build settings,
+the custom-scan guide, README and sample guide describe this contract.
+
+Actual PostgreSQL 15.19 release headers exposed a separate helper defect:
+`BufferGetPageSize` uses its argument only in assertions. The wrapper now
+explicitly consumes it before invoking the same macro, preserving native
+behavior without disabling diagnostics or adding a runtime validity check.
+Six native executable cases retain configured page size, assertion evaluation
+counts, guarded results and rejected-call state for PostgreSQL 13–15 with
+assertions enabled and disabled. All sixteen combined helper and SDK symbol
+cases pass on Linux in 1.581s. Initial Release validation passes with zero
+warnings/errors on Linux (1m21.51s) and Windows (3m32.87s); final checks are pending.
+
+Isolated PostgreSQL 13.23 and 15.19 installations were built from official
+SHA256-verified release archives. The initial PG15 backend attempt was stopped
+by a test-fixture assumption: Bump allocators are unavailable before PG17.
+The registry-fault fixture now uses an explicitly observed AllocSet control on
+older servers while retaining the Bump control on PG17 and later. Bump-specific
+StringInfo/List probes reject unsupported servers explicitly; their tests check
+the exact diagnostic, savepoint recovery, cleanup and original backend identity.
+No unsupported Bump behavior is counted as executed. All 102 affected backend
+cases pass on Windows x64/PostgreSQL 17.11 in 6m30.851s; the sixteen helper/SDK
+cases also pass there in 1.018s without skips.
+
+The expanded Linux PostgreSQL 15.19 check executed 102 cases: 91 passed and
+eleven parallel custom-scan cases failed, without skips. All nine parameter
+remapping, prepared-plan, volatile-expression and parameter-error cases passed,
+as did the packaged SDK and allocation fixtures. PostgreSQL 15 restores worker
+GUCs in its library-loading transaction, where an initialization snapshot causes
+`failed to initialize transaction_deferrable to 0`. Simply extending the current
+Windows deferral to Linux is insufficient: it then exposes PostgreSQL 15's
+prohibition on internal subtransactions in a parallel operation. That experiment
+ran 112 cases (including configuration workers), with 95 passed and 17 failed,
+and is not included in the implementation. A complete older-worker SQL/error
+boundary remains required; neither dropping the guard nor suppressing these
+failures is acceptable. The public custom-scan guide records this limitation.
+No CI suite is reduced. PostgreSQL 13.23 is provisioned but has no backend
+execution evidence in this milestone.
+
+Final focused PostgreSQL 15.19 verification passes all 46 SDK, initialization,
+allocator and direct partition-remapping cases in 3m32.527s, then all five
+remaining prepared-parameter, volatile-expression and parameter-error cases in
+2m11.893s, with zero failures or skips. These are scoped contracts, not full
+PostgreSQL 15 platform proof. Final Windows Release passes with zero
+warnings/errors in 2m49.48s. Final Linux Release passes with zero warnings/errors
+in 1m14.68s; API freshness checks 200 pages/2,437 members, the site builds 245
+pages and its check reports zero diagnostics. Final plain full Linux `dotnet
+test` against PostgreSQL 18.6 passes **8,195 tests, zero failures and six
+Windows-only skips, 8,201 total**, in 11m37.486s (integration 11m36.805s).
+Read-only PostgreSQL 16.15 source inspection
+confirms the same parallel internal-subtransaction restriction; PostgreSQL 17.11
+permits it. This is a separate version boundary from the PG16 parameter-helper
+ABI change and must be handled in the remaining older-worker implementation.
+The full PostgreSQL/platform matrix and all other full-port requirements remain
+required work.
+
+The completed macOS job in
+[CI 36373174861](https://github.com/willibrandon/ankus/actions/runs/36373174861)
+emits Homebrew's warning that LLVM 20 was installed without replacing LLVM 18's
+global links. Its log explicitly verifies Homebrew Clang 20.1.8 from the LLVM 20
+installation. `ConfigureHeaderFrontend` verifies the required frontend option
+and prepends that installation's `bin` directory to both the current process
+PATH and subsequent Actions steps. The full macOS suite passes; global Homebrew
+relinking is unnecessary, and no warning filtering or diagnostic suppression is
+introduced.
+
+The 2026-09-28 04:16 UTC check immediately before committing observes
+[CI 36373174861](https://github.com/willibrandon/ankus/actions/runs/36373174861)
+at `bd83955` with successful quality, all three runtime jobs, and full Ubuntu
+and macOS jobs. Ubuntu x64/PostgreSQL 18 reports 8,179 passed, zero failures
+and six skips in a 33m24s job (integration 27m05.286s). macOS ARM64/PostgreSQL
+18 reports 8,176 passed, zero failures and nine skips in a 45m56s job
+(integration 36m34.937s). Both completed job logs were inspected. Windows
+x64/PostgreSQL 17 remains in progress without a reported failure;
+[Docs 36373174857](https://github.com/willibrandon/ankus/actions/runs/36373174857)
+passes. These hosted results cover the preceding hook/registry milestone;
+the local evidence above covers this change. CI is checked and recorded again
+immediately before pushing. The bounded CI timing investigation remains closed;
+the one-hour limits and complete unsharded suites are unchanged.

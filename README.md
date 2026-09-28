@@ -232,6 +232,9 @@ The SDK generates `Ankus.Postgres` node declarations and their native type
 dependencies from the selected server headers using Clang 20 or later and
 matching `libclang`, preserving fields, enums, unions, arrays and bitfields.
 Projects using the same measured contract share their native type identity.
+The SDK defines `ANKUS_PG13` through `ANKUS_PG19` for the selected major so
+consumer code can select version-specific declarations at compile time; see
+[build settings](docs/src/content/docs/reference/build-settings.md).
 `PgNodes.Borrow` adds checked views over native storage, with tag-based casts that retain the original
 bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded

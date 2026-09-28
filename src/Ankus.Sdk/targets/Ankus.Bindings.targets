@@ -3,6 +3,15 @@
     <AnkusResolveBindingsDependsOn>$(AnkusResolveBindingsDependsOn);ResolveReferences;_PrepareAnkusBindingToolchain</AnkusResolveBindingsDependsOn>
   </PropertyGroup>
 
+  <!-- Resolve after project evaluation so consumer and Directory.Build.targets overrides apply.
+       Direct compiler entry points also need the selected-header symbol. -->
+  <Target Name="_AddAnkusPostgresDefineConstants" AfterTargets="PrepareForBuild"
+          BeforeTargets="BeforeCompile;CoreCompile">
+    <PropertyGroup>
+      <DefineConstants>$(DefineConstants);ANKUS_PG$(AnkusPostgresMajor)</DefineConstants>
+    </PropertyGroup>
+  </Target>
+
   <Target Name="_PrepareAnkusBindingToolchain" Condition="'$(PublishAot)' == 'true'">
     <!-- Native AOT setup also captures linker inputs that do not exist before compilation.
          Discover its compiler in a separate project instance and return only the toolchain. -->

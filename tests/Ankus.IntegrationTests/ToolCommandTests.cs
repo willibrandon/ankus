@@ -421,6 +421,9 @@ public sealed partial class ToolCommandTests(TestContext context)
         string project = Path.Combine(projectDirectory, "DirectProbe.csproj");
         XDocument projectFile = XDocument.Load(s_project);
         projectFile.Root!.SetAttributeValue("Sdk", "Ankus.Sdk");
+        projectFile.Root.Element("PropertyGroup")!.Add(
+            new XElement("AnkusPostgresMajor", MajorText()),
+            new XElement("DefineConstants", "$(DefineConstants);PACKAGE_WITNESS"));
         projectFile.Save(project);
         JsonNode global = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(s_root, "global.json"), context.CancellationToken))!;
         global["msbuild-sdks"]!["Ankus.Sdk"] = s_version;
@@ -433,6 +436,29 @@ public sealed partial class ToolCommandTests(TestContext context)
             [assembly: PgSql("package-pair", "CREATE TYPE package_pair AS (name text, amount integer);")]
             public static class Functions
             {
+            #if !NET10_0 || !PACKAGE_WITNESS
+            #error Framework and consumer compilation symbols must be retained.
+            #endif
+                [PgFunction]
+                public static int PackageHeaderMajor() =>
+            #if ANKUS_PG13
+                    13;
+            #elif ANKUS_PG14
+                    14;
+            #elif ANKUS_PG15
+                    15;
+            #elif ANKUS_PG16
+                    16;
+            #elif ANKUS_PG17
+                    17;
+            #elif ANKUS_PG18
+                    18;
+            #elif ANKUS_PG19
+                    19;
+            #else
+            #error The selected PostgreSQL header symbol must be supplied by the SDK.
+            #endif
+
                 [PgFunction]
                 public static string PackageEcho(string value) => value + " from NuGet";
 
@@ -482,7 +508,7 @@ public sealed partial class ToolCommandTests(TestContext context)
             """, context.CancellationToken);
         string output = Path.Combine(projectDirectory, "published");
         ProcessResult result = await RunDotnetAsync(["publish", project, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier,
-            "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
+            "-o", output, "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
             "-p:AnkusExtensionVersion=2.3.4", "-bl:" + Path.Combine(projectDirectory, "publish-{}.binlog")], context.CancellationToken);
         result.EnsureSuccess("dotnet", ["publish"]);
         PublishedExtension manifest = PublishedExtension.Read(output);
@@ -491,6 +517,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(context.CancellationToken);
         await using var command = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe; SELECT package_echo('直接')", connection);
         Assert.AreEqual("直接 from NuGet", await command.ExecuteScalarAsync(context.CancellationToken));
+        command.CommandText = "SELECT package_header_major()";
+        Assert.AreEqual(s_installation.Version.Major, await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT extversion FROM pg_extension WHERE extname = 'ankus_tool_probe'";
         Assert.AreEqual("2.3.4", await command.ExecuteScalarAsync(context.CancellationToken));
         command.CommandText = "SELECT package_array('[-1:0][2:3]={{1,NULL},{-2,3}}'::int[])::text";

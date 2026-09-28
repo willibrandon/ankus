@@ -131,8 +131,11 @@ partition replaces its parent relation.
 The sample retains copied direct outer variables from the path's parameter
 clauses. Its callback uses `NativeMethods.adjust_appendrel_attrs_multilevel`
 with the chosen child and its top parent, so column positions follow the whole
-partition ancestry, including reordered and dropped columns. It returns new
-native nodes rather than mutating another path's data.
+partition ancestry, including reordered and dropped columns. PostgreSQL 13–15
+accept relation-id sets for this helper; PostgreSQL 16 and later accept relation
+pointers. The sample selects the matching declaration with the SDK's
+[`ANKUS_PG13` through `ANKUS_PG19` symbols](reference/build-settings.md).
+It returns new native nodes rather than mutating another path's data.
 
 During plan creation, these expressions move into `CustomScan.custom_exprs`.
 PostgreSQL then performs its ordinary outer-variable-to-parameter and plan
@@ -171,6 +174,11 @@ children keep their native visibility checks and may still fetch heap tuples
 when the visibility map requires it.
 
 ## Parallel shared state
+
+Parallel execution is verified on PostgreSQL 17 and 18. PostgreSQL 15's
+parallel-worker initialization and guarded SQL recovery remain incomplete.
+The selected-header parameter remapping described above does not establish
+parallel-worker support on older servers.
 
 A parallel-aware custom scan can request dynamic shared memory (DSM) through
 `CustomExecMethods`. PostgreSQL owns the segment and supplies a coordinate
