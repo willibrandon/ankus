@@ -132,6 +132,16 @@ public static class NumericFunctions
     }
 
     /// <summary>
+    /// Extracts a numeric field from an independently supplied interval datum without parsing text.
+    /// </summary>
+    /// <param name="input">The full-range interval.</param>
+    /// <param name="part">The field.</param>
+    /// <returns>The numeric field or SQL NULL.</returns>
+    [PgFunction]
+    public static PgNumeric? NumericIntervalExtract(PgInterval input, string part)
+        => input.Extract(Enum.Parse<PgDateTimePart>(part));
+
+    /// <summary>
     /// Retains numeric domain values across session disposal and subsequent calls.
     /// </summary>
     /// <returns>The owned text and decimal conversion.</returns>

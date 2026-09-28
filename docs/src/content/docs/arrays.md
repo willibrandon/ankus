@@ -89,6 +89,11 @@ each element. For example, `decimal[]` rejects values requiring rounding, and
 `DateOnly[]` rejects PostgreSQL infinity. Use `PgNumeric` and the full-range
 temporal types to retain those values.
 
+Elements retain the selected server's feature limits: numeric infinity requires
+PostgreSQL 14+, and interval infinity requires PostgreSQL 17+. Older servers
+reject those inputs before invoking the array function. Finite values, SQL NULL,
+empty arrays, dimensions and lower bounds remain independently supported.
+
 [Network](/network/) arrays preserve address families and prefixes.
 `IPAddress[]` rejects subnet prefixes; use `PgInet[]` to retain them.
 

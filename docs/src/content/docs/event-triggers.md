@@ -89,6 +89,10 @@ bitmap. `PgTableRewriteReason` defines `AlterPersistence`, `DefaultValue`,
 `ColumnRewrite`, and `AccessMethod`. Multiple reasons can be combined; the numeric
 bitmap preserves additional bits supplied by the server.
 
+The `ALTER TABLE ... SET ACCESS METHOD` rewrite requires PostgreSQL 15 or later.
+Earlier servers reject that statement with SQLSTATE `42601` before a rewrite
+callback runs, leaving the table unchanged.
+
 These helpers project PostgreSQL's public metadata columns. They do not expose
 the internal parse tree or opaque `pg_ddl_command` object. The native callback
 does not supply the fired event trigger's name or OID.
@@ -116,3 +120,6 @@ Login handlers run for physical connections and can prevent connection startup
 if they fail. Keep a working administrative connection while developing one.
 They also run on standby servers, so account for read-only operation when writing
 a login handler. The sample uses DDL events and does not install a login handler.
+
+PostgreSQL 13–16 rejects `CREATE EVENT TRIGGER ... ON login` with SQLSTATE
+`42601`; no login handler is attached. DDL event handlers remain available.

@@ -17,6 +17,12 @@ public sealed class EventTriggerLoginTests(TestContext context)
     public Task LoginCallbacksCommitExactMetadataForEachPhysicalConnection()
         => RunIsolated(async (keeper, builder, token) =>
         {
+            if (PostgresFixture.Cluster.Installation.Version.Major < 17)
+            {
+                await AssertUnavailableLoginAsync(keeper, builder, null, false, token);
+                return;
+            }
+
             await Execute(keeper, "CREATE EVENT TRIGGER managed_login ON login EXECUTE FUNCTION event_values.event_action()", token);
             await using var first = new NpgsqlConnection(builder.ConnectionString);
             await using var second = new NpgsqlConnection(builder.ConnectionString);
@@ -43,6 +49,12 @@ public sealed class EventTriggerLoginTests(TestContext context)
     public Task LoginFailuresRollBackAndAllowAdministrativeRecovery(string mode, string sqlState, string message)
         => RunIsolated(async (keeper, builder, token) =>
         {
+            if (PostgresFixture.Cluster.Installation.Version.Major < 17)
+            {
+                await AssertUnavailableLoginAsync(keeper, builder, mode, false, token);
+                return;
+            }
+
             await Execute(keeper, $"""
                 CREATE EVENT TRIGGER managed_login ON login EXECUTE FUNCTION event_values.event_action();
                 ALTER DATABASE {builder.Database} SET ankus.event_mode='{mode}';
@@ -87,6 +99,12 @@ public sealed class EventTriggerLoginTests(TestContext context)
     public Task LoginFiltersAndConnectionBypassFollowPostgresRules()
         => RunIsolated(async (keeper, builder, token) =>
         {
+            if (PostgresFixture.Cluster.Installation.Version.Major < 17)
+            {
+                await AssertUnavailableLoginAsync(keeper, builder, null, true, token);
+                return;
+            }
+
             PostgresException filter = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(keeper,
                 "CREATE EVENT TRIGGER invalid_login ON login WHEN TAG IN ('CREATE TABLE') EXECUTE FUNCTION event_values.event_action()", token));
             Assert.AreEqual("0A000", filter.SqlState);
@@ -117,6 +135,53 @@ public sealed class EventTriggerLoginTests(TestContext context)
             Assert.AreEqual(1L, await Scalar<long>(keeper, "SELECT count(*) FROM event_values.audit", token));
             Assert.AreEqual("LOGIN", await Scalar<string>(keeper, "SELECT tag FROM event_values.audit", token));
         });
+
+    /// <summary>
+    /// Verifies rejected login attachment leaves connections usable and a supported managed DDL callback operational.
+    /// </summary>
+    private static async Task AssertUnavailableLoginAsync(NpgsqlConnection keeper, NpgsqlConnectionStringBuilder builder,
+        string? mode, bool filtered, CancellationToken token)
+    {
+        int backend = keeper.ProcessID;
+        if (mode is not null)
+        {
+            await Execute(keeper, $"ALTER DATABASE {builder.Database} SET ankus.event_mode='{mode}'", token);
+        }
+
+        string filter = filtered ? " WHEN TAG IN ('CREATE TABLE')" : string.Empty;
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(keeper,
+            $"CREATE EVENT TRIGGER managed_login ON login{filter} EXECUTE FUNCTION event_values.event_action()", token));
+        Assert.AreEqual("42601", error.SqlState);
+        Assert.AreEqual("unrecognized event name \"login\"", error.MessageText);
+        Assert.IsNull(error.Detail);
+        Assert.IsNull(error.Hint);
+        Assert.AreEqual(0L, await Scalar<long>(keeper, "SELECT count(*) FROM pg_event_trigger WHERE evtname='managed_login' OR evtevent='login'", token));
+
+        await using var first = new NpgsqlConnection(builder.ConnectionString);
+        await using var second = new NpgsqlConnection(builder.ConnectionString);
+        await first.OpenAsync(token);
+        await second.OpenAsync(token);
+        Assert.AreNotEqual(first.ProcessID, second.ProcessID);
+        Assert.AreEqual(42, await Scalar<int>(first, "SELECT 42", token));
+        Assert.AreEqual(43, await Scalar<int>(second, "SELECT 43", token));
+        if (mode is not null)
+        {
+            Assert.AreEqual(mode, await Scalar<string>(first, "SELECT current_setting('ankus.event_mode')", token));
+        }
+
+        Assert.AreEqual(0L, await Scalar<long>(keeper, "SELECT count(*) FROM event_values.audit", token));
+        await Execute(keeper, """
+            SET ankus.event_mode='audit';
+            CREATE EVENT TRIGGER supported_event ON ddl_command_end WHEN TAG IN ('CREATE TABLE')
+                EXECUTE FUNCTION event_values.event_action();
+            CREATE TABLE event_values.after_login_rejection(id integer);
+            """, token);
+        Assert.AreEqual("ddl_command_end:DdlCommandEnd:CREATE TABLE:1", await Scalar<string>(keeper,
+            "SELECT event||':'||kind||':'||tag||':'||depth FROM event_values.audit WHERE phase='callback'", token));
+        Assert.AreEqual(1L, await Scalar<long>(keeper,
+            "SELECT count(*) FROM event_values.audit WHERE phase='snapshot' AND identity='event_values.after_login_rejection'", token));
+        Assert.AreEqual(backend, await Scalar<int>(keeper, "SELECT pg_backend_pid()", token));
+    }
 
     private async Task RunIsolated(Func<NpgsqlConnection, NpgsqlConnectionStringBuilder, CancellationToken, Task> action)
     {

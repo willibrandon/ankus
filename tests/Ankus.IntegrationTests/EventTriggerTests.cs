@@ -221,25 +221,47 @@ public sealed class EventTriggerTests(TestContext context)
                 CREATE ACCESS METHOD event_heap TYPE TABLE HANDLER heap_tableam_handler;
                 """, token);
             await Attach(connection, transaction, "table_rewrite", token);
+            int expectedReason = reason;
+            if (PostgresFixture.Cluster.Installation.Version.Major < 15 && reason == 8)
+            {
+                int backend = connection.ProcessID;
+                uint originalFile = await Scalar<uint>(connection, transaction, "SELECT pg_relation_filenode('event_values.subject')", token);
+                await transaction.SaveAsync("unsupported_access_method", token);
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection, transaction, sql, token));
+                Assert.AreEqual("42601", error.SqlState);
+                Assert.AreEqual("syntax error at or near \"ACCESS\"", error.MessageText);
+                Assert.AreEqual(38, error.Position);
+                await transaction.RollbackAsync("unsupported_access_method", token);
+                await transaction.ReleaseAsync("unsupported_access_method", token);
+                Assert.AreEqual(0L, await Scalar<long>(connection, transaction, "SELECT count(*) FROM event_values.audit", token));
+                Assert.AreEqual("7:preserved", await Scalar<string>(connection, transaction, "SELECT id||':'||note FROM event_values.subject", token));
+                Assert.AreEqual(originalFile, await Scalar<uint>(connection, transaction, "SELECT pg_relation_filenode('event_values.subject')", token));
+                Assert.IsTrue(await Scalar<bool>(connection, transaction,
+                    "SELECT relam=(SELECT oid FROM pg_am WHERE amname='heap') FROM pg_class WHERE oid='event_values.subject'::regclass", token));
+                Assert.AreEqual(backend, await Scalar<int>(connection, transaction, "SELECT pg_backend_pid()", token));
+                sql = "ALTER TABLE event_values.subject SET UNLOGGED";
+                expectedReason = 1;
+            }
+
             await Execute(connection, transaction, sql, token);
-            Assert.AreEqual(reason, await Scalar<int>(connection, transaction,
+            Assert.AreEqual(expectedReason, await Scalar<int>(connection, transaction,
                 "SELECT rewrite_reason FROM event_values.audit WHERE phase='snapshot'", token));
             Assert.IsTrue(await Scalar<bool>(connection, transaction, """
                 SELECT rewrite_oid='event_values.subject'::regclass AND tag='ALTER TABLE' AND kind='TableRewrite'
                 FROM event_values.audit WHERE phase='snapshot'
                 """, token));
             Assert.AreEqual("7:preserved", await Scalar<string>(connection, transaction, "SELECT id||':'||note FROM event_values.subject", token));
-            Assert.AreEqual(reason == 1 ? "u" : "p", await Scalar<string>(connection, transaction,
+            Assert.AreEqual(expectedReason == 1 ? "u" : "p", await Scalar<string>(connection, transaction,
                 "SELECT relpersistence::text FROM pg_class WHERE oid='event_values.subject'::regclass", token));
-            Assert.AreEqual((reason & 4) != 0 ? "bigint" : "integer", await Scalar<string>(connection, transaction,
+            Assert.AreEqual((expectedReason & 4) != 0 ? "bigint" : "integer", await Scalar<string>(connection, transaction,
                 "SELECT pg_typeof(id)::text FROM event_values.subject", token));
-            if ((reason & 2) != 0)
+            if ((expectedReason & 2) != 0)
             {
                 Assert.IsTrue(await Scalar<bool>(connection, transaction,
                     "SELECT created IS NOT NULL AND pg_typeof(created)='timestamptz'::regtype FROM event_values.subject", token));
             }
 
-            if ((reason & 8) != 0)
+            if ((expectedReason & 8) != 0)
             {
                 Assert.IsTrue(await Scalar<bool>(connection, transaction,
                     "SELECT relam=(SELECT oid FROM pg_am WHERE amname='event_heap') FROM pg_class WHERE oid='event_values.subject'::regclass", token));

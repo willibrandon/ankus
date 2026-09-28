@@ -34,6 +34,17 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+The complete Linux x64 suites now pass on PostgreSQL **13.23 and 18.6**: each
+executes **8,277 cases with 8,271 passes, zero failures and six Windows-only
+skips**, in 11m42.791s and 12m53.136s respectively. All 62 failures from the
+previous complete PostgreSQL 13 diagnostic are resolved. Numeric, array, range,
+JSON and event-trigger checks preserve selected-version rejection, ownership and
+same-backend recovery. All 279 affected cases also pass without failures/skips
+on PostgreSQL 14.20 and 15.19. Release, API freshness and site checks pass.
+Complete PostgreSQL 14 validation is running. The intermittent GUC query stall,
+remaining PostgreSQL 13–19/platform matrix and other faithful-port requirements
+remain open.
+
 Temporal checks now preserve exact interval endpoints, selected-version feature
 rejection, all existing storage owners, and same-backend recovery. All **405
 affected cases pass with zero failures/skips** on Linux x64/PostgreSQL 13.23,
@@ -11329,3 +11340,56 @@ passes. Superseded `0360620` CI run `36407464525` is cancelled: quality/runtime
 jobs passed and all three unfinished platform suites were cancelled, which does
 not supply completed platform evidence. Outcomes are checked and recorded again
 immediately before pushing.
+
+## Selected-version value and event contracts
+
+Numeric, array, range and scalar JSON checks now exercise unavailable values
+explicitly without losing finite values, NULLs, shapes or ownership paths.
+Native and generated-function admission errors are compared separately, followed
+by exact finite-value recovery in the same backend. Numeric temporal extraction
+receives an independently supplied binary interval at the full component limits;
+it no longer depends on an older server's overflowing decimal-seconds parser.
+The selected server's native extraction value remains the independent oracle.
+JSON failures invoke the actual converter before checking its property path,
+native cause, fifty managed unwind cycles, context cleanup and retained writes.
+
+Login cases on PostgreSQL 13–16 verify exact rejected attachment, absent catalog
+and audit entries, usable independent physical connections and a subsequent real
+managed DDL callback. They do not claim execution of an unavailable login handler.
+The access-method rewrite case verifies PostgreSQL 13/14 syntax rejection leaves
+the table, access method and file identity unchanged, then exercises a supported
+rewrite and its exact callback metadata. Supported-server assertions remain.
+Public array, range, JSON and event-trigger guides describe these boundaries.
+
+On Linux x64/PostgreSQL 13.23, all **237 numeric/array/range/JSON cases pass with
+zero failures/skips** in 2m16.047s; all **42 event cases pass with zero
+failures/skips** in 1m46.477s. The combined six-class scope passes all **279
+cases with zero failures/skips** on PostgreSQL 14.20 in 2m06.806s and PostgreSQL
+15.19 in 2m21.970s.
+
+The refreshed complete PostgreSQL 13.23 run passes **8,271 tests, zero failures
+and six Windows-only skips, 8,277 total**, in 11m42.791s (integration
+11m41.184s). Its implementation, test and build sources match this milestone.
+All 62 failures from the previous complete diagnostic are resolved. The earlier
+GUC query stall does not recur: its function-settings case passes in 0.591s,
+but the intermittent stall's cause remains unproven.
+
+Final plain `dotnet test` on Linux x64/PostgreSQL 18.6 passes **8,271 tests,
+zero failures and six Windows-only skips, 8,277 total**, in 12m53.136s
+(integration 12m52.154s). Release passes with zero warnings/errors in 1m18.68s.
+API freshness passes for 200 pages/2,437 members; the site builds 245 pages and
+its check reports zero errors/warnings/hints. These overlapping cached local
+runs are not cold-cache performance measurements. No cases are removed or
+skipped and no analyzer standards are relaxed. Complete PostgreSQL 14 testing
+is underway; the remaining PostgreSQL 13–19/platform matrix, intermittent GUC
+stall investigation and other full-port requirements remain open.
+
+Immediately before this commit, `9597c0c`
+[CI 36411852707](https://github.com/willibrandon/ankus/actions/runs/36411852707)
+has successful quality and all three runtime jobs; all three full platform
+test jobs remain in progress without a reported failure.
+[Docs 36411852844](https://github.com/willibrandon/ankus/actions/runs/36411852844)
+passes. Superseded `e401d77` CI run `36409892102` is cancelled: quality/runtime
+jobs passed and the three unfinished platform suites were cancelled. Cancelled
+suites do not supply completed platform evidence. Outcomes are checked and
+recorded again immediately before pushing.

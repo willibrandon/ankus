@@ -52,6 +52,39 @@ public sealed class RangeDatumTests(TestContext context)
             for (int mode = 0; mode <= 7; mode++)
             {
                 await using var command = new NpgsqlCommand($"SELECT {send}(datatype.range_{function}(({literal})::{type},{mode})) IS NOT DISTINCT FROM {send}(({literal})::{type})", connection, transaction);
+                if (PostgresFixture.Cluster.Installation.Version.Major < 14 && literal == "'[-Infinity,NaN]'")
+                {
+                    int backend = connection.ProcessID;
+                    await transaction.SaveAsync("range_native_error", token);
+                    command.CommandText = $"SELECT ({literal})::{type}";
+                    PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                    Assert.AreEqual("22P02", native.SqlState);
+                    Assert.AreEqual("invalid input syntax for type numeric: \"-Infinity\"", native.MessageText);
+                    await transaction.RollbackAsync("range_native_error", token);
+                    await transaction.ReleaseAsync("range_native_error", token);
+
+                    await transaction.SaveAsync("range_managed_error", token);
+                    command.CommandText = $"SELECT datatype.range_{function}(({literal})::{type},{mode})";
+                    PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                    Assert.AreEqual(native.SqlState, managed.SqlState);
+                    Assert.AreEqual(native.MessageText, managed.MessageText);
+                    Assert.AreEqual(native.Detail, managed.Detail);
+                    Assert.AreEqual(native.Hint, managed.Hint);
+                    await transaction.RollbackAsync("range_managed_error", token);
+                    await transaction.ReleaseAsync("range_managed_error", token);
+
+                    command.CommandText = $"""
+                        SELECT range_send(datatype.range_numeric('[1.2300,2.450]'::numrange,{mode})) =
+                            range_send('[1.2300,2.450]'::numrange), pg_backend_pid()
+                        """;
+                    await using NpgsqlDataReader recovery = await command.ExecuteReaderAsync(token);
+                    Assert.IsTrue(await recovery.ReadAsync(token));
+                    Assert.IsTrue(recovery.GetBoolean(0));
+                    Assert.AreEqual(backend, recovery.GetInt32(1));
+                    Assert.IsFalse(await recovery.ReadAsync(token));
+                    continue;
+                }
+
                 Assert.IsTrue(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)), $"{function}, mode {mode}");
             }
         }, context.CancellationToken);

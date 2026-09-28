@@ -52,10 +52,15 @@ public sealed class ArrayDatumTests(TestContext context)
                 ];
                 foreach ((string name, string type, string values) in cases)
                 {
+                    int major = PostgresFixture.Cluster.Installation.Version.Major;
+                    bool rejectsInfinity = (name == "numeric" && major < 14) || (name == "interval" && major < 17);
+                    string inputs = rejectsInfinity
+                        ? values.Replace(name == "numeric" ? "'Infinity', '-Infinity', " : "'infinity', '-infinity', ", string.Empty, StringComparison.Ordinal)
+                        : values;
                     await using var command = new NpgsqlCommand($"""
                         WITH inputs(value) AS (VALUES
-                            (ARRAY[{values}]::{type}[]),
-                            (ARRAY[ARRAY[{values}]::{type}[],ARRAY[{values}]::{type}[]]),
+                            (ARRAY[{inputs}]::{type}[]),
+                            (ARRAY[ARRAY[{inputs}]::{type}[],ARRAY[{inputs}]::{type}[]]),
                             (array_fill(NULL::{type}, ARRAY[2,3], ARRAY[-2,4])),
                             (ARRAY[]::{type}[]), (NULL::{type}[]))
                         SELECT array_send(value), array_send(datatype.array_{name}(value, $1)) FROM inputs
@@ -78,6 +83,15 @@ public sealed class ArrayDatumTests(TestContext context)
                     }
 
                     Assert.AreEqual(5, rows, name);
+                    await reader.DisposeAsync();
+                    if (rejectsInfinity)
+                    {
+                        string[] unsupported = name == "numeric" ? ["Infinity", "-Infinity"] : ["infinity", "-infinity"];
+                        foreach (string input in unsupported)
+                        {
+                            await AssertRejectedElementAsync(command, transaction, name, type, input, mode, token);
+                        }
+                    }
                 }
             }, context.CancellationToken);
 
@@ -354,5 +368,48 @@ public sealed class ArrayDatumTests(TestContext context)
             await using var drop = new NpgsqlCommand($"DROP DATABASE {database} WITH (FORCE)", administrator);
             await drop.ExecuteNonQueryAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Checks unavailable element admission and exact finite array recovery through the same owner and backend.
+    /// </summary>
+    private static async Task AssertRejectedElementAsync(NpgsqlCommand command, NpgsqlTransaction transaction,
+        string name, string type, string input, int mode, CancellationToken token)
+    {
+        NpgsqlConnection? connection = command.Connection;
+        Assert.IsNotNull(connection);
+        int backend = connection.ProcessID;
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue(input);
+        command.Parameters.AddWithValue(mode);
+        await transaction.SaveAsync("array_native_error", token);
+        command.CommandText = $"SELECT ARRAY[$1::{type},NULL]";
+        PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(type == "numeric" ? "22P02" : "22007", native.SqlState);
+        Assert.AreEqual($"invalid input syntax for type {type}: \"{input}\"", native.MessageText);
+        await transaction.RollbackAsync("array_native_error", token);
+        await transaction.ReleaseAsync("array_native_error", token);
+
+        await transaction.SaveAsync("array_managed_error", token);
+        command.CommandText = $"SELECT datatype.array_{name}(ARRAY[$1::{type},NULL],$2)";
+        PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(native.SqlState, managed.SqlState);
+        Assert.AreEqual(native.MessageText, managed.MessageText);
+        Assert.AreEqual(native.Detail, managed.Detail);
+        Assert.AreEqual(native.Hint, managed.Hint);
+        await transaction.RollbackAsync("array_managed_error", token);
+        await transaction.ReleaseAsync("array_managed_error", token);
+
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue(mode);
+        command.CommandText = $"""
+            SELECT array_send(datatype.array_{name}(ARRAY[NULL,'1']::{type}[],$1)) =
+                array_send(ARRAY[NULL,'1']::{type}[]), pg_backend_pid()
+            """;
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+        Assert.IsTrue(await reader.ReadAsync(token));
+        Assert.IsTrue(reader.GetBoolean(0));
+        Assert.AreEqual(backend, reader.GetInt32(1));
+        Assert.IsFalse(await reader.ReadAsync(token));
     }
 }

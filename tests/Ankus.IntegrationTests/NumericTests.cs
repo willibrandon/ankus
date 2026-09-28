@@ -1,4 +1,5 @@
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Ankus.IntegrationTests;
 
@@ -30,6 +31,20 @@ public sealed class NumericTests(TestContext context)
                     FROM generate_series(0, 7) AS mode
                     """, connection, transaction);
                 command.Parameters.Add(new NpgsqlParameter<string?> { TypedValue = text });
+                if (PostgresFixture.Cluster.Installation.Version.Major < 14 && text is "Infinity" or "-Infinity")
+                {
+                    for (int mode = 0; mode < 8; mode++)
+                    {
+                        command.CommandText = "SELECT datatype.exchange_numeric($1::numeric, $2)";
+                        command.Parameters.Clear();
+                        command.Parameters.AddWithValue(text);
+                        command.Parameters.AddWithValue(mode);
+                        await AssertMatchingFailureAsync(command, transaction, "SELECT $1::numeric", "22P02", mode, token);
+                    }
+
+                    return;
+                }
+
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 int count = 0;
                 while (await reader.ReadAsync(token))
@@ -145,6 +160,15 @@ public sealed class NumericTests(TestContext context)
                 command.Parameters.AddWithValue(right);
                 command.Parameters.AddWithValue(precision);
                 command.Parameters.AddWithValue(scale);
+                int major = PostgresFixture.Cluster.Installation.Version.Major;
+                if ((major < 15 && operation == "rescale" && (scale < 0 || scale > precision)) ||
+                    (major < 14 && left == "Infinity"))
+                {
+                    command.CommandText = "SELECT datatype.numeric_apply($1, $2::numeric, $3::numeric, $4, $5)";
+                    await AssertMatchingFailureAsync(command, transaction, $"SELECT {expectedSql}", operation == "rescale" ? "22023" : "22P02", 3, token);
+                    return;
+                }
+
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
                 Assert.AreSequenceEqual(reader.GetFieldValue<byte[]>(0), reader.GetFieldValue<byte[]>(1));
@@ -171,14 +195,41 @@ public sealed class NumericTests(TestContext context)
             async (connection, transaction, token) =>
             {
                 await using var command = new NpgsqlCommand($"""
-                    SELECT extract({sqlField} FROM $1::{type})::text, datatype.numeric_extract($2, $1, $3)::text
+                    SELECT (extract({sqlField} FROM $1::{type})::text)::numeric::text, datatype.numeric_extract($2, $1, $3)::text
                     """, connection, transaction);
                 command.Parameters.AddWithValue(input);
                 command.Parameters.AddWithValue(type);
                 command.Parameters.AddWithValue(field);
+                int major = PostgresFixture.Cluster.Installation.Version.Major;
+                if ((major < 14 && type == "date") || (major < 17 && type == "interval" && input == "-infinity"))
+                {
+                    command.CommandText = "SELECT datatype.numeric_extract($2, $1, $3)";
+                    await AssertMatchingFailureAsync(command, transaction, $"SELECT extract({sqlField} FROM $1::{type})", type == "date" ? "22008" : "22007", 3, token);
+                    return;
+                }
+
+                bool rawInterval = type == "interval" && input.StartsWith("2147483647 months", StringComparison.Ordinal);
+                if (rawInterval)
+                {
+                    command.CommandText = $"""
+                        SELECT (extract({sqlField} FROM $1::interval)::text)::numeric::text,
+                            datatype.numeric_interval_extract($1::interval, $2)::text,
+                            encode(interval_send($1::interval), 'hex')
+                        """;
+                    command.Parameters.Clear();
+                    command.Parameters.AddWithValue(NpgsqlDbType.Interval, new NpgsqlInterval(int.MaxValue, int.MaxValue, long.MaxValue));
+                    command.Parameters.AddWithValue(field);
+                }
+
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
                 Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
+                if (rawInterval)
+                {
+                    Assert.AreEqual("7fffffffffffffff7fffffff7fffffff", reader.GetString(2));
+                }
+
+                Assert.IsFalse(await reader.ReadAsync(token));
             }, context.CancellationToken);
 
     /// <summary>
@@ -270,6 +321,14 @@ public sealed class NumericTests(TestContext context)
                     """, connection, transaction);
                 command.Parameters.AddWithValue(left);
                 command.Parameters.AddWithValue(right);
+                if (PostgresFixture.Cluster.Installation.Version.Major < 14 &&
+                    (left is "Infinity" or "-Infinity" || right is "Infinity" or "-Infinity"))
+                {
+                    command.CommandText = "SELECT datatype.numeric_comparison($1::numeric, $2::numeric)";
+                    await AssertMatchingFailureAsync(command, transaction, "SELECT numeric_cmp($1::numeric, $2::numeric)", "22P02", 3, token);
+                    return;
+                }
+
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
                 bool equal = reader.GetBoolean(1);
@@ -339,9 +398,15 @@ public sealed class NumericTests(TestContext context)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(GeneratedDecimalAdaptersRejectLossyInput),
             async (connection, transaction, token) =>
             {
-                await transaction.SaveAsync("decimal_input", token);
                 await using var command = new NpgsqlCommand("SELECT datatype.exchange_decimal($1::numeric, 0)", connection, transaction);
                 command.Parameters.AddWithValue(input);
+                if (PostgresFixture.Cluster.Installation.Version.Major < 14 && input == "Infinity")
+                {
+                    await AssertMatchingFailureAsync(command, transaction, "SELECT $1::numeric", "22P02", 3, token);
+                    return;
+                }
+
+                await transaction.SaveAsync("decimal_input", token);
                 PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
                 Assert.AreEqual("38000", error.SqlState);
                 await transaction.RollbackAsync("decimal_input", token);
@@ -349,4 +414,40 @@ public sealed class NumericTests(TestContext context)
                 command.CommandText = "SELECT datatype.exchange_decimal(1.2300, 3)::text";
                 Assert.AreEqual("1.2300", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
+
+    /// <summary>
+    /// Compares exact native rejection and verifies finite storage through the selected owner after rollback.
+    /// </summary>
+    private static async Task AssertMatchingFailureAsync(NpgsqlCommand command, NpgsqlTransaction transaction,
+        string nativeSql, string expectedState, int mode, CancellationToken token)
+    {
+        NpgsqlConnection? connection = command.Connection;
+        Assert.IsNotNull(connection);
+        int backend = connection.ProcessID;
+        string managedSql = command.CommandText;
+        await transaction.SaveAsync("value_native_error", token);
+        command.CommandText = nativeSql;
+        PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(expectedState, native.SqlState);
+        await transaction.RollbackAsync("value_native_error", token);
+        await transaction.ReleaseAsync("value_native_error", token);
+
+        await transaction.SaveAsync("value_managed_error", token);
+        command.CommandText = managedSql;
+        PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(native.SqlState, managed.SqlState);
+        Assert.AreEqual(native.MessageText, managed.MessageText);
+        Assert.AreEqual(native.Detail, managed.Detail);
+        Assert.AreEqual(native.Hint, managed.Hint);
+        await transaction.RollbackAsync("value_managed_error", token);
+        await transaction.ReleaseAsync("value_managed_error", token);
+
+        command.Parameters.Clear();
+        command.CommandText = $"SELECT datatype.exchange_numeric(1.2300, {mode})::text, pg_backend_pid()";
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+        Assert.IsTrue(await reader.ReadAsync(token));
+        Assert.AreEqual("1.2300", reader.GetString(0));
+        Assert.AreEqual(backend, reader.GetInt32(1));
+        Assert.IsFalse(await reader.ReadAsync(token));
+    }
 }

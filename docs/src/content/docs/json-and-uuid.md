@@ -90,6 +90,12 @@ serialization methods. When wrappers appear in an application's JSON contract,
 their statically known converters embed their JSON value directly. Serializer
 options and depth limits come from the supplied context.
 
+`PgNumeric` and the full-range temporal converters retain PostgreSQL's version limits. Numeric infinity
+requires PostgreSQL 14+, and interval infinity requires PostgreSQL 17+. A value
+the selected server cannot parse raises `JsonException` with the JSON property
+path and an inner `PgException` carrying the native diagnostic. Quoting the value
+in JSON does not make it available on an older server.
+
 JSON and JSONB participate in the [typed SPI APIs](/spi/), including nullable
 parameters, plans, cursors, domains over these base types, and owned result rows.
 PostgreSQL handles detoasting and database-encoding conversion. A native jsonb

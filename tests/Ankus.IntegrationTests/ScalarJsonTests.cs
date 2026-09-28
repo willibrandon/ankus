@@ -46,6 +46,39 @@ public sealed class ScalarJsonTests(TestContext context)
                 """, connection, transaction);
             command.Parameters.AddWithValue(input);
             command.Parameters.AddWithValue(type);
+            int major = PostgresFixture.Cluster.Installation.Version.Major;
+            if ((major < 14 && type == "numeric" && input is "Infinity" or "-Infinity") ||
+                (major < 17 && type == "interval" && input == "-infinity"))
+            {
+                int backend = connection.ProcessID;
+                await transaction.SaveAsync("json_native_error", token);
+                command.CommandText = $"SELECT $1::{type}";
+                PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual(type == "numeric" ? "22P02" : "22007", native.SqlState);
+                Assert.AreEqual($"invalid input syntax for type {type}: \"{input}\"", native.MessageText);
+                await transaction.RollbackAsync("json_native_error", token);
+                await transaction.ReleaseAsync("json_native_error", token);
+
+                await transaction.SaveAsync("json_managed_error", token);
+                command.CommandText = "SELECT datatype.scalar_json($2, json_build_object('Value', $1::text))";
+                PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("38000", managed.SqlState);
+                Assert.AreEqual("Invalid PostgreSQL value.", managed.MessageText);
+                await transaction.RollbackAsync("json_managed_error", token);
+                await transaction.ReleaseAsync("json_managed_error", token);
+
+                command.CommandText = "SELECT datatype.scalar_json_recovery($2, json_build_object('Value', $1::text))";
+                Assert.AreEqual($"$.Value:{native.SqlState}:50:0:2", await command.ExecuteScalarAsync(token));
+                command.Parameters.Clear();
+                command.CommandText = "SELECT datatype.scalar_json('numeric', '{\"Value\":\"1.2300\"}')->>'Value', pg_backend_pid()";
+                await using NpgsqlDataReader recovery = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await recovery.ReadAsync(token));
+                Assert.AreEqual("1.2300", recovery.GetString(0));
+                Assert.AreEqual(backend, recovery.GetInt32(1));
+                Assert.IsFalse(await recovery.ReadAsync(token));
+                return;
+            }
+
             await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));
             Assert.AreEqual(expectedText, reader.GetString(0));

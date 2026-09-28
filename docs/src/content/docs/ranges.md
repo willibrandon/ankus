@@ -62,6 +62,10 @@ An explicit temporal infinity is still a bound. For example,
 `new PgRange<PgDate>(null, PgDate.PositiveInfinity)` has an unbounded lower end
 and a bounded upper end that excludes the `infinity` date value.
 
+Numeric infinity bounds require PostgreSQL 14 or later, just like scalar numeric
+infinity. PostgreSQL 13 rejects an explicit `Infinity` or `-Infinity` numeric
+bound; unbounded ends remain available through null bounds or `(,)` SQL syntax.
+
 The parameterless constructor creates an empty range. No constructor calls
 PostgreSQL. It retains finite bounds and inclusion flags even if PostgreSQL will
 later canonicalize the interval to a different representation or reject it.
