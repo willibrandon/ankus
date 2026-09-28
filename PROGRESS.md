@@ -34,14 +34,29 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-The complete Linux x64 suites now pass on PostgreSQL **13.23 and 18.6**: each
+Global callbacks now have stable names tied to their declarations. The corrected
+complete PostgreSQL 15.19 and 18.6/Linux x64 suites each pass **8,276 tests, zero
+failures and six Windows-only skips, 8,282 total**, in 12m26.465s and 12m31.467s.
+The packaged shared-memory
+test passes with its full preload, hook chaining, lock and recovery assertions.
+Release, API freshness and site checks pass. PostgreSQL 19 beta compatibility and the remaining
+full-port requirements stay open.
+
+The complete Linux x64 suites at `47028f9` pass on PostgreSQL **13.23, 14.20, 16.15, 17.11 and 18.6**: each
 executes **8,277 cases with 8,271 passes, zero failures and six Windows-only
-skips**, in 11m42.791s and 12m53.136s respectively. All 62 failures from the
-previous complete PostgreSQL 13 diagnostic are resolved. Numeric, array, range,
+skips**, in 11m42.791s, 12m01.814s, 12m07.445s, 11m29.404s and 12m53.136s respectively.
+All 62 failures from the previous complete PostgreSQL 13 diagnostic are resolved.
+Numeric, array, range,
 JSON and event-trigger checks preserve selected-version rejection, ownership and
 same-backend recovery. All 279 affected cases also pass without failures/skips
 on PostgreSQL 14.20 and 15.19. Release, API freshness and site checks pass.
-Complete PostgreSQL 14 validation is running. The intermittent GUC query stall,
+The complete PostgreSQL 15.19 run records **8,270 passes, one failure and six
+Windows-only skips**: a packaged shared-memory consumer names an unrelated
+callback typedef that is not canonical in PostgreSQL 15. The stable global
+callback milestone resolves this failure. PostgreSQL 19 beta 3
+validation fails during layout-probe compilation because the pinned node catalog
+contains fields absent from those headers and retains a Rust-escaped `proc_`
+identifier for native `proc`; no completed beta suite is claimed. The intermittent GUC query stall,
 remaining PostgreSQL 13–19/platform matrix and other faithful-port requirements
 remain open.
 
@@ -11393,3 +11408,86 @@ passes. Superseded `e401d77` CI run `36409892102` is cancelled: quality/runtime
 jobs passed and the three unfinished platform suites were cancelled. Cancelled
 suites do not supply completed platform evidence. Outcomes are checked and
 recorded again immediately before pushing.
+
+## Complete selected-version baseline
+
+The unchanged implementation at `47028f9` is being exercised with each server's
+own headers and complete backend suite on Linux x64. PostgreSQL 14.20 and 16.15
+each pass **8,271 tests, zero failures and six Windows-only skips, 8,277 total**,
+in 12m01.814s and 12m07.445s respectively (integration 12m00.132s and 12m05.074s).
+PostgreSQL 17.11 also passes the same complete count in 11m29.404s (integration
+11m27.830s). Together with the complete PostgreSQL 13.23 and 18.6 results above,
+this establishes five complete major-version runs at this revision.
+PostgreSQL 15.19 records 8,270 passes, one failure and six Windows-only skips in
+11m21.077s. `SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` fails to
+publish because `JitProviderResetAfterErrorCB` is not its generated canonical
+`void(void)` callback name; PostgreSQL 15 instead selects `ArchiveShutdownCB`.
+The callback signature is present, but the consumer's unrelated typedef name is
+unstable. The fix supplies semantic names for global callbacks, following the
+existing record-field callback wrappers. PostgreSQL 19 beta 3 fails before tests
+execute: pinned `ForPortionOfExpr.range_name`, `ForPortionOfState.fp_rangeName`
+and `Query`/`SelectStmt.groupByAll` fields are absent in the selected headers;
+`SupportRequestInlineInFrom.proc_` also needs the native identifier `proc`.
+The layout probe rejects that mismatch rather than emitting an unverified ABI.
+Correcting the selected-header node contract and completing the beta suite remain
+required. Complete corrected 15 evidence, 19 evidence and the remaining platform
+combinations are still required. Private
+selected-version provisioning uses checksum-verified official
+release archives without changing the registered PostgreSQL configuration.
+
+These baseline results precede the global callback correction. Analyzer modes
+and timeouts remain unchanged. The earlier intermittent GUC stall still needs a proven cause; a successful
+rerun alone does not close it. Raw borrowed array/text/bytea APIs and the other
+remaining feature-map requirements also remain open.
+
+## Stable names for native global callbacks
+
+Selected function-pointer globals now expose `NativeGlobals_<Global>Callback`
+values, following the existing record-field callback wrappers. Consumers can
+name the actual hook independently of whichever unrelated typedef sorts first
+for that signature. Global properties retain their canonical storage types;
+implicit conversions preserve the exact address and native signature. Arrays,
+const/volatile objects, unsupported prototypes, collision handling and guarded
+invocation retain their existing contracts. The shared-memory package fixture
+uses `NativeGlobals_shmem_startup_hookCallback` with its behavioral assertions
+unchanged.
+
+Five new native-compilation tests exercise changing canonical aliases, real
+global writes and callback calls, exact address/null/size values, callback array
+elements, readonly globals, unsupported signatures, name collisions and native
+diagnostic recovery. All five and the seven existing field-callback tests pass:
+**12 passes, zero failures/skips**. Release passes with zero warnings/errors;
+API freshness reports 200 pages and 2,437 members; the documentation build emits
+245 pages and its check reports zero diagnostics. The README and raw-value guide
+describe the semantic global names. The complete corrected PostgreSQL 15.19
+suite passes **8,276 tests, zero failures and six Windows-only skips, 8,282
+total**, in 12m26.465s (integration 12m24.273s).
+`SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` passes in 3m18.505s.
+The final plain root `dotnet test` against PostgreSQL 18.6 passes the same
+complete count in 12m31.467s (integration 12m29.411s); the shared-memory case
+passes in 3m52.093s. Both runs execute all six test modules against a real server.
+
+| Requirement | Executed regression |
+|---|---|
+| Stable names when a different typedef becomes canonical | `ManagedGlobalCallbacksKeepNamesAcrossAliases` |
+| Native writes, array elements, exact addresses, nulls and qualifiers | `ManagedGlobalCallbacksPreserveStorageAndInvocation` |
+| Address-only unsupported signatures | `ManagedGlobalCallbacksKeepUnsupportedSignaturesAddressOnly` |
+| Selected globals, keyword names and declaration collisions | `ManagedGlobalCallbacksAvoidNameCollisions` |
+| Backend admission, diagnostics and healthy retry | `ManagedGlobalCallbacksValidateInvocationAndRecover` |
+| Native AOT managed hooks, preload, lock behavior and cross-backend recovery | `SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures` |
+
+The PostgreSQL 19 beta 3 investigation independently confirms all 503 node tag
+names and values match the pinned reference. A complete compiler diagnostic
+pass identifies the five member references above. Its separate node-field and
+bindgen-identifier corrections, the earlier intermittent GUC stall, borrowed
+array/text/bytea APIs and the other full-port requirements remain open.
+
+Immediately before this commit, `47028f9`
+[CI 36413984303](https://github.com/willibrandon/ankus/actions/runs/36413984303)
+has successful quality, all three runtime jobs, Linux/PostgreSQL 18 and
+macOS ARM64/PostgreSQL 18 full suites. Windows/PostgreSQL 17 remains in progress
+without a reported failure.
+[Docs 36413984308](https://github.com/willibrandon/ankus/actions/runs/36413984308)
+passes. Older superseded CI runs remain cancelled, with their documentation runs
+successful; cancelled suites do not establish completed platform evidence.
+Outcomes are checked and recorded again immediately before pushing.

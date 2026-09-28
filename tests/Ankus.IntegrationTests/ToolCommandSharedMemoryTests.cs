@@ -232,7 +232,7 @@ public sealed partial class ToolCommandTests
         using System.Diagnostics.CodeAnalysis;
         using System.Globalization;
         using System.Runtime.CompilerServices;
-        using StartupHookPointer = Ankus.Postgres.JitProviderResetAfterErrorCB;
+        using StartupHookPointer = Ankus.Postgres.NativeGlobals_shmem_startup_hookCallback;
 
         public readonly record struct SharedState(long Count, ulong Bits, int Order);
 

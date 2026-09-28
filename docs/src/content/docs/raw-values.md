@@ -225,8 +225,20 @@ preserve the address and signature. Native callback arrays expose the same
 field-specific type for their elements. A collision with another generated
 declaration adds a numeric suffix, following the companion's naming rules.
 These values keep the same caller-owned lifetime and guarded invocation rules.
-Use a field-specific type with `[PgNativeCallback]` to declare a managed handler
-without depending on an unnamed signature's generated index.
+Selected globals likewise expose a `NativeGlobals_<Global>Callback` type,
+including array elements. For example, the shared-memory startup hook has a
+stable name even when an unrelated typedef becomes the canonical name for its
+signature in another PostgreSQL version:
+
+```csharp
+NativeGlobals_shmem_startup_hookCallback previous = NativeGlobals.shmem_startup_hook;
+```
+
+Use a field- or global-specific type with `[PgNativeCallback]` to declare a
+managed handler without depending on a generated index or an unrelated typedef.
+These types convert to and from the canonical type without changing its storage,
+native signature, or ownership. Const globals remain read-only; a named callback
+type does not grant permission to modify the native object.
 
 For a fixed prototype with complete argument and result types, `Invoke` calls
 the current target through the native error guard. For example, given an

@@ -224,6 +224,10 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             NameFieldCallbacks();
+            if (globals is { Count: > 0 })
+            {
+                NameGlobalCallbacks(globals);
+            }
 
             for (int index = 0; index < graph.Types.Count; index++)
             {
@@ -250,7 +254,7 @@ internal static partial class NativeBindingRecordCSharp
             }
 
             FunctionPointers();
-            FieldCallbacks();
+            NamedCallbacks();
 
             foreach (string name in _emptyValues.Values)
             {

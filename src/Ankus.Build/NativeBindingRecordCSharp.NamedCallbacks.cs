@@ -4,7 +4,7 @@ internal static partial class NativeBindingRecordCSharp
 {
     private sealed partial class Writer
     {
-        private readonly List<(string Name, NativeBindingIndirectCall Call)> _fieldCallbacks = [];
+        private readonly List<(string Name, NativeBindingIndirectCall Call)> _namedCallbacks = [];
 
         /// <summary>
         /// Names callback values by their owning declaration and field without replacing shared canonical pointer types.
@@ -18,30 +18,49 @@ internal static partial class NativeBindingRecordCSharp
                 foreach (NativeRecordField field in declaration.Fields.Where(static field => field.Name.Length != 0)
                     .OrderBy(static field => field.Name, StringComparer.Ordinal))
                 {
-                    NativeRecordType type = Canonical(field.Type);
-                    while (type.Kind == "array")
-                    {
-                        type = Canonical(type.Element!.Value);
-                    }
-
-                    if (type.Kind == "pointer" && NativeBindingIndirectModel.FunctionType(graph, type.Element!.Value) is int signature)
-                    {
-                        string name = Unique(_names, owner + "_" + field.Name + "Callback");
-                        _fieldCallbacks.Add((name, callsBySignature[signature]));
-                    }
+                    NameCallback(field.Type, owner + "_" + field.Name + "Callback", callsBySignature);
                 }
             }
         }
 
         /// <summary>
-        /// Exposes discoverable field callback names while sharing native storage, signature identity and guarded invocation.
+        /// Names selected global callbacks independently of unrelated typedef aliases for the same signature.
         /// </summary>
-        private void FieldCallbacks()
+        private void NameGlobalCallbacks(IReadOnlyList<NativeBindingGlobalContract> selected)
         {
-            foreach ((string name, NativeBindingIndirectCall call) in _fieldCallbacks)
+            Dictionary<int, NativeBindingIndirectCall> callsBySignature = _indirectCalls.ToDictionary(static call => call.FunctionType);
+            foreach (NativeBindingGlobalContract global in selected.OrderBy(static global => global.Name, StringComparer.Ordinal))
+            {
+                NameCallback(global.StorageType, "NativeGlobals_" + global.Name + "Callback", callsBySignature);
+            }
+        }
+
+        /// <summary>
+        /// Assigns a declaration-based name to a function pointer or its containing array's elements.
+        /// </summary>
+        private void NameCallback(int typeIndex, string name, Dictionary<int, NativeBindingIndirectCall> callsBySignature)
+        {
+            NativeRecordType type = Canonical(typeIndex);
+            while (type.Kind == "array")
+            {
+                type = Canonical(type.Element!.Value);
+            }
+
+            if (type.Kind == "pointer" && NativeBindingIndirectModel.FunctionType(graph, type.Element!.Value) is int signature)
+            {
+                _namedCallbacks.Add((Unique(_names, name), callsBySignature[signature]));
+            }
+        }
+
+        /// <summary>
+        /// Exposes discoverable callback names while sharing native storage, signature identity and guarded invocation.
+        /// </summary>
+        private void NamedCallbacks()
+        {
+            foreach ((string name, NativeBindingIndirectCall call) in _namedCallbacks)
             {
                 string canonical = _functionPointers[call.FunctionType];
-                Summary("Borrows a native callback address using its owning record and field name.");
+                Summary("Borrows a native callback address using its field or global declaration name.");
                 Line("/// <param name=\"address\">A native callback with the exact selected-header signature and a lifetime covering every use.</param>");
                 Line("/// <remarks>This value shares its canonical pointer's representation and does not own or extend the callback lifetime.</remarks>");
                 Line($"[global::Ankus.NativeFunctionPointer({Number(call.FunctionType)})]");
@@ -55,13 +74,13 @@ internal static partial class NativeBindingRecordCSharp
                 Line("    public bool IsNull => _value.IsNull;\n");
                 Summary("Returns the borrowed address without establishing native ownership or callback lifetime.", "    ");
                 Line("    public nint DangerousGetAddress() => _value.DangerousGetAddress();\n");
-                Summary("Preserves the address when assigning this callback to its native field.", "    ");
-                Line("    /// <param name=\"value\">The borrowed field callback.</param>");
+                Summary("Preserves the address when assigning this callback to its native storage.", "    ");
+                Line("    /// <param name=\"value\">The borrowed named callback.</param>");
                 Line("    /// <returns>The same address with its canonical native signature.</returns>");
                 Line($"    public static implicit operator @{canonical}(@{name} value) => value._value;\n");
-                Summary("Preserves the address when reading a native callback field.", "    ");
+                Summary("Preserves the address when reading native callback storage.", "    ");
                 Line("    /// <param name=\"value\">The borrowed canonical callback.</param>");
-                Line("    /// <returns>The same address using the field's named callback type.</returns>");
+                Line("    /// <returns>The same address using the declaration's named callback type.</returns>");
                 Line($"    public static implicit operator @{name}(@{canonical} value) => new(value.DangerousGetAddress());\n");
                 if (headers is not null && call.CanInvoke)
                 {
