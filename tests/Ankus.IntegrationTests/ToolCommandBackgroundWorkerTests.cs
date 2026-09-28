@@ -107,7 +107,7 @@ public sealed partial class ToolCommandTests
             Assert.IsGreaterThan(0, workerPid);
             Assert.AreNotEqual(connection.ProcessID, workerPid);
             Assert.AreNotEqual(staticPid, workerPid);
-            Assert.AreEqual("255", fields[1]);
+            Assert.AreEqual("511", fields[1]);
             Assert.AreEqual("28", fields[2]);
             Assert.AreEqual("1", fields[3]);
             Assert.AreEqual("2", fields[5]);
@@ -209,6 +209,7 @@ public sealed partial class ToolCommandTests
         using System.Diagnostics;
         using System.Globalization;
         using Ankus;
+        using Ankus.Postgres;
 
         public static class Workers
         {
@@ -346,6 +347,35 @@ public sealed partial class ToolCommandTests
                         errors |= 2;
                     }
 
+                    bool olderParallel = PgBackgroundWorker.RunTransaction(() =>
+                        Spi.ExecuteScalar<int>("SELECT current_setting('server_version_num')::integer") < 170000);
+                    try
+                    {
+                        PgBackgroundWorker.RunTransaction(() =>
+                        {
+                            NativeMethods.EnterParallelMode();
+                            try
+                            {
+                                Spi.Query("SELECT 1 / 0", readOnly: true, limit: 1);
+                            }
+                            catch (PgException exception) when (exception.SqlState == "22012")
+                            {
+                                if (!olderParallel)
+                                {
+                                    NativeMethods.ExitParallelMode();
+                                }
+                            }
+                        });
+                        if (!olderParallel)
+                        {
+                            errors |= 256;
+                        }
+                    }
+                    catch (PgException exception) when (olderParallel && exception.SqlState == "22012")
+                    {
+                        errors |= 256;
+                    }
+
                     try
                     {
                         PgBackgroundWorker.RunTransaction(() => Spi.Execute("INSERT INTO worker_values VALUES (11)"));
@@ -357,6 +387,11 @@ public sealed partial class ToolCommandTests
 
                     long sum = PgBackgroundWorker.RunTransaction(() =>
                     {
+                        if (NativeMethods.IsInParallelMode())
+                        {
+                            throw new InvalidOperationException("Worker transaction retained a failed parallel scope.");
+                        }
+
                         Spi.Execute("INSERT INTO worker_values VALUES (17)");
                         return Spi.ExecuteScalar<long>("SELECT sum(value) FROM worker_values");
                     });

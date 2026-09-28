@@ -17,8 +17,22 @@ internal static class GuardedBackend
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
+            if (ankus_recovery_failed(error))
+            {
+                /* Saved plans outlive transaction abort. Their explicit disposal must
+                 * remain possible, without connecting SPI or running new SQL. */
+                bool release = request->operation == ANKUS_SPI_FREE_PLAN || request->operation == ANKUS_SPI_CLOSE_CURSOR ||
+                    (request->operation == ANKUS_SPI_RELATION && request->scalar_operation == 0);
+                if (!release || request->session_id != 0)
+                    return 1;
+
+                memset(error, 0, sizeof(*error));
+                request->cleanup_only = true;
+            }
+
             AnkusTransactionFrame *transaction_frame = ankus_transaction_frame;
             bool transaction_direct_spi = transaction_frame != NULL && transaction_frame->direct_spi;
+            bool direct_spi = transaction_direct_spi || ankus_parallel_without_subtransactions();
             if (transaction_direct_spi && transaction_frame->failed)
             {
                 memset(error, 0, sizeof(*error));
@@ -112,6 +126,10 @@ internal static class GuardedBackend
                         ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                             errmsg("Explicit recovery scopes are unavailable during transaction callbacks")));
 
+                    if (subtransaction && ankus_parallel_without_subtransactions())
+                        ereport(ERROR, (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
+                            errmsg("cannot start subtransactions during a parallel operation")));
+
                     if (request->cleanup_only)
                     {
                         /* Abort cleanup releases owned resources without SQL or a new subtransaction.
@@ -133,10 +151,10 @@ internal static class GuardedBackend
                     }
                     else if (request->operation == ANKUS_SPI_OPEN_SESSION)
                     {
-                        /* Outside transaction callbacks, keep this subtransaction until close so
-                         * partial SPI_connect failures can be rolled back safely. Callback phases
-                         * may run while PostgreSQL itself is starting or committing a savepoint. */
-                        if (!transaction_direct_spi)
+                        /* Keep a recovery subtransaction until close whenever PostgreSQL permits
+                         * it. Transaction callbacks and older parallel operations instead retain
+                         * the first failure until their managed entry has completely unwound. */
+                        if (!direct_spi)
                         {
                             ankus_internal_subtransaction_depth++;
                             BeginInternalSubTransaction(NULL);
@@ -154,7 +172,7 @@ internal static class GuardedBackend
                     }
                     else
                     {
-                        if (!transaction_direct_spi)
+                        if (!direct_spi)
                         {
                             ankus_internal_subtransaction_depth++;
                             BeginInternalSubTransaction(NULL);
@@ -192,7 +210,13 @@ internal static class GuardedBackend
 
                                 /* The thunk returns all managed failures before ERROR starts
                                  * rollback. Raw call guards remain inside the managed callback. */
-                                if (((AnkusSubtransactionManaged) request->callback)(request->callback_state) != 0)
+                                AnkusError callback_error = {0};
+                                int callback_status;
+                                ANKUS_MANAGED_INVOKE(callback_status, &callback_error,
+                                    ((AnkusSubtransactionManaged) request->callback)(request->callback_state));
+                                if (callback_error.sqlstate != 0)
+                                    ankus_transaction_report(&callback_error, ERROR);
+                                if (callback_status != 0)
                                     ereport(ERROR, (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
                                         errmsg("The managed subtransaction callback failed")));
 
@@ -345,7 +369,7 @@ internal static class GuardedBackend
                             }
                         }
 
-                        if (!transaction_direct_spi)
+                        if (!direct_spi)
                         {
                             ReleaseCurrentSubTransaction();
                             ankus_internal_subtransaction_depth--;
@@ -403,6 +427,7 @@ internal static class GuardedBackend
                     }
 
                     ankus_capture_error(data, error);
+                    ankus_recovery_record(data);
                     if (transaction_direct_spi)
                     {
                         ankus_release_error(&transaction_frame->failure);

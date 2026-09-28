@@ -65,8 +65,9 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgFunction] public static int Value() => 1; }");
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        Assert.Contains("&error, sql ? ankus_spi_execute : NULL, (intptr_t) ankus_transaction_log, &memory);", native);
-        int callbackGuard = native.IndexOf("if (!transaction_direct_spi)", StringComparison.Ordinal);
+        Assert.Contains("&error, sql ? ankus_spi_execute : NULL, (intptr_t) ankus_transaction_log, &memory));", native);
+        Assert.Contains("bool direct_spi = transaction_direct_spi || ankus_parallel_without_subtransactions();", native);
+        int callbackGuard = native.IndexOf("if (!direct_spi)", StringComparison.Ordinal);
         int guardedSubtransaction = native.IndexOf("ankus_internal_subtransaction_depth++;", callbackGuard,
             StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, callbackGuard);

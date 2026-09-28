@@ -24,7 +24,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         string entry = native[native.IndexOf("PGDLLEXPORT void Run(Datum argument)\n", StringComparison.Ordinal)..];
         AssertOrdered(entry, ["ankus_worker_active = true", "ankus_worker_attach(3)", "ankus_ensure_initialized()",
-            "ankus_fork_host_enter()", "int status =", "if (status != 0)", "ankus_raise_error(error)", "PG_FINALLY()",
+            "ankus_fork_host_enter()", "ANKUS_MANAGED_INVOKE(status, error,", "if (status != 0)", "ankus_raise_error(error)", "PG_FINALLY()",
             "ankus_worker_active = false", "ankus_release_error(error)", "ankus_fork_host_exit()"]);
         Assert.DoesNotContain("PG_FUNCTION_INFO_V1(Run)", native);
         IMethodSymbol initialization = Assert.IsInstanceOfType<IMethodSymbol>(Assert.ContainsSingle(

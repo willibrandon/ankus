@@ -44,6 +44,8 @@ transaction control. Recovery scopes are unavailable during transaction
 callbacks and abort cleanup. Their internal subtransactions do not appear as
 consumer subtransaction events. Native results retain their memory-context
 lifetimes; rollback invalidates allocations and resources owned by that scope.
+PostgreSQL 13–16 also prohibit starting a subtransaction during parallel
+execution. See [parallel SQL error handling](/spi/#errors-and-transactions).
 
 ## Register a callback
 

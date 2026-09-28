@@ -146,7 +146,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.IsLessThan(firstPrefix, loader.IndexOf(line, StringComparison.Ordinal));
         }
 
-        Assert.IsGreaterThan(lastPrefix, loader.IndexOf("int status = ankus_managed_", StringComparison.Ordinal));
+        Assert.IsGreaterThan(lastPrefix, loader.IndexOf("ANKUS_MANAGED_INVOKE(status, error, ankus_managed_", StringComparison.Ordinal));
         Assert.ContainsSingle(ManifestValue(compilation, "Ankus.Exports").Split('\n').Where(static item => item == "_PG_init"));
         Assert.Contains("CREATE FUNCTION \"read\"()\nRETURNS integer", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
     }

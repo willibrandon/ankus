@@ -75,8 +75,9 @@ internal static class PgInitializeEmitter
                         snapshot_owned = true;
                     }
 
-                    int status = {{callback}}(error, ankus_read_guc,
-                        IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, error, {{callback}}(error, ankus_read_guc,
+                        IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory));
                     if (snapshot_owned)
                     {
                         snapshot_owned = false;

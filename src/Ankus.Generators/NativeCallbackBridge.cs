@@ -50,7 +50,8 @@ internal static class NativeCallbackBridge
             {
                 ankus_fork_host_enter();
                 entered = true;
-                int status = callback(arguments, count, result, result_size, &context);
+                int status;
+                ANKUS_MANAGED_INVOKE(status, error, callback(arguments, count, result, result_size, &context));
                 if (status != 0)
                 {
                     ankus_raise_error(error);

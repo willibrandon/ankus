@@ -175,10 +175,11 @@ when the visibility map requires it.
 
 ## Parallel shared state
 
-Parallel execution is verified on PostgreSQL 17 and 18. PostgreSQL 15's
-parallel-worker initialization and guarded SQL recovery remain incomplete.
-The selected-header parameter remapping described above does not establish
-parallel-worker support on older servers.
+Parallel execution is verified on PostgreSQL 15, 17 and 18. PostgreSQL 13–16
+cannot use internal subtransactions during parallel execution; see the
+[SPI error boundary](/spi/#errors-and-transactions) before handling worker
+errors. Selected-header compatibility alone does not establish validation of
+every supported server version and platform.
 
 A parallel-aware custom scan can request dynamic shared memory (DSM) through
 `CustomExecMethods`. PostgreSQL owns the segment and supplies a coordinate

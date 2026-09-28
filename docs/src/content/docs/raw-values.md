@@ -157,6 +157,9 @@ boundary. Raw calls retain PostgreSQL's resource and transaction behavior. Use
 [`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
 when an operation needs rollback before a caught exception reaches its caller.
 An error marks that scope for rollback even if the callback catches it.
+On PostgreSQL 13–16, parallel execution cannot start such a scope. A native
+failure there ends the current managed callback after `finally` cleanup; see
+[parallel SQL error handling](/spi/#errors-and-transactions).
 
 Header declarations do not guarantee that a server or loaded native library
 exports the corresponding function. Variadic calls and complete version/platform

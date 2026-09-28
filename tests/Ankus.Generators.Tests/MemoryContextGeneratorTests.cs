@@ -74,14 +74,14 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_memory_initialize(&memory);", native);
         string nativeInvocation = callback.Parameters[0].Name switch
         {
-            "phase" => "&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);",
-            "operation" => "backend ? ankus_spi_execute : NULL, &memory, function_call);",
-            "error" => $"int status = {callback.Name}(error, ankus_read_guc,\n" +
-                       "            IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);",
-            _ when callback.Parameters.Any(static parameter => parameter.Name == "owner") => "scope->owner, (void *) ankus_aggregate_api, &memory);",
+            "phase" => "&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory));",
+            "operation" => "backend ? ankus_spi_execute : NULL, &memory, function_call));",
+            "error" => $"ANKUS_MANAGED_INVOKE(status, error, {callback.Name}(error, ankus_read_guc,\n" +
+                       "            IsTransactionState() ? ankus_spi_execute : NULL, ankus_initialization_log, &memory));",
+            _ when callback.Parameters.Any(static parameter => parameter.Name == "owner") => "scope->owner, (void *) ankus_aggregate_api, &memory));",
             _ when source.Contains("PgTrigger", StringComparison.Ordinal) || source.Contains("PgEventTrigger", StringComparison.Ordinal)
-                => "status = callback(arguments, result, error, ankus_spi_execute, &memory);",
-            _ => $"status = {callback.Name}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo);",
+                => "ANKUS_MANAGED_INVOKE(status, error, callback(arguments, result, error, ankus_spi_execute, &memory));",
+            _ => $"ANKUS_MANAGED_INVOKE(status, &error, {callback.Name}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo));",
         };
         Assert.Contains(nativeInvocation, native);
         Assert.Contains("ankus_memory_invoke(", native);
@@ -141,7 +141,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("typedef int (*AnkusAggregateRelease)(void *, AnkusError *, AnkusExecute, AnkusMemoryApi *);", native);
         Assert.Contains("ankus_memory_initialize(&memory);\n    ankus_memory_protect(&protection, state->cleanup_owner, true);", native);
         Assert.Contains("AnkusAggregateRelease release = state->release;", native);
-        Assert.Contains("status = release(handle, &error, ankus_spi_execute, &memory);", native);
+        Assert.Contains("ANKUS_MANAGED_INVOKE(status, &error, release(handle, &error, ankus_spi_execute, &memory));", native);
         Assert.Contains("ankus_memory_protection = protection.previous;\n        ankus_aggregate_scope = previous;", native);
         Assert.Contains("state = MemoryContextAllocZero(TopMemoryContext, sizeof(AnkusAggregateState));", native);
         Assert.Contains("MemoryContextRegisterResetCallback(state->cleanup_owner, &state->reset);", native);

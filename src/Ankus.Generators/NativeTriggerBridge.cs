@@ -233,7 +233,7 @@ internal static class NativeTriggerBridge
 
                 ankus_tuple_transport(RelationGetDescr(trigger->tg_relation), RelationGetDescr(trigger->tg_relation)->tdtypeid,
                     NULL, NULL, &arguments[11], &owned);
-                status = callback(arguments, result, error, ankus_spi_execute, &memory);
+                ANKUS_MANAGED_INVOKE(status, error, callback(arguments, result, error, ankus_spi_execute, &memory));
                 if (status != 0)
                     ankus_raise_error(error);
                 if (!TRIGGER_FIRED_AFTER(trigger->tg_event) && !result->is_null)

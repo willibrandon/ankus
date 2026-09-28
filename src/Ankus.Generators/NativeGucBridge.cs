@@ -15,7 +15,7 @@ internal static class NativeGucBridge
         #include "miscadmin.h"
         #include "access/xact.h"
         #include "utils/snapmgr.h"
-        #if defined(WIN32) && PG_VERSION_NUM < 180000
+        #if PG_VERSION_NUM < 180000
         #include "access/parallel.h"
         #endif
         #include <limits.h>
@@ -678,7 +678,7 @@ internal static class NativeGucBridge
         static bool
         ankus_guc_worker_restore_in_progress(void)
         {
-        #if defined(WIN32) && PG_VERSION_NUM < 180000
+        #if PG_VERSION_NUM < 180000
             return InitializingParallelWorker;
         #else
             return false;
@@ -1025,8 +1025,9 @@ internal static class NativeGucBridge
 
                     ankus_fork_host_enter();
                     frame->fork_entered = true;
-                    int status = definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
-                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, &frame->error, definition->hook(0, frame->arguments, frame->results, ankus_guc_source(source),
+                        &frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory));
                     if (frame->snapshot_owned)
                     {
                         frame->snapshot_owned = false;
@@ -1142,8 +1143,9 @@ internal static class NativeGucBridge
                     ankus_guc_arguments(definition, accepted, extra, frame);
                     ankus_fork_host_enter();
                     frame->fork_entered = true;
-                    int status = definition->hook(1, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, &frame->error, definition->hook(1, frame->arguments, frame->results, 0,
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory));
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ? FATAL :
                             ankus_log_level(frame->error.report_level - 1));
@@ -1196,8 +1198,9 @@ internal static class NativeGucBridge
                     ankus_guc_arguments(definition, definition->variable, definition->extra, frame);
                     ankus_fork_host_enter();
                     frame->fork_entered = true;
-                    int status = definition->hook(2, frame->arguments, frame->results, 0,
-                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, &frame->error, definition->hook(2, frame->arguments, frame->results, 0,
+                        &frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory));
                     if (status != 0)
                         ankus_guc_report(&frame->error, frame->error.report_level == 0 ?
                             (IsTransactionState() ? ERROR : FATAL) : ankus_log_level(frame->error.report_level - 1));

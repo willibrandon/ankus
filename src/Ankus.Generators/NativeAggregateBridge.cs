@@ -66,7 +66,7 @@ internal static class NativeAggregateBridge
             ankus_memory_protect(&protection, state->cleanup_owner, true);
             PG_TRY();
             {
-                status = release(handle, &error, ankus_spi_execute, &memory);
+                ANKUS_MANAGED_INVOKE(status, &error, release(handle, &error, ankus_spi_execute, &memory));
             }
             PG_FINALLY();
             {
@@ -125,6 +125,9 @@ internal static class NativeAggregateBridge
             volatile int status = 0;
             AnkusAggregateState *volatile pending_state = NULL;
             *output = NULL;
+            if (ankus_recovery_failed(error))
+                return 1;
+
             /* Both the operation and diagnostic recovery have native guards. Neither
              * allocation failures nor a user comparison ERROR may cross managed frames. */
             PG_TRY();
@@ -157,13 +160,15 @@ internal static class NativeAggregateBridge
                     {
                         MemoryContext temporary;
                         int comparison;
-                        BeginInternalSubTransaction(NULL);
+                        if (!ankus_parallel_without_subtransactions())
+                            BeginInternalSubTransaction(NULL);
                         temporary = AllocSetContextCreate(CurrentMemoryContext, "Ankus aggregate comparison", ALLOCSET_SMALL_SIZES);
                         MemoryContextSwitchTo(temporary);
                         comparison = ankus_aggregate_compare(values, sort_key);
                         MemoryContextSwitchTo(caller);
                         MemoryContextDelete(temporary);
-                        ReleaseCurrentSubTransaction();
+                        if (!ankus_parallel_without_subtransactions())
+                            ReleaseCurrentSubTransaction();
                         MemoryContextSwitchTo(caller);
                         CurrentResourceOwner = resource_owner;
                         *output = (void *) (intptr_t) ((comparison > 0) - (comparison < 0));
@@ -198,6 +203,7 @@ internal static class NativeAggregateBridge
                     MemoryContextSwitchTo(diagnostics);
                     CurrentResourceOwner = resource_owner;
                     ankus_capture_error(data, error);
+                    ankus_recovery_record(data);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(caller);
                     MemoryContextDelete(diagnostics);
@@ -348,8 +354,8 @@ internal static class NativeAggregateBridge
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
                 memory.result_context = scope->owner;
-                status = callback(arguments, result, error, ankus_spi_execute, metadata, metadata_count,
-                    scope->owner, (void *) ankus_aggregate_api, &memory);
+                ANKUS_MANAGED_INVOKE(status, error, callback(arguments, result, error, ankus_spi_execute, metadata, metadata_count,
+                    scope->owner, (void *) ankus_aggregate_api, &memory));
                 if (status != 0)
                     ankus_raise_error(error);
                 fcinfo->isnull = result->is_null;

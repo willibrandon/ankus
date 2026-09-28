@@ -216,6 +216,8 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 ```
 
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
+PostgreSQL 13–16 parallel execution cannot use recovery subtransactions; a native
+failure unwinds the managed callback before PostgreSQL aborts the operation.
 Use `PgTypes.GetOid` for native type-name resolution and `PgQualifiedNameBuilder`
 for exact operator lookup. See [catalog name lookups](docs/src/content/docs/catalog-lookups.md)
 for search paths, permissions and current catalog identities.

@@ -266,14 +266,14 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("ankus_guc_log(", native);
         Assert.Contains("ankus_log_level(", native);
         Assert.Contains("ankus_log_enabled(", native);
-        Assert.Contains("&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory);", native);
+        Assert.Contains("&frame->error, ankus_guc_read, NULL, ankus_guc_log, &memory));", native);
         Assert.DoesNotContain("ankus_raise_error(", native);
         if (options.StartsWith("Check", StringComparison.Ordinal))
         {
             Assert.Contains("ankus_guc_check(", native);
             Assert.Contains("ankus_spi_execute(", native);
             Assert.Contains("ankus_read_guc = ankus_guc_read;", native);
-            Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory);", native);
+            Assert.Contains("&frame->error, ankus_guc_read, transactional ? ankus_spi_execute : NULL, ankus_guc_log, &memory));", native);
         }
         else
         {
@@ -487,7 +487,7 @@ public sealed partial class PgFunctionGeneratorTests
         int loader = native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal);
         int binding = native.IndexOf("ankus_read_guc = ankus_guc_read;", loader, StringComparison.Ordinal);
         int registration = native.IndexOf("ankus_guc_register(&ankus_guc_", binding, StringComparison.Ordinal);
-        int invocation = native.IndexOf("int status = ankus_managed_", registration, StringComparison.Ordinal);
+        int invocation = native.IndexOf("ANKUS_MANAGED_INVOKE(status, error, ankus_managed_", registration, StringComparison.Ordinal);
         Assert.IsGreaterThan(loader, binding);
         Assert.IsGreaterThan(binding, registration);
         Assert.IsGreaterThan(registration, invocation);

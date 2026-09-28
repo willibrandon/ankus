@@ -13,7 +13,7 @@ internal static class PgModuleLoadEmitter
     /// </summary>
     internal const string State = """
         #include "miscadmin.h"
-        #if defined(WIN32) && PG_VERSION_NUM < 180000
+        #if PG_VERSION_NUM < 180000
         #include "access/parallel.h"
         #endif
 
@@ -22,7 +22,7 @@ internal static class PgModuleLoadEmitter
         static bool
         ankus_worker_restore_in_progress(void)
         {
-        #if defined(WIN32) && PG_VERSION_NUM < 180000
+        #if PG_VERSION_NUM < 180000
             return InitializingParallelWorker;
         #else
             return false;
@@ -76,8 +76,9 @@ internal static class PgModuleLoadEmitter
                         snapshot_owned = true;
                     }
 
-                    int status = {{callback}}(error, ankus_read_guc,
-                        transactional ? ankus_spi_execute : NULL, ankus_initialization_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, error, {{callback}}(error, ankus_read_guc,
+                        transactional ? ankus_spi_execute : NULL, ankus_initialization_log, &memory));
                     if (snapshot_owned)
                     {
                         snapshot_owned = false;

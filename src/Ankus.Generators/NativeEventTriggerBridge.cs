@@ -54,7 +54,7 @@ internal static class NativeEventTriggerBridge
                     arguments[index].length = strlen(utf8);
                 }
 
-                status = callback(arguments, result, error, ankus_spi_execute, &memory);
+                ANKUS_MANAGED_INVOKE(status, error, callback(arguments, result, error, ankus_spi_execute, &memory));
                 if (status != 0)
                     ankus_raise_error(error);
             }

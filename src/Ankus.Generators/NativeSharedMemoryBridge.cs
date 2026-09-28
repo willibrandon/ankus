@@ -603,7 +603,8 @@ internal static class NativeSharedMemoryBridge
             {
                 ankus_fork_host_enter();
                 entered = true;
-                int status = initialize(cookie, destination, size, &context);
+                int status;
+                ANKUS_MANAGED_INVOKE(status, error, initialize(cookie, destination, size, &context));
                 if (status != 0)
                 {
                     ankus_raise_error(error);

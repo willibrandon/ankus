@@ -57,8 +57,8 @@ internal static class NativeSetBridge
                     MemoryContextSwitchTo(state->owner);
                 }
 
-                status = state->callback(operation, &state->iterator, arguments, state->row, error,
-                    backend ? ankus_spi_execute : NULL, &memory, function_call);
+                ANKUS_MANAGED_INVOKE(status, error, state->callback(operation, &state->iterator, arguments, state->row, error,
+                    backend ? ankus_spi_execute : NULL, &memory, function_call));
             }
             PG_FINALLY();
             {

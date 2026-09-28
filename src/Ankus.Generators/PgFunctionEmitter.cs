@@ -270,7 +270,7 @@ internal static class PgFunctionEmitter
 
         source.AppendLine("    previous_function = ankus_function_oid;");
         source.AppendLine("    ankus_function_oid = fcinfo->flinfo->fn_oid;");
-        source.AppendLine($"    status = {callback}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo);");
+        source.AppendLine($"    ANKUS_MANAGED_INVOKE(status, &error, {callback}(arguments, &result, &error, ankus_spi_execute, &memory, fcinfo));");
         source.AppendLine("    ankus_function_oid = previous_function;");
         if (hasBuffers)
         {
@@ -282,6 +282,11 @@ internal static class PgFunctionEmitter
 
         source.AppendLine("    if (status != 0)");
         source.AppendLine("    {");
+        source.AppendLine("        if (result.release != NULL)");
+        source.AppendLine("        {");
+        source.AppendLine("            result.release(result.data);");
+        source.AppendLine("        }");
+        source.AppendLine();
         source.AppendLine("        ankus_raise_error(&error);");
         source.AppendLine("    }");
         source.AppendLine();

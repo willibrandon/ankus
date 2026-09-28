@@ -53,11 +53,13 @@ public static class Startup
 For native registration, see the complete
 [executor hook example](/raw-values/#managed-native-callbacks-and-hooks).
 Ankus registers configuration settings before calling `PgModuleLoad`, then calls
-`PgInitialize`. On Windows PostgreSQL versions before 18, a parallel worker loads
+`PgInitialize`. On PostgreSQL versions before 18, a parallel worker loads
 libraries before restoring its settings and transaction state. `PgModuleLoad`
 runs immediately, while `PgInitialize` waits until restoration finishes.
 SQL is unavailable during that early registration phase, including in nested
 native callbacks. Use `PgInitialize` for work that needs restored worker settings.
+On PostgreSQL 13–16, worker SQL follows the parallel error boundary described in
+[SPI queries](/spi/#errors-and-transactions).
 
 Each successful phase runs once. If `PgModuleLoad` fails, the next load retries it.
 If `PgInitialize` fails after successful registration, registration remains in

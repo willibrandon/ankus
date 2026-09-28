@@ -352,6 +352,7 @@ internal static class NativeBackgroundWorkerBridge
             }
 
             MemoryContext caller = CurrentMemoryContext;
+            AnkusError *error = palloc0(sizeof(AnkusError));
             PG_TRY();
             {
                 SetCurrentStatementStartTimestamp();
@@ -359,7 +360,8 @@ internal static class NativeBackgroundWorkerBridge
                 PushActiveSnapshot(GetTransactionSnapshot());
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
-                int status = ((AnkusWorkerTransaction) request->pointer)(ankus_worker_execute, &memory);
+                int status;
+                ANKUS_MANAGED_INVOKE(status, error, ((AnkusWorkerTransaction) request->pointer)(ankus_worker_execute, &memory));
                 MemoryContextSwitchTo(caller);
                 if (status == 0)
                 {
@@ -370,15 +372,22 @@ internal static class NativeBackgroundWorkerBridge
                 {
                     AbortCurrentTransaction();
                 }
+
+                if (error->sqlstate != 0)
+                    ankus_report(error, ERROR);
             }
             PG_CATCH();
             {
                 MemoryContextSwitchTo(caller);
                 AbortCurrentTransaction();
+                ankus_release_error(error);
+                pfree(error);
                 PG_RE_THROW();
             }
             PG_END_TRY();
             MemoryContextSwitchTo(caller);
+            ankus_release_error(error);
+            pfree(error);
         }
 
         static void

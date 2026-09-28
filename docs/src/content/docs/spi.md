@@ -390,7 +390,8 @@ cursor can still be disposed. No cursor cleanup is performed by a .NET finalizer
 
 ## Errors and transactions
 
-Each call runs in an internal subtransaction. Success retains its changes in the
+Where PostgreSQL permits subtransactions, each call runs in an internal
+subtransaction. Success retains its changes in the
 enclosing transaction; a PostgreSQL error rolls back that call before throwing
 `PgException`. Managed code can catch the exception and execute another SPI call:
 
@@ -408,6 +409,22 @@ catch (PgException exception) when (exception.SqlState == "23505")
 Managed `finally` blocks run normally for PostgreSQL errors and cancellation.
 SPI calls are confined to the active backend thread; worker-thread calls throw
 `InvalidOperationException` before accessing PostgreSQL state.
+
+PostgreSQL 13–16 prohibit subtransactions during parallel execution, including
+in parallel workers. Successful SPI queries, scoped sessions, prepared statements
+and cursors remain available subject to PostgreSQL's parallel restrictions.
+If a native operation fails in that execution mode, the current managed callback
+must end. Catching its `PgException` does not recover the PostgreSQL operation:
+further SQL and raw native calls return the original failure, and Ankus reports
+that failure after managed `finally` blocks finish, even if the method returns a
+value or throws a replacement exception. Explicit recovery scopes cannot create
+a subtransaction there either.
+
+Dispose owned plans, cursors and memory in `finally` or `using` scopes. Resource
+release and memory-context restoration remain available while ordinary backend
+work is blocked. After PostgreSQL aborts the failed query, the leader can recover
+through its surrounding transaction or savepoint and launch new workers.
+PostgreSQL 17 and later retain per-call SPI recovery in parallel workers.
 
 ### Error diagnostics
 

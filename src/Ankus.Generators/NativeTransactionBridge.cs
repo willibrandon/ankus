@@ -138,8 +138,8 @@ internal static class NativeTransactionBridge
             ankus_transaction_frame = &frame;
             ankus_memory_initialize(&memory);
             ankus_memory_protect(&protection, CurrentMemoryContext, false);
-            status = ankus_transaction_managed(kind, event, subtransaction_id, parent_subtransaction_id,
-                &error, sql ? ankus_spi_execute : NULL, (intptr_t) ankus_transaction_log, &memory);
+            ANKUS_MANAGED_INVOKE(status, &error, ankus_transaction_managed(kind, event, subtransaction_id, parent_subtransaction_id,
+                &error, sql ? ankus_spi_execute : NULL, (intptr_t) ankus_transaction_log, &memory));
             ankus_transaction_frame = frame.previous;
             ankus_memory_protection = protection.previous;
             if (snapshot_owned)

@@ -80,7 +80,8 @@ internal static class PgBackgroundWorkerEmitter
                     ankus_memory_initialize(&memory);
                     ankus_fork_host_enter();
                     entered = true;
-                    int status = {{callback}}((uintptr_t) argument, error, ankus_read_guc, ankus_initialization_log, &memory);
+                    int status;
+                    ANKUS_MANAGED_INVOKE(status, error, {{callback}}((uintptr_t) argument, error, ankus_read_guc, ankus_initialization_log, &memory));
                     if (status != 0)
                     {
                         ankus_raise_error(error);

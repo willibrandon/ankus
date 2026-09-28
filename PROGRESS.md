@@ -10479,3 +10479,76 @@ passes. These hosted results cover the preceding hook/registry milestone;
 the local evidence above covers this change. CI is checked and recorded again
 immediately before pushing. The bounded CI timing investigation remains closed;
 the one-hour limits and complete unsharded suites are unchanged.
+
+### Older parallel worker recovery
+
+PostgreSQL 13–17 loads worker libraries before restoring configuration in the
+same transaction on Unix as well as Windows. The existing deferral now applies
+on each platform, so immediate provider registration does not acquire a snapshot
+before PostgreSQL restores `transaction_deferrable`. PostgreSQL 13–16 also
+rejects internal subtransactions during parallel execution. A shared native
+managed-call boundary permits successful worker SQL while
+retaining the first unrecoverable native error until managed code unwinds.
+Subsequent SQL and raw calls in that failed scope must not appear to recover;
+PostgreSQL receives the original error only after managed dispatch returns.
+Modern per-operation SPI rollback and transaction callback behavior retain
+their existing contracts, verified by the full PostgreSQL 18 suite and targeted
+PostgreSQL 17 worker regressions.
+
+The first affected Linux x64/PostgreSQL 15.19 run passes **83 tests, zero failures
+and zero skips** in 3m05.585s, covering `CustomScanTests`, `InitializationTests`
+and `GucParallelTests`, including the previously failing worker scenarios.
+Dedicated SQL/raw caught-error and successful session/plan/cursor probes then
+pass five cases in 2m15.811s. An expanded affected run passes **90 tests, zero
+failures and zero skips**, in 2m18.816s, including long Unicode error messages,
+detail/hint preservation, owned plan/allocation/context disposal, native cleanup
+callbacks and managed `finally` receipts. All **2,100 generator tests** pass in
+26.245s after updating exact emitted-call contracts for the common boundary.
+The final affected PG15 scope passes **94 tests, zero failures and zero skips**
+in 2m27.353s. This includes original/replacement errors, full repeated diagnostic
+copies, actual outer-subtransaction recovery after entering parallel mode, and
+all three parallel transaction callback outcomes. The packaged
+`BackgroundWorkersRegisterAndShareState` test additionally passes in 3m19.977s:
+both worker connection modes swallow a parallel SQL error, receive that original
+error after whole-transaction rollback, then commit the next transaction and
+complete their existing shared-state and signal checks. Windows x64 Release
+builds with zero warnings/errors in 2m48.10s. Debian 13 x64 Release builds with
+zero warnings/errors in 1m12.64s. API freshness checks 200 pages/2,437 members;
+the 245-page site builds and its check reports zero diagnostics. Windows x64
+PostgreSQL 17.11 passes all 95 affected regression cases, with zero failures or
+skips, in 6m33.772s. Final plain `dotnet test` on Debian 13 x64/PostgreSQL 18.6
+passes **8,203 tests, zero failures and six Windows-only skips**, 8,209 total,
+in 11m58.958s. These targeted PostgreSQL 15/17 runs are not full suites for those
+versions or validation of the entire platform matrix.
+
+| Required boundary | Actual PostgreSQL 15 evidence |
+| --- | --- |
+| Restored worker settings and initialization | `BackendLoadedWorkersRestoreTypedValuesAndRegenerateExtras`, `WorkerRestoreFailurePreservesLeaderAndRecovers` |
+| Parallel custom scan execution and errors | `TraceScanRunsInParallelWorkers`, `TraceScanRunsParallelIndexChildren`, `TraceScanRecoversFromParallelErrors` |
+| Nested SPI sessions, retained plans and cursor exhaustion | `ParallelSqlSessionsRetainPlansAndCursorValues` |
+| Original diagnostic, blocked follow-up calls, disposal, finally and leader recovery | Six `ParallelCaughtNativeFailureUnwindsAndLeaderRecovers` cases |
+| An actual enclosing rollback permits subsequent SQL | `EnclosingRecoveryScopeRestoresParallelState` |
+| Background worker rollback and next committed transaction | `BackgroundWorkersRegisterAndShareState`, both connection modes |
+
+PostgreSQL 13/14's older GUC setter contract still needs implementation and real
+backend validation: these versions lack the later role-bearing setter API.
+The full PostgreSQL 13–19/platform matrix and other full-port requirements remain
+required work; this milestone does not defer or replace them.
+
+The preceding hosted run
+[CI 36373174861](https://github.com/willibrandon/ankus/actions/runs/36373174861)
+was superseded after `8de4aaf` was pushed: its previously successful Ubuntu and
+macOS results stand, but the Windows integration job was cancelled while still
+running, without a final successful integration summary. This was cancellation,
+not a timeout or complete Windows proof. The replacement
+[CI 36377069223](https://github.com/willibrandon/ankus/actions/runs/36377069223)
+has successful runtime, quality, Ubuntu and macOS jobs; Windows tests are still
+running and its documentation deployment passes. Ubuntu passes 8,195 tests with
+six platform skips in 32m48s; macOS passes 8,192 with nine platform skips in
+40m56s. Neither reports a failure, and both run all 8,201 cases from `8de4aaf`.
+The macOS Homebrew annotation about LLVM 20 not being linked
+alongside installed LLVM 18 does not indicate compiler fallback: the log verifies
+the explicitly selected LLVM 20.1.8 compiler before building, and the full test
+job passes. Global Homebrew linking is unnecessary because the selected formula's
+bin directory is exported to the test process. No additional CI tuning, timeout
+changes or runtime patch changes are part of this work.

@@ -223,7 +223,7 @@ internal static class NativeMemoryBridge
             ankus_memory_protect(&scope, owner, true);
             PG_TRY();
             {
-                status = invoke(handle, &memory, &error);
+                ANKUS_MANAGED_INVOKE(status, &error, invoke(handle, &memory, &error));
             }
             PG_FINALLY();
             {
@@ -1362,6 +1362,14 @@ internal static class NativeMemoryBridge
                 return 1;
             }
 
+            /* Managed finally blocks may restore their context and release owned
+             * memory. Keep these checked operations guarded, including callbacks
+             * they invoke, while refusing new allocations and raw backend work. */
+            bool cleanup = request->operation == ANKUS_MEMORY_SWITCH || request->operation == ANKUS_MEMORY_FREE ||
+                request->operation == ANKUS_MEMORY_DELETE || request->operation == ANKUS_MEMORY_CANCEL_CALLBACK;
+            if (!cleanup && ankus_recovery_failed(error))
+                return 1;
+
             if (request->operation == ANKUS_MEMORY_SHARED && (request->flags == 6 || request->flags == 7))
             {
                 return ankus_shared_value_address(request, result, error);
@@ -1388,6 +1396,7 @@ internal static class NativeMemoryBridge
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
+                    ankus_recovery_record(data);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(recovery);
                     MemoryContextDelete(diagnostic);

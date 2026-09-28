@@ -11,7 +11,7 @@ namespace Ankus.IntegrationTests;
 /// <param name="context">The test cancellation and diagnostic context.</param>
 [TestClass]
 [DoNotParallelize]
-public sealed class GucParallelTests(TestContext context)
+public sealed partial class GucParallelTests(TestContext context)
 {
     /// <summary>
     /// Backend-loaded libraries rebuild all five typed settings and their extras in foreign managed runtimes.
