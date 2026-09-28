@@ -10542,9 +10542,9 @@ macOS results stand, but the Windows integration job was cancelled while still
 running, without a final successful integration summary. This was cancellation,
 not a timeout or complete Windows proof. The replacement
 [CI 36377069223](https://github.com/willibrandon/ankus/actions/runs/36377069223)
-has successful runtime, quality, Ubuntu and macOS jobs; Windows tests are still
-running and its documentation deployment passes. Ubuntu passes 8,195 tests with
-six platform skips in 32m48s; macOS passes 8,192 with nine platform skips in
+had successful runtime, quality, Ubuntu and macOS jobs at the recovery commit;
+Windows was still running and its documentation deployment passed. Ubuntu passes
+8,195 tests with six platform skips in 32m48s; macOS passes 8,192 with nine platform skips in
 40m56s. Neither reports a failure, and both run all 8,201 cases from `8de4aaf`.
 The macOS Homebrew annotation about LLVM 20 not being linked
 alongside installed LLVM 18 does not indicate compiler fallback: the log verifies
@@ -10552,3 +10552,33 @@ the explicitly selected LLVM 20.1.8 compiler before building, and the full test
 job passes. Global Homebrew linking is unnecessary because the selected formula's
 bin directory is exported to the test process. No additional CI tuning, timeout
 changes or runtime patch changes are part of this work.
+
+### SDK default-symbol fixture isolation
+
+The mandatory pre-push check then found the completed Windows failure in
+[CI 36377069223](https://github.com/willibrandon/ankus/actions/runs/36377069223):
+`SelectedMajorRetainsConsumerConstants` expected the unset SDK default
+`ANKUS_PG18`, but its temporary MSBuild project inherited CI's
+`AnkusPostgresMajor=17`. The SDK correctly honored that environment value.
+The fixture now clears the inherited property before importing SDK defaults;
+later consumer overrides and command-line property precedence remain checked.
+No production default, assertion or diagnostic standard changes.
+
+The same environment reproduces the original failure on Linux: nine cases
+pass and the default row fails. After the fix, all ten
+`SdkDefineConstantsTests` cases pass with zero failures/skips on Linux in
+2.287s and Windows x64 in 0.563s, with `AnkusPostgresMajor=17` inherited on both.
+The hosted Windows integration module itself passed 3,406 cases with two
+Linux-only skips in 43m08.738s. Its Build module had 913 passes, one failure and
+one Linux-only skip; subsequent unit modules were not reached. The job ended
+after 55m41s, below its 60-minute limit.
+
+Final plain full Linux x64 `dotnet test` against PostgreSQL 18.6 passes
+**8,203 tests, zero failures and six Windows-only skips**, 8,209 total, in
+12m21.632s. Release builds with zero warnings/errors in 1m23.29s. The preceding
+API freshness and site checks remain applicable; this repair changes only the
+test fixture and this progress record. The 2026-09-28 05:34 UTC pre-commit
+check confirms the preceding CI run is complete with only the diagnosed Windows
+failure; all other jobs and Docs 36377069224 pass. The local repair is verified
+on Linux and Windows; replacement hosted results remain pending. Previous CI
+outcomes are checked and recorded again immediately before pushing.
