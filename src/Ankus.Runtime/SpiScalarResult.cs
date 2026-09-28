@@ -5,8 +5,8 @@ namespace Ankus;
 /// </summary>
 /// <param name="managed">The ordinary materialized result, when no mapped or polymorphic values are requested.</param>
 /// <param name="raw">The raw result for mapped, mixed or polymorphic result types.</param>
-/// <param name="relations">The provisional relation owners during a multi-column conversion.</param>
-internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, NativeRelationScope? relations = null) : IDisposable
+/// <param name="conversions">The provisional native owners during a multi-column conversion.</param>
+internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, SpiConversionScope? conversions = null) : IDisposable
 {
     /// <summary>
     /// Validates read capability before SQL execution and selects raw mapped or polymorphic transport.
@@ -26,7 +26,7 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
-        return PgPolymorphic.Is<T>();
+        return PgPolymorphic.Is<T>() || PgBufferViews.Is<T>();
     }
 
     /// <summary>
@@ -37,11 +37,11 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
     /// <returns>The independent result or callback-owned polymorphic values.</returns>
     internal T Read<T>(Func<SpiScalarResult, T> read)
     {
-        NativeRelationScope? ownership = null;
+        SpiConversionScope? ownership = null;
         T result;
         try
         {
-            ownership = new NativeRelationScope();
+            ownership = new SpiConversionScope();
             result = read(new SpiScalarResult(managed, raw, ownership));
         }
         catch (Exception primary)
@@ -101,7 +101,7 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
             T result = allowMissing && managed!.Columns.Count == 0
                 ? SpiRow.Convert<T>(null)
                 : managed!.GetFirstValue<T>(ordinal);
-            return relations is null ? result : relations.Add(result);
+            return conversions is null ? result : conversions.Add(result);
         }
 
         if (raw.Count == 0 || (allowMissing && raw.Columns.Count == 0))
@@ -115,13 +115,13 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
         }
 
         PgDatum value = raw[0][ordinal];
-        if (PgPolymorphic.Is<T>() && !value.IsNull)
+        if ((PgPolymorphic.Is<T>() || PgBufferViews.Is<T>()) && !value.IsNull)
         {
             value = value.CopyTo(PgMemoryContext.Callback);
         }
 
         T converted = value.Read<T>();
-        return relations is null ? converted : relations.Add(converted);
+        return conversions is null ? converted : conversions.Add(converted);
     }
 
     /// <summary>

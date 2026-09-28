@@ -98,7 +98,7 @@ internal static class SpiType
             return 16;
         }
 
-        if (type == typeof(byte[]))
+        if (type == typeof(byte[]) || type == typeof(PgByteaView))
         {
             return 17;
         }
@@ -123,7 +123,7 @@ internal static class SpiType
             return 23;
         }
 
-        if (type == typeof(string))
+        if (type == typeof(string) || type == typeof(PgTextView))
         {
             return 25;
         }

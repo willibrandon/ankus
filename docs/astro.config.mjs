@@ -108,6 +108,7 @@ export default defineConfig({
             { label: 'Memory contexts', slug: 'memory-contexts' },
             { label: 'Shared memory and locks', slug: 'shared-memory' },
             { label: 'StringInfo buffers', slug: 'stringinfo' },
+            { label: 'Text and binary values', slug: 'text-and-binary' },
             { label: 'PostgreSQL lists', slug: 'lists' },
             { label: 'Arrays', slug: 'arrays' },
             { label: 'Polymorphic values', slug: 'polymorphic-values' },

@@ -30,6 +30,11 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
+        if (PgBufferViews.Is<T>())
+        {
+            return CallRawNativeFunction(function, SpiType.GetOid<T>(), PgMemoryContext.Callback, collation, arguments).Read<T>();
+        }
+
         return RunNativeFunction(function, SpiType.GetOid<T>(), null, collation, arguments, static result =>
         {
             uint type = checked((uint)result._rowsAffected);
@@ -155,13 +160,14 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
-        if (PgPolymorphic.Is<T>())
+        if (PgPolymorphic.Is<T>() || PgBufferViews.Is<T>())
         {
             var lifetime = new PgDatumLifetime(PgMemoryContext.Callback);
-            uint expected = typeof(T) == typeof(PgAnyArray) || typeof(T) == typeof(PgArrayView) ? 2277U : 2283U;
+            uint expected = PgBufferViews.Is<T>() ? SpiType.GetOid<T>() :
+                typeof(T) == typeof(PgAnyArray) || typeof(T) == typeof(PgArrayView) ? 2277U : 2283U;
             return RunFunction(name, oid, options, arguments, expected, lifetime, result =>
-                PgPolymorphic.Read<T>(new PgDatum(unchecked((nuint)result._text.Integral),
-                    result._resultTypeOid, result._text.IsNull != 0, lifetime)));
+                new PgDatum(unchecked((nuint)result._text.Integral),
+                    result._resultTypeOid, result._text.IsNull != 0, lifetime).Read<T>());
         }
 
         return RunFunction(name, oid, options, arguments, SpiType.GetOid<T>(), null, static result =>

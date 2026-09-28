@@ -66,6 +66,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
 | `byte[]` | `bytea` |
+| `PgTextView`, `PgByteaView` | `text`, `bytea` with checked native borrowing |
 | `Guid` | `uuid` |
 | `PgJson`, `PgJsonb` | `json`, `jsonb` |
 | `decimal`, `PgNumeric` | `numeric` |
@@ -104,8 +105,10 @@ and days. They expose exact calendar fields and raw-value factories;
 See [date and time values](docs/src/content/docs/date-and-time.md).
 
 Text supports server-encoding conversion and Unicode; binary data preserves zero
-bytes. Native wrappers detoast compressed, external, and packed varlena inputs
-before invoking managed code. Managed exceptions return completely to native code
+bytes. `string` and `byte[]` copy values into managed storage; `PgTextView` and
+`PgByteaView` provide checked native reads with private detoast or encoding
+storage when needed. See [text and binary values](docs/src/content/docs/text-and-binary.md)
+for lifetime rules and independent copies. Managed exceptions return completely to native code
 before PostgreSQL raises ERROR. See [the native boundary design](docs/contributing/native-boundary.md)
 for buffer ownership and error cleanup.
 

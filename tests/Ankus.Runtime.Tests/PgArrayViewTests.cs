@@ -10,6 +10,28 @@ namespace Ankus.Runtime.Tests;
 public sealed class PgArrayViewTests
 {
     /// <summary>
+    /// Failed SPI conversions release provisional arrays and invalidate their escaped datums.
+    /// </summary>
+    [TestMethod]
+    public void ProvisionalArrayResultsReleaseTheirOwners()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture);
+        using var view = new PgArrayView(PgDatum.DangerousCreate(123, 1009, PgMemoryContext.Current));
+        PgDatum escaped = view.Datum;
+        using var scope = new SpiConversionScope();
+        Assert.AreSame(view, scope.Add(view));
+        var primary = new InvalidCastException("Later column failed.");
+        scope.ReleaseAfterFailure(primary);
+        scope.ReleaseAfterFailure(primary);
+        Assert.IsEmpty(primary.Data);
+        Assert.AreSequenceEqual<nint>([202], script.Deleted);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view[0]);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
+    }
+
+    /// <summary>
     /// Resetting only the source rejects native access even when a view's child context remains alive.
     /// </summary>
     /// <param name="nested">Whether an intermediate borrowed array contributes another lifetime dependency.</param>

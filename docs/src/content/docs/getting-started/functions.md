@@ -68,6 +68,7 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `float`, `double` | `real`, `double precision` |
 | `string` | `text` |
 | `byte[]` | `bytea` |
+| `PgTextView`, `PgByteaView` | `text`, `bytea` with [checked native borrowing](/text-and-binary/) |
 | `Guid` | `uuid` |
 | `PgInet`, `IPAddress` | `inet` |
 | `PgCidr`, `IPNetwork` | `cidr` |
@@ -90,8 +91,10 @@ See [enumerated types](/enums/) for custom C# enums, labels and type dependencie
 | `[PgDatumType]` classes, structs and enums | The converter's declared existing SQL type, also usable as an array element |
 | `void` result | `void` |
 
-Text and binary inputs are managed copies. They remain valid after PostgreSQL
-releases the original storage.
+`string` and `byte[]` inputs are managed copies. They remain valid after PostgreSQL
+releases the original storage. `PgTextView` and `PgByteaView` expose checked native
+views; scalar inputs expire at callback exit. See [text and binary values](/text-and-binary/)
+for encoding, ownership, copying and returning views.
 
 See [date and time values](/date-and-time/) for precision, time zones, and
 full-range PostgreSQL values.

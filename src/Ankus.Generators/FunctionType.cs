@@ -133,6 +133,11 @@ internal sealed class FunctionType
     internal bool IsBorrowedArray => Managed == "global::Ankus.PgArrayView";
 
     /// <summary>
+    /// Gets whether a fixed SQL text or bytea type uses a checked borrowed native view.
+    /// </summary>
+    internal bool IsBorrowedBuffer => Managed is "global::Ankus.PgByteaView" or "global::Ankus.PgTextView";
+
+    /// <summary>
     /// Gets whether the scalar uses an explicitly bound raw datum.
     /// </summary>
     internal bool IsRaw => Reader == "datum";
@@ -150,7 +155,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
     /// </summary>
-    internal bool UsesRawTransport => IsRaw || IsPolymorphic || IsMapped;
+    internal bool UsesRawTransport => IsRaw || IsPolymorphic || IsMapped || IsBorrowedBuffer;
 
     /// <summary>
     /// Gets whether the SQL declaration uses a polymorphic type, including an explicit raw binding.
@@ -362,6 +367,12 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name is "global::Ankus.PgByteaView" or "global::Ankus.PgTextView")
+        {
+            string sql = name == "global::Ankus.PgByteaView" ? "bytea" : "text";
+            return new(name, sql, sql, sql, string.Empty, nullable, reference: true);
+        }
+
         if (name == "global::Ankus.PgInternal")
         {
             return new(name, "internal", "internal", "internal", string.Empty, nullable, reference: true);

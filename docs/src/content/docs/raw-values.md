@@ -391,8 +391,8 @@ identifier, such as `int4`, without quotes or a schema prefix. `Schema` selects
 a fixed schema; omitting it uses the installation search path. `IsArray = true`
 binds an entire array of the named type, preserving shape and NULL cells.
 
-`TypeOid` retains type identity, including domains. `Read<T>()` copies a supported
-C# value; `ToPostgresString()` calls the type's output function. A nullable wrapper
+`TypeOid` retains type identity, including domains. `Read<T>()` converts to a supported
+C# representation; `ToPostgresString()` calls the type's output function. A nullable wrapper
 accepts SQL NULL. A zero datum is a present value, not NULL.
 
 For an array datum, `using PgArrayView view = value.Read<PgArrayView>()` borrows
@@ -403,6 +403,14 @@ that owner. Resetting only the source context invalidates borrowed aliases too;
 live child contexts do not extend the lifetime of their source bytes.
 See [borrowed native arrays](/arrays/#borrowed-native-arrays) for
 direct function parameters, native flattening and callback cleanup.
+
+For text and binary datums, `Read<PgTextView>()` and `Read<PgByteaView>()` borrow
+the source lifetime. They retain original SQL identity, including domains,
+and release their private detoast or encoding storage when disposed. Text views
+expose validated UTF-8 bytes while `Datum` retains the original server encoding;
+raw `varchar` and padded `bpchar` values keep their identity and trailing spaces.
+Use `ToString()` or `ToArray()` for independent managed copies. See
+[text and binary values](/text-and-binary/) for callback and direct-span rules.
 
 Reading, formatting or copying an existing domain value does not rerun its
 constraints. This preserves historical values after `ADD CHECK ... NOT VALID`

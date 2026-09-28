@@ -19,6 +19,8 @@ internal static class ManagedConversion
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
             _ when type.IsInternal => slot + ".ReadInternal()",
             _ when type.IsBorrowedArray => slot + (borrowVarlena ? ".ReadBorrowedArray()" : ".ReadOwnedArrayView()"),
+            "global::Ankus.PgByteaView" => slot + (borrowVarlena ? ".ReadBorrowedBytea()" : ".ReadOwnedByteaView()"),
+            "global::Ankus.PgTextView" => slot + (borrowVarlena ? ".ReadBorrowedText()" : ".ReadOwnedTextView()"),
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
             _ when type.Element?.IsRelation == true && type.IsVector => slot + ".ReadRelationVector<" + type.ElementManaged + ">()",
             _ when type.Element is not null => slot +
@@ -67,7 +69,7 @@ internal static class ManagedConversion
             _ when result.CustomType is not null => $"*{target} = global::Ankus.NativeValue.FromCustom({value});",
             _ when result.IsRaw => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value});",
             _ when result.IsInternal => $"*{target} = global::Ankus.NativeValue.FromInternal({value});",
-            _ when result.IsPolymorphic => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value}.Datum);",
+            _ when result.IsPolymorphic || result.IsBorrowedBuffer => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value}.Datum);",
             _ when result.Element is not null => "*" + target + " = global::Ankus.NativeValue.FromArray(" +
                 (result.IsVector ? "new global::Ankus.PgArray<" + result.ElementManaged + ">(" + value + ")" : value) + ");",
             _ when result.GeometryName.Length != 0 => $"*{target} = global::Ankus.NativeValue.From{result.GeometryName}({value});",

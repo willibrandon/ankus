@@ -31,6 +31,9 @@ Parameters accept `bool`, `sbyte`, `short`, `int`, `long`, `uint` (OID), `float`
 are sent separately from the SQL command. Each command call uses one internal
 subtransaction and reports results from its final statement.
 
+`PgTextView` and `PgByteaView` also bind as parameters, preserving their original
+SQL type identity. Nullable views declare `text` and `bytea` for SQL NULL.
+
 See [JSON and UUID values](/json-and-uuid/) for the distinction between JSON null
 and SQL NULL and for source-generated JSON serialization.
 
@@ -136,13 +139,21 @@ string? text = value.ToPostgresString();
 Spi.Execute("INSERT INTO custom_values VALUES ($1)", SpiParameter.Create(value));
 ```
 
-Each `PgDatum` preserves its exact type OID and SQL NULL flag. `Read<T>()` copies a
-supported managed value; `Read(converter)` lets you supply your own conversion.
+Each `PgDatum` preserves its exact type OID and SQL NULL flag. `Read<T>()` converts
+to a supported representation; `Read(converter)` lets you supply your own conversion.
 Sessions and prepared statements also offer `QueryRaw`.
 
 `result[0].Get<T>("value")` reads a column directly. Ordinary managed values are
 independent copies; `PgAnyElement` and `PgAnyArray` wrappers share the raw result's
 lifetime and preserve its actual type.
+
+`Read<PgTextView>()`, `Read<PgByteaView>()` and `Read<PgArrayView>()` borrow the
+raw result's lifetime. Dispose these views before their source ends. Typed
+`ExecuteScalar` and `ExecuteScalars` calls instead retain view storage under the
+enclosing callback, so the returned views survive temporary SPI result, session
+and plan cleanup. If a later column fails conversion, all earlier provisional
+views are released before the error reaches your code. See
+[text and binary values](/text-and-binary/) and [arrays](/arrays/#borrowed-native-arrays).
 
 Raw results own native memory and survive SPI session and plan disposal. Dispose
 them within the backend callback. Their values expire when the result is disposed

@@ -34,6 +34,21 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+`PgTextView` and `PgByteaView` now provide checked native text and binary reads,
+exact SQL identity, strict UTF-8 conversion and owned detoast storage when needed.
+Scalar callbacks borrow input bytes; retained set and aggregate inputs keep
+independent snapshots. Failed multi-column SPI conversions release provisional
+views before propagating their original error. All **91 affected buffer/array
+backend cases pass without failures/skips** on Linux x64/PostgreSQL **13.23,
+18.6 and 19 beta 3**. The final plain PostgreSQL 18.6/Linux x64 suite passes
+**8,484 tests, zero failures and six Windows-only skips, 8,490 total**, in
+11m48.371s; all **3,569 integration cases pass**. Release, API freshness and
+site checks pass. Typed borrowed arrays/slices, broader native layouts, the
+complete platform/version matrix, intermittent GUC query stall and other
+faithful-port requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `PgArrayView` now borrows native array cells with exact type/shape/NULL metadata,
 independent iterators and checked source and callback lifetimes. Source-only
 resets also expire nested views, cursors and escaped cells even when their private
@@ -47,8 +62,6 @@ PostgreSQL 17.7/18.1 header verification also pass on Windows x64. Release, API
 freshness and site checks pass. Typed borrowed
 arrays/slices, text/bytea views, the complete platform/version matrix,
 intermittent GUC query stall and other faithful-port requirements remain open.
-
-Earlier verified milestones follow in reverse chronological order.
 
 PostgreSQL 19 beta 3 now publishes and passes the complete Native AOT/backend
 suite on Linux x64. Both PostgreSQL **18.6 and 19 beta 3** pass **8,347 tests,
@@ -3095,7 +3108,7 @@ alongside the source-level macro inventory.
 | Source | Required behavior | Status |
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
-| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer; broader layouts and borrowed text/bytea views remain |
+| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors and retained-input snapshots; typed borrowed arrays/slices and complete platform/version evidence remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
@@ -12017,3 +12030,105 @@ macOS was superseded before completion. Docs 36446187447 passes; older
 superseded CI runs are cancelled and their documentation runs pass. These
 outcomes are checked and recorded again before pushing. No incomplete hosted
 suite is counted as completed platform evidence.
+
+## Borrowed text and binary views
+
+The `PgTextView`/`PgByteaView` implementation uses fixed SQL text and
+bytea signatures with checked native lifetimes, direct scalar borrowing,
+retained set-input snapshots, and raw/SPI/catalog/native-function result paths.
+Development and initial verification used an isolated checkout.
+The generator scope passes **58 cases, zero failures/skips**, in 3.895s; the
+initial four failures were invalid test TABLE declarations reusing an input's
+SQL name, corrected without changing declaration validation. The earlier core
+runtime scope passes **19 cases, zero failures/skips**, in 1.749s.
+
+All **30 initial backend cases pass with zero failures/skips** on PostgreSQL
+18.6/Linux x64 in 2m02.967s (integration 2m02.180s). These include exact scalar
+and nullable SETOF returns, raw/SPI/function results, original native datum and
+payload addresses for flat/short storage, private detoast ownership for
+compressed/external storage, LATIN1-to-UTF8 conversion with original server
+return bytes, domain identity and padded bpchar text, exact type rejection and
+same-session recovery. Native addresses and physical storage forms come from
+independent C fixture observations before managed conversion.
+
+At that stage, callback/aggregate retention, source-only reset, provisional result cleanup,
+invalid encoding, thread/provider boundaries, final supported-version checks,
+public documentation and complete Release/API/site/full-suite gates remained in
+progress. Those partial results did not establish a completed buffer feature or
+change the remaining faithful-port and platform/version requirements.
+
+The expanded lifecycle run exposed a provisional SPI ownership bug: when the
+third column failed conversion, two earlier buffer views remained allocated
+until callback cleanup. The baseline had **35 passes and one failure**. A shared
+conversion scope now releases provisional buffer/array views and relations when
+any conversion or temporary-result cleanup fails. It attempts every close and
+preserves cleanup diagnostics on the original failure; successful conversions
+transfer their views to the caller. The corrected combined buffer/array backend
+scope passes **81 cases, zero failures/skips**, on PostgreSQL 18.6/Linux x64 in
+2m38.952s. It includes aggregate retention, nested/failed callback expiry,
+source-only reset and independently constructed malformed native text.
+
+The implementation and public guide then moved into the main working tree. The
+expanded runtime buffer/array/relation scope passes **64 cases, zero
+failures/skips**, in 1.847s, including provisional array cleanup and failing
+native closes. Further real-backend return/iterator/owner-boundary checks and
+the complete commit gates followed; no uncompleted result is counted here.
+CI 36454069950 has passed Linux, quality and all runtime jobs; macOS and Windows
+remain in progress. Documentation run 36454069960 passes.
+
+All **91 expanded buffer/array backend cases pass with zero failures/skips** on
+PostgreSQL 18.6/Linux x64 in 3m10.660s (integration 3m09.689s). The additional
+cases cover source reset, deletion and explicit view disposal; fixed-return SQL
+identity rejection; TABLE materialization, early exit and iterator failure;
+and multi-column results surviving session and prepared-plan cleanup. The
+documentation check has zero diagnostics. Release, generated API/site, full-suite
+and older/newer PostgreSQL results follow below.
+
+The same **91 cases pass without failures/skips** on PostgreSQL **13.23** in
+2m57.199s (integration 2m55.897s) and **19 beta 3** in 3m32.259s (integration
+3m31.305s), both Linux x64. Release succeeds with zero warnings/errors in
+1m33.15s. API generation and freshness cover **203 pages/2,469 members**; the
+site builds **249 pages**. The README, function type table, SPI/raw-value guides
+and new text/binary guide describe exact ownership, encoding and SQL identity.
+
+| Requirement | Executed evidence |
+| --- | --- |
+| Exact bytes, encoding and copy boundaries | `BorrowedByteaReadsExactBytesAndCopies`, `BorrowedTextKeepsUtf8BytesAndOriginalType`, `EmptyBorrowedTextRemainsPresent`: literal zero/high-bit/UTF-8 bytes, adjacent indices, unchanged short destinations, independent copies and metadata after disposal. |
+| Nullable and concrete generated signatures | `BorrowedBufferSignaturesCompileWithConcreteSqlTypes` compiles generated declarations; `BorrowedBufferScalarReturnsPreserveExactValues` and `BorrowedBufferSetsRetainTheirInputs` check exact present/empty/NULL values in PostgreSQL. |
+| Original native storage and private detoast ownership | `BorrowedBuffersMatchNativeStorageAndCleanup` compares datum/payload addresses against independent native observations for flat, short, compressed and external text/bytea, with exact values and zero private contexts after return. |
+| Server encoding, raw identity and recovery | `BorrowedTextConvertsLatin1WithoutChangingReturnedStorage`, `BorrowedBuffersPreserveDomainIdentityAndPaddedText`, `BorrowedTextRejectsMalformedNativeEncodingAndRecovers`, `BorrowedBufferReturnsRequireTheDeclaredSqlType`: real LATIN1, literal UTF-8, domain OIDs, bpchar padding, malformed native bytes and exact return-type errors. |
+| Source, callback and backend lifetimes | `BorrowedBuffersRejectSourceExpiryAndReleaseChildren` checks reset-only/reset/delete/view-dispose boundaries, nested aliases, surviving copies and native child counts; `BorrowedBufferCallbacksExpireAliasesAndRecover`, `BorrowedBuffersRetainEnclosingCallbackLifetimes` and `BorrowedBuffersRejectForeignBackendAccess` cover nested/failed/later callbacks and thread/provider rejection before native access. |
+| Retained result ownership | `BorrowedBuffersUseRawSpiAndFunctionResults` and `BorrowedBufferPairsSurviveSessionsAndPlans` verify exact raw/SPI/catalog/native-address results and multi-column views surviving temporary result/session/plan cleanup. |
+| Provisional cleanup and preserved diagnostics | `BorrowedBufferConversionFailuresReleaseEarlierColumns` reproduces and fixes the two-owner leak; `ProvisionalBufferResultsReleaseEveryOwner`, `ProvisionalBufferResultsTransferSuccessfulOwnership` and `ProvisionalArrayResultsReleaseTheirOwners` check every attempted close, original diagnostics, escaped datum expiry and successful ownership transfer. |
+| Iterator and aggregate cleanup | `BorrowedByteaEnumeratorsKeepIndependentState`, `BorrowedBufferTablesReleaseTheirSnapshots`, `BorrowedBufferIteratorErrorsReleaseTheirSnapshots` and `BorrowedBuffersSurviveAggregateTransitions` cover independent cursors, EOF/disposal, materialization, early exit, iterator errors and retained aggregate values. |
+
+Assertion and behavioral-gap review checks actual values, independent native
+addresses, source/owner transitions and exact recovery diagnostics. It does not
+claim an executed mutation score or coverage percentage. Typed borrowed
+arrays/slices, broader native layouts, the full PostgreSQL/platform matrix and
+all other inventoried faithful-port requirements remain required. The final
+plain full-suite result is recorded below.
+
+While that suite runs, predecessor CI 36454069950 completes Linux and macOS
+successfully. Linux executes all **3,520 integration cases** without failures or
+skips in 22m06.546s; its job takes 27m56s. macOS ARM64 executes **3,518 integration
+passes, zero failures and two existing Linux-only skips** in 36m42.055s; its job
+takes 45m01s. These are evidence for the preceding source-lifetime commit, not
+the new buffer APIs. Quality/runtime/docs pass and Windows remains in progress.
+The macOS timing report's longest cases are published package/scaffold consumers
+(about 2–5 minutes each), so the passing duration still exceeds the desired
+feedback budget. No timeout or validation standard is changed here.
+
+Final plain `dotnet test` on PostgreSQL 18.6/Linux x64 passes **8,484 tests,
+zero failures and six Windows-only skips, 8,490 total**, in **11m48.371s**.
+All **3,569 integration cases pass** in 11m45.876s; all five managed test
+projects pass. Release/API/site checks above cover the same source revision.
+No analyzer mode, diagnostic severity, test assertion or CI timeout is weakened.
+
+Immediately before committing, CI 36454069950 for `0646ed7` has passed Linux,
+macOS, quality and all runtime jobs; Windows remains in progress. Documentation
+36454069960 passes. The superseded 36450560775 run is cancelled, with no completed
+full-platform suite claimed from it; the older 36446187352 Windows qualifier
+failure was fixed in `f6c40e2`, and its replacement Windows build passed. Previous
+run outcomes are checked and recorded again before pushing. New buffer platform
+evidence must come from the new hosted run.

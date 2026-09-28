@@ -19,6 +19,7 @@
 #include "access/xact.h"
 #include "miscadmin.h"
 #include "borrowed_array_fixture.h"
+#include "borrowed_buffer_fixture.h"
 
 PG_MODULE_MAGIC;
 

@@ -54,6 +54,11 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
+        if (PgBufferViews.Is<T>())
+        {
+            return PgBufferViews.Read<T>(value);
+        }
+
         if (typeof(T) == typeof(PgInternal))
         {
             value.Lifetime.Validate();
