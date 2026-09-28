@@ -367,7 +367,7 @@ internal static partial class NativeBindingParser
     }
 
     private static string NativeIdentifier(string name)
-        => name.EndsWith('_') && RustReservedName().IsMatch(name[..^1]) ? name[..^1] : name;
+        => name.EndsWith('_') && BindgenReservedName().IsMatch(name[..^1]) ? name[..^1] : name;
 
     [GeneratedRegex(@"(?m)^pub enum NodeTag\s*\{")]
     private static partial Regex TagDeclaration();
@@ -396,6 +396,9 @@ internal static partial class NativeBindingParser
     [GeneratedRegex(@"^(?:::)?\w+(?:::\w+)*$")]
     private static partial Regex DirectTypePattern();
 
-    [GeneratedRegex(@"^(?:as|break|const|continue|crate|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|true|type|unsafe|use|where|while|async|await|dyn|abstract|become|box|do|final|macro|override|priv|typeof|unsized|virtual|yield|try|gen|str)$")]
-    private static partial Regex RustReservedName();
+    /// <summary>
+    /// Matches bindgen's escaped names, including legacy keywords and primitive type names.
+    /// </summary>
+    [GeneratedRegex(@"^(?:as|break|const|continue|crate|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|true|type|unsafe|use|where|while|async|await|dyn|abstract|become|box|do|final|macro|override|priv|typeof|unsized|virtual|yield|try|gen|str|alignof|offsetof|proc|pure|sizeof|bool|f32|f64|usize|isize|u128|i128|u64|i64|u32|i32|u16|i16|u8|i8|_)$")]
+    private static partial Regex BindgenReservedName();
 }

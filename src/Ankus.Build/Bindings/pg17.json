@@ -3573,7 +3573,7 @@
         },
         {
           "Name": "proc_",
-          "NativeName": "proc_",
+          "NativeName": "proc",
           "Representation": "FmgrInfo"
         }
       ],

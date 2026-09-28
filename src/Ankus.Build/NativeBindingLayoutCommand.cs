@@ -28,6 +28,18 @@ internal static class NativeBindingLayoutCommand
 
         int major = int.Parse(arguments[0], NumberStyles.None, CultureInfo.InvariantCulture);
         NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(major);
+        NativeBindingCollection collection = await NativeBindingCollectionCommand.RunAsync(catalog, arguments, cancellationToken);
+        NativeBindingSelectedNodes selected = NativeBindingNodeAvailability.Read(catalog, collection.Records.Graph);
+        return await MeasureAsync(selected, arguments, cancellationToken);
+    }
+
+    /// <summary>
+    /// Executes an independent native probe using reference fields confirmed by the complete selected-header graph.
+    /// </summary>
+    internal static async Task<NativeBindingLayout> MeasureAsync(NativeBindingSelectedNodes selected, string[] arguments, CancellationToken cancellationToken)
+    {
+        NativeBindingCatalog catalog = selected.Catalog;
+        int major = catalog.PostgresMajor;
         PostgresInstallation installation = string.IsNullOrEmpty(arguments[1])
             ? await PostgresInstallation.DiscoverAsync(major, cancellationToken: cancellationToken)
             : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
@@ -52,6 +64,8 @@ internal static class NativeBindingLayoutCommand
         await File.WriteAllTextAsync(Path.Combine(output, "native-layout.txt"), observations, cancellationToken);
         string json = JsonSerializer.Serialize(layout, s_jsonOptions) + "\n";
         await File.WriteAllTextAsync(Path.Combine(output, "native-layout.json"), json, cancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(output, "native-node-availability.json"),
+            JsonSerializer.Serialize(selected.AbsentFields, s_jsonOptions) + "\n", cancellationToken);
         Console.WriteLine($"PG{major}: measured {layout.Types.Count} native values and {layout.Types.Values.Sum(static type => type.Fields.Count)} fields.");
         return layout;
     }
@@ -74,7 +88,7 @@ internal static class NativeBindingLayoutCommand
         var options = new List<string>();
         if (requireC11)
         {
-            options.Add(OperatingSystem.IsWindows() ? "/std:c11" : "-std=c11");
+            options.Add(OperatingSystem.IsWindows() ? "/std:c11" : "-std=gnu11");
         }
 
         if (OperatingSystem.IsWindows())

@@ -112,9 +112,12 @@ For layout development, compile and run the selected header probe:
 dotnet run --project src/Ankus.Build -c Release -- binding-layouts 18 /path/to/pg_config artifacts/binding-layouts/pg18
 ```
 
-The command writes `native-layout.c`, its executable, raw observations and
-validated `native-layout.json`. It measures every node and its embedded value
-dependencies, including anonymous unions, arrays and flexible tails, and checks
+The command discovers selected-header fields before writing `native-layout.c`,
+its executable, raw observations and validated `native-layout.json`.
+`native-node-availability.json` lists reference fields absent from those headers.
+It measures every node and its present embedded value
+dependencies, including unnamed types reached through named fields, arrays and
+flexible tails, and checks
 all node tags against the pinned major. Pointer and C long widths, plain-char
 signedness, byte order, sizes, alignments and field offsets come from the selected
 headers and compiler. Named enum widths, signedness and every constant are also
@@ -124,6 +127,10 @@ Windows a fifth argument supplies semicolon-separated native library directories
 A sixth argument selects the expected runtime identifier and a seventh passes
 the compiler target triple. The actual compiler target must match the requested
 runtime identifier.
+
+Promoted anonymous containers without an addressable C type still fail independent
+verification. PostgreSQL 19 beta 3 reaches this limitation; its full binding and
+backend validation remains incomplete.
 
 To emit managed declarations and their companion project, use `binding-sources`
 with the same arguments, followed by optional Clang executable and libclang paths.

@@ -75,7 +75,7 @@ internal static class NativeBindingLinkCommand
                     options.Add("--target=" + arguments[6]);
                 }
 
-                options.AddRange(["-std=c11", "-c", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
+                options.AddRange(["-std=gnu11", "-c", "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                     "-isystem", installation.ServerIncludeDirectory, "-isystem", installation.IncludeDirectory, "-o", artifact]);
             }
 

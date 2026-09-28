@@ -124,7 +124,8 @@ internal static class NativeBindingHeaderCommand
         else
         {
             options.AddRange(installation.PreprocessorArguments);
-            options.AddRange(["-std=c11", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
+            // PostgreSQL's configured headers may use GNU typeof while requiring C11 semantics.
+            options.AddRange(["-std=gnu11", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
                 "-isystem", installation.IncludeDirectory]);
         }
 

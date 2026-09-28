@@ -11491,3 +11491,87 @@ without a reported failure.
 passes. Older superseded CI runs remain cancelled, with their documentation runs
 successful; cancelled suites do not establish completed platform evidence.
 Outcomes are checked and recorded again immediately before pushing.
+
+## Selected-header node field discovery
+
+Native binding collection now starts from named node roots and discovers their
+complete native dependency graph before emitting reference member probes.
+Reference fields absent from the actual headers are recorded in
+`native-node-availability.json`; present fields and embedded array paths retain
+their exact native declaration identities. Independently compiled node layouts,
+all tag and enum contracts, inherited prefixes, required union cast members,
+and complete native field/bitfield checks remain enforced. Newly added native
+fields remain in the generated API and in independent verification. Cache reuse
+repeats native verification and compares the measured layout and availability
+artifacts before replacing a consumer's companion.
+
+Bindgen identifier decoding now follows the pinned bindgen 0.72.1 escape set,
+including `proc`, legacy keywords and primitive names. All seven catalogs are
+regenerated from the pinned read-only pgrx checkout; their only generated changes
+correct eight C `proc` field names. Ordinary trailing underscores remain intact.
+Non-Windows header, verification and invocation compilation uses GNU C11, matching
+PostgreSQL's supported dialect and preserving configured `typeof` expressions.
+Warnings and all analyzer modes remain unchanged.
+
+The focused native, parser, node-contract and command regressions pass **97 tests,
+zero failures/skips**, including independently executed C/C# values, added fields,
+bitfields, flexible tails, nested anonymous array dependencies, invalid node
+prefixes, missing union cast members and recovery. The existing packaged cache
+failure/recovery test additionally checks all new artifacts and independently
+rejects a false absent-field manifest even when its cache hash is consistent.
+The first plain full run finds one stale supplemental-root assertion; it is
+cancelled before complete integration results
+and the assertion is corrected to the new direct-root contract, retaining its
+independent native storage witness. The 97-case focused rerun passes in 4.136s.
+Final Release passes with zero warnings/errors in 1m20.58s. API freshness passes
+for 200 pages/2,437 members, the documentation
+build emits 245 pages and its check reports zero diagnostics.
+
+The final plain root `dotnet test` on Linux x64/PostgreSQL 18.6 passes all six
+modules: **8,314 passes, zero failures and six Windows-only skips, 8,320 total**,
+in 11m18.675s (integration 11m18.072s). This includes the expanded packaged cache
+corruption, preserved-output and successful-recovery assertions. The complete
+backend suite runs against a real server. These overlapping local checks use
+existing caches and are not cold-cache timing measurements.
+
+A separate read-only-header probe on Linux x64/PostgreSQL 19 beta 3 independently
+verifies the complete node graph: **864 declarations, 523 native values, 3,908
+fields and all 503 exact node tags**, with exactly the four removed reference
+fields reported above. The node layout, prefix, enum and complete graph checks
+all pass. This scoped probe excludes unrelated function/global dependencies and
+does not establish a passing complete beta binding build or backend suite.
+
+Actual selected-header source generation and verified cache reuse also pass on
+Linux x64 for the five older installations below. Each reports zero absent
+reference node fields. Both cold generation and warm reuse execute complete
+native declaration checks and the independent layout probe. These are binding
+checks, not new complete backend-suite evidence for those versions.
+
+| PostgreSQL | Native declarations | Node/dependency values | Measured fields |
+|---|---:|---:|---:|
+| 13.23 | 1,098 | 423 | 3,097 |
+| 14.20 | 1,155 | 436 | 3,243 |
+| 15.19 | 1,190 | 450 | 3,330 |
+| 16.15 | 1,246 | 471 | 3,476 |
+| 17.11 | 1,292 | 491 | 3,600 |
+
+PostgreSQL 19 beta 3 remains incomplete. The real cold-source command now reaches
+independent full-graph verification, which deliberately rejects three unnameable
+promoted anonymous union containers in `config_generic`, `ReorderBufferTXN` and
+`relopt_value`. This is separate from the five original stale member references.
+The diagnostic identifies each unsupported declaration and its fields. The
+existing rejection regression is preserved; no declaration or validation is
+removed to make the beta build pass. Complete anonymous-container verification,
+the beta backend suite, the PostgreSQL 13–19/platform matrix, the intermittent
+GUC stall and other full-port requirements remain open. The public native guide
+states the beta limitation.
+
+Immediately before this commit, `035b5f4`
+[CI 36419540256](https://github.com/willibrandon/ankus/actions/runs/36419540256)
+has successful quality, all three runtime jobs, Linux/PostgreSQL 18 and
+macOS ARM64/PostgreSQL 18 full suites. Windows/PostgreSQL 17 remains in progress
+without a reported failure.
+[Docs 36419540357](https://github.com/willibrandon/ankus/actions/runs/36419540357)
+passes. The older superseded CI runs remain cancelled and their documentation
+runs successful; cancelled suites do not establish completed platform evidence.
+Outcomes are checked and recorded again immediately before pushing.

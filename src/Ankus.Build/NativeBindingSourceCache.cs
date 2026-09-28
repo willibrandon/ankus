@@ -16,12 +16,13 @@ internal static class NativeBindingSourceCache
     internal static IReadOnlyList<string> Artifacts { get; } = Array.AsReadOnly<string>(
     [
         "native-records.json", "native-availability.json", "native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity",
+        "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json",
     ]);
 
     /// <summary>
     /// Leases content-verified generated sources after current header and native compiler checks succeed.
     /// </summary>
-    internal static async Task<NativeBindingCacheLease> GetAsync(NativeBindingCatalog catalog, NativeBindingLayout layout,
+    internal static async Task<NativeBindingCacheLease> GetAsync(NativeBindingCatalog catalog,
         string[] arguments, string cache, CancellationToken cancellationToken)
     {
         string directory = Directory.CreateTempSubdirectory("ankus-source-").FullName;
@@ -50,7 +51,7 @@ internal static class NativeBindingSourceCache
             string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
             {
                 Observation = observation,
-                Layout = layout,
+                NativeCompiler = arguments.Length >= 4 ? arguments[3] : "",
                 Tools = tools,
                 Compiler = compiler,
                 Library = library,
@@ -65,11 +66,13 @@ internal static class NativeBindingSourceCache
                     arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7], compiler, library];
                 NativeBindingCollection collection = await NativeBindingCollectionCommand.RunAsync(catalog, selected, token);
                 NativeHeaderRecords records = collection.Records;
+                NativeBindingSelectedNodes nodes = NativeBindingNodeAvailability.Read(catalog, records.Graph);
+                NativeBindingLayout layout = await NativeBindingLayoutCommand.MeasureAsync(nodes, selected[..7], token);
                 string[] calls = [.. records.Headers.Symbols.Where(pair => pair.Value.IsFunction &&
                     records.Graph.Types[records.Graph.Types[records.Graph.Roots[pair.Key]].Canonical].Function is { HasPrototype: true, IsVariadic: false })
                     .Select(static pair => pair.Key)];
                 string[] globals = [.. collection.Availability.Available.Where(static request => !request.IsFunction).Select(static request => request.Name)];
-                NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, catalog, layout, calls, globals);
+                NativeBindingSource binding = NativeBindingRecordCSharp.Generate(records, nodes.Catalog, layout, calls, globals);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[0]), JsonSerializer.Serialize(records, NativeBindingRecordWorker.JsonOptions) + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[1]), JsonSerializer.Serialize(collection.Availability) + "\n", token);
                 await File.WriteAllTextAsync(Path.Combine(stage, Artifacts[2]), binding.Source, token);
@@ -86,6 +89,20 @@ internal static class NativeBindingSourceCache
                     NativeHeaderRecords records = await JsonSerializer.DeserializeAsync<NativeHeaderRecords>(stream,
                         NativeBindingRecordWorker.JsonOptions, cancellationToken) ?? throw new FormatException("Missing cached native declarations.");
                     await NativeBindingCollectionCommand.VerifyAsync(records, roots.Source, installation, arguments, directory, cancellationToken);
+                    NativeBindingSelectedNodes nodes = NativeBindingNodeAvailability.Read(catalog, records.Graph);
+                    string[] selected = [arguments[0], arguments[1], directory,
+                        arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7]];
+                    NativeBindingLayout layout = await NativeBindingLayoutCommand.MeasureAsync(nodes, selected, cancellationToken);
+                    _ = NativeBindingNodeRecords.Create(records.Graph, nodes.Catalog, layout);
+                    foreach (string artifact in Artifacts.Skip(5))
+                    {
+                        if (await NativeBindingCache.HashAsync(Path.Combine(directory, artifact), cancellationToken) !=
+                            await NativeBindingCache.HashAsync(Path.Combine(lease.Directory, artifact), cancellationToken))
+                        {
+                            throw new IOException("Current native node observations disagree with the cached companion contract.");
+                        }
+                    }
+
                     await VerifyObservationAsync(cancellationToken);
                 }
 

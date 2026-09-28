@@ -233,6 +233,8 @@ ordinary `uint` values continue to preserve zero.
 The SDK generates `Ankus.Postgres` node declarations and their native type
 dependencies from the selected server headers using Clang 20 or later and
 matching `libclang`, preserving fields, enums, unions, arrays and bitfields.
+Fields follow the selected installation, including changes between prerelease
+snapshots; incompatible node tags or inheritance fail validation.
 Projects using the same measured contract share their native type identity.
 The SDK defines `ANKUS_PG13` through `ANKUS_PG19` for the selected major so
 consumer code can select version-specific declarations at compile time; see

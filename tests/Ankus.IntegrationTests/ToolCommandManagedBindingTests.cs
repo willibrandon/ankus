@@ -707,7 +707,7 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj",
-            "native-records.json", "native-availability.json"];
+            "native-records.json", "native-availability.json", "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json"];
         var expected = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (string name in names)
         {
@@ -734,7 +734,7 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual(32, field["OffsetBits"]!.GetValue<int>());
         field["OffsetBits"] = 0;
         // Keep the cache manifest internally consistent so only native verification can reject this false layout.
-        await ReplaceCachedRecordsAsync(cache, JsonSerializer.SerializeToUtf8Bytes(records, s_bindingJsonOptions), token);
+        await ReplaceCachedArtifactAsync(cache, "native-records.json", JsonSerializer.SerializeToUtf8Bytes(records, s_bindingJsonOptions), token);
         ProcessResult invalidLayout = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, invalidLayout.ExitCode);
         Assert.Contains("offset RangeTblRef.rtindex", invalidLayout.StandardError);
@@ -745,7 +745,19 @@ public sealed partial class ToolCommandTests
 
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
-        await ReplaceCachedRecordsAsync(cache, expected["native-records.json"], token);
+        await ReplaceCachedArtifactAsync(cache, "native-records.json", expected["native-records.json"], token);
+        await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", "[{\"Type\":\"RangeTblRef\",\"Field\":\"rtindex\"}]"u8.ToArray(), token);
+        ProcessResult invalidAvailability = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
+        Assert.AreEqual(1, invalidAvailability.ExitCode);
+        Assert.Contains("Current native node observations disagree with the cached companion contract", invalidAvailability.StandardError);
+        foreach (string name in names)
+        {
+            Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
+        }
+
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
+        await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", expected["native-node-availability.json"], token);
         ProcessResult recovered = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
         recovered.EnsureSuccess("dotnet", command);
         Assert.Contains("Native binding sources: reused after native verification.", recovered.StandardOutput);
@@ -760,18 +772,19 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Replaces only this test's cached record observation and its content hash to exercise independent native verification.
+    /// Replaces only this test's cached observation and its content hash to exercise independent native verification.
     /// </summary>
     /// <param name="cache">The isolated cache owned by this test.</param>
+    /// <param name="name">The observation artifact to replace.</param>
     /// <param name="content">The complete replacement observation.</param>
     /// <param name="token">Cancels fixture file access.</param>
-    private static async Task ReplaceCachedRecordsAsync(string cache, byte[] content, CancellationToken token)
+    private static async Task ReplaceCachedArtifactAsync(string cache, string name, byte[] content, CancellationToken token)
     {
-        string file = Assert.ContainsSingle(Directory.GetFiles(cache, "native-records.json", SearchOption.AllDirectories));
+        string file = Assert.ContainsSingle(Directory.GetFiles(cache, name, SearchOption.AllDirectories));
         await File.WriteAllBytesAsync(file, content, token);
         string manifestPath = Path.Combine(Path.GetDirectoryName(file)!, "manifest.json");
         JsonNode manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath, token))!;
-        JsonNode artifact = manifest["Artifacts"]!.AsArray().Single(static entry => entry!["Path"]!.GetValue<string>() == "native-records.json")!;
+        JsonNode artifact = manifest["Artifacts"]!.AsArray().Single(entry => entry!["Path"]!.GetValue<string>() == name)!;
         artifact["Hash"] = Convert.ToHexString(SHA256.HashData(content));
         await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString(), token);
     }

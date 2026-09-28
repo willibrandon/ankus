@@ -193,7 +193,10 @@ internal static partial class NativeBindingRecordChecks
             AnchorFields();
             if (_anchors.Count != _graph.Declarations.Count)
             {
-                throw new FormatException("Native record verification requires a C type anchor for every declaration.");
+                string missing = string.Join(", ", Enumerable.Range(0, _graph.Declarations.Count).Where(index => !_anchors.ContainsKey(index))
+                    .Select(index => Number(index) + ":" + _graph.Declarations[index].Kind + ":" + _graph.Declarations[index].Name +
+                        "[" + string.Join("|", _graph.Declarations[index].Fields.Select(static field => field.Name)) + "]"));
+                throw new FormatException("Native record verification requires a C type anchor for every declaration: " + missing + ".");
             }
         }
 

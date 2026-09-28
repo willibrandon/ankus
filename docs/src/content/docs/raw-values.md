@@ -13,6 +13,17 @@ array strides and target identity come from those headers. Select the installati
 with `AnkusPostgresMajor` and `AnkusPgConfigPath`; see
 [build settings](/reference/build-settings/) for compiler selection.
 
+Fields follow the selected installation, including changes between PostgreSQL
+prerelease snapshots. Removed fields are absent from the generated declarations;
+new fields retain their actual native storage. Node tags and inherited prefixes
+must still match the supported casting contract. An incompatible tag or prefix
+fails the build. Reusing cached declarations repeats the native checks against
+the selected headers.
+
+PostgreSQL 19 beta 3 binding generation remains incomplete: anonymous union
+containers in its headers still fail native verification. Its full backend
+suite has not passed.
+
 Native declarations retain PostgreSQL names and mutable fields:
 
 ```csharp

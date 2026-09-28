@@ -28,11 +28,11 @@ internal static class NativeBindingNodeRecords
         var requests = new List<NativeHeaderRequest>();
         source.Append("extern NodeTag ").Append(TagRoot).AppendLine(";");
         requests.Add(new(TagRoot, TagRoot, false));
-        foreach (NativeBindingSelectionEntry entry in NativeBindingSelection.Create(catalog))
+        foreach (NativeBindingType type in catalog.Types.Values.Where(static type => type.IsNode).OrderBy(static type => type.Name, StringComparer.Ordinal))
         {
-            NativeBindingCDeclaration.ValidateName(entry.Type.Name);
-            string name = Prefix + entry.Type.Name;
-            source.Append("extern __typeof__(").Append(entry.Expression).Append(") ").Append(name).AppendLine(";");
+            NativeBindingCDeclaration.ValidateName(type.Name);
+            string name = Prefix + type.Name;
+            source.Append("extern ").Append(type.IsUnion ? "union " : "").Append(type.Name).Append(' ').Append(name).AppendLine(";");
             requests.Add(new(name, name, false));
         }
 
@@ -89,12 +89,7 @@ internal static class NativeBindingNodeRecords
                 throw new FormatException("A native node cast references an unknown tag.");
             }
 
-            if (!graph.Roots.TryGetValue(Prefix + entry.Type.Name, out int root))
-            {
-                throw new FormatException("A selected native node value is missing from the type graph.");
-            }
-
-            NativeRecordType type = Canonical(root);
+            NativeRecordType type = Canonical(ResolveType(graph, entry));
             if (type.Kind != "record" || type.Declaration is not int index || !values.TryAdd(index, entry.Type))
             {
                 throw new FormatException("Selected node values require distinct native record identities.");
@@ -153,6 +148,46 @@ internal static class NativeBindingNodeRecords
             new ReadOnlyDictionary<string, uint>(catalog.Tags.ToDictionary(StringComparer.Ordinal)));
 
         NativeRecordType Canonical(int index) => graph.Types[graph.Types[index].Canonical];
+    }
+
+    /// <summary>
+    /// Resolves an embedded value through actual named node fields and array elements without stale synthetic roots.
+    /// </summary>
+    internal static int ResolveType(NativeRecordGraph graph, NativeBindingSelectionEntry entry)
+    {
+        string rootName = entry.Root.StartsWith("union ", StringComparison.Ordinal) ? entry.Root[6..] : entry.Root;
+        if (!graph.Roots.TryGetValue(Prefix + rootName, out int current))
+        {
+            throw new FormatException("A selected native node root is missing from the type graph.");
+        }
+
+        foreach (string segment in entry.Path.Split('.', StringSplitOptions.RemoveEmptyEntries))
+        {
+            NativeRecordType owner = graph.Types[graph.Types[current].Canonical];
+            int array = segment.IndexOf('[', StringComparison.Ordinal);
+            string name = array < 0 ? segment : segment[..array];
+            if (owner.Kind != "record" || owner.Declaration is not int declaration ||
+                graph.Declarations[declaration].Fields.SingleOrDefault(field => field.Name == name) is not NativeRecordField member)
+            {
+                throw new FormatException("A selected embedded native field is missing from its owning declaration.");
+            }
+
+            current = member.Type;
+            string suffix = array < 0 ? "" : segment[array..];
+            while (suffix.Length != 0)
+            {
+                NativeRecordType type = graph.Types[graph.Types[current].Canonical];
+                if (!suffix.StartsWith("[0]", StringComparison.Ordinal) || type.Kind != "array" || type.Element is not int element)
+                {
+                    throw new FormatException("A selected embedded native array has a different element path.");
+                }
+
+                current = element;
+                suffix = suffix[3..];
+            }
+        }
+
+        return current;
     }
 
     private static ReadOnlyDictionary<int, string> ValidateEnums(NativeRecordGraph graph, NativeBindingCatalog catalog, NativeBindingLayout layout)

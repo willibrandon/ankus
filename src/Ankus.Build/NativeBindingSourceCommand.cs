@@ -73,13 +73,14 @@ internal static class NativeBindingSourceCommand
             arguments[3] = OperatingSystem.IsWindows() ? "cl.exe" : "clang";
         }
 
-        NativeBindingLayout layout = await NativeBindingLayoutCommand.RunAsync(arguments.Length > 7 ? arguments[..7] : arguments, cancellationToken);
-        NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(layout.PostgresVersion / 10000);
+        int major = int.Parse(arguments[0], NumberStyles.None, CultureInfo.InvariantCulture);
+        NativeBindingCatalog catalog = NativeBindingResources.ReadCatalog(major);
         string cache = arguments.Length == 10 && arguments[9].Length != 0 ? Path.GetFullPath(arguments[9])
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ankus", "bindings");
-        await using NativeBindingCacheLease lease = await NativeBindingSourceCache.GetAsync(catalog, layout,
+        await using NativeBindingCacheLease lease = await NativeBindingSourceCache.GetAsync(catalog,
             arguments.Length == 10 ? arguments[..9] : arguments, cache, cancellationToken);
         string output = Path.GetFullPath(arguments[2]);
+        Directory.CreateDirectory(output);
         foreach (string name in NativeBindingSourceCache.Artifacts)
         {
             string source = Path.Combine(lease.Directory, name);

@@ -94,7 +94,7 @@ public sealed partial class NativeBindingNativeTests
         try
         {
             (NativeBindingCatalog catalog, NativeBindingLayout layout, NativeRecordGraph graph) = await CollectNodeFixtureAsync(directory);
-            Assert.AreSequenceEqual<string>(["ankus_node_record_Leaf", "ankus_node_record_Node", "ankus_node_record_Payload", "ankus_node_tag_contract"], graph.Roots.Keys);
+            Assert.AreSequenceEqual<string>(["ankus_node_record_Leaf", "ankus_node_record_Node", "ankus_node_tag_contract"], graph.Roots.Keys);
             NativeBindingSource binding = NativeBindingRecordCSharp.Generate(graph, catalog, layout);
             long[] expected = await RunRecordWitnessAsync(NodeRecordHeaders + "\n" + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(binding, Harness, context.CancellationToken));
@@ -292,10 +292,10 @@ public sealed partial class NativeBindingNativeTests
                             roots["ankus_node_tag_contract"] = roots["ankus_node_record_Node"];
                             break;
                         case "missing-record-root":
-                            roots.Remove("ankus_node_record_Payload");
+                            roots.Remove("ankus_node_record_Leaf");
                             break;
                         case "duplicate-record-root":
-                            roots["ankus_node_record_Payload"] = roots["ankus_node_record_Leaf"];
+                            roots["ankus_node_record_Leaf"] = roots["ankus_node_record_Node"];
                             break;
                         case "extra-record-root":
                             roots.Add("ankus_node_record_Unknown", roots["ankus_node_record_Leaf"]);
@@ -518,7 +518,7 @@ public sealed partial class NativeBindingNativeTests
             (NativeBindingCatalog catalog, NativeBindingLayout layout, NativeRecordGraph graph) = await CollectNodeFixtureAsync(
                 directory, headers: Headers, additionalTypes: ["Supplemental"]);
             Assert.AreSequenceEqual<string>(["ankus_header_record_Supplemental", "ankus_node_record_Leaf", "ankus_node_record_Node",
-                "ankus_node_record_Payload", "ankus_node_tag_contract"], graph.Roots.Keys);
+                "ankus_node_tag_contract"], graph.Roots.Keys);
             long[] expected = await RunRecordWitnessAsync(Headers + Main, directory);
             Assert.AreSequenceEqual(expected, GeneratedBindingCompilation.Run(
                 NativeBindingRecordCSharp.Generate(graph, catalog, layout), Harness, context.CancellationToken));

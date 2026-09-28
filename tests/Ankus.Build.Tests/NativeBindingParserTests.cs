@@ -132,6 +132,51 @@ public sealed class NativeBindingParserTests
     }
 
     /// <summary>
+    /// Bindgen's legacy keywords and primitive names decode exactly while ordinary underscores remain intact.
+    /// </summary>
+    /// <param name="escaped">The bindgen field identifier.</param>
+    /// <param name="native">The expected original C identifier.</param>
+    [TestMethod]
+    [DataRow("alignof_", "alignof")]
+    [DataRow("offsetof_", "offsetof")]
+    [DataRow("proc_", "proc")]
+    [DataRow("pure_", "pure")]
+    [DataRow("sizeof_", "sizeof")]
+    [DataRow("bool_", "bool")]
+    [DataRow("f32_", "f32")]
+    [DataRow("f64_", "f64")]
+    [DataRow("usize_", "usize")]
+    [DataRow("isize_", "isize")]
+    [DataRow("u128_", "u128")]
+    [DataRow("i128_", "i128")]
+    [DataRow("u64_", "u64")]
+    [DataRow("i64_", "i64")]
+    [DataRow("u32_", "u32")]
+    [DataRow("i32_", "i32")]
+    [DataRow("u16_", "u16")]
+    [DataRow("i16_", "i16")]
+    [DataRow("u8_", "u8")]
+    [DataRow("i8_", "i8")]
+    [DataRow("__", "_")]
+    [DataRow("ordinary_", "ordinary_")]
+    [DataRow("proc__", "proc__")]
+    [DataRow("_proc", "_proc")]
+    [DataRow("proc", "proc")]
+    public void BindgenEscapesPreserveNativeFieldIdentity(string escaped, string native)
+    {
+        string source = Graph + $$"""
+
+            pub struct EscapedFields {
+                pub {{escaped}}: u32,
+            }
+            """;
+        NativeBindingField field = NativeBindingParser.Parse(source, 19).Types["EscapedFields"].Fields.Single();
+        Assert.AreEqual(escaped, field.Name);
+        Assert.AreEqual(native, field.NativeName);
+        Assert.AreEqual("u32", field.Representation);
+    }
+
+    /// <summary>
     /// Comment and documentation text cannot inject types or delimiters into the declaration graph.
     /// </summary>
     [TestMethod]

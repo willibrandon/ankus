@@ -20,6 +20,11 @@ internal static class NativeBindingCollectionCommand
         PostgresInstallation installation = arguments[1].Length == 0
             ? await PostgresInstallation.DiscoverAsync(major, cancellationToken)
             : await PostgresInstallation.CreateAsync(arguments[1], cancellationToken);
+        if (installation.Version.Major != major)
+        {
+            throw new InvalidOperationException($"Expected PostgreSQL {major}, but the selected installation is {installation.Label}.");
+        }
+
         string compiler = arguments.Length >= 8 && arguments[7].Length != 0 ? arguments[7]
             : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
         // Windows process working directories cannot exceed MAX_PATH, even when managed file APIs support longer paths.
