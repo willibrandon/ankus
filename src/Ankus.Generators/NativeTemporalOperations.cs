@@ -10,6 +10,8 @@ internal static class NativeTemporalOperations
     /// </summary>
     internal const string Source = """
         #include "access/xact.h"
+        #include "common/int.h"
+        #include "utils/float.h"
         #include "utils/fmgrprotos.h"
         #include "utils/json.h"
         #include "utils/datetime.h"
@@ -49,6 +51,40 @@ internal static class NativeTemporalOperations
         static Datum ankus_local_time(PG_FUNCTION_ARGS) { return TimeADTGetDatum(GetSQLLocalTime(PG_GETARG_INT32(0))); }
         static Datum ankus_current_timestamp(PG_FUNCTION_ARGS) { return TimestampTzGetDatum(GetSQLCurrentTimestamp(PG_GETARG_INT32(0))); }
         static Datum ankus_local_timestamp(PG_FUNCTION_ARGS) { return TimestampGetDatum(GetSQLLocalTimestamp(PG_GETARG_INT32(0))); }
+
+        static Datum
+        ankus_make_interval(PG_FUNCTION_ARGS)
+        {
+        #if PG_VERSION_NUM < 170000
+            int32 months;
+            int32 days;
+            int64 time;
+            double seconds = PG_GETARG_FLOAT8(6);
+            /* Older make_interval implementations silently overflow these fields. */
+            if (isinf(seconds) || isnan(seconds) ||
+                pg_mul_s32_overflow(PG_GETARG_INT32(0), MONTHS_PER_YEAR, &months) ||
+                pg_add_s32_overflow(months, PG_GETARG_INT32(1), &months) ||
+                pg_mul_s32_overflow(PG_GETARG_INT32(2), 7, &days) ||
+                pg_add_s32_overflow(days, PG_GETARG_INT32(3), &days))
+            {
+                goto out_of_range;
+            }
+
+            time = PG_GETARG_INT32(4) * USECS_PER_HOUR + PG_GETARG_INT32(5) * USECS_PER_MINUTE;
+            seconds = rint(float8_mul(seconds, USECS_PER_SEC));
+            if (!FLOAT8_FITS_IN_INT64(seconds) || pg_add_s64_overflow(time, (int64) seconds, &time))
+            {
+                goto out_of_range;
+            }
+
+        #endif
+            return make_interval(fcinfo);
+        #if PG_VERSION_NUM < 170000
+        out_of_range:
+            ereport(ERROR, (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE), errmsg("interval out of range")));
+            PG_RETURN_NULL();
+        #endif
+        }
 
         static Datum
         ankus_timestamp_round(PG_FUNCTION_ARGS)
@@ -197,7 +233,7 @@ internal static class NativeTemporalOperations
             {ANKUS_TEMP_MAKE_TIMESTAMP, make_timestamp, TIMESTAMPOID, 6, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
             {ANKUS_TEMP_MAKE_TIMESTAMPTZ, make_timestamptz, TIMESTAMPTZOID, 6, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
             {ANKUS_TEMP_MAKE_TIMESTAMPTZ, make_timestamptz_at_timezone, TIMESTAMPTZOID, 7, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID, TEXTOID}},
-            {ANKUS_TEMP_MAKE_INTERVAL, make_interval, INTERVALOID, 7, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
+            {ANKUS_TEMP_MAKE_INTERVAL, ankus_make_interval, INTERVALOID, 7, {INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, INT4OID, FLOAT8OID}},
             {ANKUS_TEMP_TO_TIMETZ, time_timetz, TIMETZOID, 1, {TIMEOID}},
             {ANKUS_TEMP_TO_TIMETZ, timestamptz_timetz, TIMETZOID, 1, {TIMESTAMPTZOID}},
             {ANKUS_TEMP_ROUND, time_scale, TIMEOID, 2, {TIMEOID, INT4OID}},

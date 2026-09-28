@@ -150,6 +150,9 @@ Returns: [PgInterval](/api/ankus.pginterval/)
 
 The interval, retaining calendar and elapsed-time components.
 
+Component arithmetic and conversion to microseconds reject overflow on every supported PostgreSQL version.
+Fractional seconds use PostgreSQL's native rounding rules.
+
 <a id="member-d4dd5637ed6db864"></a>
 
 ### Divide(double)

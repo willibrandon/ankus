@@ -34,6 +34,15 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Interval construction now rejects arithmetic overflow on PostgreSQL 13–16
+inside the native error boundary and retains PostgreSQL 17+'s native checks.
+All 59 affected cases pass without failures/skips on Linux x64/PostgreSQL
+13.23, 14.20 and 15.19. The final plain PostgreSQL 18.6 suite passes **8,251
+tests, zero failures and six Windows-only skips, 8,257 total**, in 13m05.496s.
+Release, generated API freshness and site checks pass. The complete older-server
+diagnostic and remaining compatibility work are recorded below; full
+version/platform parity remains required.
+
 GUC tests now verify the selected server's prefix, privilege, reporting and
 allocation contracts. All 91 affected GUC/worker cases pass without failures or
 skips on Linux x64/PostgreSQL 13.23, 14.20 and 15.19. The final plain PostgreSQL
@@ -10764,3 +10773,68 @@ a 32m07s job (integration 25m51.688s).
 passes. The earlier `4c7fe76` run was superseded: its completed Ubuntu and macOS
 results stand, while Windows was cancelled without a completed-suite result.
 Previous outcomes are checked and recorded again immediately before pushing.
+
+## Interval construction overflow on older PostgreSQL versions
+
+The complete Linux x64/PostgreSQL 13.23 diagnostic run executes all 8,209 cases:
+8,014 pass, 189 fail and six Windows-only cases skip, in 10m06.541s
+(integration 10m04.314s). This run includes the separate, still-uncommitted
+memory-test follow-up described above. It establishes remaining failures,
+not full PostgreSQL 13 parity. Those failures include native feature/version
+boundaries, older SQL syntax and genuine interval construction overflow.
+
+PostgreSQL 13–16's `make_interval` can silently overflow month, day and
+microsecond arithmetic. The generated native boundary now checks those
+intermediate operations with PostgreSQL's checked arithmetic helpers before
+calling the original constructor. PostgreSQL 17+ continues to use its native
+checks. The guard follows upstream's
+[interval overflow correction](https://github.com/postgres/postgres/commit/b2d55447a563036579d6777f64a7483dceeab6ea),
+retains native fractional-second rounding and exact error diagnostics, and
+runs inside the existing native error boundary. No backend longjmp crosses
+managed frames. The interval API remarks and public date/time guide document
+overflow rejection on every supported version.
+
+The new `IntervalFactoryTests` add 48 backend cases. Together with all 11
+existing `TemporalConvenienceErrorsPreserveState` rows, the affected scope
+passes **59 tests, zero failures/skips** on Linux x64/PostgreSQL 13.23 in
+3m02.078s, PostgreSQL 14.20 in 2m47.472s and PostgreSQL 15.19 in 3m12.145s.
+
+| Required boundary | Executed assertions |
+| --- | --- |
+| Exact month/day/time values | Decode all 16 native `interval_send` bytes; compare the three fields with independent expected literals, including signed endpoints and mixed signs |
+| Checked field arithmetic | Reject positive/negative year and week multiplication, month/day addition, and overflowing intermediates even when a later component could cancel them |
+| Seconds and accumulated time | Preserve valid 64-bit boundary values; reject out-of-range conversions and minute/second sums with exact `22008` diagnostics |
+| Floating-point behavior | Check native half-microsecond rounding; distinguish nonfinite inputs (`22008`) from finite multiplication overflow (`22003`) with exact messages |
+| Cleanup and backend recovery | Each rejected input verifies savepoint rollback, 50 caught errors and `finally` executions, stable diagnostics, zero additional independently observed native contexts, retained writes/prepared plan, a later exact interval and the same backend's successful SQL call |
+
+Assertion and static mutation reviews retain independent binary oracles and
+observable error/recovery checks; no executed mutation or coverage percentage
+is claimed. Release builds with zero warnings/errors in 1m13.63s; API generation
+and freshness pass for 200 pages/2,437 members; the documentation site builds
+245 pages and its check reports zero errors/warnings/hints.
+The final plain full Linux x64/PostgreSQL 18.6 run passes **8,251 tests, zero
+failures and six Windows-only skips, 8,257 total**, in 13m05.496s (integration
+13m04.354s), including all new interval cases on the modern native path. This
+overlaps independent version verification and is not a cold-cache timing
+baseline. The full PostgreSQL 13–19/platform matrix and the other faithful-port
+requirements remain open.
+
+A separate follow-up corrects twenty SELECT column aliases in ten test files:
+PostgreSQL 13 requires `AS` before keyword aliases such as `value` and `label`.
+All existing assertions remain, and all **261 affected cases pass with zero
+failures/skips** on Linux x64/PostgreSQL 13.23 in 4m23.726s, including actual
+package relocation, rollback and reinstall. That patch remains separate from
+this interval milestone. A further temporal-query correction lets 23 of 26
+PostgreSQL 13 field cases pass; three timezone-minute comparisons still fail
+and remain under investigation. Those results do not establish a completed
+temporal or full older-version milestone.
+
+The 2026-09-28 07:34 UTC pre-commit check records
+[CI 36389229425](https://github.com/willibrandon/ankus/actions/runs/36389229425)
+at `f972fdd`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
+test jobs remain in progress without a reported failure.
+[Docs 36389229439](https://github.com/willibrandon/ankus/actions/runs/36389229439)
+passes. The earlier `40bdb22` macOS job subsequently passed in 37m52s
+(integration 29m19.177s); its Windows job was cancelled when superseded and
+does not supply a completed-suite result. Previous outcomes are checked and
+recorded again immediately before pushing.

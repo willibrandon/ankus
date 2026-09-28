@@ -154,6 +154,12 @@ PgInterval calendarDay = PgInterval.Create(days: 1);
 PgInterval elapsedDay = PgInterval.FromHours(24);
 ```
 
+Construction rejects overflowing month, day, and microsecond arithmetic on every
+supported PostgreSQL version. This also applies on older servers whose native
+`make_interval` can silently wrap. Fractional seconds keep PostgreSQL's native
+microsecond rounding. A rejected construction raises `PgException` and leaves
+the backend usable after normal error recovery.
+
 `FromYears` through `FromMicroseconds` provide individual unit factories.
 `FromMicroseconds` preserves the complete signed 64-bit value. `Abs` takes the
 absolute value of each stored component, throwing on signed minimum values.

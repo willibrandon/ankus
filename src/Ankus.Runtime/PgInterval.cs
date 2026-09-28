@@ -74,6 +74,10 @@ public readonly record struct PgInterval
     /// <param name="minutes">Elapsed minutes.</param>
     /// <param name="seconds">Elapsed fractional seconds, rounded by PostgreSQL.</param>
     /// <returns>The interval, retaining calendar and elapsed-time components.</returns>
+    /// <remarks>
+    /// Component arithmetic and conversion to microseconds reject overflow on every supported PostgreSQL version.
+    /// Fractional seconds use PostgreSQL's native rounding rules.
+    /// </remarks>
     public static PgInterval Create(int years = 0, int months = 0, int weeks = 0, int days = 0,
         int hours = 0, int minutes = 0, double seconds = 0)
         => PgTemporal.Call<PgInterval>(TemporalOperation.MakeInterval, SpiParameter.Create(years), SpiParameter.Create(months),

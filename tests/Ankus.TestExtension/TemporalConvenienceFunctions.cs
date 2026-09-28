@@ -47,6 +47,55 @@ public static class TemporalConvenienceFunctions
         => PgInterval.Create(years, months, weeks, days, hours, minutes, seconds);
 
     /// <summary>
+    /// Repeats failed interval construction while observing managed unwinding, native cleanup, and surviving SQL state.
+    /// </summary>
+    /// <param name="years">Years.</param>
+    /// <param name="months">Months.</param>
+    /// <param name="weeks">Weeks.</param>
+    /// <param name="days">Days.</param>
+    /// <param name="hours">Hours.</param>
+    /// <param name="minutes">Minutes.</param>
+    /// <param name="seconds">Seconds.</param>
+    /// <returns>Exact diagnostics, unwind counts, retained state, and a subsequent valid interval.</returns>
+    [PgFunction]
+    public static string IntervalFactoryRecovery(int years, int months, int weeks, int days, int hours, int minutes, double seconds)
+        => Spi.Connect(session =>
+        {
+            session.Execute("CREATE TEMP TABLE interval_factory_writes(value int)");
+            session.Execute("INSERT INTO interval_factory_writes VALUES (1)");
+            using SpiPreparedStatement plan = session.Prepare("SELECT count(*) FROM interval_factory_writes");
+            const string count = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus SPI operation', 'Ankus error diagnostics', 'CurTransactionContext')";
+            long before = session.ExecuteScalar<long>(count);
+            int failures = 0;
+            int finalized = 0;
+            bool consistent = true;
+            string diagnostic = "no error";
+            for (int index = 0; index < 50; index++)
+            {
+                try
+                {
+                    _ = PgInterval.Create(years, months, weeks, days, hours, minutes, seconds);
+                }
+                catch (PgException error)
+                {
+                    string next = error.SqlState + "|" + error.Message;
+                    consistent &= failures == 0 || diagnostic == next;
+                    diagnostic = next;
+                    failures++;
+                }
+                finally
+                {
+                    finalized++;
+                }
+            }
+
+            PgInterval control = PgInterval.Create(1, -2, 3, -4, 5, -6, 7.1234567);
+            session.Execute("INSERT INTO interval_factory_writes VALUES (2)");
+            return $"{diagnostic}|{failures}|{finalized}|{consistent}|{session.ExecuteScalar<long>(count) - before}|" +
+                $"{plan.ExecuteScalar<long>()}|{control.Months},{control.Days},{control.Microseconds}";
+        });
+
+    /// <summary>
     /// Constructs unit intervals and exercises checked component absolute values.
     /// </summary>
     /// <param name="unit">The constructor or operation.</param>
