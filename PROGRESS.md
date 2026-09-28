@@ -34,14 +34,25 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Worker configuration replay now keeps each checked value and its matching hook
+extra together in native rollback history, preventing a secondary assignment
+failure during worker error cleanup. All 96 configuration cases pass on Linux
+x64/PostgreSQL 13.23, and all 26 expanded worker cases pass on 15.19. A deliberate
+extra-only mutation fails the four worker-normalization regressions. The final
+plain PostgreSQL 18.6 suite passes **8,271 tests, zero failures and six
+Windows-only skips, 8,277 total**, in 12m48.733s. Release, generated API and site
+checks pass. The separate earlier PostgreSQL 13 query stall, other older-version
+contracts, the complete PostgreSQL 13–19/platform matrix, and remaining port
+requirements are still open.
+
 The packaged native-binding test now follows selected-header availability and
 worker startup ordering on older PostgreSQL. Its complete publish/load/preload/
 rebuild/clean sequence passes on Linux x64/PostgreSQL 13.23 and 15.19. The final
 plain PostgreSQL 18.6 suite passes **8,263 tests, zero failures and six
 Windows-only skips, 8,269 total**, in 12m45.819s. Release, generated API and
-site checks pass. Separate stronger worker-error assertions reproduce a GUC
-cleanup defect on PostgreSQL 15.19; that defect and the earlier PostgreSQL 13
-query timeout remain required follow-up. Full PostgreSQL 13–19/platform parity
+site checks pass. Separate stronger worker-error assertions reproduced the GUC
+cleanup defect subsequently fixed by the checked-history milestone above. The
+earlier PostgreSQL 13 query timeout remains required follow-up. Full PostgreSQL 13–19/platform parity
 and other faithful-port work remain incomplete.
 
 Native storage, node-format and full-range date tests now use the selected
@@ -11104,3 +11115,51 @@ test jobs remain in progress without a reported failure.
 passes. The preceding `85e00bc` platform jobs were cancelled when superseded
 and do not provide completed-suite evidence. Previous outcomes are checked and
 recorded again immediately before pushing.
+
+## Checked worker configuration history
+
+Native PostgreSQL 15 observations confirm the worker cleanup defect: deferred
+restoration initially stores integer `37` with no hook extra, and replay later
+installs checked extra while pushing the unchecked value/extra pair into native
+transaction history. A subsequent worker error restores that invalid pair and
+causes an additional assignment failure. The two strengthened original worker
+SET/SET LOCAL cases fail on this cleanup error before the production correction.
+
+The bridge now retains the checked worker value together with its extra in the
+history entry introduced by replay. This includes check-hook normalization and
+the selected headers' source/context/role metadata. It preserves unrelated
+history and PostgreSQL's current/reset/boot/history references, freeing replaced
+string or extra storage only when no native field retains it, with the matching
+version's allocator. Assignment callbacks still receive their accepted data
+without rechecking or suppression. The public configuration guide describes
+worker normalization and rollback-history behavior.
+
+The original eighteen GUC worker cases pass on Linux x64/PostgreSQL 15.19 in
+2m06.813s after the correction. Expanded error-path cases cover all five setting
+kinds, default null, empty/Unicode text, and worker-only normalization to Unicode
+or null. They retain the original SQLSTATE, native message/file/context, full
+leader state, exact worker values and extras, and same-session recovery, and
+reject additional assignment failures in the server log. All **26 expanded
+worker cases pass with zero failures/skips** on PostgreSQL 15.19 in 1m58.287s.
+An extra-only mutation passes all six unchanged-value cases but fails all four
+worker-normalized Unicode/null cases in 2m34.091s, proving that the tests require
+both the accepted value and its extra. The mutation is removed. Release builds
+with zero warnings/errors in 1m34.63s; API freshness passes for 200 pages/2,437
+members. The site builds 245 pages and its check reports zero errors/warnings/
+hints. All **96 configuration cases pass with zero failures/skips** on Linux
+x64/PostgreSQL 13.23 in 2m54.559s. Final plain `dotnet test` on Linux
+x64/PostgreSQL 18.6 passes **8,271 tests, zero failures and six Windows-only
+skips, 8,277 total**, in 12m48.733s (integration 12m47.732s). These runs used
+existing local caches; overlapping version diagnostics are not a cold-cache
+performance baseline. The refreshed full PostgreSQL 13 diagnostic is in progress.
+The separate earlier 30-second query stall has not been attributed to this
+cleanup defect; the full version/platform matrix and other port requirements
+remain open.
+
+Before committing this milestone, `316d390` CI run `36401239486` has passed
+quality and all three runtime jobs; all three complete platform test jobs remain
+in progress without a reported failure. Its Docs run `36401239525` passes.
+The preceding `9df3bdc` CI run `36399145420` is cancelled after being superseded:
+quality and runtime jobs passed, and all three platform jobs were cancelled.
+These cancelled jobs do not supply completed-suite evidence. Previous outcomes
+are checked and recorded again immediately before pushing.

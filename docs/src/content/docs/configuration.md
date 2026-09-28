@@ -223,6 +223,10 @@ independently in that process; check hooks run there to reconstruct extra data
 from the propagated value and source. Do not treat managed static fields or
 previously returned extra objects as shared state between workers.
 
+Worker check hooks can normalize a propagated value. Native rollback history
+retains that accepted value together with its worker-owned extra data through
+error cleanup and function-local restoration.
+
 Native PostgreSQL serialization preserves an untouched default null string by
 leaving it at its default. A nondefault null string serializes as empty text, so
 the worker's check hook receives an empty string. This distinction also applies

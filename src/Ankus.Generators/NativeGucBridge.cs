@@ -1250,7 +1250,105 @@ internal static class NativeGucBridge
         }
         """;
 
+    /// <summary>
+    /// Reconstructs worker hook data and retains checked values in native transaction history.
+    /// </summary>
     private const string WorkerRestore = """
+        static bool
+        ankus_guc_string_referenced(struct config_string *setting, const char *value)
+        {
+            if (value == *setting->variable || value == setting->reset_val || value == setting->boot_val)
+            {
+                return true;
+            }
+
+            for (GucStack *stack = setting->gen.stack; stack != NULL; stack = stack->prev)
+            {
+                if (value == stack->prior.val.stringval || value == stack->masked.val.stringval)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static bool
+        ankus_guc_extra_referenced(struct config_generic *setting, const void *extra)
+        {
+            if (extra == setting->extra)
+            {
+                return true;
+            }
+
+            void *reset = NULL;
+            switch (setting->vartype)
+            {
+                case PGC_BOOL: reset = ((struct config_bool *) setting)->reset_extra; break;
+                case PGC_INT: reset = ((struct config_int *) setting)->reset_extra; break;
+                case PGC_REAL: reset = ((struct config_real *) setting)->reset_extra; break;
+                case PGC_STRING: reset = ((struct config_string *) setting)->reset_extra; break;
+                case PGC_ENUM: reset = ((struct config_enum *) setting)->reset_extra; break;
+            }
+
+            if (extra == reset)
+            {
+                return true;
+            }
+
+            for (GucStack *stack = setting->stack; stack != NULL; stack = stack->prev)
+            {
+                if (extra == stack->prior.extra || extra == stack->masked.extra)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static void
+        ankus_guc_retain_worker_baseline(struct config_generic *setting, GucStack *previous)
+        {
+            GucStack *stack = setting->stack;
+            if (stack == previous)
+            {
+                return;
+            }
+
+            /* Replaying a session value can push its unchecked restoration state.
+             * An abort must restore the checked worker value and matching extra,
+             * including any normalization performed by the worker's check hook. */
+            config_var_value old = stack->prior;
+            config_var_value current = {0};
+            switch (setting->vartype)
+            {
+                case PGC_BOOL: current.val.boolval = *((struct config_bool *) setting)->variable; break;
+                case PGC_INT: current.val.intval = *((struct config_int *) setting)->variable; break;
+                case PGC_REAL: current.val.realval = *((struct config_real *) setting)->variable; break;
+                case PGC_STRING: current.val.stringval = *((struct config_string *) setting)->variable; break;
+                case PGC_ENUM: current.val.enumval = *((struct config_enum *) setting)->variable; break;
+            }
+
+            current.extra = setting->extra;
+            stack->prior = current;
+            stack->source = setting->source;
+            stack->scontext = setting->scontext;
+        #if PG_VERSION_NUM >= 150000
+            stack->srole = setting->srole;
+        #endif
+            if (setting->vartype == PGC_STRING && old.val.stringval != NULL &&
+                !ankus_guc_string_referenced((struct config_string *) setting, old.val.stringval))
+            {
+                ankus_guc_free(old.val.stringval);
+            }
+
+            if (old.extra != NULL && !ankus_guc_extra_referenced(setting, old.extra))
+            {
+                ankus_guc_free(old.extra);
+            }
+        }
+
         static const char *
         ankus_guc_current_value(AnkusGuc *definition, struct config_generic *existing, char *buffer, Size size)
         {
@@ -1310,6 +1408,7 @@ internal static class NativeGucBridge
                             errmsg("Ankus configuration ownership changed during parallel worker restore")));
                     char buffer[128];
                     const char *value = ankus_guc_current_value(definition, existing, buffer, sizeof(buffer));
+                    GucStack *previous_stack = existing->stack;
                     int original_flags = existing->flags;
                     volatile int result = 0;
                     ErrorContextCallback error_context;
@@ -1338,6 +1437,7 @@ internal static class NativeGucBridge
                     if (result <= 0)
                         ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
                             errmsg("Ankus configuration could not be restored in a parallel worker")));
+                    ankus_guc_retain_worker_baseline(existing, previous_stack);
                     definition->extra = existing->extra;
                     definition->worker_restore_pending = false;
                 }

@@ -73,19 +73,47 @@ public sealed partial class GucParallelTests(TestContext context)
             }, context.CancellationToken);
 
     /// <summary>
-    /// Both session and local mutations fail in actual workers without changing the leader's state.
+    /// Rejected worker mutations preserve checked values and extra data through cleanup and leader recovery.
     /// </summary>
     /// <param name="local">Whether set_config requests transaction-local mutation.</param>
+    /// <param name="textState">The default, explicit, or worker-normalized text state.</param>
+    /// <param name="text">The exact text expected after a worker's check hook.</param>
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public Task WorkerSetRejectsAndLeaderRecovers(bool local)
+    [DataRow(false, "default", null)]
+    [DataRow(true, "default", null)]
+    [DataRow(false, "value", "")]
+    [DataRow(true, "value", "")]
+    [DataRow(false, "value", "café 🐘")]
+    [DataRow(true, "value", "café 🐘")]
+    [DataRow(false, "worker-text", "worker café 🐘")]
+    [DataRow(true, "worker-text", "worker café 🐘")]
+    [DataRow(false, "worker-null", null)]
+    [DataRow(true, "worker-null", null)]
+    public Task WorkerSetRejectsAndLeaderRecovers(bool local, string textState, string? text)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(WorkerSetRejectsAndLeaderRecovers),
             async (connection, transaction, token) =>
             {
                 await PrepareInputAsync(connection, transaction, token);
-                await ExecuteAsync(connection, transaction, "LOAD 'Ankus.TestExtension'; SET LOCAL ankus_parallel.integer = 37", token);
+                await ExecuteAsync(connection, transaction, """
+                    LOAD 'Ankus.TestExtension';
+                    SET LOCAL ankus_parallel.boolean = off;
+                    SET LOCAL ankus_parallel.integer = 37;
+                    SET LOCAL ankus_parallel.real = '-0.125';
+                    SET LOCAL ankus_parallel.mode = 'rest';
+                    """, token);
+                string? input = textState is "worker-text" or "worker-null"
+                    ? $"{textState}:{connection.ProcessID.ToString(CultureInfo.InvariantCulture)}"
+                    : text;
+                if (textState != "default")
+                {
+                    await SetAsync(connection, transaction, "ankus_parallel.text", input!, token);
+                }
+
+                string?[] leader = await ScalarAsync<string?[]>(connection, transaction,
+                    "SELECT datatype.guc_parallel_snapshot(0)", token);
+                Assert.AreEqual(input, leader[6]);
                 await AssertWorkerPlanAsync(connection, transaction, "datatype.guc_parallel_snapshot(value % 2)", token);
+                int logLength = PostgresFixture.Cluster.ReadServerLog().Length;
                 await transaction.SaveAsync("worker_set", token);
                 PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecuteAsync(connection, transaction,
                     $"SELECT sum(datatype.guc_parallel_set(value, {(local ? "true" : "false")})) FROM guc_parallel_input", token));
@@ -100,11 +128,26 @@ public sealed partial class GucParallelTests(TestContext context)
                 AssertWorkerRows(connection.ProcessID, recovered, processIndex: 1);
                 foreach ((string?[] snapshot, _) in recovered)
                 {
+                    Assert.HasCount(14, snapshot);
+                    string process = snapshot[1]!;
+                    string realBits = BitConverter.DoubleToInt64Bits(-0.125).ToString(CultureInfo.InvariantCulture);
+                    Assert.AreEqual("False", snapshot[3]);
                     Assert.AreEqual("37", snapshot[4]);
-                    Assert.AreEqual($"{snapshot[1]}|Session|37", snapshot[9]);
+                    Assert.AreEqual(realBits, snapshot[5]);
+                    Assert.AreEqual(text, snapshot[6]);
+                    Assert.AreEqual("18446744073709551615", snapshot[7]);
+                    Assert.AreEqual($"{process}|Session|False", snapshot[8]);
+                    Assert.AreEqual($"{process}|Session|37", snapshot[9]);
+                    Assert.AreEqual($"{process}|Session|{realBits}", snapshot[10]);
+                    Assert.AreEqual($"{process}|{(textState == "default" ? "Default" : "Session")}|{text ?? "<null>"}", snapshot[11]);
+                    Assert.AreEqual($"{process}|Session|18446744073709551615", snapshot[12]);
                 }
 
+                Assert.AreSequenceEqual(leader, await ScalarAsync<string?[]>(connection, transaction,
+                    "SELECT datatype.guc_parallel_snapshot(0)", token));
                 Assert.AreEqual(42, await ScalarAsync<int>(connection, transaction, "SELECT 42", token));
+                Assert.DoesNotContain("Assignment extra does not match its accepted value.",
+                    PostgresFixture.Cluster.ReadServerLog()[logLength..]);
             }, context.CancellationToken);
 
     /// <summary>

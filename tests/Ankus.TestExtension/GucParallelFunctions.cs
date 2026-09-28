@@ -147,7 +147,7 @@ public static partial class GucParallelFunctions
         => new(value, MakeExtra(BitConverter.DoubleToInt64Bits(value).ToString(CultureInfo.InvariantCulture), source));
 
     /// <summary>
-    /// Allows the test to distinguish default null from a nondefault null serialized by PostgreSQL.
+    /// Normalizes nulls and worker-specific text while retaining extra data for the accepted value.
     /// </summary>
     /// <param name="value">The proposed text or null.</param>
     /// <param name="source">The native source retained during propagation.</param>
@@ -155,6 +155,16 @@ public static partial class GucParallelFunctions
     internal static PgGucCheckResult<string?> CheckText(string? value, PgGucSource source)
     {
         string? accepted = value == "make-null" ? null : value;
+        string process = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        if (value?.StartsWith("worker-text:", StringComparison.Ordinal) == true && value != $"worker-text:{process}")
+        {
+            accepted = "worker café 🐘";
+        }
+        else if (value?.StartsWith("worker-null:", StringComparison.Ordinal) == true && value != $"worker-null:{process}")
+        {
+            accepted = null;
+        }
+
         return new(accepted, MakeExtra(accepted ?? "<null>", source));
     }
 
