@@ -108,6 +108,20 @@ public sealed class AllocationLifecycleTests(TestContext context)
         command.Parameters.AddWithValue(tryOperations);
         command.Parameters.AddWithValue(alignment);
         command.Parameters.AddWithValue(zeroed);
+        if (alignment > 8 && PostgresFixture.Cluster.Installation.Version.Major < 16)
+        {
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
+            Assert.AreEqual("0A000", error.SqlState);
+            Assert.AreEqual("aligned allocation requires PostgreSQL 16 or later", error.MessageText);
+            command.Parameters.Clear();
+            command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE ident = 'allocation lifecycle probe'";
+            Assert.AreEqual(0L, await command.ExecuteScalarAsync(token), "Rejected alignment must release the newly created native owner.");
+            Assert.AreEqual(backend, connection.ProcessID);
+            context.WriteLine($"PostgreSQL {PostgresFixture.Cluster.Installation.Version}: verified unavailable {alignment}-byte alignment; validating the complete ordinary-alignment lifecycle in the same backend.");
+            await AssertLifecycleAsync(connection, backend, initialSize, grownSize, tryOperations, 0, zeroed, token);
+            return;
+        }
+
         await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync(token))
         {
             Assert.AreEqual(11, reader.FieldCount);

@@ -194,7 +194,8 @@ public sealed class ItemPointerTests(TestContext context)
     [DataRow(0)]
     [DataRow(2)]
     public Task NativeAllocatorErrorsRecover(int kind)
-        => CheckAsync($"SELECT tests.allocator_create({kind},'datatype.item_pointer_allocator()'::regprocedure,'tid rejection')::text", "11");
+        => CheckAsync($"SELECT tests.allocator_create({kind},'datatype.item_pointer_allocator()'::regprocedure,'tid rejection')::text", "11",
+            unavailableBump: kind == 2 && PostgresFixture.Cluster.Installation.Version.Major < 17);
 
     /// <summary>
     /// Retained values survive callback boundaries but expire on either transaction completion path.
@@ -252,12 +253,33 @@ public sealed class ItemPointerTests(TestContext context)
     /// <summary>
     /// Asserts complete results and same-session recovery after native operations.
     /// </summary>
-    private Task CheckAsync(string sql, string expected)
+    private Task CheckAsync(string sql, string expected, bool unavailableBump = false)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ItemPointerTests), async (connection, transaction, token) =>
         {
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand(sql, connection, transaction);
-            Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+            if (unavailableBump)
+            {
+                await transaction.SaveAsync("tid_allocator_capability", token);
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("0A000", error.SqlState);
+                Assert.AreEqual("Bump requires PostgreSQL 17 or later", error.MessageText);
+                await transaction.RollbackAsync("tid_allocator_capability", token);
+                await transaction.ReleaseAsync("tid_allocator_capability", token);
+                command.CommandText = "SELECT tests.allocator_delete()";
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus allocator fixture', 'tid rejection')";
+                Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT tests.allocator_create(0,'datatype.item_pointer_allocator()'::regprocedure,'tid rejection')::text";
+                Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT tests.allocator_delete()";
+                await command.ExecuteNonQueryAsync(token);
+            }
+            else
+            {
+                Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+            }
+
             command.CommandText = "SELECT 42";
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
             Assert.AreEqual(backend, connection.ProcessID);

@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Allocator and list checks now verify selected-version feature rejection,
+transaction-owned fixture cleanup, and recovery without skipping unavailable
+feature cases. All **143 affected cases pass with zero failures/skips** on Linux
+x64/PostgreSQL 13.23 and 15.19. Supported versions retain the complete allocation,
+ownership, alias, diagnostic, and lifetime assertions. Final plain PostgreSQL
+18.6 testing passes **8,271 tests, zero failures and six Windows-only skips,
+8,277 total**, in 12m50.740s. Release, API freshness and site checks pass.
+Numeric and temporal version contracts, the intermittent GUC query stall,
+the full PostgreSQL 13–19/platform matrix, and other port requirements remain open.
+
 Worker configuration replay now keeps each checked value and its matching hook
 extra together in native rollback history, preventing a secondary assignment
 failure during worker error cleanup. All 96 configuration cases pass on Linux
@@ -11163,3 +11173,49 @@ The preceding `9df3bdc` CI run `36399145420` is cancelled after being superseded
 quality and runtime jobs passed, and all three platform jobs were cancelled.
 These cancelled jobs do not supply completed-suite evidence. Previous outcomes
 are checked and recorded again immediately before pushing.
+
+## Native allocator and list capability contracts
+
+The complete Linux x64/PostgreSQL 13.23 diagnostic after checked worker history
+records **8,171 passes, 100 failures and six Windows-only skips, 8,277 total**,
+in 10m22.304s (integration 10m19.933s). The earlier GUC query stall does not recur
+in this run, which is insufficient to close the intermittent-timeout follow-up.
+
+Allocator, allocation-lifecycle, item-pointer, and list tests now distinguish
+selected-header capabilities. PostgreSQL before 16 must reject over-alignment
+and transaction-ID lists with exact feature-not-supported diagnostics; checks
+then verify ordinary allocation or exact OID cells in the same backend. Slab
+alignment rejection retains the original pointer, length, bytes, and owner.
+Unavailable aligned lifecycle requests release their temporary owner before a
+complete ordinary-alignment lifecycle checks native/catalog accounting.
+
+On PostgreSQL before 17, Bump fixture construction must fail before managed
+callback entry. Tests verify its exact error, partial native-context cleanup,
+savepoint and transaction completion, encoding, and backend recovery. The
+checks preserve the fixture parent's top-transaction lifetime: it survives
+savepoint rollback and is reclaimed by explicit deletion or transaction end.
+The encoded diagnostic check distinguishes the managed callback's notice from
+unrelated extension-installation warnings on older servers. Older-version cases
+establish Bump unavailability, not Bump ownership behavior.
+The supported-server paths retain all existing Bump value, alias, callback,
+diagnostic, and lifetime assertions. No rows are skipped or diagnostics relaxed.
+The public allocation and list guides document SQLSTATE `0A000` for unavailable
+features.
+
+All **143 affected cases pass with zero failures/skips** on Linux x64/PostgreSQL
+13.23 in 1m56.305s and PostgreSQL 15.19 in 2m25.506s. Final Release builds with
+zero warnings/errors in 1m08.24s. API freshness passes for 200 pages/2,437 members;
+the site builds 245 pages and its check reports zero errors/warnings/hints.
+Final plain `dotnet test` on Linux x64/PostgreSQL 18.6 passes **8,271 tests,
+zero failures and six Windows-only skips, 8,277 total**, in 12m50.740s
+(integration 12m50.159s). These cached local runs overlap independent version
+checks and are not cold-cache performance measurements. The remaining full-port
+requirements and complete older-version/platform validation stay open.
+
+Immediately before this commit, `d51e4e5` CI run `36404648450` has successful
+quality and all three runtime jobs; all three full platform test jobs remain in
+progress without a reported failure. Docs run `36404647733` passes. Predecessor
+`316d390` CI run `36401239486` was cancelled when superseded: quality and runtime
+jobs passed, and all three platform jobs were cancelled. Cancelled suites do not
+supply completed platform evidence. Previous outcomes are checked and recorded
+again immediately before pushing.

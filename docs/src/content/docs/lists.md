@@ -45,7 +45,8 @@ iteration, empty copies and raw NIL pointer access need no backend until the
 first allocating mutation binds the list to the current context.
 `PgList.Create<T>(context)` binds immediately, including when empty. A bound
 empty list therefore expires when its context resets. Binding a transaction-ID
-list on PostgreSQL before 16 throws a native feature-not-supported error.
+list on PostgreSQL before 16 throws a native feature-not-supported error with
+SQLSTATE `0A000`. The other cell kinds remain available on those servers.
 
 `TryAdd(value)` appends without allocating native storage and returns false for
 NIL or a full buffer. `TryReserve(additionalCount)` returns false for NIL;

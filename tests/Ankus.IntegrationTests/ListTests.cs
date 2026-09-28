@@ -43,7 +43,8 @@ public sealed class ListTests(TestContext context)
     [DataRow(3, "True|oid:0,2147483648,4294967295")]
     [DataRow(4, "True|xid:0,2147483648,4294967295")]
     public Task NativeCellKindsPreserveBoundaryValues(int kind, string expected)
-        => CheckAsync($"SELECT datatype.list_cells({kind})", expected);
+        => CheckAsync($"SELECT datatype.list_cells({kind})", expected,
+            unavailableTransactionIds: kind == 4 && PostgresFixture.Cluster.Installation.Version.Major < 16);
 
     /// <summary>
     /// pgrx's small and large append cases verify every cell through independent C code after an ambient context is deleted.
@@ -203,23 +204,33 @@ public sealed class ListTests(TestContext context)
     /// <summary>
     /// Compares exact callback output and then independently verifies same-session backend recovery.
     /// </summary>
-    private Task CheckAsync(string sql, string expected, bool unavailableBump = false)
+    private Task CheckAsync(string sql, string expected, bool unavailableBump = false, bool unavailableTransactionIds = false)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(ListTests), async (connection, transaction, token) =>
         {
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand(sql, connection, transaction);
-            if (unavailableBump)
+            if (unavailableBump || unavailableTransactionIds)
             {
-                await transaction.SaveAsync("bump_capability", token);
+                await transaction.SaveAsync("list_capability", token);
                 PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
                 Assert.AreEqual("0A000", error.SqlState);
-                Assert.AreEqual("Bump allocator probes require PostgreSQL 17 or later", error.MessageText);
+                Assert.AreEqual(unavailableBump ? "Bump allocator probes require PostgreSQL 17 or later"
+                    : "transaction-ID lists require PostgreSQL 16 or later", error.MessageText);
                 Assert.IsNull(error.Detail);
                 Assert.IsNull(error.Hint);
-                await transaction.RollbackAsync("bump_capability", token);
-                await transaction.ReleaseAsync("bump_capability", token);
-                command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus list fault', 'Ankus fault bump')";
-                Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+                await transaction.RollbackAsync("list_capability", token);
+                await transaction.ReleaseAsync("list_capability", token);
+                if (unavailableBump)
+                {
+                    command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name IN ('Ankus list fault', 'Ankus fault bump')";
+                    Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
+                }
+
+                if (unavailableTransactionIds)
+                {
+                    command.CommandText = "SELECT datatype.list_cells(3)";
+                    Assert.AreEqual("True|oid:0,2147483648,4294967295", await command.ExecuteScalarAsync(token));
+                }
             }
             else
             {

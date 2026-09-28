@@ -42,7 +42,8 @@ public sealed class AllocatorContextTests(TestContext context)
     [DataRow(2, 8)]
     [DataRow(2, 4096)]
     public Task BorrowedAllocatorsPreserveExactBuffersOwnersAndIndependentAccounting(int kind, int alignment)
-        => CheckAsync(kind, $"SELECT datatype.allocator_basics({kind == 0}, {alignment})", "True|True|True|True|True|True|True|True|True");
+        => CheckAsync(kind, $"SELECT datatype.allocator_basics({kind == 0}, {alignment})", "True|True|True|True|True|True|True|True|True",
+            overAligned: alignment > 8);
 
     /// <summary>
     /// Individual frees invalidate checked aliases without damaging other chunks or preventing later allocation.
@@ -136,7 +137,14 @@ public sealed class AllocatorContextTests(TestContext context)
         {
             command.CommandText = "SELECT datatype.allocator_operation_error(3, 64, false, 8)";
             string result = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token));
-            Assert.MatchesRegex(@"^XX000:unexpected alloc chunk size [0-9]+ \(expected 64\)\|64\|True\|True\|True\|True\|True$", result);
+            if (PostgresFixture.Cluster.Installation.Version.Major < 16)
+            {
+                Assert.AreEqual("0A000:aligned allocation requires PostgreSQL 16 or later|64|True|True|True|True|True", result);
+            }
+            else
+            {
+                Assert.MatchesRegex(@"^XX000:unexpected alloc chunk size [0-9]+ \(expected 64\)\|64\|True\|True\|True\|True\|True$", result);
+            }
         });
 
     /// <summary>
@@ -234,6 +242,17 @@ public sealed class AllocatorContextTests(TestContext context)
         int backend = connection.ProcessID;
         await using var command = new NpgsqlCommand("BEGIN", connection);
         await command.ExecuteNonQueryAsync(token);
+        if (IsBumpUnavailable(kind))
+        {
+            await AssertBumpUnavailableAsync(command, "datatype.allocator_capture()", "Ankus fixture allocator", token);
+            command.CommandText = commit ? "COMMIT" : "ROLLBACK";
+            await command.ExecuteNonQueryAsync(token);
+            command.CommandText = "SELECT datatype.allocator_captured_name()";
+            Assert.AreEqual("", await command.ExecuteScalarAsync(token), "The unavailable allocator must not invoke the managed callback.");
+            await AssertEmptyAndRecoveredAsync(command, backend, token);
+            return;
+        }
+
         await CaptureAsync(command, kind, "datatype.allocator_capture()", "Ankus fixture allocator", token);
         command.CommandText = "SELECT datatype.allocator_save()";
         Assert.AreEqual(Pending, await command.ExecuteScalarAsync(token));
@@ -282,7 +301,16 @@ public sealed class AllocatorContextTests(TestContext context)
             await command.ExecuteNonQueryAsync(token);
             command.CommandText = "BEGIN";
             await command.ExecuteNonQueryAsync(token);
-            if (error)
+            bool unavailable = IsBumpUnavailable(kind);
+            if (unavailable)
+            {
+                await AssertBumpUnavailableAsync(command, error ? "allocator_capture_error()" : "allocator_capture_notice()", "Ankus fixture café", token);
+                Assert.IsEmpty(notices.Where(static item => item.MessageText == "allocator café"),
+                    "An unavailable allocator must not invoke either managed diagnostic callback.");
+                command.CommandText = error ? "ROLLBACK" : "COMMIT";
+                await command.ExecuteNonQueryAsync(token);
+            }
+            else if (error)
             {
                 PostgresException failure = await Assert.ThrowsExactlyAsync<PostgresException>(
                     () => CaptureAsync(command, kind, "allocator_capture_error()", "Ankus fixture café", token));
@@ -314,7 +342,7 @@ public sealed class AllocatorContextTests(TestContext context)
             }
 
             command.CommandText = "SELECT allocator_captured_name()";
-            Assert.AreEqual("Ankus fixture café", await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(unavailable ? "" : "Ankus fixture café", await command.ExecuteScalarAsync(token));
             command.CommandText = "SHOW server_encoding";
             Assert.AreEqual(encoding, await command.ExecuteScalarAsync(token));
             await AssertEmptyAndRecoveredAsync(command, backend, token);
@@ -326,9 +354,24 @@ public sealed class AllocatorContextTests(TestContext context)
         }
     }
 
-    private Task CheckAsync(int kind, string sql, string expected)
+    private Task CheckAsync(int kind, string sql, string expected, bool overAligned = false)
         => WithAllocatorAsync(kind, async (command, token) =>
         {
+            if (overAligned && PostgresFixture.Cluster.Installation.Version.Major < 16)
+            {
+                command.CommandText = "SAVEPOINT allocator_alignment";
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = sql;
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("0A000", error.SqlState);
+                Assert.AreEqual("aligned allocation requires PostgreSQL 16 or later", error.MessageText);
+                command.CommandText = "ROLLBACK TO SAVEPOINT allocator_alignment; RELEASE SAVEPOINT allocator_alignment";
+                await command.ExecuteNonQueryAsync(token);
+                command.CommandText = $"SELECT datatype.allocator_basics({kind == 0}, 8)";
+                Assert.AreEqual(expected, await command.ExecuteScalarAsync(token), "The same borrowed owner must support ordinary allocation after rejection.");
+                return;
+            }
+
             command.CommandText = sql;
             Assert.AreEqual(expected, Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token)));
         });
@@ -338,12 +381,48 @@ public sealed class AllocatorContextTests(TestContext context)
         {
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand { Connection = connection, Transaction = transaction };
+            if (IsBumpUnavailable(kind))
+            {
+                await AssertBumpUnavailableAsync(command, "datatype.allocator_capture()", "Ankus fixture allocator", token);
+                command.CommandText = "SELECT datatype.allocator_captured_name()";
+                Assert.AreEqual("", await command.ExecuteScalarAsync(token), "The unavailable allocator must not invoke the managed callback.");
+                command.CommandText = "SELECT tests.allocator_delete()";
+                await command.ExecuteNonQueryAsync(token);
+                await AssertEmptyAndRecoveredAsync(command, backend, token);
+                return;
+            }
+
             await CaptureAsync(command, kind, "datatype.allocator_capture()", "Ankus fixture allocator", token);
             await action(command, token);
             command.CommandText = "SELECT tests.allocator_delete()";
             await command.ExecuteNonQueryAsync(token);
             await AssertEmptyAndRecoveredAsync(command, backend, token);
         }, context.CancellationToken);
+
+    /// <summary>
+    /// Identifies native allocator requests that the selected PostgreSQL cannot construct.
+    /// </summary>
+    private static bool IsBumpUnavailable(int kind)
+        => kind == 2 && PostgresFixture.Cluster.Installation.Version.Major < 17;
+
+    /// <summary>
+    /// Verifies absent Bump support before managed entry and the fixture's transaction-owned partial construction.
+    /// </summary>
+    private async Task AssertBumpUnavailableAsync(NpgsqlCommand command, string callback, string name, CancellationToken token)
+    {
+        command.CommandText = "SAVEPOINT allocator_capability";
+        await command.ExecuteNonQueryAsync(token);
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => CaptureAsync(command, 2, callback, name, token));
+        Assert.AreEqual("0A000", error.SqlState);
+        Assert.AreEqual("Bump requires PostgreSQL 17 or later", error.MessageText);
+        Assert.IsNull(error.Detail);
+        Assert.IsNull(error.Hint);
+        command.CommandText = "ROLLBACK TO SAVEPOINT allocator_capability; RELEASE SAVEPOINT allocator_capability";
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'Ankus allocator fixture'";
+        Assert.AreEqual(1L, await command.ExecuteScalarAsync(token), "The fixture parent belongs to the top transaction and survives savepoint rollback until explicit deletion or transaction end.");
+        context.WriteLine($"PostgreSQL {PostgresFixture.Cluster.Installation.Version}: verified native Bump unavailability; Bump ownership operations require PostgreSQL 17 or later.");
+    }
 
     private static async Task CaptureAsync(NpgsqlCommand command, int kind, string callback, string name, CancellationToken token)
     {
