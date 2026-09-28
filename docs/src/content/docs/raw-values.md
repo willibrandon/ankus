@@ -20,9 +20,8 @@ must still match the supported casting contract. An incompatible tag or prefix
 fails the build. Reusing cached declarations repeats the native checks against
 the selected headers.
 
-PostgreSQL 19 beta 3 binding generation remains incomplete: anonymous union
-containers in its headers still fail native verification. Its full backend
-suite has not passed.
+PostgreSQL 19 beta 3 extension publication remains incomplete while configuration
+and shared-memory API compatibility is being finished.
 
 Native declarations retain PostgreSQL names and mutable fields:
 
@@ -45,6 +44,14 @@ storage exactly as they do in C; only read the active representation. Flexible
 arrays expose `Dangerous_<field>` methods that require a live native address and
 the actual number of trailing elements. Their storage is outside the fixed
 managed value.
+
+Anonymous structs and unions promote their members directly onto the enclosing
+record, matching C access such as `transaction.commit_time`. Their fields retain
+the actual offsets, overlapping storage, array shapes and bitfield behavior.
+Unnamed containers do not acquire separate allocation types or synthetic
+`AnonymousN` fields. Named embedded records retain distinct native identities.
+Promoted function pointers use the enclosing record's callback name, such as
+`Methods_applyCallback` for `Methods.apply`.
 
 These are raw native representations. Data pointers hold `nint` addresses;
 function pointers use generated types with their native signatures. Neither

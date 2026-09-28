@@ -12,8 +12,13 @@ internal static partial class NativeBindingRecordChecks
             _source.AppendLine("const char *ankus_native_record_check(void)\n{");
             for (int index = 0; index < _graph.Declarations.Count; index++)
             {
-                NativeRecordDeclaration declaration = _graph.Declarations[index];
-                NativeRecordField[] fields = [.. declaration.Fields.Where(static field => field.BitWidth > 0 && field.Name.Length != 0)];
+                if (_members.IsInternalDeclaration(index))
+                {
+                    continue;
+                }
+
+                NativeRecordField[] fields = [.. _members.Get(index).Select(static member => member.Field)
+                    .Where(static field => field.BitWidth > 0 && field.Name.Length != 0)];
                 if (fields.Length == 0)
                 {
                     continue;

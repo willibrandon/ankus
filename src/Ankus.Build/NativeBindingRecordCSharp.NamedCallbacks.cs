@@ -14,8 +14,7 @@ internal static partial class NativeBindingRecordCSharp
             Dictionary<int, NativeBindingIndirectCall> callsBySignature = _indirectCalls.ToDictionary(static call => call.FunctionType);
             foreach ((int index, string owner) in _declarations.OrderBy(static pair => pair.Value, StringComparer.Ordinal))
             {
-                NativeRecordDeclaration declaration = graph.Declarations[index];
-                foreach (NativeRecordField field in declaration.Fields.Where(static field => field.Name.Length != 0)
+                foreach (NativeRecordField field in _members.Get(index).Select(static member => member.Field).Where(static field => field.Name.Length != 0)
                     .OrderBy(static field => field.Name, StringComparer.Ordinal))
                 {
                     NameCallback(field.Type, owner + "_" + field.Name + "Callback", callsBySignature);

@@ -145,6 +145,7 @@ internal static partial class NativeBindingRecordCSharp
         private readonly Dictionary<int, string> _opaqueValues = [];
         private readonly IReadOnlyList<NativeBindingIndirectCall> _indirectCalls = NativeBindingIndirectModel.Describe(graph);
         private readonly Dictionary<int, string> _functionPointers = [];
+        private readonly NativeBindingRecordMembers _members = new(graph);
 
         /// <summary>
         /// Emits every declaration and hashes both the managed source and complete native contract.
@@ -202,7 +203,7 @@ internal static partial class NativeBindingRecordCSharp
 
             for (int index = 0; index < graph.Declarations.Count; index++)
             {
-                if (_declarations.ContainsKey(index))
+                if (_declarations.ContainsKey(index) || _members.IsInternalDeclaration(index))
                 {
                     continue;
                 }
@@ -231,7 +232,7 @@ internal static partial class NativeBindingRecordCSharp
 
             for (int index = 0; index < graph.Types.Count; index++)
             {
-                if (graph.Types[index].Size > 0)
+                if (graph.Types[index].Size > 0 && !_members.IsInternalType(index))
                 {
                     _ = Map(index);
                 }
@@ -240,7 +241,10 @@ internal static partial class NativeBindingRecordCSharp
             Header();
             for (int index = 0; index < graph.Declarations.Count; index++)
             {
-                Declaration(index);
+                if (!_members.IsInternalDeclaration(index))
+                {
+                    Declaration(index);
+                }
             }
 
             if (calls is not null)
@@ -374,23 +378,23 @@ internal static partial class NativeBindingRecordCSharp
                 Line($"    static bool global::Ankus.IPgNativeNode.AcceptsTag(uint tag) => {predicate};");
             }
 
-            var members = new HashSet<string>(declaration.Fields.Select(static field => field.Name).Where(static value => value.Length != 0), StringComparer.Ordinal) { name };
+            NativeRecordField[] fields = [.. _members.Get(index).Select(static member => member.Field)];
+            var members = new HashSet<string>(fields.Select(static field => field.Name).Where(static value => value.Length != 0), StringComparer.Ordinal) { name };
             string bits = Unique(members, "_nativeBits");
-            if (declaration.Fields.Any(static field => field.BitWidth > 0 && field.Name.Length != 0))
+            if (fields.Any(static field => field.BitWidth > 0 && field.Name.Length != 0))
             {
                 Line("    [global::System.Runtime.InteropServices.FieldOffset(0)]");
                 Line($"    private {Storage(size)} @{bits};");
             }
 
-            foreach ((NativeRecordField field, int position) in declaration.Fields.Select(static (field, position) => (field, position)))
+            foreach (NativeRecordField field in fields)
             {
                 if (field.BitWidth is not null && field.Name.Length == 0)
                 {
                     continue;
                 }
 
-                string member = field.Name.Length != 0 ? field.Name == name ? Unique(members, "Native_" + field.Name) : field.Name
-                    : Unique(members, "Anonymous" + Number(position));
+                string member = field.Name == name ? Unique(members, "Native_" + field.Name) : field.Name;
                 NativeRecordType type = Canonical(field.Type);
                 if (type.Kind == "array" && type.Count is null or 0)
                 {
@@ -413,59 +417,9 @@ internal static partial class NativeBindingRecordCSharp
                 }
 
                 Line($"    public {Hide(member)}{value.Code} @{member};");
-                if (field.IsAnonymous)
-                {
-                    Promote(type.Declaration!.Value, "@" + member, members, name, field.OffsetBits, node is not null);
-                }
             }
 
             Line("}\n");
-        }
-
-        private void Promote(int index, string path, HashSet<string> members, string containingName, long offset, bool typedAddress)
-        {
-            NativeRecordDeclaration declaration = graph.Declarations[index];
-            var nestedNames = new HashSet<string>(declaration.Fields.Select(static field => field.Name).Where(static value => value.Length != 0), StringComparer.Ordinal)
-                { _declarations[index] };
-            _ = Unique(nestedNames, "_nativeBits");
-            foreach ((NativeRecordField field, int position) in declaration.Fields.Select(static (field, position) => (field, position)))
-            {
-                if (field.IsAnonymous)
-                {
-                    string nested = Unique(nestedNames, "Anonymous" + Number(position));
-                    Promote(Canonical(field.Type).Declaration!.Value, path + ".@" + nested, members, containingName, checked(offset + field.OffsetBits), typedAddress);
-                    continue;
-                }
-
-                if (field.Name.Length == 0)
-                {
-                    continue;
-                }
-
-                string nativeMember = field.Name == _declarations[index] ? Unique(nestedNames, "Native_" + field.Name) : field.Name;
-                string name = field.Name == containingName || !members.Add(field.Name) ? Unique(members, "Native_" + field.Name) : field.Name;
-                NativeRecordType type = Canonical(field.Type);
-                if (type.Kind == "array" && type.Count is null or 0)
-                {
-                    Flexible(field with
-                    {
-                        OffsetBits = checked(offset + field.OffsetBits)
-                    }, name, members, typedAddress ? containingName : null);
-                    continue;
-                }
-
-                Value value = Map(field.Type);
-                Summary("Accesses a member promoted from an anonymous native record.", "    ");
-                if (field.BitWidth is not null)
-                {
-                    Line($"    public {Hide(name)}{value.Code} @{name} {{ readonly get => {path}.@{nativeMember}; set => {path}.@{nativeMember} = value; }}");
-                }
-                else
-                {
-                    Line("    [global::System.Diagnostics.CodeAnalysis.UnscopedRef]");
-                    Line($"    public {Hide(name)}ref {value.Code} @{name} => ref {path}.@{nativeMember};");
-                }
-            }
         }
 
         private void Flexible(NativeRecordField field, string member, HashSet<string> members, string? owner = null)

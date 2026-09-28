@@ -58,6 +58,7 @@ internal static partial class NativeBindingRecordChecks
     private sealed partial class Writer(NativeHeaderRecords records)
     {
         private readonly NativeRecordGraph _graph = records.Graph;
+        private readonly NativeBindingRecordMembers _members = new(records.Graph);
         private readonly Dictionary<int, string> _anchors = [];
         private readonly HashSet<int> _functionResults = [];
         private readonly StringBuilder _source = new();
@@ -119,6 +120,11 @@ internal static partial class NativeBindingRecordChecks
 
             for (int index = 0; index < _graph.Types.Count; index++)
             {
+                if (_members.IsInternalType(index))
+                {
+                    continue;
+                }
+
                 string alias = TypeName(index);
                 string declaration = Declare(index, alias);
                 _source.Append("typedef ").Append(declaration).AppendLine(";");
@@ -136,6 +142,11 @@ internal static partial class NativeBindingRecordChecks
 
             for (int index = 0; index < _graph.Types.Count; index++)
             {
+                if (_members.IsInternalType(index))
+                {
+                    continue;
+                }
+
                 bool function = Canonical(index).Kind == "function";
                 string actual = TypeName(index);
                 string expected = TypeName(_graph.Types[index].Canonical);
@@ -155,7 +166,10 @@ internal static partial class NativeBindingRecordChecks
 
             for (int index = 0; index < _graph.Declarations.Count; index++)
             {
-                Declaration(index);
+                if (!_members.IsInternalDeclaration(index))
+                {
+                    Declaration(index);
+                }
             }
 
             Bitfields();
@@ -191,12 +205,14 @@ internal static partial class NativeBindingRecordChecks
             }
 
             AnchorFields();
-            if (_anchors.Count != _graph.Declarations.Count)
+            int[] missing = [.. Enumerable.Range(0, _graph.Declarations.Count)
+                .Where(index => !_members.IsInternalDeclaration(index) && !_anchors.ContainsKey(index))];
+            if (missing.Length != 0)
             {
-                string missing = string.Join(", ", Enumerable.Range(0, _graph.Declarations.Count).Where(index => !_anchors.ContainsKey(index))
+                string descriptions = string.Join(", ", missing
                     .Select(index => Number(index) + ":" + _graph.Declarations[index].Kind + ":" + _graph.Declarations[index].Name +
                         "[" + string.Join("|", _graph.Declarations[index].Fields.Select(static field => field.Name)) + "]"));
-                throw new FormatException("Native record verification requires a C type anchor for every declaration: " + missing + ".");
+                throw new FormatException("Native record verification requires a C type anchor for every exposed declaration: " + descriptions + ".");
             }
         }
 
@@ -211,8 +227,9 @@ internal static partial class NativeBindingRecordChecks
                 int count = _anchors.Count;
                 foreach ((int index, string parent) in _anchors.ToArray())
                 {
-                    foreach (NativeRecordField field in _graph.Declarations[index].Fields)
+                    foreach (NativeBindingRecordMember member in _members.Get(index))
                     {
+                        NativeRecordField field = member.Field;
                         if (field.Name.Length != 0 && field.BitWidth is null)
                         {
                             Anchor(field.Type, "((" + parent + " *)0)->" + field.Name);
@@ -284,17 +301,19 @@ internal static partial class NativeBindingRecordChecks
                 Check("(((long double)(" + anchor + ")-1 < 0.0L) ? 1 : 0) == " + (Signed(Canonical(underlying)) ? "1" : "0"), "enum signedness " + description);
             }
 
-            foreach (NativeRecordField field in declaration.Fields)
+            foreach (NativeBindingRecordMember member in _members.Get(index))
             {
-                if (field.IsAnonymous || field.BitWidth is not null)
+                NativeRecordField field = member.Field;
+                if (field.BitWidth is not null)
                 {
                     continue;
                 }
 
                 string path = "((" + anchor + " *)0)->" + field.Name;
-                string member = description + "." + field.Name;
-                Check("offsetof(" + anchor + ", " + field.Name + ") == " + Number(field.OffsetBits / 8), "offset " + member);
-                Check("_Generic(&(" + path + "), " + TypeName(field.Type) + " *: 1, default: 0)", "member type " + member);
+                string name = description + "." + field.Name;
+                Check("offsetof(" + anchor + ", " + field.Name + ") == " + Number(field.OffsetBits / 8), "offset " + name);
+                Check("_Generic(&(" + path + "), " + NativeHeaderType.Qualifiers(member.ParentQualifiers) + TypeName(field.Type) +
+                    " *: 1, default: 0)", "member type " + name);
             }
         }
 

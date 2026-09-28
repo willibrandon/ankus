@@ -139,19 +139,19 @@ public sealed partial class NativeBindingNativeTests
     }
 
     /// <summary>
-    /// Unnameable promoted containers cannot be certified by checking only their accessible leaves.
+    /// A separately exposed anonymous return value still requires an independently addressable native type.
     /// </summary>
     [TestMethod]
-    public async Task NativeRecordChecksRejectUnverifiableContainers()
+    public async Task NativeRecordChecksRejectUnverifiableExposedValues()
     {
-        const string Headers = "struct Entry { union { int number; float fraction; }; }; extern struct Entry current;";
+        const string Headers = "extern struct { int number; float fraction; } current(void);";
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-unnameable-record-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            NativeHeaderRecords records = await CollectCallRecordsAsync(Headers, [new("current", "current", false)], directory);
+            NativeHeaderRecords records = await CollectCallRecordsAsync(Headers, [new("current", "current", true)], directory);
             FormatException error = Assert.ThrowsExactly<FormatException>(() => NativeBindingRecordChecks.Generate(records, Headers));
-            Assert.Contains("C type anchor for every declaration", error.Message);
+            Assert.Contains("C type anchor for every exposed declaration", error.Message);
         }
         finally
         {

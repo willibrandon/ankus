@@ -34,6 +34,17 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Anonymous C structs and unions now expose their promoted members directly on
+the enclosing managed record. Complete PostgreSQL 19 beta 3 binding generation
+and independently verified cache reuse pass on Linux x64: **1,396 native
+declarations, 523 node/dependency values and 3,908 fields**. The complete build
+tool suite passes **985 tests, zero failures and six Windows-only skips, 991
+total**. The complete PostgreSQL 18.6/Linux x64 suite passes **8,347 tests, zero
+failures and six Windows-only skips, 8,353 total**, in 12m45.401s. Release and
+API/site validation pass. Beta extension publication exposes separate
+configuration, shared-memory and compiler compatibility issues; its complete
+backend verification and broader full-port requirements remain open.
+
 Global callbacks now have stable names tied to their declarations. The corrected
 complete PostgreSQL 15.19 and 18.6/Linux x64 suites each pass **8,276 tests, zero
 failures and six Windows-only skips, 8,282 total**, in 12m26.465s and 12m31.467s.
@@ -11575,3 +11586,79 @@ without a reported failure.
 passes. The older superseded CI runs remain cancelled and their documentation
 runs successful; cancelled suites do not establish completed platform evidence.
 Outcomes are checked and recorded again immediately before pushing.
+
+## Native anonymous member promotion
+
+Anonymous C structs and unions now expose their actual members directly on the
+enclosing C# record at cumulative native offsets. Unnameable internal containers
+remain in the complete measured graph and ABI identity; they no longer expose
+synthetic fields or independently allocatable `IPgNativeType` declarations.
+Named, aliased, rooted and otherwise addressable types retain their independent
+identity and verification. Named embedded anonymous records remain distinct.
+Function-pointer members receive callback names from their exposed parent.
+
+Native checks still independently verify each exposed parent's size, alignment
+and type, every promoted member's exact type, qualifiers, offsets and array
+shape, and every bitfield's sign, width and individual storage bits. Bitfield
+probes use the complete actual parent object. The generator rejects ambiguous
+names, cycles, excessive nesting and arithmetic overflow. A separately exposed
+anonymous function-return type without a C anchor remains explicitly rejected.
+No warning, analyzer or native contract is suppressed.
+
+| Requirement | Executed regression |
+|---|---|
+| Order, cumulative offsets, qualification and original graph | `NativeRecordMembersPreserveNestedStorage` |
+| Empty/ordinary records and independently exposed identities | `NativeRecordMembersPreserveEmptyAndOrdinaryRecords`, `NativeRecordMembersRetainExposedTypes` |
+| Cycles, malformed fields, ambiguous names, overflow and 128-level boundary | `NativeRecordMembersRejectInvalidPromotion`, `NativeRecordMembersRejectOffsetOverflow`, `NativeRecordMembersEnforceNestingBoundary` |
+| Real nested C layout, packing, arrays, bitfields and flexible tails | `NativeRecordChecksPreservePromotedMembers` |
+| Incompatible field/qualifier/shape/alignment or bitfield changes and recovery | `NativeRecordChecksRejectChangedPromotedMembers`, `NativeRecordChecksRejectChangedPromotedBitfields` |
+| Exact independent C/C# values and absence of synthetic allocation types | `ManagedPromotedMembersExposeOnlyAddressableNativeTypes` |
+| Enclosing-owner callback names, addresses and actual invocation | `ManagedPromotedCallbacksPreserveOwnerAndInvocation` |
+| Unverifiable exposed native return value remains rejected | `NativeRecordChecksRejectUnverifiableExposedValues` |
+
+The focused native suite passes **50 tests, zero failures/skips** in 4.396s after
+correcting a missing newline in the independent C witness fixture. The complete
+build-tool suite passes **985 tests, zero failures and six Windows-only skips,
+991 total**, in 18.463s. Release passes with zero warnings/errors in 1m39.55s;
+API freshness reports 200 pages/2,437 members, and the site builds 245 pages
+with zero check diagnostics. README and the native-value guide describe promoted
+member access and the remaining beta publication limitation.
+
+Actual PostgreSQL 19 beta 3 cold binding generation and verified cache reuse now
+both pass on Linux x64: **1,396 native declarations, 9,400 available inventory
+entries, 11 absent entries, 523 node/dependency values and 3,908 fields**. Both
+commands execute independent native verification. This closes the three
+unnameable anonymous-container failures recorded in the preceding milestone.
+
+The first complete beta attempt stops before test execution because its fresh
+isolated checkout lacks the existing local runtime payload. After staging that
+unchanged payload, all five managed modules pass, and integration initialization
+reaches Native AOT publication. It fails on the newer GUC record layout, removed
+`LWLockRegisterTranche` and a literal-string pointer-arithmetic warning in the
+prerelease allocation guard. Its report contains **4,869 passes, 3,478 failures
+and six Windows-only skips, 8,353 total**, in 2m18.815s. All 3,478 integration
+failures share that single fixture-publication failure; they are not independent
+backend defects. No complete beta backend result is claimed. The actual selected
+headers identify the required compatibility changes; a separate isolated
+candidate passes all **170 configuration, shared-memory and allocator cases,
+zero failures/skips**, in 4m31.526s. That follow-up also aligns the native test
+fixture's language mode with PostgreSQL's GNU extensions. Its complete beta
+suite remains in progress separately from this anonymous-member milestone.
+
+Final plain root `dotnet test` on Linux x64/PostgreSQL 18.6 passes all six
+modules: **8,347 passes, zero failures and six Windows-only skips, 8,353 total**,
+in 12m45.401s (integration 12m42.976s). It executes the published Native AOT
+extension against a real server, including existing packaged cache failure and
+recovery checks. The overlapping local runs use existing caches and are not
+cold-cache performance measurements. The beta backend suite, full PostgreSQL
+13–19/platform matrix, intermittent GUC query stall, borrowed array/text/bytea
+APIs and other faithful-port requirements remain open.
+
+Immediately before this commit, `7666bbb`
+[CI 36424836822](https://github.com/willibrandon/ankus/actions/runs/36424836822)
+has successful quality and all three runtime jobs. All three complete platform
+suites remain in progress without a reported failure.
+[Docs 36424836833](https://github.com/willibrandon/ankus/actions/runs/36424836833)
+passes. Older superseded CI runs are cancelled; cancelled suites do not establish
+completed platform evidence. Outcomes are checked and recorded again before
+pushing, without waiting for the active hosted suites.
