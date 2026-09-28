@@ -369,8 +369,9 @@ public sealed partial class PgBufferViewTests
         internal BufferScript(MemoryContextTestFixture fixture, byte[] bytes)
         {
             _length = bytes.Length;
-            _data = (byte*)NativeMemory.Alloc((nuint)Math.Max(1, bytes.Length));
+            _data = (byte*)NativeMemory.Alloc((nuint)bytes.Length + 1);
             bytes.CopyTo(new Span<byte>(_data, bytes.Length));
+            _data[bytes.Length] = 0;
             s_current = this;
             fixture.Handler = request =>
             {

@@ -1,6 +1,6 @@
 ---
 title: Text and binary values
-description: Choose managed copies or checked native views of PostgreSQL text and bytea.
+description: Choose managed copies or checked native views of PostgreSQL text, bytea and C strings.
 ---
 
 Use `string` and `byte[]` for independent managed values. Use `PgTextView` and
@@ -12,6 +12,8 @@ Use `string` and `byte[]` for independent managed values. Use `PgTextView` and
 | `byte[]` | `bytea` | Independent managed bytes, including embedded zero |
 | `PgTextView` | `text` | Checked UTF-8 view with the original server datum retained |
 | `PgByteaView` | `bytea` | Checked native byte view |
+| `PgCString` | `cstring` | Independent managed bytes with a terminating zero |
+| `PgCStringView` | `cstring` | Checked native view of zero-terminated bytes |
 
 ## Function arguments and results
 
@@ -93,3 +95,50 @@ readonly span without copying. The span cannot check later native lifetime
 changes. Keep it on the originating backend thread, and do not retain it across
 backend calls, source resets, view disposal or callback exit. Checked indexing
 and copy methods validate native access each time they are called.
+
+## C strings and native type I/O
+
+PostgreSQL uses the `cstring` pseudo-type for native function and type-I/O
+signatures. `PgCString` owns its exact bytes in managed memory;
+`PgCStringView` borrows terminated native storage under the same checked
+source and callback lifetimes as the other views. Neither representation
+implicitly transcodes between UTF-8 and the server encoding.
+
+```csharp
+PgCString bytes = new([0x63, 0x61, 0x66, 0xe9]);
+PgCString utf8 = PgCString.FromUtf8("café");
+PgCString terminated = PgCString.FromNullTerminatedBytes([0x41, 0]);
+```
+
+The ordinary constructor takes payload bytes without a terminator and rejects
+embedded zeros. `FromNullTerminatedBytes` requires exactly one zero at the end;
+it rejects missing terminators and data following an earlier zero. Empty values
+remain present and contain a single terminator. A null reference represents
+SQL NULL.
+
+`Count`, indexing, enumeration, `CopyTo` and `ToArray` exclude the terminator.
+`PgCString.AsSpan()` exposes the readonly managed payload;
+`AsNullTerminatedSpan()` includes its final zero. The borrowed equivalents are
+`DangerousGetSpan()` and `DangerousGetNullTerminatedSpan()`, with the native
+lifetime restrictions described above. `PgCStringView.ToOwned()` makes an
+independent byte-preserving value that survives the native owner.
+
+Both representations provide `ToUtf8String()` for explicit strict UTF-8 decoding.
+Invalid UTF-8 remains valid raw C-string data; decoding it throws instead of
+replacing bytes. `FromUtf8` likewise rejects unpaired managed surrogates and
+embedded zero characters. When calling a native API that expects the server's
+encoding, supply bytes in that encoding.
+
+Generated functions use `cstring` for these representations. Owned vectors and
+`PgArray<PgCString?>` retain C-string array cells and shape; lazy
+`PgArrayView<PgCString?>` and `PgArrayView<PgCStringView?>` read individual cells.
+Typed SPI results, raw datum reads and PostgreSQL function calls use the same
+byte-preserving contracts. C-string input routines can receive a zero native
+address without the SQL NULL flag: typed C-string reads recognize that absence,
+while the original `PgDatum.IsNull` metadata remains unchanged.
+
+`cstring` and arrays of `cstring` cannot be stored as PostgreSQL table or
+composite attributes. Use these
+representations where a native API or type-I/O signature requires them.
+The [raw custom-type example](/raw-values/#custom-type-representation) describes
+the surrounding SQL type declarations and ownership requirements.

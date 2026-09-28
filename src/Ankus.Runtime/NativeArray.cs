@@ -245,6 +245,7 @@ public unsafe partial struct NativeValue
             21 => ReadArrayData<short?>(oid),
             23 => ReadArrayData<int?>(oid),
             25 => ReadArrayData<string?>(oid),
+            2275 => ReadArrayData<PgCString?>(oid),
             26 => ReadArrayData<uint?>(oid),
             27 => ReadArrayData<PgItemPointer?>(oid),
             28 => ReadArrayData<PgTransactionId?>(oid),

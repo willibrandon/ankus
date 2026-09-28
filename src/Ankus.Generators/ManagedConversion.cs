@@ -22,6 +22,8 @@ internal static class ManagedConversion
             _ when type.IsInternal => slot + ".ReadInternal()",
             "global::Ankus.PgByteaView" => slot + (borrowVarlena ? ".ReadBorrowedBytea()" : ".ReadOwnedByteaView()"),
             "global::Ankus.PgTextView" => slot + (borrowVarlena ? ".ReadBorrowedText()" : ".ReadOwnedTextView()"),
+            "global::Ankus.PgCStringView" => slot + (borrowVarlena ? ".ReadBorrowedCString()" : ".ReadOwnedCStringView()"),
+            "global::Ankus.PgCString" => slot + ".ReadCString()",
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
             _ when type.Element?.IsRelation == true && type.IsVector => slot + ".ReadRelationVector<" + type.ElementManaged + ">()",
             _ when type.Element is not null => slot +
@@ -52,7 +54,8 @@ internal static class ManagedConversion
                 (type.ClrTemporalName.Length == 0 ? string.Empty : ".To" + type.ClrTemporalName + "()"),
             _ => "(" + type.Managed + ")" + slot + "." + type.Field,
         };
-        return type.Nullable ? $"({slot}.IsNull != 0 ? ({type.Managed}?)null : {value})" : value;
+        string absent = slot + ".IsNull != 0" + (type.Managed == "global::Ankus.PgCStringView" ? " || " + slot + ".Integral == 0" : string.Empty);
+        return type.Nullable ? $"({absent} ? ({type.Managed}?)null : {value})" : value;
     }
 
     /// <summary>
@@ -81,6 +84,7 @@ internal static class ManagedConversion
             _ when result.IsRelation => $"*{target} = global::Ankus.NativeValue.FromRelation({value});",
             "string" => $"*{target} = global::Ankus.NativeValue.FromString({value});",
             "byte[]" => $"*{target} = global::Ankus.NativeValue.FromBytes({value});",
+            "global::Ankus.PgCString" => $"*{target} = global::Ankus.NativeValue.FromCString({value});",
             "global::System.Guid" => $"*{target} = global::Ankus.NativeValue.FromGuid({value});",
             "global::Ankus.PgInet" => $"*{target} = global::Ankus.NativeValue.FromInet({value});",
             "global::Ankus.PgCidr" => $"*{target} = global::Ankus.NativeValue.FromCidr({value});",

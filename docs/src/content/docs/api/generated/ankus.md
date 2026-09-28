@@ -36,6 +36,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgBackgroundWorkerOptions](/api/ankus.pgbackgroundworkeroptions/)
 - [PgBuiltInOids](/api/ankus.pgbuiltinoids/)
 - [PgByteaView](/api/ankus.pgbyteaview/)
+- [PgCString](/api/ankus.pgcstring/)
+- [PgCStringView](/api/ankus.pgcstringview/)
 - [PgCastAttribute](/api/ankus.pgcastattribute/)
 - [PgColumnNamesAttribute](/api/ankus.pgcolumnnamesattribute/)
 - [PgCompositeTypeAttribute](/api/ankus.pgcompositetypeattribute/)

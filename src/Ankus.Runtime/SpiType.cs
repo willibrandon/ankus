@@ -133,6 +133,11 @@ internal static class SpiType
             return 25;
         }
 
+        if (type == typeof(PgCString) || type == typeof(PgCStringView))
+        {
+            return 2275;
+        }
+
         if (type == typeof(uint) || type == typeof(uint?))
         {
             return 26;
@@ -287,6 +292,7 @@ internal static class SpiType
             float number => new NativeValue { Integral = BitConverter.SingleToInt32Bits(number) },
             double number => new NativeValue { Integral = BitConverter.DoubleToInt64Bits(number) },
             string text => NativeValue.FromString(text),
+            PgCString text => NativeValue.FromCString(text),
             Array array when PgEnumRegistry.FindArray(array.GetType()) is { } mapping => NativeValue.FromArray(mapping.Wrap(array)),
             byte[] bytes => NativeValue.FromBytes(bytes),
             Guid uuid => NativeValue.FromGuid(uuid),
@@ -349,6 +355,7 @@ internal static class SpiType
             21 => (short)value.Integral,
             23 => (int)value.Integral,
             25 or 1042 or 1043 => value.ReadString(),
+            2275 => value.ReadCString(),
             26 => (uint)value.Integral,
             2205 => new PgRelationIdentity(checked((uint)value.Integral)),
             27 => value.ReadItemPointer(),

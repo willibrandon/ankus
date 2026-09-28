@@ -16,7 +16,7 @@ namespace Ankus;
 public sealed class PgTextView(PgDatum value) : IDisposable
 {
     private static readonly UTF8Encoding s_utf8 = new(false, true);
-    private readonly NativeBorrowedBuffer _buffer = new(value, text: true);
+    private readonly NativeBorrowedBuffer _buffer = new(value, NativeBufferKind.Text);
 
     /// <summary>
     /// Gets the UTF-8 byte length, which may differ from the character count or server byte length.

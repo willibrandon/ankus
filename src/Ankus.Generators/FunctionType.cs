@@ -133,9 +133,9 @@ internal sealed class FunctionType
     internal bool IsBorrowedArray => Managed == "global::Ankus.PgArrayView" || Reader == "borrowedarray";
 
     /// <summary>
-    /// Gets whether a fixed SQL text or bytea type uses a checked borrowed native view.
+    /// Gets whether a fixed SQL text, bytea or C-string type uses a checked borrowed native view.
     /// </summary>
-    internal bool IsBorrowedBuffer => Managed is "global::Ankus.PgByteaView" or "global::Ankus.PgTextView";
+    internal bool IsBorrowedBuffer => Managed is "global::Ankus.PgByteaView" or "global::Ankus.PgTextView" or "global::Ankus.PgCStringView";
 
     /// <summary>
     /// Gets whether the scalar uses an explicitly bound raw datum.
@@ -244,7 +244,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets the native built-in OID macro for typed datum conversion.
     /// </summary>
-    internal string BufferOid => Reader.ToUpperInvariant() + "OID";
+    internal string BufferOid => Reader == "cstring_bytes" ? "CSTRINGOID" : Reader.ToUpperInvariant() + "OID";
 
     /// <summary>
     /// Resolves a Roslyn type, including nullable value and reference annotations, to a SQL conversion contract.
@@ -372,6 +372,11 @@ internal sealed class FunctionType
         }
 
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (name is "global::Ankus.PgCString" or "global::Ankus.PgCStringView")
+        {
+            return new(name, "cstring", "cstring_bytes", "cstring_bytes", string.Empty, nullable, reference: true);
+        }
+
         if (name is "global::Ankus.PgByteaView" or "global::Ankus.PgTextView")
         {
             string sql = name == "global::Ankus.PgByteaView" ? "bytea" : "text";

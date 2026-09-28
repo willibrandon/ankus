@@ -56,6 +56,7 @@ internal static class SpiArray
         21 => 1005,
         23 => 1007,
         25 => 1009,
+        2275 => 1263,
         26 => 1028,
         27 => 1010,
         28 => 1011,
@@ -122,6 +123,7 @@ internal static class SpiArray
             Matches<short>(type) || Matches<short?>(type) ? 21u :
             Matches<int>(type) || Matches<int?>(type) ? 23u :
             Matches<string>(type) ? 25u :
+            Matches<PgCString>(type) ? 2275u :
             Matches<uint>(type) || Matches<uint?>(type) ? 26u :
             Matches<PgItemPointer>(type) || Matches<PgItemPointer?>(type) ? 27u :
             Matches<PgTransactionId>(type) || Matches<PgTransactionId?>(type) ? 28u :
@@ -172,7 +174,7 @@ internal static class SpiArray
            Convert<uint>(array, type) ?? Convert<uint?>(array, type) ?? Convert<float>(array, type) ?? Convert<float?>(array, type) ??
            Convert<PgItemPointer>(array, type) ?? Convert<PgItemPointer?>(array, type) ??
            Convert<PgTransactionId>(array, type) ?? Convert<PgTransactionId?>(array, type) ??
-           Convert<double>(array, type) ?? Convert<double?>(array, type) ?? Convert<string>(array, type) ??
+           Convert<double>(array, type) ?? Convert<double?>(array, type) ?? Convert<string>(array, type) ?? Convert<PgCString>(array, type) ??
            Convert<Guid>(array, type) ?? Convert<Guid?>(array, type) ?? Convert<PgJson>(array, type) ?? Convert<PgJson?>(array, type) ??
            Convert<PgJsonb>(array, type) ?? Convert<PgJsonb?>(array, type) ?? Convert<PgNumeric>(array, type) ?? Convert<PgNumeric?>(array, type) ??
            Convert<decimal>(array, type) ?? Convert<decimal?>(array, type) ?? Convert<PgDate>(array, type) ?? Convert<PgDate?>(array, type) ??
@@ -199,6 +201,7 @@ internal static class SpiArray
     /// </summary>
     private static IPgArray WrapCore(Array value) => PgTypeRegistry.FindArray(value.GetType())?.Wrap(value) ?? PgEnumRegistry.FindArray(value.GetType())?.Wrap(value) ?? value switch
     {
+        PgCString[] items => new PgArray<PgCString>(items),
         PgHeapTuple[] items => new PgArray<PgHeapTuple>(items),
         PgRelation[] items => new PgArray<PgRelation>(items),
         PgRange<int>[] items => new PgArray<PgRange<int>>(items),

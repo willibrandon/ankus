@@ -17,7 +17,25 @@ internal static class NativeExtendedTypes
         static void
         ankus_read_typed_buffer(Datum datum, AnkusValue *value, AnkusInputBuffer *owned, Oid type)
         {
-            if (type == UUIDOID)
+            if (type == CSTRINGOID)
+            {
+                char *text = DatumGetCString(datum);
+                if (text == NULL)
+                {
+                    value->is_null = true;
+                    return;
+                }
+
+                Size length = strlen(text);
+                if (length >= MaxAllocSize)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("C string exceeds supported byte capacity")));
+                }
+
+                value->data = (unsigned char *) text;
+                value->length = (int) length;
+            }
+            else if (type == UUIDOID)
             {
                 value->data = DatumGetUUIDP(datum)->data;
                 value->length = UUID_LEN;
@@ -64,6 +82,24 @@ internal static class NativeExtendedTypes
         static Datum
         ankus_write_typed_buffer(const AnkusValue *value, Oid type)
         {
+            if (type == CSTRINGOID)
+            {
+                if (value->length < 0 || (Size) value->length >= MaxAllocSize ||
+                    (value->length != 0 && (value->data == NULL || memchr(value->data, 0, value->length) != NULL)))
+                {
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION), errmsg("Invalid C string byte transport")));
+                }
+
+                char *text = palloc((Size) value->length + 1);
+                if (value->length != 0)
+                {
+                    memcpy(text, value->data, value->length);
+                }
+
+                text[value->length] = '\0';
+                return CStringGetDatum(text);
+            }
+
             if (type == UUIDOID)
             {
                 pg_uuid_t *uuid;

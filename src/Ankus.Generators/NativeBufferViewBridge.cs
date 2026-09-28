@@ -12,6 +12,31 @@ internal static class NativeBufferViewBridge
         static void
         ankus_buffer_view_operation(AnkusRequest *request, AnkusResult *result, Datum datum, Oid base)
         {
+            if (request->scalar_operation == 13)
+            {
+                if (base != CSTRINGOID)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("The borrowed value is not a C string")));
+                }
+
+                char *data = DatumGetCString(datum);
+                if (data == NULL)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("A present C string requires native storage")));
+                }
+
+                Size length = strlen(data);
+                if (length >= MaxAllocSize)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED), errmsg("C string exceeds supported byte capacity")));
+                }
+
+                result->text.integral = (int64) (uintptr_t) datum;
+                result->processed = (uint64) (uintptr_t) data;
+                result->row_count = (int) length;
+                return;
+            }
+
             bool is_text = request->scalar_operation == 10;
             if ((!is_text && base != BYTEAOID) ||
                 (is_text && base != TEXTOID && base != VARCHAROID && base != BPCHAROID))

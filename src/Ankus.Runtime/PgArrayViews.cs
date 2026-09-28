@@ -64,6 +64,8 @@ internal static class PgArrayViews
         Add<byte[]>(views);
         Add<PgTextView>(views);
         Add<PgByteaView>(views);
+        Add<PgCString>(views);
+        Add<PgCStringView>(views);
         Add<PgHeapTuple>(views);
         Add<PgRelation>(views);
         Add<PgPath>(views);

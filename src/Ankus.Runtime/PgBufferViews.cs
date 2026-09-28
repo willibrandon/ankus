@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Converts fixed SQL bytea and text values into checked borrowed views without changing type identity.
+/// Converts bytea, text and C-string values into checked borrowed views without changing type identity.
 /// </summary>
 internal static class PgBufferViews
 {
@@ -9,8 +9,8 @@ internal static class PgBufferViews
     /// Determines whether the requested representation needs native buffer storage.
     /// </summary>
     /// <typeparam name="T">The declared managed result type.</typeparam>
-    /// <returns>Whether the result is one of the two concrete buffer views.</returns>
-    internal static bool Is<T>() => typeof(T) == typeof(PgByteaView) || typeof(T) == typeof(PgTextView);
+    /// <returns>Whether the result is a concrete buffer view.</returns>
+    internal static bool Is<T>() => typeof(T) == typeof(PgByteaView) || typeof(T) == typeof(PgTextView) || typeof(T) == typeof(PgCStringView);
 
     /// <summary>
     /// Reads a present buffer under its source lifetime, or returns null for SQL NULL.
@@ -21,6 +21,16 @@ internal static class PgBufferViews
     internal static T Read<T>(PgDatum value)
     {
         value.Lifetime.Validate();
+        if (typeof(T) == typeof(PgCStringView))
+        {
+            if (value.TypeOid != 2275)
+            {
+                throw new InvalidCastException("The datum is not a PostgreSQL C string.");
+            }
+
+            return value.IsNull || value.DangerousGetBits() == 0 ? default! : (T)(object)new PgCStringView(value);
+        }
+
         if (value.IsNull)
         {
             return default!;

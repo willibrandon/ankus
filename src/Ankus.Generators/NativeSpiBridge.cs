@@ -264,6 +264,7 @@ internal static class NativeSpiBridge
                     return ankus_write_typed_buffer(value, TEXTOID);
                 case TEXTOID:
                 case BYTEAOID:
+                case CSTRINGOID:
                 case UUIDOID:
                 case JSONOID:
                 case JSONBOID:
@@ -451,6 +452,7 @@ internal static class NativeSpiBridge
                 case VARCHAROID:
                 case BPCHAROID:
                 case BYTEAOID:
+                case CSTRINGOID:
                 case UUIDOID:
                 case JSONOID:
                 case JSONBOID:

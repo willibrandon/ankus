@@ -314,12 +314,18 @@ scalar readers. Nested managed array elements are unsupported except `byte[]`,
 which represents one `bytea` cell.
 
 Ordinary strings, bytes and value types are copied when read. With
-`PgArrayView<PgTextView?>` or `PgArrayView<PgByteaView?>`, each present cell is
+`PgArrayView<PgTextView?>`, `PgArrayView<PgByteaView?>` or
+`PgArrayView<PgCStringView?>`, each present cell is
 another checked native view: dispose each returned element when finished. It
 retains the array's source lifetime and expires when the array or its source
 expires. Disposing a cursor does not dispose its returned elements. Copy text or
 bytes explicitly before retaining them beyond that lifetime; copying a sequence
 of borrowed views only copies their references.
+
+`PgCString` cells preserve exact nonzero bytes without server-encoding
+conversion. PostgreSQL permits `cstring[]` in native function signatures, but
+does not permit it as a stored table or composite attribute. See
+[C strings and native type I/O](/text-and-binary/#c-strings-and-native-type-io).
 
 Typed views also work through raw datum reads, SPI scalar helpers, sessions,
 prepared statements and named/OID function calls:

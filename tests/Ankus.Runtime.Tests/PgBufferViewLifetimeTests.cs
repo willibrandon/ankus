@@ -92,6 +92,7 @@ public sealed partial class PgBufferViewTests
         using var binary = new PgByteaView(PgDatum.DangerousCreate(123, 17, PgMemoryContext.Current));
         using var text = new PgTextView(PgDatum.DangerousCreate(124, 25, PgMemoryContext.Current));
         using IEnumerator<byte> cursor = binary.GetEnumerator();
+        using var cstring = new PgCStringView(PgDatum.DangerousCreate(125, 2275, PgMemoryContext.Current));
         Assert.IsTrue(cursor.MoveNext());
         PgDatum escaped = text.Datum;
         fixture.Requests.Clear();
@@ -101,6 +102,8 @@ public sealed partial class PgBufferViewTests
             Assert.ThrowsExactly<InvalidOperationException>(() => text.ToString());
             Assert.ThrowsExactly<InvalidOperationException>(binary.Dispose);
             Assert.ThrowsExactly<InvalidOperationException>(text.Dispose);
+            Assert.ThrowsExactly<InvalidOperationException>(() => cstring.ToOwned());
+            Assert.ThrowsExactly<InvalidOperationException>(cstring.Dispose);
         }
 
         Exception? failure = null;
@@ -117,6 +120,9 @@ public sealed partial class PgBufferViewTests
                 Assert.ThrowsExactly<InvalidOperationException>(() => _ = cursor.Current);
                 Assert.ThrowsExactly<InvalidOperationException>(binary.Dispose);
                 Assert.ThrowsExactly<InvalidOperationException>(text.Dispose);
+                Assert.ThrowsExactly<InvalidOperationException>(() => cstring.ToUtf8String());
+                Assert.ThrowsExactly<InvalidOperationException>(() => cstring.DangerousGetNullTerminatedSpan().ToArray());
+                Assert.ThrowsExactly<InvalidOperationException>(cstring.Dispose);
                 Assert.IsEmpty(other.Requests);
             }
             catch (Exception exception)
@@ -135,5 +141,6 @@ public sealed partial class PgBufferViewTests
         Assert.IsEmpty(script.Deleted);
         Assert.AreEqual((byte)65, binary[0]);
         Assert.AreEqual("A", text.ToString());
+        Assert.AreEqual("A", cstring.ToUtf8String());
     }
 }

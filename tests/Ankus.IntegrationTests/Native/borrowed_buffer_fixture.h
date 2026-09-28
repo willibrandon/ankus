@@ -1,5 +1,35 @@
 #include "nodes/makefuncs.h"
 
+/* Compare exact C-string storage and exercise a null address with isnull still false. */
+PG_FUNCTION_INFO_V1(ankus_test_cstring_argument);
+PGDLLEXPORT Datum
+ankus_test_cstring_argument(PG_FUNCTION_ARGS)
+{
+    Oid callback = PG_GETARG_OID(0);
+    unsigned char bytes[] = {0x01, 0x80, 0xff, 0};
+    char *storage = PG_GETARG_BOOL(1) ? NULL : (char *) bytes;
+    FmgrInfo function;
+    LOCAL_FCINFO(call, 2);
+    fmgr_info(callback, &function);
+    Const *input = makeConst(CSTRINGOID, -1, InvalidOid, -2, CStringGetDatum(storage), false, false);
+    Const *address = makeConst(INT8OID, -1, InvalidOid, sizeof(int64),
+        Int64GetDatum((int64) (uintptr_t) storage), false, FLOAT8PASSBYVAL);
+    function.fn_expr = (Node *) makeFuncExpr(callback, BOOLOID,
+        list_make2(input, address), InvalidOid, InvalidOid, COERCE_EXPLICIT_CALL);
+    InitFunctionCallInfoData(*call, &function, 2, InvalidOid, NULL, NULL);
+    call->args[0].value = input->constvalue;
+    call->args[1].value = address->constvalue;
+    call->args[0].isnull = false;
+    call->args[1].isnull = false;
+    Datum result = FunctionCallInvoke(call);
+    if (call->isnull)
+    {
+        ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("C-string observation returned NULL")));
+    }
+
+    return result;
+}
+
 /* Capture physical argument addresses before any generated managed conversion. */
 static Datum
 ankus_test_call_buffer(Oid callback, Datum value, Oid type)

@@ -80,6 +80,20 @@ public static unsafe partial class NativeBackend
             return PgPolymorphic.Read<T>(value);
         }
 
+        if (typeof(T) == typeof(PgCString))
+        {
+            value.Lifetime.Validate();
+            if (value.TypeOid != 2275)
+            {
+                throw new InvalidCastException("The datum is not a PostgreSQL C string.");
+            }
+
+            if (value.IsNull || value.DangerousGetBits() == 0)
+            {
+                return default!;
+            }
+        }
+
         return RunDatum(value, 0, null, static result =>
         {
             uint typeOid = checked((uint)result._rowsAffected);

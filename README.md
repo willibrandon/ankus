@@ -87,6 +87,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgArrayView` | `anyarray` with checked native cells and scalar spans |
 | `PgArrayView<T>` | The concrete scalar element's array type, with checked lazy conversion |
+| `PgCString`, `PgCStringView` | `cstring`, with exact owned or checked borrowed bytes |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
@@ -116,7 +117,8 @@ See [date and time values](docs/src/content/docs/date-and-time.md).
 Text supports server-encoding conversion and Unicode; binary data preserves zero
 bytes. `string` and `byte[]` copy values into managed storage; `PgTextView` and
 `PgByteaView` provide checked native reads with private detoast or encoding
-storage when needed. See [text and binary values](docs/src/content/docs/text-and-binary.md)
+storage when needed. `PgCString` and `PgCStringView` preserve exact terminated
+bytes for native C-string signatures. See [text and binary values](docs/src/content/docs/text-and-binary.md)
 for lifetime rules and independent copies. Managed exceptions return completely to native code
 before PostgreSQL raises ERROR. See [the native boundary design](docs/contributing/native-boundary.md)
 for buffer ownership and error cleanup.

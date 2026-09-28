@@ -22,6 +22,7 @@ internal sealed class SpiConversionScope : IDisposable
             IPgArrayView array => array,
             PgByteaView bytes => bytes,
             PgTextView text => text,
+            PgCStringView text => text,
             _ => null,
         };
         if (view is not null)

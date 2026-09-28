@@ -83,6 +83,7 @@ public readonly struct SpiParameter
             IPgArrayView view => Create(view.Datum),
             PgByteaView view => Create(view.Datum),
             PgTextView view => Create(view.Datum),
+            PgCStringView view => Create(view.Datum),
             PgInternal state => new(2281, state),
             _ => new(SpiType.GetOid(value), value, PgTypeRegistry.Find(typeof(T)), PgTypeRegistry.FindArray(typeof(T))),
         };

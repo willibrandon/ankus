@@ -415,6 +415,12 @@ raw `varchar` and padded `bpchar` values keep their identity and trailing spaces
 Use `ToString()` or `ToArray()` for independent managed copies. See
 [text and binary values](/text-and-binary/) for callback and direct-span rules.
 
+For `cstring`, `Read<PgCString>()` copies exact bytes and
+`Read<PgCStringView>()` borrows terminated native storage. Neither transcodes
+the bytes. PostgreSQL type-I/O calls can supply a zero C-string address with
+`IsNull` still false; typed C-string reads return null for that address while
+raw metadata retains the original flag. `CopyTo` preserves that distinction.
+
 Reading, formatting or copying an existing domain value does not rerun its
 constraints. This preserves historical values after `ADD CHECK ... NOT VALID`
 and domain-typed NULLs produced by outer joins, including for NOT NULL domains.

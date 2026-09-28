@@ -1,28 +1,30 @@
 using System.Collections;
+using System.Text;
 
 namespace Ankus;
 
 /// <summary>
-/// Borrows a PostgreSQL bytea payload under a checked native lifetime.
+/// Borrows the exact bytes of a PostgreSQL cstring under a checked native lifetime.
 /// </summary>
 /// <remarks>
-/// Flat and short values retain their original bytes. PostgreSQL detoasts other storage into a
-/// private child context. The source owner must remain alive; direct scalar input views expire
-/// at callback exit. Copied length and type metadata remain readable after disposal.
+/// Bytes are not implicitly decoded or transcoded. Count, indexing and enumeration exclude the
+/// terminator. The source owner must remain alive; direct scalar input views expire at callback
+/// exit. Copied length and type metadata remain readable after disposal.
 /// Dispose explicitly created views while their backend is active.
 /// </remarks>
-/// <param name="value">The present bytea datum, optionally wrapped in a domain.</param>
-public sealed class PgByteaView(PgDatum value) : IReadOnlyList<byte>, IDisposable
+/// <param name="value">The present cstring datum with valid terminated native storage.</param>
+public sealed class PgCStringView(PgDatum value) : IReadOnlyList<byte>, IDisposable
 {
-    private readonly NativeBorrowedBuffer _buffer = new(value, NativeBufferKind.Bytea);
+    private static readonly UTF8Encoding s_utf8 = new(false, true);
+    private readonly NativeBorrowedBuffer _buffer = new(value, NativeBufferKind.CString);
 
     /// <summary>
-    /// Gets the payload length, including embedded zero bytes.
+    /// Gets the payload length, excluding the terminating zero byte.
     /// </summary>
     public int Count => _buffer.Length;
 
     /// <summary>
-    /// Gets the original PostgreSQL type OID, preserving domain identity.
+    /// Gets the PostgreSQL cstring type OID.
     /// </summary>
     public uint TypeOid => _buffer.TypeOid;
 
@@ -35,7 +37,7 @@ public sealed class PgByteaView(PgDatum value) : IReadOnlyList<byte>, IDisposabl
     /// Reads one byte after checking the native lifetime and zero-based index.
     /// </summary>
     /// <param name="index">The zero-based byte index.</param>
-    /// <returns>The original byte, including zero.</returns>
+    /// <returns>The original nonzero payload byte.</returns>
     public byte this[int index]
     {
         get
@@ -58,6 +60,28 @@ public sealed class PgByteaView(PgDatum value) : IReadOnlyList<byte>, IDisposabl
     /// </summary>
     /// <returns>Bytes that remain valid after the native owner expires.</returns>
     public byte[] ToArray() => _buffer.GetSpan().ToArray();
+
+    /// <summary>
+    /// Copies the exact payload into an independent managed C string.
+    /// </summary>
+    /// <returns>The owned value, valid after the native owner expires.</returns>
+    public PgCString ToOwned() => new(_buffer.GetSpan());
+
+    /// <summary>
+    /// Checks the native lifetime and decodes strict UTF-8 without consulting the server encoding.
+    /// </summary>
+    /// <returns>Independent managed text.</returns>
+    /// <exception cref="DecoderFallbackException">The bytes are not valid UTF-8.</exception>
+    public string ToUtf8String() => s_utf8.GetString(_buffer.GetSpan());
+
+    /// <summary>
+    /// Checks the native lifetime and exposes the payload with its terminating zero byte.
+    /// </summary>
+    /// <returns>A span whose validity is the caller's responsibility after this method returns.</returns>
+    /// <remarks>
+    /// Obey the same lifetime and backend-thread restrictions as DangerousGetSpan.
+    /// </remarks>
+    public ReadOnlySpan<byte> DangerousGetNullTerminatedSpan() => _buffer.GetSpan(includeTerminator: true);
 
     /// <summary>
     /// Checks the lifetime once and exposes the native payload without copying.
@@ -90,7 +114,7 @@ public sealed class PgByteaView(PgDatum value) : IReadOnlyList<byte>, IDisposabl
     /// <summary>
     /// Retains an independent byte position without allowing unchecked access after expiry.
     /// </summary>
-    private sealed class Enumerator(PgByteaView view) : IEnumerator<byte>
+    private sealed class Enumerator(PgCStringView view) : IEnumerator<byte>
     {
         private int _index = -1;
         private bool _disposed;

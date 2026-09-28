@@ -3146,7 +3146,7 @@ alongside the source-level macro inventory.
 | Source | Required behavior | Status |
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
-| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Explicit PgDatum bindings support cstring I/O, but first-class owned/borrowed byte-preserving C strings remain required alongside broader layouts and complete platform/version evidence |
+| `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; owned PgCString and borrowed PgCStringView preserve exact terminated bytes, optional strict UTF-8, null-address input semantics and scalar/array/retained callback transport, with validation recorded below. Packed custom native payloads support checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
 | `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. `PgArrayView<T>` adds checked typed cells, finite raw/SPI/function result factories, NULL element-identity validation, original native parameter transport and concrete generated scalar/SETOF/TABLE/aggregate signatures with retained callback snapshots. Complete platform/version evidence remains required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. `PgInternal` retains managed payloads or borrows native words with exact type, NULL/zero, owner cleanup and alias checks; generated scalar/set/table/aggregate callbacks, moving state and parallel worker transport are verified in its recorded milestone. The complete version/platform matrix remains required. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
@@ -12725,3 +12725,127 @@ runtime jobs passing and quality plus all three complete platform suites still
 running, with no reported failure. Docs **36488639684** passes. Pending or
 cancelled suites are not counted as completed platform evidence. CI outcomes
 are checked again before push; all one-hour limits and unsharded suites remain.
+
+The pre-push check observes the same outcomes. Overview/inventory commit
+**d682796** is pushed; new CI **36489705448** is pending and Docs
+**36489705388** is running. Cancellation of superseded CI **36488639696**
+has been requested; its three runtime passes stand, while its unfinished
+quality/platform jobs do not supply completed validation evidence.
+
+## Exact C-string values and views
+
+The new owned `PgCString` copies arbitrary nonzero bytes, retains exactly one
+terminator, distinguishes empty values from SQL NULL, and exposes explicit
+strict UTF-8 conversion. Its byte equality and ordering require no backend.
+`PgCStringView` reuses checked native buffer ownership, source dependencies,
+callback cleanup and provisional SPI-result cleanup. Native C-string byte
+transport is separate from the existing custom-type text-I/O transcoding.
+Concrete scalar, array and retained callback conversion is being connected to
+the generator and existing SPI/raw/function-call paths.
+
+Current direct Linux x64 validation passes **16 owned-value cases**, then
+**46 combined owned/borrowed-buffer cases**, with zero failures or skips.
+The focused generator scope passes **nine cases**, zero failures/skips.
+Initial builds found an explicit-array-type diagnostic and redundant-cast/
+collection-expression diagnostics in the new tests; those were fixed without
+suppression before the passing runs. The first real PostgreSQL execution is
+in progress. Full native lifecycle/error/encoding evidence, the complete suite,
+Release/API/site gates and public guide updates are still required before this
+feature is a verified milestone.
+
+Overview CI **36489705448** now has successful quality and all three runtime
+jobs; Linux, macOS and Windows full platform jobs are running. Docs
+**36489705388** passes. No new hosted failure is reported at this check.
+
+The initial 13-case backend attempt stopped during test-extension compilation,
+before PostgreSQL bodies executed: the new array probe supplied the internal
+shape-tuple constructor instead of the public three-span constructor, and its
+string-array local required an explicit type. Both fixture errors are corrected;
+native publication and execution are being retried.
+
+The retry published successfully and executed all 13 bodies on PostgreSQL
+18.6/Linux x64: one array case passed and 12 cases failed because the fixture's
+default SQL name was `create_c_string` while callers used `create_cstring`.
+The helper now declares its intended name explicitly; production naming rules
+are unchanged. Native lifecycle, storage identity and encoding checks are being
+expanded before the next run. This remains incomplete validation.
+
+The expanded 27-case attempt stopped before execution on C# collection-expression
+type inference in four fixture comparisons. Explicit byte type arguments fix
+those comparisons without changing production behavior; the expanded run is
+retrying. New witnesses use an independent native caller for storage addresses
+and a zero C-string address with a false SQL NULL flag. Additional cases cover
+callback errors/expiry, source resets, aggregate retention and LATIN1 bytes.
+
+The corrected expanded backend scope passes **27/27 cases**, zero failures or
+skips, on PostgreSQL **18.6/Linux x64** in **2m19.649s**, including native
+publication. Independent native address/NULL-flag observations, source/reset and
+callback failure cleanup, aggregate retention and LATIN1 exact-byte behavior
+all execute successfully. Additional set/table-result, early-exit, array-factory
+and malformed-transport checks are being added before the final full suite.
+
+The expanded direct runtime scope passes **54/54 cases**, zero failures/skips,
+in **1.903s**. It includes an independently authored C-string array envelope,
+strict transport rejection, provisional-owner rollback and wrong-thread/backend
+rejection. A fixture assertion initially used a nonexistent `ElementOid` property;
+it now uses the public `ElementTypeOid`. Full-suite verification remains required.
+
+Previous overview CI **36489705448** now passes the full Linux platform job in
+**32m53s**, in addition to quality and all runtime jobs. macOS and Windows full
+platform jobs remain in progress. Docs **36489705388** passes; no new hosted
+failure is reported. These results concern the previous commit, not the
+uncommitted C-string implementation.
+
+The final focused PostgreSQL **18.6/Linux x64** scope passes **31/31 cases**,
+zero failures/skips, in **2m30.587s**. Real C-string SETOF and transient TABLE
+results preserve exact bytes and NULLs; completion, LIMIT and iterator errors
+release retained input views exactly once. Vector, shaped-array, typed borrowed
+array, raw-read and PostgreSQL-function result paths pass, as does immediate
+cleanup after a later SPI-column conversion failure. Release and full-suite
+validation are next; isolated PostgreSQL 13 validation remains in progress.
+
+The same **31/31 C-string backend cases** also pass on PostgreSQL **13.23/Linux
+x64**, zero failures/skips, in **3m08.653s** using an isolated checkout. The
+PostgreSQL 19 beta 3 scope is running next. The documentation check reports zero
+errors, warnings or hints. Complete-suite and generated-reference/site gates
+remain pending; these narrow version runs are not full platform/version parity.
+
+| C-string requirement | Observable evidence |
+|---|---|
+| Owned bytes, empty/NULL separation, terminator validation and unsigned value semantics | `PgCStringTests` checks exact arrays, independent mutation, bounds, invalid terminators/UTF-8 and nullable equality/ordering |
+| Independent scalar and array transport | `PgCStringTransportTests` reads supplied bytes and a hand-authored array envelope, releases transport, then verifies surviving values and exact output bytes |
+| Native storage identity and null-address input | `CStringNativeArgumentsPreserveBytesAndNullAddress` uses a C caller's address and false SQL NULL flag; raw copies retain the flag while typed reads recognize absence |
+| Checked source, callback and backend lifetimes | `CStringSourcesExpireWithoutInvalidatingCopies`, `CStringCallbacksExpireAliasesAndRecover`, C-string buffer tests and the shared foreign-thread/backend test check exact failures and independent copies |
+| Normal, early-exit and failed iterator cleanup | `CStringSetResultsPreserveEachRowAndReleaseOwners`, `CStringSetResultsCleanUpAfterEarlyExitOrError` compare exact rows, disposal counters and native private-context counts |
+| Aggregate snapshots and all array result routes | `CStringAggregateRetainsFirstPresentBytes`, `CStringArraysPreserveShapeAndCellBytes`, `CStringArraysAndFailedSpiResultsPreserveContracts` execute real retained input, array shape/NULL cells and SPI/raw/function conversions |
+| Encoding and same-session recovery | `CStringLatin1PreservesBytesWithoutTranscoding`, `CStringInvalidPayloadRecoversOnSameBackend`, and callback/iterator failures check exact bytes, SQLSTATE, cleanup and original backend PID |
+| Concrete generated contracts | `CStringSignaturesCompileWithConcreteTypes` and `CStringArraySignaturesKeepElementIdentity` compile generated code and verify SQL types/nullability; the backend cases provide execution proof |
+
+Release succeeds with **zero warnings/errors** in **1m39.98s**. API freshness
+verifies **206 pages/2,518 members** generated from source XML; the site builds
+**252 pages**, its check has zero errors/warnings/hints, and the C-string guide
+anchor is verified in built HTML. The unfiltered root suite is now running.
+The assertion review maps potential byte/NULL/lifetime/cleanup regressions to
+independent observations; no coverage collection or executed mutation testing
+is claimed. Remaining full-port inventory and matrix requirements are unchanged.
+
+PostgreSQL **19 beta 3/Linux x64** also passes the **31/31 C-string backend
+cases**, zero failures/skips, in **3m29.186s**. These runs establish focused
+compatibility on PostgreSQL 13.23, 18.6 and 19 beta 3. macOS/Windows and the other
+supported majors still require their own evidence. The main unfiltered suite
+remains active; all non-integration modules have passed so far.
+
+Final unfiltered root validation passes **8,784 tests, zero failures and six
+Windows-only skips, 8,790 total**, on PostgreSQL **18.6/Linux x64** in
+**10m11.655s**. The integration module passes in **10m09.038s**. All local
+fixtures are terminal; no source or native output was changed beneath them.
+This completes the locally verified C-string milestone; full faithful-port
+completion and the remaining platform/version matrix are still open.
+
+Immediately before committing, previous CI **36489705448** passes Linux
+(**32m53s**), macOS (**39m12s**), quality and all runtime jobs. Windows remains
+in progress; Docs **36489705388** passes. No failure is reported. Outcomes are
+checked again before push. A separate Windows performance investigation is
+starting at the user's request: the same run's build step takes **11m51s** on
+Windows, **8m54s** on macOS and **5m49s** on Linux. No optimization or speedup is
+claimed yet; all full suites, analyzer settings and one-hour limits remain.

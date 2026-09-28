@@ -61,6 +61,11 @@ internal static class NativeDatumBridge
         static Datum
         ankus_normalize_raw_datum(Datum datum, Oid type, bool by_value, int16 length)
         {
+            if (type == CSTRINGOID && DatumGetPointer(datum) == NULL)
+            {
+                return datum;
+            }
+
             if (by_value || length != -1)
                 return datumCopy(datum, by_value, length);
 
@@ -86,6 +91,11 @@ internal static class NativeDatumBridge
             get_typlenbyval(type, &length, &by_value);
             Datum normalized = ankus_normalize_raw_datum(datum, type, by_value, length);
             MemoryContext target = ankus_datum_context(context, generation);
+            if (type == CSTRINGOID && DatumGetPointer(normalized) == NULL)
+            {
+                return normalized;
+            }
+
             MemoryContext previous = MemoryContextSwitchTo(target);
             Datum copy = datumCopy(normalized, by_value, length);
             MemoryContextSwitchTo(previous);
@@ -154,7 +164,7 @@ internal static class NativeDatumBridge
         static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->scalar_operation < 0 || request->scalar_operation > 12)
+            if (request->scalar_operation < 0 || request->scalar_operation > 13)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));
             if (request->parameter_count != 1 || request->parameters == NULL)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Datum operations require one value")));
@@ -183,7 +193,7 @@ internal static class NativeDatumBridge
 
                 if (value->is_null)
                     ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("A borrowed view requires a non-NULL datum")));
-                if (request->scalar_operation == 9 || request->scalar_operation == 10)
+                if (request->scalar_operation == 9 || request->scalar_operation == 10 || request->scalar_operation == 13)
                     ankus_buffer_view_operation(request, result, (Datum) reference.bits, getBaseType(parameter->type_oid));
                 else
                     ankus_array_view_operation(request, result, (Datum) reference.bits, getBaseType(parameter->type_oid));
