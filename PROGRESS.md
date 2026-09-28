@@ -34,6 +34,14 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Packaged backend tests now reuse their test-owned NuGet directory while two
+explicit cold-restore cases retain empty package directories. This removes
+repeated binding collection and compilation caused by changing package paths.
+The same three Linux backend cases improve from 5m03.583s to 3m53.082s (23.2%);
+all eleven affected Windows cases pass. Complete Linux verification passes
+8,153 tests with zero failures and six platform skips in 11m18.383s. CI now
+retains per-module TRX timing reports; hosted savings remain to be measured.
+
 The trace provider now wraps index and index-only children and delegates native
 mark/restore to children whose access method supports it. Real Merge Joins with
 duplicate keys prove actual callbacks and exact nullable/text result pairs;
@@ -10151,3 +10159,61 @@ remain in progress without a reported failure. Docs 36364593994 passes.
 These hosted results cover the preceding DSM milestone, not the new index or
 package-fixture changes. Outcomes are checked again before the next commit
 and before pushing both locally verified changes.
+
+### Reuse package fixtures without repeating cold binding builds
+
+The CI timing investigation identifies unnecessary work in packaged backend
+tests: eleven consumers each created a fresh NuGet directory. The installed
+build tool's path participates in native binding source identity, and package
+paths also participate in managed compilation identity. Reinstalling identical
+packages in a new location therefore repeated binding collection and compilation.
+Integration already shares its assembly fixture and runs alongside unit modules;
+adding more parallel jobs is not needed for this fix.
+
+Nine backend consumers now reuse their existing class-owned package directory.
+The two explicit GUC cold-restore contracts still start with separate empty
+package directories. Every consumer remains outside the repository, publishes
+its own Native AOT extension, verifies package-only references and no repository
+style imports, and runs its real PostgreSQL assertions. Concurrency remains two
+consumer slots, pre-18 installations stay isolated, and class cleanup removes
+the owned package directories. Production cache identity and native validation
+are unchanged; no test, analyzer or platform job is removed or suppressed.
+
+The same three representative Linux x64/PostgreSQL 18.6 cases pass before and
+after, with zero failures/skips: 5m03.583s becomes 3m53.082s, a 70.501s (23.2%)
+reduction including fixture setup. Source-cache entries for setup and those
+consumers fall from four to one. This is a local comparison on SDK 10.0.400/
+.NET 10.0.11 with existing machine caches, not a hosted CI speedup claim.
+Individual test durations include semaphore waits and should not be summed.
+All eleven affected consumers pass on Windows x64/PostgreSQL 17.11 in
+8m39.187s, including both retained cold-cache cases. The Windows test project
+build has zero warnings/errors; Linux solution Release also passes with zero
+warnings/errors in 1m09.92s.
+
+CI now writes one TRX report per test module and uploads available reports on
+every outcome, providing individual durations for subsequent investigations.
+The automation app compiles and validates its pinned runtime identity; the
+exact report flags pass all 22 PgConfig cases and produce the expected TRX.
+Contributor and engineering guides describe fixture reuse and report locations.
+Final plain full Linux `dotnet test` passes **8,153 tests, zero failures and six
+Windows-only skips, 8,159 total**, in 11m18.383s (integration 11m17.598s),
+including the twelve new index-scan cases recorded above. API freshness verifies
+200 pages/2,437 members; the site builds 245 pages and checks with zero
+errors/warnings/hints. Full unsharded suites, the one-hour job limit and all
+analyzer standards remain unchanged.
+
+The previous Ubuntu log confirms that the GitHub binding-cache archive restored
+from `d42ddcc`, but its first source contract was collected again and its
+integration module still took 35m42.554s. Archive restoration alone is not proof
+of reused compiler outputs or a speedup. The bounded fixture change addresses
+repeated work within a test run without weakening production cache validation;
+its hosted timing effect remains to be measured.
+
+Immediately before this commit, the 2026-09-28 01:49 UTC recheck of
+[CI 36364594021](https://github.com/willibrandon/ankus/actions/runs/36364594021)
+still has successful quality, runtime and full Ubuntu jobs, with macOS and
+Windows in progress and no reported failure. Docs 36364593994 passes. The
+preceding index milestone is committed separately as `4b32cc3`; this fixture
+milestone records the combined working tree's complete verification. CI is
+checked and recorded again immediately before push without waiting for the
+remaining hosted jobs.

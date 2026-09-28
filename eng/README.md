@@ -51,6 +51,8 @@ GitHub Actions steps. `AnkusBindingCacheDirectory` selects the restored cache;
 normal header preprocessing, native ABI verification and content checks still
 run before reuse. The full suite remains in one platform job with a 60-minute
 timeout. `runtime-test` retains the combined local command.
+Test commands write each module's TRX results and durations to
+`artifacts/test-results`; platform CI uploads available reports on every outcome.
 
 See the [.NET file-based app documentation](https://learn.microsoft.com/dotnet/core/sdk/file-based-apps)
 for SDK behavior.

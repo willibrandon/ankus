@@ -16,7 +16,7 @@ public sealed partial class ToolCommandTests
     public async Task PackedGucConsumerPreservesHooksAndNativeStateAcrossReinstall()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("PackedGuc", "ankus_packed_guc", ManagedGucConsumer, token);
+        string output = await PublishPackageConsumerAsync("PackedGuc", "ankus_packed_guc", ManagedGucConsumer, token, coldPackages: true);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         await ExecutePackageGucAsync(connection, "CREATE EXTENSION ankus_packed_guc");
@@ -106,7 +106,7 @@ public sealed partial class ToolCommandTests
     public async Task PackedNativeGucConsumerPreloadsWithoutSqlExports()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("PackedNativeGuc", "ankus_packed_native", """
+        string output = await PublishPackageConsumerAsync("PackedNativeGuc", "ankus_packed_native", """
             using Ankus;
             [assembly: PgGucPrefix("packed_native")]
             public static partial class Settings
@@ -114,7 +114,7 @@ public sealed partial class ToolCommandTests
                 [PgGucInt("packed_native.slots", 7, "Packed native slots", Minimum = 0, Maximum = 20)]
                 public static partial int Slots { get; }
             }
-            """, token);
+            """, token, coldPackages: true);
         PublishedExtension manifest = PublishedExtension.Read(output);
         Assert.AreEqual("-- No installable objects declared.\n", (await File.ReadAllTextAsync(
             Path.Combine(output, "extension", manifest.Sql), token)).ReplaceLineEndings("\n"));
@@ -157,9 +157,10 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Publishes from an empty package cache and proves the consumer has no repository references or style imports.
+    /// Publishes with test-owned packages and proves the consumer has no repository references or style imports.
     /// </summary>
-    private static async Task<string> PublishColdGucConsumerAsync(string name, string extension, string source, CancellationToken token)
+    private static async Task<string> PublishPackageConsumerAsync(string name, string extension, string source, CancellationToken token,
+        bool coldPackages = false)
     {
         string directory = CreateDirectory();
         string project = Path.Combine(directory, name + ".csproj");
@@ -169,11 +170,16 @@ public sealed partial class ToolCommandTests
                 new XElement("TreatWarningsAsErrors", "true"), new XElement("AnkusExtensionName", extension),
                 new XElement("AnkusExtensionVersion", "3.2.1")))).Save(project);
         await File.WriteAllTextAsync(Path.Combine(directory, "Settings.cs"), source, token);
-        var environment = new Dictionary<string, string?>(s_environment)
+        var environment = new Dictionary<string, string?>(s_environment);
+        if (coldPackages)
         {
-            ["NUGET_PACKAGES"] = Path.Combine(directory, "cold packages"),
-        };
-        Assert.IsFalse(Directory.Exists(environment["NUGET_PACKAGES"]!));
+            environment["NUGET_PACKAGES"] = Path.Combine(directory, "cold packages");
+            Assert.IsFalse(Directory.Exists(environment["NUGET_PACKAGES"]!));
+        }
+
+        // Only cold-restore contract tests need a new package root. Other consumers
+        // reuse this run's packages so binding caches can recognize the same tools.
+        Assert.StartsWith(s_root + Path.DirectorySeparatorChar, environment["NUGET_PACKAGES"]!);
         Assert.IsFalse(project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
         string output = Path.Combine(directory, "published");
         ProcessResult published = await ProcessRunner.RunAsync("dotnet",

@@ -47,7 +47,7 @@ public sealed partial class ToolCommandTests
         CancellationToken token = context.CancellationToken;
         string source = await File.ReadAllTextAsync(Path.Combine(IntegrationEnvironment.RepositoryRoot,
             "samples", "Ankus.Examples.BackgroundWorkers", "DatabaseObserver.cs"), token);
-        string output = await PublishColdGucConsumerAsync("Ankus.Examples.BackgroundWorkers", "ankus_background_workers",
+        string output = await PublishPackageConsumerAsync("Ankus.Examples.BackgroundWorkers", "ankus_background_workers",
             "using Ankus;\n" + source, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
@@ -80,7 +80,7 @@ public sealed partial class ToolCommandTests
     public async Task BackgroundWorkersRegisterAndShareState()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("BackgroundWorkers", "ankus_worker_probe", BackgroundWorkerSource, token);
+        string output = await PublishPackageConsumerAsync("BackgroundWorkers", "ankus_worker_probe", BackgroundWorkerSource, token);
         string signalFixture = Path.Combine(output, "Ankus.WorkerSignals" + Path.GetExtension(PublishedExtension.Read(output).Library));
         await AllocatorFixtureCompiler.CompileModuleAsync(s_installation,
             Path.Combine(IntegrationEnvironment.RepositoryRoot, "tests", "Ankus.IntegrationTests", "Native", "worker_signal_fixture.c"),

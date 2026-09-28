@@ -13,7 +13,7 @@ public sealed partial class ToolCommandTests
     public async Task BoundedSharedCollectionsPreserveValuesAcrossBackends()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("FixedCollections", "ankus_shared_probe", FixedCollectionSource, token);
+        string output = await PublishPackageConsumerAsync("FixedCollections", "ankus_shared_probe", FixedCollectionSource, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true);
         await using NpgsqlConnection first = await cluster.OpenConnectionAsync(token);
         await using NpgsqlConnection second = await cluster.OpenConnectionAsync(token);

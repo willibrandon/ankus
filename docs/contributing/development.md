@@ -79,6 +79,17 @@ artifact, including when Native AOT compilation fails before cluster startup.
 Generated-solution test builds retain their binary logs in
 `artifacts/test-logs/generated-solution`, outside the disposable test projects.
 
+Packaged backend tests share a NuGet directory owned by their test run. Each
+consumer still builds outside the repository and publishes its own native
+extension for a real PostgreSQL cluster. The two GUC package-contract tests use
+separate, initially empty package directories to verify cold restore. Reusing
+packages for other backend cases also lets the binding cache reuse the same
+installed tools; a new package location would force repeated binding collection
+and compilation. Class cleanup removes the shared and cold package directories.
+CI saves each module's TRX report, including individual test durations, in the
+`test-results-<rid>` artifact on successful and failed runs. A cancelled module
+may not finish its report; uploads include only reports that were written.
+
 Native binding probes and SDK record verification remove their temporary
 directories after the compiler and probe processes exit. Production commands and
 their tests share bounded Windows file-release retries; persistent access or

@@ -13,7 +13,7 @@ public sealed partial class ToolCommandTests
     public async Task SharedAtomicsPreserveValuesAcrossProcessesAndThreads()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("SharedAtomics", "ankus_atomic_probe", SharedAtomicSource, token);
+        string output = await PublishPackageConsumerAsync("SharedAtomics", "ankus_atomic_probe", SharedAtomicSource, token);
         await using (PostgresTestCluster ordinary = await StartPublishedClusterAsync(output, token))
         {
             await using NpgsqlConnection connection = await ordinary.OpenConnectionAsync(token);

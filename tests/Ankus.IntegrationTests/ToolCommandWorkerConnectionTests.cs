@@ -13,7 +13,7 @@ public sealed partial class ToolCommandTests
     public async Task BackgroundWorkerConnectionsPreserveRolesAndFailures()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("WorkerConnections", "ankus_worker_connections", WorkerConnectionSource, token);
+        string output = await PublishPackageConsumerAsync("WorkerConnections", "ankus_worker_connections", WorkerConnectionSource, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "log_error_verbosity = verbose"]);
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);

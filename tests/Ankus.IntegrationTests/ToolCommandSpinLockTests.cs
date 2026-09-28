@@ -14,7 +14,7 @@ public sealed partial class ToolCommandTests
     public async Task SharedSpinLocksPreserveValuesAcrossBackends()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("SpinLocks", "ankus_spin_probe", SpinLockSource, token);
+        string output = await PublishPackageConsumerAsync("SpinLocks", "ankus_spin_probe", SpinLockSource, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true);
         await using NpgsqlConnection first = await cluster.OpenConnectionAsync(token);
         await using NpgsqlConnection second = await cluster.OpenConnectionAsync(token);

@@ -642,6 +642,9 @@ static void RunTestModule(string repositoryRoot, string testModule)
         repositoryRoot,
         "--minimum-expected-tests",
         "1",
+        "--report-trx",
+        "--results-directory",
+        Path.Combine(repositoryRoot, "artifacts", "test-results"),
     ];
     Run(GetDotNetHost(), arguments, repositoryRoot);
 }

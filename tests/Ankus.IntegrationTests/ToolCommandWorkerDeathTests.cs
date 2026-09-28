@@ -14,7 +14,7 @@ public sealed partial class ToolCommandTests
     public async Task BackgroundWorkerPostmasterDeathStopsWaiters()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("WorkerDeath", "ankus_worker_death", WorkerDeathSource, token);
+        string output = await PublishPackageConsumerAsync("WorkerDeath", "ankus_worker_death", WorkerDeathSource, token);
         await using PostgresTestCluster cluster = await StartPublishedClusterAsync(output, token, sharedPreload: true,
             additionalConfiguration: ["max_worker_processes = 4", "max_parallel_workers = 0", "max_logical_replication_workers = 0", "autovacuum = off"]);
         string record = "ankus-death-" + Guid.NewGuid().ToString("N");

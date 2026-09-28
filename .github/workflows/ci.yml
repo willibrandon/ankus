@@ -184,6 +184,15 @@ jobs:
       - name: Run full PostgreSQL tests
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
+      - name: Save test results and timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.rid }}
+          path: artifacts/test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
+
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

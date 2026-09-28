@@ -14,7 +14,7 @@ public sealed partial class ToolCommandTests
     public async Task SharedMemoryLocksPreserveValuesAcrossBackendsAndFailures()
     {
         CancellationToken token = context.CancellationToken;
-        string output = await PublishColdGucConsumerAsync("SharedMemory", "ankus_shared_probe", SharedMemorySource, token);
+        string output = await PublishPackageConsumerAsync("SharedMemory", "ankus_shared_probe", SharedMemorySource, token);
         await using (PostgresTestCluster ordinary = await StartPublishedClusterAsync(output, token))
         {
             await using NpgsqlConnection connection = await ordinary.OpenConnectionAsync(token);
