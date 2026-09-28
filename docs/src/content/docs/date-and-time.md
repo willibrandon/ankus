@@ -169,8 +169,10 @@ convention; they do not calculate elapsed time across a calendar.
 `PgInterval.PositiveInfinity` and `NegativeInfinity` require PostgreSQL 17 or
 later. Their finite component properties are zero; check `IsFinite` first.
 On earlier servers, writing an infinite interval raises an unsupported-feature
-error. Finite components that match a newer server's reserved infinity sentinel
-raise a range error rather than changing meaning.
+error (`0A000`), while parsing infinity text reports invalid interval syntax
+(`22007`). The all-maximum and all-minimum component triples remain finite on
+those older servers. On PostgreSQL 17+, writing those triples as finite values
+raises a range error rather than changing their meaning to infinity.
 
 ## Parsing and formatting
 
@@ -256,7 +258,10 @@ extraction result, matching that version's precision limits.
 
 `Create` constructs dates, times, and timestamps from fields with PostgreSQL's
 validation and fractional-second rounding. Negative years denote BC; year zero
-is invalid. `PgTimestampTz.Create` accepts an optional explicit zone; otherwise
+is invalid. Timestamp construction with a negative year requires PostgreSQL 14+;
+PostgreSQL 13's timestamp constructors reject it with SQLSTATE `22008`. BC
+timestamps can still be parsed or created from raw values on PostgreSQL 13.
+`PgTimestampTz.Create` accepts an optional explicit zone; otherwise
 it uses the session timezone. `PgTimeTz.Create` accepts an explicit offset in
 seconds or uses the session's current-date offset.
 

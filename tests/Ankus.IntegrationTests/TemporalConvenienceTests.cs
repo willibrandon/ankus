@@ -1,4 +1,5 @@
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Ankus.IntegrationTests;
 
@@ -32,8 +33,8 @@ public sealed class TemporalConvenienceTests(TestContext context)
     [DataRow("datatype.interval_unit('hours', '49')", "interval '49 hours'")]
     [DataRow("datatype.interval_unit('minutes', '-90')", "interval '-90 minutes'")]
     [DataRow("datatype.interval_unit('seconds', '0.1234567')", "make_interval(secs => 0.1234567)")]
-    [DataRow("datatype.interval_unit('microseconds', '9223372036854775807')", "interval '9223372036854.775807 seconds'")]
-    [DataRow("datatype.interval_unit('microseconds', '-9223372036854775808')", "interval '-9223372036854.775808 seconds'")]
+    [DataRow("encode(interval_send(datatype.interval_unit('microseconds', '9223372036854775807')), 'hex')", "'7fffffffffffffff0000000000000000'")]
+    [DataRow("encode(interval_send(datatype.interval_unit('microseconds', '-9223372036854775808')), 'hex')", "'80000000000000000000000000000000'")]
     [DataRow("datatype.interval_unit('abs', '1 month -2 days -3 microseconds')", "interval '1 month 2 days 3 microseconds'")]
     [DataRow("datatype.interval_unit('abs', '-infinity')", "interval 'infinity'")]
     [DataRow("datatype.timestamp_time_tz(timestamptz '2024-03-10 07:30+00')", "timestamptz '2024-03-10 07:30+00'::timetz")]
@@ -44,9 +45,25 @@ public sealed class TemporalConvenienceTests(TestContext context)
             await using var settings = new NpgsqlCommand("SET LOCAL TIME ZONE 'America/New_York'", connection, transaction);
             await settings.ExecuteNonQueryAsync(token);
             await using var command = new NpgsqlCommand($"SELECT ({expectedSql})::text, ({actualSql})::text", connection, transaction);
+            int major = PostgresFixture.Cluster.Installation.Version.Major;
+            if (major < 14 && expectedSql.StartsWith("make_timestamp(-1,", StringComparison.Ordinal))
+            {
+                command.CommandText = $"SELECT {actualSql}";
+                await AssertMatchingFailureAsync(command, transaction, $"SELECT {expectedSql}", "22008", token);
+                return;
+            }
+
+            if (major < 17 && actualSql == "datatype.interval_unit('abs', '-infinity')")
+            {
+                command.CommandText = $"SELECT {actualSql}";
+                await AssertMatchingFailureAsync(command, transaction, "SELECT interval '-infinity'", "22007", token);
+                return;
+            }
+
             await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));
             Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
+            Assert.IsFalse(await reader.ReadAsync(token));
         }, context.CancellationToken);
 
     /// <summary>
@@ -203,21 +220,44 @@ public sealed class TemporalConvenienceTests(TestContext context)
     /// Checks interval sign against native comparison, including mixed components that cancel.
     /// </summary>
     /// <param name="input">The interval.</param>
+    /// <param name="expected">The independent comparison sign.</param>
     [TestMethod]
-    [DataRow("1 month -30 days")]
-    [DataRow("-1 month 31 days")]
-    [DataRow("1 month -31 days")]
-    [DataRow("2147483647 months 2147483647 days 9223372036854.775807 seconds")]
-    [DataRow("-infinity")]
-    [DataRow("infinity")]
-    public Task IntervalSignMatchesPostgresComparison(string input)
+    [DataRow("1 month -30 days", 0)]
+    [DataRow("-1 month 31 days", 1)]
+    [DataRow("1 month -31 days", -1)]
+    [DataRow("maximum", 1)]
+    [DataRow("-infinity", -1)]
+    [DataRow("infinity", 1)]
+    public Task IntervalSignMatchesPostgresComparison(string input, int expected)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(IntervalSignMatchesPostgresComparison), async (connection, transaction, token) =>
         {
-            await using var command = new NpgsqlCommand("SELECT sign(interval_cmp($1::interval, interval '0')), datatype.interval_sign($1::interval)", connection, transaction);
-            command.Parameters.AddWithValue(input);
+            await using var command = new NpgsqlCommand("SELECT sign(interval_cmp($1::interval, interval '0')), datatype.interval_sign($1::interval), encode(interval_send($1::interval), 'hex')", connection, transaction);
+            if (input == "maximum")
+            {
+                command.Parameters.AddWithValue(NpgsqlDbType.Interval, new NpgsqlInterval(int.MaxValue, int.MaxValue, long.MaxValue));
+            }
+            else
+            {
+                command.Parameters.AddWithValue(input);
+            }
+
+            if (PostgresFixture.Cluster.Installation.Version.Major < 17 && input is "infinity" or "-infinity")
+            {
+                command.CommandText = "SELECT datatype.interval_sign($1::interval)";
+                await AssertMatchingFailureAsync(command, transaction, "SELECT $1::interval", "22007", token);
+                return;
+            }
+
             await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));
-            Assert.AreEqual((int)reader.GetDouble(0), reader.GetInt32(1));
+            Assert.AreEqual(expected, (int)reader.GetDouble(0));
+            Assert.AreEqual(expected, reader.GetInt32(1));
+            if (input == "maximum")
+            {
+                Assert.AreEqual("7fffffffffffffff7fffffff7fffffff", reader.GetString(2));
+            }
+
+            Assert.IsFalse(await reader.ReadAsync(token));
         }, context.CancellationToken);
 
     /// <summary>
@@ -244,4 +284,44 @@ public sealed class TemporalConvenienceTests(TestContext context)
             command.Parameters.AddWithValue(operation);
             Assert.AreEqual($"{code}:50:0:2", await command.ExecuteScalarAsync(token));
         }, context.CancellationToken);
+
+    /// <summary>
+    /// Compares native rejection with the selected callback boundary and verifies exact values after rollback.
+    /// </summary>
+    private static async Task AssertMatchingFailureAsync(NpgsqlCommand command, NpgsqlTransaction transaction,
+        string nativeSql, string expectedState, CancellationToken token)
+    {
+        NpgsqlConnection? connection = command.Connection;
+        Assert.IsNotNull(connection);
+        int backend = connection.ProcessID;
+        string managedSql = command.CommandText;
+        await transaction.SaveAsync("temporal_native_error", token);
+        command.CommandText = nativeSql;
+        PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(expectedState, native.SqlState);
+        await transaction.RollbackAsync("temporal_native_error", token);
+        await transaction.ReleaseAsync("temporal_native_error", token);
+
+        await transaction.SaveAsync("temporal_managed_error", token);
+        command.CommandText = managedSql;
+        PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(native.SqlState, managed.SqlState);
+        Assert.AreEqual(native.MessageText, managed.MessageText);
+        Assert.AreEqual(native.Detail, managed.Detail);
+        Assert.AreEqual(native.Hint, managed.Hint);
+        await transaction.RollbackAsync("temporal_managed_error", token);
+        await transaction.ReleaseAsync("temporal_managed_error", token);
+
+        command.Parameters.Clear();
+        command.CommandText = """
+            SELECT encode(interval_send(datatype.interval_unit('microseconds', '-1')), 'hex'),
+                datatype.interval_sign(interval '1 month -31 days'), pg_backend_pid()
+            """;
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+        Assert.IsTrue(await reader.ReadAsync(token));
+        Assert.AreEqual("ffffffffffffffff0000000000000000", reader.GetString(0));
+        Assert.AreEqual(-1, reader.GetInt32(1));
+        Assert.AreEqual(backend, reader.GetInt32(2));
+        Assert.IsFalse(await reader.ReadAsync(token));
+    }
 }

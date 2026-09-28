@@ -205,9 +205,9 @@ public static class TemporalFunctions
     }
 
     /// <summary>
-    /// Recovers from a PostgreSQL interval-sentinel collision inside a session subtransaction.
+    /// Checks finite endpoints on older servers and recovers from a native interval-sentinel collision on newer servers.
     /// </summary>
-    /// <returns>The SQLSTATE, preserved row count, and successful follow-up interval.</returns>
+    /// <returns>The finite fields and committed writes, or the SQLSTATE and preserved writes, followed by a control interval.</returns>
     [PgFunction]
     public static string IntervalWriteRecovery()
         => Spi.Connect(session =>
@@ -217,7 +217,12 @@ public static class TemporalFunctions
             {
                 session.Execute("INSERT INTO interval_recovery SELECT 99 WHERE $1 IS NOT NULL",
                     SpiParameter.Create(new PgInterval(int.MaxValue, int.MaxValue, long.MaxValue)));
-                return "unexpected success";
+                PgInterval finite = session.ExecuteScalar<PgInterval>("SELECT $1",
+                    SpiParameter.Create(new PgInterval(int.MaxValue, int.MaxValue, long.MaxValue)));
+                return $"finite:{finite.Months}:{finite.Days}:{finite.Microseconds}:" +
+                    session.ExecuteScalar<long>("SELECT count(*) FROM interval_recovery") + ":" +
+                    session.ExecuteScalar<long>("SELECT sum(value) FROM interval_recovery") + ":" +
+                    session.ExecuteScalar<PgInterval>("SELECT interval '3 microseconds'").Microseconds;
             }
             catch (PgException error)
             {

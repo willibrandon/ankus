@@ -360,10 +360,38 @@ public sealed class TemporalParityTests(TestContext context)
             command.Parameters.AddWithValue(value);
             command.Parameters.AddWithValue(offset);
             command.Parameters.AddWithValue(type);
+            int backend = connection.ProcessID;
+            if (PostgresFixture.Cluster.Installation.Version.Major < 17 && offset == "infinity")
+            {
+                string comparisonSql = command.CommandText;
+                await transaction.SaveAsync("zone_native_error", token);
+                command.CommandText = $"SELECT $1::{type} AT TIME ZONE $2::interval";
+                PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("22007", native.SqlState);
+                await transaction.RollbackAsync("zone_native_error", token);
+                await transaction.ReleaseAsync("zone_native_error", token);
+
+                await transaction.SaveAsync("zone_managed_error", token);
+                command.CommandText = "SELECT datatype.parity_interval_zone($3,$1,$2::interval)";
+                PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual(native.SqlState, managed.SqlState);
+                Assert.AreEqual(native.MessageText, managed.MessageText);
+                Assert.AreEqual(native.Detail, managed.Detail);
+                Assert.AreEqual(native.Hint, managed.Hint);
+                await transaction.RollbackAsync("zone_managed_error", token);
+                await transaction.ReleaseAsync("zone_managed_error", token);
+
+                command.CommandText = comparisonSql;
+                command.Parameters[1].Value = "0";
+            }
+
+            command.CommandText += ", pg_backend_pid()";
             await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));
             Assert.AreEqual(reader.GetString(0), reader.GetString(1));
             Assert.AreEqual("America/New_York", reader.GetString(2));
+            Assert.AreEqual(backend, reader.GetInt32(3));
+            Assert.IsFalse(await reader.ReadAsync(token));
         }, context.CancellationToken);
 
     /// <summary>
@@ -494,7 +522,9 @@ public sealed class TemporalParityTests(TestContext context)
             await SetZoneAsync(connection, transaction, "Asia/Kathmandu", token);
             await using var command = new NpgsqlCommand("SELECT datatype.parity_temporal_recovery($1)", connection, transaction);
             command.Parameters.AddWithValue(operation);
-            Assert.AreEqual($"{code}:50:50:50:0:2:True", await command.ExecuteScalarAsync(token));
+            string expected = PostgresFixture.Cluster.Installation.Version.Major < 17 &&
+                operation is "timestamp-infinite" or "instant-infinite" or "time-infinite" ? "0A000" : code;
+            Assert.AreEqual($"{expected}:50:50:50:0:2:True", await command.ExecuteScalarAsync(token));
             await using var recover = new NpgsqlCommand("SELECT 42, current_setting('TimeZone')", connection, transaction);
             await using NpgsqlDataReader reader = await recover.ExecuteReaderAsync(token);
             Assert.IsTrue(await reader.ReadAsync(token));

@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Temporal checks now preserve exact interval endpoints, selected-version feature
+rejection, all existing storage owners, and same-backend recovery. All **405
+affected cases pass with zero failures/skips** on Linux x64/PostgreSQL 13.23,
+14.20 and 15.19. Final plain PostgreSQL 18.6 testing passes **8,271 tests, zero
+failures and six Windows-only skips, 8,277 total**, in 12m39.426s. Release, API
+freshness and site checks pass. The latest complete PostgreSQL 13 diagnostic
+still records 62 failures; separate numeric/container/JSON/event corrections
+and a refreshed complete run remain in progress. The intermittent GUC query
+stall, full PostgreSQL 13–19/platform matrix, and other port requirements remain open.
+
 Numeric constraint and conversion checks now verify exact selected-version
 rejection diagnostics and same-backend recovery. All **67 affected cases pass
 with zero failures/skips** on Linux x64/PostgreSQL 13.23, 14.20 and 15.19.
@@ -11274,3 +11284,48 @@ passes. The superseded `d51e4e5` CI run `36404648450` is cancelled: quality and
 runtime jobs passed, and the three unfinished platform jobs were cancelled.
 Those cancelled suites do not supply completed platform evidence. Previous
 outcomes are checked and recorded again immediately before pushing.
+
+## Selected-version temporal boundaries
+
+Existing temporal cases now preserve signed 64-bit interval endpoints through
+independent binary representations, including raw interval parameter input for
+all-maximum components. They compare selected-version BC constructor and infinity
+parser diagnostics with independent native calls and verify exact values in the
+same backend after rollback. Unsupported infinity admission remains distinct from
+executing an infinity operation on a supporting server.
+
+All finite values and SQL NULL still traverse every existing ownership path.
+Before PostgreSQL 17, the two infinity input cases instead assert exact rejected
+admission; actual managed infinity writes separately assert `0A000`. Sentinel-shaped
+finite components retain their full fields and both successful writes on older
+servers. PostgreSQL 17+ retains the existing sentinel-collision rejection and
+rollback assertions. Session-setting checks compare exact timestamp bytes, avoiding
+a decimal read of PostgreSQL 13's floating-point `EXTRACT` result. The public
+date/time guide clarifies BC construction and interval infinity availability.
+
+The initial TemporalConvenienceTests/TemporalDatumTests scope passes all **144
+cases, zero failures/skips**, on Linux x64/PostgreSQL 13.23 in 2m13.562s. The
+expanded four-class scope includes TemporalOperationTests and TemporalParityTests:
+all **405 cases pass with zero failures/skips** on PostgreSQL 13.23 in 1m37.214s,
+14.20 in 2m34.569s and 15.19 in 2m29.860s. Existing fifty-iteration managed
+catch/finally, context-cleanup, retained-write and prepared-plan assertions remain.
+
+Release passes with zero warnings/errors in 1m25.74s. API freshness passes for
+200 pages/2,437 members; the site builds 245 pages and its check reports zero
+errors/warnings/hints. Final plain full Linux x64/PostgreSQL 18.6 testing passes
+**8,271 tests, zero failures and six Windows-only skips, 8,277 total**, in
+12m39.426s (integration 12m38.796s). These overlapping local runs do not establish
+a cold-cache timing baseline. No cases are removed or skipped and no diagnostics
+are suppressed. Other older-version contracts, a refreshed complete PostgreSQL
+13 run, the GUC query-stall investigation, and full port/platform requirements
+remain open.
+
+Immediately before committing, `e401d77`
+[CI 36409892102](https://github.com/willibrandon/ankus/actions/runs/36409892102)
+has successful quality and all three runtime jobs; all three full platform test
+jobs remain in progress without a reported failure.
+[Docs 36409891997](https://github.com/willibrandon/ankus/actions/runs/36409891997)
+passes. Superseded `0360620` CI run `36407464525` is cancelled: quality/runtime
+jobs passed and all three unfinished platform suites were cancelled, which does
+not supply completed platform evidence. Outcomes are checked and recorded again
+immediately before pushing.

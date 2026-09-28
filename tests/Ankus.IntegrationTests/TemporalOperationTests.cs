@@ -100,6 +100,15 @@ public sealed class TemporalOperationTests(TestContext context)
                 command.Parameters.AddWithValue(operation);
                 command.Parameters.AddWithValue(left);
                 command.Parameters.AddWithValue(right);
+                int major = PostgresFixture.Cluster.Installation.Version.Major;
+                if ((major < 14 && type == "date" && operation == "part" && left == "5874897-12-31") ||
+                    (major < 17 && type == "interval" && left == "infinity"))
+                {
+                    command.CommandText = "SELECT datatype.temporal_operation($1, $2, $3, $4)";
+                    await AssertMatchingFailureAsync(command, transaction, $"SELECT {expectedSql}", type == "date" ? "22008" : "22007", token);
+                    return;
+                }
+
                 await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
                 Assert.IsTrue(await reader.ReadAsync(token));
                 Assert.AreEqual(reader.GetValue(0), reader.GetValue(1));
@@ -161,6 +170,12 @@ public sealed class TemporalOperationTests(TestContext context)
                 command.CommandText = "SELECT datatype.temporal_operation($1, 'format', $2, '')";
                 command.Parameters.AddWithValue(type);
                 command.Parameters.AddWithValue(input);
+                if (PostgresFixture.Cluster.Installation.Version.Major < 17 && type == "interval" && input == "-infinity")
+                {
+                    await AssertMatchingFailureAsync(command, transaction, "SELECT $2::interval", "22007", token);
+                    return;
+                }
+
                 Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
                 if (iso is not null)
                 {
@@ -205,7 +220,10 @@ public sealed class TemporalOperationTests(TestContext context)
                 command.Parameters.AddWithValue(operation);
                 command.Parameters.AddWithValue(left);
                 command.Parameters.AddWithValue(right);
-                Assert.AreEqual($"{sqlState}:True:1:2", await command.ExecuteScalarAsync(token));
+                int major = PostgresFixture.Cluster.Installation.Version.Major;
+                string expected = major < 15 && type == "time" && operation == "part" ? "22023"
+                    : major < 17 && type == "interval" && left == "infinity" ? "22007" : sqlState;
+                Assert.AreEqual($"{expected}:True:1:2", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
 
     /// <summary>
@@ -251,4 +269,40 @@ public sealed class TemporalOperationTests(TestContext context)
                 await using var command = new NpgsqlCommand("SELECT datatype.try_parse_invalid_utf16()", connection, transaction);
                 Assert.AreEqual("False:2000-01-01", await command.ExecuteScalarAsync(token));
             }, context.CancellationToken);
+
+    /// <summary>
+    /// Compares selected-version native diagnostics and verifies a successful operation in the same backend.
+    /// </summary>
+    private static async Task AssertMatchingFailureAsync(NpgsqlCommand command, NpgsqlTransaction transaction,
+        string nativeSql, string expectedState, CancellationToken token)
+    {
+        NpgsqlConnection? connection = command.Connection;
+        Assert.IsNotNull(connection);
+        int backend = connection.ProcessID;
+        string managedSql = command.CommandText;
+        await transaction.SaveAsync("operation_native_error", token);
+        command.CommandText = nativeSql;
+        PostgresException native = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(expectedState, native.SqlState);
+        await transaction.RollbackAsync("operation_native_error", token);
+        await transaction.ReleaseAsync("operation_native_error", token);
+
+        await transaction.SaveAsync("operation_managed_error", token);
+        command.CommandText = managedSql;
+        PostgresException managed = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual(native.SqlState, managed.SqlState);
+        Assert.AreEqual(native.MessageText, managed.MessageText);
+        Assert.AreEqual(native.Detail, managed.Detail);
+        Assert.AreEqual(native.Hint, managed.Hint);
+        await transaction.RollbackAsync("operation_managed_error", token);
+        await transaction.ReleaseAsync("operation_managed_error", token);
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT encode(interval_send(datatype.temporal_operation('interval', 'add', '1 month -2 days', '3 days')::interval), 'hex'), pg_backend_pid()";
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+        Assert.IsTrue(await reader.ReadAsync(token));
+        Assert.AreEqual("00000000000000000000000100000001", reader.GetString(0));
+        Assert.AreEqual(backend, reader.GetInt32(1));
+        Assert.IsFalse(await reader.ReadAsync(token));
+    }
 }
