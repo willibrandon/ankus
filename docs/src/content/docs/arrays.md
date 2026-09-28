@@ -351,8 +351,27 @@ supports transporting an existing view. A typed null parameter and prepared-plan
 type metadata select the array type belonging to `T`; they cannot infer a more
 specific identity from an absent value.
 
-Generated function signatures using `PgArrayView<T>` are not yet supported.
-Use the raw `PgArrayView` representation for those signatures.
+Use the typed view directly in scalar, SETOF, TABLE and aggregate signatures:
+
+```csharp
+[PgFunction]
+public static PgArrayView<int?>? Echo(PgArrayView<int?>? values) => values;
+```
+
+This declares `integer[]` for both the argument and result. The outer `?`
+accepts a whole-array SQL NULL; the element's `?` accepts NULL cells. The
+returned array keeps its original dimensions, lower bounds and cell values.
+`PgCompositeType` binds a named composite when the element is `PgHeapTuple`.
+Mapped elements retain their SQL type provider dependencies. Polymorphic,
+arbitrary raw-datum and nested-array elements remain unsupported; use the raw
+`PgArrayView` when the SQL array type itself must be polymorphic.
+
+Scalar inputs borrow the current callback and expire when it returns, including
+on error. Iterator and aggregate inputs receive independent snapshots that
+survive their individual callbacks. A returned view transfers native storage to the result
+owner before its input lease ends. Returning an existing view requires no
+element writer and does not apply element conversions in reverse. Its complete
+native array identity must match the declared SQL result type.
 
 ### Contiguous native slices
 

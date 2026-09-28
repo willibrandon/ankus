@@ -130,7 +130,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether the resolved array is exposed through a checked borrowed native view.
     /// </summary>
-    internal bool IsBorrowedArray => Managed == "global::Ankus.PgArrayView";
+    internal bool IsBorrowedArray => Managed == "global::Ankus.PgArrayView" || Reader == "borrowedarray";
 
     /// <summary>
     /// Gets whether a fixed SQL text or bytea type uses a checked borrowed native view.
@@ -155,7 +155,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether input and output transport preserve raw storage and exact SQL type identity.
     /// </summary>
-    internal bool UsesRawTransport => IsRaw || IsPolymorphic || IsMapped || IsBorrowedBuffer;
+    internal bool UsesRawTransport => IsRaw || IsPolymorphic || IsMapped || IsBorrowedBuffer || IsBorrowedArray;
 
     /// <summary>
     /// Gets whether the SQL declaration uses a polymorphic type, including an explicit raw binding.
@@ -180,7 +180,7 @@ internal sealed class FunctionType
     /// <summary>
     /// Gets whether this scalar or array carries explicitly disposable relation references.
     /// </summary>
-    internal bool HasRelations => IsRelation || Element?.IsRelation == true;
+    internal bool HasRelations => !IsBorrowedArray && (IsRelation || Element?.IsRelation == true);
 
     /// <summary>
     /// Gets the nullable-aware element spelling used by generated generic adapters.
@@ -266,17 +266,20 @@ internal sealed class FunctionType
             return new("byte[]", "bytea", "bytea", "bytea", string.Empty, nullable, reference: true);
         }
 
+        bool borrowedArray = type is INamedTypeSymbol { Name: "PgArrayView", Arity: 1 } borrowed &&
+            borrowed.ContainingNamespace.ToDisplayString() == "Ankus";
         ITypeSymbol? elementType = type switch
         {
             IArrayTypeSymbol { Rank: 1, IsSZArray: true } array => array.ElementType,
-            INamedTypeSymbol { Name: "PgArray", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
+            INamedTypeSymbol { Name: "PgArray" or "PgArrayView", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
                 => array.TypeArguments[0],
             _ => null,
         };
         if (elementType is not null)
         {
             FunctionType? element = Create(elementType, binding);
-            if (element is null || element.Element is not null || element.UsesRawTransport && element.DatumType is null ||
+            if (element is null || element.Element is not null ||
+                element.UsesRawTransport && element.DatumType is null && !(borrowedArray && element.IsBorrowedBuffer) ||
                 element.IsInternal || element.Managed == "void")
             {
                 return null;
@@ -284,8 +287,10 @@ internal sealed class FunctionType
 
             bool vector = type is IArrayTypeSymbol;
             string elementName = element.Managed + (element.Nullable ? "?" : string.Empty);
-            string managed = vector ? elementName + "[]" : "global::Ankus.PgArray<" + elementName + ">";
-            return new(managed, element.Sql + "[]", "array", "array", string.Empty, nullable, reference: true)
+            string managed = vector ? elementName + "[]" :
+                (borrowedArray ? "global::Ankus.PgArrayView<" : "global::Ankus.PgArray<") + elementName + ">";
+            string reader = borrowedArray ? "borrowedarray" : "array";
+            return new(managed, element.Sql + "[]", reader, reader, string.Empty, nullable, reference: true)
             {
                 Element = element,
                 IsVector = vector,

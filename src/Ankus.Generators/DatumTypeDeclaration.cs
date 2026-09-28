@@ -425,10 +425,12 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                 return;
             }
 
+            bool borrowedArray = slot is INamedTypeSymbol { Name: "PgArrayView", Arity: 1 } borrowed &&
+                borrowed.ContainingNamespace.ToDisplayString() == "Ankus";
             slot = slot switch
             {
                 IArrayTypeSymbol { Rank: 1, IsSZArray: true } array => array.ElementType,
-                INamedTypeSymbol { Name: "PgArray", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
+                INamedTypeSymbol { Name: "PgArray" or "PgArrayView", Arity: 1 } array when array.ContainingNamespace.ToDisplayString() == "Ankus"
                     => array.TypeArguments[0],
                 _ => slot,
             };
@@ -446,7 +448,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
                     valid = false;
                 }
 
-                if (declaration is not null && !(read ? declaration.CanRead : declaration.CanWrite))
+                if (declaration is not null && (read ? !declaration.CanRead : !borrowedArray && !declaration.CanWrite))
                 {
                     Error(owner, "The datum mapping for '" + declaration.Managed + "' does not support " +
                         (read ? "reading SQL arguments." : "writing SQL results."), context);

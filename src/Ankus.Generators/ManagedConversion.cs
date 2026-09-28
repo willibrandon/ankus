@@ -13,12 +13,13 @@ internal static class ManagedConversion
         string numeric = slot + ".ReadNumeric()" + numericSuffix;
         string value = type.Managed switch
         {
+            _ when type.IsBorrowedArray => slot + (borrowVarlena ? ".ReadBorrowedArray" : ".ReadOwnedArrayView") +
+                (type.Element is null ? "()" : "<" + type.ElementManaged + ">()"),
             _ when type.IsMapped => slot + ".ReadMapped<" + type.Managed + ">()",
             _ when type.IsVarlena => slot + (borrowVarlena ? ".ReadVarlena<" : ".ReadOwnedVarlena<") + type.CustomType!.Managed + ">()",
             _ when type.CustomType is not null => slot + ".ReadCustom<" + type.Managed + ">()",
             _ when type.IsRaw => slot + ".ReadPolymorphic()",
             _ when type.IsInternal => slot + ".ReadInternal()",
-            _ when type.IsBorrowedArray => slot + (borrowVarlena ? ".ReadBorrowedArray()" : ".ReadOwnedArrayView()"),
             "global::Ankus.PgByteaView" => slot + (borrowVarlena ? ".ReadBorrowedBytea()" : ".ReadOwnedByteaView()"),
             "global::Ankus.PgTextView" => slot + (borrowVarlena ? ".ReadBorrowedText()" : ".ReadOwnedTextView()"),
             _ when type.IsPolymorphic => "new " + type.Managed + "(" + slot + ".ReadPolymorphic())",
@@ -65,6 +66,7 @@ internal static class ManagedConversion
             + numericSuffix;
         return result.Managed switch
         {
+            _ when result.IsBorrowedArray => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value}.Datum);",
             _ when result.IsMapped => $"*{target} = global::Ankus.NativeValue.FromMapped<{result.Managed}>({value});",
             _ when result.CustomType is not null => $"*{target} = global::Ankus.NativeValue.FromCustom({value});",
             _ when result.IsRaw => $"*{target} = global::Ankus.NativeValue.FromPolymorphic({value});",

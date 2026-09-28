@@ -83,15 +83,15 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
 | `PgArrayView` | `anyarray` with checked native cells and scalar spans |
+| `PgArrayView<T>` | The concrete scalar element's array type, with checked lazy conversion |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
 
-For typed borrowed cells, construct `PgArrayView<T>` from a checked `PgDatum`,
-or request it through `Read<T>()`, SPI scalar helpers or `PgFunctions`.
-It converts elements on access while preserving native type, shape and lifetime;
+Use `PgArrayView<T>` in scalar, SETOF, TABLE and aggregate signatures, construct
+it from a checked `PgDatum`, or request it through `Read<T>()`, SPI scalar helpers
+or `PgFunctions`. It converts elements on access while preserving native type, shape and lifetime;
 see [typed borrowed arrays](docs/src/content/docs/arrays.md#typed-borrowed-cells).
-Generated signatures currently use the raw `PgArrayView` representation.
 
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
 with only required SQL parameters are declared `STRICT`. For mixed signatures, a NULL

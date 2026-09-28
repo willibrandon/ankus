@@ -19,6 +19,9 @@ namespace Ankus;
 /// source lifetime; scalar SPI and function results use callback-owned snapshots. Whole-array
 /// SQL NULL returns a null view after checking the declared element identity. Present parameters
 /// transport the original datum without requiring an element writer.
+/// Generated scalar, SETOF, TABLE and aggregate signatures use the concrete element's SQL array
+/// type. Scalar inputs expire with their callback; retained inputs receive independent snapshots.
+/// Returns preserve the original datum and must match the declared native array identity.
 /// </remarks>
 public sealed class PgArrayView<T> : IReadOnlyList<T>, IPgArrayView
 {

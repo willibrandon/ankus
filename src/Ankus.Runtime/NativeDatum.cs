@@ -28,11 +28,11 @@ public partial struct NativeValue
     /// <summary>
     /// Copies a generated raw or polymorphic input into the active scalar or iterator memory owner.
     /// </summary>
-    /// <returns>The present datum with its resolved type.</returns>
+    /// <returns>The datum with its resolved type and SQL NULL flag.</returns>
     public readonly PgDatum ReadPolymorphic()
     {
         PgMemoryContext context = PgMemoryContext.Current;
-        PgDatum borrowed = PgDatum.DangerousCreate(unchecked((nuint)Integral), unchecked((uint)_auxiliary2), context);
+        PgDatum borrowed = PgDatum.DangerousCreate(unchecked((nuint)Integral), unchecked((uint)_auxiliary2), context, isNull: IsNull != 0);
         return borrowed.CopyTo(context);
     }
 
@@ -47,6 +47,17 @@ public partial struct NativeValue
     }
 
     /// <summary>
+    /// Borrows a generated typed scalar array argument under the current callback's source lifetime.
+    /// </summary>
+    /// <typeparam name="T">The checked scalar element representation.</typeparam>
+    /// <returns>A lazy typed view over the original native array storage.</returns>
+    public readonly PgArrayView<T> ReadBorrowedArray<T>()
+    {
+        var lifetime = new PgDatumLifetime(PgMemoryContext.Current, NativeMemoryContext.BorrowScope);
+        return new PgArrayView<T>(new PgDatum(unchecked((nuint)Integral), unchecked((uint)_auxiliary2), IsNull != 0, lifetime));
+    }
+
+    /// <summary>
     /// Copies an array argument before a set iterator or aggregate retains it across managed callbacks.
     /// </summary>
     /// <returns>A checked view over an independent snapshot in the callback result owner.</returns>
@@ -54,6 +65,17 @@ public partial struct NativeValue
     {
         NativeValue value = this;
         return PgMemoryContext.Callback.Run(() => new PgArrayView(value.ReadPolymorphic()));
+    }
+
+    /// <summary>
+    /// Copies a typed array argument before an iterator or aggregate retains it across managed callbacks.
+    /// </summary>
+    /// <typeparam name="T">The checked scalar element representation.</typeparam>
+    /// <returns>A lazy typed view over an independent callback-owned snapshot.</returns>
+    public readonly PgArrayView<T> ReadOwnedArrayView<T>()
+    {
+        NativeValue value = this;
+        return PgMemoryContext.Callback.Run(() => new PgArrayView<T>(value.ReadPolymorphic()));
     }
 
     /// <summary>

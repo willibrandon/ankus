@@ -34,25 +34,27 @@ Linux, and macOS.
 
 ## Current verified milestone
 
-`PgArrayView<T>` now supports checked typed cells, raw datum reads, SPI scalar
-and tuple results, sessions/prepared plans/cursors, catalog/native-address
-function results and exact native parameter transport. Whole-array SQL NULL
-still validates element identity; catalog calls reject incompatible declared
-elements before execution. Provisional results are released on later failures.
-All **202 affected backend cases pass** on Linux x64/PostgreSQL **13.23, 18.6
-and 19 beta 3**. The complete PostgreSQL 18.6/Linux x64 suite passes **8,660
-tests, zero failures and six Windows-only skips, 8,666 total**, in **9m58.417s**;
-all **3,729 integration cases pass**. Release, generated API freshness and site
-checks pass. Generated typed scalar/SETOF/TABLE/aggregate signatures, broader
-native layouts, the complete platform/version matrix, intermittent GUC query
-stall and every other faithful-port inventory requirement remain required.
+`PgArrayView<T>` now supports concrete generated scalar, SETOF, TABLE and
+aggregate signatures, alongside checked typed cells and the existing raw/SPI/
+function result and native parameter APIs. Scalar inputs borrow their callback;
+retained inputs receive independent snapshots. Returns preserve original native
+array identity and values without element writers. Provider dependencies,
+nullable cells, whole-array NULL, errors and owner cleanup are validated.
+All **223 borrowed-array cases pass** on Linux x64/PostgreSQL **13.23, 18.6
+and 19 beta 3**. The complete PostgreSQL 18.6/Linux x64 suite passes **8,714
+tests, zero failures and six Windows-only skips, 8,720 total**, in **10m59.906s**;
+all **3,750 integration cases pass**. Release, generated API freshness and site
+checks pass. Broader native layouts, the complete platform/version matrix,
+intermittent GUC query stall and every other faithful-port inventory requirement
+remain required.
 
 The small three-consumer scheduling change resolves the reported Windows CI
 timeout: complete hosted CI **36471639303** passes on all three platforms,
 including Windows x64/PostgreSQL 17 in **52m55s** under the unchanged hour limit.
-Later constructor CI **36478861010** has passed Linux in **21m44s**, with Windows
-and macOS still running at the runtime-dispatch milestone's precommit check.
-Those runs are distinguished from this newer milestone's local validation.
+Later runtime-dispatch CI **36482900415** passes Linux in **33m11s** and macOS
+in **42m23s**; Windows remains in progress at this milestone's precommit check.
+Quality, runtime and Docs checks pass. These hosted results are distinguished
+from the generated-signature milestone's local validation.
 
 Earlier verified milestones follow in reverse chronological order.
 
@@ -3143,8 +3145,8 @@ alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. `PgArrayView<T>` adds checked typed cells, finite raw/SPI/function result factories, NULL element-identity validation and original native parameter transport. Generated typed signatures and complete platform/version evidence remain required |
-| `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. `PgArrayView<T>` adds checked typed cells, finite raw/SPI/function result factories, NULL element-identity validation, original native parameter transport and concrete generated scalar/SETOF/TABLE/aggregate signatures with retained callback snapshots. Complete platform/version evidence remains required |
+| `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. `PgInternal` retains managed payloads or borrows native words with exact type, NULL/zero, owner cleanup and alias checks; generated scalar/set/table/aggregate callbacks, moving state and parallel worker transport are verified in its recorded milestone. The complete version/platform matrix remains required. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
 | `datum/{json,uuid,inet,geo,range}.rs` | JSON/JSONB, UUID, network, geometric and range datums with their operations | Partial: UUID, owned JSON/JSONB, inet/cidr, checked .NET network mappings, seven geometric datums, owned vertex collections, six built-in range families and explicitly mapped value-type range bounds/operations implemented; dedicated geometric operation wrappers, broader range-bound forms and multiranges pending |
@@ -12551,3 +12553,127 @@ outcome. These results are checked and recorded again before pushing, and any
 superseded unfinished jobs remain distinct from completed platform proof.
 The generated typed-signature milestone and all other faithful-port inventory
 requirements remain open.
+
+Runtime dispatch is pushed as **b9730f7**. New CI **36482900415** and Docs
+**36482900706** are in progress. The superseded CI **36478861010** is now
+cancelled: its completed Linux, quality and runtime passes remain valid, while
+its unfinished Windows and macOS jobs are recorded as cancelled rather than
+platform proof. Docs **36478861214** passed. Development continues with generated
+typed-array signatures; all local validation fixtures are idle.
+
+### Generated typed borrowed-array signatures — implementation and validation
+
+The generator now resolves `PgArrayView<T>` to the concrete scalar element's
+array type for scalar, SETOF, TABLE and aggregate signatures. Scalar callbacks
+borrow the source lease; retained callbacks copy into their existing result
+owner. Returns transport the original native datum without invoking element
+writers. Mapped reader requirements and SQL provider dependencies remain
+explicit; named composites preserve their binding, and nested or polymorphic
+element containers remain rejected. The shared raw copy helper also preserves
+its incoming SQL NULL flag rather than treating a zero word as a present datum.
+
+The first generator run passes **29 tests, zero failures/skips**, in **4.080s**.
+The first runtime build identifies a test-only private-field access, corrected
+with the existing unsafe-accessor fixture pattern. Its next run passes 27 cases
+and exposes one missing callback-context response in the new test script; that
+fixture correction is pending the active backend run. The first published
+backend run is in progress. This is implementation evidence, not yet a verified
+milestone or complete parity claim.
+
+CI **36482900415** for `b9730f7` has passed quality and all runtime jobs; all
+three complete platform suites remain in progress. Docs **36482900706** passed.
+The previous full-platform timeout resolution remains separately recorded.
+
+Runtime validation now passes **28 tests, zero failures/skips**, in **1.891s**.
+The first backend build stops on braces in an interpolated SQL test literal;
+the next PostgreSQL 13/18 fixture publications expose a duplicate test-extension
+method name. Both test-only issues are corrected. Neither aborted fixture run
+is counted as executed backend evidence. The corrected version runs follow.
+
+The first completed backend runs each pass **20 of 21 cases** on PostgreSQL
+**13.23 and 18.6/Linux x64**. The remaining test used a `FROM` function scan,
+which PostgreSQL materializes before applying `LIMIT`; the intentional second
+iteration error therefore correctly fired. The test now uses a select-list set
+function so `LIMIT 1` exercises actual early iterator disposal. The separate
+iterator failure/recovery case already passes. Generator coverage also adds
+independent result-only TABLE and aggregate-final provider ordering.
+
+The corrected PostgreSQL **13.23/Linux x64** run passes all **21 new backend
+cases, zero failures/skips**, in **1m53.552s**, including actual early iterator
+disposal. The final generator scope passes **30 tests, zero failures/skips**, in
+**4.392s**. Release succeeds with **zero warnings/errors** in **1m40.82s**.
+API freshness passes at **204 pages/2,484 members**; the site builds **250 pages**
+and checks with zero errors, warnings or hints. The complete unfiltered root
+`dotnet test` is running on PostgreSQL **18.6/Linux x64**, alongside the entire
+borrowed-array family on PostgreSQL **19 beta 3/Linux x64** in an isolated
+checkout. Neither unfinished run is counted as passing evidence.
+
+The wider regression scope exposes a test-extension overload collision: the new
+concrete `text[]` save probe shadows the existing `anyarray` save probe. The new
+probe now has a distinct SQL name, leaving all older assertions intact. The
+PostgreSQL 19 beta run completes with **221 passes and two failures** identifying
+that collision; the PostgreSQL 18 full run reports the same two failures and is
+cancelled before repeating the expensive package-consumer work. These are failed
+or cancelled outcomes, not platform proof. Final validation follows the rename.
+
+The final Release rebuild after the probe rename passes with **zero warnings
+and errors** in **1m39.58s**. CI **36482900415** now passes its complete Linux
+x64/PostgreSQL 18 job in **33m11s**, alongside quality, all runtime jobs and Docs
+**36482900706**. macOS and Windows remain in progress. This is hosted evidence
+for the pushed runtime-dispatch milestone, distinct from the generated-signature
+candidate's local validation.
+
+After the probe rename, PostgreSQL **19 beta 3/Linux x64** passes the entire
+**223-case borrowed-array family**, zero failures/skips, in **2m15.481s**. This
+includes the two older callback cases that detected the collision, all 21 new
+generated-signature cases, and the constructor/runtime-dispatch regressions.
+The complete PostgreSQL 18.6 suite and the same final 223-case PostgreSQL 13.23
+scope remain in progress.
+
+| Generated typed-array requirement | Regression evidence |
+| --- | --- |
+| Concrete SQL types, whole-array NULL, NULL cells and all result shapes | `TypedBorrowedArraySignaturesCompileWithConcreteTypes`; `GeneratedTypedArraysPreserveDeclaredResults`; `GeneratedTypedArraysEnforceNullCellContracts` |
+| Original native return values without element writers | `TypedBorrowedArraysReturnReadOnlyMappings`; the read-only identity and TABLE probes compare native 7/11 with independently converted 107/111 |
+| Distinct provider dependencies in result-only signatures | `TypedBorrowedArraysRetainMappedProviderDependencies`, `TypedBorrowedArraysRetainIndependentResultProviders`, `TypedBorrowedArraysBindNamedComposites` |
+| Missing readers, conflicting bindings and unsupported nested or polymorphic elements | `TypedBorrowedArraysRejectInvalidMappingContracts`, `TypedBorrowedArraysRejectUnsupportedElements` |
+| Exact complete native result identity and backend recovery | `GeneratedTypedArraysRejectWrongNativeReturnIdentity` rejects a domain-over-array result with SQLSTATE 42804, then calls the valid result path in the same session |
+| Scalar leases, nested callbacks and error cleanup | `GeneratedTypedArrayAliasesExpireAtCallbackExit`; `GeneratedTypedArrayReadersSelectDistinctLifetimes` |
+| Retained iterator input, native shape, early disposal and resumed failure | `GeneratedTypedArrayIteratorsKeepInputSnapshots`, `GeneratedTypedArrayIteratorFailureReleasesSnapshots` |
+| Managed internal and concrete SQL array aggregate state | `GeneratedTypedArrayAggregatesRetainNativeState` covers both ownership models, ordered first input, NULL state and native context cleanup |
+| SQL NULL distinct from present zero in the shared raw copy helper | `GeneratedDatumCopiesPreserveNullFlags` observes the actual native request flag independently of the returned value |
+
+This table records static requirement/assertion review and executed test
+evidence; no mutation execution or coverage percentage is claimed. Native owner
+accounting and same-backend recovery accompany the generated boundary cases.
+
+The final PostgreSQL **13.23/Linux x64** run passes all **223 borrowed-array
+cases**, zero failures/skips, in **2m42.230s**. Both isolated version fixtures
+are complete. All five managed modules have passed in the final PostgreSQL
+18.6 root run; its full integration module remains active.
+
+A read-only inventory reconciliation also corrects the stale general-internal
+row above: `PgInternal` was already implemented and verified in the September
+24 milestone, including hosted CI **36055390473**. This updates the ledger;
+it adds no new implementation or platform claim. The older complete port
+requirements still need reconciliation and validation before declaring parity.
+
+Hosted CI **36482900415** now also passes macOS ARM64/PostgreSQL 18 in
+**42m23s**. Windows remains in progress; Linux's measured **33m11s** pass and
+the quality/runtime/Docs passes remain recorded separately from this candidate.
+
+The final unfiltered root suite passes **8,714 tests, zero failures and six
+Windows-only skips, 8,720 total**, on PostgreSQL **18.6/Linux x64** in
+**10m59.906s**. Its integration module passes all **3,750 cases** in
+**10m58.127s**, including all **223 borrowed-array cases**. The **83
+package-consumer cases** span **7m38s** from first start to last completion.
+These observations include concurrent version validation and are not a
+controlled cold-cache benchmark. All local fixtures have exited.
+
+Immediately before committing, CI **36482900415** for `b9730f7` passes Linux,
+macOS, quality and all runtime jobs; Windows is still in progress. Docs
+**36482900706** passes. Superseded CI **36478861010** remains cancelled with its
+completed Linux/quality/runtime passes separately recorded; the earlier
+complete platform CI **36471639303** remains green. Outcomes are checked and
+recorded again before pushing. The generated typed-array milestone is locally
+verified; the full faithful-port inventory and complete platform/version
+validation remain open.

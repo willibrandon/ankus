@@ -10,6 +10,59 @@ namespace Ankus.Runtime.Tests;
 public sealed partial class PgArrayViewTests
 {
     /// <summary>
+    /// Generated raw readers keep SQL NULL distinct from a present zero word when requesting an owned copy.
+    /// </summary>
+    /// <param name="absent">Whether the original transport contains SQL NULL.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void GeneratedDatumCopiesPreserveNullFlags(bool absent)
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture);
+        var value = new NativeValue { Integral = 0, IsNull = absent ? (byte)1 : (byte)0 };
+        ArrayType(ref value) = 23;
+        PgDatum copied = value.ReadPolymorphic();
+        Assert.AreEqual(absent, copied.IsNull);
+        Assert.AreEqual(23U, copied.TypeOid);
+        Assert.AreEqual((nuint)0, copied.DangerousGetBits());
+        Assert.AreSequenceEqual<(uint, bool)>([(23, absent)], script.Copies);
+        Assert.AreEqual(1, script.Releases);
+    }
+
+    /// <summary>
+    /// Generated scalar inputs expire at callback exit while retained inputs use an independently owned snapshot.
+    /// </summary>
+    [TestMethod]
+    public void GeneratedTypedArrayReadersSelectDistinctLifetimes()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture) { ElementType = 23 };
+        PgArrayView<int?> borrowed;
+        PgArrayView<int?> retained;
+        using (MemoryContextTestFixture.Enter())
+        {
+            var value = new NativeValue { Integral = 123 };
+            ArrayType(ref value) = 1007;
+            borrowed = value.ReadBorrowedArray<int?>();
+            retained = value.ReadOwnedArrayView<int?>();
+            Assert.AreEqual(1007U, borrowed.Datum.TypeOid);
+            Assert.AreEqual(1007U, retained.Datum.TypeOid);
+        }
+
+        using (borrowed)
+        using (retained)
+        {
+            Assert.ThrowsExactly<ObjectDisposedException>(() => _ = borrowed.Datum);
+            Assert.AreEqual(1007U, retained.Datum.TypeOid);
+            Assert.AreEqual(3, retained.Count);
+            Assert.AreSequenceEqual<(uint, bool)>([(1007, false)], script.Copies);
+        }
+    }
+
+    /// <summary>
     /// Failed SPI conversions release provisional arrays and invalidate their escaped datums.
     /// </summary>
     [TestMethod]
@@ -221,6 +274,12 @@ public sealed partial class PgArrayViewTests
     }
 
     /// <summary>
+    /// Accesses the generated input type field without widening its production visibility.
+    /// </summary>
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_auxiliary2")]
+    private static extern ref int ArrayType(ref NativeValue value);
+
+    /// <summary>
     /// Supplies scripted transport observations without implementing native array traversal.
     /// </summary>
     private sealed unsafe class ArrayScript : IDisposable
@@ -240,6 +299,11 @@ public sealed partial class PgArrayViewTests
             s_current = this;
             fixture.Handler = request =>
             {
+                if (request._operation == NativeMemoryOperation.Callback)
+                {
+                    return new NativeMemoryResult { _context = 101 };
+                }
+
                 if (request._operation == NativeMemoryOperation.Create)
                 {
                     return new NativeMemoryResult { _context = ++_nextContext };
@@ -289,6 +353,11 @@ public sealed partial class PgArrayViewTests
         /// Gets the requested element contract and nominal-identity flag.
         /// </summary>
         internal List<(uint Type, long Exact)> Contracts { get; } = [];
+
+        /// <summary>
+        /// Gets copied parameter identities and their SQL NULL flags observed at the native boundary.
+        /// </summary>
+        internal List<(uint Type, bool IsNull)> Copies { get; } = [];
 
         /// <summary>
         /// Gets prepared scalar conversions independently of the cursor's native words.
@@ -382,6 +451,11 @@ public sealed partial class PgArrayViewTests
                 result->_resultTypeOid = script.ElementType;
                 switch (request->_scalarOperation)
                 {
+                    case 2:
+                        NativeSpiParameter input = request->_parameters[0];
+                        script.Copies.Add((input._typeOid, input._value.IsNull != 0));
+                        result->_text = new NativeValue { IsNull = input._value.IsNull };
+                        break;
                     case 0:
                         result->_text = script.Conversions.Dequeue();
                         result->_rowsAffected = script.ElementType;
