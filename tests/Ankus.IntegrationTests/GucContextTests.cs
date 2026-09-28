@@ -11,10 +11,10 @@ namespace Ankus.IntegrationTests;
 public sealed class GucContextTests(TestContext context)
 {
     /// <summary>
-    /// Ordinary startup options can set Backend values while SuperuserBackend values require a parameter grant.
+    /// Ordinary startup options can set Backend values while SuperuserBackend values require the server's native authorization.
     /// </summary>
     [TestMethod]
-    public async Task ClientOptionsRespectBackendPrivilegeAndParameterGrant()
+    public async Task ClientOptionsRespectNativeBackendPrivileges()
     {
         PostgresTestClusterOptions options = await OptionsAsync();
         await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(options, context.CancellationToken);
@@ -45,7 +45,9 @@ public sealed class GucContextTests(TestContext context)
 
         Assert.AreEqual(42, await ScalarAsync(ordinary, "SELECT 42"));
         Assert.AreEqual("40", await ScalarAsync(ordinary, "SHOW ankus_configuration.privileged_connection"));
-        await ExecuteAsync(administrator, $"GRANT SET ON PARAMETER ankus_configuration.privileged_connection TO {role}");
+        await ExecuteAsync(administrator, cluster.Installation.Version.Major >= 15
+            ? $"GRANT SET ON PARAMETER ankus_configuration.privileged_connection TO {role}"
+            : $"ALTER ROLE {role} SUPERUSER");
         await using var granted = new NpgsqlConnection(builder.ConnectionString);
         await granted.OpenAsync(context.CancellationToken);
         Assert.AreEqual(role, await ScalarAsync(granted, "SELECT current_user"));

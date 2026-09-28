@@ -77,19 +77,23 @@ public sealed class GucLifetimeTests(TestContext context)
 
             await RunCyclesAsync(connection, latin1, 16);
             await AssertCollectedAsync(connection);
-            long[] baseline = await AllocationsAsync(connection);
+            (long? GucBytes, long TemporaryContexts, long MallocBytes) baseline = await AllocationsAsync(connection);
             long[] callsBefore = await CallsAsync(connection);
             int noticesBefore = notices;
             for (int batch = 0; batch < 3; batch++)
             {
                 await RunCyclesAsync(connection, latin1, MeasuredCycles);
                 await AssertCollectedAsync(connection);
-                long[] current = await AllocationsAsync(connection);
-                context.WriteLine($"LATIN1={latin1}, batch={batch}: GUC bytes {baseline[0]} -> {current[0]}, temporary contexts {current[1]}, glibc bytes {baseline[2]} -> {current[2]}.");
-                Assert.AreEqual(baseline[0], current[0], "Identical restored GUC state must retain identical native allocations.");
-                Assert.AreEqual(0L, current[1], "Hook, logging, and read contexts must not survive completed operations.");
+                (long? GucBytes, long TemporaryContexts, long MallocBytes) current = await AllocationsAsync(connection);
+                context.WriteLine($"LATIN1={latin1}, batch={batch}: GUC context bytes {baseline.GucBytes} -> {current.GucBytes}, temporary contexts {current.TemporaryContexts}, glibc bytes {baseline.MallocBytes} -> {current.MallocBytes}.");
+                if (baseline.GucBytes.HasValue)
+                {
+                    Assert.AreEqual(baseline.GucBytes, current.GucBytes, "Identical restored GUC state must retain identical native allocations.");
+                }
+
+                Assert.AreEqual(0L, current.TemporaryContexts, "Hook, logging, and read contexts must not survive completed operations.");
                 long maximumGrowth = (long)MeasuredCycles * PayloadLength / 8;
-                Assert.IsLessThanOrEqualTo(maximumGrowth, current[2] - baseline[2],
+                Assert.IsLessThanOrEqualTo(maximumGrowth, current.MallocBytes - baseline.MallocBytes,
                     "Allocator noise allowance is one eighth of a batch with one leaked payload per cycle.");
             }
 
@@ -191,15 +195,30 @@ public sealed class GucLifetimeTests(TestContext context)
     }
 
     /// <summary>
-    /// Reads PostgreSQL retained GUC bytes, surviving temporary contexts, and libc allocated bytes.
+    /// Reads native GUC context bytes where available, surviving temporary contexts, and libc allocated bytes.
     /// </summary>
-    private async Task<long[]> AllocationsAsync(NpgsqlConnection connection) =>
-        Assert.IsInstanceOfType<long[]>(await ScalarAsync(connection, """
-            SELECT ARRAY[
+    private async Task<(long? GucBytes, long TemporaryContexts, long MallocBytes)> AllocationsAsync(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand("""
+            SELECT
                 (SELECT used_bytes FROM ankus_test_memory.contexts WHERE name = 'GUCMemoryContext'),
                 (SELECT count(*) FROM ankus_test_memory.contexts WHERE name LIKE 'Ankus configuration %'),
-                datatype.guc_lifetime_malloc_bytes()]
-            """));
+                datatype.guc_lifetime_malloc_bytes()
+            """, connection);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(context.CancellationToken);
+        Assert.IsTrue(await reader.ReadAsync(context.CancellationToken));
+        long? gucBytes = reader.IsDBNull(0) ? null : reader.GetInt64(0);
+        if (PostgresFixture.Cluster.Installation.Version.Major >= 16)
+        {
+            Assert.IsNotNull(gucBytes, "PostgreSQL 16 and later retain GUC storage in GUCMemoryContext.");
+        }
+        else
+        {
+            Assert.IsNull(gucBytes, "Older servers allocate GUC storage directly with malloc; libc accounting must observe it.");
+        }
+
+        return (gucBytes, reader.GetInt64(1), reader.GetInt64(2));
+    }
 
     /// <summary>
     /// Reads independently copied bounded hook counters.

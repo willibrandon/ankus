@@ -317,17 +317,28 @@ public sealed class GucTests(TestContext context)
     }
 
     /// <summary>
-    /// A display failure during out-of-transaction parameter reporting terminates its backend without a report loop.
+    /// A parameter-report display failure follows the server's transaction boundary without a report loop.
     /// </summary>
     [TestMethod]
-    public async Task ReportShowFailureTerminatesOnlyItsBackend()
+    public async Task ReportShowFailurePreservesNativeTransactionBoundary()
     {
         await using NpgsqlConnection failing = await OpenAsync();
         await using NpgsqlConnection observer = await OpenAsync();
+        bool reportsOutsideTransaction = PostgresFixture.Cluster.Installation.Version.Major >= 14;
+        int process = failing.ProcessID;
         PostgresException error = await FailureAsync(failing, "SET ankus_guc.reported = '666'");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
+        Assert.AreEqual(reportsOutsideTransaction ? "FATAL" : "ERROR", error.InvariantSeverity);
         Assert.AreEqual("38000", error.SqlState);
         Assert.AreEqual("Report show must not fail.", error.MessageText);
+        if (!reportsOutsideTransaction)
+        {
+            Assert.AreEqual(process, failing.ProcessID);
+            Assert.AreEqual("report=1;sql=unavailable", await ScalarAsync(failing, "SHOW ankus_guc.reported"));
+            await ExecuteAsync(failing, "SET ankus_guc.reported = '2'");
+            Assert.AreEqual("report=2;sql=unavailable", await ScalarAsync(failing, "SHOW ankus_guc.reported"));
+            Assert.AreEqual(42, await ScalarAsync(failing, "SELECT 42"));
+        }
+
         Assert.AreEqual(42, await ScalarAsync(observer, "SELECT 42"));
         Assert.AreEqual("report=1;sql=unavailable", await ScalarAsync(observer, "SHOW ankus_guc.reported"));
     }
@@ -389,8 +400,13 @@ public sealed class GucTests(TestContext context)
             Assert.AreEqual(0L, await ScalarAsync(connection, "SELECT count(*) FROM pg_settings WHERE name = 'ankus_guc.secret'"));
             PostgresException read = await FailureAsync(connection, "SHOW ankus_guc.secret");
             Assert.AreEqual("42501", read.SqlState);
-            await ExecuteAsync(connection, $"RESET ROLE; GRANT pg_read_all_settings TO {role}; GRANT SET ON PARAMETER ankus_guc.privileged TO {role}; SET ROLE {role}");
+            await ExecuteAsync(connection, $"RESET ROLE; GRANT pg_read_all_settings TO {role}; SET ROLE {role}");
             Assert.AreEqual("1", await ScalarAsync(connection, "SHOW ankus_guc.secret"));
+            Assert.AreEqual("42501", (await FailureAsync(connection, "SET ankus_guc.privileged = '2'")).SqlState);
+            string authorize = PostgresFixture.Cluster.Installation.Version.Major >= 15
+                ? $"GRANT SET ON PARAMETER ankus_guc.privileged TO {role}"
+                : $"ALTER ROLE {role} SUPERUSER";
+            await ExecuteAsync(connection, $"RESET ROLE; {authorize}; SET ROLE {role}");
             await ExecuteAsync(connection, "SET ankus_guc.privileged = '2'");
             Assert.AreEqual("2", await ScalarAsync(connection, "SHOW ankus_guc.privileged"));
             await ExecuteAsync(connection, "RESET ROLE; CREATE FUNCTION pg_temp.guc_security() RETURNS void LANGUAGE sql SECURITY DEFINER AS $$ SET ankus_guc.restricted = '2' $$");

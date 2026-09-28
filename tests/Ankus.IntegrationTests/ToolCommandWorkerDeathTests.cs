@@ -39,10 +39,11 @@ public sealed partial class ToolCommandTests
                     await using var waiting = new NpgsqlCommand("""
                         SELECT count(*)::integer FROM pg_stat_activity
                         WHERE (pid = $1 AND wait_event_type = 'Extension')
-                           OR (pid = $2 AND wait_event = 'BgworkerShutdown')
+                           OR (pid = $2 AND wait_event = $3)
                         """, connection);
                     waiting.Parameters.AddWithValue(workers[0]);
                     waiting.Parameters.AddWithValue(workers[1]);
+                    waiting.Parameters.AddWithValue(s_installation.Version.Major >= 17 ? "BgworkerShutdown" : "BgWorkerShutdown");
                     if (Assert.IsInstanceOfType<int>(await waiting.ExecuteScalarAsync(token)) == 2)
                     {
                         break;

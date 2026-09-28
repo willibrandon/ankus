@@ -34,6 +34,14 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+GUC tests now verify the selected server's prefix, privilege, reporting and
+allocation contracts. All 91 affected GUC/worker cases pass without failures or
+skips on Linux x64/PostgreSQL 13.23, 14.20 and 15.19. The final plain PostgreSQL
+18.6 suite passes **8,203 tests, zero failures and six Windows-only skips,
+8,209 total**, in 13m24.279s. Release, API freshness and site checks pass.
+Full older-version diagnostics still identify required compatibility work;
+these affected results do not establish full version/platform parity.
+
 The PostgreSQL 13/14 bridge now uses the selected headers' actual function-call,
 GUC, logging and datum contracts. Independent native allocator observations keep
 memory ownership checks executable on PostgreSQL 13. All 335 affected cases pass
@@ -10701,3 +10709,58 @@ reports 8,203 passes, zero failures and six platform skips in a 34m07s job
 also passes. These hosted results cover the preceding recovery/SDK-fixture
 commit; the local evidence above covers this milestone. Previous run outcomes
 are checked and recorded again immediately before pushing.
+
+### Native GUC version boundaries and worker observations
+
+The next older-version pass preserves PostgreSQL 13/14's warning-only prefix
+checks, exact `42704` diagnostics, retained placeholders and rollback history.
+PostgreSQL 15+ keeps the complete `42602` warning/removal/reservation assertions.
+Both paths retain case-sensitive prefix checks, LATIN1 conversion, shared
+preload, repeated loading, and package reinstall evidence. Privilege tests use
+parameter grants where available and actual superuser authorization on older
+servers, keeping visibility privileges independent from write access.
+
+GUC lifetime snapshots now distinguish the absence of `GUCMemoryContext` before
+PostgreSQL 16 from measured context bytes on newer servers. Independent libc
+allocation witnesses, repeated growth bounds, exact hook state, managed object
+collection, and temporary-context cleanup remain required on both paths; missing
+memory observations are not replaced with zero. Worker death readiness uses
+the native wait-event spelling selected at PostgreSQL 17. Its focused PostgreSQL
+14.20 case passes with actual postmaster termination and both exact death
+receipts, one test without failures or skips in 3m16.707s.
+
+The complete affected GUC/worker scope passes **91 tests, zero failures/skips**
+on Linux x64/PostgreSQL 14.20 in 5m03.902s. The first PostgreSQL 13.23 run passes
+90 of the same 91 cases, exposing another native boundary: PostgreSQL 13 calls
+the report show hook during `SET`, while PostgreSQL 14+ defers parameter reporting
+until the command finishes. The corrected case checks exact `38000` diagnostics,
+rollback to the original value and a subsequent successful change in the same
+PostgreSQL 13 backend. Newer servers retain the FATAL expectation for reporting
+after an autocommitted `SET`. The public configuration guide explains that
+difference. The final PostgreSQL 13.23 affected run passes all **91 tests with
+zero failures/skips** in 4m58.120s. PostgreSQL 15.19 passes the same **91 tests
+with zero failures/skips** in 5m41.723s, exercising the newer privilege and
+prefix rules with the older malloc-backed GUC storage. Release builds with zero
+warnings/errors in 1m17.04s; API freshness passes for 200 pages and 2,437 members;
+the site builds all 245 pages and its check reports zero errors/warnings/hints.
+The final plain full Linux x64/PostgreSQL 18.6 run passes **8,203 tests, zero
+failures and six Windows-only skips**, 8,209 total, in 13m24.279s (integration
+13m23.345s). This overlaps independent validation in a separate checkout and
+is not a cold-cache timing baseline. The remaining full-port requirements and
+full version/platform evidence remain required.
+
+The final report-show case also passes on PostgreSQL 14.20 in a subsequent
+36-case affected run with zero failures/skips (2m39.856s). The other 35 cases
+validate the next, separate memory-test corrections in an isolated checkout;
+those follow-up changes are not part of this GUC milestone.
+
+The 2026-09-28 06:58 UTC pre-commit check records
+[CI 36385855551](https://github.com/willibrandon/ankus/actions/runs/36385855551)
+at `40bdb22` with successful quality, all three runtime jobs and Ubuntu;
+macOS and Windows remain in progress without a reported failure. Ubuntu's
+completed log confirms 8,203 passes, zero failures and six platform skips in
+a 32m07s job (integration 25m51.688s).
+[Docs 36385855549](https://github.com/willibrandon/ankus/actions/runs/36385855549)
+passes. The earlier `4c7fe76` run was superseded: its completed Ubuntu and macOS
+results stand, while Windows was cancelled without a completed-suite result.
+Previous outcomes are checked and recorded again immediately before pushing.

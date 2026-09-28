@@ -73,8 +73,9 @@ no settings or managed callbacks, including native-only shared preload.
 On PostgreSQL 15 and later, PostgreSQL warns about and removes existing unknown
 placeholders under the prefix, then rejects new placeholders with that first
 component. Declared settings retain their adopted values. PostgreSQL 13 and 14
-only warn; they retain the placeholders and allow new ones. Reservation survives
-transaction rollback and repeated library loading.
+only warn with SQLSTATE `42704`; they retain the placeholders and allow new
+ones. On PostgreSQL 15 and later, unknown placeholders produce `42602`, and
+reservation survives transaction rollback and repeated library loading.
 
 Prefix matching is literal and case sensitive, even though setting lookup is
 case insensitive. Use the same spelling consistently. Ankus passes the supplied
@@ -199,8 +200,11 @@ partially restored state.
 
 Show changes display text without changing typed storage or boot/reset metadata.
 It must return a nonnull string. A show failure raises ERROR during a transaction;
-outside a transaction, such as client parameter reporting, it terminates the
-backend with FATAL.
+outside a transaction, it terminates the backend with FATAL. PostgreSQL 13 reports
+changed client parameters during `SET`, so a display failure rolls back the
+change and leaves the backend usable. PostgreSQL 14 and later defer reporting
+until the command finishes; a display failure after an autocommitted `SET`
+therefore terminates that backend.
 
 Typed setting reads are available in every hook. Check hooks can use guarded SQL
 when PostgreSQL has a valid transaction. Assign and show cannot use SQL, including

@@ -85,10 +85,19 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("18:1200FF", await PackageGucScalarAsync(connection, "SHOW packed_guc.batch"));
         Assert.AreEqual("session|10|10", await PackageGucScalarAsync(connection,
             "SELECT concat_ws('|', source, boot_val, reset_val) FROM pg_settings WHERE name = 'packed_guc.batch'"));
-        PostgresException reserved = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
-            ExecutePackageGucAsync(connection, "SET packed_guc.unknown = 1"));
-        Assert.AreEqual("42602", reserved.SqlState);
-        Assert.AreEqual("\"packed_guc\" is a reserved prefix.", reserved.Detail);
+        if (s_installation.Version.Major >= 15)
+        {
+            PostgresException reserved = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+                ExecutePackageGucAsync(connection, "SET packed_guc.unknown = 1"));
+            Assert.AreEqual("42602", reserved.SqlState);
+            Assert.AreEqual("\"packed_guc\" is a reserved prefix.", reserved.Detail);
+        }
+        else
+        {
+            await ExecutePackageGucAsync(connection, "SET packed_guc.unknown = 1");
+            Assert.AreEqual("1", await PackageGucScalarAsync(connection, "SHOW packed_guc.unknown"));
+        }
+
         await ExecutePackageGucAsync(connection, "CREATE SCHEMA restored; CREATE EXTENSION ankus_packed_guc WITH SCHEMA restored");
         Assert.AreEqual("True|18|1.25|<null>|18446744073709551615|18:1200FF",
             await PackageGucScalarAsync(connection, "SELECT restored.package_guc_snapshot()"));
@@ -147,10 +156,19 @@ public sealed partial class ToolCommandTests
         Assert.AreEqual("12", await PackageGucScalarAsync(connection, "SHOW packed_native.slots"));
         Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection,
             "SELECT NOT EXISTS (SELECT FROM pg_extension WHERE extname = 'ankus_packed_native')")));
-        PostgresException reserved = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
-            ExecutePackageGucAsync(connection, "SET packed_native.unknown = 1"));
-        Assert.AreEqual("42602", reserved.SqlState);
-        Assert.AreEqual("\"packed_native\" is a reserved prefix.", reserved.Detail);
+        if (s_installation.Version.Major >= 15)
+        {
+            PostgresException reserved = await Assert.ThrowsExactlyAsync<PostgresException>(() =>
+                ExecutePackageGucAsync(connection, "SET packed_native.unknown = 1"));
+            Assert.AreEqual("42602", reserved.SqlState);
+            Assert.AreEqual("\"packed_native\" is a reserved prefix.", reserved.Detail);
+        }
+        else
+        {
+            await ExecutePackageGucAsync(connection, "SET packed_native.unknown = 1");
+            Assert.AreEqual("1", await PackageGucScalarAsync(connection, "SHOW packed_native.unknown"));
+        }
+
         await ExecutePackageGucAsync(connection, "CREATE EXTENSION ankus_packed_native; RESET packed_native.slots");
         Assert.AreEqual("9", await PackageGucScalarAsync(connection, "SHOW packed_native.slots"));
         Assert.AreEqual(42, await PackageGucScalarAsync(connection, "SELECT 42"));

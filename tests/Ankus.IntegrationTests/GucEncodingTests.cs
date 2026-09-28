@@ -124,7 +124,7 @@ public sealed class GucEncodingTests(TestContext context)
     }
 
     /// <summary>
-    /// Native prefix conversion removes and reserves non-ASCII names in the database encoding.
+    /// Native prefix checks preserve version-specific diagnostics and non-ASCII names in the database encoding.
     /// </summary>
     [TestMethod]
     public async Task Latin1PrefixReservationUsesDatabaseEncoding()
@@ -150,14 +150,26 @@ public sealed class GucEncodingTests(TestContext context)
             command.CommandText = "LOAD 'Ankus.GucOnlyExtension'";
             await command.ExecuteNonQueryAsync(token);
             PostgresNotice warning = Assert.ContainsSingle(notices);
-            Assert.AreEqual("42602", warning.SqlState);
+            bool reservesPrefixes = PostgresFixture.Cluster.Installation.Version.Major >= 15;
+            Assert.AreEqual(reservesPrefixes ? "42602" : "42704", warning.SqlState);
+            Assert.AreEqual("WARNING", warning.InvariantSeverity);
             Assert.Contains("café.before", warning.MessageText);
             command.CommandText = "SELECT current_setting('café.before', true)";
-            Assert.AreEqual(DBNull.Value, await command.ExecuteScalarAsync(token));
+            Assert.AreEqual<object?>(reservesPrefixes ? DBNull.Value : "1", await command.ExecuteScalarAsync(token));
             command.CommandText = "SELECT set_config('café.after', '2', false)";
-            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
-            Assert.AreEqual("42602", error.SqlState);
-            Assert.AreEqual("\"café\" is a reserved prefix.", error.Detail);
+            if (reservesPrefixes)
+            {
+                PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+                Assert.AreEqual("42602", error.SqlState);
+                Assert.AreEqual("\"café\" is a reserved prefix.", error.Detail);
+            }
+            else
+            {
+                Assert.AreEqual("2", await command.ExecuteScalarAsync(token));
+                command.CommandText = "SELECT current_setting('café.after')";
+                Assert.AreEqual("2", await command.ExecuteScalarAsync(token));
+            }
+
             command.CommandText = "SHOW ankus_guc_only.enabled";
             Assert.AreEqual("on", await command.ExecuteScalarAsync(token));
         }
