@@ -9,9 +9,10 @@ native method tables. Their fields and callback signatures come from the server
 headers selected when the extension is built.
 
 The [trace-scan sample](https://github.com/willibrandon/ankus/tree/main/samples/Ankus.Examples.CustomScans)
-wraps sequential scan paths and delegates to their real child plans. It keeps
-the original path costs, qualifications, output values and parameters, and adds
-per-node EXPLAIN observations. After installing the published extension:
+wraps sequential, index and index-only scan paths and delegates to their real
+child plans. It keeps the original path costs, ordering, qualifications, output
+values and parameters, and adds per-node EXPLAIN observations. After installing
+the published extension:
 
 ```sql
 CREATE EXTENSION ankus_trace_scan;
@@ -96,8 +97,31 @@ managed frames unwind; PostgreSQL receives ERROR only after the managed frames
 have returned. A raw unmanaged call must not let longjmp cross managed code.
 
 Advertise only capabilities the provider implements. The trace sample delegates
-sequential reads and direction changes and coordinates parallel observations.
-It does not implement mark/restore or child reparameterization.
+reads and supported direction changes, marks and restores index positions, and
+coordinates parallel observations. Child reparameterization remains in progress.
+
+## Marking and restoring positions
+
+PostgreSQL's merge executor may save an inner scan position and revisit it for
+duplicate join keys. The trace provider advertises
+`CUSTOMPATH_SUPPORT_MARK_RESTORE` only when the original, nonparallel child path
+supports that protocol, as reported by `NativeMethods.ExecSupportsMarkRestore`.
+Its `MarkPosCustomScan` and `RestrPosCustomScan` callbacks delegate to guarded
+`NativeMethods.ExecMarkPos` and `NativeMethods.ExecRestrPos` on that child.
+EXPLAIN's `Trace Marks` and `Trace Restores` report completed calls per node.
+
+Restoring a position means that the next read produces the same tuple as the
+first read after the mark. The previously returned slot is not a saved position:
+its contents may change, and callers must discard it after restore. Let the
+native access method own its position state. Sequential scans do not provide
+mark/restore; a custom wrapper must not claim it merely because it can rescan.
+
+Backward scanning is a separate capability. The sample checks
+`NativeMethods.ExecSupportsBackwardScan` on the completed child plan before
+setting `CUSTOMPATH_SUPPORT_BACKWARD_SCAN`. This follows the actual index access
+method's capabilities and excludes parallel-aware partial scans. Index-only
+children keep their native visibility checks and may still fetch heap tuples
+when the visibility map requires it.
 
 ## Parallel shared state
 
@@ -119,7 +143,7 @@ The trace sample implements these callbacks:
 
 Set `parallel_aware` only when the provider implements the corresponding
 protocol. PostgreSQL still initializes and coordinates the sample's real
-parallel sequential child. The provider counts rows and executor calls with
+parallel scan child. The provider counts rows and executor calls with
 PostgreSQL's `pg_atomic_uint64` operations; worker attachments and shutdowns
 use the same native atomics.
 

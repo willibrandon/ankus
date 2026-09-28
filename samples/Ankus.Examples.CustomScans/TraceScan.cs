@@ -4,7 +4,7 @@ using Ankus.Postgres;
 namespace Ankus.Examples.CustomScans;
 
 /// <summary>
-/// Traces real PostgreSQL sequential scans through a native custom path, plan and executor.
+/// Traces real PostgreSQL sequential and index scans through a native custom path, plan and executor.
 /// </summary>
 public static unsafe partial class TraceScan
 {
@@ -16,9 +16,9 @@ public static unsafe partial class TraceScan
     private static readonly long[] s_counts = new long[8];
 
     /// <summary>
-    /// Enables tracing of sequential paths planned in the current backend.
+    /// Enables tracing of sequential and index paths planned in the current backend.
     /// </summary>
-    [PgGucBool("ankus_trace_scan.enabled", false, "Trace sequential scans with a native custom scan")]
+    [PgGucBool("ankus_trace_scan.enabled", false, "Trace sequential and index scans with a native custom scan")]
     public static partial bool Enabled { get; }
 
     /// <summary>
@@ -113,6 +113,8 @@ public static unsafe partial class TraceScan
                         ExecCustomScan = Executor,
                         EndCustomScan = Finisher,
                         ReScanCustomScan = Rescanner,
+                        MarkPosCustomScan = Marker,
+                        RestrPosCustomScan = Restorer,
                         ExplainCustomScan = Explainer,
                         EstimateDSMCustomScan = SharedEstimator,
                         InitializeDSMCustomScan = SharedInitializer,
@@ -157,7 +159,7 @@ public static unsafe partial class TraceScan
     public static void TraceScanReset() => Array.Clear(s_counts);
 
     /// <summary>
-    /// Preserves previous hooks and replaces each sequential path with an equally costed tracing path.
+    /// Preserves previous hooks and replaces each supported scan path with an equally costed tracing path.
     /// </summary>
     private static void SetPaths(nint root, nint relation, uint index, nint entry)
     {
@@ -177,7 +179,7 @@ public static unsafe partial class TraceScan
     }
 
     /// <summary>
-    /// Retains each original sequential path as a child instead of changing its costs, parameters or qualifications.
+    /// Retains each original scan path as a child instead of changing its costs, order, parameters or qualifications.
     /// </summary>
     private static void WrapPaths(nint paths)
     {
@@ -187,7 +189,7 @@ public static unsafe partial class TraceScan
             var cells = (ListCell*)((Ankus.Postgres.List*)paths)->elements;
             nint child = cells[index].ptr_value;
             var original = (Ankus.Postgres.Path*)child;
-            if (original->pathtype != NodeTag.T_SeqScan)
+            if (original->pathtype is not (NodeTag.T_SeqScan or NodeTag.T_IndexScan or NodeTag.T_IndexOnlyScan))
             {
                 continue;
             }
@@ -196,7 +198,8 @@ public static unsafe partial class TraceScan
             path->path = *original;
             path->path.type = NodeTag.T_CustomPath;
             path->path.pathtype = NodeTag.T_CustomScan;
-            path->flags = original->parallel_aware ? 0U : 1U; // CUSTOMPATH_SUPPORT_BACKWARD_SCAN for ordinary sequential scans.
+            path->flags = !original->parallel_aware && NativeMethods.ExecSupportsMarkRestore(child)
+                ? 2U : 0U; // CUSTOMPATH_SUPPORT_MARK_RESTORE follows the actual child access method.
             path->custom_paths = NativeMethods.lappend(0, child);
             path->methods = s_pathMethods;
             cells[index].ptr_value = (nint)path;
@@ -219,6 +222,11 @@ public static unsafe partial class TraceScan
         plan->custom_scan_tlist = NativeMethods.copyObjectImpl(child->targetlist);
         plan->custom_plans = children;
         plan->flags = ((CustomPath*)path)->flags;
+        if (NativeMethods.ExecSupportsBackwardScan((nint)child))
+        {
+            plan->flags |= 1; // CUSTOMPATH_SUPPORT_BACKWARD_SCAN is a property of the finished child plan.
+        }
+
         plan->methods = s_scanMethods;
         return (nint)plan;
     }
@@ -339,6 +347,8 @@ public static unsafe partial class TraceScan
         Property("Trace Rows\0"u8, state->_rows, output);
         Property("Trace Calls\0"u8, state->_calls, output);
         Property("Trace Rescans\0"u8, state->_rescans, output);
+        Property("Trace Marks\0"u8, state->_marks, output);
+        Property("Trace Restores\0"u8, state->_restores, output);
         if (((CustomScan*)state->_scan.ss.ps.plan)->scan.plan.parallel_aware)
         {
             Property("Shared Trace Rows\0"u8, checked((long)state->_snapshot._rows), output);
@@ -395,6 +405,16 @@ public static unsafe partial class TraceScan
         /// Counts explicit rescans of this node.
         /// </summary>
         internal long _rescans;
+
+        /// <summary>
+        /// Counts positions saved in a child that supports mark and restore.
+        /// </summary>
+        internal long _marks;
+
+        /// <summary>
+        /// Counts positions restored in a child that supports mark and restore.
+        /// </summary>
+        internal long _restores;
 
         /// <summary>
         /// Borrows the current parallel segment only until provider shutdown.
