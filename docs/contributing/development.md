@@ -1,5 +1,10 @@
 # Development and testing
 
+The [.NET compatibility and runtime servicing plan](dotnet-support.md) defines
+SDK selection, .NET 11 acceptance and maintenance of the patched Native AOT
+runtime. Repository builds stay on stable .NET 10 SDKs until a newer major is
+explicitly validated.
+
 Install the stable .NET SDK selected by `global.json`, the platform's
 [Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/),
 and PostgreSQL 18 with server development headers. Windows also needs the server

@@ -130,6 +130,7 @@ export default defineConfig({
           items: [
             { label: 'Command-line tool', slug: 'reference/cli' },
             { label: 'Build settings', slug: 'reference/build-settings' },
+            { label: '.NET support', slug: 'reference/dotnet-support' },
             { label: 'Execution and lifetime', slug: 'reference/execution' },
           ],
         },

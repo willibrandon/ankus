@@ -8,7 +8,8 @@ target server's operating system and architecture.
 
 ## Prerequisites
 
-- .NET 10 SDK.
+- .NET 10 SDK. See [.NET support](/reference/dotnet-support/) for supported
+  targets and runtime servicing.
 - The [.NET Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 - LLVM Clang 20 or later and its matching `libclang` library. Make `clang`
   available on Linux/macOS or `clang-cl.exe` on Windows. Ankus uses it to read

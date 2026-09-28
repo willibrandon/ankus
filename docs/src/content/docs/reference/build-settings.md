@@ -88,6 +88,10 @@ With a central SDK version, use `<Project Sdk="Ankus.Sdk">`. Runtime and generat
 package versions follow the SDK, including in projects using
 `Directory.Packages.props`.
 
+The .NET SDK, project target framework and embedded Native AOT runtime are
+separate selections. See [.NET support](/reference/dotnet-support/) before
+retargeting or updating a deployed extension's runtime.
+
 ## Installation directories
 
 | Artifact | Standard location |

@@ -23,15 +23,48 @@ Linux, and macOS.
   macOS ARM64, and Windows x64.
 - **Developer experience**: ordinary .NET projects, source generators, `dotnet publish`, and `dotnet test`,
   with development tooling corresponding to `cargo pgrx`.
+- **.NET lifecycle**: start with .NET 10 LTS, explicitly validate .NET 11 and
+  subsequent LTS/STS releases, and service each declared major through its
+  upstream lifecycle. Native AOT compiler/runtime servicing is a release
+  requirement, not an incidental SDK upgrade.
 
 ## Environment
 
 | Item | Value |
 |---|---|
-| .NET SDK | 10.0.400; `global.json` uses `rollForward: latestMajor` |
+| .NET SDK | 10.0.400; `global.json` uses `rollForward: latestFeature`, stable 10.0 SDKs only |
+| Embedded Native AOT runtime | 10.0.11-ankus.4 with ILCompiler 10.0.11; upstream servicing update required before initial release |
 | C toolchain | clang 21 + lld; GCC 14 used for the local PostgreSQL build |
 | Primary test target | **PostgreSQL 18** |
 | Initial Ankus release (planned) | **0.1.0** |
+
+## .NET support and servicing plan
+
+Reviewed on **2026-09-28** against Microsoft's [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
+The [public policy](docs/src/content/docs/reference/dotnet-support.md) separates
+SDK selection, the extension TFM and its embedded runtime. The
+[maintenance plan](docs/contributing/dotnet-support.md) records the library-policy
+comparison, exact acceptance steps and servicing process.
+
+| Runtime line | Plan and current evidence |
+|---|---|
+| .NET 10 LTS | Initial `net10.0` baseline. Existing platform/backend evidence uses the patched 10.0.11 runtime. Rebase to current upstream servicing (10.0.12 at review) and validate before publishing 0.1.0; recheck at release. |
+| .NET 11 STS | Planned next target; no Ankus compatibility claim yet. Validate SDK 11 with `net10.0` separately from a patched .NET 11 runtime with `net11.0`. If GA precedes 0.1.0, complete acceptance in that release. |
+| Later LTS/STS releases | Repeat the explicit compiler/runtime, packed-consumer and complete PostgreSQL/platform gate. Continue servicing already supported majors through upstream end of support. |
+
+Microsoft's latest-patch requirement does not update a statically embedded
+custom runtime. Each servicing update needs new immutable runtime packages,
+matching compiler selection, validation and extension rebuild/redeployment.
+Installing SDK 11 must not silently change the established toolchain: repository
+`global.json` now uses the same `latestFeature`/no-prerelease selection as
+generated projects. This does not itself implement .NET 11 support.
+
+Outstanding requirements include the current .NET 10 rebase, early unsupported-TFM
+diagnostics, per-target runtime/compiler selection, cache identity review, .NET
+11 experiments followed by GA validation, the added full CI/release matrix and
+runtime version/rebuild guidance in release notes. Keep a shared codebase where
+possible; introduce servicing branches only when needed. Do not add legacy TFMs,
+relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
@@ -3233,6 +3266,7 @@ source-case-level mapping to named .NET tests and any additional boundary cases 
 | PostgreSQL 13, 14, 15, 16, 17, 18, 19 beta | Per-major builds against that server's headers, version-specific APIs/gating and complete backend tests | PG18 on Linux/macOS and PG17 on Windows verified at `cbd0fdd`; complete major/platform combinations pending |
 | Windows, Linux, macOS | Native builds, exports/loading, lifecycle, encoding, toolchain and installer tests for each supported RID | Linux x64, macOS ARM64 and Windows x64 pass [CI run 36043147127](https://github.com/willibrandon/ankus/actions/runs/36043147127); macOS x64 and the full version matrix remain pending |
 | Ordinary .NET usage | One NuGet reference, attributed methods, `dotnet publish`, discoverable plain `dotnet test` and working tool commands | NuGet project SDK, cold isolated consumers, CPM/global.json, installed-tool and direct publishing, plus an external MSTest consumer verified on Linux/PG18; remaining CLI commands pending |
+| .NET support and runtime servicing | Explicit SDK/TFM/compiler/runtime/RID identities, current upstream patches, complete backend validation for each declared runtime major and documented rebuild instructions | .NET 10 patched runtime exists; servicing rebase and .NET 11 acceptance remain required under the [support plan](#net-support-and-servicing-plan) |
 | Installation and upgrades | Clean install, relocation, removal, versioned-library coexistence, upgrade scripts and data compatibility | Basic PG18 `CREATE/DROP EXTENSION` and schema relocation pass |
 | Examples and documentation | Every inventoried scenario runnable with tested usage/configuration/API documentation | Minimal sample, native boundary and SPI usage documented |
 
@@ -3326,6 +3360,13 @@ The phases track implementation of the complete pgrx feature surface.
   - [ ] Public NuGet release after full parity and platform/version validation
 - [ ] **P5 — Multi-version matrix**
    - [ ] PostgreSQL 13–18 (+19 beta) and Windows/Linux/macOS validation matrix
+   - [x] Define the .NET support policy and distinguish SDK compatibility from embedded runtime support
+   - [ ] Rebase the .NET 10 runtime patch onto current upstream servicing and validate all release RIDs before 0.1.0
+   - [ ] Reject unsupported TFMs early and select exact compiler/runtime payloads per supported TFM
+   - [ ] Validate SDK 11 targeting .NET 10 independently of the .NET 11 Native AOT runtime port
+   - [ ] Port and validate the runtime patch on .NET 11; complete its gate before 0.1.0 if .NET 11 is GA by then
+   - [ ] Add each supported .NET major to complete unsharded platform/backend CI and release validation, including macOS x64
+   - [ ] Record runtime provenance and upstream patch gaps per supported major; document servicing and extension rebuilds in release notes
 - [ ] **P6 — Examples + docs**
     - [x] Astro/Starlight documentation site, using the `ilrepl` docs as a read-only design reference
     - [x] User-facing guides for extension authors; repository workflows and design notes live in `docs/contributing/`
@@ -3358,6 +3399,7 @@ The phases track implementation of the complete pgrx feature surface.
 | Postgres `longjmp` crossing AOT frames | Design a guarded native boundary and avoid finalizer-dependent state |
 | Variadic PostgreSQL C functions | Add minimal native helpers only where a non-variadic API is unavailable |
 | Struct layout drift across PG versions | Generated shim + layout table generated from per-version headers; matrix tests |
+| Native AOT runtime patch drifts from upstream fixes or compiler ABI | Service each supported .NET major, pin matching immutable payloads/compiler versions, reject unknown TFMs and run complete backend/platform validation |
 | Native library size | Initial integer probe was approximately 933 KB on Linux x64 |
 | `dlclose` unsupported by AOT libs | N/A — Postgres keeps extension modules loaded for the backend's lifetime |
 
@@ -12924,3 +12966,43 @@ and Docs **36489705388** are fully successful; superseded **36488639696** is
 cancelled, not passing platform evidence. Outcomes are checked again before
 push. The faithful port remains incomplete; the full tooling, API and
 PostgreSQL/platform requirements above are retained.
+
+## .NET lifecycle policy and .NET 11 readiness
+
+The support plan now covers the .NET lifecycle independently of PostgreSQL
+version parity. Initial Ankus **0.1.0** keeps **.NET 10 LTS** as its baseline;
+**.NET 11** requires explicit SDK compatibility checks, its own patched runtime
+and matching compiler, packed-consumer validation and complete backend/platform
+evidence. Existing supported majors retain servicing through their upstream
+lifecycle. The public guide explains target selection and rebuilding deployed
+extensions for embedded-runtime fixes. Maintenance procedures and the comparison
+with Microsoft's library guidance, EF Core and Npgsql live in the contributing
+guide. The phase plan, release evidence table and risk register retain the
+implementation work as outstanding.
+
+The repository's `global.json` now uses `latestFeature`, matching generated
+projects, and continues excluding prereleases. Linux selects SDK **10.0.400**.
+On Windows, the identical selection chooses **10.0.401** with
+**11.0.100-rc.1.26425.128** also installed. This verifies SDK selection only;
+it does not establish .NET 11 extension compatibility or fresh Windows backend
+evidence. The existing runtime payload remains **10.0.11-ankus.4** with compiler
+**10.0.11**. Updating it to current upstream servicing is explicitly required
+before initial publication.
+
+Release passes with **zero warnings/errors** in **1m17.31s**. API freshness
+verifies **206 pages/2,518 members**; the site builds **253 pages** and checks
+with **zero errors, warnings or hints**. The complete plain `dotnet test` suite
+passes **8,784 tests, zero failures and six Windows-only skips, 8,790 total**,
+on PostgreSQL **18.6/Linux x64**, in **10m06.093s**. The integration module
+passes in **10m03.816s**. These results validate the existing .NET 10 payload
+and SDK selection; they do not validate a newly serviced runtime.
+
+Before committing this milestone, CI **36498921769** (`d1fcf8d`) has passed
+quality and all three runtime jobs; all three complete platform suites remain
+in progress with no reported failure. Docs **36498921881** passes. Superseded
+CI **36495722741** is cancelled after successful Linux, quality and runtime
+jobs; its cancelled macOS/Windows jobs are not completed platform evidence.
+Docs **36495722766** passes. Earlier CI **36489705448** and Docs **36489705388**
+are fully successful. Outcomes are checked again before push. Hosted Windows
+timing for the cache-lock change remains unverified, and all remaining faithful
+port and platform/version requirements remain open.

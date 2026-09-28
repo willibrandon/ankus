@@ -52,6 +52,10 @@ The SDK includes matching runtime and source-generator packages plus the native
 build helper. See [package setup](docs/contributing/development.md#build-the-packages)
 for the local NuGet feed; the initial `0.1.0` release is pending.
 
+The initial target is .NET 10 LTS. .NET 11 support is planned and requires a
+validated Native AOT compiler/runtime combination. See [.NET support](docs/src/content/docs/reference/dotnet-support.md)
+for version selection, servicing, and rebuilding deployed extensions.
+
 See [development and testing](docs/contributing/development.md) for prerequisites,
 PostgreSQL discovery, and the integration harness.
 
