@@ -39,8 +39,10 @@ independent iterators and checked source and callback lifetimes. All **40 affect
 backend cases pass without failures/skips** on Linux x64/PostgreSQL **13.23,
 18.6 and 19 beta 3**. The final complete PostgreSQL 18.6/Linux x64 suite uses
 GCC 13.3 and passes **8,399 tests, zero failures and six Windows-only skips,
-8,405 total**, in 12m03.983s. Generated native contracts now support that older
-compiler without weakening type checks. Release, API freshness and site checks pass. Typed borrowed
+8,405 total**, in 12m18.812s. Generated native contracts support GCC 13 and
+MSVC without weakening type checks; 321 native-contract cases and complete
+PostgreSQL 17.7/18.1 header verification also pass on Windows x64. Release, API
+freshness and site checks pass. Typed borrowed
 arrays/slices, text/bytea views, the complete platform/version matrix,
 intermittent GUC query stall and other faithful-port requirements remain open.
 
@@ -11910,3 +11912,54 @@ collection above supplies cold-collection evidence only. A fresh precommit
 check confirms the preceding CI outcomes recorded above. A new hosted run
 must still confirm that the Linux timeout is resolved. No CI timeout, analysis
 mode or runtime patch changed.
+
+## MSVC native qualifier compatibility
+
+The replacement [Windows job](https://github.com/willibrandon/ankus/actions/runs/36446187352/job/109009908584)
+fails during native record verification, before its test suite starts. MSVC
+retains top-level qualifiers in the comma expression used by the preceding
+GCC 13 repair. Reapplying the measured qualifiers therefore produces duplicate
+qualifier warnings and rejects compatible `LockMethodData` aliases, members and
+function parameters. A minimal experiment with MSVC 19.51 reproduces this exact
+qualifier behavior; the same checks pass with its `__typeof_unqual__` operator.
+
+Both record verification and generated value declarations now select the
+compiler's supported operation: MSVC uses `__typeof_unqual__`, while GCC and
+Clang use unevaluated comma-expression conversion. Opaque declarations retain
+their actual native tags. Exact root, member, pointee, enum and calling-convention
+checks remain enforced, with no diagnostic suppression or timeout change.
+`NativeRecordChecksPreserveQualifiedAnonymousDeclarations` now includes qualified
+record pointers and pointer-valued members; removing a pointee's const qualifier
+must fail with the exact member-type diagnostic, alongside the existing root
+qualifier mutation.
+
+The affected GCC 13/Linux scope passes **47 tests, zero failures/skips**, in
+4.122s. Native Windows x64 execution passes **46 record-contract tests, zero
+failures and one Linux-only skip**, in 6.294s. Complete cold Windows header
+verification passes with MSVC against PostgreSQL **17.7** (1,285 declarations,
+8,876 available inventory entries, 491 values and 3,600 fields) and **18.1**
+(1,329 declarations, 9,207 available inventory entries, 499 values and 3,694
+fields). These are native compiler checks, not completed Windows backend suites.
+
+Release passes with zero warnings/errors in 1m48.88s; API freshness checks
+201 pages/2,450 members, the site builds 246 pages, and its check reports zero
+diagnostics. The broader native Windows scope passes **321 tests, zero failures
+and one Linux-only skip, 322 total**, in 23.482s. The final plain root suite with
+GCC 13.3/PostgreSQL 18.6/Linux x64 passes **8,399 tests, zero failures and six
+Windows-only skips, 8,405 total**, in 12m18.812s. All **3,518 integration cases**
+pass in 12m17.029s. This complete suite uses existing caches; the separate
+Windows header collections above supply cold-collection evidence only.
+
+The preceding commit's hosted Linux job then finishes successfully: downloaded
+reports contain **8,399 passes, zero failures and six Windows-only skips,
+8,405 total**, including all **3,518 integration cases**. The full-suite step
+takes 22m54s and the whole job 28m45s. This confirms that run's earlier timeout
+is cleared; it does not establish the preferred CI feedback budget. Windows
+still requires a hosted run containing this MSVC repair.
+
+Immediately before this commit, CI 36446187352 has successful quality, all
+runtime jobs and the complete Linux suite; Windows has the compiler failure
+addressed here, and macOS remains in progress. Docs 36446187447 passes. Older
+superseded CI runs are cancelled and their documentation runs pass. These
+outcomes are recorded again immediately before pushing; an unfinished platform
+run is not counted as completed validation.

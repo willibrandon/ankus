@@ -136,7 +136,7 @@ internal static partial class NativeBindingRecordChecks
                 return _anchors[declaration];
             }
 
-            return type.Kind is "array" or "function" ? TypeName(index) : "__typeof__(((void)0, *(" + TypeName(index) + " *)0))";
+            return type.Kind is "array" or "function" ? TypeName(index) : "ANKUS_RECORD_UNQUAL(*(" + TypeName(index) + " *)0)";
         }
 
         /// <summary>

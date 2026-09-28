@@ -13,13 +13,18 @@ public sealed partial class NativeBindingNativeTests
                 int value;
                 const struct { short flag; } nested;
                 enum { Absent = -7, Present = 19 } kind;
+                const int *conflict;
+                const char * const *names;
+                volatile int *trace;
             } Entry;
             typedef const struct Opaque Opaque;
             extern volatile Entry current;
+            extern Entry *entries;
             extern Opaque *opaque;
             extern void consume(Entry entry, const int count, const int * const address, Opaque *handle, Opaque value);
             """;
-        NativeHeaderRequest[] requests = [new("current", "current", false), new("opaque", "opaque", false), new("consume", "consume", true)];
+        NativeHeaderRequest[] requests = [new("current", "current", false), new("entries", "entries", false),
+            new("opaque", "opaque", false), new("consume", "consume", true)];
         await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true, nativeCompiler: false);
         await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true,
             compilerOverride: OperatingSystem.IsWindows() ? "cl.exe" : "cc");
@@ -27,6 +32,10 @@ public sealed partial class NativeBindingNativeTests
         string diagnostics = await VerifyRecordChecksAsync(Headers, changed, requests, compile: false, execute: false,
             compilerOverride: OperatingSystem.IsWindows() ? "cl.exe" : "cc");
         Assert.Contains("Native record contract changed: root type current", diagnostics);
+        string changedPointee = Headers.Replace("const int *conflict", "int *conflict", StringComparison.Ordinal);
+        diagnostics = await VerifyRecordChecksAsync(Headers, changedPointee, requests, compile: false, execute: false,
+            compilerOverride: OperatingSystem.IsWindows() ? "cl.exe" : "cc");
+        Assert.Contains("Native record contract changed: member type declaration 0.conflict", diagnostics);
     }
 
     /// <summary>

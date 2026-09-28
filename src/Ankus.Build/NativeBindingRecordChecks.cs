@@ -75,6 +75,7 @@ internal static partial class NativeBindingRecordChecks
             }
 
             _source.AppendLine("#include <stdarg.h>");
+            WriteTypeNormalization();
             AnchorDeclarations();
             var names = new HashSet<string>(StringComparer.Ordinal);
             foreach ((int index, string name) in values)
@@ -108,6 +109,7 @@ internal static partial class NativeBindingRecordChecks
             _source.AppendLine("#include <stddef.h>\n#include <stdint.h>\n#include <limits.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>");
             NativeBindingTarget.WriteChecks(_source, _graph.Target, "Native record");
             NativeBindingCompilerShims.Write(_source, records.Headers.Symbols.Values);
+            WriteTypeNormalization();
             AnchorDeclarations();
             KeyValuePair<int, string>[] anchoredRecords = [.. _anchors.Where(pair => _graph.Declarations[pair.Key].Kind != "enum").OrderBy(static pair => pair.Key)];
             if (anchoredRecords.Length != 0)
@@ -255,9 +257,7 @@ internal static partial class NativeBindingRecordChecks
                         return;
                     }
 
-                    // The comma expression applies lvalue conversion without promoting enum types.
-                    // Unlike __typeof_unqual__, this also works with pre-C23 GCC toolchains.
-                    AddAnchor(declaration, "__typeof__(((void)0, (" + expression + ")))");
+                    AddAnchor(declaration, "ANKUS_RECORD_UNQUAL(" + expression + ")");
                     return;
                 }
 
@@ -276,6 +276,23 @@ internal static partial class NativeBindingRecordChecks
 
                 index = type.Element!.Value;
             }
+        }
+
+        /// <summary>
+        /// Removes top-level qualifiers without enum promotion on MSVC and pre-C23 GCC alike.
+        /// </summary>
+        private void WriteTypeNormalization()
+        {
+            // MSVC preserves qualifiers on comma expressions; older GCC lacks __typeof_unqual__.
+            _source.AppendLine("""
+                #ifndef ANKUS_RECORD_UNQUAL
+                #if defined(_MSC_VER) && !defined(__clang__)
+                #define ANKUS_RECORD_UNQUAL(expression) __typeof_unqual__(expression)
+                #else
+                #define ANKUS_RECORD_UNQUAL(expression) __typeof__(((void)0, (expression)))
+                #endif
+                #endif
+                """);
         }
 
         private void AddAnchor(int declaration, string type)
