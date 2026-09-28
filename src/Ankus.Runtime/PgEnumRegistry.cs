@@ -34,6 +34,8 @@ public static class PgEnumRegistry
         s_arrays[typeof(T?[])] = mapping;
         s_arrays[typeof(PgArray<T>)] = mapping;
         s_arrays[typeof(PgArray<T?>)] = mapping;
+        PgArrayViews.Register<T>();
+        PgArrayViews.Register<T?>();
     }
 
     /// <summary>

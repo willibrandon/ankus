@@ -403,6 +403,9 @@ that owner. Resetting only the source context invalidates borrowed aliases too;
 live child contexts do not extend the lifetime of their source bytes.
 See [borrowed native arrays](/arrays/#borrowed-native-arrays) for
 direct function parameters, native flattening and callback cleanup.
+`value.Read<PgArrayView<T>>()` adds checked scalar cell conversion under the same
+source lifetime. Whole-array SQL NULL becomes a null view after validating the
+declared element type. See [typed borrowed cells](/arrays/#typed-borrowed-cells).
 
 For text and binary datums, `Read<PgTextView>()` and `Read<PgByteaView>()` borrow
 the source lifetime. They retain original SQL identity, including domains,

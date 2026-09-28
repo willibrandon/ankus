@@ -15,7 +15,7 @@ namespace Ankus;
 /// Resetting only the source context also expires all views and cells, even when private child contexts survive.
 /// Indexed access is O(n); enumeration visits the elements in one linear pass.
 /// </remarks>
-public sealed partial class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
+public sealed partial class PgArrayView : IReadOnlyList<PgDatum>, IPgArrayView
 {
     private readonly PgMemoryContext _context;
     private readonly PgDatum _datum;

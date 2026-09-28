@@ -54,6 +54,8 @@ public sealed class PgDatum
     /// Registered datum readers require the exact current mapped type and a live owner, including for SQL NULL.
     /// Their user-supplied conversion must return independent managed data for a present value.
     /// Mapped array elements use a temporary native owner that ends after conversion; this source datum remains owned by its original context.
+    /// PgArrayView&lt;T&gt; instead retains this source lifetime and converts only accessed cells. It validates element identity
+    /// even for whole-array SQL NULL, which returns a null view. Dispose the view while the source backend remains active.
     /// </remarks>
     public T Read<T>() => NativeBackend.ReadDatum<T>(this);
 

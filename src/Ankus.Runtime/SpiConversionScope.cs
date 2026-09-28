@@ -19,7 +19,7 @@ internal sealed class SpiConversionScope : IDisposable
         _relations.Add(value);
         IDisposable? view = value switch
         {
-            PgArrayView array => array,
+            IPgArrayView array => array,
             PgByteaView bytes => bytes,
             PgTextView text => text,
             _ => null,

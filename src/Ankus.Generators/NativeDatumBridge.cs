@@ -154,7 +154,7 @@ internal static class NativeDatumBridge
         static void
         ankus_datum_operation(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->scalar_operation < 0 || request->scalar_operation > 11)
+            if (request->scalar_operation < 0 || request->scalar_operation > 12)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Unknown raw datum operation")));
             if (request->parameter_count != 1 || request->parameters == NULL)
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Datum operations require one value")));
@@ -174,6 +174,13 @@ internal static class NativeDatumBridge
                 AnkusDatumReference reference;
                 memcpy(&reference, value->data, sizeof(reference));
                 ankus_datum_context(reference.context, reference.generation);
+                if (request->scalar_operation == 12)
+                {
+                    result->result_type_oid = ankus_array_element_contract(getBaseType(parameter->type_oid),
+                        request->scalar_result_oid, request->limit != 0);
+                    return;
+                }
+
                 if (value->is_null)
                     ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("A borrowed view requires a non-NULL datum")));
                 if (request->scalar_operation == 9 || request->scalar_operation == 10)

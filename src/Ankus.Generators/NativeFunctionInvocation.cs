@@ -173,8 +173,8 @@ internal static class NativeFunctionInvocation
         static void
         ankus_function_invoke(AnkusRequest *request, AnkusResult *result)
         {
-            if (request->scalar_operation < 0 || request->scalar_operation > 1 ||
-                (request->scalar_operation == 1 &&
+            if (request->scalar_operation < 0 || request->scalar_operation > 3 ||
+                (request->scalar_operation != 0 &&
                     (!OidIsValid(request->scalar_result_oid) || request->native_function != NULL)))
                 ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid function result validation mode")));
 
@@ -231,7 +231,10 @@ internal static class NativeFunctionInvocation
             }
 
             Oid type = expression->funcresulttype;
-            ankus_function_check_result(type, request->scalar_result_oid, request->scalar_operation == 1);
+            if (request->scalar_operation >= 2)
+                ankus_array_element_contract(getBaseType(type), request->scalar_result_oid, request->scalar_operation == 3);
+            else
+                ankus_function_check_result(type, request->scalar_result_oid, request->scalar_operation == 1);
             /* Check before constant folding can replace a STRICT NULL call. */
         #if PG_VERSION_NUM >= 160000
             AclResult access = object_aclcheck(ProcedureRelationId, expression->funcid, GetUserId(), ACL_EXECUTE);

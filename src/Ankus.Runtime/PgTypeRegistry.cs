@@ -47,6 +47,7 @@ public static class PgTypeRegistry
         s_scalars[typeof(PgVarlena<T>)] = mapping;
         s_arrays[typeof(PgVarlena<T>[])] = mapping;
         s_arrays[typeof(PgArray<PgVarlena<T>>)] = mapping;
+        PgArrayViews.Register<PgVarlena<T>>();
     }
 
     /// <summary>
@@ -115,6 +116,8 @@ public static class PgTypeRegistry
         s_arrays[typeof(TOptional[])] = mapping;
         s_arrays[typeof(PgArray<T>)] = mapping;
         s_arrays[typeof(PgArray<TOptional>)] = mapping;
+        PgArrayViews.Register<T>();
+        PgArrayViews.Register<TOptional>();
     }
 
     /// <summary>

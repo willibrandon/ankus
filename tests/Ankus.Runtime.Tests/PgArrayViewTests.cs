@@ -386,6 +386,9 @@ public sealed partial class PgArrayViewTests
                         result->_text = script.Conversions.Dequeue();
                         result->_rowsAffected = script.ElementType;
                         break;
+                    case 12:
+                        script.Contracts.Add((request->_scalarResultOid, request->_limit));
+                        break;
                     case 5:
                         script.Contracts.Add((request->_scalarResultOid, request->_limit));
                         int[] shape = script.InvalidMetadata == 0 ? [3] : [3, -1];

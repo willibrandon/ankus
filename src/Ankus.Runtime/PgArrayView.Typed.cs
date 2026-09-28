@@ -14,9 +14,13 @@ namespace Ankus;
 /// Nonnullable value types reject arrays containing SQL NULL during construction.
 /// Indexed access is O(n); enumeration visits the array in one linear pass and converts each
 /// cell once. Native access expires with this view, its source owner or its source callback.
-/// Copied metadata remains readable after expiry. Construct this view from a checked PgDatum.
+/// Copied metadata remains readable after expiry. Construct this view from a checked PgDatum,
+/// or request it through PgDatum.Read, SPI scalar helpers or PgFunctions. Raw reads borrow their
+/// source lifetime; scalar SPI and function results use callback-owned snapshots. Whole-array
+/// SQL NULL returns a null view after checking the declared element identity. Present parameters
+/// transport the original datum without requiring an element writer.
 /// </remarks>
-public sealed class PgArrayView<T> : IReadOnlyList<T>, IDisposable
+public sealed class PgArrayView<T> : IReadOnlyList<T>, IPgArrayView
 {
     private readonly PgArrayView _view;
 

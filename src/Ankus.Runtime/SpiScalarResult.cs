@@ -26,6 +26,12 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
+        if (PgArrayViews.Find(typeof(T)) is { } view)
+        {
+            view.RequireRead();
+            return true;
+        }
+
         return PgPolymorphic.Is<T>() || PgBufferViews.Is<T>();
     }
 
@@ -115,7 +121,7 @@ internal readonly struct SpiScalarResult(SpiResult? managed, SpiRawResult? raw, 
         }
 
         PgDatum value = raw[0][ordinal];
-        if ((PgPolymorphic.Is<T>() || PgBufferViews.Is<T>()) && !value.IsNull)
+        if ((PgPolymorphic.Is<T>() || PgBufferViews.Is<T>() || PgArrayViews.Find(typeof(T)) is not null) && !value.IsNull)
         {
             value = value.CopyTo(PgMemoryContext.Callback);
         }

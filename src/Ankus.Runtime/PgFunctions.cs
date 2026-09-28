@@ -5,6 +5,8 @@ namespace Ankus;
 /// </summary>
 /// <remarks>
 /// Catalog calls support PgAnyElement and PgAnyArray results owned by the current callback or iterator.
+/// PgArrayView and PgArrayView&lt;T&gt; expose checked cells over callback-owned result snapshots.
+/// Typed array results validate their declared element identity before catalog execution, including for SQL NULL.
 /// Ordinary managed results are independent copies. Use CallRaw to select an explicit native owner.
 /// Registered datum readers use an exact declared result OID check before invoking a catalog function
 /// and return independent managed values before temporary native storage is released.
@@ -32,6 +34,7 @@ public static class PgFunctions
     /// call has no FmgrInfo, context, or resultinfo; use catalog calls for functions needing those fields.
     /// Registered scalar and array readers return independent managed data before temporary result storage is released.
     /// Their current mapped type is the caller's result contract; the address supplies no catalog return declaration.
+    /// A PgArrayView&lt;T&gt; result uses the array type of T as that asserted contract and retains callback-owned storage.
     /// PostgreSQL errors remain guarded, but invalid pointers or ABI contracts can crash the backend.
     /// </remarks>
     public static T DangerousCall<T>(nint function, uint collationOid, params ReadOnlySpan<PgDatum> arguments)

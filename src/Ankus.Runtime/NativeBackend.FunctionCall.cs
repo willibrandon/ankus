@@ -30,6 +30,13 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
+        if (PgArrayViews.Find(typeof(T)) is { } view)
+        {
+            view.RequireRead();
+            ArgumentOutOfRangeException.ThrowIfZero(function);
+            return CallRawNativeFunction(function, view.GetOid(), PgMemoryContext.Callback, collation, arguments).Read<T>();
+        }
+
         if (PgBufferViews.Is<T>())
         {
             return CallRawNativeFunction(function, SpiType.GetOid<T>(), PgMemoryContext.Callback, collation, arguments).Read<T>();
@@ -160,14 +167,17 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
-        if (PgPolymorphic.Is<T>() || PgBufferViews.Is<T>())
+        PgArrayViewMapping? view = PgArrayViews.Find(typeof(T));
+        view?.RequireRead();
+        if (PgPolymorphic.Is<T>() || PgBufferViews.Is<T>() || view is not null)
         {
             var lifetime = new PgDatumLifetime(PgMemoryContext.Callback);
-            uint expected = PgBufferViews.Is<T>() ? SpiType.GetOid<T>() :
+            uint expected = view is not null ? view.GetElementOid() : PgBufferViews.Is<T>() ? SpiType.GetOid<T>() :
                 typeof(T) == typeof(PgAnyArray) || typeof(T) == typeof(PgArrayView) ? 2277U : 2283U;
             return RunFunction(name, oid, options, arguments, expected, lifetime, result =>
                 new PgDatum(unchecked((nuint)result._text.Integral),
-                    result._resultTypeOid, result._text.IsNull != 0, lifetime).Read<T>());
+                    result._resultTypeOid, result._text.IsNull != 0, lifetime).Read<T>(),
+                exactResult: view?.ExactElementIdentity == true, arrayElement: view is not null);
         }
 
         return RunFunction(name, oid, options, arguments, SpiType.GetOid<T>(), null, static result =>
@@ -253,10 +263,11 @@ public static unsafe partial class NativeBackend
     /// <param name="lifetime">The optional raw result destination.</param>
     /// <param name="convert">The synchronous result copier.</param>
     /// <param name="exactResult">Whether the declared result OID must match before the callee executes.</param>
+    /// <param name="arrayElement">Whether the expected OID describes an array's element rather than the entire result.</param>
     /// <returns>The owned converted result.</returns>
     private static T RunFunction<T>(string? name, uint oid, PgFunctionCallOptions? options,
         ReadOnlySpan<PgFunctionArgument> arguments, uint resultType, PgDatumLifetime? lifetime, Func<NativeSpiResult, T> convert,
-        bool exactResult = false)
+        bool exactResult = false, bool arrayElement = false)
     {
         CheckAccess();
         byte[] encoded = oid == 0 ? EncodeCommand(name!) : [];
@@ -282,7 +293,7 @@ public static unsafe partial class NativeBackend
                 _hasCollation = options?.CollationOid is not null ? (byte)1 : (byte)0,
                 _variadic = options?.Variadic == true ? (byte)1 : (byte)0,
                 _argumentDefaults = argumentDefaults,
-                _scalarOperation = exactResult ? 1 : 0,
+                _scalarOperation = (arrayElement ? 2 : 0) + (exactResult ? 1 : 0),
                 _scalarResultOid = resultType,
                 _resultContext = lifetime?.ContextId ?? 0,
                 _resultGeneration = lifetime?.Generation ?? 0,

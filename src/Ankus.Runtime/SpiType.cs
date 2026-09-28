@@ -33,6 +33,11 @@ internal static class SpiType
     internal static uint GetOid(Type type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (PgArrayViews.Find(type) is { } view)
+        {
+            return view.GetOid();
+        }
+
         if (type == typeof(PgInternal))
         {
             return 2281;

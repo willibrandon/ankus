@@ -3,6 +3,70 @@ namespace Ankus.Runtime.Tests;
 public sealed partial class PgArrayViewTests
 {
     /// <summary>
+    /// A missing native address fails before resolving the element's array identity through the backend.
+    /// </summary>
+    [TestMethod]
+    public void TypedArrayNativeCallsRejectMissingAddressesBeforeBackendAccess()
+    {
+        Assert.AreEqual("function", Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => PgFunctions.DangerousCall<PgArrayView<int>>(0, 0, [])).ParamName);
+    }
+
+    /// <summary>
+    /// A writer-only element rejects native result dispatch without constructing its converter or accessing the backend.
+    /// </summary>
+    [TestMethod]
+    public void TypedArrayNativeCallsRequireElementReadersBeforeBackendAccess()
+    {
+        PgDatumRegistry.RegisterValue<WriteOnlyArrayItem>("int4", "pg_catalog", PgTypeOrigin.External,
+            typeof(WriteOnlyArrayItem), static () => throw new InvalidOperationException("Converter must remain unconstructed."),
+            canRead: false, canWrite: true);
+        Assert.ThrowsExactly<NotSupportedException>(() => PgFunctions.DangerousCall<PgArrayView<WriteOnlyArrayItem>>(1, 0, []));
+    }
+
+    /// <summary>
+    /// A typed SQL NULL validates its native element identity without opening a native array owner.
+    /// </summary>
+    [TestMethod]
+    public void TypedArrayFactoriesValidateNullWithoutAllocatingViews()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture) { ElementType = 23 };
+        PgDatum absent = PgDatum.DangerousCreate(0, 1007, PgMemoryContext.Current, isNull: true);
+        Assert.IsNull(absent.Read<PgArrayView<int?>?>());
+        Assert.AreSequenceEqual<(uint, long)>([(23, 0)], script.Contracts);
+        Assert.AreSequenceEqual<(int, nint)>([(12, 0)], script.Requests);
+        Assert.AreEqual(1, script.Releases);
+        Assert.DoesNotContain(static request => request._operation == NativeMemoryOperation.Create, fixture.Requests);
+        Assert.IsEmpty(script.Deleted);
+    }
+
+    /// <summary>
+    /// Typed datum factories and provisional result cleanup share the original checked array ownership.
+    /// </summary>
+    [TestMethod]
+    public void TypedArrayFactoriesRetainAndReleaseProvisionalOwners()
+    {
+        using var fixture = new MemoryContextTestFixture();
+        using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
+        using var script = new ArrayScript(fixture) { ElementType = 23, HasNulls = false };
+        PgDatum source = PgDatum.DangerousCreate(123, 1007, PgMemoryContext.Current);
+        using PgArrayView<int> view = source.Read<PgArrayView<int>>();
+        SpiParameter parameter = SpiParameter.Create(view);
+        Assert.AreEqual(1007U, parameter.TypeOid);
+        Assert.AreSame(view.Datum, parameter.Value);
+        using var conversions = new SpiConversionScope();
+        Assert.AreSame(view, conversions.Add(view));
+        var primary = new InvalidCastException("Later column failed.");
+        conversions.ReleaseAfterFailure(primary);
+        Assert.IsEmpty(primary.Data);
+        Assert.AreSequenceEqual<nint>([202], script.Deleted);
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
+        Assert.AreEqual((nuint)123, source.DangerousGetBits());
+    }
+
+    /// <summary>
     /// Invalid sources and unsupported element representations fail before native allocation.
     /// </summary>
     [TestMethod]
@@ -142,4 +206,9 @@ public sealed partial class PgArrayViewTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
         Assert.HasCount(operations, script.Requests);
     }
+
+    /// <summary>
+    /// Supplies a unique mapping identity whose read capability is deliberately absent.
+    /// </summary>
+    private readonly record struct WriteOnlyArrayItem;
 }

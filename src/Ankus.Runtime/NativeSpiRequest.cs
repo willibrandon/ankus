@@ -85,7 +85,7 @@ internal unsafe struct NativeSpiRequest
 
     /// <summary>
     /// Selects a function within the requested scalar operation family.
-    /// For catalog FunctionCall requests, zero permits ordinary result compatibility and one requires an exact declared OID.
+    /// Catalog FunctionCall modes zero/one check compatible/exact result OIDs; two/three check compatible/exact array elements.
     /// </summary>
     internal int _scalarOperation;
 

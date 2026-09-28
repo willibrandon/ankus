@@ -36,6 +36,10 @@ Use `Call<PgArrayView>` to inspect [borrowed native cells](/arrays/#borrowed-nat
 in the array result snapshot. Its type checks follow the same array contract.
 Dispose the view while the backend is active; `view.Datum.CopyTo(context)` gives
 the value an independent owner.
+`Call<PgArrayView<T>>` additionally checks the declared element type before the
+function executes and converts individual cells on access. These checks also
+apply to SQL NULL, empty and all-NULL results. A mapped element needs a reader;
+its exact SQL identity is required even when its base representation matches.
 
 Reusable [`PgDatumType` mappings](/raw-values/#reusable-scalar-mappings) can also
 be the result of a named or OID call. Only a reader is required. Ankus checks the

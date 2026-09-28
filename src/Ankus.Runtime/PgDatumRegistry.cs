@@ -152,5 +152,6 @@ public static class PgDatumRegistry
         var mapping = new DatumArrayMapping<T>(scalar);
         s_arrays.TryAdd(typeof(T[]), mapping);
         s_arrays.TryAdd(typeof(PgArray<T>), mapping);
+        PgArrayViews.Register<T>();
     }
 }

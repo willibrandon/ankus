@@ -51,18 +51,17 @@ internal static class NativeArrayViewBridge
             result->result_type_oid = expected;
         }
 
-        static void
-        ankus_array_view_operation(AnkusRequest *request, AnkusResult *result, Datum datum, Oid type)
+        static Oid
+        ankus_array_element_contract(Oid type, Oid expected, bool exact)
         {
             Oid element = get_element_type(type);
             if (!OidIsValid(element))
                 ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("The borrowed value is not an array")));
-            if (request->scalar_operation == 5 && OidIsValid(request->scalar_result_oid))
+            if (OidIsValid(expected))
             {
-                Oid expected = request->scalar_result_oid;
-                Oid actual = request->limit != 0 ? element : getBaseType(element);
+                Oid actual = exact ? element : getBaseType(element);
                 bool compatible = actual == expected;
-                if (request->limit == 0)
+                if (!exact)
                 {
                     compatible = compatible ||
                         (expected == TEXTOID && (actual == VARCHAROID || actual == BPCHAROID)) ||
@@ -76,6 +75,14 @@ internal static class NativeArrayViewBridge
                 }
             }
 
+            return element;
+        }
+
+        static void
+        ankus_array_view_operation(AnkusRequest *request, AnkusResult *result, Datum datum, Oid type)
+        {
+            Oid element = ankus_array_element_contract(type,
+                request->scalar_operation == 5 ? request->scalar_result_oid : InvalidOid, request->limit != 0);
             MemoryContext owner = ankus_datum_context(request->result_context, request->result_generation);
             MemoryContext previous = MemoryContextSwitchTo(owner);
             ArrayType *array = DatumGetArrayTypeP(datum);

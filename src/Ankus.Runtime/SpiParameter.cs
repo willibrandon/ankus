@@ -80,7 +80,7 @@ public readonly struct SpiParameter
             PgDatum datum => Create(datum),
             PgAnyElement element => Create(element.Datum),
             PgAnyArray array => Create(array.Datum),
-            PgArrayView view => Create(view.Datum),
+            IPgArrayView view => Create(view.Datum),
             PgByteaView view => Create(view.Datum),
             PgTextView view => Create(view.Datum),
             PgInternal state => new(2281, state),

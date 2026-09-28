@@ -5,6 +5,20 @@ namespace Ankus;
 public static unsafe partial class NativeBackend
 {
     /// <summary>
+    /// Checks a declared array element contract without dereferencing a SQL NULL datum or allocating a view.
+    /// </summary>
+    internal static void ValidateArrayElement(PgDatum value, uint elementType, bool exactIdentity)
+        => RunArrayView(value, 12, value.Lifetime, exactIdentity ? 1 : 0, 0, static result =>
+        {
+            if (result._resultTypeOid == 0)
+            {
+                throw new InvalidOperationException("Invalid borrowed array element identity.");
+            }
+
+            return result._resultTypeOid;
+        }, elementType);
+
+    /// <summary>
     /// Borrows flat array storage, flattening into the selected owner only when required by PostgreSQL.
     /// </summary>
     internal static (PgDatum Datum, uint Element, int[] Lengths, int[] Bounds, int Count, bool HasNulls) BorrowArray(

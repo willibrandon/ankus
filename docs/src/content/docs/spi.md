@@ -96,6 +96,9 @@ call or iterator. `CopyTo(context)` gives them another memory owner.
 `PgArrayView` exposes [borrowed native cells](/arrays/#borrowed-native-arrays)
 from a callback-owned result snapshot. Dispose the view while the backend is
 active, and use `view.Datum.CopyTo(context)` to retain a separate value.
+Use `PgArrayView<T>` for checked, lazy scalar conversions with the same ownership
+rules. Whole-array SQL NULL returns a null view after element identity checks;
+present parameters preserve the view's original array type without element writers.
 
 Reading scalars does not limit command execution. For example, an
 `INSERT ... RETURNING` command completes all its writes even though only its first
@@ -147,7 +150,8 @@ Sessions and prepared statements also offer `QueryRaw`.
 independent copies; `PgAnyElement` and `PgAnyArray` wrappers share the raw result's
 lifetime and preserve its actual type.
 
-`Read<PgTextView>()`, `Read<PgByteaView>()` and `Read<PgArrayView>()` borrow the
+`Read<PgTextView>()`, `Read<PgByteaView>()`, `Read<PgArrayView>()` and
+`Read<PgArrayView<T>>()` borrow the
 raw result's lifetime. Dispose these views before their source ends. Typed
 `ExecuteScalar` and `ExecuteScalars` calls instead retain view storage under the
 enclosing callback, so the returned views survive temporary SPI result, session

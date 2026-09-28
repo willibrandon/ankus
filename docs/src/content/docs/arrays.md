@@ -321,10 +321,38 @@ expires. Disposing a cursor does not dispose its returned elements. Copy text or
 bytes explicitly before retaining them beyond that lifetime; copying a sequence
 of borrowed views only copies their references.
 
-Use the explicit constructor shown above for typed views. Direct
-`PgDatum.Read<PgArrayView<T>>()`, SPI scalar helpers returning this generic type,
-and generated function signatures using it are not yet supported. Raw
-`PgArrayView` supports those paths as described above.
+Typed views also work through raw datum reads, SPI scalar helpers, sessions,
+prepared statements and named/OID function calls:
+
+```csharp
+using PgArrayView<int?>? values = Spi.ExecuteScalar<PgArrayView<int?>?>(
+    "SELECT '[-1:1]={7,NULL,19}'::integer[]");
+SpiParameter parameter = SpiParameter.Create(values);
+```
+
+`datum.Read<PgArrayView<T>>()` shares the raw source's lifetime. SPI scalar and
+function results copy native storage into the enclosing callback before their
+temporary result owner ends. Dispose each returned view while the backend is
+active. If a later requested SPI column fails conversion, Ankus releases earlier
+provisional views. Cells remain lazy; no element reader runs until a cell is
+accessed. A mapping without a reader is rejected before scalar SQL execution.
+
+Whole-array SQL NULL returns a null view after validating its declared element
+type. This differs from the explicit constructor, which requires a present
+array. Named/OID calls check the declared element type before invoking the
+function. `DangerousCall<PgArrayView<T>>()` requires the caller to prove the
+native result is the array type belonging to `T`; a native address provides no
+catalog return declaration. Use a raw call with an explicit type and owner when
+the native result has a more specific identity, such as a named composite array.
+
+Present parameters retain the original array OID, including a domain over an
+array, without reapplying element writers. A read-only element mapping therefore
+supports transporting an existing view. A typed null parameter and prepared-plan
+type metadata select the array type belonging to `T`; they cannot infer a more
+specific identity from an absent value.
+
+Generated function signatures using `PgArrayView<T>` are not yet supported.
+Use the raw `PgArrayView` representation for those signatures.
 
 ### Contiguous native slices
 

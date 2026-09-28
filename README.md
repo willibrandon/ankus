@@ -87,7 +87,8 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
 
-For typed borrowed cells, construct `PgArrayView<T>` from a checked `PgDatum`.
+For typed borrowed cells, construct `PgArrayView<T>` from a checked `PgDatum`,
+or request it through `Read<T>()`, SPI scalar helpers or `PgFunctions`.
 It converts elements on access while preserving native type, shape and lifetime;
 see [typed borrowed arrays](docs/src/content/docs/arrays.md#typed-borrowed-cells).
 Generated signatures currently use the raw `PgArrayView` representation.

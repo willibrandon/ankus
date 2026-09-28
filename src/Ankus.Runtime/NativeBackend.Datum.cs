@@ -54,6 +54,11 @@ public static unsafe partial class NativeBackend
         }
 
         PgDatumRegistry.RejectOrdinaryResult<T>();
+        if (PgArrayViews.Find(typeof(T)) is { } view)
+        {
+            return (T)view.Read(value)!;
+        }
+
         if (PgBufferViews.Is<T>())
         {
             return PgBufferViews.Read<T>(value);

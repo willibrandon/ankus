@@ -34,6 +34,28 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+`PgArrayView<T>` now supports checked typed cells, raw datum reads, SPI scalar
+and tuple results, sessions/prepared plans/cursors, catalog/native-address
+function results and exact native parameter transport. Whole-array SQL NULL
+still validates element identity; catalog calls reject incompatible declared
+elements before execution. Provisional results are released on later failures.
+All **202 affected backend cases pass** on Linux x64/PostgreSQL **13.23, 18.6
+and 19 beta 3**. The complete PostgreSQL 18.6/Linux x64 suite passes **8,660
+tests, zero failures and six Windows-only skips, 8,666 total**, in **9m58.417s**;
+all **3,729 integration cases pass**. Release, generated API freshness and site
+checks pass. Generated typed scalar/SETOF/TABLE/aggregate signatures, broader
+native layouts, the complete platform/version matrix, intermittent GUC query
+stall and every other faithful-port inventory requirement remain required.
+
+The small three-consumer scheduling change resolves the reported Windows CI
+timeout: complete hosted CI **36471639303** passes on all three platforms,
+including Windows x64/PostgreSQL 17 in **52m55s** under the unchanged hour limit.
+Later constructor CI **36478861010** has passed Linux in **21m44s**, with Windows
+and macOS still running at the runtime-dispatch milestone's precommit check.
+Those runs are distinguished from this newer milestone's local validation.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `PgArrayView` now exposes checked contiguous scalar spans and network-order UUID
 bytes while preserving native storage, shape, domain identity and exact bits.
 All **86 affected backend cases pass without failures/skips** on Linux x64 with
@@ -3121,7 +3143,7 @@ alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. Explicitly constructed `PgArrayView<T>` adds checked typed cells; typed generic datum/SPI/function dispatch, generated typed signatures and complete platform/version evidence remain required |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices. `PgArrayView<T>` adds checked typed cells, finite raw/SPI/function result factories, NULL element-identity validation and original native parameter transport. Generated typed signatures and complete platform/version evidence remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
@@ -12411,7 +12433,7 @@ consumer-concurrency fix completes under the existing hour limit. Development
 continues, and outcomes will be checked and recorded again before pushing.
 
 The final result of CI **36471639303** for `651c978` is **success** across every
-job. Windows x64/PostgreSQL 18 completes in **52m55s**, within the unchanged
+job. Windows x64/PostgreSQL 17 completes in **52m55s**, within the unchanged
 60-minute limit. Its build takes **12m03s**; the integration report records
 **3,611 passes, zero failures and two Linux-only skips, 3,613 total**, in
 **39m01.135s**. Linux completes in **32m33s** and macOS ARM64 in **39m59s**;
@@ -12420,6 +12442,9 @@ integration report spanning **30m50.434s**. All managed modules, quality,
 runtime jobs and Docs **36471639684** pass. This closes the reported Windows
 timeout with the small three-consumer scheduling change. These are complete
 platform runs, but their timing differences are not a controlled benchmark.
+The Windows package-consumer class completes all **83 cases** in a measured
+first-start/last-end interval of **24m54s**, after **13m35s** from integration
+report start to its first consumer. This includes scheduling and fixture effects.
 
 Immediately before the reporting commit and typed-collection push, previous
 CI **36471639303** and Docs **36471639684** are complete and green. The older
@@ -12428,3 +12453,101 @@ The verified typed-collection milestone is **17affbe**; its subsequent runtime
 dispatch work remains uncommitted until its own validation completes. The
 remaining typed-array integrations and all other full-port requirements remain
 required.
+
+## Typed borrowed array runtime results and parameters
+
+Finite closed factories now select `PgArrayView<T>` for raw datum reads, SPI
+scalar/tuple results, sessions, prepared plans, raw cursor cells and catalog or
+native-address function results. Builtin scalar/range representations and
+generated enum, custom, native-layout and mapped registrations supply these
+factories without runtime generic construction or converter discovery. Raw
+reads retain the source lifetime; SPI/function results retain callback-owned
+native snapshots while cell conversion remains lazy.
+
+A catalog-only guarded operation checks whole-array SQL NULL without opening
+an array owner. Catalog function calls check the declared element contract
+before executing the callee. Ordinary base-domain/text/composite compatibility
+and exact mapped-element identity use the same native check as construction.
+Missing readers reject scalar dispatch before SQL execution; a zero native
+entry point rejects before array catalog resolution. Native-address callers
+still supply the actual representation contract themselves.
+
+Present parameters transport the original native array and its exact OID,
+including outer domains, without invoking element writers. Typed NULL parameters
+and prepared metadata resolve the array belonging to the declared element.
+Provisional SPI conversion tracks typed views and releases them if a later
+column or result cleanup fails. Generated typed scalar, SETOF, TABLE and
+aggregate signatures remain a separate required milestone.
+
+The first backend candidate passes **175 focused borrowed-array cases, zero
+failures/skips**, on PostgreSQL **18.6/Linux x64** in **3m11.111s**. Review then
+adds catalog pre-execution checks and broader capability, registration and
+cleanup assertions. Runtime validation passes **25 tests, zero failures/skips**,
+in **1.933s**. The final backend/version, complete suite and Release/API/site
+checks are in progress; these partial results do not establish full parity.
+Previous CI **36478861010** for `e91cf3d` remains in progress, with all runtime
+jobs passed and Docs **36478861214** green. CI **36471639303** remains fully
+green with its measured Windows timeout resolution recorded above.
+
+The expanded PostgreSQL 13/18 runs initially stop in fixture publication on one
+redundant cast in a new probe; removing it satisfies IDE0004. The next runs each
+pass **201 cases** and expose one client-test issue: Npgsql's untyped scalar
+reader rejects integer arrays containing NULLs. The test now requests `int?[]`
+explicitly and compares both converted and original native values. That focused
+case passes on PostgreSQL **18.6/Linux x64** in **2m18.384s**, and the entire
+**202-case** family passes on PostgreSQL **13.23/Linux x64**, zero failures/skips,
+in **2m11.955s**. PostgreSQL 19 beta, Release and full-suite validation follow.
+No analyzer or assertion is relaxed.
+
+Release passes with **zero warnings/errors** in **1m44.28s**. The requirement
+review maps the runtime behavior to these direct regression tests; it is static
+source/assertion analysis, not an executed mutation or line-coverage report.
+
+| Runtime typed-array requirement | Regression evidence |
+| --- | --- |
+| Invalid native entry point rejected before backend access | `TypedArrayNativeCallsRejectMissingAddressesBeforeBackendAccess` |
+| Reader capability checked without converter construction | `TypedArrayNativeCallsRequireElementReadersBeforeBackendAccess` |
+| Whole-array NULL identity without allocating a view | `TypedArrayFactoriesValidateNullWithoutAllocatingViews` |
+| Original parameter datum and failed-result ownership | `TypedArrayFactoriesRetainAndReleaseProvisionalOwners` |
+| Shape, cells and whole-array NULL across nine result paths | `TypedArrayResultsUseCheckedRawTransport` |
+| Nominal NULL identity and catalog rejection before side effects | `TypedArrayNullResultsValidateDeclaredElements` |
+| Generated scalar and builtin range factories | `TypedArrayFactoriesUseGeneratedScalarRegistrations` |
+| Missing reader rejection before scalar SQL execution | `TypedArrayResultsRequireReadersBeforeExecution` |
+| Original native values without an element writer | `TypedArrayParametersDoNotRequireElementWriters` |
+| Named composite elements and whole-array NULL | `TypedArrayResultsAcceptNamedCompositeElements` |
+| Later-column failure cleanup through direct/session/prepared APIs | `TypedArrayResultsCleanUpAfterLaterFailures` |
+| Borrowed source expiry versus retained scalar results | `TypedArrayResultsRejectAfterOwnerExpiration` |
+| Exact present/domain and typed-NULL parameter identities | `TypedArrayParametersPreserveOriginalIdentity` |
+
+Generated API freshness passes at **204 pages/2,484 members**. The site builds
+**250 pages**, and its final check reports zero errors, warnings or hints. The
+complete unfiltered root suite is running on PostgreSQL **18.6/Linux x64**.
+
+PostgreSQL **19 beta 3/Linux x64** passes all **202 focused cases**, zero
+failures/skips, in **3m16.663s**. All five managed test modules pass in the
+complete PostgreSQL 18.6 run; its integration fixture remains active. Generated
+typed signatures and the complete port/platform inventory remain required.
+
+CI **36478861010** for the pushed constructor milestone now passes its complete
+Linux x64/PostgreSQL 18 job in **21m44s**. Its integration artifact contains
+**3,673 passes, zero failures/skips**, spanning **16m39.302s**. Quality, all
+runtime jobs and Docs **36478861214** pass; Windows and macOS remain in progress.
+This is constructor-milestone evidence, not hosted proof of the uncommitted
+runtime-dispatch follow-up.
+
+The final complete root suite (with TRX reporting) passes **8,660 tests, zero
+failures and six Windows-only skips, 8,666 total**, on PostgreSQL **18.6/Linux
+x64**, in **9m58.417s**. All **3,729 integration cases pass** in the module's
+reported **9m56.068s**, including all **202 borrowed-array cases**. The **83
+package-consumer cases** span **7m13s** from first start to last completion;
+this observation includes fixture and scheduling effects. All validation
+fixtures have completed; no incomplete run is counted as a pass.
+
+Immediately before committing, CI **36478861010** for `e91cf3d` has passed
+Linux, quality and every runtime job; Windows and macOS remain in progress.
+Docs **36478861214** passes. Earlier CI **36471639303** and Docs **36471639684**
+remain fully green; the still older Windows timeout retains its recorded
+outcome. These results are checked and recorded again before pushing, and any
+superseded unfinished jobs remain distinct from completed platform proof.
+The generated typed-signature milestone and all other faithful-port inventory
+requirements remain open.
