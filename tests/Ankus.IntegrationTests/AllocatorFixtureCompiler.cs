@@ -22,6 +22,10 @@ internal static class AllocatorFixtureCompiler
         AS 'Ankus.AllocatorFixture', 'ankus_test_array_storage' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_argument(regprocedure, anyarray) RETURNS boolean
         AS 'Ankus.AllocatorFixture', 'ankus_test_array_argument' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.array_slice_argument(regprocedure, anyarray) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_slice_argument' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.array_slice_bitmap(regprocedure, anyarray) RETURNS boolean
+        AS 'Ankus.AllocatorFixture', 'ankus_test_array_slice_bitmap' LANGUAGE c STRICT;
         CREATE FUNCTION tests.array_owner(bigint) RETURNS text
         AS 'Ankus.AllocatorFixture', 'ankus_test_array_owner' LANGUAGE c STRICT;
         CREATE TABLE tests.relation_locks_1 (x integer);

@@ -7,7 +7,7 @@ namespace Ankus.Runtime.Tests;
 /// Verifies borrowed array validation and transport independently of native array layout.
 /// </summary>
 [TestClass]
-public sealed class PgArrayViewTests
+public sealed partial class PgArrayViewTests
 {
     /// <summary>
     /// Failed SPI conversions release provisional arrays and invalidate their escaped datums.
@@ -64,6 +64,8 @@ public sealed class PgArrayViewTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = cursor.Current);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
         Assert.ThrowsExactly<ObjectDisposedException>(() => cell.DangerousGetBits());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetSpan<int>());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetUuidBytes());
         Assert.HasCount(operations, script.Requests);
         Assert.AreEqual(3, view.Count);
         Assert.AreEqual(1009U, view.TypeOid);
@@ -179,6 +181,8 @@ public sealed class PgArrayViewTests
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => cell.DangerousGetBits());
             Assert.ThrowsExactly<InvalidOperationException>(() => view.GetEnumerator());
+            Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetSpan<int>());
+            Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetUuidBytes());
             Assert.ThrowsExactly<InvalidOperationException>(view.Dispose);
         }
 
@@ -192,6 +196,8 @@ public sealed class PgArrayViewTests
                 Assert.ThrowsExactly<InvalidOperationException>(() => cell.DangerousGetBits());
                 Assert.ThrowsExactly<InvalidOperationException>(() => _ = view[0]);
                 Assert.ThrowsExactly<InvalidOperationException>(() => view.GetEnumerator());
+                Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetSpan<int>());
+                Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetUuidBytes());
                 Assert.ThrowsExactly<InvalidOperationException>(() => iterator.MoveNext());
                 Assert.ThrowsExactly<InvalidOperationException>(() => _ = iterator.Current);
                 Assert.ThrowsExactly<InvalidOperationException>(iterator.Dispose);
@@ -285,9 +291,51 @@ public sealed class PgArrayViewTests
             private set;
         }
 
+        /// <summary>
+        /// Gets the requests for exact scalar identities and physical widths.
+        /// </summary>
+        internal List<(uint Type, long Width)> Slices { get; } = [];
+
+        /// <summary>
+        /// Gets or sets the separately owned payload used by slice responses.
+        /// </summary>
+        internal nint SliceStorage
+        {
+            get;
+            private set;
+        }
+
+        /// <summary>
+        /// Allocates an independent aligned payload with known literal bytes.
+        /// </summary>
+        internal void SetSlice(ReadOnlySpan<byte> bytes)
+        {
+            SliceStorage = (nint)NativeMemory.Alloc((nuint)bytes.Length);
+            bytes.CopyTo(new Span<byte>((void*)SliceStorage, bytes.Length));
+        }
+
+        /// <summary>
+        /// Gets or sets the independently selected response element type.
+        /// </summary>
+        internal uint SliceType
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Gets or sets a deliberately invalid slice response partition.
+        /// </summary>
+        internal int InvalidSlice
+        {
+            get;
+            init;
+        } = -1;
+
         /// <inheritdoc />
         public void Dispose()
         {
+            NativeMemory.Free((void*)SliceStorage);
             NativeBackend.Exit(_previous);
             s_current = _previousScript;
         }
@@ -321,6 +369,13 @@ public sealed class PgArrayViewTests
                         (long bits, bool isNull, bool found) = script.Cells.Dequeue();
                         result->_text = new NativeValue { Integral = bits, IsNull = isNull ? (byte)1 : (byte)0 };
                         result->_rowsAffected = found ? 1 : 0;
+                        break;
+                    case 11:
+                        script.Slices.Add((request->_scalarResultOid, request->_limit));
+                        result->_text.Integral = script.InvalidSlice == 0 ? 0 :
+                            (long)script.SliceStorage + (script.InvalidSlice == 1 ? 1 : 0);
+                        result->_rowCount = script.InvalidSlice == 2 ? 2 : 3;
+                        result->_resultTypeOid = script.InvalidSlice == 3 ? 700U : script.SliceType;
                         break;
                     default:
                         throw new InvalidOperationException("Unexpected array operation.");

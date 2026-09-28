@@ -34,6 +34,18 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+`PgArrayView` now exposes checked contiguous scalar spans and network-order UUID
+bytes while preserving native storage, shape, domain identity and exact bits.
+All **86 affected backend cases pass without failures/skips** on Linux x64 with
+PostgreSQL **13.23, 18.6 and 19 beta 3**. The final complete PostgreSQL 18.6/Linux
+x64 suite passes **8,536 tests, zero failures and six Windows-only skips, 8,542
+total**, in **12m02.084s**; all **3,613 integration cases pass**. Release, API
+freshness and site checks pass. Typed borrowed collections, broader native
+layouts, the complete platform/version matrix, intermittent GUC query stall and
+all other faithful-port requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `PgTextView` and `PgByteaView` now provide checked native text and binary reads,
 exact SQL identity, strict UTF-8 conversion and owned detoast storage when needed.
 Scalar callbacks borrow input bytes; retained set and aggregate inputs keep
@@ -3109,7 +3121,7 @@ alongside the source-level macro inventory.
 |---|---|---|
 | `datum/{from,into,unbox,borrow}.rs`, `nullable.rs`, `callconv.rs` | Conversion contracts, typed OIDs, SQL NULL distinct from zero, owned/borrowed lifetimes and argument/return ABI | Partial: built-in scalar/xid/text/bytea/UUID/JSON transport |
 | `datum/{bytea_type,varlena}.rs`, `varlena.rs`, `toast.rs` | Bytes/text, C strings, packed/compressed/external TOAST, encoding, alignment, custom varlena layouts | Partial: text/bytea including TOAST and server encoding; checked PgTextView/PgByteaView native borrowing with original SQL identity, strict UTF-8, callback/source lifetimes and retained snapshots; packed custom native payloads with checked PgVarlena borrowing, copy-on-write, cloning and explicit transfer. Broader layouts and complete platform/version evidence remain required |
-| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors and retained-input snapshots; typed borrowed arrays/slices and complete platform/version evidence remain required |
+| `array.rs`, `array/`, `datum/array.rs` | Arrays, dimensions/lower bounds, null elements, owned and borrowed iteration, variadic arrays | Owned arrays and vectors implemented for supported scalar/enum/composite/custom-codec types, including xid, with shape/subscripts/NULL handling, explicit composite identity and C# params variadics. `PgArrayView` adds checked raw cells, direct scalar borrowing, independent cursors, retained-input snapshots and contiguous scalar/UUID slices; typed borrowed collections and complete platform/version evidence remain required |
 | `datum/{anyarray,anyelement,internal}.rs` | Polymorphic datums, resolved element OIDs, internal/pointer-bearing values | `PgAnyElement` and `PgAnyArray` implemented for scalar/SETOF/TABLE/aggregate signatures and query/call results with checked native ownership. General internal values remain pending. |
 | `datum/{numeric,numeric_support/}` | Arbitrary precision and constrained numeric types, arithmetic, rounding, conversion, exceptional values | Implemented value/constraint surface: full-range `PgNumeric`, exact decimal adapters, arithmetic, rescaling, exceptional values, owned SPI conversion, JSON, declarative boundary constraints, primitive casts, generic integer conversion, mixed operators and summation. Cross-version/platform evidence remains pending |
 | `datetime.rs`, `datetime/` | Date, time, timestamp, timestamp with timezone, time with timezone, interval; infinities, ranges, arithmetic and time zones | Partial: full-range types, exact conversions, function/SPI transport, native parsing/formatting/arithmetic/parts/truncation/zones/clocks, exact numeric extraction, comparisons, operators, component/unit factories, precision modifiers, explicit-zone ISO and JSON; detached field/epoch/raw factories, native zone-offset lookup, interval-zone overloads and owned timeofday text. Full raw bindings and the PostgreSQL/platform matrix remain required |
@@ -12132,3 +12144,121 @@ full-platform suite claimed from it; the older 36446187352 Windows qualifier
 failure was fixed in `f6c40e2`, and its replacement Windows build passed. Previous
 run outcomes are checked and recorded again before pushing. New buffer platform
 evidence must come from the new hosted run.
+
+## Contiguous native array slices
+
+`PgArrayView.DangerousGetSpan<T>()` now has a finite native-layout contract for
+`sbyte`, `short`, `int`, `long`, `float` and `double`. A guarded selected-header
+operation checks the PostgreSQL base element OID, physical width, passing and
+alignment contract, actual NULL elements and payload bounds before exposing
+the contiguous row-major storage. Original array and element domain identities
+remain intact without rechecking constraints. Empty arrays still require the
+matching type. UUID arrays expose network-order bytes through
+`DangerousGetUuidBytes()`; `Guid` reinterpretation is rejected explicitly.
+
+The span acquisition checks the complete source/callback/thread/provider
+lifetime. Returned spans are dangerous aliases: callers must finish using them
+before another backend call, owner expiry, callback exit or thread change.
+Explicit managed copies retain an independent lifetime. The README, arrays guide
+and source XML comments describe this contract.
+
+The focused runtime scope passes **17 cases, zero failures/skips**, in 1.984s.
+It checks exact scalar identities, native addresses, floating-point payload bits,
+UUID byte order, unsupported unmanaged types, malformed response cleanup and
+source/backend expiry. An initial UUID fixture contained 49 bytes instead of 48;
+the corrected fixture passes without a production change. Initial backend
+publication stopped on IDE0008/IDE0305 findings in new test helpers; those helpers
+were corrected without suppression. The documentation check has zero diagnostics.
+Real-backend and complete milestone gates remain in progress at this point.
+
+The corrected PostgreSQL **18.6/Linux x64** scope passes all **86 borrowed-array
+cases, zero failures/skips**, in **2m10.975s** (integration 2m09.945s). These
+include independent original-payload address witnesses for every supported
+scalar layout and UUID bytes, all-present NULL bitmaps, exact signed-zero and
+infinity bits, empty/singleton/multidimensional arrays, domain identities after
+new constraints, NULL/type errors with same-session recovery, four owner-ending
+operations and flat/short/compressed/external/expanded storage cleanup.
+The test-only bitmap constructor also now explicitly checks the macro's nullable
+result before writing it, satisfying GCC's nonnull diagnostic without weakening
+native compiler flags. No backend result is claimed from the earlier fixture
+compilation failures.
+
+The same **86 cases pass without failures/skips on PostgreSQL 13.23/Linux x64**
+in **3m05.284s** (integration 3m03.615s), using an isolated checkout. The main
+Release build succeeds with **zero warnings/errors** in **1m38.50s**. PostgreSQL
+19 beta, generated API/site and full-suite checks follow.
+
+Generated API generation and freshness pass at **203 pages/2,471 members**; the
+documentation site builds **249 pages** and its final check has zero diagnostics.
+The complete root suite has passed all five managed modules and is still running
+its PostgreSQL integration module. The PostgreSQL 19 beta focused run also remains
+in progress; neither unfinished result is counted as completed evidence.
+
+The PostgreSQL 19 beta attempt subsequently stopped during native test-fixture
+compilation: its headers removed the older `bits8` alias. No test executed in
+that attempt. The isolated bitmap fixture now uses the equivalent `unsigned
+char` pointee and its focused run is retrying. The main complete suite retains
+its existing PostgreSQL 18 fixture until that live run ends; the same source
+correction and final candidate validation remain pending there.
+
+The corrected PostgreSQL **19 beta 3/Linux x64** run passes all **86 cases,
+zero failures/skips**, in **2m13.986s**. This confirms native slices against the
+oldest, current and beta server headers; it does not establish the complete
+PostgreSQL/platform matrix. The main fixture correction and final full-suite
+candidate remain pending until the existing integration run ends.
+
+Predecessor CI 36460964301 has now completed Linux successfully: all **3,569
+integration cases pass, zero failures/skips**, in **28m08.547s**. Its full job
+takes **35m27s**. Quality/runtime/docs pass, while macOS and Windows remain
+in progress. The saved Linux timing report again identifies package/scaffold
+publication as the longest cases, roughly 2–4 minutes each; the passing run is
+still above the desired feedback budget. No timing improvement is claimed here.
+
+That preceding run also completes macOS ARM64 successfully: **3,567 integration
+passes, zero failures and two existing Linux-only allocation-measurement skips**,
+in **36m21.113s**, with a **46m50s** job duration. Windows remains in progress.
+These hosted results validate the preceding buffer commit; new slice platform
+evidence must come from the next hosted run.
+
+The first complete PostgreSQL **18.6/Linux x64** suite passes **8,536 tests,
+zero failures and six Windows-only skips, 8,542 total**, in **12m26.203s**.
+All **3,613 integration cases pass** in **12m24.025s**. After that fixture exits,
+the portable bitmap byte type is carried into the main checkout. The complete
+suite is running again on that final source state; the earlier run remains
+explicit baseline evidence. The corrected fixture also passes strict native
+compiler checks against PostgreSQL 13.23, 18.6 and 19 beta 3 headers.
+
+| Requirement | Executed evidence |
+| --- | --- |
+| Exact fixed scalar layouts and bit patterns | `NativeArraySlicesPreserveScalarValuesAndIdentity`, `NativeArraySlicesPreserveFloatingPointBits` and `BorrowedArraySlicesPreserveNativeValues` check all six scalar mappings, literal type identities, integer limits, NaN payload bits, signed zero, infinity, empty/singleton inputs and row-major dimensions/lower bounds. |
+| Original payload address and NULL bitmap semantics | `BorrowedArraySlicesShareNativePayload` compares spans with C observations made before generated conversion, including an all-present NULL bitmap; runtime tests independently compare allocated addresses. |
+| UUID network order | `NativeUuidSlicesRetainNetworkByteOrder` checks literal bytes and an asymmetric `Guid`, original storage and surviving copies; backend value/address rows confirm the selected-header UUID layout. |
+| Exact rejection and backend recovery | `NativeArraySlicesRejectUnsupportedManagedTypes` rejects seven unsupported unmanaged representations before requesting a native slice; `BorrowedArraySlicesRejectAndRecover` checks NULL cells, same-width wrong types, empty wrong types, exact diagnostics, successful subsequent queries and unchanged backend identity. |
+| Metadata validation and transport cleanup | `NativeArraySlicesRejectMalformedMetadataAndReleaseResponses` rejects zero/misaligned addresses and mismatched count/type while releasing responses and retaining the view owner. |
+| Source, thread and provider lifetimes | `BorrowedArrayRejectsSourceOnlyGenerationChanges` and `BorrowedArrayRejectsForeignBackendAccess` cover both span entry points; `BorrowedArraySliceOwnersExpireAliasesAndPreserveCopies` checks four owner endings, original/nested aliases, independent values and zero remaining contexts. |
+| Domain identity and native storage ownership | `BorrowedArraySlicesRetainDomainIdentity` checks actual domain OIDs and old values after new constraints; `BorrowedArraySlicesFlattenAndReleaseNativeStorage` checks independently observed flat/short/compressed/external/expanded storage, detoast ownership, exact values and cleanup. |
+
+Assertion and behavioral-gap review uses actual values, diagnostics, native
+addresses and owner transitions. It does not claim an executed mutation score
+or a coverage percentage. Typed borrowed collections and all other inventoried
+faithful-port requirements remain required.
+
+CI 36460964301 for the preceding buffer milestone has passed quality and all
+three runtime jobs; its full Linux, macOS and Windows suites remain in progress.
+Documentation 36460964424 passes. Typed borrowed collections, the complete
+PostgreSQL/platform matrix and every other inventoried full-port requirement
+remain required.
+
+Final plain `dotnet test` with the portable fixture on PostgreSQL **18.6/Linux
+x64** passes **8,536 tests, zero failures and six Windows-only skips, 8,542
+total**, in **12m02.084s**. All **3,613 integration cases pass** in
+**12m00.351s**; all five managed projects pass. Release/API/site checks cover the
+same production sources, with the final fixture correction validated by the
+complete suite and strict compiler checks against all three header sets.
+
+Immediately before committing, CI **36460964301** for `f4013be` has passed
+Linux, macOS, quality and every runtime job; Windows remains in progress.
+Docs **36460964424** passes. Older superseded CI runs are cancelled and their
+recorded completed platform results remain distinguished from unfinished jobs.
+Previous outcomes are checked and recorded again before pushing. No analyzer
+mode, warning, assertion, test scope, concurrency limit or CI timeout is relaxed.

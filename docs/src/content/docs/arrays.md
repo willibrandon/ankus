@@ -280,3 +280,43 @@ Use `view.Datum.CopyTo(owner)` or `cell.CopyTo(owner)` before the source expires
 to retain an independent value. A nullable `PgArrayView?` parameter accepts
 whole-array SQL NULL; `Read<PgArrayView?>()` returns null for it. The explicit
 constructor requires a present array. Empty arrays have rank zero and no cells.
+
+### Contiguous native slices
+
+`DangerousGetSpan<T>()` exposes the original contiguous payload for `sbyte`,
+`short`, `int`, `long`, `float`, and `double`. PostgreSQL's element base type must
+match the requested type, even for an empty array. A same-width type is not
+interchangeable: an `integer[]` cannot be borrowed as `float` values. Arrays
+containing any SQL NULL element are rejected; use the view's cells or iterator
+when you need to handle NULLs.
+
+```csharp
+[PgFunction]
+public static long SumNativeIntegers(PgArrayView values)
+{
+    ReadOnlySpan<int> cells = values.DangerousGetSpan<int>();
+    long total = 0;
+    foreach (int cell in cells)
+    {
+        total += cell;
+    }
+
+    return total;
+}
+```
+
+Multidimensional arrays expose one row-major span; `Lengths` and `LowerBounds`
+retain their original shape. Domain arrays and domain elements retain their
+identities without rechecking existing constraints. Packed, compressed, external,
+or expanded arrays use the view's private flattening storage when needed.
+
+UUID arrays expose `DangerousGetUuidBytes()`: sixteen network-order bytes per
+element. Read a segment with `new Guid(bytes.Slice(index * 16, 16), bigEndian:
+true)`. `DangerousGetSpan<Guid>()` is rejected because a .NET `Guid` has a
+different native memory layout.
+
+Both methods validate ownership when acquiring the span. The span itself cannot
+check later lifetime changes. Finish reading it before making another backend
+call, disposing the view, resetting or deleting its source owner, leaving its
+callback, or switching threads. Use `ToArray()` while the borrow is valid to
+retain an independent managed copy.

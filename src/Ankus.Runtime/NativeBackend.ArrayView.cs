@@ -44,6 +44,23 @@ public static unsafe partial class NativeBackend
             result => result._rowsAffected == 0 ? null : ReadBorrowedCell(result, array.Lifetime));
 
     /// <summary>
+    /// Validates a fixed native element layout and borrows its contiguous non-NULL payload.
+    /// </summary>
+    internal static nint BorrowArraySlice(PgDatum array, PgBuiltInOid type, int width, int count)
+        => RunArrayView(array, 11, array.Lifetime, width, 0, result =>
+        {
+            nint data = unchecked((nint)result._text.Integral);
+            int alignment = type == PgBuiltInOid.UuidOid ? 1 : width;
+            if (result._rowCount != count || result._resultTypeOid != (uint)type || data == 0 ||
+                unchecked((nuint)data) % (nuint)alignment != 0)
+            {
+                throw new InvalidOperationException("Invalid borrowed array slice metadata.");
+            }
+
+            return data;
+        }, (uint)type);
+
+    /// <summary>
     /// Decodes exact raw bits and NULL state without assigning the cell through a converter.
     /// </summary>
     private static PgDatum ReadBorrowedCell(NativeSpiResult result, PgDatumLifetime lifetime)
@@ -53,7 +70,7 @@ public static unsafe partial class NativeBackend
     /// Executes a guarded array operation and always releases the separately owned response buffers.
     /// </summary>
     private static T RunArrayView<T>(PgDatum array, int operation, PgDatumLifetime destination, int index, nint iterator,
-        Func<NativeSpiResult, T> convert)
+        Func<NativeSpiResult, T> convert, uint elementType = 0)
     {
         CheckAccess();
         destination.Validate();
@@ -65,6 +82,7 @@ public static unsafe partial class NativeBackend
             _resultGeneration = destination.Generation,
             _limit = index,
             _arrayIterator = iterator,
+            _scalarResultOid = elementType,
         };
         NativeSpiResult result = default;
         try

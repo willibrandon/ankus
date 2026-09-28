@@ -82,7 +82,7 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `[PgDatumType]` classes, structs, and enums | An existing SQL scalar representation with an explicit datum reader and/or writer |
 | `PgHeapTuple` | `record`, or a named type using `[PgCompositeType]` |
 | `PgAnyElement`, `PgAnyArray` | `anyelement`, `anyarray` |
-| `PgArrayView` | `anyarray` with checked borrowing of native cells |
+| `PgArrayView` | `anyarray` with checked native cells and scalar spans |
 | `PgDatum` with `[PgSqlType]` | The named PostgreSQL type |
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |

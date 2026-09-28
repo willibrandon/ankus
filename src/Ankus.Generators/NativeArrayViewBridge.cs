@@ -10,6 +10,48 @@ internal static class NativeArrayViewBridge
     /// </summary>
     internal const string Source = """
         static void
+        ankus_array_slice(AnkusRequest *request, AnkusResult *result, ArrayType *array)
+        {
+            Oid expected = request->scalar_result_oid;
+            int width;
+            switch (expected)
+            {
+                case CHAROID: width = 1; break;
+                case INT2OID: width = 2; break;
+                case INT4OID: case FLOAT4OID: width = 4; break;
+                case INT8OID: case FLOAT8OID: width = 8; break;
+                case UUIDOID: width = 16; break;
+                default:
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Unsupported native array slice type")));
+                    return;
+            }
+
+            Oid element = ARR_ELEMTYPE(array);
+            if (getBaseType(element) != expected)
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Array element type does not match the requested native slice")));
+            int16 length;
+            bool by_value;
+            char alignment;
+            get_typlenbyvalalign(element, &length, &by_value, &alignment);
+            if (length != width || request->limit != width || by_value != (expected != UUIDOID))
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Array element layout does not match the requested native slice")));
+            if (array_contains_nulls(array))
+                ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), errmsg("A native array slice cannot contain SQL NULL elements")));
+            int count = ArrayGetNItems(ARR_NDIM(array), ARR_DIMS(array));
+            Size offset = ARR_DATA_OFFSET(array);
+            Size size = VARSIZE(array);
+            if (offset > size || (Size) count > (size - offset) / width)
+                ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Array payload is too short for its native slice")));
+            char *data = ARR_DATA_PTR(array);
+            if (att_align_nominal((uintptr_t) data, alignment) != (uintptr_t) data ||
+                (expected != UUIDOID && (uintptr_t) data % width != 0))
+                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Array payload is not aligned for its native slice")));
+            result->text.integral = (int64) (uintptr_t) data;
+            result->row_count = count;
+            result->result_type_oid = expected;
+        }
+
+        static void
         ankus_array_view_operation(AnkusRequest *request, AnkusResult *result, Datum datum, Oid type)
         {
             Oid element = get_element_type(type);
@@ -34,6 +76,10 @@ internal static class NativeArrayViewBridge
                 result->text.integral = (int64) (uintptr_t) array;
                 result->row_count = ArrayGetNItems(rank, ARR_DIMS(array));
                 result->processed = array_contains_nulls(array);
+            }
+            else if (request->scalar_operation == 11)
+            {
+                ankus_array_slice(request, result, array);
             }
             else if (request->scalar_operation == 7)
             {

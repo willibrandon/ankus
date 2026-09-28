@@ -168,6 +168,61 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 
 ## Methods
 
+<a id="member-42cb84a72dc1a207"></a>
+
+### DangerousGetSpan&lt;T&gt;()
+
+Borrows a contiguous, read-only native span from an array without SQL NULL elements.
+
+```csharp
+public ReadOnlySpan<T> DangerousGetSpan<T>() where T : unmanaged
+```
+
+Type parameters:
+
+`T`
+
+Exactly sbyte, short, int, long, float or double.
+
+Returns: [ReadOnlySpan&lt;T&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+The original row-major payload, independent of native dimension lower bounds.
+
+Exceptions:
+
+- [NotSupportedException](https://learn.microsoft.com/dotnet/api/system.notsupportedexception): T has no supported native scalar layout.
+- [PgException](/api/ankus.pgexception/): The element type is incompatible or a cell is SQL NULL.
+
+The element's PostgreSQL base type must match T, including for empty arrays.
+Domains retain their original identity and are not reassigned through constraints.
+Lifetime checks occur when acquiring the span. Do not use it after disposing the view,
+resetting or deleting its source, leaving its callback, switching threads or making
+another backend call. Copy the span to managed storage first when longer retention is needed.
+UUID arrays require DangerousGetUuidBytes because Guid has a different memory layout.
+
+<a id="member-d480e179b0d30e25"></a>
+
+### DangerousGetUuidBytes()
+
+Borrows the contiguous network-order bytes of an array without SQL NULL UUID elements.
+
+```csharp
+public ReadOnlySpan<byte> DangerousGetUuidBytes()
+```
+
+Returns: [ReadOnlySpan&lt;byte&gt;](https://learn.microsoft.com/dotnet/api/system.readonlyspan-1)
+
+Exactly sixteen bytes per UUID in row-major order.
+
+Exceptions:
+
+- [PgException](/api/ankus.pgexception/): The elements are not UUIDs or a cell is SQL NULL.
+
+Each sixteen-byte segment can be read with new Guid(segment, bigEndian: true).
+Do not reinterpret this storage as Guid values. Lifetime checks occur when acquiring
+the span; stop using it before any backend call, owner expiry, callback exit or thread change.
+Copy the bytes to managed storage when they must outlive this native borrow.
+
 <a id="member-eaf57bdd554bb61b"></a>
 
 ### Dispose()
