@@ -9,7 +9,8 @@ namespace Ankus.IntegrationTests;
 /// </summary>
 /// <param name="context">The current test context.</param>
 [TestClass]
-public sealed class CustomScanTests(TestContext context)
+[DoNotParallelize] // Real workers share a bounded pool; namespace DDL also invalidates cached plans.
+public sealed partial class CustomScanTests(TestContext context)
 {
     /// <summary>
     /// Native child rows, SQL NULL, text and projected expressions retain their exact values through a real custom plan.
@@ -154,7 +155,6 @@ public sealed class CustomScanTests(TestContext context)
     /// Prepared native plans retain their registered method tables across transactions and disabling future tracing.
     /// </summary>
     [TestMethod]
-    [DoNotParallelize] // Namespace DDL in other tests invalidates every backend's prepared plans.
     public async Task TraceScanPreparedPlansRetainMethods()
     {
         CancellationToken token = context.CancellationToken;
@@ -240,8 +240,11 @@ public sealed class CustomScanTests(TestContext context)
     /// <summary>
     /// Parallel workers restore the registered methods and execute actual partial child scans without losing or duplicating rows.
     /// </summary>
+    /// <param name="leaderParticipates">Whether the leader may also execute the shared child scan.</param>
     [TestMethod]
-    public async Task TraceScanRunsInParallelWorkers()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task TraceScanRunsInParallelWorkers(bool leaderParticipates)
     {
         CancellationToken token = context.CancellationToken;
         await using NpgsqlConnection connection = await OpenAsync(token);
@@ -255,17 +258,24 @@ public sealed class CustomScanTests(TestContext context)
             SET LOCAL min_parallel_table_scan_size = 0;
             SET LOCAL parallel_setup_cost = 0;
             SET LOCAL parallel_tuple_cost = 0;
-            SET LOCAL parallel_leader_participation = off;
+            SET LOCAL parallel_leader_participation = {(leaderParticipates ? "on" : "off")};
             """, connection, transaction);
         await command.ExecuteNonQueryAsync(token);
         string query = $"SELECT datatype.custom_scan_process(value), array_agg(value) FROM {table} GROUP BY 1";
         using (JsonDocument plan = await ExplainAsync(connection, query, true, token))
         {
             JsonElement root = plan.RootElement[0].GetProperty("Plan");
-            Assert.IsGreaterThan(0, WorkersLaunched(root));
+            int launched = WorkersLaunched(root);
+            Assert.IsGreaterThan(0, launched);
             JsonElement scan = Assert.ContainsSingle(TraceNodes(root));
+            Assert.IsTrue(scan.GetProperty("Parallel Aware").GetBoolean());
             Assert.AreEqual("Seq Scan", scan.GetProperty("Plans")[0].GetProperty("Node Type").GetString());
             Assert.IsTrue(scan.GetProperty("Plans")[0].GetProperty("Parallel Aware").GetBoolean());
+            Assert.AreEqual(30000L, scan.GetProperty("Shared Trace Rows").GetInt64());
+            Assert.AreEqual(30000L + launched + (leaderParticipates ? 1 : 0), scan.GetProperty("Shared Trace Calls").GetInt64());
+            Assert.AreEqual(launched, scan.GetProperty("Trace Worker Attachments").GetInt64());
+            Assert.AreEqual(launched, scan.GetProperty("Trace Worker Shutdowns").GetInt64());
+            Assert.AreEqual(1L, scan.GetProperty("Trace DSM Generation").GetInt64());
         }
 
         command.CommandText = query;
@@ -276,7 +286,11 @@ public sealed class CustomScanTests(TestContext context)
             while (await reader.ReadAsync(token))
             {
                 int worker = reader.GetInt32(0);
-                Assert.AreNotEqual(connection.ProcessID, worker);
+                if (!leaderParticipates)
+                {
+                    Assert.AreNotEqual(connection.ProcessID, worker);
+                }
+
                 Assert.IsTrue(workers.Add(worker));
                 int[] values = reader.GetFieldValue<int[]>(1);
                 Assert.IsNotEmpty(values);

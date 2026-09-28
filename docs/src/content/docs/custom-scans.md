@@ -95,14 +95,55 @@ that can raise a PostgreSQL error. Native errors become `PgException` while
 managed frames unwind; PostgreSQL receives ERROR only after the managed frames
 have returned. A raw unmanaged call must not let longjmp cross managed code.
 
-Advertise only capabilities the provider implements. Backward scanning,
-mark/restore, reparameterization and dynamic shared-memory callbacks have
-different contracts. The trace sample delegates sequential reads and direction
-changes; it does not implement mark/restore or its own shared-memory protocol.
-Its counters are local to each backend or worker, so worker observations are not
-automatically combined with leader counters. A provider with shared work must
-implement the matching parallel lifecycle and use process-independent shared
-data.
+Advertise only capabilities the provider implements. The trace sample delegates
+sequential reads and direction changes and coordinates parallel observations.
+It does not implement mark/restore or child reparameterization.
+
+## Parallel shared state
+
+A parallel-aware custom scan can request dynamic shared memory (DSM) through
+`CustomExecMethods`. PostgreSQL owns the segment and supplies a coordinate
+address to the leader and every worker. The address may differ between
+processes. Store only process-independent values in shared memory, never managed
+references or pointers into another process's address space.
+
+The trace sample implements these callbacks:
+
+| Callback | Responsibility |
+|---|---|
+| `EstimateDSMCustomScan` | Reserve the selected-header size of the provider's native atomic counters |
+| `InitializeDSMCustomScan` | Initialize counters before workers attach |
+| `InitializeWorkerCustomScan` | Borrow the local coordinate address and record the worker attachment |
+| `ReInitializeDSMCustomScan` | Reset shared observations for a new execution after previous workers finish |
+| `ShutdownCustomScan` | Copy observations into private state and clear the borrowed address |
+
+Set `parallel_aware` only when the provider implements the corresponding
+protocol. PostgreSQL still initializes and coordinates the sample's real
+parallel sequential child. The provider counts rows and executor calls with
+PostgreSQL's `pg_atomic_uint64` operations; worker attachments and shutdowns
+use the same native atomics.
+
+`ReInitializeDSMCustomScan` resets shared state; `ReScanCustomScan` resets the
+local scan and propagates parameters to its child. Keep the two responsibilities
+independent rather than relying on their relative invocation order. PostgreSQL
+can also execute a parallel plan entirely in the leader when workers are
+unavailable.
+
+EXPLAIN adds `Shared Trace Rows`, `Shared Trace Calls`, `Trace Worker Attachments`,
+`Trace Worker Shutdowns` and `Trace DSM Generation` for parallel-aware trace
+nodes. A complete execution reports combined leader/worker observations.
+Generation starts at one and increments when the same parallel plan is
+reinitialized. A node that never starts, such as beneath `LIMIT 0`, reports zeros.
+The existing `Trace Rows`, `Trace Calls`, `Trace Rescans` and
+`trace_scan_counts()` remain local to the reporting backend.
+
+Shared EXPLAIN values are copied at shutdown. After early termination, workers
+may still be finishing, so each counter is an independent snapshot, not a final
+worker total or a transactionally consistent group. Do not wait for workers
+inside a child shutdown callback: its parent Gather may still need to detach
+full tuple queues. On an error, ordinary shutdown and end callbacks are not
+guaranteed; context cleanup must not dereference a borrowed DSM address after
+PostgreSQL has detached it.
 
 The complete PostgreSQL version and platform validation matrix remains in
 progress. Build against the server headers that will load the extension.

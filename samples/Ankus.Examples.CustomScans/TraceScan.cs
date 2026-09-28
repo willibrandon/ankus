@@ -114,6 +114,11 @@ public static unsafe partial class TraceScan
                         EndCustomScan = Finisher,
                         ReScanCustomScan = Rescanner,
                         ExplainCustomScan = Explainer,
+                        EstimateDSMCustomScan = SharedEstimator,
+                        InitializeDSMCustomScan = SharedInitializer,
+                        ReInitializeDSMCustomScan = SharedReinitializer,
+                        InitializeWorkerCustomScan = WorkerInitializer,
+                        ShutdownCustomScan = ShutdownHandler,
                     });
                     nint scans = Allocate(new CustomScanMethods { CustomName = name, CreateCustomScanState = Factory });
                     NativeMethods.RegisterCustomScanMethods(scans);
@@ -191,7 +196,6 @@ public static unsafe partial class TraceScan
             path->path = *original;
             path->path.type = NodeTag.T_CustomPath;
             path->path.pathtype = NodeTag.T_CustomScan;
-            path->path.parallel_aware = false;
             path->flags = original->parallel_aware ? 0U : 1U; // CUSTOMPATH_SUPPORT_BACKWARD_SCAN for ordinary sequential scans.
             path->custom_paths = NativeMethods.lappend(0, child);
             path->methods = s_pathMethods;
@@ -255,6 +259,12 @@ public static unsafe partial class TraceScan
         state->_calls++;
         try
         {
+            if (state->_shared != 0)
+            {
+                var shared = (SharedState*)state->_shared;
+                _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_calls), 1);
+            }
+
             return NativeMethods.ExecScan(address, Reader, Rechecker);
         }
         finally
@@ -277,6 +287,12 @@ public static unsafe partial class TraceScan
         }
 
         state->_rows++;
+        if (state->_shared != 0)
+        {
+            var shared = (SharedState*)state->_shared;
+            _ = NativeMethods.pg_atomic_fetch_add_u64((nint)(&shared->_rows), 1);
+        }
+
         return NativeMethods.ExecCopySlot(destination, slot);
     }
 
@@ -309,6 +325,7 @@ public static unsafe partial class TraceScan
     {
         s_counts[4]++;
         var state = (State*)address;
+        Shutdown(address);
         NativeMethods.ExecEndNode(NativeMethods.list_nth(state->_scan.custom_ps, 0));
     }
 
@@ -322,6 +339,14 @@ public static unsafe partial class TraceScan
         Property("Trace Rows\0"u8, state->_rows, output);
         Property("Trace Calls\0"u8, state->_calls, output);
         Property("Trace Rescans\0"u8, state->_rescans, output);
+        if (((CustomScan*)state->_scan.ss.ps.plan)->scan.plan.parallel_aware)
+        {
+            Property("Shared Trace Rows\0"u8, checked((long)state->_snapshot._rows), output);
+            Property("Shared Trace Calls\0"u8, checked((long)state->_snapshot._calls), output);
+            Property("Trace Worker Attachments\0"u8, checked((long)state->_snapshot._workers), output);
+            Property("Trace Worker Shutdowns\0"u8, checked((long)state->_snapshot._shutdowns), output);
+            Property("Trace DSM Generation\0"u8, checked((long)state->_snapshot._generation), output);
+        }
     }
 
     /// <summary>
@@ -370,5 +395,20 @@ public static unsafe partial class TraceScan
         /// Counts explicit rescans of this node.
         /// </summary>
         internal long _rescans;
+
+        /// <summary>
+        /// Borrows the current parallel segment only until provider shutdown.
+        /// </summary>
+        internal nint _shared;
+
+        /// <summary>
+        /// Distinguishes a worker attachment from the leader's initialized state.
+        /// </summary>
+        internal bool _worker;
+
+        /// <summary>
+        /// Retains owned observations after the parallel segment is detached.
+        /// </summary>
+        internal ParallelSnapshot _snapshot;
     }
 }

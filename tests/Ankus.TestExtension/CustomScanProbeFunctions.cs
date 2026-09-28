@@ -10,7 +10,7 @@ public static class CustomScanProbeFunctions
     /// </summary>
     /// <param name="value">The actual scanned value.</param>
     /// <returns>True for every value except the controlled failure sentinel.</returns>
-    [PgFunction]
+    [PgFunction(ParallelSafety = PgParallelSafety.Safe)]
     public static bool CustomScanAccept(int value)
     {
         if (value == 2)

@@ -22,6 +22,16 @@ creation, begin, execution, end, rescan, managed unwind and native query-context
 cleanup, in that order. Returned arrays are snapshots. Counters in parallel
 workers belong to those workers; they are not summed into the leader's counters.
 
+Parallel-aware trace nodes additionally report shared rows, executor calls,
+worker attachments, worker shutdowns and the DSM execution generation in
+EXPLAIN. `TraceScan.Parallel.cs` implements PostgreSQL's estimate, initialize,
+reinitialize, worker-attach and shutdown callbacks with selected-header native
+atomics. PostgreSQL owns both the segment and the child scan's work distribution.
+Shutdown copies the shared observations before releasing the borrowed address.
+For an early LIMIT, these are snapshots while workers may still be finishing,
+not final totals. A rescan resets shared counters and increments the generation;
+ordinary per-backend lifecycle counters retain their original meaning.
+
 `TraceScan.cs` demonstrates field-named `[PgNativeCallback]` declarations,
 backend-lived method tables, previous-hook chaining, copyable plan state, a
 native state prefix, scan projection, rescan, EXPLAIN and context cleanup.
