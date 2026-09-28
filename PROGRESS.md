@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Numeric constraint and conversion checks now verify exact selected-version
+rejection diagnostics and same-backend recovery. All **67 affected cases pass
+with zero failures/skips** on Linux x64/PostgreSQL 13.23, 14.20 and 15.19.
+Final plain PostgreSQL 18.6 testing passes **8,271 tests, zero failures and six
+Windows-only skips, 8,277 total**, in 12m42.534s. Release, API freshness and site
+checks pass. The refreshed complete PostgreSQL 13.23 diagnostic records **8,209
+passes, 62 failures and six Windows-only skips**. Remaining temporal, numeric,
+array, range, JSON and event-trigger contracts, the intermittent GUC query stall,
+the complete PostgreSQL 13–19/platform matrix, and other port requirements remain open.
+
 Allocator and list checks now verify selected-version feature rejection,
 transaction-owned fixture cleanup, and recovery without skipping unavailable
 feature cases. All **143 affected cases pass with zero failures/skips** on Linux
@@ -11219,3 +11229,48 @@ progress without a reported failure. Docs run `36404647733` passes. Predecessor
 jobs passed, and all three platform jobs were cancelled. Cancelled suites do not
 supply completed platform evidence. Previous outcomes are checked and recorded
 again immediately before pushing.
+
+## Native numeric rejection contracts
+
+Numeric constraint and primitive-conversion cases now verify the selected
+server's actual feature boundaries. PostgreSQL 13 rejects numeric infinity text
+with `22P02` and floating-point infinity conversion with `0A000`. PostgreSQL
+13/14 reject negative scales and scales above precision with `22023`. Separate
+native SQL and generated function calls must produce the same SQLSTATE,
+message, detail, and hint; both errors are rolled back, followed by an exact
+`1.24` constrained result and the same backend PID. Ordinary overflow cases use
+the same independent native comparison with `22003` on every version.
+
+Successful supported-version cases retain their exact numeric binary output,
+floating-point bits, signed zero, subnormal, NaN, generic-integer, and nullable
+assertions. No rows are removed or skipped. The public numeric guide documents
+the version-dependent rejection diagnostics.
+
+All **67 numeric contract cases pass with zero failures/skips** on Linux
+x64/PostgreSQL 13.23 in 1m48.104s, PostgreSQL 14.20 in 2m10.725s and PostgreSQL
+15.19 in 2m00.676s. Release passes with zero warnings/errors in 1m19.28s; API
+freshness passes for 200 pages/2,437 members; the site builds 245 pages and its
+check reports zero errors/warnings/hints. Final plain full PostgreSQL 18.6
+testing passes **8,271 tests, zero failures and six Windows-only skips, 8,277
+total**, in 12m42.534s (integration 12m41.919s).
+
+The refreshed complete Linux x64/PostgreSQL 13.23 diagnostic executes all
+8,277 cases: **8,209 pass, 62 fail and six Windows-only cases skip**, in
+11m39.081s (integration 11m36.711s). This reduces the prior 100 failures by 38
+across the allocator/list and numeric milestones. Its implementation, test and
+build sources match this milestone. Remaining failures concern temporal, numeric,
+array, range, JSON and event-trigger version contracts. The earlier GUC query
+stall does not recur; its previously affected function-settings case passes in
+0.615s, but the intermittent stall's cause remains unproven. Overlapping local
+runs are not a cold-cache timing baseline. The full PostgreSQL 13–19/platform
+matrix and other faithful-port requirements remain open.
+
+The immediate pre-commit check records `0360620`
+[CI 36407464525](https://github.com/willibrandon/ankus/actions/runs/36407464525)
+with successful quality and all three runtime jobs; all three full platform
+test jobs remain in progress without a reported failure.
+[Docs 36407464523](https://github.com/willibrandon/ankus/actions/runs/36407464523)
+passes. The superseded `d51e4e5` CI run `36404648450` is cancelled: quality and
+runtime jobs passed, and the three unfinished platform jobs were cancelled.
+Those cancelled suites do not supply completed platform evidence. Previous
+outcomes are checked and recorded again immediately before pushing.

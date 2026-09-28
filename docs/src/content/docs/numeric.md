@@ -36,7 +36,9 @@ display scale and returns null for special values.
 Equality ignores display scale: `1.2300` equals `1.23` and their hashes agree.
 As in PostgreSQL, NaN equals NaN and sorts above all other numeric values.
 `IsFinite`, `IsNaN`, and the nullable `Sign` property distinguish special values.
-Numeric infinities require PostgreSQL 14 or later.
+Numeric infinities require PostgreSQL 14 or later. On PostgreSQL 13, parsing
+numeric infinity text reports SQLSTATE `22P02`; converting floating-point
+infinity to numeric reports the unsupported-feature code `0A000`.
 
 ## Arithmetic and precision
 
@@ -51,7 +53,9 @@ public static PgNumeric Price(PgNumeric value) => value.Rescale(precision: 10, s
 
 `Rescale` applies PostgreSQL's declared precision and scale, including its rounding
 and range checks. PostgreSQL 15+ supports negative scales and scales larger than
-precision. `Round` breaks ties away from zero; .NET's default decimal rounding
+precision. Earlier servers reject those scale declarations with SQLSTATE
+`22023`, including declarations applied by `[PgNumericPrecision]`.
+`Round` breaks ties away from zero; .NET's default decimal rounding
 uses ties-to-even.
 
 ## Function constraints
