@@ -56,6 +56,11 @@ underlying composite as `BaseTypeOid`. A tuple read from a PostgreSQL datum
 carries its physical base composite OID; SPI column metadata retains the query's
 declared domain type. `TypeModifier` identifies registered anonymous records.
 
+Physical metadata from `PgRelation.TupleDescriptor` can have `TypeOid == 0`
+when the server supplies no row type, as with PostgreSQL 13 indexes. Such a
+descriptor preserves its attributes for inspection; constructing tuples, arrays
+or typed SPI parameters from it throws `InvalidOperationException`.
+
 Trigger rows mark undefined generated-column values with `IsUnavailable`.
 Reading or changing those cells throws; they are not SQL NULL. See [triggers](/triggers/)
 for availability by trigger timing and safe row returns.

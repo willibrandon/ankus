@@ -6,11 +6,16 @@ namespace Ankus;
 public sealed class PgTupleDescriptor
 {
     /// <summary>
-    /// Copies the physical attributes of a named composite or registered anonymous record.
+    /// Copies physical attributes, optionally retaining relation metadata without a row type.
     /// </summary>
-    internal PgTupleDescriptor(uint typeOid, int typeModifier, PgTupleAttributeInfo[] attributes, uint baseTypeOid = 0)
+    internal PgTupleDescriptor(uint typeOid, int typeModifier, PgTupleAttributeInfo[] attributes,
+        uint baseTypeOid = 0, bool physicalMetadata = false)
     {
-        ArgumentOutOfRangeException.ThrowIfZero(typeOid);
+        if (!physicalMetadata || baseTypeOid != 0 || typeModifier != -1)
+        {
+            ArgumentOutOfRangeException.ThrowIfZero(typeOid);
+        }
+
         ArgumentNullException.ThrowIfNull(attributes);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(attributes.Length, 1664);
         if (attributes.Any(static attribute => attribute is null))
@@ -27,6 +32,7 @@ public sealed class PgTupleDescriptor
     /// <summary>
     /// Gets the composite or explicitly loaded domain OID, or PostgreSQL's record OID for an anonymous tuple.
     /// Tuples read from PostgreSQL datums carry the physical base composite identity.
+    /// Physical relation metadata can have zero when PostgreSQL supplies no row type, such as indexes on PostgreSQL 13.
     /// </summary>
     public uint TypeOid { get; }
 
@@ -36,7 +42,7 @@ public sealed class PgTupleDescriptor
     public uint BaseTypeOid { get; }
 
     /// <summary>
-    /// Gets the anonymous record's registered type modifier, or minus one for a named composite.
+    /// Gets the anonymous record's registered type modifier, or minus one when no modifier is registered.
     /// </summary>
     public int TypeModifier { get; }
 
@@ -71,13 +77,19 @@ public sealed class PgTupleDescriptor
     /// Creates a nonnull tuple whose physical fields are all SQL NULL. It may be populated before native validation.
     /// </summary>
     /// <returns>A detached mutable tuple.</returns>
-    public PgHeapTuple CreateTuple() => new(this, new object?[Attributes.Count]);
+    /// <exception cref="InvalidOperationException">This physical descriptor has no PostgreSQL row type.</exception>
+    public PgHeapTuple CreateTuple()
+    {
+        RequireRowType();
+        return new(this, new object?[Attributes.Count]);
+    }
 
     /// <summary>
     /// Creates a vector with this descriptor's explicit type identity, including empty and all-null arrays.
     /// </summary>
     /// <param name="values">The tuple values, copied into the array; nested tuples remain shared references.</param>
     /// <returns>A detached array with lower bound one, or rank zero when empty.</returns>
+    /// <exception cref="InvalidOperationException">This physical descriptor has no PostgreSQL row type.</exception>
     public PgArray<PgHeapTuple?> CreateArray(ReadOnlySpan<PgHeapTuple?> values)
         => CreateArray(values, values.IsEmpty ? [] : [values.Length]);
 
@@ -89,9 +101,11 @@ public sealed class PgTupleDescriptor
     /// <param name="lengths">The dimension lengths.</param>
     /// <param name="lowerBounds">The lower bounds, or an empty span to use one.</param>
     /// <returns>An array whose element OID is this descriptor's type OID.</returns>
+    /// <exception cref="InvalidOperationException">This physical descriptor has no PostgreSQL row type.</exception>
     public PgArray<PgHeapTuple?> CreateArray(ReadOnlySpan<PgHeapTuple?> values, ReadOnlySpan<int> lengths,
         ReadOnlySpan<int> lowerBounds = default)
     {
+        RequireRowType();
         SpiArray.ValidateShape(values.Length, lengths, lowerBounds);
         foreach (PgHeapTuple? value in values)
         {
@@ -125,5 +139,16 @@ public sealed class PgTupleDescriptor
         }
 
         throw new ArgumentException($"The tuple has no live attribute named '{name}'.", nameof(name));
+    }
+
+    /// <summary>
+    /// Rejects physical metadata without a row identity before constructing or binding a typed value.
+    /// </summary>
+    internal void RequireRowType()
+    {
+        if (TypeOid == 0)
+        {
+            throw new InvalidOperationException("The physical descriptor has no PostgreSQL row type.");
+        }
     }
 }

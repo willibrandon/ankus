@@ -109,6 +109,7 @@ public sealed class PgRelation : IDisposable
 
     /// <summary>
     /// Gets an owned copy of the actual relation descriptor, including physical dropped slots and index columns.
+    /// A descriptor without a native row type retains a zero type OID and cannot construct typed values.
     /// </summary>
     public PgTupleDescriptor TupleDescriptor
     {

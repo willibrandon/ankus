@@ -62,6 +62,10 @@ Returns: [SpiParameter](/api/ankus.spiparameter/)
 
 The typed parameter.
 
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The descriptor has no PostgreSQL row type.
+
 <a id="member-77b8e7441997796f"></a>
 
 ### CreateArray(PgArray&lt;PgHeapTuple?&gt;?, PgTupleDescriptor)
@@ -86,6 +90,10 @@ The array element's PostgreSQL type identity.
 Returns: [SpiParameter](/api/ankus.spiparameter/)
 
 The typed array parameter.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The descriptor has no PostgreSQL row type.
 
 <a id="member-5df5f7c60ee052be"></a>
 

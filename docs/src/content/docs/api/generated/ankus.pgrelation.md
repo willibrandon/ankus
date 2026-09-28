@@ -575,6 +575,7 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 ### TupleDescriptor
 
 Gets an owned copy of the actual relation descriptor, including physical dropped slots and index columns.
+A descriptor without a native row type retains a zero type OID and cannot construct typed values.
 
 ```csharp
 public PgTupleDescriptor TupleDescriptor { get; }

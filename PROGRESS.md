@@ -34,6 +34,15 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Relation metadata now preserves PostgreSQL 13 index descriptors without trying
+to look up their absent row type. Typed tuple, array and SPI factories reject
+those descriptors explicitly. All 44 managed tuple tests and 44 relation cases
+on each of Linux x64/PostgreSQL 13.23 and 14.20 pass. The final plain PostgreSQL
+18.6 suite passes **8,263 tests, zero failures and six Windows-only skips,
+8,269 total**, in 12m46.442s. Release, generated API and site checks pass.
+Further version-specific test corrections are independently verified below;
+the complete PostgreSQL 13–19/platform matrix and other full-port work remain open.
+
 Storage ownership and temporal field tests now exercise PostgreSQL 13's native
 allocation and extraction behavior without dropping their assertions. Explicit
 SQL aliases also make 261 custom-type and packaged lifecycle cases executable
@@ -10907,3 +10916,58 @@ test jobs remain in progress without a reported failure.
 passes. The preceding `f972fdd` platform jobs were cancelled when superseded and
 provide no completed-suite evidence. Previous outcomes are checked and recorded
 again immediately before pushing.
+
+## Physical relation descriptors without a row type
+
+The PostgreSQL 13 diagnostic exposed a real index-descriptor defect. Its relcache
+uses `pg_class.reltype` directly, so index descriptors carry `InvalidOid` (zero).
+PostgreSQL 14's upstream change `f3faf35f370` uses `RECORDOID` for relations
+without a catalog row type. pgrx exposes the native descriptor identity; Ankus
+must preserve it as well. The native transport now avoids looking up type zero,
+and an internal physical-metadata reader accepts that identity without treating
+it as a tuple value. The ordinary tuple decoder still rejects malformed zero
+identities. Tuple/array creation and typed SPI parameter binding reject a
+descriptor without a row type before backend access.
+
+Six new managed cases exercise independent literal transport, exact detached
+metadata, malformed physical identities and typed-value rejection. Six new
+backend cases compare table, ordinary/expression/partitioned index, sequence and
+TOAST descriptors against independent catalogs after the relation closes,
+including dropped slots, domain types, collation, typmods, physical order and
+Unicode names. All **44 managed tuple cases pass**, including the six new cases.
+All **44 relation backend cases pass without failures/skips** on Linux
+x64/PostgreSQL 13.23 in 2m32.520s and PostgreSQL 14.20 in 2m57.276s,
+including the original failed index enumeration. The public relation/composite
+guides and generated API document absent row identities and factory rejection.
+
+The factory assertions require the exact row-type error message, distinguishing
+that rejection from a later missing-backend error of the same exception class.
+Assertion and static mutation reviews cover identity substitution, metadata
+changes, malformed transport acceptance, guard removal and ownership after
+release; no executed mutation or coverage percentage is claimed.
+
+Final Release builds with zero warnings/errors in 1m19.68s. API generation and
+freshness pass for 200 pages/2,437 members; the site builds 245 pages and its
+check reports zero errors/warnings/hints. Plain full Linux x64/PostgreSQL 18.6
+`dotnet test` passes **8,263 tests, zero failures and six Windows-only skips,
+8,269 total**, in 12m46.442s (integration 12m45.807s). This overlaps isolated
+version checks and is not a cold-cache timing baseline. The full PostgreSQL
+13–19/platform matrix and other faithful-port work remain open.
+
+A separate follow-up retains all existing TOAST and native node-format assertions
+while selecting PostgreSQL 13's available compression observations and older
+native token spellings. All **30 affected cases pass without failures/skips**
+on Linux x64/PostgreSQL 13.23 in 2m54.716s and 14.20 in 2m23.448s.
+PostgreSQL 15.19 also passes all four affected native-format cases in 2m41.705s,
+covering its newer CollateExpr spelling with the older empty-token behavior.
+That patch and a full-range date-oracle correction remain separate from this
+descriptor milestone; neither establishes a complete older-version result.
+
+The 2026-09-28 08:21 UTC pre-commit check records
+[CI 36394682622](https://github.com/willibrandon/ankus/actions/runs/36394682622)
+at `bfa6bcc`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
+test jobs remain in progress without a reported failure.
+[Docs 36394682505](https://github.com/willibrandon/ankus/actions/runs/36394682505)
+passes. The preceding `277b031` platform jobs were cancelled when superseded
+and do not provide completed-suite evidence. Previous outcomes are checked and
+recorded again immediately before pushing.

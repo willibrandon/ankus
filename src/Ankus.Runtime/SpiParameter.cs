@@ -103,9 +103,11 @@ public readonly struct SpiParameter
     /// <param name="value">The tuple, or null for SQL NULL.</param>
     /// <param name="descriptor">The parameter's PostgreSQL composite identity.</param>
     /// <returns>The typed parameter.</returns>
+    /// <exception cref="InvalidOperationException">The descriptor has no PostgreSQL row type.</exception>
     public static SpiParameter Create(PgHeapTuple? value, PgTupleDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
+        descriptor.RequireRowType();
         if (value is not null && value.Descriptor.BaseTypeOid != descriptor.BaseTypeOid)
         {
             throw new InvalidCastException("The tuple does not have the supplied descriptor's type identity.");
@@ -121,9 +123,11 @@ public readonly struct SpiParameter
     /// <param name="value">The tuple array, or null for SQL NULL.</param>
     /// <param name="descriptor">The array element's PostgreSQL type identity.</param>
     /// <returns>The typed array parameter.</returns>
+    /// <exception cref="InvalidOperationException">The descriptor has no PostgreSQL row type.</exception>
     public static SpiParameter CreateArray(PgArray<PgHeapTuple?>? value, PgTupleDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
+        descriptor.RequireRowType();
         if (value is not null && value.ElementBaseTypeOid != descriptor.BaseTypeOid)
         {
             throw new InvalidCastException("The array does not have the supplied descriptor's element identity.");

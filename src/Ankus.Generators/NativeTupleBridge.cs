@@ -121,7 +121,8 @@ internal static class NativeTupleBridge
             value->data = (unsigned char *) buffer.data;
             value->length = buffer.len;
             value->auxiliary1 = -4;
-            value->integral = getBaseType(declared_type);
+            /* Physical index descriptors on PostgreSQL 13 have no catalog row type. */
+            value->integral = OidIsValid(declared_type) ? getBaseType(declared_type) : InvalidOid;
         }
 
         static void

@@ -105,6 +105,52 @@ public sealed class RelationTests(TestContext context)
             """, true);
 
     /// <summary>
+    /// Physical relation descriptors retain catalog identities and every attribute after the native reference closes.
+    /// </summary>
+    /// <param name="relation">The independently resolved relation expression.</param>
+    [TestMethod]
+    [DataRow("'relation_metadata'::regclass")]
+    [DataRow("'relation_plain'::regclass")]
+    [DataRow("'relation_expression'::regclass")]
+    [DataRow("'relation_partitioned_index'::regclass")]
+    [DataRow("'relation_sequence'::regclass")]
+    [DataRow("(SELECT reltoastrelid FROM pg_class WHERE oid='relation_metadata'::regclass)")]
+    public Task PhysicalDescriptorsMatchCatalogAfterClose(string relation)
+        => CheckAsync($"""
+            CREATE DOMAIN relation_code AS varchar(17) COLLATE "C";
+            CREATE TABLE relation_metadata (id int NOT NULL, "café 名" relation_code, removed bigint);
+            ALTER TABLE relation_metadata DROP COLUMN removed;
+            CREATE UNIQUE INDEX relation_plain ON relation_metadata(id);
+            CREATE INDEX relation_expression ON relation_metadata((lower("café 名"::text))) INCLUDE (id);
+            CREATE TABLE relation_partitioned (id int, payload text) PARTITION BY RANGE(id);
+            CREATE INDEX relation_partitioned_index ON relation_partitioned(id) INCLUDE (payload);
+            CREATE SEQUENCE relation_sequence;
+            WITH actual AS (
+              SELECT c.*, relations.descriptor(c.oid) AS descriptor
+              FROM pg_class c WHERE c.oid={relation})
+            SELECT (descriptor->>'TypeOid')::oid = CASE
+                WHEN current_setting('server_version_num')::int < 140000 THEN reltype
+                ELSE coalesce(nullif(reltype,0),'record'::regtype::oid) END
+              AND (descriptor->>'BaseTypeOid')::oid = (descriptor->>'TypeOid')::oid
+              AND (descriptor->>'TypeModifier')::int = -1
+              AND jsonb_array_length(descriptor->'Attributes') = relnatts
+              AND (SELECT bool_and(
+                (field->>'Name') = a.attname
+                AND (field->>'TypeOid')::oid = a.atttypid
+                AND (field->>'BaseTypeOid')::oid = coalesce(nullif(t.typbasetype,0),a.atttypid)
+                AND (field->>'TypeModifier')::int = a.atttypmod
+                AND (field->>'CollationOid')::oid = a.attcollation
+                AND (field->>'IsDropped')::boolean = a.attisdropped
+                AND (field->>'IsNotNull')::boolean = a.attnotnull
+                AND NOT (field->>'IsComposite')::boolean
+                AND NOT (field->>'IsUnavailable')::boolean)
+                FROM jsonb_array_elements(descriptor->'Attributes') WITH ORDINALITY AS fields(field,ordinal)
+                JOIN pg_attribute a ON a.attrelid=actual.oid AND a.attnum=ordinal
+                LEFT JOIN pg_type t ON t.oid=a.atttypid)
+            FROM actual
+            """, true);
+
+    /// <summary>
     /// Relation inputs survive repeated set callbacks and SPI operations, and returned references convert before release.
     /// </summary>
     [TestMethod]

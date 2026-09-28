@@ -47,7 +47,7 @@ Value: [uint](https://learn.microsoft.com/dotnet/api/system.uint32)
 
 ### TypeModifier
 
-Gets the anonymous record's registered type modifier, or minus one for a named composite.
+Gets the anonymous record's registered type modifier, or minus one when no modifier is registered.
 
 ```csharp
 public int TypeModifier { get; }
@@ -61,6 +61,7 @@ Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
 
 Gets the composite or explicitly loaded domain OID, or PostgreSQL's record OID for an anonymous tuple.
 Tuples read from PostgreSQL datums carry the physical base composite identity.
+Physical relation metadata can have zero when PostgreSQL supplies no row type, such as indexes on PostgreSQL 13.
 
 ```csharp
 public uint TypeOid { get; }
@@ -91,6 +92,10 @@ Returns: <code>PgArray&lt;PgHeapTuple&gt;</code>
 
 A detached array with lower bound one, or rank zero when empty.
 
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): This physical descriptor has no PostgreSQL row type.
+
 <a id="member-97b3634009417099"></a>
 
 ### CreateArray(ReadOnlySpan&lt;PgHeapTuple?&gt;, ReadOnlySpan&lt;int&gt;, ReadOnlySpan&lt;int&gt;)
@@ -120,6 +125,10 @@ Returns: <code>PgArray&lt;PgHeapTuple&gt;</code>
 
 An array whose element OID is this descriptor's type OID.
 
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): This physical descriptor has no PostgreSQL row type.
+
 <a id="member-9891e161b55843c6"></a>
 
 ### CreateTuple()
@@ -133,6 +142,10 @@ public PgHeapTuple CreateTuple()
 Returns: [PgHeapTuple](/api/ankus.pgheaptuple/)
 
 A detached mutable tuple.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): This physical descriptor has no PostgreSQL row type.
 
 <a id="member-6582e58202f441a4"></a>
 

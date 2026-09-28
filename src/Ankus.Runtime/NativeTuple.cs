@@ -21,8 +21,14 @@ public unsafe partial struct NativeValue
     public readonly PgHeapTuple ReadTuple()
     {
         RuntimeHelpers.EnsureSufficientExecutionStack();
-        return ReadTupleCore();
+        PgTupleDescriptor descriptor = ReadTupleDescriptor(false, out object?[] values);
+        return new PgHeapTuple(descriptor, values);
     }
+
+    /// <summary>
+    /// Copies physical relation metadata, retaining an absent row type on older PostgreSQL indexes.
+    /// </summary>
+    internal readonly PgTupleDescriptor ReadRelationDescriptor() => ReadTupleDescriptor(true, out _);
 
     /// <summary>
     /// Serializes a tuple and its descriptor into an owned native buffer without embedding managed pointers.
@@ -88,7 +94,10 @@ public unsafe partial struct NativeValue
         }
     }
 
-    private readonly PgHeapTuple ReadTupleCore()
+    /// <summary>
+    /// Validates the shared transport while keeping absent row identities confined to physical relation metadata.
+    /// </summary>
+    private readonly PgTupleDescriptor ReadTupleDescriptor(bool physicalMetadata, out object?[] values)
     {
         if (!IsTuple || _auxiliary2 != 0 || _isNull != 0 || _data == null || _length < 12)
         {
@@ -99,13 +108,14 @@ public unsafe partial struct NativeValue
         uint oid = BinaryPrimitives.ReadUInt32BigEndian(data);
         int typeModifier = BinaryPrimitives.ReadInt32BigEndian(data[4..]);
         int count = BinaryPrimitives.ReadInt32BigEndian(data[8..]);
-        if (oid == 0 || _integer is < 0 or > uint.MaxValue || count is < 0 or > 1664 || 12L + count * 52L > data.Length)
+        if ((oid == 0 && (!physicalMetadata || _integer != 0 || typeModifier != -1)) ||
+            _integer is < 0 or > uint.MaxValue || count is < 0 or > 1664 || 12L + count * 52L > data.Length)
         {
             throw new InvalidOperationException("Invalid native tuple identity or attribute count.");
         }
 
         var attributes = new PgTupleAttributeInfo[count];
-        object?[] values = new object?[count];
+        values = new object?[count];
         int offset = 12;
         for (int index = 0; index < count; index++)
         {
@@ -138,7 +148,7 @@ public unsafe partial struct NativeValue
             }
 
             NativeValue item = ReadContainerValue(data, ref offset);
-            if (((dropped || unavailable) && item.IsNull == 0) || (item.IsNull == 0 && composite != item.IsTuple))
+            if (((physicalMetadata || dropped || unavailable) && item.IsNull == 0) || (item.IsNull == 0 && composite != item.IsTuple))
             {
                 throw new InvalidOperationException("Tuple field transport does not match its descriptor.");
             }
@@ -157,8 +167,8 @@ public unsafe partial struct NativeValue
             throw new InvalidOperationException("Unexpected trailing native tuple data.");
         }
 
-        return new PgHeapTuple(new PgTupleDescriptor(oid, typeModifier, attributes,
-            _integer == 0 ? oid : (uint)_integer), values);
+        return new PgTupleDescriptor(oid, typeModifier, attributes,
+            _integer == 0 ? oid : (uint)_integer, physicalMetadata);
     }
 
     private readonly NativeValue ReadContainerValue(ReadOnlySpan<byte> data, ref int offset)

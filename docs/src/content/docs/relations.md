@@ -56,6 +56,12 @@ reads. `TupleDescriptor` copies the actual physical descriptor, including droppe
 columns and index attributes. Copied strings and descriptors remain usable after
 the relation closes.
 
+`TupleDescriptor.TypeOid` retains PostgreSQL's descriptor identity. Index
+descriptors on PostgreSQL 13 have no row type and report zero; PostgreSQL 14+
+uses the anonymous `record` OID. A descriptor with zero identity is usable for
+metadata inspection, but cannot create tuples, arrays or typed SPI parameters.
+Those operations throw `InvalidOperationException` before accessing the backend.
+
 `Kind` preserves the exact native `relkind` character. Convenience properties
 cover ordinary tables, materialized views, ordinary indexes, views, sequences,
 composite types, foreign tables, partitioned tables and TOAST tables. A

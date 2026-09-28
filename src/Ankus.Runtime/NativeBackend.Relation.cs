@@ -42,7 +42,7 @@ public static partial class NativeBackend
     /// Copies a retained relation's actual descriptor, including index and dropped-column metadata.
     /// </summary>
     internal static PgTupleDescriptor RelationDescriptor(long identity)
-        => ReadRelationValue(identity, 12, static value => value.ReadTuple().Descriptor);
+        => ReadRelationValue(identity, 12, static value => value.ReadRelationDescriptor());
 
     /// <summary>
     /// Reads the native pointer after checking the live relation token.

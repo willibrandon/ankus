@@ -40,6 +40,109 @@ public sealed class PgHeapTupleTests
     }
 
     /// <summary>
+    /// Relation metadata preserves native identity and fields after transport release, including absent index row types.
+    /// </summary>
+    /// <param name="typeOid">A named, anonymous or absent row identity.</param>
+    [TestMethod]
+    [DataRow(0U)]
+    [DataRow(9100U)]
+    [DataRow(2249U)]
+    public void PhysicalDescriptorsRetainIdentityWithoutCreatingUntypedValues(uint typeOid)
+    {
+        byte[] bytes = IndependentTupleBytes();
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, typeOid);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(57), 1);
+        NativeValue value = NativeValue.FromBytes(bytes);
+        TupleFlag(ref value) = -4;
+        PgTupleDescriptor descriptor;
+        try
+        {
+            descriptor = value.ReadRelationDescriptor();
+            if (typeOid == 0)
+            {
+                Assert.ThrowsExactly<InvalidOperationException>(() => value.ReadTuple());
+            }
+            else
+            {
+                Assert.AreEqual(typeOid, value.ReadTuple().Descriptor.TypeOid);
+            }
+        }
+        finally
+        {
+            value.Release();
+        }
+
+        Assert.AreEqual(typeOid, descriptor.TypeOid);
+        Assert.AreEqual(typeOid, descriptor.BaseTypeOid);
+        Assert.AreEqual(-1, descriptor.TypeModifier);
+        Assert.HasCount(1, descriptor.Attributes);
+        Assert.AreEqual(0, descriptor.GetOrdinal("x"));
+        PgTupleAttributeInfo attribute = descriptor.Attributes[0];
+        Assert.AreEqual("x", attribute.Name);
+        Assert.AreEqual(8200U, attribute.TypeOid);
+        Assert.AreEqual(23U, attribute.BaseTypeOid);
+        Assert.AreEqual(99, attribute.TypeModifier);
+        Assert.AreEqual(100U, attribute.CollationOid);
+        Assert.IsTrue(attribute.IsNotNull);
+        Assert.IsFalse(attribute.IsDropped);
+        Assert.IsFalse(attribute.IsComposite);
+        Assert.IsFalse(attribute.IsUnavailable);
+        if (typeOid == 0)
+        {
+            (string Name, Action Create)[] factories =
+            [
+                ("tuple", () => descriptor.CreateTuple()),
+                ("empty array", () => descriptor.CreateArray([])),
+                ("shaped array", () => descriptor.CreateArray([null], [1], [-2])),
+                ("SPI NULL tuple", () => SpiParameter.Create(null, descriptor)),
+                ("SPI NULL array", () => SpiParameter.CreateArray(null, descriptor)),
+            ];
+            foreach ((string name, Action create) in factories)
+            {
+                InvalidOperationException error = Assert.ThrowsExactly<InvalidOperationException>(create);
+                Assert.AreEqual("The physical descriptor has no PostgreSQL row type.", error.Message, name);
+            }
+        }
+        else
+        {
+            Assert.IsNull(descriptor.CreateTuple()[0]);
+            Assert.AreEqual(typeOid, descriptor.CreateArray([]).ElementTypeOid);
+            Assert.AreEqual(typeOid, SpiParameter.Create(null, descriptor).TypeOid);
+        }
+    }
+
+    /// <summary>
+    /// Physical metadata rejects value payloads and inconsistent absent-type identities.
+    /// </summary>
+    /// <param name="kind">The malformed metadata boundary.</param>
+    [TestMethod]
+    [DataRow("value")]
+    [DataRow("registered")]
+    [DataRow("base-type")]
+    public void PhysicalDescriptorsRejectInconsistentTransports(string kind)
+    {
+        byte[] bytes = IndependentTupleBytes();
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, 0);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(57), kind == "value" ? 0 : 1);
+        if (kind == "registered")
+        {
+            BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4), 7);
+        }
+
+        NativeValue value = NativeValue.FromBytes(bytes);
+        TupleFlag(ref value) = -4;
+        value.Integral = kind == "base-type" ? 9100 : 0;
+        try
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() => value.ReadRelationDescriptor());
+        }
+        finally
+        {
+            value.Release();
+        }
+    }
+
+    /// <summary>
     /// Exact names resolve the first live match, while zero-based ordinals preserve dropped physical slots.
     /// </summary>
     [TestMethod]
