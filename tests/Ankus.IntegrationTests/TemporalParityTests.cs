@@ -130,7 +130,7 @@ public sealed class TemporalParityTests(TestContext context)
     public Task TimeFieldsMatchPostgresIncludingEndOfDay(string type, string value)
         => PostgresFixture.Cluster.RunInTransactionAsync(nameof(TimeFieldsMatchPostgresIncludingEndOfDay), async (connection, transaction, token) =>
         {
-            string offset = type == "timetz" ? ",extract(timezone_hour FROM value)::bigint,extract(timezone_minute FROM value)::bigint,extract(timezone FROM value)::bigint" : "";
+            string offset = type == "timetz" ? ",extract(timezone_hour FROM value)::bigint,trunc(extract(timezone_minute FROM value))::bigint,extract(timezone FROM value)::bigint" : "";
             string function = type == "timetz" ? "parity_time_zone_fields" : "parity_time_fields";
             await using var command = new NpgsqlCommand($"""
                 WITH input AS (SELECT $1::{type} AS value)
@@ -497,7 +497,7 @@ public sealed class TemporalParityTests(TestContext context)
     /// <summary>
     /// Gets integer clock fields with fractional-only microseconds, avoiding numeric-to-integer rounding.
     /// </summary>
-    private const string TimePartsSql = "extract(hour FROM value)::bigint,extract(minute FROM value)::bigint,trunc(extract(second FROM value))::bigint,mod(extract(microseconds FROM value),1000000)::bigint";
+    private const string TimePartsSql = "extract(hour FROM value)::bigint,extract(minute FROM value)::bigint,trunc(extract(second FROM value))::bigint,mod(extract(microseconds FROM value)::bigint,1000000)";
 
     /// <summary>
     /// Sets transaction-local display rules without interpolating timezone input into SQL.

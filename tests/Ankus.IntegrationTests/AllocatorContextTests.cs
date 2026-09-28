@@ -78,7 +78,7 @@ public sealed class AllocatorContextTests(TestContext context)
             command.CommandText = "SELECT datatype.allocator_replacement_reclaims()";
             string report = Assert.IsInstanceOfType<string>(await command.ExecuteScalarAsync(token));
             string[] fields = report.Split('|');
-            Assert.HasCount(13, fields);
+            Assert.HasCount(14, fields);
             for (int index = 0; index < 7; index++)
             {
                 Assert.AreEqual("True", fields[index], $"Payload or ownership observation {index}.");
@@ -92,6 +92,7 @@ public sealed class AllocatorContextTests(TestContext context)
             Assert.AreEqual("True", fields[10], "Reset restores the native byte baseline.");
             Assert.AreEqual("True", fields[11], "Reset restores the independent catalog baseline.");
             Assert.AreEqual("stale", fields[12]);
+            Assert.AreEqual("True", fields[13], "The live regular-block control keeps its address and every byte.");
         });
 
     /// <summary>

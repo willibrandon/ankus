@@ -191,6 +191,8 @@ explicit reset. Other native allocators determine emptiness from their own
 blocks or live chunks, so this property does not establish a portable count of
 user allocations.
 These statistics describe native contexts, not the managed heap.
+A resize can release a large block while allocating a regular block for its
+replacement; the reported byte change includes both operations.
 
 ## Borrowed native allocators
 

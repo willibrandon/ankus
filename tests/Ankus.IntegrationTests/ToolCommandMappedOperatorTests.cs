@@ -251,7 +251,7 @@ public sealed partial class ToolCommandTests
     {
         await using var command = new NpgsqlCommand($"""
             SELECT label||':'||oid::text FROM(
-                SELECT 'type:'||typname label,oid FROM pg_type WHERE typnamespace='{schema}'::regnamespace
+                SELECT 'type:'||typname AS label,oid FROM pg_type WHERE typnamespace='{schema}'::regnamespace
                 UNION ALL SELECT 'function:'||proname,oid FROM pg_proc WHERE pronamespace='{schema}'::regnamespace
                 UNION ALL SELECT 'operator:'||oprname,oid FROM pg_operator WHERE oprnamespace='{schema}'::regnamespace
                 UNION ALL SELECT 'family:'||opfname,oid FROM pg_opfamily WHERE opfnamespace='{schema}'::regnamespace

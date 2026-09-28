@@ -264,8 +264,8 @@ seconds or uses the session's current-date offset.
 transaction start while retaining the supplied clock fields, including 24:00.
 To shift a session-local clock to an interval offset, use
 `PgTimeTz.Create(hour, minute, second).AtTimeZone(offset)`.
-`OffsetHours` and `OffsetMinutes` expose signed components; `OffsetSeconds`
-retains the complete offset, including seconds.
+`OffsetHours` and `OffsetMinutes` expose signed whole components, discarding
+remaining seconds; `OffsetSeconds` retains the complete offset, including seconds.
 
 `PgDate.AtTime` combines a date with a time or fixed-offset time. Timestamp `ToDate`,
 `ToTime`, and `PgTimestampTz.ToTimeTz` conversions follow server rules; the time

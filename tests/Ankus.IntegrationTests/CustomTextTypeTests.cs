@@ -75,7 +75,7 @@ public sealed class CustomTextTypeTests(TestContext context)
             "ROW(NULL::custom_text.value,NULL::custom_text.mode,NULL::custom_text.message,NULL::custom_text.value[])",
         })
         {
-            Assert.IsTrue(await Scalar<bool>(connection, $"WITH input AS (SELECT {row} value) SELECT record_send(value) = record_send(custom_text.text_tuple(value,{mode})) FROM input"));
+            Assert.IsTrue(await Scalar<bool>(connection, $"WITH input AS (SELECT {row} AS value) SELECT record_send(value) = record_send(custom_text.text_tuple(value,{mode})) FROM input"));
         }
     }
 

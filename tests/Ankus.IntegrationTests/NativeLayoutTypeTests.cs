@@ -53,7 +53,7 @@ public sealed class NativeLayoutTypeTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.IsTrue(await Scalar<bool>(connection, $$$"""
-            WITH output AS (SELECT native_layout.native_array('[2:3][-1:0]={{1,NULL},{0,9}}',{{{mode}}}) value)
+            WITH output AS (SELECT native_layout.native_array('[2:3][-1:0]={{1,NULL},{0,9}}',{{{mode}}}) AS value)
             SELECT value::text = '[2:3][-1:0]={{1,NULL},{0,9}}' AND array_dims(value) = '[2:3][-1:0]'
                 AND native_layout.native_describe(value[2][-1]) = 'AB:1:255:-32768:4660:32767:80000000:7FF8000000000042'
                 AND value[2][0] IS NULL AND pg_typeof(value) = 'native_layout.packet[]'::regtype
@@ -76,7 +76,7 @@ public sealed class NativeLayoutTypeTests(TestContext context)
         })
         {
             Assert.IsTrue(await Scalar<bool>(connection,
-                $"WITH input AS (SELECT {row} value) SELECT record_send(value)=record_send(native_layout.native_tuple(value,{mode})) FROM input"));
+                $"WITH input AS (SELECT {row} AS value) SELECT record_send(value)=record_send(native_layout.native_tuple(value,{mode})) FROM input"));
         }
     }
 

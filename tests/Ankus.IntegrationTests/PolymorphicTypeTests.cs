@@ -61,8 +61,8 @@ public sealed class PolymorphicTypeTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.IsTrue(await Scalar<bool>(connection, $$$"""
-            WITH input AS (SELECT $array$[-1:0][3:4]={{"{\"$type\":7,\"Number\":1}",NULL},{"{\"$type\":\"text\",\"Text\":\"x\"}","{\"$type\":7,\"Number\":9}"}}$array$::tagged_values.message[] value),
-            output AS (SELECT tagged_values.tagged_messages(value,{{{mode}}}) value FROM input)
+            WITH input AS (SELECT $array$[-1:0][3:4]={{"{\"$type\":7,\"Number\":1}",NULL},{"{\"$type\":\"text\",\"Text\":\"x\"}","{\"$type\":7,\"Number\":9}"}}$array$::tagged_values.message[] AS value),
+            output AS (SELECT tagged_values.tagged_messages(value,{{{mode}}}) AS value FROM input)
             SELECT array_dims(value) = '[-1:0][3:4]'
                 AND tagged_values.tagged_kind(value[-1][3]) = 'number:1' AND value[-1][4] IS NULL
                 AND tagged_values.tagged_kind(value[0][3]) = 'text:x' AND tagged_values.tagged_kind(value[0][4]) = 'number:9'
@@ -106,7 +106,7 @@ public sealed class PolymorphicTypeTests(TestContext context)
             _ => throw new ArgumentOutOfRangeException(nameof(scenario)),
         };
         Assert.IsTrue(await Scalar<bool>(connection, $$"""
-            WITH input AS (SELECT ROW({{members}}) value)
+            WITH input AS (SELECT ROW({{members}}) AS value)
             SELECT record_send(value) = record_send(tagged_values.tagged_tuple(value,{{mode}})) FROM input
             """));
     }
@@ -128,12 +128,12 @@ public sealed class PolymorphicTypeTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.IsTrue(await Scalar<bool>(connection, $$"""
-            WITH output AS (SELECT tagged_values.tagged_covariant_vector({{mode}}) value)
+            WITH output AS (SELECT tagged_values.tagged_covariant_vector({{mode}}) AS value)
             SELECT pg_typeof(value) = 'tagged_values.message[]'::regtype AND cardinality(value) = 2
                 AND value[1]::text::jsonb = '{"$type":7,"Number":7}'::jsonb AND value[2] IS NULL FROM output
             """));
         Assert.IsTrue(await Scalar<bool>(connection, $$"""
-            WITH input AS (SELECT ROW(ARRAY['{"$type":7,"Number":7}'::tagged_values.message,NULL]) value)
+            WITH input AS (SELECT ROW(ARRAY['{"$type":7,"Number":7}'::tagged_values.message,NULL]) AS value)
             SELECT record_send(value) = record_send(tagged_values.tagged_covariant_tuple(value,{{mode}})) FROM input
             """));
     }

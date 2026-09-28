@@ -54,8 +54,8 @@ public sealed class SerializedTypeTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         Assert.IsTrue(await Scalar<bool>(connection, $$$"""
-            WITH input AS (SELECT $array$[-1:0][3:4]={{"{\"Value\":1}",NULL},{"{\"Value\":0}","{\"Value\":9}"}}$array$::serialized_values.counter[] value),
-            output AS (SELECT serialized_values.serialized_counters(value,{{{mode}}}) value FROM input)
+            WITH input AS (SELECT $array$[-1:0][3:4]={{"{\"Value\":1}",NULL},{"{\"Value\":0}","{\"Value\":9}"}}$array$::serialized_values.counter[] AS value),
+            output AS (SELECT serialized_values.serialized_counters(value,{{{mode}}}) AS value FROM input)
             SELECT array_dims(value) = '[-1:0][3:4]'
                 AND value[-1][3]::text::jsonb = '{"Value":1}'::jsonb
                 AND value[-1][4] IS NULL

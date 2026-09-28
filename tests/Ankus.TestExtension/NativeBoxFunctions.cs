@@ -8,6 +8,14 @@ namespace Ankus.TestExtension;
 /// </summary>
 public static unsafe class NativeBoxFunctions
 {
+#if ANKUS_PG13 || ANKUS_PG14 || ANKUS_PG15
+    private const nuint BoxAlignment = 8;
+    private const nuint ViewAlignment = 8;
+#else
+    private const nuint BoxAlignment = 64;
+    private const nuint ViewAlignment = 4096;
+#endif
+
     private static int s_pointeeDisposals;
     private static PgMemoryContext? s_savedOwner;
     private static PgNativeBox<int>? s_savedBox;
@@ -56,7 +64,7 @@ public static unsafe class NativeBoxFunctions
     {
         using PgMemoryContext parent = PgMemoryContext.Create("native box release parent");
         using PgMemoryContext owner = PgMemoryContext.Create("native box release owner", parent);
-        using PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, 64);
+        using PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, BoxAlignment);
         PgNativeReference<int> originalBorrow = box.Borrow();
         nint pointer = (nint)box.DangerousGetPointer();
         PgContextValue<int> value = box.ReleaseToContext();
@@ -94,7 +102,7 @@ public static unsafe class NativeBoxFunctions
             }
         }
 
-        bool policy = value.Options == PgAllocationOptions.Huge && value.Alignment == 64;
+        bool policy = value.Options == PgAllocationOptions.Huge && value.Alignment == BoxAlignment;
         if (deleteParent)
         {
             parent.Dispose();
@@ -117,7 +125,7 @@ public static unsafe class NativeBoxFunctions
     public static string NativeBoxDetachAndAdopt(bool fromContext)
     {
         using PgMemoryContext owner = PgMemoryContext.Create("native box raw transfer");
-        using PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, 64);
+        using PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, BoxAlignment);
         PgNativeReference<int> borrowed = box.Borrow();
         PgContextValue<int>? contextValue = fromContext ? box.ReleaseToContext() : null;
         nint original = (nint)borrowed.DangerousGetPointer();
@@ -125,13 +133,13 @@ public static unsafe class NativeBoxFunctions
         string oldValue = contextValue is null ? ReadOrStale(() => box.Value) : ReadOrStale(() => contextValue.Value);
         string oldBorrow = ReadOrStale(() => borrowed.Value);
         box.Dispose();
-        using PgNativeBox<int> adopted = owner.DangerousAdoptBox<int>(pointer, huge: true, alignment: 64)
+        using PgNativeBox<int> adopted = owner.DangerousAdoptBox<int>(pointer, huge: true, alignment: BoxAlignment)
             ?? throw new InvalidOperationException("Detached storage unexpectedly became null.");
         int copied = adopted.Value;
         adopted.Value = 91;
         PgNativeReference<int> nextBorrow = adopted.Borrow();
         bool nativeOwner = adopted.Context.Id == owner.Id;
-        bool policy = adopted.Options == PgAllocationOptions.Huge && adopted.Alignment == 64;
+        bool policy = adopted.Options == PgAllocationOptions.Huge && adopted.Alignment == BoxAlignment;
         int changed = nextBorrow.Value;
         string oldAfterAdoption = ReadOrStale(() => borrowed.Value);
         adopted.Dispose();
@@ -154,14 +162,14 @@ public static unsafe class NativeBoxFunctions
         using PgMemoryContext pointeeOwner = PgMemoryContext.Create("native box clone pointee");
         using PgAllocation pointee = pointeeOwner.Allocate<int>();
         pointee.Write(901);
-        using PgAllocation storage = source.Allocate((nuint)sizeof(PaddedValue), PgAllocationOptions.Huge, 64);
+        using PgAllocation storage = source.Allocate((nuint)sizeof(PaddedValue), PgAllocationOptions.Huge, BoxAlignment);
         PaddedValue* sourcePointer = (PaddedValue*)storage.DangerousGetPointer();
         new Span<byte>(sourcePointer, sizeof(PaddedValue)).Fill(0xa7);
         sourcePointer->Tag = 7;
         sourcePointer->Pointer = (nint)pointee.DangerousGetPointer();
         sourcePointer->Number = 123;
         byte[] expectedBytes = new ReadOnlySpan<byte>(sourcePointer, sizeof(PaddedValue)).ToArray();
-        using PgNativeBox<PaddedValue> box = source.DangerousAdoptBox<PaddedValue>(storage.DangerousDetach(), huge: true, alignment: 64)
+        using PgNativeBox<PaddedValue> box = source.DangerousAdoptBox<PaddedValue>(storage.DangerousDetach(), huge: true, alignment: BoxAlignment)
             ?? throw new InvalidOperationException("Padded native storage became null.");
         Func<PgMemoryContext?, PgContextValue<PaddedValue>> clone;
         Func<PgMemoryContext?, PgNativeBox<PaddedValue>> cloneOwned;
@@ -423,7 +431,7 @@ public static unsafe class NativeBoxFunctions
     {
         using PgMemoryContext owner = PgMemoryContext.Create("native allocation view owner");
         using PgMemoryContext target = PgMemoryContext.Create("native allocation view clone");
-        using PgAllocation allocation = owner.AllocateZeroed(20, alignment: 4096);
+        using PgAllocation allocation = owner.AllocateZeroed(20, alignment: ViewAlignment);
         allocation.Write(11);
         allocation.Write(22, 4);
         PgNativeReference<int> reference = allocation.Borrow<int>(4);
@@ -535,7 +543,7 @@ public static unsafe class NativeBoxFunctions
             ?? throw new InvalidOperationException("No transaction for native box lifetime.");
         PgMemoryContext owner = PgMemoryContext.Create("saved native typed value", parent);
         s_savedOwner = owner;
-        PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, 64);
+        PgNativeBox<int> box = owner.CreateBox(5, PgAllocationOptions.Huge, BoxAlignment);
         s_savedBox = box;
         switch (ownership)
         {
@@ -547,7 +555,7 @@ public static unsafe class NativeBoxFunctions
                 s_savedValue = box.ReleaseToContext();
                 break;
             case 2:
-                s_savedValue = owner.DangerousAdoptContextValue<int>(box.DangerousDetach(), huge: true, alignment: 64);
+                s_savedValue = owner.DangerousAdoptContextValue<int>(box.DangerousDetach(), huge: true, alignment: BoxAlignment);
                 s_savedKnown = s_savedValue.Borrow();
                 break;
             default:

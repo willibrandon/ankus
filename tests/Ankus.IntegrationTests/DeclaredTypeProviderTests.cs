@@ -254,7 +254,7 @@ public sealed class DeclaredTypeProviderTests(TestContext context)
         Assert.IsTrue(await Scalar<bool>(connection, """
             SELECT record_send(type_providers.first_pair(NULL::type_providers.pair)) IS NULL
                 AND (SELECT record_send(type_providers.first_pair(value)) IS NULL
-                    FROM (SELECT NULL::type_providers.pair value WHERE false) empty)
+                    FROM (SELECT NULL::type_providers.pair AS value WHERE false) empty)
             """));
         Assert.IsTrue(await Scalar<bool>(connection, """
             SELECT a.aggtranstype='type_providers.pair'::regtype AND p.prorettype=a.aggtranstype

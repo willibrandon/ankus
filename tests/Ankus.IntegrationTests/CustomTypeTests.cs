@@ -63,7 +63,7 @@ public sealed class CustomTypeTests(TestContext context)
                 FROM (VALUES (1,1),(1,2),(2,3),(2,4),(2,NULL)) input(group_id,value) GROUP BY group_id) groups
             """));
         Assert.IsTrue(await Scalar<bool>(connection,
-            "SELECT custom_values.custom_sum(value) IS NULL FROM (SELECT NULL::custom_values.number value WHERE false) empty"));
+            "SELECT custom_values.custom_sum(value) IS NULL FROM (SELECT NULL::custom_values.number AS value WHERE false) empty"));
     }
 
     /// <summary>
@@ -197,7 +197,7 @@ public sealed class CustomTypeTests(TestContext context)
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(context.CancellationToken);
         await Scalar<object>(connection, """
-            CREATE TABLE custom_values.parallel_input AS SELECT value::text::custom_values.number value FROM generate_series(1,30000) value;
+            CREATE TABLE custom_values.parallel_input AS SELECT value::text::custom_values.number AS value FROM generate_series(1,30000) value;
             ALTER TABLE custom_values.parallel_input SET (parallel_workers=2);
             ANALYZE custom_values.parallel_input;
             SET LOCAL max_parallel_workers_per_gather=2;

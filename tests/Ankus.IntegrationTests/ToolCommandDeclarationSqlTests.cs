@@ -238,7 +238,7 @@ public sealed partial class ToolCommandTests
             SELECT concat_ws('|',{schema}.package_echo('41')::text,encode({schema}.package_send('42'),'hex'),
                 {schema}.code_number('Last'),
                 (SELECT {schema}.package_total(value) FROM(VALUES(1),(NULL),(2),(3)) inputs(value)),
-                (SELECT {schema}.package_total(value) FROM(SELECT 1 value WHERE false) inputs),
+                (SELECT {schema}.package_total(value) FROM(SELECT 1 AS value WHERE false) inputs),
                 ({schema}.package_echo(NULL::{schema}.package_value) IS NULL)::text,
                 (SELECT revision FROM {schema}.package_marker))
             """));

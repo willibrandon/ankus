@@ -182,6 +182,13 @@ public static unsafe class AllocatorContextFunctions
         PgMemoryContext owner = Owner();
         nuint baseline = owner.GetAllocatedBytes();
         long catalogBaseline = CatalogBytes();
+        // Keep a regular block available before measuring external-block release.
+        // Older Generation allocators create that block only on the first small allocation.
+        PgAllocation control = owner.Allocate(32);
+        byte[] controlBytes = new byte[32];
+        Array.Fill(controlBytes, (byte)0xa7);
+        control.Write(controlBytes);
+        nint controlAddress = (nint)control.DangerousGetPointer();
         PgAllocation allocation = owner.Allocate(initialSize);
         byte[] pattern = Pattern(initialSize);
         allocation.Write(pattern);
@@ -201,10 +208,12 @@ public static unsafe class AllocatorContextFunctions
         // external block must be released when that cached slot is occupied.
         long releasedBytes = checked((long)(grownBytes - owner.GetAllocatedBytes()));
         long releasedCatalog = grownCatalog - CatalogBytes();
+        bool controlUnchanged = (nint)control.DangerousGetPointer() == controlAddress &&
+            ReadBytes(control).AsSpan().SequenceEqual(controlBytes);
         owner.Reset();
         return $"{grew}|{shrank}|{prefix}|{zeroTail}|{suffix}|{view}|{sameOwner}|{length}|" +
             $"{releasedBytes}|{releasedCatalog}|{owner.GetAllocatedBytes() == baseline}|{CatalogBytes() == catalogBaseline}|" +
-            ReadOrStale(() => known.Value);
+            $"{ReadOrStale(() => known.Value)}|{controlUnchanged}";
     }
 
     /// <summary>

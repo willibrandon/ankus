@@ -116,7 +116,7 @@ public sealed class VarlenaOwnershipTests(TestContext context)
             "NULL::native_layout.packet,NULL::native_layout.packet[]",
         })
         {
-            Assert.IsTrue(await Scalar<bool>(connection, $"WITH input AS(SELECT ROW({members}) value) SELECT record_send(value)=record_send(varlena_ownership.varlena_tuple(value,{mode})) FROM input"));
+            Assert.IsTrue(await Scalar<bool>(connection, $"WITH input AS(SELECT ROW({members}) AS value) SELECT record_send(value)=record_send(varlena_ownership.varlena_tuple(value,{mode})) FROM input"));
         }
     }
 
@@ -265,7 +265,7 @@ public sealed class VarlenaOwnershipTests(TestContext context)
             """));
         Assert.AreEqual("expired", await Scalar<string>(connection, "SELECT varlena_ownership.varlena_aggregate_state()"));
         Assert.AreEqual("empty", await Scalar<string>(connection,
-            "SELECT varlena_ownership.varlena_collect(value) FROM (SELECT NULL::native_layout.packet value WHERE false) row"));
+            "SELECT varlena_ownership.varlena_collect(value) FROM (SELECT NULL::native_layout.packet AS value WHERE false) row"));
     }
 
     /// <summary>

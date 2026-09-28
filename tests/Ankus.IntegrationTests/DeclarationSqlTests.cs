@@ -43,7 +43,7 @@ public sealed class DeclarationSqlTests(TestContext context)
             UPDATE declaration_array SET value[3][0]='{negative}'::declaration_sql.{kind}_value;
             """);
         await using var arrays = new NpgsqlCommand($"""
-            WITH output AS(SELECT declaration_sql.{kind}_array(value) value FROM declaration_array)
+            WITH output AS(SELECT declaration_sql.{kind}_array(value) AS value FROM declaration_array)
             SELECT array_dims(value),value[2][-1]::text,value[2][0] IS NULL,value[3][-1]::text,value[3][0]::text,
                 pg_typeof(value)='declaration_sql.{kind}_value[]'::regtype,
                 cardinality(declaration_sql.{kind}_array(ARRAY[]::declaration_sql.{kind}_value[])),
@@ -223,7 +223,7 @@ public sealed class DeclarationSqlTests(TestContext context)
             FROM unnest(enum_range(NULL::declaration_sql.manual_mood)) value ORDER BY value
             """));
         Assert.IsTrue(await Scalar<bool>(connection, """
-            WITH output AS(SELECT declaration_sql.mood_array('[2:3][-1:0]={{"",NULL},{bêta,alpha}}') value)
+            WITH output AS(SELECT declaration_sql.mood_array('[2:3][-1:0]={{"",NULL},{bêta,alpha}}') AS value)
             SELECT array_dims(value)='[2:3][-1:0]' AND value[2][-1]::text='' AND value[2][0] IS NULL
                 AND value[3][-1]::text='bêta' AND value[3][0]::text='alpha'
                 AND pg_typeof(value)='declaration_sql.mood[]'::regtype
@@ -253,7 +253,7 @@ public sealed class DeclarationSqlTests(TestContext context)
         Assert.AreEqual(13, await Scalar<int>(connection,
             "SELECT declaration_sql.literal_total(value) FROM(VALUES(1),(NULL),(2)) input(value)"));
         Assert.AreEqual(10, await Scalar<int>(connection,
-            "SELECT declaration_sql.literal_total(value) FROM(SELECT 1 value WHERE false) input"));
+            "SELECT declaration_sql.literal_total(value) FROM(SELECT 1 AS value WHERE false) input"));
         Assert.AreEqual(10, await Scalar<int>(connection,
             "SELECT declaration_sql.literal_total(value) FROM(VALUES(NULL::integer),(NULL)) input(value)"));
         Assert.AreEqual(6, await Scalar<int>(connection,

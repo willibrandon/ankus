@@ -34,6 +34,16 @@ Linux, and macOS.
 
 ## Current verified milestone
 
+Storage ownership and temporal field tests now exercise PostgreSQL 13's native
+allocation and extraction behavior without dropping their assertions. Explicit
+SQL aliases also make 261 custom-type and packaged lifecycle cases executable
+on PostgreSQL 13.23. The final plain PostgreSQL 18.6 suite passes **8,251 tests,
+zero failures and six Windows-only skips, 8,257 total**, in 12m23.357s. Release,
+API freshness and site checks pass. A complete PostgreSQL 13.23 diagnostic
+records **8,138 passes, 113 failures and six Windows-only skips**; the remaining
+native-version contracts and index descriptor bug are required follow-up work.
+The full version/platform matrix remains open.
+
 Interval construction now rejects arithmetic overflow on PostgreSQL 13–16
 inside the native error boundary and retains PostgreSQL 17+'s native checks.
 All 59 affected cases pass without failures/skips on Linux x64/PostgreSQL
@@ -10838,3 +10848,62 @@ passes. The earlier `40bdb22` macOS job subsequently passed in 37m52s
 (integration 29m19.177s); its Windows job was cancelled when superseded and
 does not supply a completed-suite result. Previous outcomes are checked and
 recorded again immediately before pushing.
+
+## Exact storage and field checks on older PostgreSQL versions
+
+The next compatibility milestone applies the previously verified test corrections.
+Native box ownership, cloning, raw transfer, offset views and transaction cleanup
+now use native-default alignment on PostgreSQL 13–15, which do not support
+over-aligned allocation. PostgreSQL 16+ retains the original 64/4,096-byte
+alignment. Payload, padding, shallow-pointer, allocation-policy, owner and stale
+view assertions remain intact; dedicated allocation cases still require exact
+unsupported-feature errors and recovery on older servers.
+
+The Generation replacement test keeps a live 32-byte control before measuring
+large-block release. PostgreSQL 13/14 lazily allocate a regular block for small
+chunks; previously the shrink's first regular block obscured part of the released
+large block. The original two-MiB release bound and independent native/catalog
+byte equality remain required. A new assertion proves the control's address and
+every byte survive both resizes before reset. The 36-case focused memory/recovery
+scope passes without failures/skips on Linux x64/PostgreSQL 13.23 in 2m25.849s,
+14.20 in 2m39.856s and 18.6 in 3m02.547s. That scope includes an unchanged GUC
+reporting recovery control.
+
+Twenty explicit `AS` additions let PostgreSQL 13 execute existing custom-type,
+serialized/polymorphic value, tuple, array, aggregate and packaged lifecycle
+checks. All 261 affected cases pass with zero failures/skips on Linux
+x64/PostgreSQL 13.23 in 4m23.726s, retaining every assertion. Temporal field
+queries now cast integral microseconds before `mod` and truncate timezone-minute
+extraction before comparing whole-minute components. This handles PostgreSQL
+13's floating-point extraction results without rounding remaining seconds into
+an extra minute. The final 26 affected timestamp/time/timezone cases pass with
+zero failures/skips in 1m38.318s, resolving the three comparisons recorded in the
+preceding milestone. The public memory and date/time guides clarify those
+accounting and whole-component contracts.
+
+The complete Linux x64/PostgreSQL 13.23 diagnostic now records **8,138 passes,
+113 failures and six Windows-only skips, 8,257 total**, in 11m28.625s
+(integration 11m26.624s). All managed test modules pass. Remaining failures
+include native feature availability, older TOAST inspection syntax and node
+formatting, numeric and temporal boundaries, selected-header provider contracts
+and event triggers. Index enumeration also exposes a production defect: its
+physical descriptor has no type OID on PostgreSQL 13, but the tuple transport
+attempts to resolve type zero. These results establish remaining work, not full
+older-version parity.
+
+The final plain full Linux x64/PostgreSQL 18.6 regression passes **8,251 tests,
+zero failures and six Windows-only skips, 8,257 total**, in 12m23.357s
+(integration 12m22.248s). Release builds with zero warnings/errors in 1m47.04s;
+API freshness passes for 200 pages/2,437 members; the site builds 245 pages and
+its check reports zero errors/warnings/hints. The test timing overlaps isolated
+older-version work and is not a cold-cache benchmark. Other full-port
+requirements and the complete PostgreSQL 13–19/platform matrix remain required.
+
+The 2026-09-28 07:58 UTC pre-commit check records
+[CI 36392466233](https://github.com/willibrandon/ankus/actions/runs/36392466233)
+at `277b031`: quality and all three runtime jobs pass; Ubuntu, macOS and Windows
+test jobs remain in progress without a reported failure.
+[Docs 36392466283](https://github.com/willibrandon/ankus/actions/runs/36392466283)
+passes. The preceding `f972fdd` platform jobs were cancelled when superseded and
+provide no completed-suite evidence. Previous outcomes are checked and recorded
+again immediately before pushing.
