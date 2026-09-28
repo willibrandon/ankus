@@ -57,6 +57,25 @@ internal static class NativeArrayViewBridge
             Oid element = get_element_type(type);
             if (!OidIsValid(element))
                 ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("The borrowed value is not an array")));
+            if (request->scalar_operation == 5 && OidIsValid(request->scalar_result_oid))
+            {
+                Oid expected = request->scalar_result_oid;
+                Oid actual = request->limit != 0 ? element : getBaseType(element);
+                bool compatible = actual == expected;
+                if (request->limit == 0)
+                {
+                    compatible = compatible ||
+                        (expected == TEXTOID && (actual == VARCHAROID || actual == BPCHAROID)) ||
+                        (expected == RECORDOID && get_typtype(actual) == TYPTYPE_COMPOSITE);
+                }
+
+                if (!compatible)
+                {
+                    ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH),
+                        errmsg("Array element type does not match the requested managed type")));
+                }
+            }
+
             MemoryContext owner = ankus_datum_context(request->result_context, request->result_generation);
             MemoryContext previous = MemoryContextSwitchTo(owner);
             ArrayType *array = DatumGetArrayTypeP(datum);

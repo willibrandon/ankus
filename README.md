@@ -87,6 +87,11 @@ Declare functions as synchronous static methods. The generator uses these type m
 | `PgInternal` | `internal` (backend callback state) |
 | `void` result | `void` |
 
+For typed borrowed cells, construct `PgArrayView<T>` from a checked `PgDatum`.
+It converts elements on access while preserving native type, shape and lifetime;
+see [typed borrowed arrays](docs/src/content/docs/arrays.md#typed-borrowed-cells).
+Generated signatures currently use the raw `PgArrayView` representation.
+
 Nullable value types and nullable reference annotations accept SQL NULL. Methods
 with only required SQL parameters are declared `STRICT`. For mixed signatures, a NULL
 required argument returns SQL NULL without invoking the method; nullable arguments

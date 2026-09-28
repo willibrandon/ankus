@@ -281,6 +281,51 @@ to retain an independent value. A nullable `PgArrayView?` parameter accepts
 whole-array SQL NULL; `Read<PgArrayView?>()` returns null for it. The explicit
 constructor requires a present array. Empty arrays have rank zero and no cells.
 
+### Typed borrowed cells
+
+Construct `PgArrayView<T>` from a checked array datum to convert cells on access
+without first materializing the entire array:
+
+```csharp
+using SpiRawResult result = Spi.QueryRaw(
+    "SELECT '[-1:1]={7,NULL,19}'::integer[]");
+using var values = new PgArrayView<int?>(result[0][0]);
+
+int? first = values.GetValue(-1); // 7
+int? absent = values[1];         // null
+int?[] copy = values.ToArray();  // Explicitly copies in row-major order.
+```
+
+The typed view exposes `TypeOid`, `ElementTypeOid`, `Count`, `Rank`, `HasNulls`,
+`Lengths`, `LowerBounds`, and the checked original `Datum`. Its indexer uses a
+zero-based flat index; `GetValue` uses PostgreSQL subscripts. Both take O(n)
+time. Enumeration visits the cells in one linear pass, with independent cursors
+and one conversion per cell. Repeated `Current` reads return that same converted
+value after checking the source lifetime.
+
+Construction validates the element type even for empty and all-NULL arrays.
+`PgArrayView<int>` rejects any NULL cell; use `PgArrayView<int?>` when NULL is
+possible. Reference cells can be null, so annotate them accordingly. Domains
+retain their exact OIDs while ordinary scalar conversions read the base value
+without reapplying domain constraints. A `[PgDatumType]` element instead requires
+its declared exact element identity and a reader, including when every cell is
+NULL. Enums, custom types, native-layout types and composites use their existing
+scalar readers. Nested managed array elements are unsupported except `byte[]`,
+which represents one `bytea` cell.
+
+Ordinary strings, bytes and value types are copied when read. With
+`PgArrayView<PgTextView?>` or `PgArrayView<PgByteaView?>`, each present cell is
+another checked native view: dispose each returned element when finished. It
+retains the array's source lifetime and expires when the array or its source
+expires. Disposing a cursor does not dispose its returned elements. Copy text or
+bytes explicitly before retaining them beyond that lifetime; copying a sequence
+of borrowed views only copies their references.
+
+Use the explicit constructor shown above for typed views. Direct
+`PgDatum.Read<PgArrayView<T>>()`, SPI scalar helpers returning this generic type,
+and generated function signatures using it are not yet supported. Raw
+`PgArrayView` supports those paths as described above.
+
 ### Contiguous native slices
 
 `DangerousGetSpan<T>()` exposes the original contiguous payload for `sbyte`,

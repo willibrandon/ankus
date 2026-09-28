@@ -26,7 +26,14 @@ public sealed partial class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
     /// Borrows a present array without copying its flat elements or rechecking domain constraints.
     /// </summary>
     /// <param name="value">The array datum whose owner must remain alive for the view's lifetime.</param>
-    public PgArrayView(PgDatum value)
+    public PgArrayView(PgDatum value) : this(value, 0, false)
+    {
+    }
+
+    /// <summary>
+    /// Borrows storage after checking an optional declared element contract, even for empty arrays.
+    /// </summary>
+    internal PgArrayView(PgDatum value, uint elementType, bool exactIdentity)
     {
         ArgumentNullException.ThrowIfNull(value);
         value.Lifetime.Validate();
@@ -40,7 +47,7 @@ public sealed partial class PgArrayView : IReadOnlyList<PgDatum>, IDisposable
         try
         {
             var lifetime = new PgDatumLifetime(_context, source: value.Lifetime);
-            (_datum, ElementTypeOid, _lengths, _lowerBounds, Count, HasNulls) = NativeBackend.BorrowArray(value, lifetime);
+            (_datum, ElementTypeOid, _lengths, _lowerBounds, Count, HasNulls) = NativeBackend.BorrowArray(value, lifetime, elementType, exactIdentity);
             lifetime.Scope?.Register(this);
         }
         catch (Exception primary)

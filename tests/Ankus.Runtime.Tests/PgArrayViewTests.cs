@@ -268,6 +268,34 @@ public sealed partial class PgArrayViewTests
         } = -1;
 
         /// <summary>
+        /// Gets or sets the independently selected source element identity.
+        /// </summary>
+        internal uint ElementType
+        {
+            get;
+            init;
+        } = 25;
+
+        /// <summary>
+        /// Gets or sets whether the scripted array contains a NULL cell.
+        /// </summary>
+        internal bool HasNulls
+        {
+            get;
+            init;
+        } = true;
+
+        /// <summary>
+        /// Gets the requested element contract and nominal-identity flag.
+        /// </summary>
+        internal List<(uint Type, long Exact)> Contracts { get; } = [];
+
+        /// <summary>
+        /// Gets prepared scalar conversions independently of the cursor's native words.
+        /// </summary>
+        internal Queue<NativeValue> Conversions { get; } = [];
+
+        /// <summary>
         /// Gets the independent response sequence for native iteration.
         /// </summary>
         internal Queue<(long Bits, bool IsNull, bool Found)> Cells { get; } = [];
@@ -351,16 +379,21 @@ public sealed partial class PgArrayViewTests
                 ArrayScript script = s_current!;
                 script.Requests.Add((request->_scalarOperation, request->_arrayIterator));
                 result->_release = &Release;
-                result->_resultTypeOid = 25;
+                result->_resultTypeOid = script.ElementType;
                 switch (request->_scalarOperation)
                 {
+                    case 0:
+                        result->_text = script.Conversions.Dequeue();
+                        result->_rowsAffected = script.ElementType;
+                        break;
                     case 5:
+                        script.Contracts.Add((request->_scalarResultOid, request->_limit));
                         int[] shape = script.InvalidMetadata == 0 ? [3] : [3, -1];
                         result->_text = NativeValue.FromBytes(MemoryMarshal.AsBytes(shape.AsSpan()));
                         result->_text.Integral = 123;
                         result->_rowCount = script.InvalidMetadata == 1 ? -1 : 3;
-                        result->_rowsAffected = 1;
-                        result->_resultTypeOid = script.InvalidMetadata == 2 ? 0U : 25U;
+                        result->_rowsAffected = script.HasNulls ? 1 : 0;
+                        result->_resultTypeOid = script.InvalidMetadata == 2 ? 0U : script.ElementType;
                         break;
                     case 7:
                         result->_text.Integral = ++script._nextIterator * 1010;

@@ -25,6 +25,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgAnyArray](/api/ankus.pganyarray/)
 - [PgAnyElement](/api/ankus.pganyelement/)
 - [PgArrayView](/api/ankus.pgarrayview/)
+- [PgArrayView&lt;T&gt;](/api/ankus.pgarrayview-1/)
 - [PgArray&lt;T&gt;](/api/ankus.pgarray-1/)
 - [PgAtomic](/api/ankus.pgatomic/)
 - [PgAtomicValue](/api/ankus.pgatomicvalue/)

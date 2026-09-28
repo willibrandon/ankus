@@ -8,8 +8,8 @@ public static unsafe partial class NativeBackend
     /// Borrows flat array storage, flattening into the selected owner only when required by PostgreSQL.
     /// </summary>
     internal static (PgDatum Datum, uint Element, int[] Lengths, int[] Bounds, int Count, bool HasNulls) BorrowArray(
-        PgDatum value, PgDatumLifetime lifetime)
-        => RunArrayView(value, 5, lifetime, 0, 0, result =>
+        PgDatum value, PgDatumLifetime lifetime, uint elementType = 0, bool exactIdentity = false)
+        => RunArrayView(value, 5, lifetime, exactIdentity ? 1 : 0, 0, result =>
         {
             byte[] shape = result._text.ReadBytes();
             if (shape.Length % 8 != 0 || shape.Length > 48 || result._rowCount < 0 || result._resultTypeOid == 0)
@@ -22,7 +22,7 @@ public static unsafe partial class NativeBackend
             return (new PgDatum(unchecked((nuint)result._text.Integral), value.TypeOid, false, lifetime),
                 result._resultTypeOid, dimensions[..rank].ToArray(), dimensions[rank..].ToArray(),
                 result._rowCount, result._rowsAffected != 0);
-        });
+        }, elementType);
 
     /// <summary>
     /// Visits the requested flat cell without copying its by-reference storage.
