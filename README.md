@@ -59,6 +59,11 @@ for version selection, servicing, and rebuilding deployed extensions.
 See [development and testing](docs/contributing/development.md) for prerequisites,
 PostgreSQL discovery, and the integration harness.
 
+Use `ankus init --pg18 download` to install PostgreSQL locally, or pass an existing
+`pg_config` path to register it. PostgreSQL 13–19 have independent selections;
+see the [command-line guide](docs/src/content/docs/reference/cli.md) for source-build
+prerequisites and platform distribution availability.
+
 ## Function types
 
 Declare functions as synchronous static methods. The generator uses these type mappings:
@@ -124,7 +129,9 @@ bytes. `string` and `byte[]` copy values into managed storage; `PgTextView` and
 `PgByteaView` provide checked native reads with private detoast or encoding
 storage when needed. `PgCString` and `PgCStringView` preserve exact terminated
 bytes for native C-string signatures. See [text and binary values](docs/src/content/docs/text-and-binary.md)
-for lifetime rules and independent copies. Managed exceptions return completely to native code
+for lifetime rules and independent copies.
+
+Managed exceptions return completely to native code
 before PostgreSQL raises ERROR. See [the native boundary design](docs/contributing/native-boundary.md)
 for buffer ownership and error cleanup.
 
@@ -135,8 +142,10 @@ Use `[PgType]` on a record, class, struct, or enum for a PostgreSQL base type.
 Ankus generates its own serializer with CBOR storage, JSON text I/O, and direct
 constructor/member access compatible with Native AOT. Nested records, nullable
 members, arrays, lists, and string-keyed dictionaries retain their declared shape.
+
 Use `[JsonDerivedType]` and optional `[JsonPolymorphic]` to declare tagged variants
 with their concrete types and inherited state preserved in both formats.
+
 Set `TextCodec` to a `PgTypeTextCodec<T>` for custom SQL text with generated CBOR
 storage. Add `NativeLayout = true` for densely packed unmanaged structs with
 custom text and exact native bytes. Use `PgVarlena<T>` to borrow native-layout
@@ -148,12 +157,15 @@ Use `[PgDatumType]` for a reusable scalar wrapper over manual native storage or 
 external SQL type. Its converter implements `IPgDatumReader<T>`,
 `IPgDatumWriter<T>`, or both; generated callbacks and raw `PgDatum.Read<T>()`
 select the declared CLR type. Its `T[]` and `PgArray<T>` forms reuse that converter
-with exact element identity and checked array shape. Generic declarations register
+with exact element identity and checked array shape.
+
+Generic declarations register
 finite, fully constructed types selected by generated signatures, exact managed
 type providers, or explicit `PgDatumType(typeof(ClosedType), name, converter)`
 declarations. Explicit constructions can have independent SQL types and converters.
 Open converter definitions such as `typeof(BoxConverter<>)` infer one closed,
 constraint-checked factory from their exact reader/writer interfaces at compile time.
+
 Value-type wrappers can also declare `[PgRangeType]` to use the same converter
 for finite `PgRange<T>` bounds, with independent range SQL identity and ownership.
 See [mapped range bounds](docs/src/content/docs/ranges.md#mapped-bounds).
@@ -238,13 +250,16 @@ int answer = Spi.ExecuteScalar<int>("SELECT $1 + $2", SpiParameter.Create(40), S
 See [SPI queries](docs/src/content/docs/spi.md) for typed parameters, result rows, and error handling.
 PostgreSQL 13–16 parallel execution cannot use recovery subtransactions; a native
 failure unwinds the managed callback before PostgreSQL aborts the operation.
+
 Use `PgTypes.GetOid` for native type-name resolution and `PgQualifiedNameBuilder`
 for exact operator lookup. See [catalog name lookups](docs/src/content/docs/catalog-lookups.md)
 for search paths, permissions and current catalog identities.
+
 Use `PgRelation` to open and lock a relation, inspect live metadata, copy its tuple
 descriptor, and open its indexes. Generated `regclass` arguments and results have
 explicit reference cleanup, including arrays and iterators. See
 [relation access](docs/src/content/docs/relations.md) for ownership and locking.
+
 `PgBuiltInOid` supplies typed native constants, and `PgOid` classifies values
 against an explicit or active PostgreSQL major version while preserving invalid,
 custom and built-in identity. `PgOid.ToDatum` maps the invalid tag to SQL NULL;
@@ -261,10 +276,12 @@ Projects using the same measured contract share their native type identity.
 The SDK defines `ANKUS_PG13` through `ANKUS_PG19` for the selected major so
 consumer code can select version-specific declarations at compile time; see
 [build settings](docs/src/content/docs/reference/build-settings.md).
+
 `PgNodes.Borrow` adds checked views over native storage, with tag-based casts that retain the original
 bounds and lifetime. `PgNodes.DangerousAllocate` creates zeroed tagged storage;
 `DangerousToNativeString` formats a valid native graph through PostgreSQL's guarded
 boundary and returns owned text.
+
 `NativeMethods` exposes selected-header fixed functions and helpers for alignment,
 memory contexts, pages and tuples through the native error guard. `NativeGlobals`
 provides guarded value copies and explicit native addresses for selected-header
@@ -272,11 +289,13 @@ globals. Native function pointers have typed borrowed values whose `Invoke`
 methods use the same native error guard. Method-table fields expose callback
 types named after their record and field; global hooks also expose
 `NativeGlobals_<Global>Callback` names independent of unrelated typedef aliases.
+
 `[PgNativeCallback]` exposes a static
 managed handler through a generated native function-pointer property, including
 explicit hook installation, previous-hook chaining and restoration. Variadic
 calls remain in progress.
 See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-postgresql-declarations).
+
 The [custom-scan sample](samples/Ankus.Examples.CustomScans) uses these method
 tables to trace actual sequential and index paths, child-plan execution, rescans
 and EXPLAIN. Index children retain their supported backward and mark/restore
@@ -290,14 +309,17 @@ arguments, defaults, and ordinary PostgreSQL permissions. `CallRaw` returns a
 context-owned datum with its exact type identity. Queries and catalog calls also
 accept `PgAnyElement` and `PgAnyArray` results for types determined at runtime. See
 [calling PostgreSQL functions](docs/src/content/docs/calling-functions.md).
+
 Use `PgFunctions.GetInfo` for an immutable function-catalog snapshot, including
 argument types and modes, volatility, permissions-related flags, source and local
 settings. `GetDefaultArguments(context)` materializes actual native expression
 trees in an explicit owner without evaluating them.
+
 `[PgDatumType]` readers also support `Call<T>` and SPI scalar-result helpers,
 with exact mapped type identity and detached managed results.
 `DangerousCall<T>` accepts mapped results when the caller supplies a valid native
 address with the matching result type and ABI.
+
 Use [logging and errors](docs/src/content/docs/logging.md) to send PostgreSQL notices and structured diagnostics.
 `PgSqlStates` supplies named SQLSTATE strings for reporting errors and writing
 exception filters, while preserving support for extension-specific codes.
@@ -318,13 +340,16 @@ Use `PgMemoryContext` and `PgAllocation` for PostgreSQL-owned native storage,
 temporary current-context scopes, checked byte access, and deterministic cleanup.
 Declare a `PgMemoryContext` function parameter to receive a borrowed native context
 without adding a SQL argument; set functions receive their multi-call owner.
+
 Typed factories and span copies preserve unmanaged bytes; allocation options support
 zeroing, explicit alignment, and PostgreSQL's huge size policy. `RunTransient` creates
 and selects a child context, restores the caller, and attempts deletion on every exit.
+
 `PgNativeBox<T>`, `PgContextValue<T>`, and `PgNativeReference<T>` distinguish
 individual ownership, context ownership, and borrowed access to unmanaged values.
 Borrowed Slab, Generation, and Bump contexts preserve their native allocation
 restrictions; Bump storage requires context cleanup instead of individual free.
+
 Reset and transaction cleanup invalidate managed handles before they can access
 freed memory. `RegisterResetCallback` roots one-shot managed cleanup until the
 native context resets or is deleted; its disposable registration supports cancellation.
@@ -336,6 +361,7 @@ exclusive guards use PostgreSQL lightweight locks with checked callback
 lifetimes. Their `Read` callbacks access original nested atomic and spinlock
 fields; exclusive guards also provide `Mutate` callbacks for direct field and
 bounded-collection updates. `Value` provides copied access and replacement.
+
 `PgAtomic<T>` provides scalar reads, exchanges, comparisons
 and integer updates across backends and managed threads with .NET `Interlocked`
 semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
@@ -344,6 +370,7 @@ exclusive guards for very short updates; `PgSpinLock<T>` owns stable local
 storage with the same guard API. Scoped guard reads operate on original nested
 atomic and spinlock fields while preserving the parent's lifetime. Spinlock
 guards also support scoped mutations without releasing the parent lock.
+
 `PgFixedList<T>`, `PgFixedDeque<T>` and
 `PgFixedMap<TKey, TValue>` provide bounded collections over unmanaged inline
 buffers, including process-stable map keys. See

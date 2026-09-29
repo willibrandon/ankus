@@ -73,15 +73,31 @@ internal static partial class ToolCommand
 
     private static Command CreateInit(Option<string?> home)
     {
-        var command = new Command("init", "Register installed PostgreSQL versions for extension development.");
+        var command = new Command("init", "Download or register PostgreSQL versions for extension development.");
         var versions = new Dictionary<int, Option<string?>>();
         for (int major = 13; major <= 19; major++)
         {
-            var option = new Option<string?>($"--pg{major}") { Description = $"Path to PostgreSQL {major}'s pg_config executable." };
+            var option = new Option<string?>($"--pg{major}")
+            {
+                Description = $"Path to PostgreSQL {major}'s pg_config executable, or 'download' to install it locally.",
+            };
             versions.Add(major, option);
             command.Options.Add(option);
         }
 
+        var jobs = new Option<int>("--jobs", "-j")
+        {
+            Description = "Maximum parallel PostgreSQL source-build jobs.",
+            DefaultValueFactory = _ => Environment.ProcessorCount,
+        };
+        var configure = new Option<string[]>("--configure-flag")
+        {
+            Description = "Additional Unix configure argument; repeat for multiple arguments.",
+        };
+        var valgrind = new Option<bool>("--valgrind") { Description = "Enable PostgreSQL's Valgrind instrumentation on Unix." };
+        command.Options.Add(jobs);
+        command.Options.Add(configure);
+        command.Options.Add(valgrind);
         command.SetAction(async (result, token) =>
         {
             var paths = new Dictionary<int, string>();
@@ -94,6 +110,33 @@ internal static partial class ToolCommand
             }
 
             var registry = new PostgresRegistry(result.GetValue(home));
+            if (paths.Count == 0)
+            {
+                foreach (int major in versions.Keys)
+                {
+                    paths.Add(major, "download");
+                }
+            }
+
+            int[] downloads = [.. paths.Where(static pair => pair.Value == "download").Select(static pair => pair.Key)];
+            if (downloads.Length != 0)
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+                var provisioner = new PostgresProvisioner(client, registry.HomeDirectory);
+                var options = new PostgresProvisionOptions
+                {
+                    Jobs = result.GetValue(jobs),
+                    ConfigureFlags = result.GetValue(configure) ?? [],
+                    EnableValgrind = result.GetValue(valgrind),
+                };
+                IReadOnlyList<PostgresInstallation> downloaded = await provisioner.InstallAsync(downloads, options,
+                    new ConsoleProgress(), token);
+                foreach (PostgresInstallation installation in downloaded)
+                {
+                    paths[installation.Version.Major] = installation.PgConfigPath;
+                }
+            }
+
             IReadOnlyList<PostgresInstallation> installations = await registry.RegisterAsync(paths, token);
             foreach (PostgresInstallation installation in installations)
             {

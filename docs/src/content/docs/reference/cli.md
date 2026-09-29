@@ -1,6 +1,6 @@
 ---
 title: Command-line tool
-description: Create an extension, register PostgreSQL, and build, publish, or install with ankus.
+description: Create an extension, install or register PostgreSQL, and build, publish, or install with ankus.
 ---
 
 ## Create an extension
@@ -24,7 +24,50 @@ Creation needs no PostgreSQL installation. Running the generated backend tests
 requires PostgreSQL 18+ with development headers and the Native AOT toolchain.
 See [testing an extension](/getting-started/testing/).
 
-## Register PostgreSQL
+## Install or register PostgreSQL
+
+Download a local development installation, including server headers and contrib modules:
+
+```console
+ankus init --pg18 download
+ankus info --pg 18
+```
+
+The tool selects the latest published release of the requested major. You can
+request PostgreSQL 13 through 19, combine selections, and mix downloads with
+existing `pg_config` paths:
+
+```console
+ankus init --pg13 download --pg18 download --pg19 /path/to/pg19/bin/pg_config
+```
+
+Linux and macOS build PostgreSQL's upstream sources with debug information and
+assertions. Source downloads are checked against upstream SHA-256 checksums.
+Windows x64 uses EDB's binary archives over HTTPS. A prerelease can be downloaded
+when its platform distribution is available; otherwise register an existing build.
+When a major has no stable release yet, source downloads select its newest beta
+or release candidate.
+
+Source builds need a C compiler, GNU Make, Bison, Flex, pkg-config, and development
+files for Readline, zlib, and ICU. On macOS, install the Xcode command-line tools
+and the corresponding Homebrew dependencies. Ankus discovers Homebrew's ICU
+pkg-config directory automatically. Set `CC`, `CPPFLAGS`, `LDFLAGS`, or
+`PKG_CONFIG_PATH` when using another toolchain or dependency location.
+
+Use `--jobs 8` to limit parallel compilation. Repeat
+`--configure-flag=--with-icu` for additional Unix configure feature options.
+`--valgrind` enables PostgreSQL's memory-context instrumentation and requires
+Valgrind headers. These source options do not apply to Windows binary archives.
+
+Installations live under `~/.ankus/postgres/`. Repeating the same request reuses
+a validated installation with matching build options; a new release gets its
+own directory. Temporary downloads and build files are removed after success
+or failure. System installations and databases are preserved. `init` does not
+start a server or create a database cluster.
+
+With no version options, `init` requests every supported major. All requested
+installations must validate before the registrations are updated. If a later
+installation fails, completed installations remain available for the next attempt.
 
 Point Ankus at the `pg_config` executable from your PostgreSQL installation:
 

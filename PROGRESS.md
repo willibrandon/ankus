@@ -13662,3 +13662,87 @@ before committing this runner/runtime milestone; earlier CI **36521471450** also
 passes. New Windows payload/full-suite validation and fresh CI execution through
 the dedicated Linux/macOS runner services remain pending until the push. All
 remaining faithful-port and release-platform requirements remain open.
+
+### 2026-09-29 — Local PostgreSQL provisioning through `ankus init`
+
+Previous runner/runtime CI **36531214547** completes successfully at `6dd646a`:
+macOS ARM64/PostgreSQL 18 takes **9m32s**, Windows x64/PostgreSQL 17 takes
+**17m12s**, and Linux x64/PostgreSQL 18 takes **21m31s**. Quality, all three
+runtime jobs, and Docs **36531214397** pass. The complete downloaded public job
+log and macOS report artifacts are checked for private runner identifiers; the
+result is **zero matches** across the job log and all **six** downloaded reports.
+No job times out or is canceled.
+
+`ankus init --pg18 download` now provisions PostgreSQL under the Ankus home.
+Independent selections cover **13–19** and may combine downloads with existing
+`pg_config` paths. Providing no version selections requests all seven majors. The authoritative
+PostgreSQL source index determines the newest stable release in each major, or
+the newest release candidate/beta before that major's first stable release;
+versions are compared numerically and archive hosts are fixed.
+
+Unix installs verify upstream SHA-256, compile `world-bin` with debug/assertion
+and allocation-randomization flags, and install `install-world-bin` into owned
+staging directories. `--jobs`, repeated configure feature arguments and
+`--valgrind` select development-build behavior. macOS discovers Homebrew's ICU
+pkg-config directory while preserving explicit ICU/compiler settings. Windows
+x64 downloads EDB binary archives over HTTPS. New installations are validated
+before registration; matching completed builds are reused. Different versions
+and build options have independent destinations. Downloads and compiler scratch
+are removed after success or failure; existing system installations and database
+clusters are not changed. Registry updates remain atomic across all selections.
+
+| Requirement | Evidence |
+|---|---|
+| All seven majors; stable/RC/beta ordering and trusted upstream URLs | `SelectsLatestAcrossEverySupportedMajor`, `ConstructsTrustedArchiveUrls`, `RejectsUnsupportedMajorsBeforeHttp`, `RejectsMissingRelease` |
+| Real tar/ZIP extraction, exact bytes, source checksums and cleanup | `ExtractsExactBytesAndCleansScratch`, `RejectsChecksumFailuresWithoutPublishing`, `HttpFailureAndCancellationLeaveNoInstallation` |
+| Path/link/duplicate/truncation rejection and existing-file preservation | `RejectsUnsafePathsAndRemovesPartialExtraction`, `RejectsLinks`, `RejectsIncompleteOrAmbiguousArchives`, `PreservesExistingDestination` |
+| Missing Windows distributions retain the requested version with an actionable error | `MissingWindowsArchivePreservesLatestVersionAndExplainsRegistration` |
+| Source option isolation and input validation before side effects | `BuildIdentitySeparatesOptionsButNotJobCounts`, `RejectsInvalidJobs`, `RejectsArgumentsThatChangeInstallationLocations`, `RejectsSourceOptionsForWindows`, `InvalidRequestsDoNotCreateFilesOrContactUpstream` |
+| Installed-tool options and unchanged configuration on invalid downloads | `InitHelpDescribesDownloadsAndAllPostgresMajors`, `InitRejectsInvalidDownloadJobsBeforeFilesystemChanges` |
+
+Actual downloads build and register PostgreSQL **13.23, 14.24, 15.19, 16.15,
+17.11, 18.6 and 19beta4** on Linux x64. Each server starts in its own temporary
+cluster, loads the supplied `hstore` contrib extension, returns the literal
+value **42**, reports division-by-zero SQLSTATE **22012**, returns **42** again
+on the same backend, and shuts down. These are provisioning/backend checks;
+they do not constitute full Ankus parity for every server version.
+
+Actual macOS ARM64 source installation of **18.6** and Windows x64 binary
+installations of **13.23, 14.24, 15.19, 16.15, 17.11 and 18.6** pass registration,
+cluster startup, loading the installed `hstore` extension, returning **42** and
+shutdown. Each temporary validation cluster is removed after its server stops.
+Upstream source tar
+archives contain a PAX global metadata header; extraction accepts that metadata
+without writing it as a file. The first local build identified missing Bison and
+Flex prerequisites; installing those prerequisites allows all seven builds to
+complete. Truncated tar input is normalized to an actionable archive diagnostic.
+
+An actual Ctrl+C during native compilation returns **130**, terminates all owned
+compiler processes, and leaves no build tree or registration. A deliberately
+invalid PostgreSQL block-size configuration fails without changing the existing
+registry bytes or leaving compiler/download scratch.
+
+The PgConfig suite passes **187 tests, zero failures/skips**. The installed-tool
+selection passes **three cases, zero failures/skips**. README, the CLI guide,
+and generated API pages document the command, prerequisites, cleanup and platform
+availability. The final Release solution build passes with **zero warnings/errors**
+in **1m14.62s**. API freshness checks **209 pages/2,530 members**. The site builds
+**256 pages** and checks with **zero errors, warnings or hints**. The plain full
+`dotnet test` invocation against the downloaded PostgreSQL **18.6/Linux x64**
+build passes **9,010 tests, zero failures, six Windows-only skips, 9,016 total**,
+in **10m43.105s**. The final PgConfig rerun includes the subsequently added
+Windows-missing-archive diagnostic case and passes all **187** cases. The
+repository discovery confirms **9,017** cases across six assemblies. Long README paragraphs are separated at
+topic boundaries, preserving every word and link from the provisioning draft.
+
+The pre-commit check confirms CI **36531214547** and Docs **36531214397** remain
+successful, with no runs in progress. The prior two CI milestones also pass;
+earlier Windows setup failures are resolved by those subsequent successful runs.
+
+Remaining tooling scope includes managed development-cluster creation/lifecycle,
+port settings, cross-compilation/no-run behavior, broader templates/schema/test/
+run/package/upgrade commands, and complete platform/version validation. EDB does
+not currently publish the selected PostgreSQL **19beta4** Windows archive;
+registration of an existing Windows build remains available, while automatic
+Windows source provisioning remains required. No older release is substituted.
+All remaining faithful-port requirements remain open.
