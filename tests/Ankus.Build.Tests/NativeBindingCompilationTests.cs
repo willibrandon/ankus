@@ -159,7 +159,6 @@ public sealed class NativeBindingCompilationTests(TestContext context)
                       <package pattern="Microsoft.AspNetCore.App.Ref" />
                     </packageSource>
                   </packageSourceMapping>
-                  <config><add key="globalPackagesFolder" value="packages" /></config>
                 </configuration>
                 """);
             string configurationPath = Path.Combine(configurationDirectory, "explicit.config");
@@ -172,8 +171,12 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             }
 
             await File.WriteAllTextAsync(configurationPath, configuration.ToString(), context.CancellationToken);
-            settings = await SettingsAsync(root, restoreArguments);
+            // An inherited NUGET_PACKAGES overrides NuGet.Config's globalPackagesFolder.
+            // An explicit MSBuild property keeps this consumer's cache isolated on dedicated runners too.
+            string packagesDirectory = Path.Combine(configurationDirectory, "packages");
+            settings = await SettingsAsync(root, [.. restoreArguments, "-property:RestorePackagesPath=" + packagesDirectory]);
             NativeBindingRestoreSettings resolved = await NativeBindingRestoreSettings.ReadAsync(settings[2], context.CancellationToken);
+            Assert.AreEqual(packagesDirectory, resolved.Packages);
             Assert.Contains(feed, resolved.Sources);
             Assert.DoesNotContain(static source => !Path.IsPathFullyQualified(source), resolved.Sources);
             Assert.DoesNotContain(Path.Combine(configurationDirectory, "missing-feed"), resolved.Sources);
@@ -186,9 +189,11 @@ public sealed class NativeBindingCompilationTests(TestContext context)
 
             // A warm compiled artifact must not bypass a changed restore policy with a new package cache.
             configuration.Root!.Element("packageSourceMapping")!.Element("packageSource")!.Element("package")!.SetAttributeValue("pattern", "Unrelated.*");
-            configuration.Root.Element("config")!.Element("add")!.SetAttributeValue("value", "denied-packages");
             await File.WriteAllTextAsync(configurationPath, configuration.ToString(), context.CancellationToken);
-            settings = await SettingsAsync(root, restoreArguments);
+            string deniedDirectory = Path.Combine(configurationDirectory, "denied-packages");
+            settings = await SettingsAsync(root, [.. restoreArguments, "-property:RestorePackagesPath=" + deniedDirectory]);
+            NativeBindingRestoreSettings denied = await NativeBindingRestoreSettings.ReadAsync(settings[2], context.CancellationToken);
+            Assert.AreEqual(deniedDirectory, denied.Packages);
             string tool = typeof(NativeBindingCompilationCommand).Assembly.Location;
             InvalidOperationException rejected = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 NativeBindingLayoutCommand.RunProcessAsync("dotnet", [tool, "binding-compile", .. Arguments(root, source, settings)], root, context.CancellationToken));

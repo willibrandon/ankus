@@ -13361,3 +13361,80 @@ build/check with **253 pages** and zero diagnostics. API generation verifies
 **18.6/Linux x64**, SDK **10.0.400**, with six package slots passes **8,807
 tests, zero failures, six Windows-only skips, 8,813 total**, in **8m53.023s**.
 This isolated candidate excludes the unfinished embedded-schema changes.
+
+## Correct dedicated Windows test prerequisites and cache isolation
+
+CI **36516923181** (`a28897c`) selects the intended Windows C++ toolchain,
+builds the complete Release solution, and successfully saves the native runtime
+cache. Its Build tests expose two failures in
+`CompiledCompanionsHonorOfflineFeedConfigurationAndSourceMapping`. The dedicated
+runner's `NUGET_PACKAGES` overrides the test's NuGet.Config
+`globalPackagesFolder`; packages already in that shared cache bypass source
+mapping, so the deliberately denied restore unexpectedly succeeds.
+
+The completed Windows job takes **22m38s** and also reports seven integration
+failures. Six allocator cases encounter the deliberately guarded aligned
+no-OOM operation because the machine's default PostgreSQL is **17.7**, older
+than the required **17.11** fix. A separate package/header case fails opening
+its SQL connection; Windows TCP event **4231** at the exact failure time confirms
+exhaustion of the **16,384-port** dynamic range. The run is failed platform
+evidence, and its earlier Build-module failure also prevents the remaining
+four unit modules from running.
+
+The dedicated runner now selects an isolated PostgreSQL **17.11** installation
+through `PGROOT`. CI checks the minimum maintenance version before compiling.
+The host's IPv4 outgoing-port range is expanded to **55,536 ports**; validation
+records TCP usage to distinguish resource capacity from retained connections.
+The complete suite still uses independent backend sessions, all original
+assertions, and the same job timeout.
+
+The tests now select separate allowed and denied package directories through
+`RestorePackagesPath` and assert the paths actually resolved in the consumer
+assets. They retain the exact restore-error checks, executable artifact checks,
+and successful recovery after repairing the source policy. Production restore
+behavior and analyzer requirements are unchanged.
+
+With `NUGET_PACKAGES` set, the original tests reproduce both failures on Linux.
+The corrected cases pass **2/2** on Linux and **2/2** on Windows. An isolated
+candidate containing only this correction passes Release with zero
+warnings/errors in **1m23.41s**. Complete plain `dotnet test` on PostgreSQL
+**18.6/Linux x64**, SDK **10.0.400**, passes **8,807 tests, zero failures and
+six Windows-only skips, 8,813 total**, in **9m09.542s**. Complete corrected
+Windows service-account validation with three package slots passes **8,806
+tests, zero failures and seven platform-specific skips, 8,813 total**, in
+**13m50.779s** (integration **13m48.358s**). It uses SDK **10.0.400** and
+PostgreSQL **17.11**, the same runner environment and engineering commands as
+CI. The six-slot comparison passes the identical **8,806 tests, zero failures
+and seven skips** in **11m46.269s** (integration **11m45.082s**). Both runs
+execute all six modules from the same corrected source under Network Service,
+with matching SDK, PostgreSQL and runner settings. They run sequentially after
+the active Windows CI job and Linux validation finish, using the persistent
+NuGet/binding caches. The **2m04.510s** observed improvement is a practical
+sequential-run comparison, not an isolated cold-cache estimate; cache warming
+can affect the exact difference. The dedicated Windows repository variable is
+now **six**, while the fixture's portable default remains three and its positive
+integer override remains unrestricted. This isolated candidate excludes
+unfinished embedded-schema work.
+
+API freshness passes for **206 pages/2,518 members**; documentation builds
+**253 pages** and checks with zero errors, warnings or hints. The updated
+engineering app builds in Release, and all workflows pass actionlint. Windows
+verification rejects PostgreSQL **17.7** before compilation with the expected
+minimum-version diagnostic, then builds the complete candidate against **17.11**
+with zero warnings/errors in **1m33.27s** under the runner's service account.
+
+The completed prior CI outcomes are recorded before the next milestone:
+**36515894149** (`d53fa58`) passes quality, all runtime jobs, Linux (**24m28s**)
+and macOS (**35m58s**), and fails Windows during the previously corrected
+compiler setup. **36516923181** (`a28897c`) passes quality, all runtime jobs,
+Linux (**35m06s**) and macOS (**35m17s**), and fails Windows as diagnosed above.
+Docs **36516923228** passes. No run is cancelled; these Windows failures remain
+failed CI evidence despite the corrected local full-suite pass.
+
+The **2026-09-29 04:23 UTC** precommit review reconfirms those completed
+outcomes, the two earlier setup failures (**36515087803**, **36515342191**),
+and the fully passing predecessor **36511778431**. No older run remains active.
+Windows records no additional TCP port-exhaustion or resource-exhaustion events
+during either corrected full run. Available test reports preserve each module's
+counts, individual results and recorded concurrency. Outcomes are checked again
+before push and the next actual CI run is monitored separately.

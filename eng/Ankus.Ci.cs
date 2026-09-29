@@ -471,6 +471,18 @@ static void InstallPostgreSql(string repositoryRoot, string version)
             throw new InvalidOperationException($"Expected PostgreSQL {version}, but the runner provides {actualVersion}.");
         }
 
+        Version minimum = version switch
+        {
+            "16" => new(16, 15),
+            "17" => new(17, 11),
+            "18" => new(18, 6),
+            _ => new(15, 0),
+        };
+        if (!Version.TryParse(actualVersion["PostgreSQL ".Length..], out Version? installed) || installed < minimum)
+        {
+            throw new InvalidOperationException($"The complete test suite requires PostgreSQL {minimum} or later in major {version}; the runner provides {actualVersion}. Update the runner installation or select it through PGROOT.");
+        }
+
         Console.WriteLine($"Using preinstalled {actualVersion}.");
         SelectPostgreSql(version, pgConfig);
         return;

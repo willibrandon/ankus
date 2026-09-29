@@ -61,7 +61,11 @@ runners; external contributors require workflow approval. Windows release builds
 also use the dedicated runner. Keep its service online before dispatching these
 jobs. It needs the pinned .NET SDK, PowerShell 7, Git, current Visual Studio C++
 tools, CMake, Ninja, Python, LLVM 20 or later with matching libclang, and
-PostgreSQL 17 with server headers and import libraries.
+PostgreSQL 17.11 or later in major 17 with server headers and import libraries.
+Set `PGROOT` to the dedicated installation root when the machine's default
+installation differs. The CI build checks the required maintenance version
+before compiling; aligned no-OOM allocation tests require PostgreSQL 16.15,
+17.11 or 18.6 for their respective majors.
 
 The service PATH must include Windows PowerShell for the runtime build and
 Git's `usr/bin` directory for the cache action's `tar`/`gzip` pair. Keep Git's
