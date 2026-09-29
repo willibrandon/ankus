@@ -33,7 +33,7 @@ Linux, and macOS.
 | Item | Value |
 |---|---|
 | .NET SDK | 10.0.400; `global.json` uses `rollForward: latestFeature`, stable 10.0 SDKs only |
-| Embedded Native AOT runtime | 10.0.11-ankus.4 with ILCompiler 10.0.11; upstream servicing update required before initial release |
+| Embedded Native AOT runtime | 10.0.12-ankus.1 with ILCompiler and framework runtime packs 10.0.12; complete platform validation required before initial release |
 | C toolchain | clang 21 + lld; GCC 14 used for the local PostgreSQL build |
 | Primary test target | **PostgreSQL 18** |
 | Initial Ankus release (planned) | **0.1.0** |
@@ -48,7 +48,7 @@ comparison, exact acceptance steps and servicing process.
 
 | Runtime line | Plan and current evidence |
 |---|---|
-| .NET 10 LTS | Initial `net10.0` baseline. Existing platform/backend evidence uses the patched 10.0.11 runtime. Rebase to current upstream servicing (10.0.12 at review) and validate before publishing 0.1.0; recheck at release. |
+| .NET 10 LTS | Initial `net10.0` baseline. The fork incorporates upstream 10.0.12 and passes Linux native component checks and the full PostgreSQL 18.6/Linux x64 suite. Other platform/version combinations remain required before publishing 0.1.0; recheck servicing at release. |
 | .NET 11 STS | Planned next target; no Ankus compatibility claim yet. Validate SDK 11 with `net10.0` separately from a patched .NET 11 runtime with `net11.0`. If GA precedes 0.1.0, complete acceptance in that release. |
 | Later LTS/STS releases | Repeat the explicit compiler/runtime, packed-consumer and complete PostgreSQL/platform gate. Continue servicing already supported majors through upstream end of support. |
 
@@ -59,14 +59,26 @@ Installing SDK 11 must not silently change the established toolchain: repository
 `global.json` now uses the same `latestFeature`/no-prerelease selection as
 generated projects. This does not itself implement .NET 11 support.
 
-Outstanding requirements include the current .NET 10 rebase, early unsupported-TFM
-diagnostics, per-target runtime/compiler selection, cache identity review, .NET
+Outstanding requirements include full platform validation of .NET 10 servicing,
+per-target runtime/compiler selection for additional supported TFMs, .NET
 11 experiments followed by GA validation, the added full CI/release matrix and
 runtime version/rebuild guidance in release notes. Keep a shared codebase where
 possible; introduce servicing branches only when needed. Do not add legacy TFMs,
 relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
+
+Ankus now selects the patched **10.0.12-ankus.1** runtime with matching
+**10.0.12** compiler and framework libraries. Packed consumers reject unsupported
+TFMs and conflicting runtime overrides before publication. Native fork, GC,
+diagnostics and independent-image probes pass on Linux x64. The complete plain
+`dotnet test` suite passes **8,788 tests, zero failures and six Windows-only
+skips, 8,794 total**, on PostgreSQL **18.6/Linux x64**, in **10m55.647s**.
+Release, generated API freshness and site checks pass. Full hosted validation
+of this servicing update, .NET 11 acceptance and all remaining faithful-port
+requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
 
 `PgArrayView<T>` now supports concrete generated scalar, SETOF, TABLE and
 aggregate signatures, alongside checked typed cells and the existing raw/SPI/
@@ -13006,3 +13018,73 @@ Docs **36495722766** passes. Earlier CI **36489705448** and Docs **36489705388**
 are fully successful. Outcomes are checked again before push. Hosted Windows
 timing for the cache-lock change remains unverified, and all remaining faithful
 port and platform/version requirements remain open.
+
+## Runtime servicing — .NET 10.0.12
+
+An isolated runtime checkout now incorporates upstream **v10.0.12**
+(`4271d88e0aebf3d04f188f1334c2220d80555ef6`) while preserving the existing fork
+history. Upstream changes overlap the fork in the GC and Unix PAL; they merge
+without conflicts, which is not behavioral validation. The first build stopped
+because the Linux tracing development headers were absent. After installing
+`liblttng-ust-dev` and its dependencies, the ordinary Release Native AOT runtime
+and CoreLib build succeeds with **zero warnings/errors** in **45.89s**, without
+disabling tracing. Fork commit
+`c7962cbf000ed3e7bf2cc3876417f3ab36efc6e7` is pushed on
+`ankus/runtime-10.0.12`, retaining published fork history through an upstream
+merge. Ankus selects runtime package **10.0.12-ankus.1** and ILCompiler
+**10.0.12**. The runtime CI cache includes the exact fork commit, so this
+servicing update requires new platform payloads.
+
+Native component probes now select matching **10.0.12** compiler and framework
+packs independently of the installed SDK patch. All ten retained-service and
+descendant modes pass on Linux x64 with zero failures and empty stderr.
+Workstation GC and server GC with fixed and dynamic heap counts pass with
+observed active-GC overlap in both fork rounds. Debugger metadata remains
+independent in both library load orders and for a separately copied image.
+Diagnostic ownership, socket transfers, connection recovery, listener retirement,
+response retention, tracing and allocation-failure checks pass.
+
+The existing diagnostic-fork runner initially timed out because it expected the
+original host's listener to remain active after enabling fork support. The runtime
+deliberately parks that host. The runner now enters the existing native host scope
+before requesting diagnostics and exits it after shutdown. All three child rounds
+pass: independent process identities and endpoints, no inherited parent sockets,
+complete managed work and traces, preserved partial parent output, and owned
+endpoint cleanup. All four parent/child traces open with `dotnet-trace report`.
+The compiler's existing native-library EventSource warning remains visible.
+
+Ankus also aligns its framework-library patch with the
+patched runtime and compiler. Previously, those libraries could follow the
+installed SDK's default patch. `SdkRestoresWithoutRepositoryReferences` verifies
+the packed runtime identity, actual restored ILCompiler and Native AOT framework
+pack, and evaluated framework patch. `SdkRejectsNonExtensionPublishSettings`
+adds .NET 9/11 targets and conflicting runtime patches, requiring a nonzero exit,
+the Ankus diagnostic and no published extension manifest. An initial .NET 11 case
+found that the installed SDK's unsupported-target error ran first; moving Ankus's
+target validation earlier fixes the ordering. All **seven focused cases pass**
+in **3m57.660s**, with zero failures or skips.
+
+The complete plain `dotnet test` suite passes **8,788 tests, zero failures and
+six Windows-only skips, 8,794 total**, on PostgreSQL **18.6/Linux x64**, in
+**10m55.647s**. The integration module passes in **10m53.092s**. This run uses
+the new runtime, compiler and framework packs, including packed consumers and
+actual PostgreSQL execution. Release passes with **zero warnings/errors** in
+**1m32.11s**. API freshness verifies **206 pages/2,518 members**; the site builds
+**253 pages** and checks with **zero errors, warnings or hints**. No NuGet
+packages are published and no .NET 11 compatibility is claimed. Full hosted
+servicing validation and all remaining port/version/platform requirements stay
+open.
+
+Before the runtime fork commit and push, CI **36502786472** has successful runtime
+jobs; quality and all three platform suites remain in progress with no reported
+failure. Docs **36502786503** passes. Previous CI **36500893838** was cancelled
+when superseded after quality and runtime jobs passed; its cancelled platform
+jobs are not completed validation. Docs **36500893956** passes. The runtime fork
+has no hosted workflow runs; full platform validation is driven by Ankus CI.
+
+Immediately before the Ankus milestone commit, CI **36502786472** has passed
+quality and all runtime jobs. Its three platform suites remain in progress with
+no reported failure; Docs **36502786503** passes. These runs use the previous
+runtime and are not evidence for the newly serviced payload. Outcomes are checked
+again before push; the new commit requires fresh runtime builds and full platform
+suites.

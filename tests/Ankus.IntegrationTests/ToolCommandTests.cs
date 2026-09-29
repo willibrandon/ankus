@@ -16,7 +16,7 @@ namespace Ankus.IntegrationTests;
 [TestClass]
 public sealed partial class ToolCommandTests(TestContext context)
 {
-    private const string NativeAotRuntimeVersion = "10.0.11-ankus.4";
+    private const string NativeAotRuntimeVersion = "10.0.12-ankus.1";
 
     private static string s_root = null!;
     private static string s_tool = null!;
@@ -381,7 +381,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.IsFalse(s_project.StartsWith(IntegrationEnvironment.RepositoryRoot, StringComparison.Ordinal));
         ProcessResult evaluated = await RunDotnetAsync(["msbuild", s_project, "-target:ResolveReferences", "-verbosity:quiet",
             "-bl:" + Path.Combine(s_root, "references-{}.binlog"),
-            "-getProperty:PublishAot,IsAotCompatible,NativeLib,_AnkusBuildTool", "-getItem:ProjectReference,Analyzer"],
+            "-getProperty:PublishAot,IsAotCompatible,NativeLib,_AnkusBuildTool,RuntimeFrameworkVersion", "-getItem:ProjectReference,Analyzer"],
             context.CancellationToken);
         evaluated.EnsureSuccess("dotnet", ["msbuild"]);
         using JsonDocument document = JsonDocument.Parse(evaluated.StandardOutput);
@@ -389,6 +389,7 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual("true", properties.GetProperty("PublishAot").GetString());
         Assert.AreEqual("true", properties.GetProperty("IsAotCompatible").GetString());
         Assert.AreEqual("Shared", properties.GetProperty("NativeLib").GetString());
+        Assert.AreEqual("10.0.12", properties.GetProperty("RuntimeFrameworkVersion").GetString());
         string helper = Path.GetFullPath(properties.GetProperty("_AnkusBuildTool").GetString()!);
         Assert.StartsWith(s_environment["NUGET_PACKAGES"]!, helper);
         Assert.IsTrue(File.Exists(helper));
@@ -403,6 +404,12 @@ public sealed partial class ToolCommandTests(TestContext context)
         Assert.AreEqual("package", libraries.GetProperty("Ankus.Generators/" + s_version).GetProperty("type").GetString());
         Assert.AreEqual("package", libraries.GetProperty("Ankus.NativeAot.Runtime." + RuntimeInformation.RuntimeIdentifier + "/" +
             NativeAotRuntimeVersion).GetProperty("type").GetString());
+        Assert.AreEqual("package", libraries.GetProperty("Microsoft.DotNet.ILCompiler/10.0.12").GetProperty("type").GetString());
+        JsonElement downloads = assets.RootElement.GetProperty("project").GetProperty("frameworks").GetProperty("net10.0")
+            .GetProperty("downloadDependencies");
+        JsonElement nativeFramework = downloads.EnumerateArray().Single(item => item.GetProperty("name").GetString() ==
+            "Microsoft.NETCore.App.Runtime.NativeAOT." + RuntimeInformation.RuntimeIdentifier);
+        Assert.AreEqual("[10.0.12, 10.0.12]", nativeFramework.GetProperty("version").GetString());
         foreach (JsonProperty library in libraries.EnumerateObject())
         {
             Assert.AreEqual("package", library.Value.GetProperty("type").GetString(), library.Name);
@@ -677,7 +684,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     }
 
     /// <summary>
-    /// Verifies invalid output settings fail rather than producing an unloadable managed or static library.
+    /// Verifies incompatible output and runtime settings fail before publishing an extension.
     /// </summary>
     /// <param name="property">The invalid publish property.</param>
     /// <param name="message">The SDK diagnostic.</param>
@@ -685,6 +692,10 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DoNotParallelize]
     [DataRow("PublishAot=false", "Ankus extensions require PublishAot=true.")]
     [DataRow("NativeLib=Static", "Ankus extensions require OutputType=Library and NativeLib=Shared.")]
+    [DataRow("TargetFramework=net9.0", "Ankus extensions require TargetFramework=net10.0.")]
+    [DataRow("TargetFramework=net11.0", "Ankus extensions require TargetFramework=net10.0.")]
+    [DataRow("RuntimeFrameworkVersion=10.0.11", "Ankus.Sdk selects its matching framework runtime automatically.")]
+    [DataRow("RuntimeFrameworkVersion=11.0.0", "Ankus.Sdk selects its matching framework runtime automatically.")]
     public async Task SdkRejectsNonExtensionPublishSettings(string property, string message)
     {
         string output = CreateDirectory();

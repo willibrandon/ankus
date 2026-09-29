@@ -91,6 +91,9 @@ package versions follow the SDK, including in projects using
 The .NET SDK, project target framework and embedded Native AOT runtime are
 separate selections. See [.NET support](/reference/dotnet-support/) before
 retargeting or updating a deployed extension's runtime.
+Use `TargetFramework=net10.0` and let Ankus select the matching compiler, patched
+runtime and framework libraries. A conflicting `RuntimeFrameworkVersion`
+override is rejected.
 
 ## Installation directories
 

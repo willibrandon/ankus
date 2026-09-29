@@ -34,18 +34,21 @@ The repository and generated projects select SDK 10.0.400 or a later stable
 explicitly installs 10.0.400. This selection must remain separate from the
 runtime included in published extensions.
 
-`eng/Ankus.Ci.cs` currently pins upstream `v10.0.11`, fork commit
-`134b853ff766627327405b2fb1f5c0d74266e4b6`, runtime package
-`10.0.11-ankus.4`, and ILCompiler `10.0.11`. The SDK target and per-RID runtime
-package properties carry matching identities. Microsoft lists 10.0.12 as the
-current patch at this review. Updating the installed SDK alone does not close
-that servicing gap. Rebase and validate the fork on the current upstream patch
-before publishing `0.1.0`; recheck for newer releases before publication.
+`eng/Ankus.Ci.cs` pins upstream `v10.0.12`, fork commit
+`c7962cbf000ed3e7bf2cc3876417f3ab36efc6e7`, runtime package
+`10.0.12-ankus.1`, and ILCompiler `10.0.12`. The SDK target and per-RID runtime
+package properties carry matching identities. Framework runtime packs also use
+10.0.12 instead of following the installed SDK's default patch. Check
+`PROGRESS.md` for completed platform evidence and recheck upstream servicing
+before publishing `0.1.0`.
 
-The SDK checks compiler/package/RID agreement, but does not yet provide a
-supported-TFM table or an early diagnostic for every unsupported target.
-Implement that validation before introducing a second runtime line. Until
-then, only the documented `net10.0` path is a supported development target.
+The SDK checks compiler/package/RID agreement, rejects targets other than
+`net10.0` before framework resolution, and rejects a conflicting
+`RuntimeFrameworkVersion` override. Packed-consumer tests inspect the actual
+restored compiler and framework-pack versions and verify incompatible settings
+fail before publication. Extend this explicit selection to a supported-TFM
+table when introducing a second runtime line; an unknown target must never
+fall back to the .NET 10 payload.
 
 ## Adding .NET 11
 

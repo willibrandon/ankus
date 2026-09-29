@@ -61,6 +61,11 @@ behavior. Its compiler and runtime payload are versioned together. Support for
 .NET 11 requires adapting and validating that patch against .NET 11, rather than
 reusing a .NET 10 runtime with a .NET 11 compiler.
 
+Ankus also selects the matching framework-library patch. Projects targeting an
+unsupported framework or overriding `RuntimeFrameworkVersion` to a different
+patch fail before publication. Update Ankus packages to service the embedded
+runtime; changing that property does not update Ankus's patched runtime.
+
 Native AOT embeds runtime code into the published library. Updating .NET on a
 server does not update an already published extension. See Microsoft's
 [Native AOT deployment documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/).

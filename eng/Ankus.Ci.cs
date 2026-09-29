@@ -7,10 +7,10 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 const string RuntimeRepository = "willibrandon/runtime";
-const string RuntimeBase = "v10.0.11";
-const string RuntimeCommit = "134b853ff766627327405b2fb1f5c0d74266e4b6";
-const string RuntimeVersion = "10.0.11-ankus.4";
-const string RuntimeCompilerVersion = "10.0.11";
+const string RuntimeBase = "v10.0.12";
+const string RuntimeCommit = "c7962cbf000ed3e7bf2cc3876417f3ab36efc6e7";
+const string RuntimeVersion = "10.0.12-ankus.1";
+const string RuntimeCompilerVersion = "10.0.12";
 
 string repositoryRoot = FindRepositoryRoot();
 Directory.SetCurrentDirectory(repositoryRoot);
