@@ -13237,3 +13237,50 @@ CI **36503887699** is cancelled: Linux and macOS had passed in **31m40s** and
 documentation runs pass. Cancelled jobs are not completed platform evidence.
 Final documentation checks again pass with **253 pages** and zero errors,
 warnings or hints. Outcomes are checked and recorded again before push.
+
+## Dedicated Windows CI and adjustable package-test concurrency
+
+Windows main-branch, manual and release jobs now select the dedicated
+`ankus-windows-x64` runner. Pull-request jobs retain GitHub-hosted Windows;
+external-contributor workflow runs require approval. The registered Windows
+service is online with automatic startup under Network Service. The validation
+host runs Windows 11 Pro, build **26200**, with **32 logical processors** and
+**47 GiB RAM**. Its dedicated storage contains the runner work directory, SDK,
+NuGet cache and temporary files. Installed prerequisites include SDK
+**10.0.400**, PowerShell **7.6.6**, Visual Studio **18**, LLVM **21.1.7**,
+Ninja **1.13.2**, Python **3.13.15** and PostgreSQL **17.7**. A real complete
+Windows CI run remains required before claiming a measured improvement.
+
+Self-hosted jobs retain native binding entries in the runner tool cache, outside
+the checkout. They reuse local NuGet and binding caches; hosted runners retain
+GitHub cache restore/save. Content and ABI validation still run. All workflow
+concurrency groups are removed at the user's request, so later work does not
+automatically cancel running or pending runs. Busy Windows jobs queue. The
+complete unsharded suites and every job's **60-minute** limit remain intact.
+
+Package consumers now read **ANKUS_PACKAGE_TEST_CONCURRENCY** once per test
+process. Any positive integer is accepted; invalid values fail explicitly.
+Three remains the default until comparisons establish a better setting for a
+machine. The fixture records its selected value and logical processor count,
+allocates the corresponding isolated PostgreSQL installations before version
+18, and preserves cleanup and serialization of shared sample operations.
+Manual CI accepts a concurrency override, while a repository variable can set
+the dedicated Windows default. Comparisons must use the same commit, full
+suite, SDK and PostgreSQL version; cold-cache startup is recorded separately.
+
+The isolated candidate passes Release with **zero warnings/errors** in
+**1m16.90s**. The engineering app also builds in Release, and actionlint
+**1.7.12** validates all three workflows. Plain `dotnet test` with six package
+slots passes **8,791 tests, zero failures and six Windows-only skips, 8,797
+total**, on PostgreSQL **18.6/Linux x64**, in **8m13.751s**. API freshness
+checks **206 pages/2,518 members**; the site builds **253 pages** and checks
+with zero errors, warnings or hints. This isolated candidate excludes the
+unfinished embedded-schema work. Windows three/six-slot timing evidence is
+pending; no Windows speedup is claimed yet.
+
+Precommit review of CI **36511778431** (`943a069`) finds successful quality
+and all three runtime jobs. Linux x64/PostgreSQL 18 passes in **27m15s**;
+macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17 remain in progress.
+Docs **36511778430** passes. The preceding CI **36507843884** is cancelled,
+with its Windows result incomplete; its quality, runtime, Linux and macOS jobs
+passed. Outcomes are checked and recorded again before push.

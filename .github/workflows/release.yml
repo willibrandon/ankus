@@ -7,10 +7,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: release-${{ github.event.release.tag_name }}
-  cancel-in-progress: false
-
 jobs:
   metadata:
     runs-on: ubuntu-24.04
@@ -78,7 +74,7 @@ jobs:
             rid: osx-x64
             platform: osx
             architecture: x64
-          - runner: windows-2025
+          - runner: ankus-windows-x64
             rid: win-x64
             platform: windows
             architecture: x64

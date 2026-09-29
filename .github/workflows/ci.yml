@@ -5,13 +5,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      package-test-concurrency:
+        description: Package-consumer slots (empty uses the runner setting or fixture default)
+        type: string
+        required: false
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   quality:
@@ -51,7 +52,7 @@ jobs:
             rid: osx-arm64
             platform: osx
             architecture: arm64
-          - runner: windows-2025
+          - runner: ${{ github.event_name == 'pull_request' && 'windows-2025' || 'ankus-windows-x64' }}
             rid: win-x64
             platform: windows
             architecture: x64
@@ -120,13 +121,11 @@ jobs:
           - runner: macos-15
             rid: osx-arm64
             postgresql: 18
-          - runner: windows-2025
+          - runner: ${{ github.event_name == 'pull_request' && 'windows-2025' || 'ankus-windows-x64' }}
             rid: win-x64
             postgresql: 17
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    env:
-      AnkusBindingCacheDirectory: ${{ github.workspace }}/artifacts/binding-cache
     steps:
       - uses: actions/checkout@v5
 
@@ -138,6 +137,7 @@ jobs:
         if: runner.os == 'Windows'
 
       - name: Restore NuGet package cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache/restore@v5
         id: nuget-cache
         with:
@@ -154,13 +154,14 @@ jobs:
         run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
 
       - name: Save NuGet package cache
-        if: steps.nuget-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && steps.nuget-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: ~/.nuget/packages
           key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
 
       - name: Restore native binding cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache/restore@v5
         id: binding-cache
         with:
@@ -175,13 +176,15 @@ jobs:
           ${{ matrix.postgresql }}
 
       - name: Save native binding cache
-        if: steps.binding-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && steps.binding-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: artifacts/binding-cache
           key: ${{ steps.binding-cache.outputs.cache-primary-key }}
 
       - name: Run full PostgreSQL tests
+        env:
+          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || (runner.environment == 'self-hosted' && vars.ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY) || '' }}
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
       - name: Save test results and timings

@@ -54,6 +54,32 @@ timeout. `runtime-test` retains the combined local command.
 Test commands write each module's TRX results and durations to
 `artifacts/test-results`; platform CI uploads available reports on every outcome.
 
+Main-branch and manually dispatched Windows jobs use the dedicated self-hosted
+runner labelled `ankus-windows-x64`. Pull requests retain `windows-2025` hosted
+runners; external contributors require workflow approval. Windows release builds
+also use the dedicated runner. Keep its service online before dispatching these
+jobs. It needs the pinned .NET SDK, PowerShell 7, Git, current Visual Studio C++
+tools, CMake, Ninja, Python, LLVM 20 or later with matching libclang, and
+PostgreSQL 17 with server headers and import libraries.
+
+The dedicated runner keeps its SDK installation, NuGet packages, temporary
+files and work directory under its own storage root. Configure
+`DOTNET_INSTALL_DIR`, `DOTNET_ROOT`, `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `TEMP`
+and `TMP` for its service account. Native binding entries persist in
+`runner.tool_cache/ankus-binding-cache` and retain normal content and ABI
+validation. Self-hosted jobs reuse these local caches; hosted jobs continue to
+restore and save GitHub caches. All platform suites remain complete and
+unsharded with the same 60-minute job limit. Workflows do not automatically
+cancel earlier runs; Windows jobs queue while the dedicated runner is busy.
+
+`ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts
+any positive integer, with three as the fixture default. CI's manual
+`package-test-concurrency` input overrides it for a comparison run. The repository
+variable `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY` selects the dedicated Windows
+runner's normal setting. Compare complete suites at the same commit, SDK and
+PostgreSQL version with equivalent cache conditions before raising that setting;
+record elapsed time, test outcomes and whether the run started with cold caches.
+
 See the [.NET file-based app documentation](https://learn.microsoft.com/dotnet/core/sdk/file-based-apps)
 for SDK behavior.
 

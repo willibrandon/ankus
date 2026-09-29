@@ -78,6 +78,7 @@ try
             VerifyStagedRuntime(repositoryRoot, args[1]);
             InstallPostgreSql(repositoryRoot, args[2]);
             ConfigureHeaderFrontend(repositoryRoot);
+            ConfigureBindingCache(repositoryRoot);
             BuildTests(repositoryRoot);
             if (args[0] == "runtime-test")
             {
@@ -549,6 +550,21 @@ static void VerifyHeaderFrontend(string compiler)
     {
         throw new InvalidOperationException($"The header collector requires Clang 20 or later with -skip-function-bodies support. Select a supported LLVM toolchain instead of '{compiler}'.");
     }
+}
+
+static void ConfigureBindingCache(string repositoryRoot)
+{
+    string? directory = Environment.GetEnvironmentVariable("AnkusBindingCacheDirectory");
+    if (string.IsNullOrWhiteSpace(directory))
+    {
+        directory = Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted"
+            ? Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TOOL_CACHE")
+                ?? throw new InvalidOperationException("RUNNER_TOOL_CACHE is required for the dedicated runner."), "ankus-binding-cache")
+            : Path.Combine(repositoryRoot, "artifacts", "binding-cache");
+    }
+
+    Directory.CreateDirectory(directory);
+    WriteEnvironment("AnkusBindingCacheDirectory", Path.GetFullPath(directory));
 }
 
 static void InstallPostgreSqlLinux(string repositoryRoot, string version)

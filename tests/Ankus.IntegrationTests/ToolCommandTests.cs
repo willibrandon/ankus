@@ -36,6 +36,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [ClassInitialize]
     public static async Task InitializeAsync(TestContext context)
     {
+        context.WriteLine($"Package-consumer concurrency: {s_concurrentCases}; logical processors: {Environment.ProcessorCount}.");
         CancellationToken token = context.CancellationToken;
         string repository = IntegrationEnvironment.RepositoryRoot;
         s_root = Path.Combine(Path.GetTempPath(), "ankus package tests " + Guid.NewGuid().ToString("N"));
