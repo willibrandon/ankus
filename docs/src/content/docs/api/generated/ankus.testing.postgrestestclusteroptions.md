@@ -79,6 +79,19 @@ public string LogDirectory { get; init; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-ebc10be9428d0370"></a>
+
+### Port
+
+Gets the exact TCP port, from 1 through 65535, or null to reserve an automatic port.
+A requested port never changes silently when it is occupied.
+
+```csharp
+public int? Port { get; init; }
+```
+
+Value: [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
 <a id="member-0cbbccc164f0214b"></a>
 
 ### PostgreSqlConfiguration

@@ -11,6 +11,7 @@ namespace Ankus.PgConfig;
 public sealed partial class PostgresDevelopmentCluster
 {
     private readonly PostgresInstallation _installation;
+    private readonly PostgresRegistry _registry;
     private readonly string _root;
 
     /// <summary>
@@ -24,7 +25,8 @@ public sealed partial class PostgresDevelopmentCluster
         ArgumentOutOfRangeException.ThrowIfLessThan(installation.Version.Major, 13);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(installation.Version.Major, 19);
         _installation = installation;
-        _root = Path.Combine(new PostgresRegistry(homeDirectory).HomeDirectory, "clusters");
+        _registry = new PostgresRegistry(homeDirectory);
+        _root = Path.Combine(_registry.HomeDirectory, "clusters");
         DataDirectory = Path.Combine(_root, installation.Label);
         LogFilePath = Path.Combine(_root, installation.Label + ".log");
     }
@@ -65,7 +67,8 @@ public sealed partial class PostgresDevelopmentCluster
     /// <returns>True when a server was started, or false when it was already running.</returns>
     public async Task<bool> StartAsync(PostgresDevelopmentOptions? options = null, CancellationToken cancellationToken = default)
     {
-        string configuration = CreateConfiguration(_installation.Version.Major, options ?? new PostgresDevelopmentOptions());
+        string configuration = CreateConfiguration(_installation.Version.Major, options ?? new PostgresDevelopmentOptions(),
+            options?.Port ?? _registry.GetPort(_installation.Version.Major));
         int timeout = options?.TimeoutSeconds ?? 60;
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(_root);
@@ -154,9 +157,9 @@ public sealed partial class PostgresDevelopmentCluster
     /// <summary>
     /// Validates and formats literal settings before any filesystem changes or subprocesses.
     /// </summary>
-    internal static string CreateConfiguration(int major, PostgresDevelopmentOptions options)
+    internal static string CreateConfiguration(int major, PostgresDevelopmentOptions options, int? defaultPort = null)
     {
-        int port = options.Port ?? 28800 + major;
+        int port = options.Port ?? defaultPort ?? 28800 + major;
         ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.TimeoutSeconds, 1);

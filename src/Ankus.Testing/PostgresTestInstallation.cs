@@ -62,7 +62,10 @@ public sealed class PostgresTestInstallation : IAsyncDisposable
                 CopyDirectory(source, StagePath(source, root), cancellationToken);
             }
 
-            string stagedPgConfig = StagePath(installation.PgConfigPath, root);
+            // pg_config may be reached through an alias outside the authoritative binary directory,
+            // such as Homebrew's opt symlink. Query the executable in the directory we actually copied.
+            string stagedPgConfig = Path.Combine(StagePath(installation.BinDirectory, root),
+                OperatingSystem.IsWindows() ? "pg_config.exe" : "pg_config");
             PostgresInstallation staged = await PostgresInstallation.CreateAsync(stagedPgConfig, cancellationToken)
                 .ConfigureAwait(false);
             if (staged.Version.Major != installation.Version.Major)

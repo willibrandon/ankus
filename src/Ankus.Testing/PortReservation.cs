@@ -4,7 +4,7 @@ using System.Net.Sockets;
 namespace Ankus.Testing;
 
 /// <summary>
-/// Holds an operating-system-assigned loopback TCP port during cluster initialization.
+/// Holds a requested or operating-system-assigned loopback TCP port during cluster initialization.
 /// The required release before PostgreSQL binds can race other processes; startup handles that collision.
 /// </summary>
 internal sealed class PortReservation : IDisposable
@@ -23,15 +23,23 @@ internal sealed class PortReservation : IDisposable
     internal int Port { get; }
 
     /// <summary>
-    /// Reserves a dynamic IPv4 loopback port on the current operating system.
+    /// Reserves an IPv4 loopback port on the current operating system.
     /// </summary>
+    /// <param name="port">The requested port, or zero for an operating-system-assigned port.</param>
     /// <returns>A reservation that owns the listening socket.</returns>
-    internal static PortReservation Create()
+    internal static PortReservation Create(int port = 0)
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        return new PortReservation(listener, port);
+        var listener = new TcpListener(IPAddress.Loopback, port);
+        try
+        {
+            listener.Start();
+            return new PortReservation(listener, ((IPEndPoint)listener.LocalEndpoint).Port);
+        }
+        catch
+        {
+            listener.Stop();
+            throw;
+        }
     }
 
     /// <summary>

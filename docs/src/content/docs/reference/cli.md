@@ -80,6 +80,22 @@ ankus info --pg 18
 installation in `~/.ankus/config.json`. It preserves other registrations. Use
 `--home` to keep a separate Ankus configuration directory.
 
+Save port bases when initializing or updating a registration:
+
+```console
+ankus init --pg18 /path/to/postgresql/bin/pg_config --base-port 29000 --base-testing-port 33000
+```
+
+Ankus adds the PostgreSQL major to each base, giving development port `29018`
+and test port `33018` for this example. Bases accept integers from `0` through
+`65516`. Omitted options preserve saved values; defaults are `28800` and `32200`.
+`ankus info --pg 18` reports both resolved ports. Registrations and port settings
+are saved together only after validation succeeds.
+
+Development servers use the saved development base on their next start.
+Test fixtures keep automatic ports unless you explicitly select the saved test
+port; see [choosing a test port](/getting-started/testing/#choose-a-test-port).
+
 ## Run a development server
 
 ```console
@@ -96,7 +112,8 @@ data. Repeating `start` or `stop` is harmless. `status` reports `running` or
 `--all` to select every registered major, or `--pg-config` with `--pg` to select
 an installation explicitly.
 
-Each major has its own cluster and TCP port: 28800 plus the major version.
+Each major has its own cluster and TCP port: the saved development base plus
+the major version, or `28800` plus the major when no base is saved.
 Servers listen on `127.0.0.1` and use local trust authentication as the `postgres`
 database user. These are development clusters; other local processes can connect.
 Server logs live beside the data directories, such as `~/.ankus/clusters/pg18.log`.
@@ -109,8 +126,10 @@ ankus start --pg 18 --port 15432 --postgresql-conf work_mem=16MB
 
 Repeat `--postgresql-conf` for multiple `name=value` settings. Values do not need
 PostgreSQL quotes; use your shell's quoting when an argument contains spaces.
-Settings and the port apply to that start. Repeat them after stopping the server
-to use them again. An already running server keeps its current settings.
+Settings and `--port` apply to that start. Repeat them after stopping the server
+to use them again. Without `--port`, the next start uses the saved development
+base. An already running server keeps its current settings and port, even when
+you change the saved base.
 `--timeout` changes the startup wait from 60 seconds, with a range of 1–600.
 
 Ankus manages data and authentication paths, loopback connection routing, and

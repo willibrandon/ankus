@@ -34,7 +34,8 @@ public PostgresDevelopmentOptions()
 
 ### Port
 
-Gets the TCP port, or null to use 28800 plus the PostgreSQL major version.
+Gets the TCP port, or null to use the Ankus home's configured base plus the PostgreSQL major version.
+An unconfigured home uses a base of 28800.
 
 ```csharp
 public int? Port { get; init; }

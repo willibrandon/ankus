@@ -17,6 +17,16 @@ public sealed class PostgresTestClusterOptions
     }
 
     /// <summary>
+    /// Gets the exact TCP port, from 1 through 65535, or null to reserve an automatic port.
+    /// A requested port never changes silently when it is occupied.
+    /// </summary>
+    public int? Port
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets or sets the base directory under which per-invocation PGDATA directories
     /// are created.
     /// </summary>

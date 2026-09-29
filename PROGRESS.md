@@ -3191,9 +3191,9 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | Source command | Required equivalent behavior | Evidence / status |
 |---|---|---|
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. `--background-worker` adds a preloaded worker, shared results and a real backend test |
-| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Build-option isolation, cancellation and existing-file preservation verified; automatic Windows source builds and persisted base-port/toolchain configuration remain required |
+| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Development/testing port bases persist atomically with registrations; omitted values remain unchanged. Automatic Windows source builds and persisted toolchain configuration remain required |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
-| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`; Valgrind execution and persisted base-port configuration remain required |
+| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`; Valgrind execution remains required |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`; Valgrind execution and cross-target tooling remain required |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
@@ -13974,3 +13974,88 @@ publication, Windows source provisioning for missing prerelease binaries, the
 remaining CLI inventory and the complete extension platform/version matrix remain
 required. These client probes do not establish full extension parity across every
 combination. All other faithful-port requirements remain open.
+
+### 2026-09-29 — Saved PostgreSQL ports and installation aliases
+
+`ankus init --base-port` and `--base-testing-port` save independent port bases
+with the validated registrations. Each base accepts **0–65516**, leaving room
+for every supported major **13–19**. Omitted settings retain their existing
+values; absent settings use pgrx's defaults **28800** and **32200**. The registry
+validates stored JSON values and preserves unrelated configuration. Invalid
+requests and canceled/failed registration do not replace the configuration.
+`ankus info` reports both resolved per-major ports.
+
+Development servers use the saved base on their next start. An explicit `--port`
+overrides that start without changing the saved value; an already running server
+retains its actual port and databases. `PostgresRegistry.GetTestPort` lets authors
+select the saved testing port through `PostgresTestClusterOptions.Port` or the
+new `PostgresExtensionTest.StartAsync` overload. Test ports remain automatic by
+default for independent parallel fixtures. Explicit ports never switch silently
+after a collision; failed startup retains diagnostics and removes owned data.
+Existing automatic-port retries remain bounded within the original timeout.
+
+The previous milestone's CI **36547915227** exposes a macOS installation-copy
+bug: Homebrew's `pg_config` entry path uses a directory symlink, but `--bindir`
+reports the real installation directory. Staging copied the latter and then
+looked for the executable under the former. Staging now queries `pg_config` in
+the copied authoritative binary directory. The regression creates a directory
+alias, stages PostgreSQL, runs real SQL, disposes the staged copy and checks that
+the source executable remains byte-for-byte unchanged.
+
+The macOS fixed-port recovery test also exposes an unwanted side effect in its
+competing-listener probe. A socket-state capture identifies the test's closed
+connection in `TIME_WAIT` on the exact requested port. The recovery test now
+proves that the competitor still owns the port by rejecting a second bind,
+then releases that listener and executes real PostgreSQL queries on the same
+port. Other contention tests still prove TCP connectivity. No platform
+socket-option changes, arbitrary delays or extra startup retries are needed.
+
+Explicit test ports now go directly to PostgreSQL instead of pre-binding a
+temporary managed listener. Only automatic port selection needs a reservation.
+This removes a redundant bind/release cycle that can reject a just-released
+port on macOS. PostgreSQL reports real fixed-port conflicts through its startup
+log, and the fixture cleans its owned data without choosing a different port.
+Fixed-port regression tests reserve candidates outside the default ephemeral
+client-port ranges before exercising deliberate restarts.
+
+| Requirement | Evidence |
+|---|---|
+| Default ports for every supported major, independent settings, endpoints and malformed persisted values | `MissingPortSettingsUseIndependentDefaults`, `PersistedPortsPreserveValuesAndUnselectedDefaults`, `MalformedPortSettingsFailWithoutChangingConfiguration`, `UnsupportedMajorsCannotSelectPorts` |
+| Validated nullable changes and invalid option bounds | `PortOptionsPreserveUnspecifiedValuesAndAcceptEndpoints`, `PortOptionsRejectInvalidBases` |
+| Installed init/info, preserve omitted/unknown settings, fail before provisioning and preserve configuration on errors/cancellation | `InitPersistsPortBasesAndPreservesUnselectedSettings`, `InitRejectsInvalidPortBasesBeforeProvisioning`, `PortRegistrationFailuresPreserveConfiguration` |
+| Saved ports on restart, retained SQL data, live-server port and temporary explicit override | `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides` |
+| Exact port observed through real extension SQL using the independently restored package, plus cluster/publish cleanup | `PackagedExtensionFixtureUsesSavedTestPortAndCleansUp` |
+| Fixed-port SQL, release, occupied port, handoff collision, cleanup and recovery | `RequestedTestPortRunsQueriesAndIsReleased`, `OccupiedRequestedPortCleansUpWithoutSwitchingPorts`, `RequestedPortCollisionDoesNotRetryAndRecoversAfterRelease`, `InvalidRequestedPortsFailBeforeCreatingFiles` |
+| Automatic collision retry, bounded attempts, unrelated errors and cancellation remain intact | `PortCollisionRetriesAndPreservesCompetingListener`, `RepeatedPortCollisionsAreBoundedAndCleanEveryAttempt`, `ConfigurationFailureAfterCollisionStopsImmediately`, `CancellationAtHandoffDoesNotStartOrRetryPostgres` |
+| Directory aliases relocate a runnable server without modifying the source installation | `DirectoryAliasStagesRunnableServerAndPreservesSource`, plus the existing installed `RunBuildsInstallsAndLoadsNativeExtension` regression |
+
+Final complete plain `dotnet test` runs use PostgreSQL **18.6** and .NET SDK
+**10.0.400**, discovering **9,118 tests** on each platform:
+
+- Debian **13.5**, Linux x64: **9,112 passed, 0 failed, 6 Windows-only skips**
+  in **9m47.963s**.
+- macOS **26.5.2**, ARM64: **9,109 passed, 0 failed, 9 platform-only skips**
+  in **7m52.764s**.
+
+Both runs execute the published extensions against real PostgreSQL. These are
+warm validation runs. The final ten port-handoff regressions also pass eleven
+times on macOS (**110 passed, 0 failed, 0 skipped**). The temporary macOS
+validation checkout is removed after completion; the evidence logs are retained.
+The final Release build passes with **0 warnings and 0 errors** in **31.49s**.
+Generated API freshness, **259-page** site build and site diagnostics are checked;
+the API contains **212 pages / 2,550 members**, and site diagnostics report
+**0 errors, 0 warnings and 0 hints**.
+
+Prior CI review records **36547915227** as completed with the Homebrew staging
+failure fixed above: macOS failed in **9m24s**; Linux passed in **22m55s**;
+Windows x64/PostgreSQL **17** passed in **17m33s**. Quality passed in **9m52s**,
+and all three runtime jobs passed. Docs **36547915240** passed. The preceding
+two milestones' CI/Docs runs (**36540556401**, **36540556480**, **36535732717**,
+**36535732848**) also passed; none remains in progress and no job timed out.
+The new changes still require the next complete Windows CI run; the prior
+Windows success does not validate this milestone.
+
+Persisted toolchain configuration, Valgrind execution, cross-target publication,
+Windows source provisioning for unavailable prerelease binaries, remaining CLI
+inventory and the complete extension platform/version matrix remain required.
+This milestone does not establish full-port parity.

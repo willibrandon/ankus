@@ -113,6 +113,75 @@ Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The registered path, or null if this version has not been registered.
 
+<a id="member-ff14822f7448d76c"></a>
+
+### GetPort(int)
+
+Gets the configured development port base plus the selected major, defaulting to 28800 plus the major.
+
+```csharp
+public int GetPort(int major)
+```
+
+Parameters:
+
+`major` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A supported PostgreSQL major, from 13 through 19.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The development TCP port.
+
+<a id="member-642a52c893403029"></a>
+
+### GetTestPort(int)
+
+Gets the configured test port base plus the selected major, defaulting to 32200 plus the major.
+Test fixtures use this port only when explicitly selected; their default ports remain automatic.
+
+```csharp
+public int GetTestPort(int major)
+```
+
+Parameters:
+
+`major` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+A supported PostgreSQL major, from 13 through 19.
+
+Returns: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The TCP port to request for a test fixture.
+
+<a id="member-d4328b54d5e8da89"></a>
+
+### RegisterAsync(IReadOnlyDictionary&lt;int, string&gt;, PostgresPortOptions, CancellationToken)
+
+Atomically registers validated installations and selected port bases, preserving unspecified settings.
+
+```csharp
+public Task<IReadOnlyList<PostgresInstallation>> RegisterAsync(IReadOnlyDictionary<int, string> paths, PostgresPortOptions ports, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`paths` — [IReadOnlyDictionary&lt;int, string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlydictionary-2)
+
+PostgreSQL majors and their pg_config executable paths.
+
+`ports` — [PostgresPortOptions](/api/ankus.pgconfig.postgresportoptions/)
+
+Port bases to update; null properties preserve their existing values.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels validation or writing before the commit.
+
+Returns: [Task&lt;IReadOnlyList&lt;PostgresInstallation&gt;&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The validated registrations.
+
 <a id="member-239fbf610865374e"></a>
 
 ### RegisterAsync(IReadOnlyDictionary&lt;int, string&gt;, CancellationToken)

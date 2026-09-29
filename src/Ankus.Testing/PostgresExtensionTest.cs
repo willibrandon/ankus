@@ -61,8 +61,30 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// <param name="installation">The selected installation, or null to use the ordinary fixture discovery.</param>
     /// <param name="cancellationToken">Cancels discovery, publication or startup.</param>
     /// <returns>The fixture that owns the cluster and temporary published library.</returns>
-    public static async Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload,
+    public static Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload,
         PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
+        => StartCoreAsync(projectPath, sharedPreload, null, installation, cancellationToken);
+
+    /// <summary>
+    /// Publishes and installs an extension in an isolated cluster on an exact requested TCP port.
+    /// The port is validated before publishing and is never replaced with an automatic port.
+    /// </summary>
+    /// <param name="projectPath">The extension project file.</param>
+    /// <param name="sharedPreload">Whether to load the library during shared preload.</param>
+    /// <param name="port">The requested TCP port, from 1 through 65535.</param>
+    /// <param name="installation">The selected installation, or null for ordinary fixture discovery.</param>
+    /// <param name="cancellationToken">Cancels discovery, publication or startup.</param>
+    /// <returns>The fixture that owns the cluster and temporary published library.</returns>
+    public static Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload, int port,
+        PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+        return StartCoreAsync(projectPath, sharedPreload, port, installation, cancellationToken);
+    }
+
+    private static async Task<PostgresExtensionTest> StartCoreAsync(string projectPath, bool sharedPreload, int? port,
+        PostgresInstallation? installation, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         projectPath = Path.GetFullPath(projectPath);
@@ -128,6 +150,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
             {
                 Installation = clusterInstallation,
+                Port = port,
                 DataDirectoryBase = dataDirectoryBase,
                 LogDirectory = logs,
                 PostgreSqlConfiguration = configuration,

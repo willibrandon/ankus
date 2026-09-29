@@ -108,11 +108,16 @@ internal static partial class ToolCommand
             Description = "Additional Unix configure argument; repeat for multiple arguments.",
         };
         var valgrind = new Option<bool>("--valgrind") { Description = "Enable PostgreSQL's Valgrind instrumentation on Unix." };
+        var basePort = new Option<int?>("--base-port") { Description = "Development port base, added to each major (0–65516; default 28800)." };
+        var baseTestingPort = new Option<int?>("--base-testing-port") { Description = "Port base for explicitly configured test fixtures (0–65516; default 32200)." };
         command.Options.Add(jobs);
         command.Options.Add(configure);
         command.Options.Add(valgrind);
+        command.Options.Add(basePort);
+        command.Options.Add(baseTestingPort);
         command.SetAction(async (result, token) =>
         {
+            var ports = new PostgresPortOptions(result.GetValue(basePort), result.GetValue(baseTestingPort));
             var paths = new Dictionary<int, string>();
             foreach ((int major, Option<string?> option) in versions)
             {
@@ -150,7 +155,7 @@ internal static partial class ToolCommand
                 }
             }
 
-            IReadOnlyList<PostgresInstallation> installations = await registry.RegisterAsync(paths, token);
+            IReadOnlyList<PostgresInstallation> installations = await registry.RegisterAsync(paths, ports, token);
             foreach (PostgresInstallation installation in installations)
             {
                 Console.WriteLine($"Registered {installation.Label}: {installation.PgConfigPath}");
@@ -174,6 +179,9 @@ internal static partial class ToolCommand
             Console.WriteLine($"Libraries: {installation.LibraryDirectory}");
             Console.WriteLine($"Shared files: {installation.SharedDirectory}");
             Console.WriteLine($"Server headers: {installation.ServerIncludeDirectory}");
+            var registry = new PostgresRegistry(result.GetValue(home));
+            Console.WriteLine($"Development port: {registry.GetPort(installation.Version.Major)}");
+            Console.WriteLine($"Test port: {registry.GetTestPort(installation.Version.Major)}");
             return 0;
         });
         return command;

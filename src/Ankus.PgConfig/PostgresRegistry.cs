@@ -24,6 +24,21 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
     public string ConfigurationPath => Path.Combine(HomeDirectory, "config.json");
 
     /// <summary>
+    /// Gets the configured development port base plus the selected major, defaulting to 28800 plus the major.
+    /// </summary>
+    /// <param name="major">A supported PostgreSQL major, from 13 through 19.</param>
+    /// <returns>The development TCP port.</returns>
+    public int GetPort(int major) => ReadPort(ReadConfiguration(), "basePort", 28800, major);
+
+    /// <summary>
+    /// Gets the configured test port base plus the selected major, defaulting to 32200 plus the major.
+    /// Test fixtures use this port only when explicitly selected; their default ports remain automatic.
+    /// </summary>
+    /// <param name="major">A supported PostgreSQL major, from 13 through 19.</param>
+    /// <returns>The TCP port to request for a test fixture.</returns>
+    public int GetTestPort(int major) => ReadPort(ReadConfiguration(), "baseTestingPort", 32200, major);
+
+    /// <summary>
     /// Gets a registered pg_config path, resolving relative entries against the Ankus home.
     /// </summary>
     /// <param name="major">The PostgreSQL major version.</param>
@@ -66,10 +81,22 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
     /// <param name="paths">PostgreSQL majors and their pg_config executable paths.</param>
     /// <param name="cancellationToken">Cancels validation or writing before the commit.</param>
     /// <returns>The validated registrations.</returns>
-    public async Task<IReadOnlyList<PostgresInstallation>> RegisterAsync(
+    public Task<IReadOnlyList<PostgresInstallation>> RegisterAsync(
         IReadOnlyDictionary<int, string> paths, CancellationToken cancellationToken = default)
+        => RegisterAsync(paths, new PostgresPortOptions(), cancellationToken);
+
+    /// <summary>
+    /// Atomically registers validated installations and selected port bases, preserving unspecified settings.
+    /// </summary>
+    /// <param name="paths">PostgreSQL majors and their pg_config executable paths.</param>
+    /// <param name="ports">Port bases to update; null properties preserve their existing values.</param>
+    /// <param name="cancellationToken">Cancels validation or writing before the commit.</param>
+    /// <returns>The validated registrations.</returns>
+    public async Task<IReadOnlyList<PostgresInstallation>> RegisterAsync(
+        IReadOnlyDictionary<int, string> paths, PostgresPortOptions ports, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(ports);
         if (paths.Count == 0)
         {
             throw new ArgumentException("Specify an installation, for example 'ankus init --pg18 /path/to/pg_config'.", nameof(paths));
@@ -94,6 +121,18 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
         using var configurationLock = new FileStream(Path.Combine(HomeDirectory, "config.lock"),
             FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         JsonObject configuration = ReadConfiguration();
+        if (ports.BasePort is int basePort)
+        {
+            configuration["basePort"] = basePort;
+        }
+
+        if (ports.BaseTestingPort is int baseTestingPort)
+        {
+            configuration["baseTestingPort"] = baseTestingPort;
+        }
+
+        ReadPort(configuration, "basePort", 28800, 19);
+        ReadPort(configuration, "baseTestingPort", 32200, 19);
         foreach (PostgresInstallation installation in installations)
         {
             configuration[installation.Label] = installation.PgConfigPath;
@@ -119,6 +158,23 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
         }
 
         return installations;
+    }
+
+    private int ReadPort(JsonObject configuration, string key, int defaultBase, int major)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
+        if (!configuration.TryGetPropertyValue(key, out JsonNode? node))
+        {
+            return defaultBase + major;
+        }
+
+        if (node is not JsonValue value || !value.TryGetValue(out int portBase) || portBase is < 0 or > 65516)
+        {
+            throw new FormatException($"'{key}' must be an integer from 0 through 65516 in {ConfigurationPath}.");
+        }
+
+        return portBase + major;
     }
 
     private JsonObject ReadConfiguration()

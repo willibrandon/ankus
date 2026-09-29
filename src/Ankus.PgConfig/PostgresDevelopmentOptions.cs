@@ -6,7 +6,8 @@ namespace Ankus.PgConfig;
 public sealed class PostgresDevelopmentOptions
 {
     /// <summary>
-    /// Gets the TCP port, or null to use 28800 plus the PostgreSQL major version.
+    /// Gets the TCP port, or null to use the Ankus home's configured base plus the PostgreSQL major version.
+    /// An unconfigured home uses a base of 28800.
     /// </summary>
     public int? Port
     {

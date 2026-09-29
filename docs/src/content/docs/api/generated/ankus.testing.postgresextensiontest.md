@@ -115,3 +115,40 @@ Cancels discovery, publication or startup.
 Returns: [Task&lt;PostgresExtensionTest&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 The fixture that owns the cluster and temporary published library.
+
+<a id="member-1f42f252b1b8f098"></a>
+
+### StartAsync(string, bool, int, PostgresInstallation?, CancellationToken)
+
+Publishes and installs an extension in an isolated cluster on an exact requested TCP port.
+The port is validated before publishing and is never replaced with an automatic port.
+
+```csharp
+public static Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload, int port, PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPath` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The extension project file.
+
+`sharedPreload` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to load the library during shared preload.
+
+`port` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The requested TCP port, from 1 through 65535.
+
+`installation` — [PostgresInstallation](/api/ankus.pgconfig.postgresinstallation/)
+
+The selected installation, or null for ordinary fixture discovery.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels discovery, publication or startup.
+
+Returns: [Task&lt;PostgresExtensionTest&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The fixture that owns the cluster and temporary published library.

@@ -15,7 +15,7 @@ internal static partial class ToolCommand
         });
         AddSelectionOptions(command);
         var all = new Option<bool>("--all") { Description = "Use all registered PostgreSQL versions." };
-        var port = new Option<int?>("--port") { Description = "TCP port (default: 28800 plus the PostgreSQL major)." };
+        var port = new Option<int?>("--port") { Description = "TCP port (default: the saved development base plus the PostgreSQL major)." };
         var timeout = new Option<int>("--timeout") { Description = "Startup timeout in seconds (1–600).", DefaultValueFactory = _ => 60 };
         var settings = new Option<string[]>("--postgresql-conf") { Description = "Literal name=value setting; repeat for multiple settings." };
         command.Options.Add(all);

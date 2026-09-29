@@ -60,8 +60,9 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// A failed startup attempts shutdown and retains the server log in the reported diagnostic.
     /// </summary>
     /// <remarks>
-    /// If another process claims the reserved port before PostgreSQL binds it, startup retries with a new
-    /// cluster and port, up to three attempts within the same startup timeout. Other startup failures are not retried.
+    /// If another process claims an automatically selected port before PostgreSQL binds it, startup retries with a new
+    /// cluster and port, up to three attempts within the same startup timeout. Explicit ports are never replaced;
+    /// collisions and other startup failures are reported immediately.
     /// Failed attempts remove their data and socket directories and retain their server logs.
     /// </remarks>
     /// <param name="options">The installation and invocation settings.</param>
@@ -76,12 +77,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     /// Starts a cluster with a per-invocation handoff callback for deterministic startup contention tests.
     /// </summary>
     /// <param name="options">The installation and invocation settings.</param>
-    /// <param name="beforeStart">Runs before releasing each reservation, allowing tests to take ownership of its listener.</param>
+    /// <param name="beforeStart">Runs before startup with the automatic-port reservation, or null for an explicit port.</param>
     /// <param name="cancellationToken">Cancels the complete initialization and readiness operation.</param>
     /// <returns>The ready cluster, owned by the caller.</returns>
     internal static async Task<PostgresTestCluster> StartAsync(
         PostgresTestClusterOptions options,
-        Action<PostgresTestCluster, PortReservation>? beforeStart,
+        Action<PostgresTestCluster, PortReservation?>? beforeStart,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -90,6 +91,12 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(options.UserName);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.StartupTimeout, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.ShutdownTimeout, TimeSpan.Zero);
+        if (options.Port is int port)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -98,8 +105,10 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         for (int attempt = 1; ; attempt++)
         {
             timeout.Token.ThrowIfCancellationRequested();
-            using PortReservation reservation = PortReservation.Create();
-            var cluster = new PostgresTestCluster(options, reservation.Port);
+            using PortReservation? reservation = options.Port is null ? PortReservation.Create() : null;
+            int selectedPort = options.Port ?? reservation?.Port
+                ?? throw new InvalidOperationException("No PostgreSQL test port was selected.");
+            var cluster = new PostgresTestCluster(options, selectedPort);
             AppDomain.CurrentDomain.ProcessExit += cluster.OnProcessExit;
             try
             {
@@ -123,7 +132,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
                     throw;
                 }
 
-                if (attempt < MaximumAttempts && cluster.HasPortCollision(log))
+                if (options.Port is null && attempt < MaximumAttempts && cluster.HasPortCollision(log))
                 {
                     timeout.Token.ThrowIfCancellationRequested();
                     continue;
@@ -249,7 +258,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         }
     }
 
-    private async Task InitializeAsync(PortReservation reservation, Action<PostgresTestCluster, PortReservation>? beforeStart, CancellationToken cancellationToken)
+    private async Task InitializeAsync(PortReservation? reservation, Action<PostgresTestCluster, PortReservation?>? beforeStart, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DataDirectory)!);
         Directory.CreateDirectory(Path.GetDirectoryName(LogFilePath)!);
@@ -290,7 +299,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
             Path.Combine(DataDirectory, "postgresql.auto.conf"), configuration.ToString(), cancellationToken).ConfigureAwait(false);
 
         beforeStart?.Invoke(this, reservation);
-        reservation.Dispose();
+        reservation?.Dispose();
         cancellationToken.ThrowIfCancellationRequested();
         _startAttempted = true;
         await ProcessRunner.RunCheckedAsync(
