@@ -16,7 +16,7 @@ public readonly partial record struct PgDate : IComparable<PgDate>
     /// <exception cref="ArgumentOutOfRangeException">The finite offset is outside PostgreSQL's date range.</exception>
     public PgDate(int daysSinceEpoch)
     {
-        if (daysSinceEpoch is not (int.MinValue or int.MaxValue) && daysSinceEpoch is < -2_451_545 or >= 2_145_031_949)
+        if (daysSinceEpoch is not (int.MinValue or int.MaxValue) and (< -2_451_545 or >= 2_145_031_949))
         {
             throw new ArgumentOutOfRangeException(nameof(daysSinceEpoch));
         }
@@ -74,22 +74,34 @@ public readonly partial record struct PgDate : IComparable<PgDate>
     /// <summary>
     /// Tests whether the left date precedes the right date.
     /// </summary>
-    public static bool operator <(PgDate left, PgDate right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgDate left, PgDate right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Tests whether the left date follows the right date.
     /// </summary>
-    public static bool operator >(PgDate left, PgDate right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgDate left, PgDate right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Tests whether the left date precedes or equals the right date.
     /// </summary>
-    public static bool operator <=(PgDate left, PgDate right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgDate left, PgDate right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Tests whether the left date follows or equals the right date.
     /// </summary>
-    public static bool operator >=(PgDate left, PgDate right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgDate left, PgDate right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Constructs a date using PostgreSQL's calendar; negative years denote BC and year zero is invalid.
@@ -147,47 +159,90 @@ public readonly partial record struct PgDate : IComparable<PgDate>
     /// <summary>
     /// Adds calendar days using PostgreSQL's rules.
     /// </summary>
-    public static PgDate operator +(PgDate date, int days) => date.AddDays(days);
+    public static PgDate operator +(PgDate date, int days)
+    {
+        return date.AddDays(days);
+    }
+
     /// <summary>
     /// Adds calendar days using PostgreSQL's rules.
     /// </summary>
-    public static PgDate operator +(int days, PgDate date) => date.AddDays(days);
+    public static PgDate operator +(int days, PgDate date)
+    {
+        return date.AddDays(days);
+    }
+
     /// <summary>
     /// Subtracts calendar days using PostgreSQL's rules.
     /// </summary>
-    public static PgDate operator -(PgDate date, int days) => date.SubtractDays(days);
+    public static PgDate operator -(PgDate date, int days)
+    {
+        return date.SubtractDays(days);
+    }
+
     /// <summary>
     /// Computes the signed day difference.
     /// </summary>
-    public static int operator -(PgDate left, PgDate right) => left.Subtract(right);
+    public static int operator -(PgDate left, PgDate right)
+    {
+        return left.Subtract(right);
+    }
+
     /// <summary>
     /// Adds a calendar interval to a date.
     /// </summary>
-    public static PgTimestamp operator +(PgDate date, PgInterval interval) => date.Add(interval);
+    public static PgTimestamp operator +(PgDate date, PgInterval interval)
+    {
+        return date.Add(interval);
+    }
+
     /// <summary>
     /// Adds a calendar interval to a date.
     /// </summary>
-    public static PgTimestamp operator +(PgInterval interval, PgDate date) => date.Add(interval);
+    public static PgTimestamp operator +(PgInterval interval, PgDate date)
+    {
+        return date.Add(interval);
+    }
+
     /// <summary>
     /// Subtracts a calendar interval from a date.
     /// </summary>
-    public static PgTimestamp operator -(PgDate date, PgInterval interval) => date.Subtract(interval);
+    public static PgTimestamp operator -(PgDate date, PgInterval interval)
+    {
+        return date.Subtract(interval);
+    }
+
     /// <summary>
     /// Combines a date and wall-clock time.
     /// </summary>
-    public static PgTimestamp operator +(PgDate date, PgTime time) => date.AtTime(time);
+    public static PgTimestamp operator +(PgDate date, PgTime time)
+    {
+        return date.AtTime(time);
+    }
+
     /// <summary>
     /// Combines a date and wall-clock time.
     /// </summary>
-    public static PgTimestamp operator +(PgTime time, PgDate date) => date.AtTime(time);
+    public static PgTimestamp operator +(PgTime time, PgDate date)
+    {
+        return date.AtTime(time);
+    }
+
     /// <summary>
     /// Combines a date and fixed-offset time.
     /// </summary>
-    public static PgTimestampTz operator +(PgDate date, PgTimeTz time) => date.AtTime(time);
+    public static PgTimestampTz operator +(PgDate date, PgTimeTz time)
+    {
+        return date.AtTime(time);
+    }
+
     /// <summary>
     /// Combines a date and fixed-offset time.
     /// </summary>
-    public static PgTimestampTz operator +(PgTimeTz time, PgDate date) => date.AtTime(time);
+    public static PgTimestampTz operator +(PgTimeTz time, PgDate date)
+    {
+        return date.AtTime(time);
+    }
 
     /// <summary>
     /// Adds a calendar interval, yielding a timestamp.

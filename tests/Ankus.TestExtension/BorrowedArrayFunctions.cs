@@ -49,8 +49,11 @@ public static partial class BorrowedArrayFunctions
         using var view = new PgArrayView(result[0][0]);
         using IEnumerator<PgDatum> first = view.GetEnumerator();
         using IEnumerator<PgDatum> second = view.GetEnumerator();
-        var observed = new List<string?> { Failure(() => _ = first.Current) };
-        observed.Add(first.MoveNext().ToString());
+        var observed = new List<string?>
+        {
+            Failure(() => _ = first.Current),
+            first.MoveNext().ToString()
+        };
         PgDatum escaped = first.Current;
         observed.Add(escaped.ToPostgresString());
         observed.Add(second.MoveNext().ToString());

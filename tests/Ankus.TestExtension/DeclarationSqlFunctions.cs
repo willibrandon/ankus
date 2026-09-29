@@ -335,22 +335,34 @@ public static class DeclarationSqlFunctions
         /// <summary>
         /// Compares values using the declared total order.
         /// </summary>
-        public static bool operator <(Unindexed left, Unindexed right) => left.CompareTo(right) < 0;
+        public static bool operator <(Unindexed left, Unindexed right)
+        {
+            return left.CompareTo(right) < 0;
+        }
 
         /// <summary>
         /// Compares values using the declared total order.
         /// </summary>
-        public static bool operator >(Unindexed left, Unindexed right) => left.CompareTo(right) > 0;
+        public static bool operator >(Unindexed left, Unindexed right)
+        {
+            return left.CompareTo(right) > 0;
+        }
 
         /// <summary>
         /// Includes equality in the declared ascending order.
         /// </summary>
-        public static bool operator <=(Unindexed left, Unindexed right) => left.CompareTo(right) <= 0;
+        public static bool operator <=(Unindexed left, Unindexed right)
+        {
+            return left.CompareTo(right) <= 0;
+        }
 
         /// <summary>
         /// Includes equality in the declared descending order.
         /// </summary>
-        public static bool operator >=(Unindexed left, Unindexed right) => left.CompareTo(right) >= 0;
+        public static bool operator >=(Unindexed left, Unindexed right)
+        {
+            return left.CompareTo(right) >= 0;
+        }
     }
 
     /// <summary>
@@ -384,21 +396,33 @@ public static class DeclarationSqlFunctions
         /// <summary>
         /// Compares values through the error-preserving total-order contract.
         /// </summary>
-        public static bool operator <(Indexed left, Indexed right) => left.CompareTo(right) < 0;
+        public static bool operator <(Indexed left, Indexed right)
+        {
+            return left.CompareTo(right) < 0;
+        }
 
         /// <summary>
         /// Compares values through the error-preserving total-order contract.
         /// </summary>
-        public static bool operator >(Indexed left, Indexed right) => left.CompareTo(right) > 0;
+        public static bool operator >(Indexed left, Indexed right)
+        {
+            return left.CompareTo(right) > 0;
+        }
 
         /// <summary>
         /// Includes equality in the declared ascending order.
         /// </summary>
-        public static bool operator <=(Indexed left, Indexed right) => left.CompareTo(right) <= 0;
+        public static bool operator <=(Indexed left, Indexed right)
+        {
+            return left.CompareTo(right) <= 0;
+        }
 
         /// <summary>
         /// Includes equality in the declared descending order.
         /// </summary>
-        public static bool operator >=(Indexed left, Indexed right) => left.CompareTo(right) >= 0;
+        public static bool operator >=(Indexed left, Indexed right)
+        {
+            return left.CompareTo(right) >= 0;
+        }
     }
 }

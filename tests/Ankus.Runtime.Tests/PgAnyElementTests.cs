@@ -29,8 +29,8 @@ public sealed class PgAnyElementTests
         Assert.ThrowsExactly<ArgumentNullException>(() => row.Get<PgAnyElement>(null!));
         Assert.ThrowsExactly<IndexOutOfRangeException>(() => row.Get<PgAnyElement>(2));
         fixture.Handler = static _ => new NativeMemoryResult { _value = 902 };
-        Assert.ThrowsExactly<ObjectDisposedException>(() => wrapper.Read<PgAnyElement>());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => absent.Read<PgAnyElement?>());
+        Assert.ThrowsExactly<ObjectDisposedException>(wrapper.Read<PgAnyElement>);
+        Assert.ThrowsExactly<ObjectDisposedException>(absent.Read<PgAnyElement?>);
         Assert.ThrowsExactly<ObjectDisposedException>(() => row.Get<PgAnyElement>(0));
     }
 

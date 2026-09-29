@@ -205,7 +205,7 @@ public static unsafe class ListFunctions
 
         try
         {
-            empty.CopyTo(Span<int>.Empty);
+            empty.CopyTo([]);
         }
         catch (ObjectDisposedException)
         {

@@ -147,7 +147,7 @@ public static class TemporalOperationFunctions
                 }
             }
 
-            return (session.ExecuteScalar<long>(contexts) - before) + ":" +
+            return session.ExecuteScalar<long>(contexts) - before + ":" +
                 (session.ExecuteScalar<long>(connections) - connectionsBefore) + ":" +
                 plan.ExecuteScalar<int>(SpiParameter.Create(40));
         });

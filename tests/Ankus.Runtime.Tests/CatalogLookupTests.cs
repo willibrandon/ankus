@@ -192,7 +192,7 @@ public sealed class CatalogLookupTests
         nint previous = NativeBackend.Enter(Script.Pointer, abortCleanup: true);
         try
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => PgBuiltInOids.GetValues());
+            Assert.ThrowsExactly<InvalidOperationException>(PgBuiltInOids.GetValues);
             Assert.AreEqual(7, script.Executions);
         }
         finally

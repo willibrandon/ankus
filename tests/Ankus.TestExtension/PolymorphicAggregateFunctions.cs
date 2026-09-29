@@ -93,6 +93,11 @@ public static class PolymorphicAggregateFunctions
         /// </summary>
         public static PgAnyElement Transition(PgAnyElement state, PgAnyElement value)
         {
+            if (state.TypeOid != value.TypeOid)
+            {
+                throw new InvalidOperationException("Polymorphic state and input types differ.");
+            }
+
             s_transitions++;
             return state;
         }
@@ -102,6 +107,11 @@ public static class PolymorphicAggregateFunctions
         /// </summary>
         public static PgAnyElement Combine(PgAnyElement state, PgAnyElement other)
         {
+            if (state.TypeOid != other.TypeOid)
+            {
+                throw new InvalidOperationException("Polymorphic partial-state types differ.");
+            }
+
             s_combines++;
             return state;
         }
@@ -116,7 +126,15 @@ public static class PolymorphicAggregateFunctions
         /// <summary>
         /// Keeps shape, bounds, and element identity from the first present array.
         /// </summary>
-        public static PgAnyArray Transition(PgAnyArray state, PgAnyArray value) => state;
+        public static PgAnyArray Transition(PgAnyArray state, PgAnyArray value)
+        {
+            if (state.TypeOid != value.TypeOid || state.ElementTypeOid != value.ElementTypeOid)
+            {
+                throw new InvalidOperationException("Polymorphic array state and input types differ.");
+            }
+
+            return state;
+        }
     }
 
     /// <summary>
@@ -181,7 +199,14 @@ public static class PolymorphicAggregateFunctions
         /// Reads the earliest frame value without changing state.
         /// </summary>
         public static PgAnyElement? Final(PgAggregateState<Queue<PgAnyElement?>>? state, PgAnyElement? witness)
-            => state is not null && state.Value.Count > 0 ? state.Value.Peek() : null;
+        {
+            if (witness is not null)
+            {
+                throw new InvalidOperationException("FinalExtra supplied a present value.");
+            }
+
+            return state is not null && state.Value.Count > 0 ? state.Value.Peek() : null;
+        }
 
         /// <summary>
         /// Adds the entering value under the moving state owner.
@@ -196,7 +221,12 @@ public static class PolymorphicAggregateFunctions
             PgAggregateState<Queue<PgAnyElement?>>? state, PgAnyElement? value)
         {
             s_inverses++;
-            _ = state!.Value.Dequeue();
+            PgAnyElement? outgoing = state!.Value.Dequeue();
+            if (outgoing?.TypeOid != value?.TypeOid || outgoing?.Datum.ToPostgresString() != value?.Datum.ToPostgresString())
+            {
+                throw new InvalidOperationException("Moving inverse received a different outgoing value.");
+            }
+
             return state;
         }
 
@@ -244,9 +274,13 @@ public static class PolymorphicAggregateFunctions
         public static PgAnyElement? Transition(PgAnyElement? state, PgAnyElement? value) => value ?? state;
 
         /// <summary>
-        /// Returns text regardless of the resolved aggregate result type.
+        /// Checks retained state remains live before returning text with the wrong aggregate result type.
         /// </summary>
-        public static PgAnyElement Final(PgAnyElement? state) => Spi.ExecuteScalar<PgAnyElement>("SELECT 'wrong'::text");
+        public static PgAnyElement Final(PgAnyElement? state)
+        {
+            _ = state?.Datum.DangerousGetBits();
+            return Spi.ExecuteScalar<PgAnyElement>("SELECT 'wrong'::text");
+        }
     }
 
     /// <summary>
@@ -261,9 +295,13 @@ public static class PolymorphicAggregateFunctions
         public static PgAnyElement? Transition(PgAnyElement? state, PgAnyElement? value) => value ?? state;
 
         /// <summary>
-        /// Returns SQL NULL under the resolved result's domain constraints.
+        /// Checks retained state remains live before returning SQL NULL under the result's domain constraints.
         /// </summary>
-        public static PgAnyElement? Final(PgAnyElement? state) => null;
+        public static PgAnyElement? Final(PgAnyElement? state)
+        {
+            _ = state?.Datum.DangerousGetBits();
+            return null;
+        }
     }
 
     /// <summary>
@@ -281,7 +319,8 @@ public static class PolymorphicAggregateFunctions
         /// <summary>
         /// Attempts to return the expired input after its original callback has ended.
         /// </summary>
-        public static PgAnyElement? Final(PgAggregateState<PgAnyElement>? state, PgAnyElement? witness) => state?.Value;
+        public static PgAnyElement? Final(PgAggregateState<PgAnyElement>? state, PgAnyElement? witness)
+            => witness is null ? state?.Value : throw new InvalidOperationException("FinalExtra supplied a present value.");
     }
 
     /// <summary>

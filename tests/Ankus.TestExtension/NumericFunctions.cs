@@ -225,7 +225,7 @@ public static class NumericFunctions
                 }
             }
 
-            return (session.ExecuteScalar<long>(count) - before) + ":" + plan.ExecuteScalar<decimal>(SpiParameter.Create(40m));
+            return session.ExecuteScalar<long>(count) - before + ":" + plan.ExecuteScalar<decimal>(SpiParameter.Create(40m));
         });
 
     private static T Exchange<T>(T value, int mode)

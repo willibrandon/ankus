@@ -49,7 +49,7 @@ comparison, exact acceptance steps and servicing process.
 | Runtime line | Plan and current evidence |
 |---|---|
 | .NET 10 LTS | Initial `net10.0` baseline. The fork incorporates upstream 10.0.12 and passes Linux native component checks and the full PostgreSQL 18.6/Linux x64 suite. Other platform/version combinations remain required before publishing 0.1.0; recheck servicing at release. |
-| .NET 11 STS | Planned next target; no Ankus compatibility claim yet. Validate SDK 11 with `net10.0` separately from a patched .NET 11 runtime with `net11.0`. If GA precedes 0.1.0, complete acceptance in that release. |
+| .NET 11 STS | SDK 11 RC1 targeting `net10.0` passes the complete PostgreSQL 18.6/Linux x64 suite. Cross-platform and GA acceptance remain open; `net11.0` additionally needs its own patched runtime. If GA precedes 0.1.0, complete acceptance in that release. |
 | Later LTS/STS releases | Repeat the explicit compiler/runtime, packed-consumer and complete PostgreSQL/platform gate. Continue servicing already supported majors through upstream end of support. |
 
 Microsoft's latest-patch requirement does not update a statically embedded
@@ -67,6 +67,21 @@ possible; introduce servicing branches only when needed. Do not add legacy TFMs,
 relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
+
+The complete plain `dotnet test` suite passes on both SDK **10.0.400** and
+**11.0.100-rc.1.26425.128**, targeting `net10.0` on PostgreSQL **18.6/Linux
+x64**: each runs **8,797 tests with 8,791 passes, zero failures and six
+Windows-only skips**. Stable and preview durations are **11m29.830s** and
+**12m04.798s** respectively; all **3,785 integration cases** pass in each run.
+Temporary compiler/AOT tests select the SDK that built them, and generated
+consumers clear inherited SDK build paths so their own `global.json` governs
+targets and tasks. Enforced analyzer findings are fixed without suppression or
+relaxation. Both Release builds, API freshness and documentation checks pass.
+This establishes Linux RC1 compatibility evidence for the .NET 10 target;
+full SDK 11 platform/GA acceptance, the .NET 11 runtime port and the remaining
+faithful-port inventory stay open.
+
+Earlier verified milestones follow in reverse chronological order.
 
 Ankus now selects the patched **10.0.12-ankus.1** runtime with matching
 **10.0.12** compiler and framework libraries. Packed consumers reject unsupported
@@ -13148,3 +13163,77 @@ full suite remains in progress without a reported failure. Docs **36503887812**
 passes. Superseded CI **36502786472** and **36500893838** are cancelled; their
 cancelled platform jobs are not completed evidence. Their documentation runs
 pass. Outcomes are checked and recorded again before push.
+
+## SDK 11 analyzer and isolated consumer readiness
+
+The SDK 11 RC1 experiment now includes the source corrections required by its
+enforced analyzers. The generator selects C# **14.0**, keeping its language
+baseline consistent with .NET 10 instead of allowing `latest` to introduce
+preview-only syntax. Operator/conversion bodies, collection expressions,
+patterns, forwarding delegates and private synchronization follow the enforced
+rules. Analyzer modes and severities remain unchanged, including
+`MSTestAnalysisMode=All`; no diagnostics are suppressed.
+
+Required SQL and callback parameters keep their names and contracts. Fixtures
+now compare raw arguments with independently converted managed values, verify
+polymorphic state/input type identity, check moving-window outgoing values and
+null FinalExtra arguments, and validate retained datum lifetimes. Strict
+aggregate seed tests also observe the actual subsequent transition input,
+including integer and CIDR values. Assign-only and show-only GUC callbacks
+reject unexpected check-hook data, and text checks validate their source enum.
+
+Full preview execution found SDK selection problems beyond binding compilation.
+A temporary Native AOT witness selected the system SDK while inheriting SDK 11
+build paths. It now shares the build-SDK selection helper with the compiler
+tests and asserts the selected version before publishing and executing the
+native program. All **five focused compiler/AOT cases pass**, with zero failures
+or skips, on SDK **10.0.400** in **20.228s** and SDK
+**11.0.100-rc.1.26425.128** in **25.305s**.
+
+Generated consumer projects deliberately select stable .NET 10. The package-test
+environment now clears both inherited `MSBuildSDKsPath` and
+`MSBuildExtensionsPath`, allowing each consumer's `global.json` to select its
+own SDK targets and tasks. Clearing only the first path fixed the initial task
+host failure but left SDK 11's NuGet targets loaded into SDK 10; the second
+failure identified the other inherited path. Both preview runs were interrupted
+after preserving their failures and are not complete validation.
+
+With both paths isolated, all **16 generated-consumer cases pass under SDK 11
+RC1**, with zero failures or skips, in **5m48.433s**. This scope exercises
+ordinary and background-worker solutions, real generated backend tests,
+initialization failures and cleanup, keyword/explicit names, invalid-name
+rejection, existing-file preservation and multi-extension selection.
+
+The source candidate passes the complete plain `dotnet test` suite on
+PostgreSQL **18.6/Linux x64**: **8,791 passed, zero failed, six Windows-only
+skips, 8,797 total**, in **13m31.876s**. A subsequent combined candidate passes
+the same totals in **12m07.761s**, including its integration module in
+**12m06.174s**. That second run precedes the final environment-path correction.
+Release passes with zero warnings/errors in **1m36.98s**. After the final
+environment correction, Release passes again in **33.57s** and API freshness
+verifies **206 pages/2,518 members**. The site builds **253 pages** and checks
+with zero errors, warnings or hints. SDK 11 Release also passes with zero
+warnings/errors in **43.98s**.
+
+Final complete plain `dotnet test` runs pass on PostgreSQL **18.6/Linux x64**
+with identical source changes under SDK **10.0.400** and
+**11.0.100-rc.1.26425.128**. Each reports **8,797 total, 8,791 passed, zero
+failed and six Windows-only skips**. Stable SDK execution takes **11m29.830s**
+(integration **11m28.594s**); RC1 takes **12m04.798s** (integration
+**12m04.108s**). All **3,785 integration cases** pass on both SDKs, including
+the packaged ordinary and worker consumers. The extension target, compiler and
+embedded runtime remain .NET 10; repository and consumer defaults remain stable.
+
+SDK 11 platform acceptance, the .NET 11 runtime port and every remaining
+faithful-port requirement remain open. No NuGet packages are published.
+
+Precommit CI review: **36507843884** for `6b97acc` passes quality in
+**9m43s**, all three runtime jobs, Linux x64/PostgreSQL 18 in **35m18s** and
+macOS ARM64/PostgreSQL 18 in **43m53s**. Windows x64/PostgreSQL 17 remains
+in progress without a reported failure. Docs **36507843830** passes. Superseded
+CI **36503887699** is cancelled: Linux and macOS had passed in **31m40s** and
+**38m52s**, while Windows was cancelled before completion. Older superseded CI
+**36502786472** and **36500893838** are also cancelled; all corresponding
+documentation runs pass. Cancelled jobs are not completed platform evidence.
+Final documentation checks again pass with **253 pages** and zero errors,
+warnings or hints. Outcomes are checked and recorded again before push.

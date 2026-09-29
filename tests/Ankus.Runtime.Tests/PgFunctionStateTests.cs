@@ -150,7 +150,7 @@ public sealed class PgFunctionStateTests
         if (mode < 2)
         {
             Assert.ThrowsExactly<ObjectDisposedException>(() => state.GetOrCreate(() => ++calls));
-            Assert.ThrowsExactly<ObjectDisposedException>(() => state.GetMemoryContext());
+            Assert.ThrowsExactly<ObjectDisposedException>(state.GetMemoryContext);
         }
         else
         {
@@ -205,7 +205,7 @@ public sealed class PgFunctionStateTests
         var state = new PgFunctionStateScope(17, 543, 101, 901);
         int calls = 0;
         Assert.ThrowsExactly<InvalidOperationException>(() => state.GetOrCreate(() => ++calls));
-        Assert.ThrowsExactly<InvalidOperationException>(() => state.GetMemoryContext());
+        Assert.ThrowsExactly<InvalidOperationException>(state.GetMemoryContext);
         Assert.AreEqual(0, calls);
         Assert.IsEmpty(fixture.Requests);
     }

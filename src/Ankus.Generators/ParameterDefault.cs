@@ -19,8 +19,8 @@ internal static class ParameterDefault
         object? value = parameter.ExplicitDefaultValue;
         if (type.Enumeration is { } enumeration && value is not null)
         {
-            (IFieldSymbol Field, string Label) member = enumeration.Labels.FirstOrDefault(item => Equals(item.Field.ConstantValue, value));
-            return member.Field is null ? null : SqlText.Literal(member.Label) + "::" + type.Sql;
+            (IFieldSymbol field, string label) = enumeration.Labels.FirstOrDefault(item => Equals(item.Field.ConstantValue, value));
+            return field is null ? null : SqlText.Literal(label) + "::" + type.Sql;
         }
 
         if (value is null)

@@ -51,8 +51,8 @@ public static class FunctionCatalogFunctions
     [PgFunction]
     public static string DefaultError(uint oid)
     {
-        bool cleaned = false;
         string state;
+        bool cleaned;
         try
         {
             _ = Evaluate(PgFunctions.GetInfo(oid)!);

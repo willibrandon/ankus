@@ -102,19 +102,34 @@ public readonly partial record struct PgTimestampTz : IComparable<PgTimestampTz>
     /// <summary>
     /// Adds a calendar interval in the session timezone.
     /// </summary>
-    public static PgTimestampTz operator +(PgTimestampTz timestamp, PgInterval interval) => timestamp.Add(interval);
+    public static PgTimestampTz operator +(PgTimestampTz timestamp, PgInterval interval)
+    {
+        return timestamp.Add(interval);
+    }
+
     /// <summary>
     /// Adds a calendar interval in the session timezone.
     /// </summary>
-    public static PgTimestampTz operator +(PgInterval interval, PgTimestampTz timestamp) => timestamp.Add(interval);
+    public static PgTimestampTz operator +(PgInterval interval, PgTimestampTz timestamp)
+    {
+        return timestamp.Add(interval);
+    }
+
     /// <summary>
     /// Subtracts a calendar interval in the session timezone.
     /// </summary>
-    public static PgTimestampTz operator -(PgTimestampTz timestamp, PgInterval interval) => timestamp.Subtract(interval);
+    public static PgTimestampTz operator -(PgTimestampTz timestamp, PgInterval interval)
+    {
+        return timestamp.Subtract(interval);
+    }
+
     /// <summary>
     /// Computes the elapsed difference.
     /// </summary>
-    public static PgInterval operator -(PgTimestampTz left, PgTimestampTz right) => left.Subtract(right);
+    public static PgInterval operator -(PgTimestampTz left, PgTimestampTz right)
+    {
+        return left.Subtract(right);
+    }
 
     /// <summary>
     /// Parses PostgreSQL timestamp syntax, resolving omitted zones with the session timezone.
@@ -141,22 +156,34 @@ public readonly partial record struct PgTimestampTz : IComparable<PgTimestampTz>
     /// <summary>
     /// Tests whether the left instant precedes the right instant.
     /// </summary>
-    public static bool operator <(PgTimestampTz left, PgTimestampTz right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgTimestampTz left, PgTimestampTz right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Tests whether the left instant follows the right instant.
     /// </summary>
-    public static bool operator >(PgTimestampTz left, PgTimestampTz right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgTimestampTz left, PgTimestampTz right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Tests whether the left instant precedes or equals the right instant.
     /// </summary>
-    public static bool operator <=(PgTimestampTz left, PgTimestampTz right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgTimestampTz left, PgTimestampTz right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Tests whether the left instant follows or equals the right instant.
     /// </summary>
-    public static bool operator >=(PgTimestampTz left, PgTimestampTz right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgTimestampTz left, PgTimestampTz right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Formats the instant using the session timezone and DateStyle.

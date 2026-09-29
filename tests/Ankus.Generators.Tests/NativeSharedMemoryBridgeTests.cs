@@ -51,8 +51,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string admission = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        string admission = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
         AssertOrdered(admission, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
             "request->length != entry->size", "request->flags == 7 && !entry->exclusive",
             "error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE", "return 1;",
@@ -127,8 +126,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string read = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        string read = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
         Assert.DoesNotContain("ereport(", read);
         Assert.DoesNotContain("palloc(", read);
         Assert.DoesNotContain("ankus_shared_attach(", read);
@@ -190,25 +188,21 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("offsetof(AnkusSharedAccess, process_id.value) == 12", native);
         Assert.Contains("entry->kind == 1 && entry->size < sizeof(uint64) ? sizeof(uint64) : entry->size", native);
         Assert.Contains("if (entry->kind == 0)\n    {\n        RequestNamedLWLockTranche(entry->name, 1);", native);
-        string close = native[native.IndexOf("static void\nankus_shared_close", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_shared_retire(void)", StringComparison.Ordinal)];
+        string close = native[native.IndexOf("static void\nankus_shared_close", StringComparison.Ordinal)..native.IndexOf("static void\nankus_shared_retire(void)", StringComparison.Ordinal)];
         AssertOrdered(close, ["pg_atomic_fetch_or_u32", "pg_atomic_write_u32(&entry->access.process_id, 0)",
             "pg_atomic_read_u32(&entry->access.readers)", "pg_atomic_write_u64(&entry->access.address, 0)"]);
         Assert.DoesNotContain("ankus_shared_initialize(", close);
-        string prepare = native[native.IndexOf("static void\nankus_shared_prepare(void)\n{", StringComparison.Ordinal)..
-            native.IndexOf("static void *\nankus_shared_data", StringComparison.Ordinal)];
+        string prepare = native[native.IndexOf("static void\nankus_shared_prepare(void)\n{", StringComparison.Ordinal)..native.IndexOf("static void *\nankus_shared_data", StringComparison.Ordinal)];
         AssertOrdered(prepare, ["ankus_shared_exit_pid == MyProcPid", "before_shmem_exit(ankus_shared_before_exit",
             "pg_atomic_read_u32(&entry->access.process_id) != (uint32) MyProcPid",
             "pg_atomic_write_u32(&entry->access.readers", "pg_atomic_write_u32(&entry->access.process_id, (uint32) MyProcPid)"]);
-        string attach = native[native.IndexOf("static void\nankus_shared_attach", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_shared_startup", StringComparison.Ordinal)];
+        string attach = native[native.IndexOf("static void\nankus_shared_attach", StringComparison.Ordinal)..native.IndexOf("static void\nankus_shared_startup", StringComparison.Ordinal)];
         AssertOrdered(attach, ["header->kind != entry->kind", "pg_atomic_write_u64(&entry->access.address",
             "pg_memory_barrier();", "pg_atomic_write_u32(&entry->access.readers, 0)"]);
         Assert.Contains("ankus_shared_attach(entry, !IsUnderPostmaster);", native);
         Assert.Contains("result->data = (intptr_t) &entry->access;", native);
         Assert.Contains("result->length = sizeof(entry->access);", native);
-        string retirement = native[native.IndexOf("static void\nankus_shared_retire(void)", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_shared_before_exit", StringComparison.Ordinal)];
+        string retirement = native[native.IndexOf("static void\nankus_shared_retire(void)", StringComparison.Ordinal)..native.IndexOf("static void\nankus_shared_before_exit", StringComparison.Ordinal)];
         AssertOrdered(retirement, ["entry = ankus_shared_storage", "entry->kind != 0", "ankus_shared_close(entry);"]);
     }
 }

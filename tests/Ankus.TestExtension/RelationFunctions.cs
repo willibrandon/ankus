@@ -424,7 +424,7 @@ public static class RelationFunctions
     public static string Missing(uint oid)
     {
         string state;
-        bool cleaned = false;
+        bool cleaned;
         try
         {
             using PgRelation relation = PgRelation.Open(oid);

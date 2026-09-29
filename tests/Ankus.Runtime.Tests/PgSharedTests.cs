@@ -26,7 +26,7 @@ public sealed unsafe partial class PgSharedTests
         var storage = new PgShared<int>("unregistered");
         Assert.AreEqual("initializer", Assert.ThrowsExactly<ArgumentNullException>(() => PgSharedMemory.Initialize(storage, null!)).ParamName);
         Assert.AreEqual("reader", Assert.ThrowsExactly<ArgumentNullException>(() => storage.Read<int>(null!)).ParamName);
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in int value) => value));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in value) => value));
         Assert.ThrowsExactly<InvalidOperationException>(() => PgSharedMemory.Initialize(storage));
         using (MemoryContextTestFixture.Enter())
         {
@@ -55,13 +55,13 @@ public sealed unsafe partial class PgSharedTests
         Assert.AreEqual((nuint)sizeof(Aggregate), fixture.Definition._size);
         Assert.AreSequenceEqual(SHA256.HashData(Encoding.UTF8.GetBytes(typeof(Aggregate).AssemblyQualifiedName!)), fixture.Identity);
         Assert.AreEqual(0, calls);
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in Aggregate value) => value.Tag));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in value) => value.Tag));
         PgSharedMemory.Initialize(storage, () => throw new InvalidOperationException("Replaced factory."));
         Assert.HasCount(1, fixture.Memory.Requests);
         fixture.Initialize();
         fixture.Publish();
         Assert.AreEqual(1, calls);
-        Assert.AreEqual((73L, 11), storage.Read(static (in Aggregate value) => (value._count.Value, value.Tag)));
+        Assert.AreEqual((73L, 11), storage.Read(static (in value) => (value._count.Value, value.Tag)));
         Assert.AreEqual(0, fixture.Access->_readers);
     }
 
@@ -76,7 +76,7 @@ public sealed unsafe partial class PgSharedTests
             Guid identity = new("12345678-1234-5678-90ab-123456789abc");
             var expected = new ImmutableValue(identity, Int128.MinValue + 73, 1.234567890123456789m);
             PgShared<ImmutableValue> storage = fixture.Start(expected);
-            Assert.AreEqual(expected, storage.Read(static (in ImmutableValue value) => value));
+            Assert.AreEqual(expected, storage.Read(static (in value) => value));
             Assert.AreEqual(0, fixture.Access->_readers);
         }
 
@@ -88,7 +88,7 @@ public sealed unsafe partial class PgSharedTests
             expected[4] = 0x7F;
             PgShared<Bytes> storage = fixture.Start(expected);
             Assert.AreEqual((nuint)5, fixture.Definition._size);
-            Assert.AreSequenceEqual(new byte[] { 0x81, 0, 0xF3, 0, 0x7F }, storage.Read(static (in Bytes value) => ((ReadOnlySpan<byte>)value).ToArray()));
+            Assert.AreSequenceEqual(new byte[] { 0x81, 0, 0xF3, 0, 0x7F }, storage.Read(static (in value) => ((ReadOnlySpan<byte>)value).ToArray()));
             fixture.AssertGuards(5);
         }
     }
@@ -104,9 +104,9 @@ public sealed unsafe partial class PgSharedTests
         PgSharedMemory.Initialize(storage);
         fixture.Initialize();
         fixture.Publish();
-        Assert.AreEqual((0L, 0), storage.Read(static (in Aggregate value) => (value._count.Value, value.Tag)));
-        Assert.AreEqual(1L, storage.Read(static (in Aggregate value) => value._count.Increment()));
-        Assert.AreEqual(1L, storage.Read(static (in Aggregate value) => value._count.Value));
+        Assert.AreEqual((0L, 0), storage.Read(static (in value) => (value._count.Value, value.Tag)));
+        Assert.AreEqual(1L, storage.Read(static (in value) => value._count.Increment()));
+        Assert.AreEqual(1L, storage.Read(static (in value) => value._count.Value));
         fixture.AssertGuards(sizeof(Aggregate));
         Assert.AreEqual(0, fixture.Access->_readers);
     }
@@ -145,7 +145,7 @@ public sealed unsafe partial class PgSharedTests
         fixture.Initialize();
         fixture.Publish();
         Assert.AreEqual(1, calls);
-        Assert.AreEqual(73L, storage.Read(static (in long value) => value));
+        Assert.AreEqual(73L, storage.Read(static (in value) => value));
     }
 
     /// <summary>
@@ -156,10 +156,10 @@ public sealed unsafe partial class PgSharedTests
     {
         using var fixture = new SharedFixture();
         PgShared<Aggregate> storage = fixture.Start(new Aggregate(73, 11));
-        Assert.AreEqual(74L, storage.Read((in Aggregate value) =>
+        Assert.AreEqual(74L, storage.Read((in value) =>
         {
             Assert.AreEqual(1, fixture.Access->_readers);
-            Assert.AreEqual(73L, storage.Read((in Aggregate nested) =>
+            Assert.AreEqual(73L, storage.Read((in nested) =>
             {
                 Assert.AreEqual(2, fixture.Access->_readers);
                 return nested._count.Value;
@@ -168,23 +168,23 @@ public sealed unsafe partial class PgSharedTests
             return value._count.Increment();
         }));
         var failure = new InvalidOperationException("reader failure");
-        Assert.AreSame(failure, Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read<int>((in Aggregate value) =>
+        Assert.AreSame(failure, Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read<int>((in value) =>
         {
             value._count.Exchange(91);
             throw failure;
         })));
         Assert.AreEqual(0, fixture.Access->_readers);
-        Assert.AreEqual(91L, storage.Read(static (in Aggregate value) => value._count.Value));
-        storage.Read((in Aggregate value) =>
+        Assert.AreEqual(91L, storage.Read(static (in value) => value._count.Value));
+        storage.Read((in value) =>
         {
             Interlocked.Or(ref fixture.Access->_readers, int.MinValue);
-            Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in Aggregate next) => next.Tag));
+            Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in next) => next.Tag));
             return value._count.Increment();
         });
         Assert.AreEqual(int.MinValue, fixture.Access->_readers);
         Assert.AreEqual(92L, ((Aggregate*)fixture.Value)->_count.Value);
         fixture.UseReplacement(new Aggregate(107, 19));
-        Assert.AreEqual((107L, 19), storage.Read(static (in Aggregate value) => (value._count.Value, value.Tag)));
+        Assert.AreEqual((107L, 19), storage.Read(static (in value) => (value._count.Value, value.Tag)));
         Assert.AreEqual(0, fixture.Access->_readers);
     }
 
@@ -206,7 +206,7 @@ public sealed unsafe partial class PgSharedTests
                 {
                     for (int iteration = 0; iteration < 2000; iteration++)
                     {
-                        storage.Read(static (in Aggregate value) => value._count.Increment());
+                        storage.Read(static (in value) => value._count.Increment());
                     }
                 }
                 catch (Exception exception)
@@ -223,7 +223,7 @@ public sealed unsafe partial class PgSharedTests
         }
 
         Assert.IsEmpty(failures);
-        Assert.AreEqual((8073L, 11), storage.Read(static (in Aggregate value) => (value._count.Value, value.Tag)));
+        Assert.AreEqual((8073L, 11), storage.Read(static (in value) => (value._count.Value, value.Tag)));
         Assert.HasCount(1, fixture.Memory.Requests);
         Assert.AreEqual(0, fixture.Access->_readers);
     }

@@ -34,8 +34,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("header->kind != entry->kind", native);
         Assert.Contains("if (entry->kind == 0)\n    {\n        RequestNamedLWLockTranche", native);
         Assert.Contains("ankus_shared_has_access |= entry->kind != 0;", native);
-        string attach = native[native.IndexOf("static void\nankus_shared_attach", StringComparison.Ordinal)..
-            native.IndexOf("static void\nankus_shared_startup", StringComparison.Ordinal)];
+        string attach = native[native.IndexOf("static void\nankus_shared_attach", StringComparison.Ordinal)..native.IndexOf("static void\nankus_shared_startup", StringComparison.Ordinal)];
         AssertOrdered(attach, ["if (entry->kind != 0)", "pg_atomic_write_u64(&entry->access.address", "pg_atomic_write_u32(&entry->access.readers, 0)"]);
     }
 

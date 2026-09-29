@@ -83,15 +83,26 @@ public readonly partial record struct PgTimeTz : IComparable<PgTimeTz>
     /// <summary>
     /// Adds an interval while retaining the fixed offset.
     /// </summary>
-    public static PgTimeTz operator +(PgTimeTz time, PgInterval interval) => time.Add(interval);
+    public static PgTimeTz operator +(PgTimeTz time, PgInterval interval)
+    {
+        return time.Add(interval);
+    }
+
     /// <summary>
     /// Adds an interval while retaining the fixed offset.
     /// </summary>
-    public static PgTimeTz operator +(PgInterval interval, PgTimeTz time) => time.Add(interval);
+    public static PgTimeTz operator +(PgInterval interval, PgTimeTz time)
+    {
+        return time.Add(interval);
+    }
+
     /// <summary>
     /// Subtracts an interval while retaining the fixed offset.
     /// </summary>
-    public static PgTimeTz operator -(PgTimeTz time, PgInterval interval) => time.Subtract(interval);
+    public static PgTimeTz operator -(PgTimeTz time, PgInterval interval)
+    {
+        return time.Subtract(interval);
+    }
 
     /// <summary>
     /// Parses PostgreSQL fixed-offset time syntax on the active backend thread.
@@ -124,22 +135,34 @@ public readonly partial record struct PgTimeTz : IComparable<PgTimeTz>
     /// <summary>
     /// Tests whether the left value sorts before the right value.
     /// </summary>
-    public static bool operator <(PgTimeTz left, PgTimeTz right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgTimeTz left, PgTimeTz right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Tests whether the left value sorts after the right value.
     /// </summary>
-    public static bool operator >(PgTimeTz left, PgTimeTz right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgTimeTz left, PgTimeTz right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Tests whether the left value sorts before or equals the right value.
     /// </summary>
-    public static bool operator <=(PgTimeTz left, PgTimeTz right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgTimeTz left, PgTimeTz right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Tests whether the left value sorts after or equals the right value.
     /// </summary>
-    public static bool operator >=(PgTimeTz left, PgTimeTz right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgTimeTz left, PgTimeTz right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Formats the time and offset using PostgreSQL's output routine.

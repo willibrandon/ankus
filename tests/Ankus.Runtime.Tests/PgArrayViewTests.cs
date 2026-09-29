@@ -112,7 +112,7 @@ public sealed partial class PgArrayViewTests
         int operations = script.Requests.Count;
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view[0]);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.GetEnumerator());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.GetEnumerator);
         Assert.ThrowsExactly<ObjectDisposedException>(() => cursor.MoveNext());
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = cursor.Current);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
@@ -233,7 +233,7 @@ public sealed partial class PgArrayViewTests
         using (MemoryContextTestFixture.Enter(29))
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => cell.DangerousGetBits());
-            Assert.ThrowsExactly<InvalidOperationException>(() => view.GetEnumerator());
+            Assert.ThrowsExactly<InvalidOperationException>(view.GetEnumerator);
             Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetSpan<int>());
             Assert.ThrowsExactly<InvalidOperationException>(() => view.DangerousGetUuidBytes());
             Assert.ThrowsExactly<InvalidOperationException>(view.Dispose);

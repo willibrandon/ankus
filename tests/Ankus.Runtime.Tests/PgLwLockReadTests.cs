@@ -26,28 +26,30 @@ public sealed unsafe partial class PgSharedMemoryTests
         using PgLwLockShareGuard<ReadState>? reader = exclusive ? null : storage.Share();
         using PgLwLockExclusiveGuard<ReadState>? writer = exclusive ? storage.Exclusive() : null;
         PgSpinLockGuard<long>? expired = null;
-        PgSharedReader<ReadState, (long, long, long)> callback = (in ReadState value) =>
+        (long, long, long) callback(in ReadState value)
         {
             ReadState copy = value;
             Assert.AreEqual(3L, copy._atomic.Exchange(101));
             Assert.AreEqual(3L, value._atomic.Exchange(long.MaxValue));
-            Assert.ThrowsExactly<InvalidOperationException>(() => copy._child.Lock());
+            Assert.ThrowsExactly<InvalidOperationException>(copy._child.Lock);
             expired = value._child.Lock();
             Assert.AreEqual(7L, expired.Value);
             expired.Value = 29;
             GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
             return (value._marker, value._atomic.Value, expired.Value);
-        };
+        }
+
         Assert.AreEqual((long.MinValue, long.MaxValue, 29L), exclusive ? writer!.Read(callback) : reader!.Read(callback));
         Assert.IsNotNull(expired);
         Assert.ThrowsExactly<ObjectDisposedException>(() => expired.Value);
         Assert.HasCount(1, spins.Released);
         Assert.IsEmpty(spins.Held);
-        PgSharedReader<ReadState, long> verify = static (in ReadState value) =>
+        long verify(in ReadState value)
         {
             using PgSpinLockGuard<long> child = value._child.Lock();
             return child.Value;
-        };
+        }
+
         Assert.AreEqual(29L, exclusive ? writer!.Read(verify) : reader!.Read(verify));
         Assert.AreEqual(long.MaxValue, MemoryMarshal.Read<ReadState>(fixture.Bytes)._atomic.Value);
         NativeMemoryRequest[] admissions = [.. fixture.Memory.Requests.Where(static request => request._flags == 6)];
@@ -68,7 +70,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         using PgLwLockExclusiveGuard<long> guard = storage.Exclusive();
         PgLwLockExclusiveGuard<long> alias = guard;
         nint saved = 0;
-        Assert.AreEqual(31L, guard.Read((in long value) =>
+        Assert.AreEqual(31L, guard.Read((in value) =>
         {
             nint address = (nint)Unsafe.AsPointer(ref Unsafe.AsRef(in value));
             saved = address;
@@ -81,7 +83,7 @@ public sealed unsafe partial class PgSharedMemoryTests
             Assert.AreEqual(31L, alias.Value);
             Assert.ThrowsExactly<InvalidOperationException>(alias.Dispose);
             Assert.ThrowsExactly<InvalidOperationException>(() => alias.Value = 99);
-            Assert.AreEqual(31L, alias.Read((in long nested) =>
+            Assert.AreEqual(31L, alias.Read((in nested) =>
             {
                 Assert.ThrowsExactly<InvalidOperationException>(guard.Dispose);
                 Assert.ThrowsExactly<InvalidOperationException>(() => guard.Value = 101);
@@ -97,7 +99,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         Assert.AreEqual(37L, guard.Value);
         guard.Dispose();
         Assert.HasCount(1, fixture.Memory.Requests.Where(static request => request._flags == 5));
-        Assert.ThrowsExactly<ObjectDisposedException>(() => alias.Read(static (in long value) => value));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => alias.Read(static (in value) => value));
     }
 
     /// <summary>
@@ -134,21 +136,21 @@ public sealed unsafe partial class PgSharedMemoryTests
 
             return respond(request);
         };
-        Assert.AreEqual((41L, 43L), first.Read((in long value) =>
+        Assert.AreEqual((41L, 43L), first.Read((in value) =>
         {
             Assert.ThrowsExactly<InvalidOperationException>(first.Dispose);
-            Assert.AreEqual(43L, second.Read((in long nested) =>
+            Assert.AreEqual(43L, second.Read((in nested) =>
             {
                 Assert.ThrowsExactly<InvalidOperationException>(second.Dispose);
                 return nested;
             }));
             valid = false;
-            PgException error = Assert.ThrowsExactly<PgException>(() => second.Read(static (in long nested) => nested));
+            PgException error = Assert.ThrowsExactly<PgException>(() => second.Read(static (in nested) => nested));
             Assert.AreEqual("55000", error.SqlState);
             Assert.AreEqual("guard expired", error.Message);
             Assert.ThrowsExactly<InvalidOperationException>(NativeBorrowScope.CheckBackendAccess);
             valid = true;
-            return (value, second.Read(static (in long nested) => nested));
+            return (value, second.Read(static (in nested) => nested));
         }));
         NativeBorrowScope.CheckBackendAccess();
         Assert.AreEqual(41L, first.Value);
@@ -173,7 +175,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         PgSpinLockGuard<long>? expired = null;
         nint saved = 0;
         var expected = new FormatException("reader failed");
-        FormatException failure = Assert.ThrowsExactly<FormatException>(() => guard.Read<int>((in ReadState value) =>
+        FormatException failure = Assert.ThrowsExactly<FormatException>(() => guard.Read<int>((in value) =>
         {
             saved = (nint)Unsafe.AsPointer(ref Unsafe.AsRef(in value));
             expired = value._child.Lock();
@@ -186,7 +188,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         Assert.ThrowsExactly<InvalidOperationException>(() => NativeSharedReadScope.Find(saved, 1));
         Assert.IsEmpty(spins.Held);
         Assert.IsEmpty(fixture.Memory.Requests.Where(static request => request._operation == NativeMemoryOperation.SharedMemory && request._flags == 5));
-        Assert.AreEqual(53L, guard.Read(static (in ReadState value) =>
+        Assert.AreEqual(53L, guard.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._child.Lock();
             return child.Value;
@@ -212,7 +214,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         nint previous = NativeLog.Enter(1);
         try
         {
-            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Read<int>(static (in long value) =>
+            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Read<int>(static (in value) =>
             {
                 Assert.AreEqual(59L, value);
                 Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 42"));
@@ -291,11 +293,12 @@ public sealed unsafe partial class PgSharedMemoryTests
             return result;
         };
         bool invoked = false;
-        PgSharedReader<long, long> callback = (in long value) =>
+        long callback(in long value)
         {
             invoked = true;
             return value;
-        };
+        }
+
         if (scenario == 4)
         {
             PgException error = Assert.ThrowsExactly<PgException>(() => guard.Read(callback));
@@ -327,11 +330,12 @@ public sealed unsafe partial class PgSharedMemoryTests
         using PgLwLockShareGuard<long> guard = storage.Share();
         Assert.AreEqual("reader", Assert.ThrowsExactly<ArgumentNullException>(() => guard.Read<long>(null!)).ParamName);
         bool invoked = false;
-        PgSharedReader<long, long> callback = (in long value) =>
+        long callback(in long value)
         {
             invoked = true;
             return value;
-        };
+        }
+
         foreach (nint provider in new nint[] { 0, 29 })
         {
             using MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(provider);

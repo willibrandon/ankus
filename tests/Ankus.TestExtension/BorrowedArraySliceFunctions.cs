@@ -26,14 +26,22 @@ public static partial class BorrowedArrayFunctions
     {
         switch ((PgBuiltInOid)value.ElementTypeOid)
         {
-            case PgBuiltInOid.CharOid: return SliceAddress(value.DangerousGetSpan<sbyte>(), address);
-            case PgBuiltInOid.Int2Oid: return SliceAddress(value.DangerousGetSpan<short>(), address);
-            case PgBuiltInOid.Int4Oid: return SliceAddress(value.DangerousGetSpan<int>(), address);
-            case PgBuiltInOid.Int8Oid: return SliceAddress(value.DangerousGetSpan<long>(), address);
-            case PgBuiltInOid.Float4Oid: return SliceAddress(value.DangerousGetSpan<float>(), address);
-            case PgBuiltInOid.Float8Oid: return SliceAddress(value.DangerousGetSpan<double>(), address);
-            case PgBuiltInOid.UuidOid: return SliceAddress(value.DangerousGetUuidBytes(), address);
-            default: throw new InvalidOperationException("Unexpected native slice witness type.");
+            case PgBuiltInOid.CharOid:
+                return SliceAddress(value.DangerousGetSpan<sbyte>(), address);
+            case PgBuiltInOid.Int2Oid:
+                return SliceAddress(value.DangerousGetSpan<short>(), address);
+            case PgBuiltInOid.Int4Oid:
+                return SliceAddress(value.DangerousGetSpan<int>(), address);
+            case PgBuiltInOid.Int8Oid:
+                return SliceAddress(value.DangerousGetSpan<long>(), address);
+            case PgBuiltInOid.Float4Oid:
+                return SliceAddress(value.DangerousGetSpan<float>(), address);
+            case PgBuiltInOid.Float8Oid:
+                return SliceAddress(value.DangerousGetSpan<double>(), address);
+            case PgBuiltInOid.UuidOid:
+                return SliceAddress(value.DangerousGetUuidBytes(), address);
+            default:
+                throw new InvalidOperationException("Unexpected native slice witness type.");
         }
     }
 
@@ -74,11 +82,20 @@ public static partial class BorrowedArrayFunctions
         int[] copy = nested.DangerousGetSpan<int>().ToArray();
         switch (mode)
         {
-            case 0: first.Dispose(); break;
-            case 1: source.Reset(); break;
-            case 2: source.Dispose(); break;
-            case 3: source.ResetOnly(); break;
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            case 0:
+                first.Dispose();
+                break;
+            case 1:
+                source.Reset();
+                break;
+            case 2:
+                source.Dispose();
+                break;
+            case 3:
+                source.ResetOnly();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
 
         return [Failure(() => first.DangerousGetSpan<int>()), Failure(() => nested.DangerousGetSpan<int>()),
@@ -132,13 +149,19 @@ public static partial class BorrowedArrayFunctions
     {
         switch (mode)
         {
-            case 0: return FormatSlice(value.DangerousGetSpan<sbyte>());
-            case 1: return FormatSlice(value.DangerousGetSpan<short>());
-            case 2: return FormatSlice(value.DangerousGetSpan<int>());
-            case 3: return FormatSlice(value.DangerousGetSpan<long>());
-            case 4: return [.. value.DangerousGetSpan<float>().ToArray().Select(static cell =>
+            case 0:
+                return FormatSlice(value.DangerousGetSpan<sbyte>());
+            case 1:
+                return FormatSlice(value.DangerousGetSpan<short>());
+            case 2:
+                return FormatSlice(value.DangerousGetSpan<int>());
+            case 3:
+                return FormatSlice(value.DangerousGetSpan<long>());
+            case 4:
+                return [.. value.DangerousGetSpan<float>().ToArray().Select(static cell =>
                 BitConverter.SingleToInt32Bits(cell).ToString("X8", CultureInfo.InvariantCulture))];
-            case 5: return [.. value.DangerousGetSpan<double>().ToArray().Select(static cell =>
+            case 5:
+                return [.. value.DangerousGetSpan<double>().ToArray().Select(static cell =>
                 BitConverter.DoubleToInt64Bits(cell).ToString("X16", CultureInfo.InvariantCulture))];
             case 6:
                 ReadOnlySpan<byte> bytes = value.DangerousGetUuidBytes();
@@ -149,8 +172,10 @@ public static partial class BorrowedArrayFunctions
                 }
 
                 return values;
-            case 7: return [value.DangerousGetSpan<Guid>().Length.ToString(CultureInfo.InvariantCulture)];
-            default: throw new ArgumentOutOfRangeException(nameof(mode));
+            case 7:
+                return [value.DangerousGetSpan<Guid>().Length.ToString(CultureInfo.InvariantCulture)];
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode));
         }
     }
 

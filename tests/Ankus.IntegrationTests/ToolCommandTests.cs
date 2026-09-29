@@ -72,6 +72,9 @@ public sealed partial class ToolCommandTests(TestContext context)
         {
             ["NUGET_PACKAGES"] = Path.Combine(s_root, "NuGet packages"),
             ["MSBUILDDISABLENODEREUSE"] = "1",
+            // Each consumer selects its SDK through global.json, independently of the test runner's SDK.
+            ["MSBuildSDKsPath"] = null,
+            ["MSBuildExtensionsPath"] = null,
         };
         File.Copy(Path.Combine(repository, "global.json"), Path.Combine(s_root, "global.json"));
         string config = Path.Combine(s_root, "NuGet.Config");

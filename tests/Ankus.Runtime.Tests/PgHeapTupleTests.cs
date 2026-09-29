@@ -298,7 +298,7 @@ public sealed class PgHeapTupleTests
         Assert.AreSequenceEqual([-3, 4], array.LowerBounds.ToArray());
         Assert.IsNull(array.GetValue(-3, 4));
         Assert.AreSame(tuple, array.GetValue(-3, 5));
-        Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
+        Assert.ThrowsExactly<InvalidOperationException>(array.ToVector);
         Assert.AreEqual(7, array.ToArray()[1]!.Get<int>(0));
         var row = new SpiRow([array], [new("value", 9103)]);
         Assert.AreSame(array, row.Get<PgArray<PgHeapTuple?>>(0));

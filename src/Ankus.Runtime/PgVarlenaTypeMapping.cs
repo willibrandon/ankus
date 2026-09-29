@@ -48,7 +48,7 @@ internal sealed class PgVarlenaTypeMapping<T>(string name, string? schema, int s
     /// <inheritdoc />
     internal override object Convert(IPgArray value, Type type)
     {
-        if (value is not PgArray<T> && value is not PgArray<T?> && value is not PgArray<PgVarlena<T>>)
+        if (value is not PgArray<T> and not PgArray<T?> and not PgArray<PgVarlena<T>>)
         {
             throw new InvalidCastException($"Array cannot be converted to '{typeof(PgVarlena<T>)}' elements.");
         }

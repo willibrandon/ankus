@@ -48,6 +48,12 @@ and `allowPrerelease: false`. A .NET 11 SDK can coexist for other projects witho
 changing that selection. Installing a newer SDK does not retarget your extension
 or update its embedded runtime. See [.NET SDK selection](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json).
 
+SDK 11 RC1 targeting `net10.0` has passed the complete test suite against
+PostgreSQL 18.6 on Linux x64, using the .NET 10 compiler and embedded runtime.
+Cross-platform and final-release validation remain open, as does the separate
+`net11.0` runtime target. Keep the generated stable SDK selection until that
+acceptance is complete.
+
 Keep `net10.0` until Ankus documents support for another target. Ankus will select
 a matching runtime for each supported target; extension authors should not need
 to build a runtime fork or override compiler internals. The command-line tool,

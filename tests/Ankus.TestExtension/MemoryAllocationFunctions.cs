@@ -32,10 +32,10 @@ public static unsafe class MemoryAllocationFunctions
         using PgAllocation typedCopy = owner.CopyFrom<long>(typedSource);
         typedSource.AsSpan().Fill(99);
         using PgAllocation empty = owner.Allocate<long>(0);
-        using PgAllocation emptyCopy = owner.CopyFrom(ReadOnlySpan<byte>.Empty);
-        using PgAllocation emptyTypedCopy = owner.CopyFrom<long>(ReadOnlySpan<long>.Empty);
-        empty.Read(Span<byte>.Empty);
-        emptyCopy.Write(ReadOnlySpan<byte>.Empty);
+        using PgAllocation emptyCopy = owner.CopyFrom([]);
+        using PgAllocation emptyTypedCopy = owner.CopyFrom<long>([]);
+        empty.Read([]);
+        emptyCopy.Write([]);
         bool overflow = false;
         try
         {

@@ -66,7 +66,7 @@ internal static partial class NativeObjectSymbols
                 if (UInt32(symbol) == 0)
                 {
                     uint position = UInt32(symbol[4..]);
-                    Require(position == 0 || position >= 4, "COFF symbol points inside the string-table header.");
+                    Require(position is 0 or >= 4, "COFF symbol points inside the string-table header.");
                     name = position == 0 ? [] : Name(strings, position);
                 }
                 else

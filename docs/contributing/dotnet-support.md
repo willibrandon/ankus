@@ -2,8 +2,8 @@
 
 The [public .NET support policy](../src/content/docs/reference/dotnet-support.md)
 describes the extension-author contract. This document records the implementation
-plan and evidence required to make that contract supportable. .NET 11 work is
-in progress; it is not evidence of current compatibility.
+plan and evidence required to make that contract supportable. SDK 11 RC1 has
+Linux evidence for the .NET 10 target; full .NET 11 acceptance remains open.
 
 ## Basis for the policy
 
@@ -60,14 +60,26 @@ installation for compiler apphosts. Its cache inventories that installation's
 host and shared runtimes, and verifies linked dependency contents while requiring
 regular owned output artifacts.
 
-The real compiler-process tests pin the SDK that built the tests, including an
-isolated installation, rather than resolving an unrelated system SDK in their
-temporary projects. The compiler/cache scope passes **17 tests** under RC1,
-including offline restore, source-mapping rejection and recovery, concurrent
-compilation, content invalidation and linked-file cases. The broader candidate's
-Release build now passes with zero warnings/errors after source analyzer fixes;
-full native PostgreSQL validation is running. These additional source changes
-remain under review. This does not establish SDK 11 or `net11.0` support.
+The real compiler-process and Native AOT accessor tests pin the SDK that built
+the tests, including an isolated installation. Generated consumers retain their
+own SDK selection. Their test environment clears the runner's inherited
+`MSBuildSDKsPath` and `MSBuildExtensionsPath`; otherwise a .NET 10 consumer can
+load .NET 11 build or NuGet tasks. The compiler/cache scope passes **17 tests**
+under RC1, including offline restore, source-mapping rejection and recovery,
+concurrency, content invalidation and linked-file cases. The five compiler/AOT
+cases also pass on both SDKs with the shared SDK-selection helper.
+
+Source analyzer corrections keep the generator on C# 14 and strengthen callback
+fixtures without changing analyzer standards. All 16 generated-consumer
+cases pass under RC1 after the environment correction, including the ordinary
+and background-worker templates, initialization-failure cleanup and explicit
+names. Final complete PostgreSQL 18.6/Linux x64 suites pass on SDK 10.0.400 and
+RC1: **8,791 passes, zero failures and six Windows-only skips, 8,797 total**
+on each, in **11m29.830s** and **12m04.798s** respectively. Both include all
+**3,785 integration cases**, and both Release builds pass without warnings or
+errors. Earlier interrupted preview runs are not completed evidence. These
+results establish the Linux RC1 experiment; cross-platform and GA acceptance
+and the separate `net11.0` runtime target remain required.
 
 1. Use an isolated writable runtime checkout based on the selected .NET 11
    release tag/commit. Keep reference clones read-only. Review each existing

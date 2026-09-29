@@ -153,7 +153,7 @@ public sealed unsafe class NativeBoxTests
         box.Dispose();
         Assert.ThrowsExactly<ObjectDisposedException>(() => box.Value);
         Assert.ThrowsExactly<ObjectDisposedException>(() => borrow.Value);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => box.Borrow());
+        Assert.ThrowsExactly<ObjectDisposedException>(box.Borrow);
         Assert.IsEmpty(fixture.Requests);
     }
 
@@ -174,7 +174,7 @@ public sealed unsafe class NativeBoxTests
         box.Dispose();
         Assert.IsEmpty(fixture.Requests.Where(static request => request._operation is NativeMemoryOperation.Free or NativeMemoryOperation.Detach));
         Assert.ThrowsExactly<ObjectDisposedException>(() => box.Value);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => box.ReleaseToContext());
+        Assert.ThrowsExactly<ObjectDisposedException>(box.ReleaseToContext);
         Assert.AreEqual(5, value.Value);
         Assert.AreEqual(PgAllocationOptions.Huge, value.Options);
         Assert.AreEqual((nuint)32, value.Alignment);
@@ -204,7 +204,7 @@ public sealed unsafe class NativeBoxTests
         fixture.Handler = request => request._operation == NativeMemoryOperation.Read && request._length == 0
             ? throw new PgException("55006", "transfer check failed", "native detail", "native hint")
             : fixture.RespondWithStorage(request, storage);
-        PgException error = Assert.ThrowsExactly<PgException>(() => box.ReleaseToContext());
+        PgException error = Assert.ThrowsExactly<PgException>(box.ReleaseToContext);
         Assert.AreEqual("55006", error.SqlState);
         Assert.AreEqual("transfer check failed", error.Message);
         Assert.AreEqual("native detail", error.Detail);

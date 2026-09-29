@@ -68,8 +68,8 @@ public sealed class PgFixedKeyComparerTests
     [TestMethod]
     public void FixedComparersRequireExplicitCustomKeyHashing()
     {
-        Assert.ThrowsExactly<NotSupportedException>(() => PgFixedKeyComparer.Create<CustomKey>());
-        Assert.ThrowsExactly<NotSupportedException>(() => PgFixedKeyComparer.Create<DateTime>());
+        Assert.ThrowsExactly<NotSupportedException>(PgFixedKeyComparer.Create<CustomKey>);
+        Assert.ThrowsExactly<NotSupportedException>(PgFixedKeyComparer.Create<DateTime>);
         var entries = new PgFixedMapEntry<CustomKey, long>[2];
         int[] indices = new int[2];
         int count = 0;

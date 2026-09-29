@@ -198,6 +198,6 @@ public sealed class PgHashTests
         Assert.AreEqual(851917799, PgHash.Compute(ulong.MaxValue));
         Assert.AreEqual(-855795698, PgHash.Compute("a\0b"));
         Assert.AreEqual(494167945, PgHash.Compute("hello"));
-        Assert.AreEqual(628087993, PgHash.Compute(ReadOnlySpan<byte>.Empty));
+        Assert.AreEqual(628087993, PgHash.Compute([]));
     }
 }

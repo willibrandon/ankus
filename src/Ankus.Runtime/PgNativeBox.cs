@@ -116,7 +116,7 @@ public sealed unsafe class PgNativeBox<T> : IDisposable where T : unmanaged
     {
         get
         {
-            ObjectDisposedException.ThrowIf(_allocation is null, nameof(PgNativeBox<T>));
+            ObjectDisposedException.ThrowIf(_allocation is null, nameof(PgNativeBox<>));
             return _allocation;
         }
     }

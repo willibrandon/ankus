@@ -222,8 +222,8 @@ public sealed class PgItemPointerTests
             Assert.AreEqual(27U, copy.ElementTypeOid);
             IPgArray untyped = transport.ReadArray();
             Assert.AreSequenceEqual(values, (PgArray<PgItemPointer?>)untyped);
-            Assert.ThrowsExactly<InvalidOperationException>(() => transport.ReadArray<PgItemPointer>());
-            Assert.ThrowsExactly<InvalidCastException>(() => transport.ReadArray<uint?>());
+            Assert.ThrowsExactly<InvalidOperationException>(transport.ReadArray<PgItemPointer>);
+            Assert.ThrowsExactly<InvalidCastException>(transport.ReadArray<uint?>);
             var row = new SpiRow([untyped], [new("locations", 1010)]);
             Assert.AreSequenceEqual(values, row.Get<PgArray<PgItemPointer?>>(0));
             Assert.ThrowsExactly<InvalidOperationException>(() => row.Get<PgItemPointer?[]>(0));

@@ -137,9 +137,9 @@ public sealed unsafe partial class NodeReferenceTests
         Assert.AreEqual(0, format._other);
         Assert.AreEqual(1, s_outputReleases);
         allocation.Reallocate(15);
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => node.DangerousToNativeString());
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(node.DangerousToNativeString);
         allocation.Dispose();
-        Assert.ThrowsExactly<ObjectDisposedException>(() => node.DangerousToNativeString());
+        Assert.ThrowsExactly<ObjectDisposedException>(node.DangerousToNativeString);
         Assert.ContainsSingle(static request => request._operation == NativeMemoryOperation.FormatNode, fixture.Requests);
     }
 
@@ -181,11 +181,11 @@ public sealed unsafe partial class NodeReferenceTests
         s_outputReleases = 0;
         if (failure == 1)
         {
-            Assert.ThrowsExactly<DecoderFallbackException>(() => node.DangerousToNativeString());
+            Assert.ThrowsExactly<DecoderFallbackException>(node.DangerousToNativeString);
         }
         else if (failure == 2)
         {
-            PgException error = Assert.ThrowsExactly<PgException>(() => node.DangerousToNativeString());
+            PgException error = Assert.ThrowsExactly<PgException>(node.DangerousToNativeString);
             Assert.AreEqual("54001", error.SqlState);
             Assert.AreEqual("native traversal failed", error.Message);
         }

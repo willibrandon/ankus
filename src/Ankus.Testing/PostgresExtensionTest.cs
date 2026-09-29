@@ -14,7 +14,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     private readonly string _publishDirectory;
     private readonly string _dataDirectoryBase;
     private readonly PostgresTestInstallation? _stagedInstallation;
-    private readonly object _disposeLock = new();
+    private readonly Lock _disposeLock = new();
     private Task? _disposeTask;
 
     private PostgresExtensionTest(

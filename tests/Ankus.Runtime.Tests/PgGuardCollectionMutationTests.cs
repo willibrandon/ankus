@@ -23,30 +23,32 @@ public sealed unsafe partial class PgSharedMemoryTests
         fixture.Bytes = new byte[sizeof(MutableQueue)];
         using PgLwLockExclusiveGuard<MutableQueue>? lightweight = spin ? null : storage.Exclusive();
         using PgSpinLockGuard<MutableQueue>? spinlock = spin ? new PgSpinLock<MutableQueue>(default).Lock() : null;
-        PgSharedMutator<MutableQueue, int[]> append = static (ref MutableQueue value) =>
+        int[] append(ref MutableQueue value)
         {
             PgFixedDeque<int> queue = value.Items();
             queue.PushBack(17);
             queue.PushBack(19);
             queue.PushFront(13);
             return queue.ToArray();
-        };
+        }
+
         Assert.AreSequenceEqual([13, 17, 19], spin ? spinlock!.Mutate(append) : lightweight!.Mutate(append));
         MutableQueue copy = spin ? spinlock!.Value : lightweight!.Value;
         Assert.AreSequenceEqual([13, 17, 19], copy.Items().ToArray());
         copy.Items().Clear();
         var expected = new FormatException("queue mutation failure");
-        PgSharedMutator<MutableQueue, int> failing = (ref MutableQueue value) =>
+        int failing(ref MutableQueue value)
         {
             PgFixedDeque<int> queue = value.Items();
             Assert.AreEqual(13, queue.PopFront());
             queue.PushBack(23);
             throw expected;
-        };
+        }
+
         FormatException error = Assert.ThrowsExactly<FormatException>(() =>
             spin ? spinlock!.Mutate(failing) : lightweight!.Mutate(failing));
         Assert.AreSame(expected, error);
-        PgSharedMutator<MutableQueue, int[]> drain = static (ref MutableQueue value) => value.Items().Drain();
+        int[] drain(ref MutableQueue value) => value.Items().Drain();
         Assert.AreSequenceEqual([17, 19, 23], spin ? spinlock!.Mutate(drain) : lightweight!.Mutate(drain));
         MutableQueue empty = spin ? spinlock!.Value : lightweight!.Value;
         Assert.AreEqual(0, empty.Items().Count);

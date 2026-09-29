@@ -17,6 +17,11 @@ public static class FunctionCallFunctions
     [PgFunction]
     public static int? CallNative(long address, int? left, int? right, bool raw, PgFunctionContext call)
     {
+        if (call.Arguments[1].Read<int?>() != left || call.Arguments[2].Read<int?>() != right)
+        {
+            throw new InvalidOperationException("Native-call operands differ from their managed values.");
+        }
+
         if (!raw)
         {
             return PgFunctions.DangerousCall<int?>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
@@ -51,7 +56,14 @@ public static class FunctionCallFunctions
     /// <returns>The copied concatenation.</returns>
     [PgFunction]
     public static string CallNativeText(long address, string left, string right, PgFunctionContext call)
-        => PgFunctions.DangerousCall<string>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+    {
+        if (call.Arguments[1].Read<string>() != left || call.Arguments[2].Read<string>() != right)
+        {
+            throw new InvalidOperationException("Native text operands differ from their managed values.");
+        }
+
+        return PgFunctions.DangerousCall<string>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
+    }
 
     /// <summary>
     /// Calls integer functions with explicit values, NULLs, defaults, or no arguments.
@@ -213,7 +225,15 @@ public static class FunctionCallFunctions
     /// <param name="value">The SQL input.</param>
     /// <returns>The collation OID as text.</returns>
     [PgFunction]
-    public static string CallCollation(PgFunctionContext call, string value) => call.CollationOid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public static string CallCollation(PgFunctionContext call, string value)
+    {
+        if (call.Arguments[0].Read<string>() != value)
+        {
+            throw new InvalidOperationException("Collation probe input differs from its managed value.");
+        }
+
+        return call.CollationOid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// Verifies direct invocation supplies real function metadata and releases its cached state.
@@ -236,6 +256,11 @@ public static class FunctionCallFunctions
     public static string CallRawArgument(string? value, PgFunctionContext call)
     {
         PgDatum argument = call.Arguments[0];
+        if (argument.Read<string?>() != value)
+        {
+            throw new InvalidOperationException("Raw-call input differs from its managed value.");
+        }
+
         PgDatum result = PgFunctions.CallRaw("pg_temp.raw_identity", PgMemoryContext.Current, PgFunctionArgument.Create(argument));
         return $"{argument.TypeOid == result.TypeOid}|{result.IsNull}|{result.ToPostgresString() ?? "NULL"}";
     }

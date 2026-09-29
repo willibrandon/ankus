@@ -23,6 +23,11 @@ public static class FunctionStateFunctions
     [PgFunction]
     public static string StateTick(PgFunctionContext call, string? text, bool failDispose)
     {
+        if (call.Arguments[0].Read<string?>() != text)
+        {
+            throw new InvalidOperationException("Call-site input differs from its managed value.");
+        }
+
         Counter state = call.GetOrCreateState(() => CreateCounter(call, failDispose));
         s_saved = call;
         GC.Collect();

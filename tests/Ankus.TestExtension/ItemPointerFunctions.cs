@@ -55,6 +55,11 @@ public static unsafe class ItemPointerFunctions
     [PgFunction]
     public static PgItemPointer ItemPointerDirect(long address, PgItemPointer left, PgItemPointer right, bool raw, PgFunctionContext call)
     {
+        if (call.Arguments[1].Read<PgItemPointer>() != left || call.Arguments[2].Read<PgItemPointer>() != right)
+        {
+            throw new InvalidOperationException("Native tid operands differ from their managed values.");
+        }
+
         if (!raw)
         {
             return PgFunctions.DangerousCall<PgItemPointer>((nint)address, 0, call.Arguments[1], call.Arguments[2]);
@@ -121,7 +126,7 @@ public static unsafe class ItemPointerFunctions
         }
 
         temporary.Reset();
-        bool stale = IsStale(() => borrowed.Read<PgItemPointer>());
+        bool stale = IsStale(borrowed.Read<PgItemPointer>);
         return $"{value.TypeOid}|{copy.TypeOid}|{location}|{copy.Read<PgItemPointer>()}|{copy.ToPostgresString()}|{wrongType}|{stale}";
     }
 

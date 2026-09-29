@@ -38,17 +38,41 @@ public sealed unsafe class NativeRawCallbackTests
         int expectedSize = sizeof(int);
         switch (scenario)
         {
-            case 0: count = 0; break;
-            case 1: count = 2; break;
-            case 2: count = nuint.MaxValue; break;
-            case 3: descriptor = 0; break;
-            case 4: expectedCount = -1; break;
-            case 5: destination = 0; break;
-            case 6: resultSize--; break;
-            case 7: resultSize++; break;
-            case 8: expectedSize = -2; break;
-            case 9: expectedSize = -1; resultSize = 0; break;
-            default: expectedSize = -1; destination = 0; break;
+            case 0:
+                count = 0;
+                break;
+            case 1:
+                count = 2;
+                break;
+            case 2:
+                count = nuint.MaxValue;
+                break;
+            case 3:
+                descriptor = 0;
+                break;
+            case 4:
+                expectedCount = -1;
+                break;
+            case 5:
+                destination = 0;
+                break;
+            case 6:
+                resultSize--;
+                break;
+            case 7:
+                resultSize++;
+                break;
+            case 8:
+                expectedSize = -2;
+                break;
+            case 9:
+                expectedSize = -1;
+                resultSize = 0;
+                break;
+            default:
+                expectedSize = -1;
+                destination = 0;
+                break;
         }
 
         int effects = 0;

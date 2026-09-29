@@ -550,7 +550,7 @@ public sealed class PgAggregateTests
             Assert.ThrowsExactly<InvalidOperationException>(() => child.Compare("a", "b"));
             Assert.ThrowsExactly<InvalidOperationException>(() => NativeAggregate.Exit(child));
             Assert.AreEqual(0, parent.Compare("a", "b"));
-            Assert.ThrowsExactly<ArgumentException>(() => ThrowFromChild());
+            Assert.ThrowsExactly<ArgumentException>(ThrowFromChild);
             Assert.AreEqual(0, parent.Compare("a", "b"));
         }
         finally

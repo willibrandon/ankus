@@ -20,11 +20,13 @@ public sealed partial class AggregateTests
         => Run(nameof(StrictOidStateUsesNativeBinarySeed), async (connection, transaction, token) =>
         {
             await Execute(connection, transaction, "SELECT datatype.aggregate_seed_reset()", token);
+            Assert.IsTrue(await Scalar<bool>(connection, transaction, "SELECT datatype.aggregate_seed_input() IS NULL", token));
             Assert.AreEqual(expected, await Scalar<long>(connection, transaction, $"""
                 SELECT datatype.state_seed_oid(v ORDER BY ord)::bigint
                 FROM (VALUES(1,NULL::integer),(2,{seed}),(3,42)) AS input(ord,v)
                 """, token));
             Assert.AreEqual(1, await Scalar<int>(connection, transaction, "SELECT datatype.aggregate_seed_calls()", token));
+            Assert.AreEqual("42", await Scalar<string>(connection, transaction, "SELECT datatype.aggregate_seed_input()", token));
         });
 
     /// <summary>
@@ -38,11 +40,13 @@ public sealed partial class AggregateTests
         => Run(nameof(StrictInetStateUsesNativeCidrSeed), async (connection, transaction, token) =>
         {
             await Execute(connection, transaction, "SELECT datatype.aggregate_seed_reset()", token);
+            Assert.IsTrue(await Scalar<bool>(connection, transaction, "SELECT datatype.aggregate_seed_input() IS NULL", token));
             Assert.AreEqual(network, await Scalar<string>(connection, transaction, $"""
                 SELECT datatype.state_seed_inet(v ORDER BY ord)::text
                 FROM (VALUES(1,NULL::cidr),(2,'{network}'::cidr),(3,'10.0.0.0/8'::cidr)) AS input(ord,v)
                 """, token));
             Assert.AreEqual(1, await Scalar<int>(connection, transaction, "SELECT datatype.aggregate_seed_calls()", token));
+            Assert.AreEqual("10.0.0.0/8", await Scalar<string>(connection, transaction, "SELECT datatype.aggregate_seed_input()", token));
         });
 
     /// <summary>

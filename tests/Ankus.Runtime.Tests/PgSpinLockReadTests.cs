@@ -19,7 +19,7 @@ public sealed class PgSpinLockReadTests
         var owner = new PgSpinLock<Nested>(new Nested(5));
         using PgSpinLockGuard<Nested> parent = owner.Lock();
         nint saved = 0;
-        Assert.AreEqual(5L, parent.Read((in Nested value) =>
+        Assert.AreEqual(5L, parent.Read((in value) =>
         {
             nint start = (nint)Unsafe.AsPointer(ref Unsafe.AsRef(in value));
             saved = start;
@@ -47,7 +47,7 @@ public sealed class PgSpinLockReadTests
         var owner = new PgSpinLock<Nested>(new Nested(long.MinValue));
         using PgSpinLockGuard<Nested> guard = owner.Lock();
         int requests = fixture.Memory.Requests.Count;
-        Assert.AreEqual((long.MinValue, 11L, long.MaxValue), guard.Read(static (in Nested value) =>
+        Assert.AreEqual((long.MinValue, 11L, long.MaxValue), guard.Read(static (in value) =>
         {
             Nested copy = value;
             Assert.AreEqual(11L, copy._atomic.Exchange(99));
@@ -71,7 +71,7 @@ public sealed class PgSpinLockReadTests
         var owner = new PgSpinLock<Nested>(new Nested(7));
         using PgSpinLockGuard<Nested> parent = owner.Lock();
         nint parentAddress = Assert.ContainsSingle(fixture.Held);
-        PgSpinLockGuard<long> expired = parent.Read(static (in Nested value) =>
+        PgSpinLockGuard<long> expired = parent.Read(static (in value) =>
         {
             PgSpinLockGuard<long> child = value._inner.Lock();
             Assert.AreEqual(31L, child.Value);
@@ -82,7 +82,7 @@ public sealed class PgSpinLockReadTests
         expired.Dispose();
         Assert.HasCount(1, fixture.Released);
         Assert.AreEqual(parentAddress, Assert.ContainsSingle(fixture.Held));
-        Assert.AreEqual(47L, parent.Read(static (in Nested value) =>
+        Assert.AreEqual(47L, parent.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._inner.Lock();
             return child.Value;
@@ -103,11 +103,11 @@ public sealed class PgSpinLockReadTests
         var owner = new PgSpinLock<int>(17);
         using PgSpinLockGuard<int> parent = owner.Lock();
         PgSpinLockGuard<int> alias = parent;
-        Assert.AreEqual(17, parent.Read((in int value) =>
+        Assert.AreEqual(17, parent.Read((in value) =>
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => alias.Value = 99);
             Assert.ThrowsExactly<InvalidOperationException>(alias.Dispose);
-            Assert.AreEqual(17, parent.Read((in int nested) =>
+            Assert.AreEqual(17, parent.Read((in nested) =>
             {
                 Assert.ThrowsExactly<InvalidOperationException>(alias.Dispose);
                 Assert.ThrowsExactly<InvalidOperationException>(() => alias.Value = 101);
@@ -120,7 +120,7 @@ public sealed class PgSpinLockReadTests
         Assert.HasCount(1, fixture.Held);
         Assert.IsEmpty(fixture.Released);
         alias.Value = 23;
-        Assert.AreEqual(23, parent.Read(static (in int value) => value));
+        Assert.AreEqual(23, parent.Read(static (in value) => value));
         alias.Dispose();
         Assert.HasCount(1, fixture.Released);
         Assert.IsEmpty(fixture.Held);
@@ -138,7 +138,7 @@ public sealed class PgSpinLockReadTests
         nint parentAddress = Assert.ContainsSingle(fixture.Held);
         var expected = new InvalidOperationException("reader failed");
         PgSpinLockGuard<long>? escaped = null;
-        InvalidOperationException failure = Assert.ThrowsExactly<InvalidOperationException>(() => parent.Read<int>((in Nested value) =>
+        InvalidOperationException failure = Assert.ThrowsExactly<InvalidOperationException>(() => parent.Read<int>((in value) =>
         {
             escaped = value._inner.Lock();
             escaped.Value = 59;
@@ -148,7 +148,7 @@ public sealed class PgSpinLockReadTests
         Assert.IsNotNull(escaped);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.Value);
         Assert.AreEqual(parentAddress, Assert.ContainsSingle(fixture.Held));
-        Assert.AreEqual(59L, parent.Read(static (in Nested value) =>
+        Assert.AreEqual(59L, parent.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._inner.Lock();
             return child.Value;
@@ -171,7 +171,7 @@ public sealed class PgSpinLockReadTests
         nint previous = NativeLog.Enter(1);
         try
         {
-            PgException error = Assert.ThrowsExactly<PgException>(() => parent.Read<int>(static (in Nested value) =>
+            PgException error = Assert.ThrowsExactly<PgException>(() => parent.Read<int>(static (in value) =>
             {
                 Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 42"));
                 _ = value._inner.Lock();
@@ -189,7 +189,7 @@ public sealed class PgSpinLockReadTests
             Assert.AreEqual("release safely", error.Hint);
             Assert.HasCount(1, fixture.Held);
             Assert.HasCount(1, fixture.Released);
-            Assert.AreEqual(19L, parent.Read(static (in Nested value) => value._marker));
+            Assert.AreEqual(19L, parent.Read(static (in value) => value._marker));
         }
         finally
         {
@@ -199,7 +199,7 @@ public sealed class PgSpinLockReadTests
         parent.Dispose();
         Assert.IsEmpty(fixture.Held);
         using PgSpinLockGuard<Nested> recovered = owner.Lock();
-        Assert.AreEqual(31L, recovered.Read(static (in Nested value) =>
+        Assert.AreEqual(31L, recovered.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._inner.Lock();
             return child.Value;
@@ -215,7 +215,7 @@ public sealed class PgSpinLockReadTests
         using var fixture = new NativeSpinLockTestFixture();
         using PgSpinLockGuard<Nested> parent = new PgSpinLock<Nested>(new Nested(long.MaxValue)).Lock();
         nint parentAddress = Assert.ContainsSingle(fixture.Held);
-        Assert.AreEqual((long.MaxValue, 67L), parent.Read(static (in Nested value) =>
+        Assert.AreEqual((long.MaxValue, 67L), parent.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._inner.Lock();
             GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
@@ -225,7 +225,7 @@ public sealed class PgSpinLockReadTests
             return (value._marker, child.Value);
         }));
         Assert.AreEqual(parentAddress, Assert.ContainsSingle(fixture.Held));
-        Assert.AreEqual(67L, parent.Read(static (in Nested value) =>
+        Assert.AreEqual(67L, parent.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._inner.Lock();
             return child.Value;
@@ -244,11 +244,12 @@ public sealed class PgSpinLockReadTests
         ArgumentNullException missing = Assert.ThrowsExactly<ArgumentNullException>(() => parent.Read<int>(null!));
         Assert.AreEqual("reader", missing.ParamName);
         bool invoked = false;
-        PgSharedReader<int, int> reader = (in int value) =>
+        int reader(in int value)
         {
             invoked = true;
             return value;
-        };
+        }
+
         foreach (nint provider in new nint[] { 0, 29 })
         {
             using MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(provider);

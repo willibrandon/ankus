@@ -118,7 +118,7 @@ public sealed unsafe class ContextValueTests
         fixture.Requests.Clear();
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.Value);
         Assert.ThrowsExactly<ObjectDisposedException>(() => borrow.Value);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => value.Borrow());
+        Assert.ThrowsExactly<ObjectDisposedException>(value.Borrow);
         Assert.ThrowsExactly<ObjectDisposedException>(() =>
         {
             value.DangerousGetPointer();

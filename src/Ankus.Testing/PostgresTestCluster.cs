@@ -13,7 +13,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
 {
     private readonly PostgresTestClusterOptions _options;
     private readonly IReadOnlyDictionary<string, string?> _environment;
-    private readonly object _shutdownLock = new();
+    private readonly Lock _shutdownLock = new();
     private Task? _shutdownTask;
     private bool _startAttempted;
 

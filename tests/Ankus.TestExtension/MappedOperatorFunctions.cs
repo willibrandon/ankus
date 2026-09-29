@@ -70,19 +70,34 @@ public readonly record struct MappedOperatorKey(int Word) : IComparable<MappedOp
     /// <summary>
     /// Compares the descending logical order.
     /// </summary>
-    public static bool operator <(MappedOperatorKey left, MappedOperatorKey right) => left.CompareTo(right) < 0;
+    public static bool operator <(MappedOperatorKey left, MappedOperatorKey right)
+    {
+        return left.CompareTo(right) < 0;
+    }
+
     /// <summary>
     /// Compares the descending logical order.
     /// </summary>
-    public static bool operator <=(MappedOperatorKey left, MappedOperatorKey right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(MappedOperatorKey left, MappedOperatorKey right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
+
     /// <summary>
     /// Compares the descending logical order.
     /// </summary>
-    public static bool operator >(MappedOperatorKey left, MappedOperatorKey right) => left.CompareTo(right) > 0;
+    public static bool operator >(MappedOperatorKey left, MappedOperatorKey right)
+    {
+        return left.CompareTo(right) > 0;
+    }
+
     /// <summary>
     /// Compares the descending logical order.
     /// </summary>
-    public static bool operator >=(MappedOperatorKey left, MappedOperatorKey right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(MappedOperatorKey left, MappedOperatorKey right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 }
 
 /// <summary>

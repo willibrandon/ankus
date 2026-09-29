@@ -62,7 +62,7 @@ public static unsafe class NativeRawCallFunctions
                     arguments[0] = new((nint)(&address), (nuint)sizeof(nint) - 1);
                     break;
                 case 4:
-                    arguments[0] = new((nint)((byte*)(&address) + 1), (nuint)sizeof(nint));
+                    arguments[0] = new((nint)((byte*)&address + 1), (nuint)sizeof(nint));
                     break;
                 case 5:
                     destination = 0;

@@ -41,7 +41,7 @@ public sealed class PgRangeTests
         Assert.IsFalse(PgRange.Create(3, 3).IsEmpty);
         Assert.IsFalse(PgRange.Create(3, 3, true, true).IsEmpty);
         Assert.AreEqual(9, PgRange.Create(9, 2).Lower);
-        Assert.ThrowsExactly<NotSupportedException>(() => PgRange.Empty<double>());
+        Assert.ThrowsExactly<NotSupportedException>(PgRange.Empty<double>);
         Assert.ThrowsExactly<NotSupportedException>(() => new PgRange<PgTime>(null, null));
     }
 
@@ -98,7 +98,7 @@ public sealed class PgRangeTests
         {
             numeric = value.ReadRange<PgNumeric>();
             Assert.AreEqual(PgRange.Create(1.2300m, 2.450m), value.ReadRange<decimal>());
-            Assert.ThrowsExactly<InvalidCastException>(() => value.ReadRange<int>());
+            Assert.ThrowsExactly<InvalidCastException>(value.ReadRange<int>);
         }
         finally
         {
@@ -240,7 +240,7 @@ public sealed class PgRangeTests
         NativeValue value = NativeValue.FromRange(PgRange.Create(PgNumeric.FromDecimal(1m), PgNumeric.NaN));
         try
         {
-            Assert.ThrowsExactly<OverflowException>(() => value.ReadRange<decimal>());
+            Assert.ThrowsExactly<OverflowException>(value.ReadRange<decimal>);
         }
         finally
         {

@@ -195,7 +195,7 @@ public sealed class GucRuntimeTests
     public void CheckErrorsRejectUnrepresentableText(int field, bool zero)
     {
         string invalid = zero ? "before\0after" : "before\ud800after";
-        Action construct = () => _ = new PgGucCheckError(field == 0 ? invalid : null, field == 1 ? invalid : null, field == 2 ? invalid : null);
+        void construct() => _ = new PgGucCheckError(field == 0 ? invalid : null, field == 1 ? invalid : null, field == 2 ? invalid : null);
         if (zero)
         {
             Assert.ThrowsExactly<ArgumentException>(construct);

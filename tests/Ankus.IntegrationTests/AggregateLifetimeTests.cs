@@ -45,26 +45,24 @@ public sealed partial class AggregateTests
             await spill.CommitAsync(token);
         }
 
-        await using (NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token))
-        {
-            await AssertReleased(connection, transaction, 3000, token);
-            await Reset(connection, transaction, "normal", token);
-            Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(token);
+        await AssertReleased(connection, transaction, 3000, token);
+        await Reset(connection, transaction, "normal", token);
+        Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
                 SELECT count(*) || ':' || sum(total) FROM (
                     SELECT value,aggregate_values.managed_sum(value) AS total
                     FROM group_input GROUP BY value) AS groups
                 """, token));
-            await AssertReleased(connection, transaction, 3000, token);
-            await Execute(connection, transaction, "SET LOCAL enable_hashagg=off; SET LOCAL enable_sort=on", token);
-            await Reset(connection, transaction, "normal", token);
-            Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
+        await AssertReleased(connection, transaction, 3000, token);
+        await Execute(connection, transaction, "SET LOCAL enable_hashagg=off; SET LOCAL enable_sort=on", token);
+        await Reset(connection, transaction, "normal", token);
+        Assert.AreEqual("3000:4501500", await Scalar<string>(connection, transaction, """
                 SELECT count(*) || ':' || sum(total) FROM (
                     SELECT value,aggregate_values.managed_sum(value) AS total
                     FROM group_input GROUP BY value) AS groups
                 """, token));
-            await AssertReleased(connection, transaction, 3000, token);
-            await transaction.RollbackAsync(token);
-        }
+        await AssertReleased(connection, transaction, 3000, token);
+        await transaction.RollbackAsync(token);
     }
 
     /// <summary>

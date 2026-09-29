@@ -17,14 +17,12 @@ public sealed class NativeSetTests
     {
         nint handle = NativeSet.Create<int?>(null);
         Assert.AreEqual(nint.Zero, handle);
-        int? value = 42;
-        Assert.IsFalse(NativeSet.MoveNext(handle, out value));
+        Assert.IsFalse(NativeSet.MoveNext(handle, out int? value));
         Assert.IsNull(value);
         NativeSet.Dispose(ref handle);
         NativeSet.Dispose(ref handle);
         Assert.AreEqual(nint.Zero, handle);
-        int required = 42;
-        Assert.IsFalse(NativeSet.MoveNext(handle, out required));
+        Assert.IsFalse(NativeSet.MoveNext(handle, out int required));
         Assert.AreEqual(0, required);
     }
 

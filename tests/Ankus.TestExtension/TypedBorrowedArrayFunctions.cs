@@ -81,22 +81,25 @@ public static partial class BorrowedArrayFunctions
         using SpiRawResult result = Spi.QueryRaw("SELECT ARRAY[5,NULL,-777,9]");
         using var view = new PgArrayView<ArrayValue?>(result[0][0]);
         using IEnumerator<ArrayValue?> cursor = view.GetEnumerator();
-        var observed = new List<string?> { ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture) };
-        observed.Add(cursor.MoveNext().ToString());
-        observed.Add(cursor.Current?.Value.ToString(CultureInfo.InvariantCulture));
-        observed.Add(cursor.Current?.Value.ToString(CultureInfo.InvariantCulture));
-        observed.Add(ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture));
-        observed.Add(cursor.MoveNext().ToString());
-        observed.Add(cursor.Current?.Value.ToString(CultureInfo.InvariantCulture));
-        observed.Add(ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture));
-        observed.Add(TypedFailure(() => cursor.MoveNext()));
-        observed.Add(TypedFailure(() => _ = cursor.Current));
-        observed.Add(ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture));
-        observed.Add(cursor.MoveNext().ToString());
-        observed.Add(cursor.Current?.Value.ToString(CultureInfo.InvariantCulture));
-        observed.Add(ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture));
-        observed.Add(cursor.MoveNext().ToString());
-        observed.Add(TypedFailure(() => _ = cursor.Current));
+        var observed = new List<string?>
+        {
+            ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture),
+            cursor.MoveNext().ToString(),
+            cursor.Current?.Value.ToString(CultureInfo.InvariantCulture),
+            cursor.Current?.Value.ToString(CultureInfo.InvariantCulture),
+            ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture),
+            cursor.MoveNext().ToString(),
+            cursor.Current?.Value.ToString(CultureInfo.InvariantCulture),
+            ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture),
+            TypedFailure(() => cursor.MoveNext()),
+            TypedFailure(() => _ = cursor.Current),
+            ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture),
+            cursor.MoveNext().ToString(),
+            cursor.Current?.Value.ToString(CultureInfo.InvariantCulture),
+            ArrayValueConverter.Reads.ToString(CultureInfo.InvariantCulture),
+            cursor.MoveNext().ToString(),
+            TypedFailure(() => _ = cursor.Current)
+        };
         view.Dispose();
         observed.AddRange(ArrayValueConverter.Inputs.Select(static cell => TypedFailure(() => cell.DangerousGetBits())));
         observed.Add(Spi.ExecuteScalar<int>("SELECT 42").ToString(CultureInfo.InvariantCulture));

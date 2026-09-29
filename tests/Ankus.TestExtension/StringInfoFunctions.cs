@@ -135,7 +135,7 @@ public static unsafe class StringInfoFunctions
             result += ":" + Convert.ToHexString(buffer.ToArray());
             if (mode == 4)
             {
-                buffer.Write(ReadOnlySpan<byte>.Empty);
+                buffer.Write([]);
                 byte* restored = buffer.DangerousDetachCString();
                 result += $":{restored[3]}";
             }
@@ -219,7 +219,7 @@ public static unsafe class StringInfoFunctions
             () => buffer.Enlarge(int.MaxValue),
             () => buffer.CopyTo(new byte[1], 2),
             () => buffer.WriteAt(1, [1, 2]),
-            () => buffer.CopyTo(Span<byte>.Empty, 3),
+            () => buffer.CopyTo([], 3),
             () => PgStringInfoStream.Create(int.MaxValue),
         })
         {
@@ -266,7 +266,7 @@ public static unsafe class StringInfoFunctions
         {
             try
             {
-                buffer.CopyTo(Span<byte>.Empty);
+                buffer.CopyTo([]);
             }
             catch (ObjectDisposedException)
             {

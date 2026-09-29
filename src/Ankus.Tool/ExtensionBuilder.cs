@@ -29,8 +29,8 @@ internal static class ExtensionBuilder
                     projects = [.. XDocument.Load(solutions[0]).Descendants("Project")
                         .Select(element => Path.GetFullPath((string)element.Attribute("Path")!, path))
                         .Where(static project => File.Exists(project) &&
-                            ((string?)XDocument.Load(project).Root?.Attribute("Sdk") is string sdk &&
-                             (sdk == "Ankus.Sdk" || sdk.StartsWith("Ankus.Sdk/", StringComparison.Ordinal))))];
+                            (string?)XDocument.Load(project).Root?.Attribute("Sdk") is string sdk &&
+                             (sdk == "Ankus.Sdk" || sdk.StartsWith("Ankus.Sdk/", StringComparison.Ordinal)))];
                 }
             }
 

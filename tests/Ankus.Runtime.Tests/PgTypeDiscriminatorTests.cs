@@ -335,7 +335,7 @@ public sealed class PgTypeDiscriminatorTests
         string value = nestedUnknown ? "[0]" : "0";
         string document = new string('[', arrays) + "{\"$kind\":1,\"Unknown\":" + value + "}" + new string(']', arrays);
         byte[] payload = json ? Encoding.UTF8.GetBytes(document)
-            : [.. Enumerable.Repeat((byte)0x81, arrays), .. Convert.FromHexString("A265246B696E640167556E6B6E6F776E"), .. (nestedUnknown ? new byte[] { 0x81, 0 } : [0])];
+            : [.. Enumerable.Repeat((byte)0x81, arrays), .. Convert.FromHexString("A265246B696E640167556E6B6E6F776E"), .. nestedUnknown ? new byte[] { 0x81, 0 } : [0]];
         var reader = new PgTypeReader(payload, json);
         for (int position = 0; position < arrays; position++)
         {

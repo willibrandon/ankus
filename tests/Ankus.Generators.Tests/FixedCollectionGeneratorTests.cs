@@ -66,8 +66,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
-        string next = native[native.IndexOf("ankus_set_next(AnkusSetState", StringComparison.Ordinal)..
-            native.IndexOf("ankus_set_execute(FunctionCallInfo", StringComparison.Ordinal)];
+        string next = native[native.IndexOf("ankus_set_next(AnkusSetState", StringComparison.Ordinal)..native.IndexOf("ankus_set_execute(FunctionCallInfo", StringComparison.Ordinal)];
         AssertOrdered(next, ["Oid previous_function = ankus_function_oid;", "ankus_function_oid = state->function;",
             "PG_TRY();", "ankus_set_call(state, 1", "ankus_parameter_datum(&cell)", "PG_FINALLY();",
             "ankus_function_oid = previous_function;", "ankus_set_release_row(state)"]);

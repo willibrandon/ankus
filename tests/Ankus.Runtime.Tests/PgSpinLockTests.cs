@@ -154,11 +154,11 @@ public sealed class PgSpinLockTests
         var storage = new PgSpinLock<int>(73);
         using PgSpinLockGuard<int> guard = storage.Lock();
         int requests = fixture.Memory.Requests.Count;
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Lock());
+        Assert.ThrowsExactly<InvalidOperationException>(storage.Lock);
         foreach (nint provider in new nint[] { 0, 29 })
         {
             using MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(provider);
-            Assert.ThrowsExactly<InvalidOperationException>(() => storage.Lock());
+            Assert.ThrowsExactly<InvalidOperationException>(storage.Lock);
             Assert.ThrowsExactly<InvalidOperationException>(() => storage.IsLocked);
             Assert.ThrowsExactly<InvalidOperationException>(() => guard.Value);
             Assert.ThrowsExactly<InvalidOperationException>(() => guard.Value = 99);
@@ -338,11 +338,11 @@ public sealed class PgSpinLockTests
         using var fixture = new NativeSpinLockTestFixture();
         var storage = new PgSpinLock<long>(long.MinValue);
         fixture.MissingRelease = true;
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Lock());
+        Assert.ThrowsExactly<InvalidOperationException>(storage.Lock);
         Assert.DoesNotContain(1, fixture.Memory.Requests.Select(static request => request._flags));
         fixture.MissingRelease = false;
         fixture.AcquireFailure = new PgException("55006", "Acquisition rejected.", "Owned detail.", "Retry safely.");
-        PgException failure = Assert.ThrowsExactly<PgException>(() => storage.Lock());
+        PgException failure = Assert.ThrowsExactly<PgException>(storage.Lock);
         Assert.AreEqual("55006", failure.SqlState);
         Assert.AreEqual("Acquisition rejected.", failure.Message);
         Assert.AreEqual("Owned detail.", failure.Detail);
@@ -368,7 +368,7 @@ public sealed class PgSpinLockTests
         Assert.ThrowsExactly<InvalidOperationException>(() => default(PgSpinLockValue<int>).IsLocked);
         Assert.IsEmpty(fixture.Memory.Requests);
         var value = new PgSpinLockValue<int>(73);
-        Assert.ThrowsExactly<InvalidOperationException>(() => value.Lock());
+        Assert.ThrowsExactly<InvalidOperationException>(value.Lock);
         Assert.ThrowsExactly<InvalidOperationException>(() => value.IsLocked);
         Assert.HasCount(1, fixture.Memory.Requests);
         Assert.IsEmpty(fixture.Held);

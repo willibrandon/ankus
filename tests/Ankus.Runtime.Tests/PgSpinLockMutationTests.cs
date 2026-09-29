@@ -20,7 +20,7 @@ public sealed class PgSpinLockMutationTests
         MutableLockValue copy = guard.Value;
         nint held = Assert.ContainsSingle(fixture.Held);
         int requests = fixture.Memory.Requests.Count;
-        Assert.AreEqual((long.MaxValue, 11L), guard.Mutate((ref MutableLockValue value) =>
+        Assert.AreEqual((long.MaxValue, 11L), guard.Mutate((ref value) =>
         {
             value._marker = long.MaxValue;
             value._bits = ulong.MaxValue;
@@ -33,7 +33,7 @@ public sealed class PgSpinLockMutationTests
         Assert.AreEqual(long.MinValue, copy._marker);
         Assert.AreEqual(3L, copy._atomic.Value);
         Assert.AreEqual(ulong.MaxValue, guard.Value._bits);
-        Assert.AreEqual(7L, guard.Read(static (in MutableLockValue value) =>
+        Assert.AreEqual(7L, guard.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._child.Lock();
             return child.Value;
@@ -55,22 +55,22 @@ public sealed class PgSpinLockMutationTests
         var owner = new PgSpinLock<int>(17);
         using PgSpinLockGuard<int> guard = owner.Lock();
         PgSpinLockGuard<int> alias = guard;
-        Assert.AreEqual(19, guard.Mutate((ref int value) =>
+        Assert.AreEqual(19, guard.Mutate((ref value) =>
         {
             value = 19;
             Assert.AreEqual(19, alias.Value);
             Assert.ThrowsExactly<InvalidOperationException>(alias.Dispose);
             Assert.ThrowsExactly<InvalidOperationException>(() => alias.Value = 99);
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Read(static (in int nested) => nested));
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref int nested) => ++nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Read(static (in nested) => nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref nested) => ++nested));
             return value;
         }));
-        Assert.AreEqual(19, guard.Read((in int value) =>
+        Assert.AreEqual(19, guard.Read((in value) =>
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref int nested) => ++nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref nested) => ++nested));
             return value;
         }));
-        Assert.AreEqual(23, alias.Mutate(static (ref int value) => value = 23));
+        Assert.AreEqual(23, alias.Mutate(static (ref value) => value = 23));
         alias.Value = 29;
         Assert.AreEqual(29, guard.Value);
         Assert.IsEmpty(fixture.Released);
@@ -88,7 +88,7 @@ public sealed class PgSpinLockMutationTests
         var owner = new PgSpinLock<MutableLockValue>(new MutableLockValue(31));
         using PgSpinLockGuard<MutableLockValue> guard = owner.Lock();
         var expected = new FormatException("mutation failed");
-        FormatException error = Assert.ThrowsExactly<FormatException>(() => guard.Mutate<int>((ref MutableLockValue value) =>
+        FormatException error = Assert.ThrowsExactly<FormatException>(() => guard.Mutate<int>((ref value) =>
         {
             value._marker = 37;
             value._atomic.Exchange(41);
@@ -98,13 +98,13 @@ public sealed class PgSpinLockMutationTests
         Assert.AreEqual((37L, 41L), (guard.Value._marker, guard.Value._atomic.Value));
         Assert.HasCount(1, fixture.Held);
         Assert.IsEmpty(fixture.Released);
-        Assert.AreEqual(43L, guard.Read(static (in MutableLockValue value) =>
+        Assert.AreEqual(43L, guard.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._child.Lock();
             child.Value = 43;
             return child.Value;
         }));
-        Assert.AreEqual(47L, guard.Mutate(static (ref MutableLockValue value) => value._marker = 47));
+        Assert.AreEqual(47L, guard.Mutate(static (ref value) => value._marker = 47));
         guard.Dispose();
         using PgSpinLockGuard<MutableLockValue> recovered = owner.Lock();
         Assert.AreEqual(47L, recovered.Value._marker);
@@ -121,11 +121,12 @@ public sealed class PgSpinLockMutationTests
         using PgSpinLockGuard<long> guard = owner.Lock();
         Assert.AreEqual("mutator", Assert.ThrowsExactly<ArgumentNullException>(() => guard.Mutate<long>(null!)).ParamName);
         bool invoked = false;
-        PgSharedMutator<long, long> mutator = (ref long value) =>
+        long mutator(ref long value)
         {
             invoked = true;
             return ++value;
-        };
+        }
+
         foreach (nint provider in new nint[] { 0, 29 })
         {
             using MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(provider);
@@ -152,7 +153,7 @@ public sealed class PgSpinLockMutationTests
         nint previous = NativeLog.Enter(1);
         try
         {
-            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Mutate<int>(static (ref int value) =>
+            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Mutate<int>(static (ref value) =>
             {
                 value = 61;
                 Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 1/0"));

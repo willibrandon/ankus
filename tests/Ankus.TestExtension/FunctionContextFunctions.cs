@@ -71,7 +71,7 @@ public static class FunctionContextFunctions
     [PgOperator("@~#")]
     public static int ContextOperand(int value, PgFunctionContext call)
     {
-        if (call.Arguments.Count != 1 || call.ResultTypeOid != 23 || call.CollationOid != 0)
+        if (call.Arguments.Count != 1 || call.ResultTypeOid != 23 || call.CollationOid != 0 || call.Arguments[0].Read<int>() != value)
         {
             throw new InvalidOperationException("Incorrect operator metadata.");
         }
@@ -88,6 +88,11 @@ public static class FunctionContextFunctions
     [PgFunction]
     public static void ContextRemember(PgFunctionContext call, int? number, string? text)
     {
+        if (call.Arguments[0].Read<int?>() != number || call.Arguments[1].Read<string?>() != text)
+        {
+            throw new InvalidOperationException("Retained arguments differ from their managed values.");
+        }
+
         s_saved = call;
         s_copy = call.Arguments[1].CopyTo(PgMemoryContext.Get(PgMemoryContextKind.TopTransaction)!);
     }
@@ -125,7 +130,13 @@ public static class FunctionContextFunctions
     /// <returns>The owned metadata and backend-thread rejection.</returns>
     [PgFunction]
     public static bool ContextThread(PgFunctionContext call, int number)
-        => Task.Run(() =>
+    {
+        if (call.Arguments[0].Read<int>() != number)
+        {
+            throw new InvalidOperationException("Thread probe input differs from its managed value.");
+        }
+
+        return Task.Run(() =>
         {
             if (call.Arguments.Count != 1 || call.Arguments[0].TypeOid != 23 || call.Arguments[0].IsNull)
             {
@@ -142,6 +153,7 @@ public static class FunctionContextFunctions
                 return true;
             }
         }).GetAwaiter().GetResult();
+    }
 
     /// <summary>
     /// Streams rows while retaining the original call's raw values.
@@ -153,7 +165,7 @@ public static class FunctionContextFunctions
     /// <returns>The repeated call snapshots.</returns>
     [PgFunction(SetMode = PgSetMode.ValuePerCall)]
     public static IEnumerable<string> ContextRows(PgFunctionContext call, string? text, int count, bool fail)
-        => Rows(call, count, fail);
+        => Rows(call, text, count, fail);
 
     /// <summary>
     /// Materializes rows under the same argument ownership contract.
@@ -165,7 +177,7 @@ public static class FunctionContextFunctions
     /// <returns>The repeated call snapshots.</returns>
     [PgFunction(SetMode = PgSetMode.Materialize)]
     public static IEnumerable<string> ContextMaterialized(string? text, PgFunctionContext call, int count, bool fail)
-        => Rows(call, count, fail);
+        => Rows(call, text, count, fail);
 
     /// <summary>
     /// Returns the number of cleanup observations with live argument storage.
@@ -178,10 +190,11 @@ public static class FunctionContextFunctions
     /// Retains the snapshot through yields and verifies native storage during normal and abort cleanup.
     /// </summary>
     /// <param name="call">The captured call.</param>
+    /// <param name="text">The independently converted managed text.</param>
     /// <param name="count">The requested row count.</param>
     /// <param name="fail">Whether to raise a managed error on the second iteration.</param>
     /// <returns>The repeated snapshots.</returns>
-    private static IEnumerable<string> Rows(PgFunctionContext call, int count, bool fail)
+    private static IEnumerable<string> Rows(PgFunctionContext call, string? text, int count, bool fail)
     {
         s_cleanup = 0;
         try
@@ -194,6 +207,11 @@ public static class FunctionContextFunctions
                 }
 
                 Spi.Execute("SELECT repeat('overwrite', 10000)");
+                if (call.Arguments[0].Read<string?>() != text)
+                {
+                    throw new InvalidOperationException("Iterator argument storage differs from its managed value.");
+                }
+
                 yield return Snapshot(call);
             }
         }

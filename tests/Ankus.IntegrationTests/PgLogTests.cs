@@ -280,12 +280,11 @@ public sealed class PgLogTests(TestContext context)
                     Assert.AreEqual(0L, await query.ExecuteScalarAsync(deadline.Token));
                     break;
                 }
-                catch (NpgsqlException failure) when (failure is not PostgresException ||
-                    failure is PostgresException
-                    {
-                        SqlState: PostgresErrorCodes.CannotConnectNow or
+                catch (NpgsqlException failure) when (failure is not PostgresException or PostgresException
+                {
+                    SqlState: PostgresErrorCodes.CannotConnectNow or
                         PostgresErrorCodes.AdminShutdown or PostgresErrorCodes.CrashShutdown
-                    })
+                })
                 {
                     await Task.Delay(50, deadline.Token);
                 }

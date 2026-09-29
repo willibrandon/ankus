@@ -172,22 +172,34 @@ public readonly record struct PgInet : IComparable<PgInet>
     /// <summary>
     /// Compares two inet values in PostgreSQL order.
     /// </summary>
-    public static bool operator <(PgInet left, PgInet right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgInet left, PgInet right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Compares two inet values in PostgreSQL order, including equality.
     /// </summary>
-    public static bool operator <=(PgInet left, PgInet right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgInet left, PgInet right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Compares two inet values in reverse PostgreSQL order.
     /// </summary>
-    public static bool operator >(PgInet left, PgInet right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgInet left, PgInet right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Compares two inet values in reverse PostgreSQL order, including equality.
     /// </summary>
-    public static bool operator >=(PgInet left, PgInet right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgInet left, PgInet right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Gets whether host bits are zero, as required by cidr.

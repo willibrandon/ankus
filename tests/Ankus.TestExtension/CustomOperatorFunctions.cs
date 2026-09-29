@@ -55,27 +55,50 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares logical keys.
         /// </summary>
-        public static bool operator ==(Key? left, Key? right) => EqualityComparer<Key>.Default.Equals(left, right);
+        public static bool operator ==(Key? left, Key? right)
+        {
+            return EqualityComparer<Key>.Default.Equals(left, right);
+        }
+
         /// <summary>
         /// Compares distinct logical keys.
         /// </summary>
-        public static bool operator !=(Key? left, Key? right) => !(left == right);
+        public static bool operator !=(Key? left, Key? right)
+        {
+            return !(left == right);
+        }
+
         /// <summary>
         /// Compares ordered keys.
         /// </summary>
-        public static bool operator <(Key? left, Key? right) => Comparer<Key>.Default.Compare(left, right) < 0;
+        public static bool operator <(Key? left, Key? right)
+        {
+            return Comparer<Key>.Default.Compare(left, right) < 0;
+        }
+
         /// <summary>
         /// Compares ordered keys.
         /// </summary>
-        public static bool operator <=(Key? left, Key? right) => Comparer<Key>.Default.Compare(left, right) <= 0;
+        public static bool operator <=(Key? left, Key? right)
+        {
+            return Comparer<Key>.Default.Compare(left, right) <= 0;
+        }
+
         /// <summary>
         /// Compares ordered keys.
         /// </summary>
-        public static bool operator >(Key? left, Key? right) => Comparer<Key>.Default.Compare(left, right) > 0;
+        public static bool operator >(Key? left, Key? right)
+        {
+            return Comparer<Key>.Default.Compare(left, right) > 0;
+        }
+
         /// <summary>
         /// Compares ordered keys.
         /// </summary>
-        public static bool operator >=(Key? left, Key? right) => Comparer<Key>.Default.Compare(left, right) >= 0;
+        public static bool operator >=(Key? left, Key? right)
+        {
+            return Comparer<Key>.Default.Compare(left, right) >= 0;
+        }
     }
 
     /// <summary>
@@ -119,19 +142,34 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares the declared custom order.
         /// </summary>
-        public static bool operator <(Ordered left, Ordered right) => left.CompareTo(right) < 0;
+        public static bool operator <(Ordered left, Ordered right)
+        {
+            return left.CompareTo(right) < 0;
+        }
+
         /// <summary>
         /// Compares the declared custom order.
         /// </summary>
-        public static bool operator <=(Ordered left, Ordered right) => left.CompareTo(right) <= 0;
+        public static bool operator <=(Ordered left, Ordered right)
+        {
+            return left.CompareTo(right) <= 0;
+        }
+
         /// <summary>
         /// Compares the declared custom order.
         /// </summary>
-        public static bool operator >(Ordered left, Ordered right) => left.CompareTo(right) > 0;
+        public static bool operator >(Ordered left, Ordered right)
+        {
+            return left.CompareTo(right) > 0;
+        }
+
         /// <summary>
         /// Compares the declared custom order.
         /// </summary>
-        public static bool operator >=(Ordered left, Ordered right) => left.CompareTo(right) >= 0;
+        public static bool operator >=(Ordered left, Ordered right)
+        {
+            return left.CompareTo(right) >= 0;
+        }
     }
 
     /// <summary>
@@ -182,27 +220,50 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares keys independently of salt bytes.
         /// </summary>
-        public static bool operator ==(Packed left, Packed right) => left.Equals(right);
+        public static bool operator ==(Packed left, Packed right)
+        {
+            return left.Equals(right);
+        }
+
         /// <summary>
         /// Compares unequal keys.
         /// </summary>
-        public static bool operator !=(Packed left, Packed right) => !left.Equals(right);
+        public static bool operator !=(Packed left, Packed right)
+        {
+            return !left.Equals(right);
+        }
+
         /// <summary>
         /// Compares numeric keys.
         /// </summary>
-        public static bool operator <(Packed left, Packed right) => left.CompareTo(right) < 0;
+        public static bool operator <(Packed left, Packed right)
+        {
+            return left.CompareTo(right) < 0;
+        }
+
         /// <summary>
         /// Compares numeric keys.
         /// </summary>
-        public static bool operator <=(Packed left, Packed right) => left.CompareTo(right) <= 0;
+        public static bool operator <=(Packed left, Packed right)
+        {
+            return left.CompareTo(right) <= 0;
+        }
+
         /// <summary>
         /// Compares numeric keys.
         /// </summary>
-        public static bool operator >(Packed left, Packed right) => left.CompareTo(right) > 0;
+        public static bool operator >(Packed left, Packed right)
+        {
+            return left.CompareTo(right) > 0;
+        }
+
         /// <summary>
         /// Compares numeric keys.
         /// </summary>
-        public static bool operator >=(Packed left, Packed right) => left.CompareTo(right) >= 0;
+        public static bool operator >=(Packed left, Packed right)
+        {
+            return left.CompareTo(right) >= 0;
+        }
     }
 
     /// <summary>
@@ -258,19 +319,34 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares exact signed values.
         /// </summary>
-        public static bool operator <(Full left, Full right) => left.CompareTo(right) < 0;
+        public static bool operator <(Full left, Full right)
+        {
+            return left.CompareTo(right) < 0;
+        }
+
         /// <summary>
         /// Compares exact signed values.
         /// </summary>
-        public static bool operator <=(Full left, Full right) => left.CompareTo(right) <= 0;
+        public static bool operator <=(Full left, Full right)
+        {
+            return left.CompareTo(right) <= 0;
+        }
+
         /// <summary>
         /// Compares exact signed values.
         /// </summary>
-        public static bool operator >(Full left, Full right) => left.CompareTo(right) > 0;
+        public static bool operator >(Full left, Full right)
+        {
+            return left.CompareTo(right) > 0;
+        }
+
         /// <summary>
         /// Compares exact signed values.
         /// </summary>
-        public static bool operator >=(Full left, Full right) => left.CompareTo(right) >= 0;
+        public static bool operator >=(Full left, Full right)
+        {
+            return left.CompareTo(right) >= 0;
+        }
     }
 
     /// <summary>
@@ -326,27 +402,50 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares keys across variant kinds.
         /// </summary>
-        public static bool operator ==(Tagged? left, Tagged? right) => EqualityComparer<Tagged>.Default.Equals(left, right);
+        public static bool operator ==(Tagged? left, Tagged? right)
+        {
+            return EqualityComparer<Tagged>.Default.Equals(left, right);
+        }
+
         /// <summary>
         /// Compares distinct variant keys.
         /// </summary>
-        public static bool operator !=(Tagged? left, Tagged? right) => !(left == right);
+        public static bool operator !=(Tagged? left, Tagged? right)
+        {
+            return !(left == right);
+        }
+
         /// <summary>
         /// Orders variant keys.
         /// </summary>
-        public static bool operator <(Tagged? left, Tagged? right) => Comparer<Tagged>.Default.Compare(left, right) < 0;
+        public static bool operator <(Tagged? left, Tagged? right)
+        {
+            return Comparer<Tagged>.Default.Compare(left, right) < 0;
+        }
+
         /// <summary>
         /// Orders variant keys.
         /// </summary>
-        public static bool operator <=(Tagged? left, Tagged? right) => Comparer<Tagged>.Default.Compare(left, right) <= 0;
+        public static bool operator <=(Tagged? left, Tagged? right)
+        {
+            return Comparer<Tagged>.Default.Compare(left, right) <= 0;
+        }
+
         /// <summary>
         /// Orders variant keys.
         /// </summary>
-        public static bool operator >(Tagged? left, Tagged? right) => Comparer<Tagged>.Default.Compare(left, right) > 0;
+        public static bool operator >(Tagged? left, Tagged? right)
+        {
+            return Comparer<Tagged>.Default.Compare(left, right) > 0;
+        }
+
         /// <summary>
         /// Orders variant keys.
         /// </summary>
-        public static bool operator >=(Tagged? left, Tagged? right) => Comparer<Tagged>.Default.Compare(left, right) >= 0;
+        public static bool operator >=(Tagged? left, Tagged? right)
+        {
+            return Comparer<Tagged>.Default.Compare(left, right) >= 0;
+        }
     }
 
     /// <summary>
@@ -519,27 +618,50 @@ public static class CustomOperatorFunctions
         /// <summary>
         /// Compares nullable fault values.
         /// </summary>
-        public static bool operator ==(Fault? left, Fault? right) => EqualityComparer<Fault>.Default.Equals(left, right);
+        public static bool operator ==(Fault? left, Fault? right)
+        {
+            return EqualityComparer<Fault>.Default.Equals(left, right);
+        }
+
         /// <summary>
         /// Compares nullable fault values.
         /// </summary>
-        public static bool operator !=(Fault? left, Fault? right) => !(left == right);
+        public static bool operator !=(Fault? left, Fault? right)
+        {
+            return !(left == right);
+        }
+
         /// <summary>
         /// Compares fault values through their declared contract.
         /// </summary>
-        public static bool operator <(Fault? left, Fault? right) => Comparer<Fault>.Default.Compare(left, right) < 0;
+        public static bool operator <(Fault? left, Fault? right)
+        {
+            return Comparer<Fault>.Default.Compare(left, right) < 0;
+        }
+
         /// <summary>
         /// Compares fault values through their declared contract.
         /// </summary>
-        public static bool operator <=(Fault? left, Fault? right) => Comparer<Fault>.Default.Compare(left, right) <= 0;
+        public static bool operator <=(Fault? left, Fault? right)
+        {
+            return Comparer<Fault>.Default.Compare(left, right) <= 0;
+        }
+
         /// <summary>
         /// Compares fault values through their declared contract.
         /// </summary>
-        public static bool operator >(Fault? left, Fault? right) => Comparer<Fault>.Default.Compare(left, right) > 0;
+        public static bool operator >(Fault? left, Fault? right)
+        {
+            return Comparer<Fault>.Default.Compare(left, right) > 0;
+        }
+
         /// <summary>
         /// Compares fault values through their declared contract.
         /// </summary>
-        public static bool operator >=(Fault? left, Fault? right) => Comparer<Fault>.Default.Compare(left, right) >= 0;
+        public static bool operator >=(Fault? left, Fault? right)
+        {
+            return Comparer<Fault>.Default.Compare(left, right) >= 0;
+        }
 
         /// <summary>
         /// Preserves an ordinary managed error independently of custom PostgreSQL diagnostics.

@@ -306,7 +306,7 @@ public static unsafe class AllocatorContextFunctions
     {
         PgMemoryContext owner = Owner();
         PgAllocation empty = owner.Allocate(0);
-        empty.Read(Span<byte>.Empty);
+        empty.Read([]);
         PgContextValue<byte> tried = owner.TryCreateContextValue((byte)231)
             ?? throw new InvalidOperationException("A one-byte context value unexpectedly failed.");
         byte initialTried = tried.Value;

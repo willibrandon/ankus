@@ -102,6 +102,8 @@ public sealed partial class NativeBindingNativeTests
                     new XElement("NativeLibrary", new XAttribute("Include", nativeObject))));
             string projectFile = Path.Combine(directory, "Calls.csproj");
             await File.WriteAllTextAsync(projectFile, project.ToString(), context.CancellationToken);
+            await TestDotnetSdk.ConfigureAsync(directory, context.CancellationToken);
+            Assert.AreEqual(TestDotnetSdk.Version, (await RunAsync("dotnet", ["--version"], directory)).Trim());
             string output = Path.Combine(directory, "published");
             await RunAsync("dotnet", ["publish", projectFile, "-c", "Release", "-o", output], directory);
             string executable = Path.Combine(output, OperatingSystem.IsWindows() ? "Calls.exe" : "Calls");

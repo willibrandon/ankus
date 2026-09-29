@@ -110,7 +110,7 @@ public sealed class PgCStringTests
         Assert.ThrowsExactly<EncoderFallbackException>(() => PgCString.FromUtf8("\ud800"));
         Assert.ThrowsExactly<ArgumentException>(() => PgCString.FromUtf8("a\0b"));
         var arbitrary = new PgCString([255, 195]);
-        Assert.ThrowsExactly<DecoderFallbackException>(() => arbitrary.ToUtf8String());
+        Assert.ThrowsExactly<DecoderFallbackException>(arbitrary.ToUtf8String);
         Assert.AreSequenceEqual<byte>([255, 195], arbitrary);
     }
 

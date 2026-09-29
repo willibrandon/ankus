@@ -93,11 +93,11 @@ public sealed unsafe class PgStringInfoStreamTests
         byte[] middle = new byte[3];
         buffer.CopyTo(middle, 1);
         Assert.AreSequenceEqual<byte>([0, 255, 195], middle);
-        Assert.ThrowsExactly<DecoderFallbackException>(() => buffer.ToString());
+        Assert.ThrowsExactly<DecoderFallbackException>(buffer.ToString);
         Assert.AreEqual("a\0�é", buffer.ToStringLossy());
         buffer.WriteAt(2, [17, 128]);
         Assert.AreSequenceEqual<byte>([17, 128], replaced!);
-        buffer.CopyTo(Span<byte>.Empty, 5);
+        buffer.CopyTo([], 5);
         Assert.AreEqual(5, fixture.Requests[^1]._value);
         Assert.AreEqual((nuint)0, fixture.Requests[^1]._length);
     }
@@ -119,7 +119,7 @@ public sealed unsafe class PgStringInfoStreamTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.Write('\uD800'));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.Enlarge(-1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.EnsureCapacity(-1));
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.CopyTo(Span<byte>.Empty, -1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.CopyTo([], -1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.WriteAt(-1, []));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => buffer.DangerousAppend(null, -1));
         Assert.ThrowsExactly<ArgumentNullException>(() => buffer.DangerousAppend(null, 1));
@@ -193,7 +193,7 @@ public sealed unsafe class PgStringInfoStreamTests
         fixture.Handler = request => Respond(fixture, request);
         using PgStringInfoStream buffer = PgStringInfoStream.DangerousBorrow((void*)303, PgMemoryContext.Current)!;
         fixture.Handler = _ => throw new PgException("55000", "stale anchor", detail: "reset generation");
-        Assert.ThrowsExactly<ObjectDisposedException>(() => buffer.CopyTo(Span<byte>.Empty));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => buffer.CopyTo([]));
         Assert.AreEqual(2, fixture.ErrorReleases);
     }
 
@@ -232,7 +232,7 @@ public sealed unsafe class PgStringInfoStreamTests
             Assert.IsInstanceOfType<InvalidOperationException>(failure);
         }
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => buffer.CopyTo(Span<byte>.Empty));
+        Assert.ThrowsExactly<InvalidOperationException>(() => buffer.CopyTo([]));
         Assert.IsNull(PgStringInfoStream.DangerousBorrow(null, null!));
         using MemoryContextTestFixture.Scope replacement = MemoryContextTestFixture.Enter();
         buffer.Dispose();

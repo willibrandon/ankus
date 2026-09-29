@@ -46,8 +46,12 @@ public sealed unsafe class PgBackgroundWorkerTests
         };
         PgBackgroundWorker.Register(new("worker café 🐘", "library", "Run")
         {
-            Type = "reporting", Extra = "payload π", Argument = nuint.MaxValue, DatabaseAccess = true,
-            StartTime = PgBackgroundWorkerStartTime.ConsistentState, RestartDelay = TimeSpan.FromSeconds(5),
+            Type = "reporting",
+            Extra = "payload π",
+            Argument = nuint.MaxValue,
+            DatabaseAccess = true,
+            StartTime = PgBackgroundWorkerStartTime.ConsistentState,
+            RestartDelay = TimeSpan.FromSeconds(5),
         });
         Assert.AreEqual(0, Assert.ContainsSingle(fixture.Requests)._flags);
     }
@@ -128,7 +132,7 @@ public sealed unsafe class PgBackgroundWorkerTests
             return new() { _value = 1, _context = 71 };
         };
         Assert.IsTrue(PgBackgroundWorker.TryStart(new("worker\t\r\n\x7F", "library", "Run")
-            { Extra = "payload café 🐘" }, out PgBackgroundWorkerHandle? handle));
+        { Extra = "payload café 🐘" }, out PgBackgroundWorkerHandle? handle));
         handle.Dispose();
         Assert.AreSequenceEqual([1, 6], fixture.Requests.Select(static request => request._flags));
     }
@@ -243,7 +247,7 @@ public sealed unsafe class PgBackgroundWorkerTests
 
         handle.Dispose();
         Assert.ThrowsExactly<ObjectDisposedException>(() => handle.GetState());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => handle.Terminate());
+        Assert.ThrowsExactly<ObjectDisposedException>(handle.Terminate);
         Assert.AreSequenceEqual([1, 2, 3, 4, 5, 6], fixture.Requests.Select(static request => request._flags));
         Assert.IsTrue(fixture.Requests.Skip(1).All(static request => request._context == 71));
     }
@@ -317,7 +321,7 @@ public sealed unsafe class PgBackgroundWorkerTests
             using (MemoryContextTestFixture.Scope other = MemoryContextTestFixture.Enter(23))
             {
                 Assert.ThrowsExactly<InvalidOperationException>(() => handle.GetState());
-                Assert.ThrowsExactly<InvalidOperationException>(() => handle.Dispose());
+                Assert.ThrowsExactly<InvalidOperationException>(handle.Dispose);
             }
 
             Exception? observed = null;

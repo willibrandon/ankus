@@ -55,8 +55,8 @@ internal static class NumericConstraint
         }
 
         if (FunctionType.Create(type)?.Reader == "numeric" && attribute.ConstructorArguments.Length == 2 &&
-            attribute.ConstructorArguments[0].Value is int precision and >= 1 and <= 1000 &&
-            attribute.ConstructorArguments[1].Value is int scale and >= -1000 and <= 1000)
+            attribute.ConstructorArguments[0].Value is int and >= 1 and <= 1000 &&
+            attribute.ConstructorArguments[1].Value is int and >= -1000 and <= 1000)
         {
             return true;
         }

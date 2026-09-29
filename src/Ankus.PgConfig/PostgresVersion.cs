@@ -130,7 +130,10 @@ public readonly struct PostgresVersion : IEquatable<PostgresVersion>
     /// <param name="left">The first version.</param>
     /// <param name="right">The second version.</param>
     /// <returns><see langword="true"/> when both versions are equal.</returns>
-    public static bool operator ==(PostgresVersion left, PostgresVersion right) => left.Equals(right);
+    public static bool operator ==(PostgresVersion left, PostgresVersion right)
+    {
+        return left.Equals(right);
+    }
 
     /// <summary>
     /// Determines whether two PostgreSQL versions differ.
@@ -138,7 +141,10 @@ public readonly struct PostgresVersion : IEquatable<PostgresVersion>
     /// <param name="left">The first version.</param>
     /// <param name="right">The second version.</param>
     /// <returns><see langword="true"/> when the versions differ.</returns>
-    public static bool operator !=(PostgresVersion left, PostgresVersion right) => !left.Equals(right);
+    public static bool operator !=(PostgresVersion left, PostgresVersion right)
+    {
+        return !left.Equals(right);
+    }
 
     private static PostgresVersion ParsePrerelease(
         ReadOnlySpan<char> value,

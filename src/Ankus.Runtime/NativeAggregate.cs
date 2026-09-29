@@ -210,7 +210,7 @@ public static unsafe class NativeAggregate
             values[1]._typeOid = right.TypeOid;
             values[1]._value = SpiType.ToNative(right.Value, right.CustomMapping, right.CustomArrayMapping);
             nint result = Invoke(context, 1, 0, 0, values, sortKey);
-            if (result < int.MinValue || result > int.MaxValue)
+            if (result is < int.MinValue or > int.MaxValue)
             {
                 throw new InvalidOperationException("The native aggregate comparator returned an invalid Int32 result.");
             }

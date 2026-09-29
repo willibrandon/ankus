@@ -1,5 +1,5 @@
-using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 
 namespace Ankus.Runtime.Tests;
@@ -118,7 +118,7 @@ public sealed partial class PgSharedMemoryTests
             Assert.ThrowsExactly<InvalidOperationException>(() => guard.Value);
             Assert.ThrowsExactly<InvalidOperationException>(() => guard.Value = 19);
             Assert.ThrowsExactly<InvalidOperationException>(guard.Dispose);
-            Assert.ThrowsExactly<InvalidOperationException>(() => storage.Share());
+            Assert.ThrowsExactly<InvalidOperationException>(storage.Share);
             Assert.ThrowsExactly<InvalidOperationException>(() => PgSharedMemory.Initialize(storage));
         }
 
@@ -169,7 +169,7 @@ public sealed partial class PgSharedMemoryTests
 
             return respond(request);
         };
-        PgException acquisition = Assert.ThrowsExactly<PgException>(() => storage.Exclusive());
+        PgException acquisition = Assert.ThrowsExactly<PgException>(storage.Exclusive);
         Assert.AreEqual("55006", acquisition.SqlState);
         Assert.AreEqual("Already held.", acquisition.Message);
         using PgLwLockExclusiveGuard<int> guard = storage.Exclusive();

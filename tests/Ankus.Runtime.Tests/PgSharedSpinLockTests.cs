@@ -18,10 +18,10 @@ public sealed unsafe partial class PgSharedTests
         var admissions = new List<int>();
         spins.BeforeRelease = () => admissions.Add(fixture.Access->_readers);
         PgSpinLockGuard<int>? staleChild = null;
-        PgSpinLockGuard<SpinState> staleParent = storage.Read((in PgSpinLockValue<SpinState> value) =>
+        PgSpinLockGuard<SpinState> staleParent = storage.Read((in value) =>
         {
             PgSpinLockGuard<SpinState> parent = value.Lock();
-            Assert.AreEqual(79, parent.Read((in SpinState state) =>
+            Assert.AreEqual(79, parent.Read((in state) =>
             {
                 staleChild = state._counter.Lock();
                 Assert.AreEqual(73, staleChild.Value);
@@ -37,11 +37,11 @@ public sealed unsafe partial class PgSharedTests
         Assert.AreSequenceEqual([1, 1], admissions);
         Assert.AreEqual(0, fixture.Access->_readers);
         Assert.IsEmpty(spins.Held);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => staleParent.Read(static (in SpinState value) => value._other.IsLocked));
-        Assert.AreEqual(79, storage.Read(static (in PgSpinLockValue<SpinState> value) =>
+        Assert.ThrowsExactly<ObjectDisposedException>(() => staleParent.Read(static (in value) => value._other.IsLocked));
+        Assert.AreEqual(79, storage.Read(static (in value) =>
         {
             using PgSpinLockGuard<SpinState> parent = value.Lock();
-            return parent.Read(static (in SpinState state) =>
+            return parent.Read(static (in state) =>
             {
                 using PgSpinLockGuard<int> child = state._counter.Lock();
                 return child.Value;
@@ -51,10 +51,10 @@ public sealed unsafe partial class PgSharedTests
         staleParent.Dispose();
         Assert.IsNotNull(staleChild);
         staleChild.Dispose();
-        Assert.AreEqual(101, storage.Read(static (in PgSpinLockValue<SpinState> value) =>
+        Assert.AreEqual(101, storage.Read(static (in value) =>
         {
             using PgSpinLockGuard<SpinState> parent = value.Lock();
-            return parent.Read(static (in SpinState state) =>
+            return parent.Read(static (in state) =>
             {
                 using PgSpinLockGuard<int> child = state._counter.Lock();
                 return child.Value;
@@ -77,11 +77,11 @@ public sealed unsafe partial class PgSharedTests
         Func<NativeMemoryRequest, NativeMemoryResult> shared = fixture.Memory.Handler!;
         fixture.Memory.Handler = request => request._operation == NativeMemoryOperation.SpinLock ? spins.Respond(request) : shared(request);
         PgShared<PgSpinLockValue<int>> storage = fixture.Start(default(PgSpinLockValue<int>));
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in PgSpinLockValue<int> value) => value.Lock()));
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in PgSpinLockValue<int> value) => value.IsLocked));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in value) => value.Lock()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in value) => value.IsLocked));
         Assert.HasCount(1, fixture.Memory.Requests);
         fixture.UseReplacement(new PgSpinLockValue<int>(73));
-        Assert.AreEqual(73, storage.Read(static (in PgSpinLockValue<int> value) =>
+        Assert.AreEqual(73, storage.Read(static (in value) =>
         {
             PgSpinLockValue<int> copy = value;
             Assert.ThrowsExactly<InvalidOperationException>(() => copy.Lock());
@@ -107,11 +107,11 @@ public sealed unsafe partial class PgSharedTests
         PgShared<SpinState> storage = fixture.Start(new SpinState(11));
         var admissions = new List<int>();
         spins.BeforeRelease = () => admissions.Add(fixture.Access->_readers);
-        PgSpinLockGuard<int> expired = storage.Read((in SpinState state) =>
+        PgSpinLockGuard<int> expired = storage.Read((in state) =>
         {
             PgSpinLockGuard<int> outer = state._counter.Lock();
             outer.Value = 17;
-            PgSpinLockGuard<int> inner = storage.Read(static (in SpinState nested) =>
+            PgSpinLockGuard<int> inner = storage.Read(static (in nested) =>
             {
                 PgSpinLockGuard<int> guard = nested._other.Lock();
                 guard.Value = 119;
@@ -128,7 +128,7 @@ public sealed unsafe partial class PgSharedTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => expired.Value);
         expired.Dispose();
         Assert.HasCount(2, spins.Released);
-        Assert.AreEqual((17, 119), storage.Read(static (in SpinState state) =>
+        Assert.AreEqual((17, 119), storage.Read(static (in state) =>
         {
             using PgSpinLockGuard<int> first = state._counter.Lock();
             using PgSpinLockGuard<int> second = state._other.Lock();
@@ -152,7 +152,7 @@ public sealed unsafe partial class PgSharedTests
         PgShared<SpinState> storage = fixture.Start(new SpinState(23));
         var failure = new InvalidOperationException("reader failed");
         PgSpinLockGuard<int>? stale = null;
-        Assert.AreSame(failure, Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read<int>((in SpinState state) =>
+        Assert.AreSame(failure, Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read<int>((in state) =>
         {
             stale = state._counter.Lock();
             stale.Value = 29;
@@ -161,13 +161,13 @@ public sealed unsafe partial class PgSharedTests
         Assert.IsNotNull(stale);
         Assert.AreEqual(0, fixture.Access->_readers);
         Assert.IsEmpty(spins.Held);
-        Assert.AreEqual(29, storage.Read(static (in SpinState state) =>
+        Assert.AreEqual(29, storage.Read(static (in state) =>
         {
             using PgSpinLockGuard<int> guard = state._counter.Lock();
             return guard.Value;
         }));
         fixture.UseReplacement(new SpinState(43));
-        Assert.AreEqual(43, storage.Read((in SpinState state) =>
+        Assert.AreEqual(43, storage.Read((in state) =>
         {
             using PgSpinLockGuard<int> current = state._counter.Lock();
             stale.Dispose();
@@ -192,10 +192,10 @@ public sealed unsafe partial class PgSharedTests
         fixture.Memory.Handler = request => request._operation == NativeMemoryOperation.SpinLock ? spins.Respond(request) : shared(request);
         PgShared<PackedSpinState> storage = fixture.Start(new PackedSpinState(new PgSpinLockValue<int>(73)));
         int requests = fixture.Memory.Requests.Count;
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in PackedSpinState state) => state._counter.Lock()));
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in PackedSpinState state) => state._counter.IsLocked));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in state) => state._counter.Lock()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Read(static (in state) => state._counter.IsLocked));
         Assert.HasCount(requests, fixture.Memory.Requests);
-        Assert.AreEqual((byte)0x5A, storage.Read(static (in PackedSpinState state) => state._tag));
+        Assert.AreEqual((byte)0x5A, storage.Read(static (in state) => state._tag));
         Assert.AreEqual(0, fixture.Access->_readers);
         Assert.IsEmpty(spins.Held);
         fixture.AssertGuards(sizeof(PackedSpinState));

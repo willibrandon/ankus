@@ -89,7 +89,7 @@ public static class PgHash
     private static ulong Diffuse(ulong value)
     {
         value = unchecked(value * 0x6eed0e9da4d94a4f);
-        value ^= (value >> 32) >> (int)(value >> 60);
+        value ^= value >> 32 >> (int)(value >> 60);
         return unchecked(value * 0x6eed0e9da4d94a4f);
     }
 }

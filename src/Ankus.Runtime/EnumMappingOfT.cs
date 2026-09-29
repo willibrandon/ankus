@@ -44,7 +44,7 @@ internal sealed class EnumMapping<T> : EnumMapping where T : struct, Enum
     internal override object Convert(IPgArray value, Type type)
     {
         // The CLR element type retains identity even after the backend scope has ended.
-        if (value is not PgArray<T> && value is not PgArray<T?>)
+        if (value is not PgArray<T> and not PgArray<T?>)
         {
             throw new InvalidCastException($"Array cannot be converted to '{typeof(T)}' elements.");
         }

@@ -80,22 +80,34 @@ public readonly record struct PgCidr : IComparable<PgCidr>
     /// <summary>
     /// Compares two networks in PostgreSQL order.
     /// </summary>
-    public static bool operator <(PgCidr left, PgCidr right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgCidr left, PgCidr right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Compares two networks in PostgreSQL order, including equality.
     /// </summary>
-    public static bool operator <=(PgCidr left, PgCidr right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgCidr left, PgCidr right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Compares two networks in reverse PostgreSQL order.
     /// </summary>
-    public static bool operator >(PgCidr left, PgCidr right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgCidr left, PgCidr right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Compares two networks in reverse PostgreSQL order, including equality.
     /// </summary>
-    public static bool operator >=(PgCidr left, PgCidr right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgCidr left, PgCidr right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Parses PostgreSQL cidr text on the active backend, enforcing zero host bits.

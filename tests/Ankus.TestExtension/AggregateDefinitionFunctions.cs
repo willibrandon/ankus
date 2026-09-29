@@ -6,12 +6,17 @@ namespace Ankus.TestExtension;
 public static class AggregateDefinitionFunctions
 {
     private static int s_seedCalls;
+    private static string? s_seedInput;
 
     /// <summary>
     /// Clears the actual transition count for strict state seeding probes.
     /// </summary>
     [PgFunction]
-    public static void AggregateSeedReset() => s_seedCalls = 0;
+    public static void AggregateSeedReset()
+    {
+        s_seedCalls = 0;
+        s_seedInput = null;
+    }
 
     /// <summary>
     /// Gets the number of callbacks that PostgreSQL actually invoked after seeding.
@@ -19,6 +24,13 @@ public static class AggregateDefinitionFunctions
     /// <returns>The transition count.</returns>
     [PgFunction]
     public static int AggregateSeedCalls() => s_seedCalls;
+
+    /// <summary>
+    /// Gets the most recent input converted for an actual managed transition after native seeding.
+    /// </summary>
+    /// <returns>The input's invariant value, or null before a managed transition runs.</returns>
+    [PgFunction]
+    public static string? AggregateSeedInput() => s_seedInput;
 
     /// <summary>
     /// Preserves an integer's full bit pattern when PostgreSQL seeds an OID state directly.
@@ -31,6 +43,7 @@ public static class AggregateDefinitionFunctions
         /// </summary>
         public static uint Transition(uint state, int value)
         {
+            s_seedInput = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
             s_seedCalls++;
             return state;
         }
@@ -47,6 +60,7 @@ public static class AggregateDefinitionFunctions
         /// </summary>
         public static PgInet Transition(PgInet state, PgCidr value)
         {
+            s_seedInput = value.ToString();
             s_seedCalls++;
             return state;
         }

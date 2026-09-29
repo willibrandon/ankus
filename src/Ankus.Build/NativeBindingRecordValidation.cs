@@ -60,7 +60,7 @@ internal static class NativeBindingRecordValidation
             bool indirect = type.Kind is "alias" or "pointer" or "array" or "vector" or "elaborated" or "attributed" or "atomic" or "complex" or "typeof";
             bool tagged = type.Kind is "record" or "enum";
             if (indirect != type.Element.HasValue || tagged != type.Declaration.HasValue ||
-                (type.Kind == "function") != (type.Function is not null) ||
+                type.Kind == "function" != (type.Function is not null) ||
                 (type.Kind != "array" && type.Kind != "vector" && type.Count is not null) ||
                 (type.Kind != "alias" && type.SourceDeclaration is not null))
             {

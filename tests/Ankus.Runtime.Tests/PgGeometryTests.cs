@@ -173,7 +173,7 @@ public sealed class PgGeometryTests
         NativeValue value = NativeValue.FromBytes(Convert.FromHexString(hex));
         try
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => value.ReadPath());
+            Assert.ThrowsExactly<InvalidOperationException>(value.ReadPath);
             Assert.ThrowsExactly<InvalidOperationException>(() => value.ReadPoint());
         }
         finally

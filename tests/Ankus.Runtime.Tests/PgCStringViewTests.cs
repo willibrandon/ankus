@@ -61,7 +61,7 @@ public sealed partial class PgBufferViewTests
         Assert.AreEqual(!empty, cursor.MoveNext());
         if (!empty)
         {
-            Assert.ThrowsExactly<DecoderFallbackException>(() => view.ToUtf8String());
+            Assert.ThrowsExactly<DecoderFallbackException>(view.ToUtf8String);
             Assert.AreEqual((byte)1, cursor.Current);
             byte[] shortDestination = [7, 7];
             Assert.ThrowsExactly<ArgumentException>(() => view.CopyTo(shortDestination));
@@ -75,8 +75,8 @@ public sealed partial class PgBufferViewTests
         view.Dispose();
         Assert.AreSequenceEqual(payload, owned);
         Assert.AreSequenceEqual<byte>([.. payload, 0], [.. owned.AsNullTerminatedSpan()]);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.ToOwned());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.ToUtf8String());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.ToOwned);
+        Assert.ThrowsExactly<ObjectDisposedException>(view.ToUtf8String);
         Assert.ThrowsExactly<ObjectDisposedException>(() => cursor.MoveNext());
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = cursor.Current);
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetNullTerminatedSpan().ToArray());
@@ -103,8 +103,8 @@ public sealed partial class PgBufferViewTests
         Assert.AreEqual(sqlNull, absent.IsNull);
         Assert.AreEqual((nuint)0, absent.DangerousGetBits());
         PgDatum unrelated = PgDatum.DangerousCreate(0, 17, PgMemoryContext.Current, isNull: sqlNull);
-        Assert.ThrowsExactly<InvalidCastException>(() => unrelated.Read<PgCString>());
-        Assert.ThrowsExactly<InvalidCastException>(() => unrelated.Read<PgCStringView>());
+        Assert.ThrowsExactly<InvalidCastException>(unrelated.Read<PgCString>);
+        Assert.ThrowsExactly<InvalidCastException>(unrelated.Read<PgCStringView>);
         Assert.IsEmpty(script.Operations);
         Assert.DoesNotContain(static request => request._operation == NativeMemoryOperation.Create, fixture.Requests);
         Assert.AreEqual(2275U, SpiParameter.Create<PgCString?>(null).TypeOid);
@@ -137,7 +137,7 @@ public sealed partial class PgBufferViewTests
             : previous(request);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view[0]);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.ToOwned());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.ToOwned);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
         Assert.ThrowsExactly<ObjectDisposedException>(() => cursor.MoveNext());
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetNullTerminatedSpan().ToArray());
@@ -169,7 +169,7 @@ public sealed partial class PgBufferViewTests
             conversions.ReleaseAfterFailure(primary);
             Assert.IsEmpty(primary.Data);
             Assert.AreSequenceEqual<nint>([203], script.Deleted);
-            Assert.ThrowsExactly<ObjectDisposedException>(() => provisional.ToOwned());
+            Assert.ThrowsExactly<ObjectDisposedException>(provisional.ToOwned);
             Assert.AreEqual((byte)65, escaped[0]);
         }
 

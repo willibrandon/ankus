@@ -145,22 +145,34 @@ public readonly record struct PgItemPointer(uint BlockNumber, ushort OffsetNumbe
     /// <summary>
     /// Compares two locations in PostgreSQL tuple order.
     /// </summary>
-    public static bool operator <(PgItemPointer left, PgItemPointer right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgItemPointer left, PgItemPointer right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Compares two locations in PostgreSQL tuple order, including equality.
     /// </summary>
-    public static bool operator <=(PgItemPointer left, PgItemPointer right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgItemPointer left, PgItemPointer right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Compares two locations in reverse PostgreSQL tuple order.
     /// </summary>
-    public static bool operator >(PgItemPointer left, PgItemPointer right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgItemPointer left, PgItemPointer right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Compares two locations in reverse PostgreSQL tuple order, including equality.
     /// </summary>
-    public static bool operator >=(PgItemPointer left, PgItemPointer right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgItemPointer left, PgItemPointer right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Formats both raw fields as PostgreSQL's invariant <c>(block,offset)</c> text.

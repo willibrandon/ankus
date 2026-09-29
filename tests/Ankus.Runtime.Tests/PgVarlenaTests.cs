@@ -419,7 +419,7 @@ public sealed unsafe class PgVarlenaTests
         fixture.Handler = request => (phase == "lifetime" && request._operation == NativeMemoryOperation.CaptureGeneration) ||
             (phase == "detach" && request._operation == NativeMemoryOperation.Detach)
             ? throw new PgException("55006", "Transfer failed.") : script.Respond(request);
-        Assert.AreEqual("55006", Assert.ThrowsExactly<PgException>(() => value.IntoDatum()).SqlState);
+        Assert.AreEqual("55006", Assert.ThrowsExactly<PgException>(value.IntoDatum).SqlState);
         Assert.AreEqual(42, value.Value.Number);
         Assert.AreEqual(script.Blocks[0].Pointer, (nint)value.DangerousGetPointer());
         Assert.IsEmpty(fixture.Requests.Where(static request => request._operation == NativeMemoryOperation.Free));
@@ -449,7 +449,7 @@ public sealed unsafe class PgVarlenaTests
         using PgVarlena<Value> value = Borrow(input, writable);
         fixture.Handler = request => request._operation == NativeMemoryOperation.Detach
             ? throw new PgException("55006", "Detach failed.") : script.Respond(request);
-        Assert.AreEqual("55006", Assert.ThrowsExactly<PgException>(() => value.IntoDatum()).SqlState);
+        Assert.AreEqual("55006", Assert.ThrowsExactly<PgException>(value.IntoDatum).SqlState);
         NativeMemoryRequest free = Assert.ContainsSingle(static request => request._operation == NativeMemoryOperation.Free, fixture.Requests);
         Assert.AreEqual(script.Blocks[0].Pointer, free._context);
         Assert.AreEqual(input.Pointer, (nint)value.DangerousGetPointer());
@@ -755,7 +755,7 @@ public sealed unsafe class PgVarlenaTests
             _ => script.Respond(request),
         };
         var source = new PgArray<Value>([new(42), new(7), new(-9)]);
-        Action convert = () => PgTypeRegistry.RequireVarlena<Value>().Convert(source, typeof(PgVarlena<Value>[]));
+        void convert() => PgTypeRegistry.RequireVarlena<Value>().Convert(source, typeof(PgVarlena<Value>[]));
         if (cleanupFailure)
         {
             AggregateException failure = Assert.ThrowsExactly<AggregateException>(convert);
@@ -816,7 +816,7 @@ public sealed unsafe class PgVarlenaTests
         TypeOid(ref envelope) = 3;
         try
         {
-            Action decode = () => envelope.ReadArrayData<PgVarlena<ArrayValue>>(54322);
+            void decode() => envelope.ReadArrayData<PgVarlena<ArrayValue>>(54322);
             if (cleanupFailure)
             {
                 AggregateException error = Assert.ThrowsExactly<AggregateException>(decode);
@@ -910,7 +910,7 @@ public sealed unsafe class PgVarlenaTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.IsBorrowed);
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.Context);
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.Clone());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => value.IntoDatum());
+        Assert.ThrowsExactly<ObjectDisposedException>(value.IntoDatum);
         Assert.ThrowsExactly<ObjectDisposedException>(() =>
         {
             _ = value.DangerousGetPointer();
@@ -927,7 +927,7 @@ public sealed unsafe class PgVarlenaTests
         Assert.ThrowsExactly<InvalidOperationException>(() => value.IsBorrowed);
         Assert.ThrowsExactly<InvalidOperationException>(() => value.Context);
         Assert.ThrowsExactly<InvalidOperationException>(() => value.Clone());
-        Assert.ThrowsExactly<InvalidOperationException>(() => value.IntoDatum());
+        Assert.ThrowsExactly<InvalidOperationException>(value.IntoDatum);
         Assert.ThrowsExactly<InvalidOperationException>(() =>
         {
             _ = value.DangerousGetPointer();

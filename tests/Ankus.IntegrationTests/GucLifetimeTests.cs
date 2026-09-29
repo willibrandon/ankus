@@ -77,7 +77,7 @@ public sealed class GucLifetimeTests(TestContext context)
 
             await RunCyclesAsync(connection, latin1, 16);
             await AssertCollectedAsync(connection);
-            (long? GucBytes, long TemporaryContexts, long MallocBytes) baseline = await AllocationsAsync(connection);
+            (long? GucBytes, long TemporaryContexts, long MallocBytes) = await AllocationsAsync(connection);
             long[] callsBefore = await CallsAsync(connection);
             int noticesBefore = notices;
             for (int batch = 0; batch < 3; batch++)
@@ -85,15 +85,15 @@ public sealed class GucLifetimeTests(TestContext context)
                 await RunCyclesAsync(connection, latin1, MeasuredCycles);
                 await AssertCollectedAsync(connection);
                 (long? GucBytes, long TemporaryContexts, long MallocBytes) current = await AllocationsAsync(connection);
-                context.WriteLine($"LATIN1={latin1}, batch={batch}: GUC context bytes {baseline.GucBytes} -> {current.GucBytes}, temporary contexts {current.TemporaryContexts}, glibc bytes {baseline.MallocBytes} -> {current.MallocBytes}.");
-                if (baseline.GucBytes.HasValue)
+                context.WriteLine($"LATIN1={latin1}, batch={batch}: GUC context bytes {GucBytes} -> {current.GucBytes}, temporary contexts {current.TemporaryContexts}, glibc bytes {MallocBytes} -> {current.MallocBytes}.");
+                if (GucBytes.HasValue)
                 {
-                    Assert.AreEqual(baseline.GucBytes, current.GucBytes, "Identical restored GUC state must retain identical native allocations.");
+                    Assert.AreEqual(GucBytes, current.GucBytes, "Identical restored GUC state must retain identical native allocations.");
                 }
 
                 Assert.AreEqual(0L, current.TemporaryContexts, "Hook, logging, and read contexts must not survive completed operations.");
                 long maximumGrowth = (long)MeasuredCycles * PayloadLength / 8;
-                Assert.IsLessThanOrEqualTo(maximumGrowth, current.MallocBytes - baseline.MallocBytes,
+                Assert.IsLessThanOrEqualTo(maximumGrowth, current.MallocBytes - MallocBytes,
                     "Allocator noise allowance is one eighth of a batch with one leaked payload per cycle.");
             }
 

@@ -190,7 +190,7 @@ public sealed class PgOidTests
         var mutable = (IList<PgBuiltInOid>)values;
         Assert.ThrowsExactly<NotSupportedException>(() => mutable[0] = PgBuiltInOid.BoolOid);
         Assert.AreEqual(PgBuiltInOid.HeapTableAmOid, PgBuiltInOids.GetValues(18)[0]);
-        Assert.ThrowsExactly<InvalidOperationException>(() => PgBuiltInOids.GetValues());
+        Assert.ThrowsExactly<InvalidOperationException>(PgBuiltInOids.GetValues);
         Assert.ThrowsExactly<InvalidOperationException>(() => PgBuiltInOids.GetNativeName(PgBuiltInOid.BoolOid));
         Assert.ThrowsExactly<InvalidOperationException>(() => PgBuiltInOids.TryFromValue(16, out _, out _));
         Assert.ThrowsExactly<InvalidOperationException>(() => PgOid.FromValue(0));

@@ -204,7 +204,7 @@ internal static class PgTemporal
     /// </summary>
     internal static void ValidateTimestamp(long value)
     {
-        if (value is not (long.MinValue or long.MaxValue) && (value < MinTimestamp || value >= EndTimestamp))
+        if (value is not (long.MinValue or long.MaxValue) and (< MinTimestamp or >= EndTimestamp))
         {
             throw new ArgumentOutOfRangeException(nameof(value), "The value is outside PostgreSQL's timestamp range.");
         }

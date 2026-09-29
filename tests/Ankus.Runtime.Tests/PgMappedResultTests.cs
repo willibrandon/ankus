@@ -50,16 +50,16 @@ public sealed unsafe class PgMappedResultTests
     public void ReaderOnlyResultsWorkAcrossSpiOwners(int api)
     {
         using var script = new Script { Cells = [new(9001, 7), new(9001, 9), new(9001, 11)] };
-        (Number First, Alias Second, Number Third) values = api switch
+        (Number First, Alias Second, Number Third) = api switch
         {
             0 => Spi.ExecuteScalars<Number, Alias, Number>("SELECT values"),
             1 => Spi.Connect(static session => session.ExecuteScalars<Number, Alias, Number>("SELECT values")),
             2 => ReadPlan(null),
             _ => Spi.Connect(static session => ReadPlan(session)),
         };
-        Assert.AreEqual(new Number(107), values.First);
-        Assert.AreEqual(new Alias(209), values.Second);
-        Assert.AreEqual(new Number(111), values.Third);
+        Assert.AreEqual(new Number(107), First);
+        Assert.AreEqual(new Alias(209), Second);
+        Assert.AreEqual(new Number(111), Third);
         Assert.AreEqual(3, script.Reads);
         Assert.AreEqual(1, script.Executions);
         Assert.AreEqual(1, script.ResultReleases);

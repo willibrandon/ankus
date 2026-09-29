@@ -201,7 +201,7 @@ public sealed class PgEnumTests
         Assert.AreSequenceEqual([SignedState.Ready, null, SignedState.Highest, SignedState.Lowest], array);
         array.ToArray()[0] = SignedState.Zero;
         Assert.AreEqual(SignedState.Ready, array[0]);
-        Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
+        Assert.ThrowsExactly<InvalidOperationException>(array.ToVector);
     }
 
     /// <summary>
@@ -360,11 +360,11 @@ public sealed class PgEnumTests
     public async Task DetachedEnumConversionsAreAvailableOnWorkerThreads()
     {
         var row = new SpiRow([new PgArray<SignedState?>([SignedState.Highest, SignedState.Lowest])], [new("value", 0)]);
-        (string Label, SignedState Parsed, SignedState[] Values) result = await Task.Run(() =>
+        (string Label, SignedState Parsed, SignedState[] Values) = await Task.Run(() =>
             (PgEnums.GetLabel(UnsignedState.Highest), PgEnums.Parse<SignedState>("Ready"), row.Get<SignedState[]>(0)));
-        Assert.AreEqual("maximum", result.Label);
-        Assert.AreEqual(SignedState.Ready, result.Parsed);
-        Assert.AreSequenceEqual([SignedState.Highest, SignedState.Lowest], result.Values);
+        Assert.AreEqual("maximum", Label);
+        Assert.AreEqual(SignedState.Ready, Parsed);
+        Assert.AreSequenceEqual([SignedState.Highest, SignedState.Lowest], Values);
     }
 
     /// <summary>

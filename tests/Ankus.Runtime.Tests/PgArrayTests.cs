@@ -31,7 +31,7 @@ public sealed class PgArrayTests
         Assert.AreEqual(-7, array[2]);
         Assert.AreEqual(int.MinValue, array.GetValue(-1, 6));
         Assert.AreSequenceEqual([11, null, -7, 0, int.MaxValue, int.MinValue], array);
-        Assert.ThrowsExactly<InvalidOperationException>(() => array.ToVector());
+        Assert.ThrowsExactly<InvalidOperationException>(array.ToVector);
         Assert.ThrowsExactly<ArgumentException>(() => array.GetValue(-2));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => array.GetValue(-3, 4));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => array.GetValue(-1, 7));
@@ -124,8 +124,8 @@ public sealed class PgArrayTests
             Assert.AreEqual(42L, BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(20)));
             Assert.AreEqual(1, BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(68)));
             Assert.AreEqual(-7L, BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(76)));
-            Assert.ThrowsExactly<InvalidCastException>(() => value.ReadArray<long?>());
-            Assert.ThrowsExactly<InvalidOperationException>(() => value.ReadArray<int>());
+            Assert.ThrowsExactly<InvalidCastException>(value.ReadArray<long?>);
+            Assert.ThrowsExactly<InvalidOperationException>(value.ReadArray<int>);
         }
         finally
         {

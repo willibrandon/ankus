@@ -117,7 +117,7 @@ public sealed partial class PgBufferViewTests
         using MemoryContextTestFixture.Scope memory = MemoryContextTestFixture.Enter();
         using var script = new BufferScript(fixture, [0xc3]);
         using var view = new PgTextView(PgDatum.DangerousCreate(123, 25, PgMemoryContext.Current));
-        Assert.ThrowsExactly<DecoderFallbackException>(() => view.ToString());
+        Assert.ThrowsExactly<DecoderFallbackException>(view.ToString);
         Assert.AreEqual((byte)0xc3, view.GetUtf8Byte(0));
         Assert.AreEqual(1, view.Utf8Length);
         Assert.AreEqual(1, script.Releases);
@@ -152,7 +152,7 @@ public sealed partial class PgBufferViewTests
             : previous(request);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view[0]);
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.GetEnumerator());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.GetEnumerator);
         Assert.ThrowsExactly<ObjectDisposedException>(() => cursor.MoveNext());
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = cursor.Current);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
@@ -194,7 +194,7 @@ public sealed partial class PgBufferViewTests
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.GetUtf8Byte(0));
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = view.Datum);
         Assert.ThrowsExactly<ObjectDisposedException>(() => escaped.DangerousGetBits());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.ToString());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.ToString);
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetUtf8Span().ToArray());
         byte[] destination = [9, 9];
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.CopyUtf8To(destination));
@@ -278,7 +278,7 @@ public sealed partial class PgBufferViewTests
         Assert.AreEqual("café", copy);
         Assert.AreEqual(5, view.Utf8Length);
         Assert.AreEqual(40002U, view.TypeOid);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => view.ToString());
+        Assert.ThrowsExactly<ObjectDisposedException>(view.ToString);
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.CopyUtf8To(destination));
         Assert.ThrowsExactly<ObjectDisposedException>(() => view.DangerousGetUtf8Span().ToArray());
         Assert.AreSequenceEqual<nint>([202], script.Deleted);

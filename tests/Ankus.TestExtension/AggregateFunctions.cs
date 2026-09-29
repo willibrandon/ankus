@@ -70,7 +70,7 @@ public static class AggregateFunctions
     public static string AggregateRetained()
     {
         PgAggregateContext context = s_context ?? throw new InvalidOperationException("No retained aggregate context.");
-        string state = "missing";
+        string state;
         try
         {
             state = s_retained!.Value.Sum.ToString(CultureInfo.InvariantCulture);

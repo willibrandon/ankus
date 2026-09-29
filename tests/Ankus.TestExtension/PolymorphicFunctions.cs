@@ -16,12 +16,16 @@ public static class PolymorphicFunctions
     public static PgAnyElement? PolyIdentity(PgAnyElement? value) => value;
 
     /// <summary>
-    /// Returns SQL NULL while preserving the caller's resolved result type.
+    /// Checks the input remains live before returning SQL NULL with the caller's resolved result type.
     /// </summary>
     /// <param name="value">The type witness.</param>
     /// <returns>SQL NULL, subject to the resolved type's constraints.</returns>
     [PgFunction]
-    public static PgAnyElement? PolyNull(PgAnyElement? value) => null;
+    public static PgAnyElement? PolyNull(PgAnyElement? value)
+    {
+        _ = value?.Datum.DangerousGetBits();
+        return null;
+    }
 
     /// <summary>
     /// Returns an array without losing bounds, shape, element identity, or NULL cells.

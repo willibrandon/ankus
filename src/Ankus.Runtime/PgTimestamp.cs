@@ -73,19 +73,34 @@ public readonly partial record struct PgTimestamp : IComparable<PgTimestamp>
     /// <summary>
     /// Adds a calendar interval using PostgreSQL's rules.
     /// </summary>
-    public static PgTimestamp operator +(PgTimestamp timestamp, PgInterval interval) => timestamp.Add(interval);
+    public static PgTimestamp operator +(PgTimestamp timestamp, PgInterval interval)
+    {
+        return timestamp.Add(interval);
+    }
+
     /// <summary>
     /// Adds a calendar interval using PostgreSQL's rules.
     /// </summary>
-    public static PgTimestamp operator +(PgInterval interval, PgTimestamp timestamp) => timestamp.Add(interval);
+    public static PgTimestamp operator +(PgInterval interval, PgTimestamp timestamp)
+    {
+        return timestamp.Add(interval);
+    }
+
     /// <summary>
     /// Subtracts a calendar interval using PostgreSQL's rules.
     /// </summary>
-    public static PgTimestamp operator -(PgTimestamp timestamp, PgInterval interval) => timestamp.Subtract(interval);
+    public static PgTimestamp operator -(PgTimestamp timestamp, PgInterval interval)
+    {
+        return timestamp.Subtract(interval);
+    }
+
     /// <summary>
     /// Computes the elapsed difference.
     /// </summary>
-    public static PgInterval operator -(PgTimestamp left, PgTimestamp right) => left.Subtract(right);
+    public static PgInterval operator -(PgTimestamp left, PgTimestamp right)
+    {
+        return left.Subtract(right);
+    }
 
     /// <summary>
     /// Parses PostgreSQL wall-clock timestamp syntax using the backend's DateStyle.
@@ -112,22 +127,34 @@ public readonly partial record struct PgTimestamp : IComparable<PgTimestamp>
     /// <summary>
     /// Tests whether the left timestamp precedes the right timestamp.
     /// </summary>
-    public static bool operator <(PgTimestamp left, PgTimestamp right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgTimestamp left, PgTimestamp right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Tests whether the left timestamp follows the right timestamp.
     /// </summary>
-    public static bool operator >(PgTimestamp left, PgTimestamp right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgTimestamp left, PgTimestamp right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Tests whether the left timestamp precedes or equals the right timestamp.
     /// </summary>
-    public static bool operator <=(PgTimestamp left, PgTimestamp right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgTimestamp left, PgTimestamp right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Tests whether the left timestamp follows or equals the right timestamp.
     /// </summary>
-    public static bool operator >=(PgTimestamp left, PgTimestamp right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgTimestamp left, PgTimestamp right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Formats the timestamp using the backend's DateStyle.

@@ -71,8 +71,11 @@ public sealed class NativeBindingRecordMemberTests
                 break;
             case "result":
             case "parameter":
-                graph = graph with { Types = [.. graph.Types, extra with { Kind = "function", Element = null,
-                    Function = new(exposure == "result" ? 2 : 0, exposure == "parameter" ? [2] : [], false, true, 1) }] };
+                graph = graph with
+                {
+                    Types = [.. graph.Types, extra with { Kind = "function", Element = null,
+                    Function = new(exposure == "result" ? 2 : 0, exposure == "parameter" ? [2] : [], false, true, 1) }]
+                };
                 break;
             default:
                 graph = graph with { Types = [.. graph.Types, extra] };
@@ -162,7 +165,9 @@ public sealed class NativeBindingRecordMemberTests
                 ? [new("value", depth, 0, null, false, "")] : [new("", index + 1, 0, null, true, "")] })];
         var projection = new NativeBindingRecordMembers(original with
         {
-            Types = types, Declarations = declarations, Roots = new Dictionary<string, int> { ["parent"] = 0 }
+            Types = types,
+            Declarations = declarations,
+            Roots = new Dictionary<string, int> { ["parent"] = 0 }
         });
         if (depth > 128)
         {

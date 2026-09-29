@@ -26,8 +26,8 @@ public sealed unsafe partial class PgSharedMemoryTests
         Assert.AreEqual("exact name 🐘", storage.Name);
         Assert.AreEqual("initializer", Assert.ThrowsExactly<ArgumentNullException>(() => PgSharedMemory.Initialize(storage, null!)).ParamName);
         Assert.ThrowsExactly<InvalidOperationException>(() => PgSharedMemory.Initialize(storage));
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Share());
-        Assert.ThrowsExactly<InvalidOperationException>(() => storage.Exclusive());
+        Assert.ThrowsExactly<InvalidOperationException>(storage.Share);
+        Assert.ThrowsExactly<InvalidOperationException>(storage.Exclusive);
         using (MemoryContextTestFixture.Enter())
         {
             var invalid = new PgLwLock<int>("bad\uD800");

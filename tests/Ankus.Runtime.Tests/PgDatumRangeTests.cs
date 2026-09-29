@@ -120,7 +120,7 @@ public sealed class PgDatumRangeTests
         using var backend = new BackendScope { Flags = flags };
         Register();
         PgDatum source = PgDatum.DangerousCreate(501, 9002, PgMemoryContext.Current);
-        InvalidOperationException error = Assert.ThrowsExactly<InvalidOperationException>(() => source.Read<PgRange<Bound>>());
+        InvalidOperationException error = Assert.ThrowsExactly<InvalidOperationException>(source.Read<PgRange<Bound>>);
         Assert.AreEqual("Invalid native mapped range header.", error.Message);
         Assert.AreEqual(0, backend.Reads);
         Assert.AreEqual(1, backend.Releases);
@@ -141,11 +141,11 @@ public sealed class PgDatumRangeTests
         Assert.IsNull(source.Read<PgRange<Bound>?>());
         SpiParameter retained = SpiParameter.Create<PgRange<Bound>?>(null);
         backend.Subtype = 23;
-        InvalidCastException subtype = Assert.ThrowsExactly<InvalidCastException>(() => source.Read<PgRange<Bound>?>());
+        InvalidCastException subtype = Assert.ThrowsExactly<InvalidCastException>(source.Read<PgRange<Bound>?>);
         Assert.AreEqual("PostgreSQL range subtype OID 23 does not match mapped bound type OID 9001.", subtype.Message);
         backend.Subtype = 9001;
         backend.RangeOid = 9003;
-        Assert.ThrowsExactly<InvalidCastException>(() => source.Read<PgRange<Bound>?>());
+        Assert.ThrowsExactly<InvalidCastException>(source.Read<PgRange<Bound>?>);
         Assert.ThrowsExactly<InvalidOperationException>(() => retained.DatumMapping!.Write(retained.Value, retained.TypeOid));
         Assert.AreEqual(0, backend.Reads);
         Assert.AreEqual(0, backend.Writes);

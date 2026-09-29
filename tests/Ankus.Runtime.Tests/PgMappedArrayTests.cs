@@ -357,7 +357,7 @@ public sealed unsafe class PgMappedArrayTests
     public void InvalidWriterResultsNeverReachArrayConstruction(string mode)
     {
         using var script = new Script { WriterMode = mode };
-        Action write = () => NativeValue.FromMapped<Number[]>([new(1), new(2)]);
+        static void write() => NativeValue.FromMapped<Number[]>([new(1), new(2)]);
         if (mode.StartsWith("wrong", StringComparison.Ordinal))
         {
             Assert.ThrowsExactly<InvalidCastException>(write);
@@ -764,7 +764,7 @@ public sealed unsafe class PgMappedArrayTests
         NativeValue ordinary = NativeValue.FromArray(new PgArray<int?>([1, null, 2]));
         try
         {
-            Assert.ThrowsExactly<NotSupportedException>(() => ordinary.ReadArray<Kind?>());
+            Assert.ThrowsExactly<NotSupportedException>(ordinary.ReadArray<Kind?>);
             Assert.AreSequenceEqual<int?>([1, null, 2], ordinary.ReadArray<int?>().ToVector());
         }
         finally

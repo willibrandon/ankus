@@ -34,7 +34,7 @@ public sealed class PgSerializationTests
     [DataRow(long.MinValue, "3B7FFFFFFFFFFFFFFF")]
     public void SignedIntegerFixturesPreserveExactValues(long value, string hex)
     {
-        var codec = new ScalarCodec<long>(static (ref PgTypeReader reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
+        var codec = new ScalarCodec<long>(static (ref reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
         Assert.AreEqual(value, codec.Read(Convert.FromHexString(hex)));
         Assert.AreSequenceEqual(Convert.FromHexString(hex), Encode(codec, value));
         string json = value.ToString(CultureInfo.InvariantCulture);
@@ -51,7 +51,7 @@ public sealed class PgSerializationTests
     [DataRow(ulong.MaxValue, "1BFFFFFFFFFFFFFFFF")]
     public void UnsignedIntegerFixturesPreserveExactValues(ulong value, string hex)
     {
-        var codec = new ScalarCodec<ulong>(static (ref PgTypeReader reader) => reader.ReadUInt64(), static (writer, item) => writer.WriteUInt64(item));
+        var codec = new ScalarCodec<ulong>(static (ref reader) => reader.ReadUInt64(), static (writer, item) => writer.WriteUInt64(item));
         Assert.AreEqual(value, codec.Read(Convert.FromHexString(hex)));
         Assert.AreSequenceEqual(Convert.FromHexString(hex), Encode(codec, value));
         string json = value.ToString(CultureInfo.InvariantCulture);
@@ -71,7 +71,7 @@ public sealed class PgSerializationTests
     [DataRow("null", "F6")]
     public void SignedIntegersRejectOverflowAndWrongTokenKinds(string json, string hex)
     {
-        var codec = new ScalarCodec<long>(static (ref PgTypeReader reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
+        var codec = new ScalarCodec<long>(static (ref reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse(json)).SqlState);
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString(hex))).SqlState);
     }
@@ -82,7 +82,7 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void UnsignedIntegersRejectNegativeAndOverflowingValues()
     {
-        var codec = new ScalarCodec<ulong>(static (ref PgTypeReader reader) => reader.ReadUInt64(), static (writer, item) => writer.WriteUInt64(item));
+        var codec = new ScalarCodec<ulong>(static (ref reader) => reader.ReadUInt64(), static (writer, item) => writer.WriteUInt64(item));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse("-1")).SqlState);
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse("18446744073709551616")).SqlState);
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read([0x20])).SqlState);
@@ -96,7 +96,7 @@ public sealed class PgSerializationTests
     [DataRow(true, "true", "F5")]
     public void BooleanFixturesRequireBooleanTokens(bool value, string json, string hex)
     {
-        var codec = new ScalarCodec<bool>(static (ref PgTypeReader reader) => reader.ReadBoolean(), static (writer, item) => writer.WriteBoolean(item));
+        var codec = new ScalarCodec<bool>(static (ref reader) => reader.ReadBoolean(), static (writer, item) => writer.WriteBoolean(item));
         Assert.AreEqual(value, codec.Parse(json));
         Assert.AreEqual(json, codec.Format(value));
         Assert.AreEqual(value, codec.Read(Convert.FromHexString(hex)));
@@ -117,7 +117,7 @@ public sealed class PgSerializationTests
     [DataRow("-18446744073709551616", "3BFFFFFFFFFFFFFFFF")]
     public void DecimalFixturesRemainExact(string json, string hex)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         decimal expected = decimal.Parse(json, CultureInfo.InvariantCulture);
         Assert.AreEqual(expected, codec.Read(Convert.FromHexString(hex)));
         Assert.AreEqual(expected, codec.Parse(json));
@@ -131,7 +131,7 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void DecimalEncodingPreservesScaleAndNinetySixBitRange()
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         Assert.AreSequenceEqual(Convert.FromHexString("C48221193039"), Encode(codec, 123.45m));
         decimal[] values = [decimal.MinValue, decimal.MaxValue, 0.0000000000000000000000000001m, 123.4500m];
         foreach (decimal value in values)
@@ -150,7 +150,7 @@ public sealed class PgSerializationTests
     [DataRow(28, "0.0000000000000000000000000000", "C482381B00")]
     public void DecimalZeroPreservesExactScale(int scale, string json, string hex)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         decimal value = new(0, 0, 0, false, (byte)scale);
         int[] expectedBits = [0, 0, 0, scale << 16];
         Assert.AreSequenceEqual(expectedBits, decimal.GetBits(codec.Read(Convert.FromHexString(hex))));
@@ -168,7 +168,7 @@ public sealed class PgSerializationTests
     [DataRow(28, "-0.0000000000000000000000000000")]
     public void NegativeDecimalZeroIsRejectedAtEveryFormatBoundary(int scale, string json)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         decimal value = new(0, 0, 0, true, (byte)scale);
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse(json)).SqlState);
         Assert.AreEqual("value", Assert.ThrowsExactly<ArgumentException>(() => codec.Format(value)).ParamName);
@@ -184,7 +184,7 @@ public sealed class PgSerializationTests
     [DataRow("79228162514264337593543950336")]
     public void DecimalInputRejectsLossyConversions(string json)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse(json)).SqlState);
     }
 
@@ -199,7 +199,7 @@ public sealed class PgSerializationTests
     [DataRow("0e-9999999999999999999999999999999999999", "0")]
     public void DecimalInputAcceptsExactEquivalentSpellings(string json, string expected)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         Assert.AreEqual(decimal.Parse(expected, CultureInfo.InvariantCulture), codec.Parse(json));
     }
 
@@ -220,7 +220,7 @@ public sealed class PgSerializationTests
     [DataRow("C48220C06178")]
     public void DecimalBinaryInputRejectsInvalidAndLossyValues(string hex)
     {
-        var codec = new ScalarCodec<decimal>(static (ref PgTypeReader reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
+        var codec = new ScalarCodec<decimal>(static (ref reader) => reader.ReadDecimal(), static (writer, item) => writer.WriteDecimal(item));
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString(hex))).SqlState);
     }
 
@@ -230,8 +230,8 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void FloatingPointNegativeZeroPreservesItsSign()
     {
-        var singleCodec = new ScalarCodec<float>(static (ref PgTypeReader reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
-        var doubleCodec = new ScalarCodec<double>(static (ref PgTypeReader reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        var singleCodec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        var doubleCodec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
         float negativeSingle = BitConverter.Int32BitsToSingle(int.MinValue);
         double negativeDouble = BitConverter.Int64BitsToDouble(long.MinValue);
         Assert.AreEqual(int.MinValue, BitConverter.SingleToInt32Bits(singleCodec.Read(Convert.FromHexString("F98000"))));
@@ -250,8 +250,8 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void FloatingPointInputRejectsBinaryPrecisionLoss()
     {
-        var singleCodec = new ScalarCodec<float>(static (ref PgTypeReader reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
-        var doubleCodec = new ScalarCodec<double>(static (ref PgTypeReader reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        var singleCodec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        var doubleCodec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
         Assert.AreEqual(16777216f, singleCodec.Read(Convert.FromHexString("1A01000000")));
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => singleCodec.Read(Convert.FromHexString("1A01000001"))).SqlState);
         Assert.AreEqual(9007199254740992d, doubleCodec.Read(Convert.FromHexString("1B0020000000000000")));
@@ -268,8 +268,8 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void FloatingPointSpecialValuesRespectFormatLimits()
     {
-        var singleCodec = new ScalarCodec<float>(static (ref PgTypeReader reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
-        var doubleCodec = new ScalarCodec<double>(static (ref PgTypeReader reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        var singleCodec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        var doubleCodec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
         Assert.AreEqual(float.PositiveInfinity, singleCodec.Read(Convert.FromHexString("F97C00")));
         Assert.AreEqual(double.NegativeInfinity, doubleCodec.Read(Convert.FromHexString("F9FC00")));
         Assert.IsTrue(double.IsNaN(doubleCodec.Read(Convert.FromHexString("F97E00"))));
@@ -288,8 +288,8 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void FloatingPointUnderflowCannotSilentlyBecomeZero()
     {
-        var singleCodec = new ScalarCodec<float>(static (ref PgTypeReader reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
-        var doubleCodec = new ScalarCodec<double>(static (ref PgTypeReader reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
+        var singleCodec = new ScalarCodec<float>(static (ref reader) => reader.ReadSingle(), static (writer, item) => writer.WriteSingle(item));
+        var doubleCodec = new ScalarCodec<double>(static (ref reader) => reader.ReadDouble(), static (writer, item) => writer.WriteDouble(item));
         Assert.AreEqual(float.Epsilon, singleCodec.Parse("1.401298464324817e-45"));
         Assert.AreEqual(double.Epsilon, doubleCodec.Parse("4.9406564584124654e-324"));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => singleCodec.Parse("1e-46")).SqlState);
@@ -308,7 +308,7 @@ public sealed class PgSerializationTests
     [DataRow("a\0é😀", "686100C3A9F09F9880")]
     public void UnicodeStringFixturesPreserveEveryCodePoint(string value, string hex)
     {
-        var codec = new ScalarCodec<string>(static (ref PgTypeReader reader) => reader.ReadString(), static (writer, item) => writer.WriteString(item));
+        var codec = new ScalarCodec<string>(static (ref reader) => reader.ReadString(), static (writer, item) => writer.WriteString(item));
         byte[] input = Convert.FromHexString(hex);
         string decoded = codec.Read(input);
         input.AsSpan().Clear();
@@ -323,7 +323,7 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void InvalidUnicodeIsRejectedAtTextAndBinaryBoundaries()
     {
-        var codec = new ScalarCodec<string>(static (ref PgTypeReader reader) => reader.ReadString(), static (writer, item) => writer.WriteString(item));
+        var codec = new ScalarCodec<string>(static (ref reader) => reader.ReadString(), static (writer, item) => writer.WriteString(item));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse("\"\\uD800\"")).SqlState);
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => codec.Parse("\"\uD800\"")).SqlState);
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString("62C080"))).SqlState);
@@ -341,7 +341,7 @@ public sealed class PgSerializationTests
     [DataRow("[1]", "8101")]
     public void MalformedAndTrailingInputHasFormatSpecificSqlState(string json, string hex)
     {
-        var codec = new ScalarCodec<long>(static (ref PgTypeReader reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
+        var codec = new ScalarCodec<long>(static (ref reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
         PgException textError = Assert.ThrowsExactly<PgException>(() => codec.Parse(json));
         PgException binaryError = Assert.ThrowsExactly<PgException>(() => codec.Read(Convert.FromHexString(hex)));
         Assert.AreEqual("22P02", textError.SqlState);
@@ -369,7 +369,7 @@ public sealed class PgSerializationTests
         Assert.AreSequenceEqual<string?>([null], codec.Parse("[null]"));
         Assert.AreSequenceEqual<string?>([null], codec.Read([0x81, 0xF6]));
         Assert.IsEmpty(codec.Read([0x9F, 0xFF]));
-        var nullCodec = new ScalarCodec<string?>(static (ref PgTypeReader reader) => reader.ReadNull() ? null : reader.ReadString(), static (writer, item) => writer.WriteString(item!));
+        var nullCodec = new ScalarCodec<string?>(static (ref reader) => reader.ReadNull() ? null : reader.ReadString(), static (writer, item) => writer.WriteString(item!));
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => nullCodec.Parse("null")).SqlState);
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => nullCodec.Read([0xF6])).SqlState);
     }
@@ -465,7 +465,7 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void CodecWritesAppendAndValidateArguments()
     {
-        var codec = new ScalarCodec<long>(static (ref PgTypeReader reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
+        var codec = new ScalarCodec<long>(static (ref reader) => reader.ReadInt64(), static (writer, item) => writer.WriteInt64(item));
         var destination = new ArrayBufferWriter<byte>();
         destination.Write<byte>([0xFF]);
         codec.Write(42, destination);
@@ -480,7 +480,7 @@ public sealed class PgSerializationTests
     [TestMethod]
     public void CodecRejectsAbsentAndIncompleteRootValues()
     {
-        var emptyCodec = new ScalarCodec<int>(static (ref PgTypeReader reader) => 1, static (writer, item) =>
+        var emptyCodec = new ScalarCodec<int>(static (ref reader) => 1, static (writer, item) =>
         {
         });
         Assert.AreEqual("22P02", Assert.ThrowsExactly<PgException>(() => emptyCodec.Parse("")).SqlState);
@@ -490,7 +490,7 @@ public sealed class PgSerializationTests
         Assert.AreEqual("22P03", Assert.ThrowsExactly<PgException>(() => emptyCodec.Read([1])).SqlState);
         Assert.ThrowsExactly<InvalidOperationException>(() => emptyCodec.Format(1));
         Assert.ThrowsExactly<InvalidOperationException>(() => Encode(emptyCodec, 1));
-        var incompleteCodec = new ScalarCodec<int>(static (ref PgTypeReader reader) => 1, static (writer, item) =>
+        var incompleteCodec = new ScalarCodec<int>(static (ref reader) => 1, static (writer, item) =>
         {
             writer.WriteStartArray(1);
             writer.WriteInt64(item);

@@ -361,7 +361,7 @@ public sealed unsafe class PgAtomicTests
 
         Assert.AreEqual(int.MinValue, fixture.Access->_readers);
         long replacement = -91;
-        fixture.Access->_address = (long)(&replacement);
+        fixture.Access->_address = (long)&replacement;
         fixture.Access->_readers = 0;
         Assert.AreEqual(-91L, storage.Value);
         Assert.AreEqual(-91L, storage.Exchange(-97));

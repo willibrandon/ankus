@@ -209,26 +209,14 @@ public sealed class NativeBindingCompilationTests(TestContext context)
 
     private async Task<string[]> SettingsAsync(string root, string[]? restoreArguments = null)
     {
-        AssemblyMetadataAttribute[] metadata = [.. typeof(NativeBindingCompilationTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()];
-        string sdkVersion = Assert.ContainsSingle(metadata.Where(static item => item.Key == "AnkusTestSdkVersion")).Value!;
-        string sdkDirectory = Assert.ContainsSingle(metadata.Where(static item => item.Key == "AnkusTestSdkDirectory")).Value!;
-        await File.WriteAllTextAsync(Path.Combine(root, "global.json"), JsonSerializer.Serialize(new
-        {
-            sdk = new
-            {
-                version = sdkVersion,
-                rollForward = "disable",
-                allowPrerelease = true,
-                paths = new[] { Path.GetFullPath(Path.Combine(sdkDirectory, "..", "..")) },
-            },
-        }), context.CancellationToken);
+        await TestDotnetSdk.ConfigureAsync(root, context.CancellationToken);
         string project = Path.Combine(root, "Settings.csproj");
         await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>", context.CancellationToken);
         string properties = await NativeBindingLayoutCommand.RunProcessAsync("dotnet", ["msbuild", project, "-nologo",
             "-restore", "-target:ResolveReferences", "-verbosity:quiet", "-getProperty:NETCoreSdkVersion,MSBuildToolsPath,ProjectAssetsFile", .. restoreArguments ?? []], root, context.CancellationToken);
         using JsonDocument document = JsonDocument.Parse(properties);
         JsonElement values = document.RootElement.GetProperty("Properties");
-        Assert.AreEqual(sdkVersion, values.GetProperty("NETCoreSdkVersion").GetString());
+        Assert.AreEqual(TestDotnetSdk.Version, values.GetProperty("NETCoreSdkVersion").GetString());
         File.Copy(typeof(PgDatum).Assembly.Location, Path.Combine(root, "Ankus.Runtime.dll"), overwrite: true);
         return [values.GetProperty("NETCoreSdkVersion").GetString()!, values.GetProperty("MSBuildToolsPath").GetString()!, values.GetProperty("ProjectAssetsFile").GetString()!];
     }

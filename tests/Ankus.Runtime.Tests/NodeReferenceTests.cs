@@ -63,7 +63,7 @@ public sealed unsafe partial class NodeReferenceTests
         Assert.AreEqual(uint.MaxValue, root.Tag);
         Assert.IsNull(root.TryCast<SampleNode>());
         root.Value = new NodeHeader { _tag = 7 };
-        Assert.ThrowsExactly<InvalidCastException>(() => root.TryCast<SampleNode>());
+        Assert.ThrowsExactly<InvalidCastException>(root.TryCast<SampleNode>);
         Assert.AreEqual(7U, value._tag);
     }
 

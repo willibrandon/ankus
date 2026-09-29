@@ -160,7 +160,7 @@ public static class NumericContractFunctions
 
     private static T GenericProduct<T>(T left, T right)
         where T : IMultiplyOperators<T, T, T>, IMultiplicativeIdentity<T, T>, IUnaryPlusOperators<T, T>
-        => (+left * right) * T.MultiplicativeIdentity;
+        => +left * right * T.MultiplicativeIdentity;
 
     /// <summary>
     /// Checks failures unwind, preserve prior writes/plans, and release native operation contexts.

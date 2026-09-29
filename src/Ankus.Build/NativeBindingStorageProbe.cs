@@ -216,7 +216,7 @@ internal static class NativeBindingStorageProbe
             }
             else
             {
-                symbols.Add(name, new(Array.Empty<NativeHeaderValueStorage>(), null, observed[(name, "global")]));
+                symbols.Add(name, new([], null, observed[(name, "global")]));
             }
         }
 

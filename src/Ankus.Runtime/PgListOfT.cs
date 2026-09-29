@@ -77,7 +77,7 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         set
         {
             ValidateRange(index, 1);
-            Span<ulong> bits = stackalloc ulong[1] { NativeListValues.ToBits(value) };
+            Span<ulong> bits = [NativeListValues.ToBits(value)];
             Transfer(NativeListOperation.Write, bits, index);
             _version++;
         }
@@ -90,7 +90,7 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     public void Add(T item)
     {
         EnsureBound();
-        Span<ulong> bits = stackalloc ulong[1] { NativeListValues.ToBits(item) };
+        Span<ulong> bits = [NativeListValues.ToBits(item)];
         Transfer(NativeListOperation.Add, bits);
         _version++;
     }
@@ -131,7 +131,7 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
             return false;
         }
 
-        Span<ulong> bits = stackalloc ulong[1] { NativeListValues.ToBits(item) };
+        Span<ulong> bits = [NativeListValues.ToBits(item)];
         bool added = Transfer(NativeListOperation.TryAdd, bits)._value != 0;
         if (added)
         {
@@ -162,7 +162,7 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
     {
         ValidateRange(index, 0);
         EnsureBound();
-        Span<ulong> bits = stackalloc ulong[1] { NativeListValues.ToBits(item) };
+        Span<ulong> bits = [NativeListValues.ToBits(item)];
         Transfer(NativeListOperation.Insert, bits, index);
         _version++;
     }
@@ -613,7 +613,7 @@ public sealed class PgList<T> : IList<T>, IReadOnlyList<T>, IDisposable where T 
         }
         catch (PgException exception) when (exception.SqlState == PgSqlStates.ObjectNotInPrerequisiteState)
         {
-            throw new ObjectDisposedException(nameof(PgList<T>), "The PostgreSQL list or its context has been reclaimed.");
+            throw new ObjectDisposedException(nameof(PgList<>), "The PostgreSQL list or its context has been reclaimed.");
         }
     }
 

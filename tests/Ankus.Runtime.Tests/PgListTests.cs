@@ -36,14 +36,14 @@ public sealed unsafe class PgListTests
         list.AddRange([]);
         Assert.IsEmpty(list.ToArray());
         Assert.IsEmpty(list.Drain(0, 0));
-        list.CopyTo(Span<int>.Empty);
+        list.CopyTo([]);
         using IEnumerator<int> iterator = list.GetEnumerator();
         Assert.IsFalse(iterator.MoveNext());
         list.Dispose();
         list.Dispose();
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = list.Count);
         Assert.ThrowsExactly<ObjectDisposedException>(() => list.TryAdd(1));
-        Assert.ThrowsExactly<ObjectDisposedException>(() => list.Clear());
+        Assert.ThrowsExactly<ObjectDisposedException>(list.Clear);
         Assert.ThrowsExactly<ObjectDisposedException>(() => list.DangerousDetach());
     }
 
@@ -186,7 +186,7 @@ public sealed unsafe class PgListTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.Drain(0, -1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.Drain(int.MaxValue, int.MaxValue));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.TryReserve(-1));
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.CopyTo(Span<int>.Empty, 1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.CopyTo([], 1));
         Assert.ThrowsExactly<ArgumentNullException>(() => list.CopyTo(null!, 0));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => list.CopyTo([], -1));
         Assert.ThrowsExactly<ArgumentException>(() => list.CopyTo(Array.Empty<int>(), 1));
@@ -216,7 +216,7 @@ public sealed unsafe class PgListTests
         Assert.IsTrue(iterator.MoveNext());
         Assert.AreEqual(10, iterator.Current);
         Assert.AreEqual(10, ((IEnumerator)iterator).Current);
-        Assert.ThrowsExactly<NotSupportedException>(() => iterator.Reset());
+        Assert.ThrowsExactly<NotSupportedException>(iterator.Reset);
         list[0] = 20;
         Assert.ThrowsExactly<InvalidOperationException>(() => iterator.MoveNext());
         Assert.ThrowsExactly<InvalidOperationException>(() => _ = iterator.Current);
@@ -265,7 +265,7 @@ public sealed unsafe class PgListTests
         Assert.AreEqual(333, (nint)list.DangerousDetach());
         list.Dispose();
         Assert.DoesNotContain(request => Is(request, NativeListOperation.Dispose), fixture.Requests);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => list.ToArray());
+        Assert.ThrowsExactly<ObjectDisposedException>(list.ToArray);
         using PgList<int> nil = PgList.DangerousBorrow<int>(null, owner);
         Assert.AreEqual(0, fixture.Requests.Last(request => Is(request, NativeListOperation.Borrow))._pointer);
         reject = true;
@@ -291,12 +291,12 @@ public sealed unsafe class PgListTests
         {
             int requests = fixture.Requests.Count;
             Assert.ThrowsExactly<InvalidOperationException>(() => _ = list.Count);
-            Assert.ThrowsExactly<InvalidOperationException>(() => list.Dispose());
+            Assert.ThrowsExactly<InvalidOperationException>(list.Dispose);
             Assert.HasCount(requests, fixture.Requests);
         }
 
         stale = true;
-        Assert.ThrowsExactly<ObjectDisposedException>(() => list.CopyTo(Span<int>.Empty));
+        Assert.ThrowsExactly<ObjectDisposedException>(() => list.CopyTo([]));
         Assert.ThrowsExactly<ObjectDisposedException>(() => list.TryReserve(0));
         Assert.IsGreaterThan(0, fixture.ErrorReleases);
         list.Dispose();

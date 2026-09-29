@@ -114,7 +114,7 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <returns>A negative, zero or positive value for less than, equal to or greater than.</returns>
     public int CompareTo(PgCString? other) => other is null ? 1 : AsSpan().SequenceCompareTo(other.AsSpan());
 
-    int IComparable.CompareTo(object? obj) => obj is null || obj is PgCString
+    int IComparable.CompareTo(object? obj) => obj is null or PgCString
         ? CompareTo((PgCString?)obj)
         : throw new ArgumentException("The value must be a PgCString.", nameof(obj));
 
@@ -138,7 +138,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the values are equal.</returns>
-    public static bool operator ==(PgCString? left, PgCString? right) => Equals(left, right);
+    public static bool operator ==(PgCString? left, PgCString? right)
+    {
+        return Equals(left, right);
+    }
 
     /// <summary>
     /// Compares two nullable values for differing payload bytes.
@@ -146,7 +149,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the values differ.</returns>
-    public static bool operator !=(PgCString? left, PgCString? right) => !Equals(left, right);
+    public static bool operator !=(PgCString? left, PgCString? right)
+    {
+        return !Equals(left, right);
+    }
 
     /// <summary>
     /// Compares nullable values in unsigned byte order.
@@ -154,7 +160,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the first value precedes the second.</returns>
-    public static bool operator <(PgCString? left, PgCString? right) => Compare(left, right) < 0;
+    public static bool operator <(PgCString? left, PgCString? right)
+    {
+        return Compare(left, right) < 0;
+    }
 
     /// <summary>
     /// Compares nullable values in unsigned byte order.
@@ -162,7 +171,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the first value follows the second.</returns>
-    public static bool operator >(PgCString? left, PgCString? right) => Compare(left, right) > 0;
+    public static bool operator >(PgCString? left, PgCString? right)
+    {
+        return Compare(left, right) > 0;
+    }
 
     /// <summary>
     /// Compares nullable values in unsigned byte order.
@@ -170,7 +182,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the first value precedes or equals the second.</returns>
-    public static bool operator <=(PgCString? left, PgCString? right) => Compare(left, right) <= 0;
+    public static bool operator <=(PgCString? left, PgCString? right)
+    {
+        return Compare(left, right) <= 0;
+    }
 
     /// <summary>
     /// Compares nullable values in unsigned byte order.
@@ -178,7 +193,10 @@ public sealed class PgCString(ReadOnlySpan<byte> bytes) : IReadOnlyList<byte>, I
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>Whether the first value follows or equals the second.</returns>
-    public static bool operator >=(PgCString? left, PgCString? right) => Compare(left, right) >= 0;
+    public static bool operator >=(PgCString? left, PgCString? right)
+    {
+        return Compare(left, right) >= 0;
+    }
 
     /// <summary>
     /// Orders null before present values and delegates present comparisons to their bytes.

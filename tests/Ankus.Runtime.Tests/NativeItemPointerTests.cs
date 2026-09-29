@@ -40,7 +40,7 @@ public sealed unsafe class NativeItemPointerTests
         Assert.HasCount(1, fixture.Requests.Where(request => request._operation == NativeMemoryOperation.Free));
         Assert.ThrowsExactly<ObjectDisposedException>(() => _ = owner.Value);
         Assert.ThrowsExactly<ObjectDisposedException>(() => second.Value = default);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => second.Borrow());
+        Assert.ThrowsExactly<ObjectDisposedException>(second.Borrow);
         Assert.ThrowsExactly<ObjectDisposedException>(() => second.DangerousGetPointer());
     }
 
@@ -129,7 +129,7 @@ public sealed unsafe class NativeItemPointerTests
         using (MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(18))
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => _ = owner.Value);
-            Assert.ThrowsExactly<InvalidOperationException>(() => owner.Dispose());
+            Assert.ThrowsExactly<InvalidOperationException>(owner.Dispose);
             Assert.HasCount(before, fixture.Requests);
         }
 
@@ -139,7 +139,7 @@ public sealed unsafe class NativeItemPointerTests
         Assert.AreEqual(1, fixture.ErrorReleases);
         fixture.Handler = request => request._operation == NativeMemoryOperation.Free
             ? throw new PgException("53200", "retry the native free") : Respond(fixture, request);
-        PgException error = Assert.ThrowsExactly<PgException>(() => owner.Dispose());
+        PgException error = Assert.ThrowsExactly<PgException>(owner.Dispose);
         Assert.AreEqual("53200", error.SqlState);
         Assert.AreEqual("retry the native free", error.Message);
         Assert.AreEqual(2, fixture.ErrorReleases);

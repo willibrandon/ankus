@@ -102,8 +102,8 @@ public static class MemoryContextFunctions
         bytes.Clear(2, 3);
         byte[] result = new byte[8];
         bytes.Read(result);
-        bytes.Read(Span<byte>.Empty, 8);
-        bytes.Write(ReadOnlySpan<byte>.Empty, 8);
+        bytes.Read([], 8);
+        bytes.Write([], 8);
         int rejected = 0;
         foreach (Action action in new Action[]
         {
@@ -125,8 +125,8 @@ public static class MemoryContextFunctions
 
         bool nativeOwner = bytes.Context.Id == owner.Id;
         using PgAllocation empty = owner.AllocateZeroed(0);
-        empty.Read(Span<byte>.Empty);
-        empty.Write(ReadOnlySpan<byte>.Empty);
+        empty.Read([]);
+        empty.Write([]);
         empty.Clear();
         using PgAllocation tried = owner.TryAllocate(1, zeroed: true) ?? throw new InvalidOperationException("A one-byte allocation failed.");
         return $"{initial}|{Convert.ToHexString(result)}|{tail}|{nativeOwner}|{rejected}|{empty.Length}|{tried.Read<byte>()}";

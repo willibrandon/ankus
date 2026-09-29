@@ -229,7 +229,7 @@ public sealed unsafe class PgNativeReference<T> where T : unmanaged
         }
         catch (PgException exception) when (exception.SqlState == "55000")
         {
-            throw new ObjectDisposedException(nameof(PgNativeReference<T>), "The PostgreSQL reference lifetime anchor has been reset or deleted.");
+            throw new ObjectDisposedException(nameof(PgNativeReference<>), "The PostgreSQL reference lifetime anchor has been reset or deleted.");
         }
     }
 }

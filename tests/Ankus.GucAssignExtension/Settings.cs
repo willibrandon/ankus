@@ -20,6 +20,11 @@ public static partial class Settings
     /// <param name="extra">The optional copied hook data.</param>
     internal static void Assign(int accepted, PgGucExtra? extra)
     {
+        if (extra is not null)
+        {
+            throw new InvalidOperationException("Assign-only setting received check-hook data.");
+        }
+
         using PgMemoryContext memory = PgMemoryContext.Create("assign memory");
         using PgAllocation value = memory.Allocate(sizeof(int));
         value.Write(accepted);

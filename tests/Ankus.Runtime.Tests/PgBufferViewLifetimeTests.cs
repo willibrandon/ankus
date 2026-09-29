@@ -45,7 +45,7 @@ public sealed partial class PgBufferViewTests
             else
             {
                 Assert.IsEmpty(primary.Data);
-                Assert.ThrowsExactly<ObjectDisposedException>(() => text.ToString());
+                Assert.ThrowsExactly<ObjectDisposedException>(text.ToString);
                 Assert.AreSequenceEqual<nint>([203, 202], script.Deleted);
             }
         }
@@ -99,10 +99,10 @@ public sealed partial class PgBufferViewTests
         using (MemoryContextTestFixture.Enter(29))
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => _ = binary[0]);
-            Assert.ThrowsExactly<InvalidOperationException>(() => text.ToString());
+            Assert.ThrowsExactly<InvalidOperationException>(text.ToString);
             Assert.ThrowsExactly<InvalidOperationException>(binary.Dispose);
             Assert.ThrowsExactly<InvalidOperationException>(text.Dispose);
-            Assert.ThrowsExactly<InvalidOperationException>(() => cstring.ToOwned());
+            Assert.ThrowsExactly<InvalidOperationException>(cstring.ToOwned);
             Assert.ThrowsExactly<InvalidOperationException>(cstring.Dispose);
         }
 

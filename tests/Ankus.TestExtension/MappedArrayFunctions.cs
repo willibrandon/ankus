@@ -869,7 +869,14 @@ public static class MappedArrayCollectAggregate
     /// Removes precisely the outgoing first row, including a NULL value.
     /// </summary>
     public static PgArray<ArrayValue?> MovingInverse(PgArray<ArrayValue?> state, ArrayValue? value)
-        => new(state.Skip(1));
+    {
+        if (state[0] != value)
+        {
+            throw new InvalidOperationException("Mapped moving inverse received a different outgoing value.");
+        }
+
+        return new(state.Skip(1));
+    }
 
     /// <summary>
     /// Returns mapped array state under the moving final helper.

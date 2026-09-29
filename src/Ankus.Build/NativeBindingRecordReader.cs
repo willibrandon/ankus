@@ -99,7 +99,7 @@ internal sealed unsafe class NativeBindingRecordReader(NativeClang library, Nati
         }
 
         string spelling = library.PrintType(type, root);
-        if (spelling.Length == 0 || spelling.Length > 1_048_576)
+        if (spelling.Length is 0 or > 1_048_576)
         {
             throw new FormatException("Invalid native type spelling.");
         }

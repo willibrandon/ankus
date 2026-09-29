@@ -430,10 +430,10 @@ public sealed unsafe class PgDatumMappingTests
         const string message = "The mapped PostgreSQL type has no datum reader.";
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => present.Read<ArrayKind[]>()).Message);
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<ArrayKind[]>()).Message);
-        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => present.Read<PgArray<ArrayKind>>()).Message);
-        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<PgArray<ArrayKind>>()).Message);
+        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(present.Read<PgArray<ArrayKind>>).Message);
+        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(absent.Read<PgArray<ArrayKind>>).Message);
         Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<ArrayKind?[]>()).Message);
-        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(() => absent.Read<PgArray<ArrayKind?>>()).Message);
+        Assert.AreEqual(message, Assert.ThrowsExactly<NotSupportedException>(absent.Read<PgArray<ArrayKind?>>).Message);
         int[] underlying = [0, 1];
         var row = new SpiRow([underlying], [new SpiColumn("value", 1007)]);
         Assert.AreEqual("Mapped datum arrays require PgDatum.Read<T>(); ordinary array conversion is not supported.",

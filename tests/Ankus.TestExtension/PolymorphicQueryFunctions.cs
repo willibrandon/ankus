@@ -16,7 +16,7 @@ public static class PolymorphicQueryFunctions
     /// <returns>The independently retained query result.</returns>
     [PgFunction]
     public static PgAnyElement? PolyQueryValue(PgAnyElement? value, int mode, PgFunctionContext call)
-        => ReadResult<PgAnyElement?>(call.Arguments[0], mode);
+        => ReadResult<PgAnyElement?>(RequireInput(value?.Datum, call.Arguments[0]), mode);
 
     /// <summary>
     /// Returns an array after converting its eager cells and closing its query owner.
@@ -28,7 +28,7 @@ public static class PolymorphicQueryFunctions
     [PgFunction]
     public static PgAnyArray? PolyQueryArray(PgAnyArray? value, int mode, PgFunctionContext call)
     {
-        PgAnyArray? result = ReadResult<PgAnyArray?>(call.Arguments[0], mode);
+        PgAnyArray? result = ReadResult<PgAnyArray?>(RequireInput(value?.Datum, call.Arguments[0]), mode);
         if (result is not null)
         {
             foreach (PgAnyElement? cell in result)
@@ -50,7 +50,7 @@ public static class PolymorphicQueryFunctions
     [PgFunction]
     public static string PolyQueryArrayInfo(PgAnyElement value, int mode, PgFunctionContext call)
     {
-        PgAnyArray result = ReadResult<PgAnyArray>(call.Arguments[0], mode);
+        PgAnyArray result = ReadResult<PgAnyArray>(RequireInput(value.Datum, call.Arguments[0]), mode);
         return string.Create(CultureInfo.InvariantCulture, $"{result.TypeOid}|{PolymorphicFunctions.PolyArrayShape(result)}");
     }
 
@@ -65,7 +65,7 @@ public static class PolymorphicQueryFunctions
     [PgFunction]
     public static IEnumerable<PgAnyElement?> PolyQueryRepeat(PgAnyElement? value, int mode, int count, PgFunctionContext call)
     {
-        PgAnyElement? result = ReadResult<PgAnyElement?>(call.Arguments[0], mode);
+        PgAnyElement? result = ReadResult<PgAnyElement?>(RequireInput(value?.Datum, call.Arguments[0]), mode);
         for (int index = 0; index < count; index++)
         {
             yield return result;
@@ -200,6 +200,22 @@ public static class PolymorphicQueryFunctions
         {
             return exception.SqlState;
         }
+    }
+
+    /// <summary>
+    /// Checks managed argument conversion preserved the native NULL flag and type identity.
+    /// </summary>
+    /// <param name="value">The managed wrapper's present datum.</param>
+    /// <param name="input">The independent native call argument.</param>
+    /// <returns>The verified native argument, including typed SQL NULL.</returns>
+    private static PgDatum RequireInput(PgDatum? value, PgDatum input)
+    {
+        if (input.IsNull != (value is null) || value is not null && value.TypeOid != input.TypeOid)
+        {
+            throw new InvalidOperationException("Polymorphic input conversion changed its native identity.");
+        }
+
+        return input;
     }
 
     /// <summary>

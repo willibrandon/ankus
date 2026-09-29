@@ -214,9 +214,9 @@ public sealed class PgEventTriggerTests
             NativeEventTrigger.Exit(context);
         }
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => context.GetDdlCommands());
-        Assert.ThrowsExactly<InvalidOperationException>(() => context.GetDroppedObjects());
-        Assert.ThrowsExactly<InvalidOperationException>(() => context.GetTableRewrite());
+        Assert.ThrowsExactly<InvalidOperationException>(context.GetDdlCommands);
+        Assert.ThrowsExactly<InvalidOperationException>(context.GetDroppedObjects);
+        Assert.ThrowsExactly<InvalidOperationException>(context.GetTableRewrite);
         Assert.AreEqual(allowedHelper < 0 ? 0 : 1, s_queryCount);
     }
 
@@ -296,7 +296,7 @@ public sealed class PgEventTriggerTests
         {
             if (helper == 2)
             {
-                Assert.ThrowsExactly<InvalidOperationException>(() => context.GetTableRewrite());
+                Assert.ThrowsExactly<InvalidOperationException>(context.GetTableRewrite);
             }
             else
             {
@@ -330,7 +330,7 @@ public sealed class PgEventTriggerTests
             rewrite = context.GetTableRewrite();
             Assert.AreEqual(1, s_releaseCount);
             s_result = new SpiResult(ResultColumns(row), [row, row], 2);
-            Assert.ThrowsExactly<InvalidOperationException>(() => context.GetTableRewrite());
+            Assert.ThrowsExactly<InvalidOperationException>(context.GetTableRewrite);
             Assert.AreEqual(2, s_releaseCount);
         }
         finally
@@ -357,10 +357,10 @@ public sealed class PgEventTriggerTests
             try
             {
                 Assert.AreSame(parent, child.Parent);
-                Assert.ThrowsExactly<InvalidOperationException>(() => parent.GetDdlCommands());
+                Assert.ThrowsExactly<InvalidOperationException>(parent.GetDdlCommands);
                 Assert.ThrowsExactly<InvalidOperationException>(() => NativeEventTrigger.Exit(parent));
                 Assert.AreSame(parent, child.Parent);
-                Assert.ThrowsExactly<PgException>(() => child.GetDroppedObjects());
+                Assert.ThrowsExactly<PgException>(child.GetDroppedObjects);
             }
             finally
             {
@@ -369,11 +369,11 @@ public sealed class PgEventTriggerTests
 
             Assert.IsNull(child.Parent);
             Assert.AreEqual("sql_drop", child.Event);
-            Assert.ThrowsExactly<InvalidOperationException>(() => child.GetDroppedObjects());
+            Assert.ThrowsExactly<InvalidOperationException>(child.GetDroppedObjects);
             Assert.ThrowsExactly<InvalidOperationException>(() => NativeEventTrigger.Exit(child));
-            Assert.ThrowsExactly<PgException>(() => parent.GetDdlCommands());
+            Assert.ThrowsExactly<PgException>(parent.GetDdlCommands);
             Assert.ThrowsExactly<InvalidOperationException>(() => Enter("unknown"));
-            Assert.ThrowsExactly<PgException>(() => parent.GetDdlCommands());
+            Assert.ThrowsExactly<PgException>(parent.GetDdlCommands);
         }
         finally
         {
@@ -408,7 +408,7 @@ public sealed class PgEventTriggerTests
             Assert.ThrowsExactly<ArgumentException>(() => ThrowFromChild(out child));
             Assert.IsNotNull(child);
             Assert.IsNull(child.Parent);
-            Assert.ThrowsExactly<PgException>(() => parent.GetDdlCommands());
+            Assert.ThrowsExactly<PgException>(parent.GetDdlCommands);
         }
         finally
         {
@@ -464,7 +464,7 @@ public sealed class PgEventTriggerTests
                 ExceptionDispatchInfo.Capture(failure).Throw();
             }
 
-            Assert.ThrowsExactly<PgException>(() => context.GetDdlCommands());
+            Assert.ThrowsExactly<PgException>(context.GetDdlCommands);
         }
         finally
         {

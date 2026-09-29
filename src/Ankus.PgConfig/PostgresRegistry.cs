@@ -125,7 +125,7 @@ public sealed class PostgresRegistry(string? homeDirectory = null)
     {
         if (!File.Exists(ConfigurationPath))
         {
-            return new JsonObject();
+            return [];
         }
 
         return JsonNode.Parse(File.ReadAllText(ConfigurationPath)) as JsonObject ??

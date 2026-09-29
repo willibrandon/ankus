@@ -64,7 +64,7 @@ public sealed class PgNetworkTests
         Assert.ThrowsExactly<ArgumentException>(() => new PgInet(IPAddress.Parse("fe80::1%3")));
         var value = new PgInet(IPAddress.Parse("192.0.2.129"), 25);
         Assert.ThrowsExactly<ArgumentException>(() => new PgCidr(value));
-        Assert.ThrowsExactly<InvalidCastException>(() => value.ToIPAddress());
+        Assert.ThrowsExactly<InvalidCastException>(value.ToIPAddress);
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => value.WithPrefixLength(33));
         Assert.AreEqual("192.0.2.129/24", value.WithPrefixLength(24).ToString());
         Assert.AreEqual("192.0.2.0/24", value.Network.WithPrefixLength(24).ToString());

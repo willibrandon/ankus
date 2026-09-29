@@ -29,7 +29,7 @@ public sealed unsafe partial class NativeReferenceTests
         Assert.AreEqual(502, fixture.Requests[^1]._context);
         allocation.Reallocate(11);
         Assert.AreEqual((nuint)7, prefix.AvailableLength);
-        Assert.ThrowsExactly<InvalidCastException>(() => prefix.Reinterpret<long>());
+        Assert.ThrowsExactly<InvalidCastException>(prefix.Reinterpret<long>);
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => roundtrip.Value);
         allocation.Reallocate(12);
         Assert.AreEqual(-17, prefix.Reinterpret<long>().Value);
@@ -48,11 +48,11 @@ public sealed unsafe partial class NativeReferenceTests
         PgNativeReference<long> reference = allocation.Borrow<long>();
         allocation.Reallocate(4);
         fixture.Requests.Clear();
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => reference.Reinterpret<int>());
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(reference.Reinterpret<int>);
         Assert.IsEmpty(fixture.Requests);
         allocation.Dispose();
         fixture.Requests.Clear();
-        Assert.ThrowsExactly<ObjectDisposedException>(() => reference.Reinterpret<int>());
+        Assert.ThrowsExactly<ObjectDisposedException>(reference.Reinterpret<int>);
         Assert.IsEmpty(fixture.Requests);
     }
 
@@ -95,8 +95,8 @@ public sealed unsafe partial class NativeReferenceTests
         Assert.IsNotNull(reference);
         PgNativeReference<byte> prefix = reference.Reinterpret<byte>();
         Assert.AreEqual((nuint)sizeof(int), prefix.AvailableLength);
-        Assert.ThrowsExactly<InvalidCastException>(() => reference.Reinterpret<long>());
-        Assert.ThrowsExactly<InvalidCastException>(() => prefix.Reinterpret<long>());
+        Assert.ThrowsExactly<InvalidCastException>(reference.Reinterpret<long>);
+        Assert.ThrowsExactly<InvalidCastException>(prefix.Reinterpret<long>);
         Assert.AreEqual(0x1020304050607080L, value);
     }
 
@@ -163,15 +163,15 @@ public sealed unsafe partial class NativeReferenceTests
         fixture.Requests.Clear();
         using (MemoryContextTestFixture.Enter(29))
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => prefix.Reinterpret<long>());
+            Assert.ThrowsExactly<InvalidOperationException>(prefix.Reinterpret<long>);
         }
 
         Assert.IsEmpty(fixture.Requests);
         fixture.Handler = request => request._operation == NativeMemoryOperation.ReadReference
             ? throw new PgException("55000", "old generation")
             : fixture.Respond(request);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => reference.Reinterpret<int>());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => prefix.Reinterpret<long>());
+        Assert.ThrowsExactly<ObjectDisposedException>(reference.Reinterpret<int>);
+        Assert.ThrowsExactly<ObjectDisposedException>(prefix.Reinterpret<long>);
         Assert.IsTrue(fixture.Requests.All(static request => request._operation == NativeMemoryOperation.ReadReference && request._other == 901));
         Assert.AreEqual(2, fixture.ErrorReleases);
         Assert.AreEqual(7, value);

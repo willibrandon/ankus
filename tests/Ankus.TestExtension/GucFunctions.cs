@@ -343,7 +343,14 @@ public static partial class GucFunctions
     /// <param name="source">The native configuration source.</param>
     /// <returns>The normalized text and original bytes.</returns>
     internal static PgGucCheckResult<string?> CheckText(string? value, PgGucSource source)
-        => new(Control == "unrepresentable" ? "🐘" : value?.Trim(), value is null ? null : new PgGucExtra(Encoding.UTF8.GetBytes(value)));
+    {
+        if (!Enum.IsDefined(source))
+        {
+            throw new InvalidOperationException("Text check received an unknown native GUC source.");
+        }
+
+        return new(Control == "unrepresentable" ? "🐘" : value?.Trim(), value is null ? null : new PgGucExtra(Encoding.UTF8.GetBytes(value)));
+    }
 
     /// <summary>
     /// Observes nullable string assignment before native storage changes.
@@ -394,6 +401,11 @@ public static partial class GucFunctions
     /// <returns>The report display text.</returns>
     internal static string ShowReported(int value, PgGucExtra? extra)
     {
+        if (extra is not null)
+        {
+            throw new InvalidOperationException("Show-only setting received check-hook data.");
+        }
+
         if (Control == "logging")
         {
             PgLog.Write(PgLogLevel.Notice, $"report={value};sql={ProbeSql()};café 100%");

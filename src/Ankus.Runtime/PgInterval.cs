@@ -162,27 +162,50 @@ public readonly record struct PgInterval
     /// <summary>
     /// Adds interval components using PostgreSQL's rules.
     /// </summary>
-    public static PgInterval operator +(PgInterval left, PgInterval right) => left.Add(right);
+    public static PgInterval operator +(PgInterval left, PgInterval right)
+    {
+        return left.Add(right);
+    }
+
     /// <summary>
     /// Subtracts interval components using PostgreSQL's rules.
     /// </summary>
-    public static PgInterval operator -(PgInterval left, PgInterval right) => left.Subtract(right);
+    public static PgInterval operator -(PgInterval left, PgInterval right)
+    {
+        return left.Subtract(right);
+    }
+
     /// <summary>
     /// Negates an interval using PostgreSQL's rules.
     /// </summary>
-    public static PgInterval operator -(PgInterval value) => value.Negate();
+    public static PgInterval operator -(PgInterval value)
+    {
+        return value.Negate();
+    }
+
     /// <summary>
     /// Scales an interval using PostgreSQL's fractional-month/day rules.
     /// </summary>
-    public static PgInterval operator *(PgInterval interval, double factor) => interval.Multiply(factor);
+    public static PgInterval operator *(PgInterval interval, double factor)
+    {
+        return interval.Multiply(factor);
+    }
+
     /// <summary>
     /// Scales an interval using PostgreSQL's fractional-month/day rules.
     /// </summary>
-    public static PgInterval operator *(double factor, PgInterval interval) => interval.Multiply(factor);
+    public static PgInterval operator *(double factor, PgInterval interval)
+    {
+        return interval.Multiply(factor);
+    }
+
     /// <summary>
     /// Divides an interval using PostgreSQL's fractional-month/day rules.
     /// </summary>
-    public static PgInterval operator /(PgInterval interval, double divisor) => interval.Divide(divisor);
+    public static PgInterval operator /(PgInterval interval, double divisor)
+    {
+        return interval.Divide(divisor);
+    }
 
     /// <summary>
     /// Parses PostgreSQL interval syntax on the active backend thread.

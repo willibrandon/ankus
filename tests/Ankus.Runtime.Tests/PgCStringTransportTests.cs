@@ -52,22 +52,22 @@ public sealed class PgCStringTransportTests
     public void InvalidCStringTransportsRejectLoss()
     {
         NativeValue absent = new() { IsNull = 1 };
-        Assert.ThrowsExactly<InvalidOperationException>(() => absent.ReadCString());
-        Assert.ThrowsExactly<InvalidOperationException>(() => absent.ReadBorrowedCString());
-        Assert.ThrowsExactly<InvalidOperationException>(() => absent.ReadOwnedCStringView());
+        Assert.ThrowsExactly<InvalidOperationException>(absent.ReadCString);
+        Assert.ThrowsExactly<InvalidOperationException>(absent.ReadBorrowedCString);
+        Assert.ThrowsExactly<InvalidOperationException>(absent.ReadOwnedCStringView);
         NativeValue missing = default;
         Length(ref missing) = 1;
         Assert.ThrowsExactly<InvalidOperationException>(() => missing.ReadCString());
         Length(ref missing) = -1;
         Assert.ThrowsExactly<InvalidOperationException>(() => missing.ReadCString());
         NativeValue zeroAddress = default;
-        Assert.ThrowsExactly<InvalidOperationException>(() => zeroAddress.ReadBorrowedCString());
-        Assert.ThrowsExactly<InvalidOperationException>(() => zeroAddress.ReadOwnedCStringView());
+        Assert.ThrowsExactly<InvalidOperationException>(zeroAddress.ReadBorrowedCString);
+        Assert.ThrowsExactly<InvalidOperationException>(zeroAddress.ReadOwnedCStringView);
         Assert.AreEqual("value", Assert.ThrowsExactly<ArgumentNullException>(() => NativeValue.FromCString(null!)).ParamName);
         NativeValue terminated = NativeValue.FromBytes([65, 0, 66]);
         try
         {
-            Assert.AreEqual("bytes", Assert.ThrowsExactly<ArgumentException>(() => terminated.ReadCString()).ParamName);
+            Assert.AreEqual("bytes", Assert.ThrowsExactly<ArgumentException>(terminated.ReadCString).ParamName);
         }
         finally
         {

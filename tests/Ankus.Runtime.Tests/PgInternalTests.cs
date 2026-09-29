@@ -49,7 +49,7 @@ public sealed class PgInternalTests
 
         fixture.Handler = static _ => new NativeMemoryResult { _value = 902 };
         Assert.ThrowsExactly<ObjectDisposedException>(() => value.DangerousGetBits());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => value.DangerousBorrow<int>());
+        Assert.ThrowsExactly<ObjectDisposedException>(value.DangerousBorrow<int>);
         Assert.ThrowsExactly<ObjectDisposedException>(() => NativeValue.FromInternal(value));
     }
 
@@ -67,7 +67,7 @@ public sealed class PgInternalTests
         Assert.IsTrue(state.IsManaged);
         Assert.AreSame(payload, state.Get<Payload>());
         Assert.ThrowsExactly<InvalidCastException>(() => state.Get<object>());
-        Assert.ThrowsExactly<InvalidOperationException>(() => state.DangerousBorrow<int>());
+        Assert.ThrowsExactly<InvalidOperationException>(state.DangerousBorrow<int>);
         fixture.Memory.Current = 202;
         var alias = new PgInternal(PgDatum.DangerousCreate(state.DangerousGetBits(), 2281, PgMemoryContext.Current));
         Assert.AreSame(state.Datum, alias.Datum);
@@ -76,11 +76,11 @@ public sealed class PgInternalTests
         payload.OnDispose = () => Assert.ThrowsExactly<ObjectDisposedException>(() => alias.Get<Payload>());
         Assert.IsNull(fixture.Invoke());
         Assert.AreEqual(1, payload.Disposals);
-        Assert.ThrowsExactly<ObjectDisposedException>(() => state.Get<Payload>());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => alias.Get<Payload>());
+        Assert.ThrowsExactly<ObjectDisposedException>(state.Get<Payload>);
+        Assert.ThrowsExactly<ObjectDisposedException>(alias.Get<Payload>);
         Assert.ThrowsExactly<ObjectDisposedException>(() => state.Datum);
         Assert.ThrowsExactly<ObjectDisposedException>(() => state.DangerousGetBits());
-        Assert.ThrowsExactly<ObjectDisposedException>(() => alias.DangerousBorrow<int>());
+        Assert.ThrowsExactly<ObjectDisposedException>(alias.DangerousBorrow<int>);
         Assert.ThrowsExactly<ObjectDisposedException>(() => NativeValue.FromInternal(state));
         Assert.ThrowsExactly<ObjectDisposedException>(() => SpiType.ToNative(parameter.Value));
         Assert.ThrowsExactly<InvalidOperationException>(() => new PgInternal(raw).Get<Payload>());

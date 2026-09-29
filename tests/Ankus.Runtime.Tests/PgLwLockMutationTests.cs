@@ -21,7 +21,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         fixture.Bytes = MemoryMarshal.AsBytes(new ReadOnlySpan<MutableLockValue>(in original)).ToArray();
         using PgLwLockExclusiveGuard<MutableLockValue> guard = storage.Exclusive();
         MutableLockValue copy = guard.Value;
-        Assert.AreEqual((long.MaxValue, 11L), guard.Mutate((ref MutableLockValue value) =>
+        Assert.AreEqual((long.MaxValue, 11L), guard.Mutate((ref value) =>
         {
             value._marker = long.MaxValue;
             value._bits = ulong.MaxValue;
@@ -33,11 +33,11 @@ public sealed unsafe partial class PgSharedMemoryTests
         Assert.AreEqual(long.MinValue, copy._marker);
         Assert.AreEqual(3L, copy._atomic.Value);
         Assert.AreEqual(ulong.MaxValue, guard.Value._bits);
-        Assert.AreEqual(13L, guard.Read(static (in MutableLockValue value) =>
+        Assert.AreEqual(13L, guard.Read(static (in value) =>
         {
             using PgSpinLockGuard<long> child = value._child.Lock();
             Assert.AreEqual(7L, child.Value);
-            return child.Mutate(static (ref long stored) => stored = 13);
+            return child.Mutate(static (ref stored) => stored = 13);
         }));
         NativeMemoryRequest admission = Assert.ContainsSingle(fixture.Memory.Requests.Where(static request => request._flags == 7));
         Assert.AreEqual(71, admission._context);
@@ -59,23 +59,23 @@ public sealed unsafe partial class PgSharedMemoryTests
         fixture.Bytes = BitConverter.GetBytes(17L);
         using PgLwLockExclusiveGuard<long> guard = storage.Exclusive();
         PgLwLockExclusiveGuard<long> alias = guard;
-        Assert.AreEqual(19L, guard.Mutate((ref long value) =>
+        Assert.AreEqual(19L, guard.Mutate((ref value) =>
         {
             value = 19;
             Assert.AreEqual(19L, alias.Value);
             Assert.ThrowsExactly<InvalidOperationException>(alias.Dispose);
             Assert.ThrowsExactly<InvalidOperationException>(() => alias.Value = 99);
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Read(static (in long nested) => nested));
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref long nested) => ++nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Read(static (in nested) => nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref nested) => ++nested));
             return value;
         }));
-        Assert.AreEqual(19L, guard.Read((in long value) =>
+        Assert.AreEqual(19L, guard.Read((in value) =>
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref long nested) => ++nested));
+            Assert.ThrowsExactly<InvalidOperationException>(() => alias.Mutate(static (ref nested) => ++nested));
             return value;
         }));
         Assert.AreSequenceEqual([0, 2, 7, 6], fixture.Memory.Requests.Select(static request => request._flags));
-        Assert.AreEqual(23L, alias.Mutate(static (ref long value) => value = 23));
+        Assert.AreEqual(23L, alias.Mutate(static (ref value) => value = 23));
         alias.Value = 29;
         Assert.AreEqual(29L, guard.Value);
         alias.Dispose();
@@ -94,17 +94,17 @@ public sealed unsafe partial class PgSharedMemoryTests
         fixture.Bytes = BitConverter.GetBytes(31L);
         using PgLwLockExclusiveGuard<long> guard = storage.Exclusive();
         var expected = new FormatException("original mutation failure");
-        FormatException error = Assert.ThrowsExactly<FormatException>(() => guard.Mutate<int>((ref long value) =>
+        FormatException error = Assert.ThrowsExactly<FormatException>(() => guard.Mutate<int>((ref value) =>
         {
             value = 37;
             throw expected;
         }));
         Assert.AreSame(expected, error);
         Assert.AreEqual(37L, guard.Value);
-        Assert.AreEqual(37L, guard.Read(static (in long value) => value));
+        Assert.AreEqual(37L, guard.Read(static (in value) => value));
         NativeBorrowScope.CheckBackendAccess();
         Assert.IsEmpty(fixture.Memory.Requests.Where(static request => request._flags == 5));
-        Assert.AreEqual(41L, guard.Mutate(static (ref long value) => value = 41));
+        Assert.AreEqual(41L, guard.Mutate(static (ref value) => value = 41));
         guard.Dispose();
         Assert.HasCount(1, fixture.Memory.Requests.Where(static request => request._flags == 5));
     }
@@ -143,13 +143,13 @@ public sealed unsafe partial class PgSharedMemoryTests
 
             return respond(request);
         };
-        Assert.AreEqual((53L, 59L), first.Mutate((ref long value) =>
+        Assert.AreEqual((53L, 59L), first.Mutate((ref value) =>
         {
             value = 53;
-            Assert.AreEqual(59L, second.Mutate(static (ref long nested) => nested = 59));
+            Assert.AreEqual(59L, second.Mutate(static (ref nested) => nested = 59));
             valid = false;
             bool invoked = false;
-            PgException error = Assert.ThrowsExactly<PgException>(() => second.Mutate((ref long nested) =>
+            PgException error = Assert.ThrowsExactly<PgException>(() => second.Mutate((ref nested) =>
             {
                 invoked = true;
                 return ++nested;
@@ -159,7 +159,7 @@ public sealed unsafe partial class PgSharedMemoryTests
             Assert.AreEqual("exclusive admission rejected", error.Message);
             Assert.ThrowsExactly<InvalidOperationException>(NativeBorrowScope.CheckBackendAccess);
             valid = true;
-            return (value, second.Read(static (in long nested) => nested));
+            return (value, second.Read(static (in nested) => nested));
         }));
         Assert.AreEqual(59L, other[0]);
         NativeBorrowScope.CheckBackendAccess();
@@ -212,11 +212,12 @@ public sealed unsafe partial class PgSharedMemoryTests
             return result;
         };
         bool invoked = false;
-        PgSharedMutator<long, long> callback = (ref long value) =>
+        long callback(ref long value)
         {
             invoked = true;
             return value = 67;
-        };
+        }
+
         if (scenario == 4)
         {
             PgException error = Assert.ThrowsExactly<PgException>(() => guard.Mutate(callback));
@@ -250,11 +251,12 @@ public sealed unsafe partial class PgSharedMemoryTests
         using PgLwLockExclusiveGuard<long> guard = storage.Exclusive();
         Assert.AreEqual("mutator", Assert.ThrowsExactly<ArgumentNullException>(() => guard.Mutate<long>(null!)).ParamName);
         bool invoked = false;
-        PgSharedMutator<long, long> mutator = (ref long value) =>
+        long mutator(ref long value)
         {
             invoked = true;
             return ++value;
-        };
+        }
+
         foreach (nint provider in new nint[] { 0, 29 })
         {
             using MemoryContextTestFixture.Scope foreign = MemoryContextTestFixture.Enter(provider);
@@ -282,7 +284,7 @@ public sealed unsafe partial class PgSharedMemoryTests
         nint previous = NativeLog.Enter(1);
         try
         {
-            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Mutate<int>(static (ref int value) =>
+            PgException error = Assert.ThrowsExactly<PgException>(() => guard.Mutate<int>(static (ref value) =>
             {
                 value = 79;
                 Assert.ThrowsExactly<InvalidOperationException>(() => Spi.Execute("SELECT 1/0"));

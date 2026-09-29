@@ -447,128 +447,250 @@ public readonly record struct PgNumeric : IComparable<PgNumeric>,
     /// <summary>
     /// Adds numeric values in PostgreSQL.
     /// </summary>
-    public static PgNumeric operator +(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Add, left, right);
+    public static PgNumeric operator +(PgNumeric left, PgNumeric right)
+    {
+        return Binary(NumericOperation.Add, left, right);
+    }
+
     /// <summary>
     /// Subtracts numeric values in PostgreSQL.
     /// </summary>
-    public static PgNumeric operator -(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Subtract, left, right);
+    public static PgNumeric operator -(PgNumeric left, PgNumeric right)
+    {
+        return Binary(NumericOperation.Subtract, left, right);
+    }
+
     /// <summary>
     /// Multiplies numeric values in PostgreSQL.
     /// </summary>
-    public static PgNumeric operator *(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Multiply, left, right);
+    public static PgNumeric operator *(PgNumeric left, PgNumeric right)
+    {
+        return Binary(NumericOperation.Multiply, left, right);
+    }
+
     /// <summary>
     /// Divides numeric values using PostgreSQL's result-scale rules.
     /// </summary>
-    public static PgNumeric operator /(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Divide, left, right);
+    public static PgNumeric operator /(PgNumeric left, PgNumeric right)
+    {
+        return Binary(NumericOperation.Divide, left, right);
+    }
+
     /// <summary>
     /// Computes PostgreSQL's numeric remainder.
     /// </summary>
-    public static PgNumeric operator %(PgNumeric left, PgNumeric right) => Binary(NumericOperation.Remainder, left, right);
+    public static PgNumeric operator %(PgNumeric left, PgNumeric right)
+    {
+        return Binary(NumericOperation.Remainder, left, right);
+    }
+
     /// <summary>
     /// Negates a numeric value in PostgreSQL.
     /// </summary>
-    public static PgNumeric operator -(PgNumeric value) => value.Unary(NumericOperation.Negate);
+    public static PgNumeric operator -(PgNumeric value)
+    {
+        return value.Unary(NumericOperation.Negate);
+    }
+
     /// <summary>
     /// Returns the value unchanged, retaining display scale.
     /// </summary>
-    public static PgNumeric operator +(PgNumeric value) => value;
+    public static PgNumeric operator +(PgNumeric value)
+    {
+        return value;
+    }
+
     /// <summary>
     /// Tests whether the left numeric is less than the right numeric.
     /// </summary>
-    public static bool operator <(PgNumeric left, PgNumeric right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgNumeric left, PgNumeric right)
+    {
+        return left.CompareTo(right) < 0;
+    }
+
     /// <summary>
     /// Tests whether the left numeric is greater than the right numeric.
     /// </summary>
-    public static bool operator >(PgNumeric left, PgNumeric right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgNumeric left, PgNumeric right)
+    {
+        return left.CompareTo(right) > 0;
+    }
+
     /// <summary>
     /// Tests whether the left numeric is less than or equal to the right numeric.
     /// </summary>
-    public static bool operator <=(PgNumeric left, PgNumeric right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgNumeric left, PgNumeric right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
+
     /// <summary>
     /// Tests whether the left numeric is greater than or equal to the right numeric.
     /// </summary>
-    public static bool operator >=(PgNumeric left, PgNumeric right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgNumeric left, PgNumeric right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Converts a signed byte exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(sbyte value) => FromInteger(value);
+    public static implicit operator PgNumeric(sbyte value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts an unsigned byte exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(byte value) => FromInteger(value);
+    public static implicit operator PgNumeric(byte value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a signed 16-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(short value) => FromInteger(value);
+    public static implicit operator PgNumeric(short value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts an unsigned 16-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(ushort value) => FromInteger(value);
+    public static implicit operator PgNumeric(ushort value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a signed 32-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(int value) => FromInteger(value);
+    public static implicit operator PgNumeric(int value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts an unsigned 32-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(uint value) => FromInteger(value);
+    public static implicit operator PgNumeric(uint value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a signed 64-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(long value) => FromInteger(value);
+    public static implicit operator PgNumeric(long value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts an unsigned 64-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(ulong value) => FromInteger(value);
+    public static implicit operator PgNumeric(ulong value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a native-sized signed integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(nint value) => FromInteger(value);
+    public static implicit operator PgNumeric(nint value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a native-sized unsigned integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(nuint value) => FromInteger(value);
+    public static implicit operator PgNumeric(nuint value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a signed 128-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(Int128 value) => FromInteger(value);
+    public static implicit operator PgNumeric(Int128 value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts an unsigned 128-bit integer exactly without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(UInt128 value) => FromInteger(value);
+    public static implicit operator PgNumeric(UInt128 value)
+    {
+        return FromInteger(value);
+    }
+
     /// <summary>
     /// Converts a decimal exactly, preserving scale without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(decimal value) => FromDecimal(value);
+    public static implicit operator PgNumeric(decimal value)
+    {
+        return FromDecimal(value);
+    }
+
     /// <summary>
     /// Converts an arbitrary integer within PostgreSQL's numeric range without backend access.
     /// </summary>
-    public static implicit operator PgNumeric(BigInteger value) => FromBigInteger(value);
+    public static implicit operator PgNumeric(BigInteger value)
+    {
+        return FromBigInteger(value);
+    }
+
     /// <summary>
     /// Converts from single precision using PostgreSQL's float4-to-numeric rules.
     /// </summary>
-    public static explicit operator PgNumeric(float value) => FromSingle(value);
+    public static explicit operator PgNumeric(float value)
+    {
+        return FromSingle(value);
+    }
+
     /// <summary>
     /// Converts from double precision using PostgreSQL's float8-to-numeric rules.
     /// </summary>
-    public static explicit operator PgNumeric(double value) => FromDouble(value);
+    public static explicit operator PgNumeric(double value)
+    {
+        return FromDouble(value);
+    }
+
     /// <summary>
     /// Converts exactly to decimal, rejecting rounding, overflow, and nonfinite values.
     /// </summary>
-    public static explicit operator decimal(PgNumeric value) => value.ToDecimal();
+    public static explicit operator decimal(PgNumeric value)
+    {
+        return value.ToDecimal();
+    }
+
     /// <summary>
     /// Converts exactly to an arbitrary integer, rejecting fractional and nonfinite values.
     /// </summary>
-    public static explicit operator BigInteger(PgNumeric value) => value.ToBigInteger();
+    public static explicit operator BigInteger(PgNumeric value)
+    {
+        return value.ToBigInteger();
+    }
+
     /// <summary>
     /// Converts to single precision using PostgreSQL's precision and range rules.
     /// </summary>
-    public static explicit operator float(PgNumeric value) => value.ToSingle();
+    public static explicit operator float(PgNumeric value)
+    {
+        return value.ToSingle();
+    }
+
     /// <summary>
     /// Converts to double precision using PostgreSQL's precision and range rules.
     /// </summary>
-    public static explicit operator double(PgNumeric value) => value.ToDouble();
+    public static explicit operator double(PgNumeric value)
+    {
+        return value.ToDouble();
+    }
 
     private PgNumeric Unary(NumericOperation operation) => NativeBackend.Numeric<PgNumeric>(operation, [SpiParameter.Create(this)]);
     private PgNumeric WithScale(NumericOperation operation, int scale)

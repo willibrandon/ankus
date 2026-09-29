@@ -42,7 +42,10 @@ public sealed record OrderedKey(string Value) : IComparable<OrderedKey>, IPgHash
     /// <param name="left">The left key.</param>
     /// <param name="right">The right key.</param>
     /// <returns>Whether the left key sorts before the right key.</returns>
-    public static bool operator <(OrderedKey? left, OrderedKey? right) => Comparer<OrderedKey>.Default.Compare(left, right) < 0;
+    public static bool operator <(OrderedKey? left, OrderedKey? right)
+    {
+        return Comparer<OrderedKey>.Default.Compare(left, right) < 0;
+    }
 
     /// <summary>
     /// Compares keys with null before present values.
@@ -50,7 +53,10 @@ public sealed record OrderedKey(string Value) : IComparable<OrderedKey>, IPgHash
     /// <param name="left">The left key.</param>
     /// <param name="right">The right key.</param>
     /// <returns>Whether the left key sorts after the right key.</returns>
-    public static bool operator >(OrderedKey? left, OrderedKey? right) => Comparer<OrderedKey>.Default.Compare(left, right) > 0;
+    public static bool operator >(OrderedKey? left, OrderedKey? right)
+    {
+        return Comparer<OrderedKey>.Default.Compare(left, right) > 0;
+    }
 
     /// <summary>
     /// Compares keys with null before present values.
@@ -58,7 +64,10 @@ public sealed record OrderedKey(string Value) : IComparable<OrderedKey>, IPgHash
     /// <param name="left">The left key.</param>
     /// <param name="right">The right key.</param>
     /// <returns>Whether the left key sorts before or equals the right key.</returns>
-    public static bool operator <=(OrderedKey? left, OrderedKey? right) => Comparer<OrderedKey>.Default.Compare(left, right) <= 0;
+    public static bool operator <=(OrderedKey? left, OrderedKey? right)
+    {
+        return Comparer<OrderedKey>.Default.Compare(left, right) <= 0;
+    }
 
     /// <summary>
     /// Compares keys with null before present values.
@@ -66,7 +75,10 @@ public sealed record OrderedKey(string Value) : IComparable<OrderedKey>, IPgHash
     /// <param name="left">The left key.</param>
     /// <param name="right">The right key.</param>
     /// <returns>Whether the left key sorts after or equals the right key.</returns>
-    public static bool operator >=(OrderedKey? left, OrderedKey? right) => Comparer<OrderedKey>.Default.Compare(left, right) >= 0;
+    public static bool operator >=(OrderedKey? left, OrderedKey? right)
+    {
+        return Comparer<OrderedKey>.Default.Compare(left, right) >= 0;
+    }
 
     /// <summary>
     /// Folds only ASCII letters so the persisted equality key does not depend on changing Unicode tables.

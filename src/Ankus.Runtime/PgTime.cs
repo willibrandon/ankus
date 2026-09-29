@@ -55,19 +55,34 @@ public readonly partial record struct PgTime : IComparable<PgTime>
     /// <summary>
     /// Adds an interval, wrapping at midnight.
     /// </summary>
-    public static PgTime operator +(PgTime time, PgInterval interval) => time.Add(interval);
+    public static PgTime operator +(PgTime time, PgInterval interval)
+    {
+        return time.Add(interval);
+    }
+
     /// <summary>
     /// Adds an interval, wrapping at midnight.
     /// </summary>
-    public static PgTime operator +(PgInterval interval, PgTime time) => time.Add(interval);
+    public static PgTime operator +(PgInterval interval, PgTime time)
+    {
+        return time.Add(interval);
+    }
+
     /// <summary>
     /// Subtracts an interval, wrapping at midnight.
     /// </summary>
-    public static PgTime operator -(PgTime time, PgInterval interval) => time.Subtract(interval);
+    public static PgTime operator -(PgTime time, PgInterval interval)
+    {
+        return time.Subtract(interval);
+    }
+
     /// <summary>
     /// Computes the signed wall-clock difference.
     /// </summary>
-    public static PgInterval operator -(PgTime left, PgTime right) => left.Subtract(right);
+    public static PgInterval operator -(PgTime left, PgTime right)
+    {
+        return left.Subtract(right);
+    }
 
     /// <summary>
     /// Parses PostgreSQL time syntax on the active backend thread.
@@ -94,22 +109,34 @@ public readonly partial record struct PgTime : IComparable<PgTime>
     /// <summary>
     /// Tests whether the left time precedes the right time.
     /// </summary>
-    public static bool operator <(PgTime left, PgTime right) => left.CompareTo(right) < 0;
+    public static bool operator <(PgTime left, PgTime right)
+    {
+        return left.CompareTo(right) < 0;
+    }
 
     /// <summary>
     /// Tests whether the left time follows the right time.
     /// </summary>
-    public static bool operator >(PgTime left, PgTime right) => left.CompareTo(right) > 0;
+    public static bool operator >(PgTime left, PgTime right)
+    {
+        return left.CompareTo(right) > 0;
+    }
 
     /// <summary>
     /// Tests whether the left time precedes or equals the right time.
     /// </summary>
-    public static bool operator <=(PgTime left, PgTime right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(PgTime left, PgTime right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
 
     /// <summary>
     /// Tests whether the left time follows or equals the right time.
     /// </summary>
-    public static bool operator >=(PgTime left, PgTime right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(PgTime left, PgTime right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 
     /// <summary>
     /// Constructs a time using PostgreSQL's field validation and fractional-second rounding.
