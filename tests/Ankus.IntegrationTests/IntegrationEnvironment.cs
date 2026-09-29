@@ -194,9 +194,17 @@ internal static class IntegrationEnvironment
 
         foreach ((string Directory, string Name) extension in extensions)
         {
-            CopyDirectory(Path.Combine(publishRoot, extension.Name), NativeOutputDirectory);
+            string publication = Path.Combine(publishRoot, extension.Name);
+            if (installation.Version.Major < 18)
+            {
+                // Each publication owns a separate manifest; the combined native folder retains only the last one.
+                await PrepareExtensionInstallationAsync(publication, cancellationToken);
+            }
+
+            CopyDirectory(publication, NativeOutputDirectory);
         }
 
+        s_nativeExtensionFilesInstalled = installation.Version.Major < 18;
         Directory.Delete(publishRoot, true);
         string libraryExtension = OperatingSystem.IsWindows() ? ".dll" : OperatingSystem.IsMacOS() ? ".dylib" : ".so";
         return RequireFile(Path.Combine(NativeOutputDirectory, "Ankus.Examples.Hello" + libraryExtension));

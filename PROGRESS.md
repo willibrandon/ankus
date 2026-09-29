@@ -68,6 +68,22 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+Custom SQL directories now flow through publication, installation and packaging.
+Omitted, empty, relative and absolute settings retain their PostgreSQL meanings;
+Unix parent paths and symbolic links are verified against a real server.
+The public test fixture remaps authored destinations into its temporary storage.
+The complete PostgreSQL **18.6/Linux x64** suite discovers **9,341 tests**:
+**9,334 passed, zero failures and seven Windows-only skips**, in **13m38.272s**.
+The affected **32-case** selection passes on Linux x64/PostgreSQL **18.6**,
+macOS ARM64/PostgreSQL **18.6** and Windows x64/PostgreSQL **17.11**,
+with one platform-specific skip on each. All **72 manifest cases** also pass
+on Windows. Release, API freshness and documentation checks pass. Previous CI
+for `9bc408e` is green on all three platforms. Remaining CLI, native API,
+type, example, runtime-servicing and complete PostgreSQL/platform requirements
+stay open; this milestone does not establish full parity.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Version-specific control files now carry per-release dependency, privilege,
 schema and relocation settings through publishing, installation and packaging.
 Real PostgreSQL tests verify trusted installation, failed-update rollback,
@@ -3264,8 +3280,11 @@ control-file settings, dependency handling, and deterministic packaging.
 Primary author settings and native dependency/privilege behavior are implemented
 through `AnkusExtensionControlFile`. `AnkusVersionControlFile` now carries
 version-specific overrides through publish, install and package, with transactional
-PostgreSQL update evidence. Alternate SQL directory layouts remain required. See
-the control milestones for exact tests and platform evidence.
+PostgreSQL update evidence. Alternate SQL directory layouts preserve omitted,
+empty, relative and absolute values through installation and packaging, with
+owned test staging and Unix parent/symbolic-link traversal. See the control and
+directory milestones for exact tests and platform evidence; the complete
+PostgreSQL/platform matrix remains required.
 
 NuGet packages now provide the extension-author project SDK, runtime, source generator, PostgreSQL configuration,
 testing harness, and .NET tool. The SDK embeds a framework-dependent .NET 10 native-build helper and references
@@ -14431,3 +14450,118 @@ reports **zero errors, warnings and hints**. API freshness passes for **213 page
 / 2,559 members**. Both personal-platform validation checkouts and source
 archives have been removed, while shared runtimes remain intact. These successful
 prior CI outcomes were rechecked before commit and push.
+
+
+### 2026-09-29 — Alternate SQL directories
+
+The primary control's literal `directory` setting now flows through native-build
+publication, installation and packaging. Missing, empty, relative and absolute
+values remain distinct. The publication keeps its owned payload under
+`extension/`; the installer places installation SQL, upgrades and secondary
+controls in the selected SQL directory, while the primary control stays under
+PostgreSQL's `extension/` directory. Relative paths use the shared directory or,
+for PostgreSQL 18+ search paths, the selected extension search base.
+
+Manifest format four records the literal directory with both owned inventories.
+Earlier formats retain their existing behavior. A published control that disagrees
+with its manifest fails before installation copies files. Absolute destinations
+are staged beneath `--destdir`/package output without writing the original path.
+Windows portable packages resolve relative paths from `share/` and reject parent
+paths escaping the output root; full-layout `install --destdir` remains available.
+Drive-relative and drive-less rooted Windows paths fail explicitly.
+
+The public test fixture stages only declared control/SQL files and remaps custom
+directories into owned storage. Only the staged primary control changes; source
+controls and authored absolute destinations remain untouched. This applies to
+both relocated pre-18 installations and PostgreSQL 18+ extension search paths.
+
+| Required behavior | Concrete evidence |
+|---|---|
+| Omitted/empty/relative/parent/absolute path identity and backward-compatible manifests | `ResolvesLiteralScriptDirectoriesWithoutCreatingTargets`, `ScriptDirectoryManifestRetainsEveryInventory`, malformed-field and mismatch cases in `PublishedScriptDirectoryTests` |
+| Publication remains flat and preserves directory metadata | `PublishesAuthoredScriptDirectoryWithoutInstallingIt`, `CompletePublishDoesNotWriteTheAuthoredDirectory` |
+| Installation and packages preserve exact SQL/secondary bytes and authored primary values | Ten cases of `ScriptDirectoryStagingPreservesDeclaredLayout`; `InvalidArtifactDoesNotPartiallyInstall` rejects mismatches before copying |
+| Portable Windows package containment and unambiguous paths | `ScriptDirectoryCannotEscapePortableWindowsPackage`, Windows branches of `ScriptDirectoryResolutionRejectsMissingOrAmbiguousInputs` |
+| Actual PostgreSQL finds authored scripts/secondary controls and rolls back failed upgrades | Four cases of `AuthoredScriptDirectoriesInstallAndUpgradeInPostgres` and `AuthoredScriptDirectoryFollowsUnixLinks`, including native results, exact UTF-8 rows, secondary relocation state and unchanged backend identity |
+| Public fixture preserves author paths and prior staged files on incomplete input | `ScriptDirectoriesStayInsideOwnedTestInstallation`, `GeneratedTestsIsolateAuthoredScriptDirectory` |
+
+Initial direct checks pass **72 manifest cases** and **52 build/settings cases**.
+An initial focused invocation stopped during MSBuild restore when two child nodes
+exited prematurely, before tests ran; its worker diagnostic directory was no
+longer present. Its standalone retry passes **27 cases**, with **zero failures**
+and **one Windows-only skip**, in **5m05.735s**. The same focused selection on
+macOS ARM64/PostgreSQL **18.6** passes **27**, with the same skip and no failures,
+in **3m36.380s**. Both include the actual native installation/update cases.
+
+Windows PostgreSQL **17.11** exposed a repository-fixture regression before any
+selected case executed: merging several publication directories retained only
+the final manifest, so the stricter staging helper copied one extension's files.
+The fixture now stages each original declared publication before merging their
+native libraries and removing intermediate publications. The correction keeps
+manifest ownership checks intact; it does not copy arbitrary unlisted files.
+The initial complete Windows suite uses the corrected fixture. The concurrent
+Linux suite and initial macOS focus use the same production sources; their
+PostgreSQL 18 path does not execute the corrected pre-18 staging branch.
+The complete plain `dotnet test` run on Debian **13.5**, Linux x64,
+PostgreSQL **18.6** and .NET SDK **10.0.400** passes **9,330 tests**, with
+**zero failures and seven Windows-only skips**, **9,337 total**, in
+**15m47.634s**. Its integration module takes **15m46.430s**. This run predates
+the subsequent Unix traversal correction and the pre-18
+repository-fixture correction; it is retained as candidate evidence.
+
+The Windows full invocation exposes four unrelated existing long-path test
+failures because the private validation shell places Git's `link.exe` ahead of
+the Microsoft linker. Correcting that shell's PATH and verifying the selected
+linker fixes the entire Build module: **1,088 passed, zero failures, five
+Unix-only skips**, **1,093 total**, in **1m56.406s**. The original full invocation
+retains its four recorded failures. No repository
+code, analyzer setting or CI toolchain is changed for this environment correction.
+The initial candidate's Release solution build passes with **zero warnings/errors** in
+**36.71s**. Documentation builds **260 pages** and checks with **zero errors,
+warnings or hints**; API freshness verifies **213 pages/2,562 members**.
+These are warm candidate validation runs, not controlled cold-cache measurements.
+The Windows integration module subsequently passes in **23m09.925s**. The full
+invocation discovers **9,337 tests**, with **9,325 passes, four linker-selection
+failures and eight platform skips**, in **23m11.511s**. The separate corrected
+Build-module run above resolves all four failures. This is recorded as a full
+execution plus a corrected module rerun, not an uninterrupted passing invocation.
+
+A final literal-path check reproduces a Unix discrepancy: `child/../scripts`
+installs into a lexically normalized path without creating `child`, while
+PostgreSQL traverses that component and fails with SQLSTATE **58P01**. The
+four-case backend run passes its three ordinary layouts and fails the new
+`nested-parent` row in **3m35.060s**. Installation now retains the ordered Unix
+directory traversal, creates its intermediate directories before copying, and
+resolves a symbolic link before applying its parent component. Windows retains
+its native lexical path behavior. Added staged-package and actual-server cases
+cover missing intermediate directories and a Unix link pointing elsewhere in
+owned test storage. A private helper's CA1859 finding is fixed by returning its
+concrete list type. Final traversal checks pass **31 cases**, with **zero
+failures and one Windows-only skip**, on both Linux x64/PostgreSQL **18.6**
+(**4m35.040s**) and macOS ARM64/PostgreSQL **18.6** (**3m22.515s**).
+Both exercise the previously failing layout and actual linked-directory lookup,
+transactional upgrade rollback and same-session native recovery. Final-source
+Windows x64/PostgreSQL **17.11**, SDK **10.0.401**, passes **31 cases** with
+**zero failures and one Unix-only skip**, **32 total**, in **7m43.624s**.
+All **72 manifest cases** pass on Windows, including ambiguous rooted paths and
+filename collisions. These affected platform selections supplement the complete
+suite below; they do not replace complete CI on the new commit.
+
+The final complete plain `dotnet test` run on Debian **13.5**, Linux x64,
+PostgreSQL **18.6**, SDK **10.0.400**, discovers **9,341 tests**: **9,334 passed,
+zero failures and seven Windows-only skips**, in **13m38.272s**. Integration
+takes **13m37.136s**. This includes the Unix traversal correction, pre-18 fixture
+repair and all new regression cases. All 1,233 source snapshot hashes match
+the platform validation copies. Both temporary personal-platform checkouts and
+source archives have been removed; shared runtimes remain intact.
+The final Release solution build passes with **zero warnings and errors** in
+**36.55s**. API regeneration and the explicit freshness check verify **213 pages
+/ 2,562 members**; `pnpm build` produces **260 pages**, and `pnpm check` reports
+**zero errors, warnings and hints**. These are warm validation runs; no
+controlled cold-cache improvement is claimed.
+
+Previous CI **36581138624** for `9bc408e` and Docs **36581138673** both pass.
+Platform jobs take Linux **29m12s**, Windows **19m55s** and macOS **11m42s**;
+quality takes **9m53s**, and all three runtime jobs pass. No job times out.
+These completed outcomes were checked again before committing this milestone.
+These prior results do not establish the new directory behavior. Remaining
+faithful-port requirements stay open.

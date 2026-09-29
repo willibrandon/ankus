@@ -89,6 +89,11 @@ extension/
 
 The library suffix is `.dll` on Windows and `.dylib` on macOS.
 
+An authored control `directory` setting changes the installed SQL location.
+The publication still keeps its SQL and control files together under
+`extension/`; installation and packaging apply the declared layout. See
+[SQL directories](/reference/build-settings/#sql-directories).
+
 ## Inspect installation SQL
 
 Build your extension and write its installation SQL to a file:

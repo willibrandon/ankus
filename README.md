@@ -82,6 +82,8 @@ building, publishing, installing, or packaging an extension.
 Use `AnkusExtensionControlFile` for extension comments, a fixed schema,
 dependencies, and installation privileges. See [control settings](docs/src/content/docs/reference/build-settings.md#extension-control-settings).
 Version-specific overrides belong in `sql/<extension>--<version>.control`.
+An authored `directory` setting selects a custom installation location for SQL
+scripts and secondary controls.
 
 Keep SQL upgrade scripts in `sql/<extension>--<old>--<new>.sql`. Publishing,
 installing, and packaging include them so existing databases can use

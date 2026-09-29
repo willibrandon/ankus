@@ -112,8 +112,9 @@ try
     }
 
     string[] controls = args.Length == 13 ? File.ReadAllLines(args[12]) : [];
+    ExtensionControlFile.Parse(package[args[5] + ".control"]).TryGetValue("directory", out string? scriptDirectory);
     var publication = new PublishedExtension(major, args[8], args[7], args[5] + ".control",
-        args[5] + "--" + args[6] + ".sql", [], [.. controls.Select(static path => Path.GetFileName(path))]);
+        args[5] + "--" + args[6] + ".sql", [], [.. controls.Select(static path => Path.GetFileName(path))], scriptDirectory);
     foreach (string path in controls)
     {
         string name = Path.GetFileName(path);
@@ -134,6 +135,11 @@ try
     foreach ((string name, string content) in package)
     {
         WriteIfDifferent(Path.Combine(extensionDirectory, name), content);
+    }
+
+    if (publication.ScriptDirectory is not null)
+    {
+        _ = publication.GetScriptDirectory(output, installation.SharedDirectory);
     }
 
     string source = Path.Combine(output, "bridge.c");

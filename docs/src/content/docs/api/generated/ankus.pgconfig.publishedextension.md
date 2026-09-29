@@ -127,6 +127,50 @@ Upgrade filenames in extension--old--new.sql form.
 
 Secondary control filenames in extension--version.control form.
 
+<a id="member-6d258ad96748c4c4"></a>
+
+### PublishedExtension(int, string, string, string, string, IReadOnlyList&lt;string&gt;, IReadOnlyList&lt;string&gt;, string?)
+
+Creates a manifest with a declared PostgreSQL SQL directory and a flat, owned publication payload.
+
+```csharp
+public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql, IReadOnlyList<string> upgradeScripts, IReadOnlyList<string> versionControlFiles, string? scriptDirectory)
+```
+
+Parameters:
+
+`postgresMajor` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The PostgreSQL header major used to compile the extension.
+
+`runtimeIdentifier` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The Native AOT runtime identifier.
+
+`library` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The native library filename.
+
+`control` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary control filename under extension/.
+
+`sql` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The installation SQL filename under extension/.
+
+`upgradeScripts` — [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+Upgrade filenames in extension--old--new.sql form.
+
+`versionControlFiles` — [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+Secondary control filenames in extension--version.control form.
+
+`scriptDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal primary control directory setting, or null for PostgreSQL's default.
+
 
 ## Methods
 
@@ -145,6 +189,37 @@ Parameters:
 `directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 The directory containing the native library and extension files.
+
+<a id="member-c1bc2bdc95fe90df"></a>
+
+### GetScriptDirectory(string, string)
+
+Verifies the published control's directory and returns its fully qualified PostgreSQL SQL path.
+
+```csharp
+public string GetScriptDirectory(string publishDirectory, string baseDirectory)
+```
+
+Parameters:
+
+`publishDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The publication containing the primary control under extension/.
+
+`baseDirectory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The PostgreSQL shared directory, or a PostgreSQL 18+ extension search base.
+
+Returns: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The directory for SQL scripts and secondary controls, preserving Unix traversal components.
+
+Exceptions:
+
+- [FormatException](https://learn.microsoft.com/dotnet/api/system.formatexception): The control disagrees with the manifest or uses an ambiguous rooted path.
+
+PostgreSQL traverses Unix paths through the filesystem. Removing a directory before a parent component
+can change its meaning, including when that directory is a symbolic link.
 
 <a id="member-c2b397ac31c49165"></a>
 
@@ -245,6 +320,18 @@ Gets the runtime identifier used by Native AOT.
 
 ```csharp
 public string RuntimeIdentifier { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-5ce76a618acbfa30"></a>
+
+### ScriptDirectory
+
+Gets the literal SQL directory setting, or null when PostgreSQL uses its control file directory.
+
+```csharp
+public string? ScriptDirectory { get; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)

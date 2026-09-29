@@ -328,12 +328,14 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("install", "missing")]
     [DataRow("install", "upgrade")]
     [DataRow("install", "versionControl")]
+    [DataRow("install", "directory")]
     [DataRow("package", "major")]
     [DataRow("package", "runtime")]
     [DataRow("package", "path")]
     [DataRow("package", "missing")]
     [DataRow("package", "upgrade")]
     [DataRow("package", "versionControl")]
+    [DataRow("package", "directory")]
     public async Task InvalidArtifactDoesNotPartiallyInstall(string operation, string failure)
     {
         string source = CreateDirectory();
@@ -360,6 +362,10 @@ public sealed partial class ToolCommandTests(TestContext context)
                 break;
             case "missing":
                 File.Delete(Path.Combine(source, "extension", manifest["sql"]!.GetValue<string>()));
+                break;
+            case "directory":
+                string control = Path.Combine(source, "extension", manifest["control"]!.GetValue<string>());
+                await File.AppendAllTextAsync(control, "\ndirectory='different'\n", context.CancellationToken);
                 break;
             case "versionControl":
                 manifest["formatVersion"] = 3;

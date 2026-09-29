@@ -4,7 +4,7 @@ using Ankus.PgConfig;
 namespace Ankus.Tool;
 
 /// <summary>
-/// Installs only the manifest's native library, installation and upgrade SQL, and control file.
+/// Installs the manifest's native library and control files, placing SQL in the declared PostgreSQL directory.
 /// </summary>
 internal static class ExtensionInstaller
 {
@@ -36,22 +36,40 @@ internal static class ExtensionInstaller
 
         string libraryDirectory = StagePath(installation.LibraryDirectory, destinationRoot);
         string extensionDirectory = StagePath(Path.Combine(installation.SharedDirectory, "extension"), destinationRoot);
+        string scriptBase = installation.SharedDirectory;
         if (packageLayout && OperatingSystem.IsWindows())
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(destinationRoot);
             string root = Path.GetFullPath(destinationRoot);
             libraryDirectory = Path.Combine(root, "lib");
             extensionDirectory = Path.Combine(root, "share", "extension");
+            scriptBase = Path.Combine(root, "share");
+        }
+
+        IReadOnlyList<string> scriptDirectories = GetScriptDirectoryTraversal(manifest.GetScriptDirectory(source, scriptBase));
+        string scriptDirectory = scriptDirectories[^1];
+        if (packageLayout && OperatingSystem.IsWindows() && !Path.IsPathRooted(manifest.ScriptDirectory ?? "extension"))
+        {
+            string relative = Path.GetRelativePath(Path.GetFullPath(destinationRoot!), scriptDirectory);
+            if (relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(relative))
+            {
+                throw new InvalidOperationException("The SQL directory escapes the portable Windows package root; use install --destdir for a full filesystem layout.");
+            }
+        }
+        else
+        {
+            scriptDirectories = [.. scriptDirectories.Select(directory => StagePath(directory, destinationRoot))];
+            scriptDirectory = scriptDirectories[^1];
         }
 
         (string Source, string Destination)[] files =
         [
             (Path.Combine(source, manifest.Library), Path.Combine(libraryDirectory, manifest.Library)),
-            (Path.Combine(source, "extension", manifest.Sql), Path.Combine(extensionDirectory, manifest.Sql)),
+            (Path.Combine(source, "extension", manifest.Sql), Path.Combine(scriptDirectory, manifest.Sql)),
             .. manifest.UpgradeScripts.Select(script =>
-                (Path.Combine(source, "extension", script), Path.Combine(extensionDirectory, script))),
+                (Path.Combine(source, "extension", script), Path.Combine(scriptDirectory, script))),
             .. manifest.VersionControlFiles.Select(control =>
-                (Path.Combine(source, "extension", control), Path.Combine(extensionDirectory, control))),
+                (Path.Combine(source, "extension", control), Path.Combine(scriptDirectory, control))),
             (Path.Combine(source, "extension", manifest.Control), Path.Combine(extensionDirectory, manifest.Control)),
         ];
         foreach ((string input, _) in files)
@@ -60,6 +78,12 @@ internal static class ExtensionInstaller
             {
                 throw new FileNotFoundException("The published extension is incomplete.", input);
             }
+        }
+
+        foreach (string directory in scriptDirectories)
+        {
+            token.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(directory);
         }
 
         foreach ((string input, string destination) in files)
@@ -79,6 +103,43 @@ internal static class ExtensionInstaller
         }
 
         return [.. files.Select(static file => file.Destination)];
+    }
+
+    private static List<string> GetScriptDirectoryTraversal(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return [Path.GetFullPath(path)];
+        }
+
+        string current = Path.GetPathRoot(path)!;
+        var directories = new List<string> { current };
+        foreach (string component in path[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (component == ".")
+            {
+                continue;
+            }
+
+            if (component == "..")
+            {
+                var directory = new DirectoryInfo(current);
+                if (directory.LinkTarget is not null)
+                {
+                    current = Path.TrimEndingDirectorySeparator(directory.ResolveLinkTarget(returnFinalTarget: true)!.FullName);
+                }
+
+                current = Path.GetDirectoryName(current) ?? Path.GetPathRoot(current)!;
+            }
+            else
+            {
+                current = Path.Combine(current, component);
+            }
+
+            directories.Add(current);
+        }
+
+        return directories;
     }
 
     private static string StagePath(string absolutePath, string? root)

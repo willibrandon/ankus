@@ -39,8 +39,9 @@ A completed task after synchronous file cleanup.
 
 ### InstallExtensionFiles(string)
 
-Copies published extension control and SQL files into this isolated installation.
+Copies the publication manifest's declared control and SQL files into this isolated installation.
 Native libraries can remain in the publish directory and be selected with <code>dynamic_library_path</code>.
+Custom SQL directories are remapped inside this installation without changing the publication.
 
 ```csharp
 public void InstallExtensionFiles(string publishDirectory)

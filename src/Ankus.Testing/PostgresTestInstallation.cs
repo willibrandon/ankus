@@ -83,37 +83,15 @@ public sealed class PostgresTestInstallation : IAsyncDisposable
     }
 
     /// <summary>
-    /// Copies published extension control and SQL files into this isolated installation.
+    /// Copies the publication manifest's declared control and SQL files into this isolated installation.
     /// Native libraries can remain in the publish directory and be selected with <c>dynamic_library_path</c>.
+    /// Custom SQL directories are remapped inside this installation without changing the publication.
     /// </summary>
     /// <param name="publishDirectory">The Ankus publish directory.</param>
     public void InstallExtensionFiles(string publishDirectory)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        ArgumentException.ThrowIfNullOrWhiteSpace(publishDirectory);
-        string source = Path.Combine(Path.GetFullPath(publishDirectory), "extension");
-        if (!Directory.Exists(source))
-        {
-            throw new DirectoryNotFoundException($"The published extension directory was not found: {source}");
-        }
-
-        string[] files =
-        [
-            .. Directory.EnumerateFiles(source)
-                .Where(static path => Path.GetExtension(path) is ".control" or ".sql"),
-        ];
-        if (!files.Any(static path => Path.GetExtension(path) == ".control")
-            || !files.Any(static path => Path.GetExtension(path) == ".sql"))
-        {
-            throw new InvalidOperationException("The publish directory does not contain extension control and SQL files.");
-        }
-
-        string destination = Path.Combine(Installation.SharedDirectory, "extension");
-        Directory.CreateDirectory(destination);
-        foreach (string file in files)
-        {
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
-        }
+        PostgresExtensionFiles.Stage(publishDirectory, Installation.SharedDirectory);
     }
 
     /// <summary>

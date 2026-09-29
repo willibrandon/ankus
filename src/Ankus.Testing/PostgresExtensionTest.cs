@@ -30,7 +30,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets the running cluster, with the extension installed in the public schema.
+    /// Gets the running cluster, with the published extension installed.
     /// </summary>
     public PostgresTestCluster Cluster { get; }
 
@@ -47,6 +47,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// <remarks>
     /// PostgreSQL 18 and later use a per-cluster extension search path. Earlier versions run from an isolated,
     /// relocatable copy of the selected installation.
+    /// Custom SQL directories are remapped into owned test storage without changing the authored control file.
     /// Server logs and build logs remain in the project's bin/ankus-test-logs directory.
     /// </remarks>
     public static Task<PostgresExtensionTest> StartAsync(string projectPath,
@@ -130,7 +131,10 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             List<string> configuration = [$"dynamic_library_path = '{searchPath}{separator}$libdir'"];
             if (installation.Version.Major >= 18)
             {
-                configuration.Insert(0, $"extension_control_path = '{searchPath}{separator}$system'");
+                string scriptBase = Path.Combine(output, "postgres-share");
+                PostgresExtensionFiles.Stage(output, scriptBase);
+                string controlPath = scriptBase.Replace("\\", "/", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal);
+                configuration.Insert(0, $"extension_control_path = '{controlPath}{separator}$system'");
             }
             else
             {

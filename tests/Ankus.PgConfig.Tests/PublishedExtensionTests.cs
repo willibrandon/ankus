@@ -98,7 +98,7 @@ public sealed class PublishedExtensionTests
     /// </summary>
     /// <param name="fragment">The invalid format and upgrade fields.</param>
     [TestMethod]
-    [DataRow("\"formatVersion\":4")]
+    [DataRow("\"formatVersion\":5")]
     [DataRow("\"formatVersion\":1,\"upgradeScripts\":[]")]
     [DataRow("\"formatVersion\":2")]
     [DataRow("\"formatVersion\":2,\"upgradeScripts\":null")]

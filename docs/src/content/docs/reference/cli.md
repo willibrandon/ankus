@@ -220,9 +220,10 @@ Or install a previous publish:
 ankus install --from publish --pg 18
 ```
 
-The library goes to `pg_config --pkglibdir`. Control and versioned SQL files go
-to the `extension` subdirectory of `pg_config --sharedir`. The command requires
-write access to those directories.
+The library goes to `pg_config --pkglibdir`. The primary control goes to the
+`extension` subdirectory of `pg_config --sharedir`. SQL and secondary controls
+use that directory unless the primary declares a custom [SQL directory](/reference/build-settings/#sql-directories).
+The command requires write access to the selected destinations.
 
 To stage those files under a separate root while preserving the installation
 paths, add `--destdir staging`.
@@ -244,7 +245,9 @@ Its paths mirror the selected installation's `--pkglibdir`
 and `--sharedir`, relative to the package root. For example, an installation
 whose libraries live in `/usr/lib/postgresql/18/lib` puts the packaged library
 under `dist/usr/lib/postgresql/18/lib`. Windows packages instead use `lib/` and
-`share/extension/` relative to the PostgreSQL installation root.
+`share/extension/` relative to the PostgreSQL installation root. Custom SQL
+directories also apply to package layout; see [SQL directories](/reference/build-settings/#sql-directories)
+for absolute destinations and Windows parent-relative paths.
 The selected PostgreSQL installation and its databases are unchanged.
 
 Packages target the host operating system and architecture and the selected

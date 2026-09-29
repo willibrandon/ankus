@@ -193,6 +193,28 @@ public sealed class UpgradeSqlCommandTests(TestContext context)
         Assert.IsFalse(File.Exists(Path.Combine(arguments[1], PublishedExtension.FileName)));
     }
 
+    /// <summary>
+    /// SQL publication preserves the authored directory in metadata without writing outside its artifact directory.
+    /// </summary>
+    /// <param name="empty">Whether the author explicitly selected the PostgreSQL shared directory.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PublishesAuthoredScriptDirectoryWithoutInstallingIt(bool empty)
+    {
+        string[] arguments = Prepare();
+        string directory = empty ? "" : Path.Combine(_root, "external SQL");
+        var manifest = new PublishedExtension(18, "linux-x64", "Probe.so", "probe.control", "probe--release.sql", [], [], directory);
+        manifest.Write(arguments[0]);
+        string control = ExtensionControlFile.Format(new Dictionary<string, string> { ["directory"] = directory });
+        File.WriteAllText(Path.Combine(arguments[0], "extension", manifest.Control), control);
+        await UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken);
+        Assert.AreEqual(directory, PublishedExtension.Read(arguments[1]).ScriptDirectory);
+        Assert.AreEqual(control, File.ReadAllText(Path.Combine(arguments[1], "extension", manifest.Control)));
+        Assert.AreEqual("installation SQL", File.ReadAllText(Path.Combine(arguments[1], "extension", manifest.Sql)));
+        Assert.IsFalse(Directory.Exists(Path.Combine(_root, "external SQL")));
+    }
+
     private string[] Prepare()
     {
         string artifacts = Path.Combine(_root, "artifacts");

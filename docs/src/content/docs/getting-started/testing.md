@@ -42,6 +42,11 @@ cluster startup, then executes `CREATE EXTENSION`. It leaves the selected
 installation untouched. Supply an explicit `PostgresInstallation` to test a
 particular version.
 
+If your control file declares a custom SQL `directory`, the fixture remaps it
+inside its temporary storage. It stages the declared installation SQL, upgrades
+and secondary controls without changing your author file or writing to its
+original destination, including absolute paths.
+
 For workers and shared-memory extensions, enable shared preload in the fixture:
 
 ```csharp

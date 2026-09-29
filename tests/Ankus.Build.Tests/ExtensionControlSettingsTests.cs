@@ -43,6 +43,23 @@ public sealed class ExtensionControlSettingsTests
     }
 
     /// <summary>
+    /// Primary controls retain literal script directories independently of PostgreSQL's selected default layout.
+    /// </summary>
+    /// <param name="directory">The author directory value.</param>
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("nested/SQL files")]
+    [DataRow("../sibling")]
+    [DataRow("/absolute/scripts")]
+    public void PreservesAuthoredScriptDirectory(string directory)
+    {
+        string authored = ExtensionControlFile.Format(new Dictionary<string, string> { ["directory"] = directory });
+        (string control, bool relocatable) = ExtensionControlSettings.Merge(Generated, authored, 13);
+        Assert.AreEqual(directory, ExtensionControlFile.Parse(control)["directory"]);
+        Assert.IsTrue(relocatable);
+    }
+
+    /// <summary>
     /// Explicit false and generated non-relocatable SQL remain non-relocatable; omitted flags retain defaults.
     /// </summary>
     [TestMethod]
@@ -95,7 +112,6 @@ public sealed class ExtensionControlSettingsTests
     [DataRow("superuser=''", 18, "Boolean")]
     [DataRow("relocatable='maybe'", 18, "Boolean")]
     [DataRow("no_relocate='helper'", 15, "16 or later")]
-    [DataRow("directory='elsewhere'", 18, "directory")]
     [DataRow("unknown='value'", 18, "Unknown")]
     public void RejectsConflictingOrUnsupportedSettings(string settings, int major, string diagnostic)
     {

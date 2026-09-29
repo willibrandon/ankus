@@ -29,7 +29,7 @@ internal static class UpgradeSqlCommand
         PublishedExtension original = PublishedExtension.Read(artifacts);
         string[] scripts = File.ReadAllLines(arguments[2]);
         var manifest = new PublishedExtension(original.PostgresMajor, original.RuntimeIdentifier, original.Library,
-            original.Control, original.Sql, [.. scripts.Select(static path => Path.GetFileName(path))], original.VersionControlFiles);
+            original.Control, original.Sql, [.. scripts.Select(static path => Path.GetFileName(path))], original.VersionControlFiles, original.ScriptDirectory);
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         var contents = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         string? gitHash = null;

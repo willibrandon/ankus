@@ -26,7 +26,7 @@ Implements: [IAsyncDisposable](https://learn.microsoft.com/dotnet/api/system.ias
 
 ### Cluster
 
-Gets the running cluster, with the extension installed in the public schema.
+Gets the running cluster, with the published extension installed.
 
 ```csharp
 public PostgresTestCluster Cluster { get; }
@@ -82,6 +82,7 @@ The fixture to dispose after all tests finish.
 
 PostgreSQL 18 and later use a per-cluster extension search path. Earlier versions run from an isolated,
 relocatable copy of the selected installation.
+Custom SQL directories are remapped into owned test storage without changing the authored control file.
 Server logs and build logs remain in the project's bin/ankus-test-logs directory.
 
 <a id="member-96deb75b043968f2"></a>

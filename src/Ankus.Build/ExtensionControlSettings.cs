@@ -76,9 +76,8 @@ internal static class ExtensionControlSettings
                 case "comment":
                 case "schema":
                 case "requires":
-                    break;
                 case "directory":
-                    throw new FormatException("Control parameter 'directory' is not supported; Ankus publishes SQL beside the control file.");
+                    break;
                 default:
                     throw new FormatException($"Unknown extension control parameter '{name}'.");
             }

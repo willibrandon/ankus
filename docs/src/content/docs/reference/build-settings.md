@@ -73,7 +73,48 @@ configuration syntax; repeated assignments use the last value. Use SQL
 Ankus owns `default_version`, `module_pathname` and `encoding`; if present, those
 values must match the generated publication. Set the version through
 `AnkusExtensionVersion`, the library name through `AssemblyName`, and retain
-`UTF8` for generated SQL. Alternate SQL `directory` settings are not supported yet.
+`UTF8` for generated SQL.
+
+### SQL directories
+
+Set `directory` in the primary control file to install SQL scripts and
+version-specific control files outside the usual `extension/` directory:
+
+```ini
+directory = 'hello/scripts'
+```
+
+Relative paths start at `pg_config --sharedir`. With PostgreSQL 18 or later,
+a custom `extension_control_path` uses the selected search base instead. The
+example puts scripts in `hello/scripts/` beneath that base; the primary control
+file remains in `extension/`. An empty value, `directory = ''`, selects the
+base itself. Omitting the setting uses `extension/`.
+
+On Unix, `child/../scripts` also needs the intermediate `child` directory.
+Ankus creates it, and parent traversal through a symbolic link follows the link's
+target. Preserve empty directories when deploying a staged package.
+
+An absolute value selects that exact directory on the server. On Windows, use
+a fully qualified path such as `C:/PostgreSQL/hello/scripts`; drive-relative
+paths and paths rooted without a drive are rejected.
+
+Publishing keeps the control and SQL payload together under the output's
+`extension/` directory. `ankus install` places installation SQL, upgrade scripts
+and secondary controls in the declared destination. Change the author control
+and republish to change the layout; editing only the published control is
+rejected because it no longer matches the publication metadata.
+
+`install --destdir` and `package` stage absolute destinations beneath their
+output root, removing the filesystem root or Windows drive prefix. They do not
+write to the authored absolute directory. Deploy those files to the original
+absolute destination on the server.
+
+Windows packages resolve relative values from their `share/` directory.
+Parent-relative paths must stay inside the package root; use `install --destdir`
+for a full filesystem layout when they do not.
+
+The testing fixture remaps custom directories into its own temporary storage.
+It leaves both the authored control and its destination untouched.
 
 ### Version-specific control files
 
@@ -231,7 +272,8 @@ the control and SQL files PostgreSQL needs for `CREATE EXTENSION`.
 | Artifact | Standard location |
 | --- | --- |
 | Native library | `pg_config --pkglibdir` |
-| Control and versioned SQL files | `extension/` under `pg_config --sharedir` |
+| Primary control file | `extension/` under `pg_config --sharedir` |
+| Installation SQL, upgrade SQL and secondary controls | `extension/` under `pg_config --sharedir`, or the declared [SQL directory](#sql-directories) |
 
 The control file resolves the library through `dynamic_library_path`, normally
 `$libdir`. PostgreSQL 18's `extension_control_path` also allows a separate

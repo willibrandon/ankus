@@ -55,6 +55,23 @@ public sealed class PublishedExtension
     /// <param name="versionControlFiles">Secondary control filenames in extension--version.control form.</param>
     public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql,
         IReadOnlyList<string> upgradeScripts, IReadOnlyList<string> versionControlFiles)
+        : this(postgresMajor, runtimeIdentifier, library, control, sql, upgradeScripts, versionControlFiles, null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a manifest with a declared PostgreSQL SQL directory and a flat, owned publication payload.
+    /// </summary>
+    /// <param name="postgresMajor">The PostgreSQL header major used to compile the extension.</param>
+    /// <param name="runtimeIdentifier">The Native AOT runtime identifier.</param>
+    /// <param name="library">The native library filename.</param>
+    /// <param name="control">The primary control filename under extension/.</param>
+    /// <param name="sql">The installation SQL filename under extension/.</param>
+    /// <param name="upgradeScripts">Upgrade filenames in extension--old--new.sql form.</param>
+    /// <param name="versionControlFiles">Secondary control filenames in extension--version.control form.</param>
+    /// <param name="scriptDirectory">The literal primary control directory setting, or null for PostgreSQL's default.</param>
+    public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql,
+        IReadOnlyList<string> upgradeScripts, IReadOnlyList<string> versionControlFiles, string? scriptDirectory)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(postgresMajor, 13);
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeIdentifier);
@@ -108,6 +125,12 @@ public sealed class PublishedExtension
 
         Array.Sort(controls, StringComparer.Ordinal);
         VersionControlFiles = Array.AsReadOnly(controls);
+        if (scriptDirectory is not null && scriptDirectory.Any(static character => character is '\0' or > '\x7f'))
+        {
+            throw new ArgumentException("SQL directories must be ASCII without NUL, like PostgreSQL control values.", nameof(scriptDirectory));
+        }
+
+        ScriptDirectory = scriptDirectory;
         PostgresMajor = postgresMajor;
         RuntimeIdentifier = runtimeIdentifier;
         Library = library;
@@ -151,6 +174,43 @@ public sealed class PublishedExtension
     public IReadOnlyList<string> VersionControlFiles { get; }
 
     /// <summary>
+    /// Gets the literal SQL directory setting, or null when PostgreSQL uses its control file directory.
+    /// </summary>
+    public string? ScriptDirectory { get; }
+
+    /// <summary>
+    /// Verifies the published control's directory and returns its fully qualified PostgreSQL SQL path.
+    /// </summary>
+    /// <param name="publishDirectory">The publication containing the primary control under extension/.</param>
+    /// <param name="baseDirectory">The PostgreSQL shared directory, or a PostgreSQL 18+ extension search base.</param>
+    /// <returns>The directory for SQL scripts and secondary controls, preserving Unix traversal components.</returns>
+    /// <remarks>
+    /// PostgreSQL traverses Unix paths through the filesystem. Removing a directory before a parent component
+    /// can change its meaning, including when that directory is a symbolic link.
+    /// </remarks>
+    /// <exception cref="FormatException">The control disagrees with the manifest or uses an ambiguous rooted path.</exception>
+    public string GetScriptDirectory(string publishDirectory, string baseDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(publishDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        IReadOnlyDictionary<string, string> settings = ExtensionControlFile.Read(Path.Combine(publishDirectory, "extension", Control));
+        settings.TryGetValue("directory", out string? authored);
+        if (authored != ScriptDirectory)
+        {
+            throw new FormatException("The control SQL directory does not match the published manifest; republish the extension.");
+        }
+
+        string directory = ScriptDirectory ?? "extension";
+        if (Path.IsPathRooted(directory) && !Path.IsPathFullyQualified(directory))
+        {
+            throw new FormatException("SQL directories must be relative or fully qualified, not drive-relative or rooted without a drive.");
+        }
+
+        string path = Path.Combine(Path.GetFullPath(baseDirectory), directory);
+        return OperatingSystem.IsWindows() ? Path.GetFullPath(path) : path;
+    }
+
+    /// <summary>
     /// Reads a published manifest without reflection-based deserialization.
     /// </summary>
     /// <param name="directory">The publish directory.</param>
@@ -174,7 +234,7 @@ public sealed class PublishedExtension
             }
 
             int format = root.GetProperty("formatVersion").GetInt32();
-            if (format is not (1 or 2 or 3))
+            if (format is not (1 or 2 or 3 or 4))
             {
                 throw new FormatException("Unsupported Ankus extension manifest version.");
             }
@@ -191,11 +251,18 @@ public sealed class PublishedExtension
 
             string[] upgrades = format >= 2
                 ? [.. root.GetProperty("upgradeScripts").EnumerateArray().Select(static item => item.GetString()!)] : [];
-            string[] controls = format == 3
+            if (format < 4 && root.TryGetProperty("scriptDirectory", out _))
+            {
+                throw new FormatException("Custom SQL directories require extension manifest version 4.");
+            }
+
+            string[] controls = format >= 3
                 ? [.. root.GetProperty("versionControlFiles").EnumerateArray().Select(static item => item.GetString()!)] : [];
+            string? directory = format == 4
+                ? root.GetProperty("scriptDirectory").GetString() ?? throw new FormatException("A version-four manifest requires a SQL directory string.") : null;
             return new PublishedExtension(root.GetProperty("postgresMajor").GetInt32(),
                 root.GetProperty("runtimeIdentifier").GetString()!, root.GetProperty("library").GetString()!,
-                root.GetProperty("control").GetString()!, root.GetProperty("sql").GetString()!, upgrades, controls);
+                root.GetProperty("control").GetString()!, root.GetProperty("sql").GetString()!, upgrades, controls, directory);
         }
         catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException or
             ArgumentException or OverflowException)
@@ -213,13 +280,13 @@ public sealed class PublishedExtension
         using FileStream stream = File.Create(Path.Combine(directory, FileName));
         using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
         writer.WriteStartObject();
-        writer.WriteNumber("formatVersion", VersionControlFiles.Count > 0 ? 3 : UpgradeScripts.Count > 0 ? 2 : 1);
+        writer.WriteNumber("formatVersion", ScriptDirectory is not null ? 4 : VersionControlFiles.Count > 0 ? 3 : UpgradeScripts.Count > 0 ? 2 : 1);
         writer.WriteNumber("postgresMajor", PostgresMajor);
         writer.WriteString("runtimeIdentifier", RuntimeIdentifier);
         writer.WriteString("library", Library);
         writer.WriteString("control", Control);
         writer.WriteString("sql", Sql);
-        if (UpgradeScripts.Count > 0 || VersionControlFiles.Count > 0)
+        if (UpgradeScripts.Count > 0 || VersionControlFiles.Count > 0 || ScriptDirectory is not null)
         {
             writer.WriteStartArray("upgradeScripts");
             foreach (string script in UpgradeScripts)
@@ -230,7 +297,7 @@ public sealed class PublishedExtension
             writer.WriteEndArray();
         }
 
-        if (VersionControlFiles.Count > 0)
+        if (VersionControlFiles.Count > 0 || ScriptDirectory is not null)
         {
             writer.WriteStartArray("versionControlFiles");
             foreach (string control in VersionControlFiles)
@@ -239,6 +306,11 @@ public sealed class PublishedExtension
             }
 
             writer.WriteEndArray();
+        }
+
+        if (ScriptDirectory is not null)
+        {
+            writer.WriteString("scriptDirectory", ScriptDirectory);
         }
 
         writer.WriteEndObject();
@@ -272,6 +344,11 @@ public sealed class PublishedExtension
             {
                 throw new FileNotFoundException("The published extension is incomplete.", path);
             }
+        }
+
+        if (ScriptDirectory is not null)
+        {
+            _ = GetScriptDirectory(directory, directory);
         }
 
         string previousPath = Path.Combine(directory, "ankus.extension.previous.json");
