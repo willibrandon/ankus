@@ -138,8 +138,9 @@ jobs:
         with:
           dotnet-version: 10.0.400
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Select Windows C++ toolchain
         if: runner.os == 'Windows'
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- windows-toolchain
 
       - name: Restore NuGet package cache
         if: runner.environment != 'self-hosted'

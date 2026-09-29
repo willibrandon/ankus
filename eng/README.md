@@ -21,6 +21,7 @@ repository root with `dotnet run --file`.
 | `runtime-pack` | Pack a staged runtime for CI. |
 | `runtime-test` | Use a staged runtime to run the complete unit and PostgreSQL integration test suites. |
 | `runtime-test-build` | Prepare the staged runtime's PostgreSQL toolchain and build all test projects before saving CI caches. |
+| `windows-toolchain` | Select the latest supported Visual Studio installation with C++ x64 tools and export its developer environment to later CI steps. |
 | `runtime-test-run` | Run every already-built test module using the PostgreSQL and compiler environment prepared by `runtime-test-build`. |
 | `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
 | `unit-test` | Build and run the five unit test modules. |
@@ -62,6 +63,14 @@ jobs. It needs the pinned .NET SDK, PowerShell 7, Git, current Visual Studio C++
 tools, CMake, Ninja, Python, LLVM 20 or later with matching libclang, and
 PostgreSQL 17 with server headers and import libraries.
 
+The service PATH must include Windows PowerShell for the runtime build and
+Git's `usr/bin` directory for the cache action's `tar`/`gzip` pair. Keep Git's
+Unix tools after the system tool directories. The `windows-toolchain` command
+requires Visual Studio 2022 17.9 or later and queries `vswhere` for the C++
+component, preventing unrelated products such as SQL Server Management Studio
+from winning discovery. Its developer environment puts the selected MSVC
+compiler and linker first.
+
 The dedicated runner keeps its SDK installation, NuGet packages, temporary
 files and work directory under its own storage root. Configure
 `DOTNET_INSTALL_DIR`, `DOTNET_ROOT`, `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `TEMP`
@@ -79,6 +88,14 @@ variable `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY` selects the dedicated Windows
 runner's normal setting. Compare complete suites at the same commit, SDK and
 PostgreSQL version with equivalent cache conditions before raising that setting;
 record elapsed time, test outcomes and whether the run started with cold caches.
+
+Source and managed binding caches have separate **2 GiB** idle-entry budgets.
+`ANKUS_BINDING_CACHE_MAX_BYTES` overrides each budget. Eviction uses the normal
+cross-process leases and leaves active builds alone. Native linker objects are
+retained until maintenance can establish that no dependent build is using them.
+Remove obsolete experiment checkouts and completed test artifacts after retaining
+the compact evidence needed for the current change; avoid keeping duplicate
+runtime source trees and historical binary logs indefinitely.
 
 See the [.NET file-based app documentation](https://learn.microsoft.com/dotnet/core/sdk/file-based-apps)
 for SDK behavior.

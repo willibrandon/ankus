@@ -98,6 +98,11 @@ try
             VerifyHeaderFrontend(args[1]);
             break;
 
+        case "windows-toolchain":
+            RequireArguments(args, 1);
+            ConfigureWindowsToolchain();
+            break;
+
         case "unit-test":
             RequireArguments(args, 1);
             RunUnitTests(repositoryRoot);
@@ -489,6 +494,51 @@ static void VerifyPostgreSqlVersion(string version)
     }
 }
 
+static void ConfigureWindowsToolchain()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        throw new PlatformNotSupportedException("The Windows C++ toolchain requires Windows.");
+    }
+
+    string locator = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+        "Microsoft Visual Studio", "Installer", "vswhere.exe");
+    string installation = Capture(locator,
+    [
+        "-latest", "-products", "*", "-version", "[17.9,)",
+        "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath",
+    ]);
+    string setup = Path.Combine(installation, "VC", "Auxiliary", "Build", "vcvarsall.bat");
+    if (string.IsNullOrWhiteSpace(installation) || !File.Exists(setup))
+    {
+        throw new InvalidOperationException("Visual Studio 2022 17.9 or later with the C++ x64 tools is required.");
+    }
+
+    // cmd.exe needs its own quoting rules for a batch path containing spaces.
+    var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
+    {
+        Arguments = $"/d /s /c \"\"{setup}\" x64 >nul && set\"",
+    };
+    string configured = CaptureProcess(start);
+    foreach (string line in configured.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+    {
+        int separator = line.IndexOf('=');
+        if (separator <= 0)
+        {
+            continue;
+        }
+
+        string name = line[..separator];
+        string value = line[(separator + 1)..];
+        if (Environment.GetEnvironmentVariable(name) != value)
+        {
+            WriteEnvironment(name, value);
+        }
+    }
+
+    Console.WriteLine($"Selected MSVC {Environment.GetEnvironmentVariable("VCToolsVersion")} for x64.");
+}
+
 static void ConfigureHeaderFrontend(string repositoryRoot)
 {
     string directory;
@@ -844,17 +894,21 @@ static void Run(
 
 static string Capture(string fileName, IReadOnlyList<string> arguments)
 {
-    using Process process = new();
-    process.StartInfo.FileName = fileName;
-    process.StartInfo.UseShellExecute = false;
-    process.StartInfo.RedirectStandardOutput = true;
-    process.StartInfo.RedirectStandardError = true;
-
+    var start = new ProcessStartInfo(fileName);
     foreach (string argument in arguments)
     {
-        process.StartInfo.ArgumentList.Add(argument);
+        start.ArgumentList.Add(argument);
     }
 
+    return CaptureProcess(start);
+}
+
+static string CaptureProcess(ProcessStartInfo start)
+{
+    start.UseShellExecute = false;
+    start.RedirectStandardOutput = true;
+    start.RedirectStandardError = true;
+    using Process process = new() { StartInfo = start };
     process.Start();
     Task<string> output = process.StandardOutput.ReadToEndAsync();
     Task<string> error = process.StandardError.ReadToEndAsync();
@@ -863,7 +917,7 @@ static string Capture(string fileName, IReadOnlyList<string> arguments)
 
     if (process.ExitCode != 0)
     {
-        throw new InvalidOperationException($"Command failed: {fileName}{Environment.NewLine}{error.Result}");
+        throw new InvalidOperationException($"Command failed: {start.FileName}{Environment.NewLine}{error.Result}");
     }
 
     return output.Result.Trim();

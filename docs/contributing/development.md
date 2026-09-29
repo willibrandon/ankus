@@ -108,6 +108,15 @@ runs its own native ABI checks independently. Failed verification preserves the
 consumer's existing outputs; concurrent builds retain the same content and
 header checks as sequential builds.
 
+Generated-source and managed-companion cache stores each retain at most **2 GiB**
+of idle entries by default. `ANKUS_BINDING_CACHE_MAX_BYTES` selects a positive
+byte budget for each store. Reuse refreshes an entry's recency; lease disposal
+evicts the least recently used idle entries and removes abandoned staging.
+Active leases can temporarily exceed the budget and are never evicted. Lock
+files remain in place to preserve cross-process synchronization. Native object
+files named by linker manifests outlive the helper process and remain retained
+build inputs; clean those only when dependent builds have finished.
+
 Native binding probes and SDK record verification remove their temporary
 directories after the compiler and probe processes exit. Production commands and
 their tests share bounded Windows file-release retries; persistent access or

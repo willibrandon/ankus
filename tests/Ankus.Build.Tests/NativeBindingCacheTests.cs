@@ -5,7 +5,7 @@ namespace Ankus.Build.Tests;
 /// </summary>
 /// <param name="context">The test's cooperative cancellation context.</param>
 [TestClass]
-public sealed class NativeBindingCacheTests(TestContext context)
+public sealed partial class NativeBindingCacheTests(TestContext context)
 {
     private const string Key = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
 

@@ -13294,3 +13294,70 @@ without changing the developer's Git configuration. The runtime job's failed
 platform tests are skipped by the failed runtime dependency. Quality and Docs
 remain in progress at this check. The previous CI **36511778431** still has
 successful quality/runtime/Linux results and unfinished macOS/Windows jobs.
+
+The next dedicated attempt, CI **36515342191** (`d53fa58`), successfully
+checks out the runtime. It stops before compilation with exit **9009** because
+the service PATH omitted Windows PowerShell, which upstream `build.cmd` invokes.
+The service environment is corrected and the runner restarted. Manual CI
+**36515894149**, on the same commit with three package-consumer slots, now
+passes the Windows runtime build and packaging and starts the complete
+Windows x64/PostgreSQL 17 test job. This first run populates the dedicated
+caches; controlled timing comparisons remain pending. Earlier CI
+**36511778431** passes macOS ARM64/PostgreSQL 18 in **51m22s**, while its
+Windows job remains in progress. No run is automatically cancelled.
+
+That run's Windows test job **109238697549** fails during the build, before
+tests run. The previous compiler action asks `vswhere` for the newest product
+without requiring C++ tools. An installed SQL Server Management Studio wins
+that query; the action's fallback then selects Visual Studio 2019/MSVC 14.29,
+which cannot compile the required `__typeof__` probes. CI now selects the latest
+stable Visual Studio **17.9 or later with the C++ x64 component**, then exports
+its developer environment. Local Windows verification selects **MSVC
+14.51.36231**, resolves the matching compiler/linker, and compiles and executes
+the native `__typeof__`/alignment probe successfully. The engineering app builds
+in Release and all three workflows pass actionlint.
+
+The separate successful runtime job could not save its cache because Git's
+`tar` could not find `gzip`. The dedicated service PATH now includes Git's Unix
+tool directory after system tools; a real compressed archive creation and
+extraction round trip passes. The idle service has been restarted successfully.
+Complete Windows CI evidence and the three/six-slot comparison remain pending.
+
+Precommit CI review: **36511778431** now passes all jobs, including hosted
+Windows x64/PostgreSQL 17 in **59m32s**, Linux in **27m15s**, and macOS in
+**51m22s**; Docs **36511778430** passes. CI **36515087803** and
+**36515342191** fail on the previously recorded Windows setup issues, with
+their platform tests skipped. Docs **36515087811** passes. Current manual CI
+**36515894149** passes quality and all runtime jobs, fails Windows during the
+incorrect-compiler build, and still runs Linux/macOS tests. These unfinished
+jobs are not completed platform evidence. Outcomes are checked again before push.
+
+## Bounded source and managed binding-cache retention
+
+Hash-keyed source and managed-companion entries accumulated across builds
+without any byte or age retention policy. These two stores now each retain at
+most **2 GiB of idle artifacts**, configurable with the positive byte count
+`ANKUS_BINDING_CACHE_MAX_BYTES`. Reuse refreshes recency. Releasing a consumer
+lease evicts the least recently used idle entries and reclaims abandoned
+staging/replacement directories while retaining permanent synchronization
+files. Active producers/readers are skipped without waiting; active leases may
+temporarily exceed the idle-byte budget. Directory links and unrelated
+directories are preserved.
+
+Native object files referenced by linker manifests deliberately outlive the
+helper process. They remain retained build inputs and are excluded from this
+automatic copied-artifact eviction; removing them still requires that dependent
+builds have finished. Existing compiler/source content checks and native ABI
+verification remain unchanged.
+
+Focused cache/linker verification passes **32 tests**, zero failures and
+**four Windows-only skips**, in **2.542s**. Regression cases cover recency,
+exact budget retention, eviction/rebuild, active leases, abandoned/active
+staging, unrelated directories, maintenance contention, directory links,
+configuration validation, disposal lifetime and cancellation. The isolated
+candidate passes Release with zero warnings/errors in **1m20.78s** and site
+build/check with **253 pages** and zero diagnostics. API generation verifies
+**206 pages/2,518 members**. Complete plain `dotnet test` on PostgreSQL
+**18.6/Linux x64**, SDK **10.0.400**, with six package slots passes **8,807
+tests, zero failures, six Windows-only skips, 8,813 total**, in **8m53.023s**.
+This isolated candidate excludes the unfinished embedded-schema changes.

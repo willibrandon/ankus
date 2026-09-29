@@ -6,7 +6,7 @@ namespace Ankus.Build;
 /// <summary>
 /// Shares immutable verified binding artifacts while serializing producers across processes.
 /// </summary>
-internal static class NativeBindingCache
+internal static partial class NativeBindingCache
 {
     private const string ManifestName = "manifest.json";
 
@@ -17,9 +17,11 @@ internal static class NativeBindingCache
     /// <param name="key">The SHA-256 identity of all explicitly selected inputs.</param>
     /// <param name="produce">Writes deliverable files in staging and returns additional compiler input files.</param>
     /// <param name="cancellationToken">Cancels lock acquisition, production or verification.</param>
+    /// <param name="copyBeforeRelease">Whether the consumer copies its artifacts before releasing ownership.</param>
     /// <returns>Ownership of the verified entry until its consumer finishes reading the artifacts.</returns>
     internal static async Task<NativeBindingCacheLease> GetAsync(string root, string key,
-        Func<string, CancellationToken, Task<IReadOnlyList<NativeBindingCacheFile>>> produce, CancellationToken cancellationToken)
+        Func<string, CancellationToken, Task<IReadOnlyList<NativeBindingCacheFile>>> produce, CancellationToken cancellationToken,
+        bool copyBeforeRelease = true)
     {
         ArgumentNullException.ThrowIfNull(produce);
         if (key.Length != 64 || key.Any(static value => !char.IsAsciiHexDigitUpper(value)))
@@ -29,13 +31,15 @@ internal static class NativeBindingCache
 
         cancellationToken.ThrowIfCancellationRequested();
         root = Path.GetFullPath(root);
+        long maximumBytes = ReadMaximumBytes(Environment.GetEnvironmentVariable("ANKUS_BINDING_CACHE_MAX_BYTES"));
         Directory.CreateDirectory(root);
         // Never remove lock files: deleting an unlocked name races another process opening it.
         FileStream ownership = await LockAsync(Path.Combine(root, key + ".lock"), cancellationToken);
         try
         {
             string entry = await PopulateAsync(root, key, produce, cancellationToken);
-            return new(entry, ownership);
+            Directory.SetLastWriteTimeUtc(entry, DateTime.UtcNow);
+            return new(entry, ownership, copyBeforeRelease ? root : null, maximumBytes);
         }
         catch
         {
@@ -245,15 +249,31 @@ internal static class NativeBindingCache
 /// </summary>
 /// <param name="directory">The verified artifact directory.</param>
 /// <param name="ownership">Exclusive cross-process ownership retained until disposal.</param>
-internal sealed class NativeBindingCacheLease(string directory, FileStream ownership) : IAsyncDisposable
+/// <param name="cacheRoot">The copied-artifact store to trim after release, or null for retained linker inputs.</param>
+/// <param name="maximumBytes">The maximum idle artifact bytes retained in this store.</param>
+internal sealed class NativeBindingCacheLease(string directory, FileStream ownership, string? cacheRoot, long maximumBytes) : IAsyncDisposable
 {
+    private int _disposed;
+
     /// <summary>
     /// Gets the verified directory held by this lease.
     /// </summary>
     internal string Directory { get; } = directory;
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => ownership.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        await ownership.DisposeAsync();
+        if (cacheRoot is not null)
+        {
+            await NativeBindingCache.TrimAsync(cacheRoot, maximumBytes, CancellationToken.None);
+        }
+    }
 }
 
 /// <summary>

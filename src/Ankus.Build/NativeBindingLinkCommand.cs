@@ -106,6 +106,7 @@ internal static class NativeBindingLinkCommand
             string sourceHash = await NativeBindingCache.HashAsync(file, cancellationToken);
             string artifactHash = await NativeBindingCache.HashAsync(artifact, cancellationToken);
             string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sourceHash + artifactHash)));
+            // The Native AOT linker opens this retained object after the helper has exited.
             await using NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(cache, key,
                 (destination, token) =>
                 {
@@ -113,7 +114,7 @@ internal static class NativeBindingLinkCommand
                     File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
                     File.Copy(artifact, Path.Combine(destination, Path.GetFileName(artifact)));
                     return Task.FromResult<IReadOnlyList<NativeBindingCacheFile>>([]);
-                }, cancellationToken);
+                }, cancellationToken, copyBeforeRelease: false);
             await PublishManifestAsync(output, Path.Combine(lease.Directory, Path.GetFileName(artifact)) + "\n", cancellationToken);
         }
         finally
