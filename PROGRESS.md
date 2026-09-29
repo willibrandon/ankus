@@ -68,6 +68,26 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus upgrade` updates framework package and project SDK references with NuGet
+version rules, configured sources and mappings, shared-file discovery, dry runs,
+exact source edits and rollback. Imported/shared properties and mixed package
+identities preserve unrelated consumers. Platform validation caught and fixed
+macOS feed aliases, package-cache import ownership, and Windows replacement
+diagnostics before this milestone.
+
+The complete PostgreSQL **18.6/Linux x64** suite reports **9,446 total,
+9,437 passed, zero failed and nine Windows-only skips**, in **14m34.086s**.
+The **56 affected cases** pass on Linux x64 and macOS ARM64 with PostgreSQL
+**18.6** (**55 passed / one skip** each), and Windows x64 with PostgreSQL
+**17.11** (**53 passed / three skips**), including actual Windows rollback.
+Release, Native AOT tool publication, native CLI probes, API freshness and
+documentation checks pass. Previous CI **36627469418** and Docs **36627469441**
+are rechecked as successful before committing; this candidate still needs its
+own complete CI platform results. Remaining CLI/native/type/example contracts,
+runtime servicing and the complete PostgreSQL/platform matrix remain required.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Valgrind startup now supplies a **32 GiB** GC virtual region range when the
 caller has not selected one, fixing the native runtime initialization failure
 on Linux CI. Explicit overrides and ordinary startup remain unchanged. All
@@ -76,11 +96,11 @@ x64** runner: **11 passed, zero failed and one Windows-only skip**. The complete
 local PostgreSQL **18.6/Linux x64** suite reports **9,389 total, 9,381 passed,
 zero failed and eight Windows-only skips**, in **14m58.594s**. Release, API
 freshness and documentation checks pass. The preceding Linux CI failure is
-recorded below; no new full-platform CI pass is claimed yet. Remaining
+recorded below. Replacement CI **36627469418** now passes all jobs: Linux
+**32m11s**, Windows **21m33s**, macOS **13m20s**, quality and all runtime jobs;
+Docs **36627469441** also passed. No replacement job timed out. Remaining
 CLI/native/type/example contracts, runtime servicing and the complete
 PostgreSQL/platform matrix remain required.
-
-Earlier verified milestones follow in reverse chronological order.
 
 `ankus regress` runs SQL/expected-output suites through the selected PostgreSQL
 driver, with setup/reset, filtering, new expectations, repeated diffs and explicit
@@ -3307,7 +3327,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
 | `get` | Query extension control properties and derived extension metadata | Implemented: managed generated metadata and author settings share primary publication composition; evaluated extension names, selected-project Git revisions and publication-only queries preserve exact output and failures. Installed-tool/catalog evidence on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform matrix remains required |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
-| `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
+| `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Partial: installed command updates SDK/global/central/package declarations with NuGet version rules, configured sources/mappings, exact manifest edits, imported-property isolation, mixed-item identity guards, dry runs and rollback. The 56-case selection passes on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Arbitrary package-name property functions and the full version/platform matrix remain required; distinct from PostgreSQL extension SQL upgrades |
 
 Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command options in each command file,
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
@@ -14979,6 +14999,77 @@ Windows **18m29s**, macOS **13m22s**, and quality **8m07s**. The three
 runtime jobs pass; no job times out. The three earlier CI/Docs milestones
 also pass, with no run still in progress at this check.
 
+Valgrind milestone `cd4a6e2` is committed and pushed. The pre-push check
+again confirms all eight preceding CI/Docs runs are successful. New CI
+**36617656321** and Docs **36617656308** are in progress; their outcomes
+are not yet claimed. Work continues on framework-reference upgrades,
+which remain separate from the implemented PostgreSQL SQL upgrade workflow.
+
+### 2026-09-29 — Framework reference upgrades in progress
+
+The uncommitted `ankus upgrade` command now plans project/solution SDK and
+framework-package updates, including `global.json`, central package declarations,
+SDK elements/imports, property-based versions, and dry-run output. It uses exact
+token edits to retain unrelated content, encoding and line endings. File
+replacements are staged together, checked for concurrent edits, and rolled back
+after an observed replacement failure. The separately versioned Native AOT runtime
+packages are outside the framework-version update set.
+
+Version discovery delegates feed access to the installed .NET SDK. An independent
+local-feed probe establishes that NuGet can return exit code zero alongside
+per-source errors; the new resolver rejects those incomplete results before
+writing files. The Microsoft-owned [NuGet.Versioning](https://www.nuget.org/packages/NuGet.Versioning/7.9.0)
+and [NuGet.Configuration](https://www.nuget.org/packages/NuGet.Configuration/7.9.0)
+packages supply version comparisons, ranges, hierarchical settings and package
+source mappings. Concrete SDK versions and package version requirements retain
+their distinct NuGet contracts.
+
+Initial command builds pass with zero warnings and errors. Manual owned-file
+probes verify dry-run preservation and exact central/global version edits. One
+probe exposes an XML source-position error when expanding an empty property;
+that defect is fixed and planned XML/JSON is parsed before replacement. The
+first two test attempts stop at compilation on MSTest collection overload/style
+diagnostics; those findings are corrected without suppression. The installed
+command selection is now running. Existing SQL-upgrade tests remain intact in
+their original file; the new framework cases use a separate file.
+
+This is work in progress. Imported-file selection, property ownership, additional
+failure/encoding/source-mapping boundaries, Native AOT consumer execution,
+cross-platform checks, complete tests and documentation gates remain required.
+Unresolved dynamic imports currently fail explicitly before writes; they are
+still required implementation work, not completed tooling parity.
+
+Previous Valgrind commit `cd4a6e2` Docs **36617656308**, quality and all runtime
+jobs pass. CI **36617656321** passes macOS in **13m13s** and Windows in
+**22m01s**; Linux remains in progress without a reported failure at this check.
+
+The first executed framework-upgrade selection passes on PostgreSQL **18.6/Linux
+x64**: **21 passed, zero failed and one Windows-only skip (22 total)** in
+**4m04.800s**. It upgrades a generated solution, restores its central testing
+package, publishes the native extension, loads it into PostgreSQL and obtains
+SQL **42**. Other executed cases verify exact UTF-8/UTF-16 bytes, comments and
+line endings, shared-property isolation, both solution formats, conditional
+version declarations, NuGet prerelease ordering/ranges, source-mapping exclusion,
+incomplete-feed failure, observed request cancellation and invalid/read-only
+input preservation. The actual Windows sharing-violation rollback case remains
+unexecuted. This focused pass does not establish complete command parity.
+
+The README and CLI guide now describe the implemented workflow and current
+computed-import limit. A native MSBuild probe confirms that `MSBuildAllProjects`
+does not enumerate all user imports, while preprocessing identifies the real
+computed import without writing project artifacts. Correct imported-file
+selection remains the next implementation requirement; no commit or full-suite
+result is claimed for this work yet.
+
+The completed CI result for Valgrind commit `cd4a6e2`, run **36617656321**,
+fails on Linux/PostgreSQL 18 after **31m56s**. Integration reports **3,931
+passed, one failed and two skipped (3,934 total)** in **28m03.162s**.
+`ValgrindCommandsExecuteNativeExtensionAndPreserveData` loses its server
+connection during the first instrumented Native AOT query. This is a test
+failure, not a timeout. macOS, Windows, quality, all runtime jobs and Docs
+pass. Framework-upgrade work is preserved while the native failure is
+investigated; the earlier local pass does not resolve this CI failure.
+
 ### 2026-09-29 — Valgrind runtime address-space startup failure
 
 CI **36617656321** for `cd4a6e2` fails on Linux/PostgreSQL **18.6** after
@@ -15045,3 +15136,339 @@ Linux failure; its other jobs and Docs **36617656308** passed. Previous
 No previous run is still active. This correction addresses the reproduced
 failure without weakening tests or diagnostics. Complete cross-platform CI
 for the correction and all remaining full-port requirements stay open.
+
+Correction `b0e60c2` is committed. The pre-push check again confirms the
+recorded Linux failure in **36617656321**, successful companion jobs and
+Docs **36617656308**, and successful preceding `c11e4f8` CI/Docs. No previous
+run is active. The full local and focused failing-runner correction evidence
+above stands; new complete-platform CI has not run yet.
+
+Correction `b0e60c2` is now pushed. Replacement CI **36627469418** is in
+progress: all three runtime jobs passed, while quality and the full Linux,
+macOS and Windows test jobs remain active. Docs **36627469441** passed.
+No replacement-run failure is reported at this check. The temporary validation
+checkout and its build artifacts have been removed; compact diagnostic evidence
+is retained. Framework-upgrade work remains separate and unfinished.
+
+### 2026-09-29 — Framework upgrade import selection
+
+Work resumes on `ankus upgrade` after the Valgrind repair. Conditional and
+computed imports, `Choose`, and conventional shared-file overrides now trigger
+the installed SDK's own MSBuild evaluation. Discovery includes the default
+evaluation and each declared configuration/target-framework combination, without
+executing build or restore targets. Imported toolchain, package-cache and
+generated project-extension files are excluded from this evaluated selection.
+Simple literal declarations retain source-only upgrades when the old project SDK
+has not been restored. An evaluation failure rejects all planned writes.
+
+The Release tool build passes with zero warnings/errors in **3.97s**, after
+correcting one CA1861 finding without suppression. New installed-tool cases
+exercise computed paths across six configuration/framework combinations,
+disabled/replaced shared files, exact dry-run preservation and a later project
+failure leaving the entire solution unchanged. That selection is still running;
+no new test pass or milestone completion is claimed. Shared-property ownership,
+additional import/source boundaries, Native AOT tool publication and complete
+validation remain required before committing this command.
+
+The Valgrind repair's replacement CI **36627469418** now passes macOS,
+quality and all runtime jobs; Linux and Windows tests remain active. Docs
+**36627469441** passed. No new CI failure is reported at this check.
+
+The first import selection completes successfully on PostgreSQL **18.6/Linux
+x64**: **25 passed, zero failed and one Windows-only skip (26 total)** in
+**5m14.299s**. Site build produces **260 pages**, and its check reports zero
+errors, warnings or hints. `UpgradeEvaluatesConditionalImportsAcrossBuilds`,
+`UpgradeHonorsSharedImportSelection` and `UpgradeEvaluationFailurePreservesSolution`
+provide the new import and no-partial-write evidence.
+
+Review then identifies additional boundaries. The candidate now preflights
+shared-import controls before opening unused files, retains computed property
+reassignments, and delegates directory globs and escaped import paths to MSBuild.
+Imported version properties retain their original values to protect unknown
+sibling consumers; framework references receive explicit updated requirements.
+Source overrides resolve relative to the caller while respecting configured
+names and mappings. Replacement checks every captured source for concurrent
+edits and preserves Unix permissions. Expanded regression tests are running;
+these newer changes are not covered by the earlier 26-case result.
+
+Replacement CI **36627469418** passes Windows in **21m33s** and macOS in
+**13m20s**. Linux remains active; quality, runtime jobs and Docs passed.
+
+The expanded installed-tool selection passes on PostgreSQL **18.6/Linux x64**:
+**36 passed, zero failed and one Windows-only skip (37 total)** in
+**3m21.803s**. It verifies computed reassignment, escaped paths and directory
+globs; ignored invalid shared files and build response files; unchanged
+package-cache declarations; unrelated sibling versions through actual MSBuild
+queries; relative/named sources with and without mappings; a user edit during a
+gated successful feed lookup; and retained Unix permissions. The actual Windows
+replacement rollback remains unexecuted in this selection. Native AOT tool
+publication and final scope/platform/full-suite validation remain required;
+the framework-upgrade command has not been committed yet.
+
+The tool also publishes successfully as a Linux x64 Native AOT executable with
+the new NuGet dependencies and no warning suppression. That native executable
+performs a real upgrade through a computed import using a caller-relative local
+feed and package-source mapping. It selects **0.3.0-beta.10** over
+**0.3.0-beta.2**, preserves every unrelated file and leaves the upgraded sources
+unchanged during a subsequent dry run. The owned probe project/feed are removed
+after validation. This is additional command evidence, not a complete port or
+complete-platform acceptance result.
+
+| Framework upgrade boundary | Executed test evidence |
+|---|---|
+| Conditional/computed imports, configurations and target frameworks | `UpgradeEvaluatesConditionalImportsAcrossBuilds`, `UpgradeHonorsSharedImportSelection`, `UpgradeResolvesImportPathForms` |
+| Unselected consumers and package-owned files | `UpgradePreservesImportedPropertyConsumers`, `UpgradePreservesPackageOwnedImports` |
+| Relative/named feed overrides and mappings | `UpgradeResolvesSourceOverrides`, `UpgradeFeedFailuresAndSourceMappings` |
+| Evaluation failure and concurrent user edits | `UpgradeEvaluationFailurePreservesSolution`, `UpgradeConcurrentSourceEditPreservesUserChanges` |
+| Formatting, permissions and read-only manifests | `UpgradePreservesUnrelatedVersionsAndFormatting`, `UpgradePreservesUnixPermissions`, `UpgradeReadOnlyManifestPreservesAllFiles` |
+| Actual upgraded extension publication | `UpgradeUpdatesScaffoldAndPublishesNativeExtension` restores the changed central dependency and obtains native SQL **42** |
+
+Remaining command review includes symbolic-link import context, property-composed
+package identities and mixed item lists. Final complete tests, cross-platform
+checks including Windows rollback, and refreshed Release/API/site gates remain
+required before the command milestone is committed. The broader full-port
+requirements remain unchanged.
+
+The replacement CI for Valgrind repair `b0e60c2`, **36627469418**, is now
+fully successful. Full test jobs pass on PostgreSQL **18/Linux x64** in
+**32m11s**, PostgreSQL **17/Windows x64** in **21m33s**, and PostgreSQL
+**18/macOS ARM64** in **13m20s**. Quality and all runtime jobs pass; Docs
+**36627469441** passed. No job times out. This closes the reproduced Linux
+failure in **36617656321**; it does not validate the uncommitted upgrade work.
+
+### 2026-09-29 — Framework package identity and symbolic import boundaries
+
+The preceding goal turn produced verified implementation progress; CI for
+`b0e60c2` and its Docs run are rechecked as successful. Work continues on the
+uncommitted framework-upgrade command.
+
+Source-declared package-name properties and mixed item lists now receive
+identity-specific version metadata. This preserves unrelated packages that
+share an `Include`, version property, aliases or conditional metadata. Existing
+identity-specific metadata is reused, making repeated upgrades idempotent.
+A direct native MSBuild probe verifies that conditional child version metadata
+overrides an item's version attribute only for the selected framework identity.
+
+Symbolic-link imports now use native evaluation so their logical import paths
+retain MSBuild semantics. The Unix permission case includes an execute bit,
+making its assertion independent of the process umask. New installed cases cover
+`PackageReference`, `PackageVersion` and `GlobalPackageReference`, both
+self-closing and expanded XML, Debug/Release item values, repeated upgrades and
+symbolic import context. The selection is running; no result is claimed yet.
+An initial build reports two redundant casts; those are removed without
+suppression. Final complete/platform validation and all full-port requirements
+remain open.
+
+The identity and symbolic-import selection completes on PostgreSQL **18.6/Linux
+x64**: **43 passed, zero failed and one Windows-only skip (44 total)** in
+**3m30.397s**. Three additional cases then verify a real NuGet restore with mixed
+central versions and per-reference overrides, plus cyclic and missing package
+identity properties. The expanded selection reports **46 passed, zero failed
+and one Windows-only skip (47 total)** in **3m29.048s**. The restore graph contains
+the upgraded Ankus package and the unchanged unrelated package while central
+package management remains enabled.
+
+Windows x64/PostgreSQL **17.11** and macOS ARM64/PostgreSQL **18.6** checks are
+running from copies of the same source candidate. Early Windows manual setup
+attempts failed before test execution because the inherited shell PATH omitted
+Windows SDK discovery tools; the validation process now uses the machine/user
+Windows PATH and the runner's existing C++ toolchain setup. No production code,
+analyzer setting or CI workflow was changed for that setup correction. Full
+suite, Release, refreshed Native AOT and API/site gates remain required.
+
+The first macOS selection reports **45 passed, one failed and one Windows-only
+skip (47 total)** in **3m13.639s**. The failure is the relative-source override
+with package-source mapping: equivalent local directories reached through
+`/var` and `/private/var` did not retain the configured feed identity. Source
+matching now resolves directory links component by component while retaining
+the configured feed and its mapping. URL comparison retains URI semantics;
+local path comparison follows the platform's case rules. A dedicated directory
+alias regression also covers this boundary on Linux. An explicit empty `--to`
+case maps the corresponding `cargo-pgrx/tests/cli_upgrade.rs` rejection check.
+The revised Linux and macOS selections are running. The earlier Release solution
+build passed with zero warnings/errors in **1m21.35s**, before this correction;
+the final build gate will be repeated.
+
+The validation session then changes to restricted network access and read-only
+Git metadata. Handles for the revised Linux/macOS selections and the original
+Windows selection become unavailable without final test summaries. Those runs
+remain **unverified**; their partial output is not a pass, and remote execution
+must be inspected before starting replacement platform work.
+
+Local validation of the corrected source continues within the permitted
+workspace. The Release tool build passes with zero warnings/errors. A real CLI
+probe passes five mapped-feed selections (configured name, relative and absolute
+directory aliases, file URI, and trailing separator), plus rejection of an empty
+version with unchanged project bytes. Its temporary feed/project are removed.
+API freshness passes for **213 pages / 2,565 members** using the built generator;
+the generator also builds successfully with one MSBuild node. `pnpm check`
+reports zero errors, warnings or hints, and the standalone Astro build produces
+**260 pages**.
+
+These checks do not replace the missing gates. The ordinary `pnpm build`
+wrapper cannot finish its default MSBuild invocation in this session. Refreshed
+Native AOT publication fails to start its MSBuild task host (**MSB4216**).
+The repeated Release solution build encounters restricted cache writes; a run
+with a workspace cache then encounters **NU1900** while fetching vulnerability
+data from the unavailable NuGet service. No warning or audit policy is relaxed.
+The corrected 49-case selection, full plain test suite, final Release and Native
+AOT gates, full platform checks, latest CI recheck, commit and push remain open.
+The last verified published CI result is still successful run **36627469418**
+for `b0e60c2`; the framework-upgrade work remains uncommitted.
+
+The repeated solution build is stopped after confirming the same unavailable
+NuGet audit service across projects. Its newly created validation caches and
+temporary files are removed; logs and results are retained. Restore under the
+ordinary environment before resuming final validation.
+
+### 2026-09-29 — Framework upgrade line-ending preservation
+
+The preceding goal turn made implementation and validation progress, while final
+platform/full-suite/commit gates remain incomplete. GitHub access is rechecked
+and remains unavailable in this session. Local source review reproduces a
+separate formatting bug: an otherwise valid project with CR-only line endings
+fails with an out-of-range source position. LF and CRLF versions succeed.
+
+Manifest source positions now count LF, CRLF and CR as XML line boundaries while
+retaining their exact original bytes. The installed-tool formatting regression
+now covers all three endings in both UTF-8 and UTF-16. This expands the pending
+upgrade selection to **53 cases**; that is a discovery scope, not a passing test
+count.
+
+The Release tool build passes with zero warnings/errors in **4.98s**. The
+integration test project also compiles against existing project outputs with
+zero warnings/errors in **9.28s**; this is compilation evidence only. Direct
+execution of the built CLI passes **12 encoding/line-ending combinations**
+(UTF-8 with/without BOM and UTF-16 LE/BE, each with LF/CRLF/CR). Each checks exact
+updated bytes, dry-run preservation and repeated-upgrade preservation. Three
+additional mixed-item cases use native MSBuild evaluation to prove Ankus moves
+to **0.2.0** while the unrelated package stays at **0.1.0** for every line-ending
+form. The owned probe files are removed. Final ordinary validation and all
+broader full-port requirements remain open; no framework-upgrade commit or new
+platform pass is claimed.
+
+Native MTP discovery confirms all **53 upgrade cases** are present in the
+compiled test module (**123ms**); no fixture or backend execution is credited
+from discovery. The updated standalone site build again produces **260 pages**,
+and `pnpm check` reports zero errors, warnings or hints. API source declarations
+are unchanged by this line-ending correction. Network and Git-write restrictions
+still prevent the outstanding ordinary validation, current CI check and push.
+
+The same access restriction persists on the third consecutive goal turn:
+GitHub API requests still fail, and the session keeps Git metadata read-only.
+The saved source, test compilation, 53-case discovery, direct CLI checks and
+documentation results are rechecked. They do not prove the outstanding full
+suite or platform results. The current milestone cannot be finalized or pushed
+under these permissions. Goal work is marked blocked pending restored network
+and Git write access; the full-port objective and all remaining acceptance
+requirements are unchanged.
+
+### 2026-09-29 — Framework upgrade validation resumed
+
+Network and Git access are restored. CI **36627469418** and Docs
+**36627469441** for `b0e60c2` are rechecked as successful, and all three runners
+are idle. No earlier local/macOS test process remains active. The interrupted
+selections have no complete results and are not counted as passes.
+
+The original Windows validation log is now terminal: **zero passed, 45 failed
+and two Unix-only skips (47 total)** in **4m44.227s**. Every failure comes from
+assembly initialization before an upgrade test body executes. The manual
+process inherited Visual Studio's `Platform=x64`, placing generated fixture
+files under a different intermediate path. The existing CI launcher already
+removes this environment variable; the manual validation now does the same.
+No repository source or test expectation changes for this setup correction.
+
+The same corrected **53-case** source candidate is now running on PostgreSQL
+**18.6/Linux x64**, PostgreSQL **18.6/macOS ARM64**, and PostgreSQL
+**17.11/Windows x64**. Full-suite and final build/documentation/Native AOT gates
+remain required before committing the milestone.
+
+The first resumed Linux selection passes **52 tests, zero failures and one
+Windows-only skip (53 total)** in **4m18.911s**. macOS executes the same selection
+and reports **51 passed, one failed and one Windows-only skip** in **2m46.746s**.
+The new source-alias regression exposes a second canonicalization boundary:
+a symbolic link can point to a directory whose parent is itself a symbolic link.
+Resolving only the final link leaves two names for the same mapped feed.
+
+Feed comparison now resolves the ancestors of link targets as well. The existing
+regression explicitly creates that nested alias on both Unix platforms and
+checks that both links remain intact. The revised 53-case selection is running
+on Linux and macOS; the first resumed Windows selection is still in progress.
+No failure is suppressed, and no final-candidate platform pass is claimed yet.
+
+The nested-alias correction passes the complete **53-case** selection on both
+Unix platforms: Linux **52 passed, zero failed, one skip** in **3m39.213s**;
+macOS **52 passed, zero failed, one skip** in **2m40.295s**. The first Windows
+selection reports **49 passed, one failed, three Unix-only skips** in
+**6m52.329s**. Its actual sharing-violation test detects a missing file path in
+the CLI diagnostic. Replacement errors now include the affected manifest path
+while preserving the underlying error and transactional rollback.
+
+Final source review also reproduces an unconditional import rewriting a
+package-owned manifest. Source discovery now excludes NuGet's configured global
+and fallback package directories; explicit cache/build-directory overrides use
+MSBuild's evaluated paths. The existing cache-preservation regression expands
+to four conditional/unconditional and project-property/fallback-cache cases,
+each verifying exact preserved cache bytes and the full directory contents.
+The resulting **56-case** candidate is running on all three platforms. Full-suite
+and final Release/API/docs/native-publication gates remain open.
+
+The final **56-case** selection passes on PostgreSQL **18.6/Linux x64**:
+**55 passed, zero failed, one Windows-only skip**, **3m54.831s**. It also passes
+on PostgreSQL **18.6/macOS ARM64**: **55 passed, zero failed, one Windows-only
+skip**, **2m59.026s**. SHA-256 comparison confirms all **17** changed source and
+project files match across the three validation copies. Windows remains in
+progress; the final Release solution build has started.
+
+Windows completes the same **56-case** candidate on PostgreSQL **17.11/x64**:
+**53 passed, zero failed, three Unix-only skips**, **6m05.404s**. This includes
+the real file-sharing violation and exact multi-file rollback assertions.
+The final Release solution build passes with **zero warnings and errors** in
+**43.22s**. Native AOT tool publication also succeeds without diagnostics.
+
+The published native CLI passes **11 focused boundary checks** covering nested
+feed aliases with source mapping, numeric prerelease selection, computed imports,
+independently evaluated mixed package versions, CR-only formatting, Unix mode,
+repeated-upgrade bytes and timestamps, dry-run and invalid-request preservation,
+and unchanged symbolic links. Native MSBuild reports Ankus.Testing at
+**0.3.0-beta.10** while the unrelated package remains at **0.1.0**. Owned probe
+files are removed. API freshness passes for **213 pages / 2,565 members**.
+The complete unfiltered suite and ordinary site checks are the remaining local
+acceptance gates before commit and push.
+
+The ordinary `pnpm build` completes **260 pages**, including API generation;
+`pnpm check` reports **zero errors, warnings and hints**. The final plain
+`dotnet test` run is now executing the complete PostgreSQL **18.6/Linux x64**
+suite. No filtered selection is credited as full-suite evidence.
+
+### 2026-09-29 — Framework upgrade verified milestone
+
+Final plain `dotnet test` succeeds against PostgreSQL **18.6/Linux x64**:
+**9,446 total, 9,437 passed, zero failed, nine Windows-only skips**, in
+**14m34.086s**. All six test modules complete, including published Native AOT
+extensions and the Valgrind regression that previously failed CI. The source
+snapshot still matches the candidate tested on all three platforms.
+
+| Final upgrade acceptance | Evidence |
+|---|---|
+| Package/SDK/global/central declarations and real upgraded consumer | Installed upgrade, actual restore, native publication and PostgreSQL SQL result **42** |
+| Version requirements and configured source selection | Stable/prerelease ordering, exact/bounded/floating ranges, SDK range resolution, source mappings and nested directory aliases |
+| Import ownership and unrelated consumers | Native configuration/framework evaluation; exact shared/sibling/cache bytes; global/fallback cache exclusion; independently evaluated mixed-item versions and CPM restore |
+| Source preservation and failure recovery | UTF-8/UTF-16 with LF/CRLF/CR; dry-run and repeat preservation; Unix permissions; observed-request cancellation; concurrent user edits; actual Windows sharing-lock rollback |
+| Affected platform scope | Linux **55/0/1 skip, 3m54.831s**; macOS **55/0/1 skip, 2m59.026s**; Windows **53/0/3 skips, 6m05.404s**, each **56 total** |
+| Complete local suite | PostgreSQL **18.6/Linux x64**, **9,437/0/9 skips**, **14m34.086s** |
+| Release and native CLI | Release solution **zero warnings/errors, 43.22s**; Native AOT publication; **11** direct native CLI boundary checks |
+| API/site | API freshness **213 pages / 2,565 members**; ordinary site build **260 pages**; site check **zero errors/warnings/hints** |
+
+The owned macOS/Windows validation copies and native probe files are removed;
+compact result logs remain local. README and the public CLI guide describe
+extension-author upgrade workflows and limitations. No analyzer mode or
+diagnostic severity is relaxed, and no suppression is added.
+
+Before committing, CI **36627469418** and Docs **36627469441** for `b0e60c2`
+are rechecked as successful; no newer run is active. The older failed Linux
+run **36617656321** is already resolved by that verified Valgrind repair. The
+remote branch still matches the local base. The new milestone's CI remains
+pending until push. Arbitrary package-name property functions, the complete
+PostgreSQL/platform matrix and all other unresolved full-port requirements
+remain visible; this milestone does not claim full port completion.

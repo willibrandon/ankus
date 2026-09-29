@@ -24,6 +24,72 @@ Creation needs no PostgreSQL installation. Running the generated backend tests
 requires PostgreSQL 18+ with development headers and the Native AOT toolchain.
 See [testing an extension](/getting-started/testing/).
 
+## Upgrade Ankus references
+
+Preview framework package and project SDK updates from an extension solution:
+
+```console
+ankus upgrade --dry-run
+ankus upgrade
+```
+
+The command updates Ankus references in the selected projects, shared package
+files and `global.json`. It preserves unrelated dependencies, .NET SDK selection,
+target frameworks, comments and file encoding. Ankus Native AOT runtime packages
+have their own servicing versions and are not part of this update set.
+LF, CRLF and CR line endings are preserved.
+
+Use `--project` for a project or directory, or `--solution` for a `.slnx` or `.sln`
+file. `--package ProjectName` selects one project within a solution. Changes to
+shared files also affect other projects that use those files; inspect the
+`--dry-run` output before applying them.
+
+Discovery uses configured NuGet sources and package-source mappings, selecting
+stable versions by default. Add `--include-prereleases` to include prereleases.
+`--configfile` selects an explicit NuGet configuration, and repeated `--source`
+options restrict discovery to selected sources. A failed source lookup leaves
+the manifests unchanged. Relative source paths are resolved from the directory
+where you invoke `ankus`; configured source names retain their NuGet meaning.
+Local feed paths reached through directory aliases retain the configured feed's
+package-source mapping.
+
+To choose a version explicitly:
+
+```console
+ankus upgrade --to 0.1.0
+```
+
+`--to` also accepts NuGet version ranges. Package references retain the requested
+range; SDK declarations resolve it to a concrete eligible version. Automatic
+updates retain exact pins and existing upper bounds. Floating requirements keep
+their existing version band until you replace it with `--to`.
+
+Dedicated version properties declared in the selected project are updated with
+their references. For imported properties, or properties also used by unrelated
+dependencies, the Ankus reference receives its new version directly. The property
+remains unchanged so other consumers keep their existing versions.
+
+Package identities can use source-declared properties and semicolon-separated
+lists. In these declarations, version metadata is restricted to each actual
+Ankus item. Unrelated packages keep their versions, aliases and conditions.
+Repeating the same upgrade does not add duplicate metadata or rewrite files.
+Cyclic or unresolved package-name properties are reported before any files change.
+Package identities built with MSBuild property functions are not resolved by the
+source editor; declare their Ankus package names explicitly before upgrading.
+
+Conditional and computed import paths use the installed SDK's MSBuild evaluation.
+Discovery includes the default evaluation and the project's declared
+`Configurations` and `TargetFrameworks`. Disabled imports and custom paths for
+shared build or package files retain their MSBuild behavior. These projects need
+a resolvable project SDK; evaluation errors leave every selected manifest unchanged.
+Files imported from SDK or NuGet package caches are excluded from updates.
+The command evaluates imports without running build or restore targets. It
+ignores build response files, which can request target execution.
+
+If a manifest changes while versions are being resolved, the command leaves the
+user edit intact and rejects the stale plan. Replacement retains Unix file
+permissions, and an observed write failure rolls back earlier replacements.
+
 ## Install or register PostgreSQL
 
 Download a local development installation, including server headers and contrib modules:

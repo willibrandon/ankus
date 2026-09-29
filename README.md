@@ -78,6 +78,10 @@ development database. `ankus connect --pg 18` reopens that database without a bu
 driver. See [SQL regression suites](docs/src/content/docs/reference/cli.md#run-sql-regression-suites)
 for setup SQL, expected output, filters, and repeated runs.
 
+Use `ankus upgrade --dry-run` to preview framework package and SDK updates.
+See [upgrading references](docs/src/content/docs/reference/cli.md#upgrade-ankus-references)
+for version selection, shared package files, and imported project files.
+
 `ankus package --pg 18 --output dist` builds an installation tree for distribution.
 It places the native library and SQL files beneath `dist`, using the selected
 PostgreSQL installation's directory layout.

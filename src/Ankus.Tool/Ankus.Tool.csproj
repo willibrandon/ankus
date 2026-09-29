@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="NuGet.Versioning" />
+    <PackageReference Include="NuGet.Configuration" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <None Update="Templates/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

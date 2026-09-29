@@ -167,6 +167,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("schema", "--skip-build")]
     [DataRow("get", "--from")]
     [DataRow("regress", "--repeat")]
+    [DataRow("upgrade", "--to")]
     [DataRow("start", "--postgresql-conf")]
     [DataRow("stop", "--all")]
     [DataRow("status", "--pg-config")]

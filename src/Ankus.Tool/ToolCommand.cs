@@ -38,6 +38,7 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateSchema(home));
         root.Subcommands.Add(CreateGet(home));
         root.Subcommands.Add(CreateRegress(home));
+        root.Subcommands.Add(CreateUpgrade());
         try
         {
             if (arguments.Length != 0 && arguments[0] == RegressionDriver.ClientSwitch)
