@@ -13284,3 +13284,13 @@ macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17 remain in progress.
 Docs **36511778430** passes. The preceding CI **36507843884** is cancelled,
 with its Windows result incomplete; its quality, runtime, Linux and macOS jobs
 passed. Outcomes are checked and recorded again before push.
+
+The first dedicated-runner job in CI **36515087803** (`325982f`) is assigned
+to the configured Windows service, but runtime checkout fails on two long
+generated Roslyn analyzer filenames before compilation or tests. CI and release
+workflows now pass `core.longpaths=true` through Git's process environment,
+without changing the developer's Git configuration. The runtime job's failed
+**42-second** attempt is setup evidence only. Linux and macOS runtime jobs pass;
+platform tests are skipped by the failed runtime dependency. Quality and Docs
+remain in progress at this check. The previous CI **36511778431** still has
+successful quality/runtime/Linux results and unfinished macOS/Windows jobs.
