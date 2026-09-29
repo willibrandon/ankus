@@ -6,6 +6,29 @@ namespace Ankus.Build;
 internal static class ExtensionPackage
 {
     /// <summary>
+    /// Creates primary artifacts with the same validated author settings for metadata queries and native publication.
+    /// </summary>
+    /// <param name="name">The extension name.</param>
+    /// <param name="version">The extension version.</param>
+    /// <param name="library">The native library filename.</param>
+    /// <param name="sql">The generated installation SQL.</param>
+    /// <param name="relocatable">Whether generated objects permit relocation.</param>
+    /// <param name="authored">The author control text, or null when no author control was selected.</param>
+    /// <param name="postgresMajor">The selected PostgreSQL major.</param>
+    /// <returns>The primary control and installation SQL artifacts.</returns>
+    internal static IReadOnlyDictionary<string, string> Create(string name, string version, string library,
+        string sql, bool relocatable, string? authored, int postgresMajor)
+    {
+        var package = new Dictionary<string, string>(Create(name, version, library, sql, relocatable), StringComparer.Ordinal);
+        if (authored is not null)
+        {
+            (package[name + ".control"], _) = ExtensionControlSettings.Merge(package[name + ".control"], authored, postgresMajor);
+        }
+
+        return package;
+    }
+
+    /// <summary>
     /// Creates installable artifacts that resolve the native library through PostgreSQL's dynamic library search path.
     /// </summary>
     /// <param name="name">The SQL extension name and control-file basename.</param>

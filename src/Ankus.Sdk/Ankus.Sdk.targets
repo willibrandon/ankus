@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <Import Project="targets/Ankus.Bindings.targets" />
+  <Import Project="targets/Ankus.Control.targets" />
   <Import Project="targets/Ankus.Native.targets" />
   <Import Project="targets/Ankus.NativeAot.targets" />
 </Project>

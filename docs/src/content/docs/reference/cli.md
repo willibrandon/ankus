@@ -206,6 +206,47 @@ Use `--project` to select a project elsewhere. `--pg` selects a registered
 PostgreSQL major and defaults to `18`. To use a different installation for one
 invocation, pass `--pg-config /path/to/pg_config` as well.
 
+## Query extension properties
+
+Print a primary control property or a derived project value:
+
+```console
+ankus get default_version --pg 18
+ankus get relocatable --project src/MyExtension/MyExtension.csproj
+ankus get extname --configuration Shipping
+ankus get git_hash
+```
+
+Control queries compile the managed project and combine its generated metadata
+with `AnkusExtensionControlFile`. They honor imports, `--configuration`,
+`--pg` and `--pg-config`. They need the selected PostgreSQL development files
+and build prerequisites, but do not publish a native library or start a server.
+Build messages go to stderr; stdout contains only the requested value.
+
+`extname` evaluates the selected project's extension name without compiling it.
+`git_hash` reports that project's current Git commit and preserves Git failures,
+including repositories without a commit. Neither query requires PostgreSQL
+registration. `--project` accepts a project file or an unambiguous project or
+solution directory.
+
+Query an existing publication without building or discovering PostgreSQL:
+
+```console
+ankus get default_version --from publish
+ankus get comment --from publish
+ankus get extname --from publish
+```
+
+`--from` accepts a published directory containing `ankus.extension.json` and
+its primary control file. It cannot be combined with project, configuration or
+PostgreSQL selection options. `git_hash` requires a source project.
+
+Property names are case-sensitive. An absent property succeeds without output;
+an explicitly empty value prints a blank line. Values retain spaces, quotes and
+embedded equals signs. These are primary control values; PostgreSQL applies
+[version-specific controls](/reference/build-settings/#version-specific-control-files)
+when installing or updating to a selected extension version.
+
 ## Install
 
 Build and install into the selected PostgreSQL installation:

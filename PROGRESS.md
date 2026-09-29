@@ -68,6 +68,20 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus get` queries effective primary control properties, evaluated extension
+names and project Git revisions. Managed metadata queries agree with native
+publication and real PostgreSQL catalogs; publication queries need no server or
+native library. The complete PostgreSQL **18.6/Linux x64** suite discovers
+**9,367 tests**: **9,360 passed, zero failures and seven Windows-only skips**,
+in **15m02.241s**. All **40 affected installed-tool cases** and **12 direct
+control-command cases** pass on macOS ARM64/PostgreSQL **18.6** and Windows
+x64/PostgreSQL **17.11**. Release and documentation validation are recorded
+below. Previous CI for `45c7b21` is green on all three platforms. Remaining
+CLI, native API, type, example, runtime-servicing and complete PostgreSQL/platform
+requirements stay open; this milestone does not establish full parity.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Custom SQL directories now flow through publication, installation and packaging.
 Omitted, empty, relative and absolute settings retain their PostgreSQL meanings;
 Unix parent paths and symbolic links are verified against a real server.
@@ -81,8 +95,6 @@ on Windows. Release, API freshness and documentation checks pass. Previous CI
 for `9bc408e` is green on all three platforms. Remaining CLI, native API,
 type, example, runtime-servicing and complete PostgreSQL/platform requirements
 stay open; this milestone does not establish full parity.
-
-Earlier verified milestones follow in reverse chronological order.
 
 Version-specific control files now carry per-release dependency, privilege,
 schema and relocation settings through publishing, installation and packaging.
@@ -3269,7 +3281,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
-| `get` | Query extension control properties and derived extension metadata | Pending |
+| `get` | Query extension control properties and derived extension metadata | Implemented: managed generated metadata and author settings share primary publication composition; evaluated extension names, selected-project Git revisions and publication-only queries preserve exact output and failures. Installed-tool/catalog evidence on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform matrix remains required |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
 | `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
 
@@ -14565,3 +14577,75 @@ quality takes **9m53s**, and all three runtime jobs pass. No job times out.
 These completed outcomes were checked again before committing this milestone.
 These prior results do not establish the new directory behavior. Remaining
 faithful-port requirements stay open.
+
+
+### 2026-09-29 — Extension property queries
+
+`ankus get` now has project and publication query paths. Project control queries
+use a deliberate SDK/build-helper boundary to read managed generated metadata
+and apply the same primary control composition as native publishing. The
+`AnkusGenerateControlFile` target performs managed compilation without Native AOT
+publication. It preserves imported/configuration-specific identity and generated
+relocation constraints. Source `extname` and `git_hash` queries avoid compilation
+and PostgreSQL discovery; Git runs in the selected project's directory.
+
+`--from` reads the declared primary control without PostgreSQL discovery or
+native library loading. Missing fields produce no stdout, while explicit empty
+values produce a blank line. Build diagnostics use stderr. Conflicting selectors
+and artifact Git-provenance requests fail explicitly. The build-helper command
+rejects replacing its assembly or author input and validates metadata before
+replacing an existing output. No production `InternalsVisibleTo`, warning
+suppression or analyzer relaxation is introduced.
+
+| Requirement | Evidence |
+|---|---|
+| Shared primary composition, exact SQL, identity and PostgreSQL-version validation | `PrimaryPackageRetainsIdentityAndSql` |
+| Managed metadata is read without executing a throwing module initializer or compiling its invalid native payload | `ControlCommandReadsManagedMetadataOnly` |
+| Invalid controls/assemblies/identity preserve old output; input aliases and invalid arguments fail | `ControlCommandFailurePreservesPreviousOutput`, `ControlCommandRejectsInputReplacement`, `ControlCommandRejectsInvalidArguments` |
+| Exact parsed values, last assignment, missing versus empty, case sensitivity and publication isolation | `GetPublishedControlPreservesExactValues` |
+| Imported configuration, generated primary values, native publication and actual PostgreSQL catalogs agree | `GetProjectControlMatchesPublicationAndPostgres` |
+| Source/author changes and build errors cannot return stale metadata | `GetProjectControlTracksSourceChangesAndBuildErrors` |
+| Explicit/solution project selection, fallback identity and ambiguity without compilation/discovery | `GetIdentityResolvesProjectsWithoutCompilation` |
+| Selected Git repository, missing/unborn repositories and later commit identity | `GetGitHashUsesSelectedProjectRepository` |
+| Conflicting selectors, malformed/missing controls and manifests preserve files | `GetRejectsConflictsAndMalformedMetadata` |
+
+The metadata target succeeds on the repository sample using Linux x64/PostgreSQL
+**18.6**, with **zero warnings/errors**, in **1m08.22s**. Initial affected Build
+validation passes **48 tests**, with **zero failures/skips**, in **2.663s**.
+A CA1861 finding was corrected with shared immutable option storage. Installed
+CLI checks, final full-suite/platform evidence and documentation checks remain
+in progress; no complete command-parity claim is made yet.
+
+Previous CI **36593981405** for `45c7b21` passes: Linux x64/PostgreSQL 18 in
+**29m47s**, Windows x64/PostgreSQL 17 in **21m56s**, macOS ARM64/PostgreSQL 18
+in **12m30s**, and quality in **7m24s**. All three runtime jobs and Docs
+**36593981485** pass. No job times out. Remaining full-port requirements stay open.
+
+The initial installed-tool selection passes **28 tests**, with **zero failures
+and skips**, on Linux x64/PostgreSQL **18.6**, in **6m14.667s**. Review then adds
+exact Git error-code/stderr checks, supported-major boundary rows, normalized
+input-path aliases, imported `Version` fallback and `get` configuration rejection.
+The final selection on macOS **26.5.2**, ARM64, PostgreSQL **18.6**, SDK
+**10.0.401**, passes **40 tests**, with **zero failures/skips**, in **4m08.770s**.
+Its **12 direct control-command cases** also pass, in **1.690s**.
+
+The final Windows x64 selection passes all **40 affected installed-tool cases**,
+with **zero failures/skips**, on Windows **10.0.26200**, PostgreSQL **17.11**,
+SDK **10.0.401**, in **9m02.638s**. All **12 direct control-command cases** also
+pass, with **zero failures/skips**, in **2.658s**. The complete plain `dotnet test`
+run on Debian **13.5**, Linux x64, PostgreSQL **18.6**, SDK **10.0.400**, discovers
+**9,367 tests**: **9,360 passed, zero failures and seven Windows-only skips**,
+in **15m02.241s**; integration takes **15m01.220s**. The affected platform
+selections supplement this complete run and do not replace complete CI on the
+new commit. All **1,289 source hashes** match the platform validation copies.
+Temporary Windows/macOS validation checkouts and source archives have been
+removed; shared runtime artifacts remain intact.
+
+The Release solution build passes with **zero warnings/errors**, in **48.21s**.
+API regeneration and the explicit freshness check verify **213 pages / 2,562
+members**. `pnpm build` produces **260 pages**; `pnpm check` reports **zero
+errors, warnings and hints**. Prior CI **36593981405** and Docs **36593981485**
+were checked again before committing and both remain successful, with all
+platform jobs completed and no timeout.
+These are warm validation measurements, not a controlled cold-cache comparison.
+All remaining faithful-port requirements stay open.

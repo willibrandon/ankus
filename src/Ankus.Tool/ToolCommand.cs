@@ -36,6 +36,7 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateInstall(home));
         root.Subcommands.Add(CreateInstall(home, package: true));
         root.Subcommands.Add(CreateSchema(home));
+        root.Subcommands.Add(CreateGet(home));
         try
         {
             ParseResult result = root.Parse(arguments);

@@ -6,6 +6,12 @@ using Ankus.PgConfig;
 
 try
 {
+    if (args.Length > 0 && args[0] == "control-file")
+    {
+        await ExtensionControlCommand.RunAsync(args[1..]);
+        return 0;
+    }
+
     if (args.Length > 0 && args[0] == "publish-sql")
     {
         await UpgradeSqlCommand.RunAsync(args[1..]);
@@ -103,13 +109,10 @@ try
     }
 
     ExtensionManifest manifest = ExtensionManifest.Read(assembly);
-    var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7], manifest.Sql, manifest.Relocatable));
-    bool relocatable = manifest.Relocatable;
-    if (args.Length >= 12 && args[11].Length != 0)
-    {
-        (package[args[5] + ".control"], relocatable) = ExtensionControlSettings.Merge(
-            package[args[5] + ".control"], File.ReadAllText(args[11]), major);
-    }
+    string? authored = args.Length >= 12 && args[11].Length != 0 ? File.ReadAllText(args[11]) : null;
+    var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7],
+        manifest.Sql, manifest.Relocatable, authored, major));
+    bool relocatable = ExtensionControlFile.Parse(package[args[5] + ".control"])["relocatable"] == "true";
 
     string[] controls = args.Length == 13 ? File.ReadAllLines(args[12]) : [];
     ExtensionControlFile.Parse(package[args[5] + ".control"]).TryGetValue("directory", out string? scriptDirectory);

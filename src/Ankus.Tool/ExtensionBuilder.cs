@@ -102,16 +102,33 @@ internal static class ExtensionBuilder
     /// <param name="installation">The selected PostgreSQL installation.</param>
     /// <param name="token">Cancels project evaluation.</param>
     /// <returns>The explicit extension name or the SDK's normalized target name.</returns>
-    internal static async Task<string> GetExtensionNameAsync(string? project, string configuration,
+    internal static Task<string> GetExtensionNameAsync(string? project, string configuration,
         PostgresInstallation installation, CancellationToken token)
+        => GetExtensionNameAsync(project, configuration, installation.Version.Major, installation.PgConfigPath, token);
+
+    /// <summary>
+    /// Evaluates extension identity without requiring PostgreSQL discovery or managed compilation.
+    /// </summary>
+    /// <param name="project">The extension project or directory.</param>
+    /// <param name="configuration">The selected build configuration.</param>
+    /// <param name="postgresMajor">The selected PostgreSQL major.</param>
+    /// <param name="pgConfigPath">An optional explicit PostgreSQL configuration path.</param>
+    /// <param name="token">Cancels project evaluation.</param>
+    /// <returns>The explicit extension name or the SDK's normalized target name.</returns>
+    internal static async Task<string> GetExtensionNameAsync(string? project, string configuration,
+        int postgresMajor, string? pgConfigPath, CancellationToken token)
     {
         string path = ResolveProject(project);
         using var output = new MemoryStream();
-        int code = await ToolProcess.RunAsync("dotnet",
-            ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName",
-                "-p:Configuration=" + EscapeProperty(configuration),
-                "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
-                "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath)], token, outputStream: output);
+        List<string> arguments = ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName",
+            "-p:Configuration=" + EscapeProperty(configuration),
+            "-p:AnkusPostgresMajor=" + postgresMajor.ToString(CultureInfo.InvariantCulture)];
+        if (pgConfigPath is not null)
+        {
+            arguments.Add("-p:AnkusPgConfigPath=" + EscapeProperty(pgConfigPath));
+        }
+
+        int code = await ToolProcess.RunAsync("dotnet", arguments, token, outputStream: output);
         if (code != 0)
         {
             Console.Error.Write(System.Text.Encoding.UTF8.GetString(output.ToArray()));
@@ -129,4 +146,22 @@ internal static class ExtensionBuilder
         ArgumentException.ThrowIfNullOrEmpty(name);
         return name;
     }
+
+    /// <summary>
+    /// Generates validated primary control metadata through managed compilation without native publication.
+    /// </summary>
+    /// <param name="project">The extension project or directory.</param>
+    /// <param name="configuration">The build configuration.</param>
+    /// <param name="installation">The PostgreSQL development installation.</param>
+    /// <param name="output">The control output file owned by the caller.</param>
+    /// <param name="token">Cancels compilation and its child process tree.</param>
+    /// <returns>The original build exit code.</returns>
+    internal static Task<int> GenerateControlAsync(string project, string configuration,
+        PostgresInstallation installation, string output, CancellationToken token)
+        => ToolProcess.RunAsync("dotnet",
+            ["build", ResolveProject(project), "-t:AnkusGenerateControlFile",
+                "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
+                "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
+                "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
+                "-p:AnkusControlOutput=" + EscapeProperty(Path.GetFullPath(output))], token, diagnosticsToStandardError: true);
 }

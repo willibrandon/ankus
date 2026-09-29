@@ -85,6 +85,10 @@ Version-specific overrides belong in `sql/<extension>--<version>.control`.
 An authored `directory` setting selects a custom installation location for SQL
 scripts and secondary controls.
 
+Use `ankus get default_version` to query generated primary control settings.
+`ankus get comment --from publish` reads an existing publication; see
+[property queries](docs/src/content/docs/reference/cli.md#query-extension-properties).
+
 Keep SQL upgrade scripts in `sql/<extension>--<old>--<new>.sql`. Publishing,
 installing, and packaging include them so existing databases can use
 `ALTER EXTENSION ... UPDATE`. See [upgrading an extension](docs/src/content/docs/getting-started/publishing.md#upgrade-an-existing-extension).

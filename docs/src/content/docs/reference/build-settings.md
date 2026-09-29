@@ -75,6 +75,14 @@ values must match the generated publication. Set the version through
 `AnkusExtensionVersion`, the library name through `AssemblyName`, and retain
 `UTF8` for generated SQL.
 
+Use [`ankus get`](/reference/cli/#query-extension-properties) to inspect the
+effective primary settings for a project or an existing publication.
+
+For custom build integrations, the `AnkusGenerateControlFile` target writes the
+same primary control after managed compilation. `AnkusControlOutput` selects
+the output file; its default is
+`$(IntermediateOutputPath)ankus-control/<extension>.control`.
+
 ### SQL directories
 
 Set `directory` in the primary control file to install SQL scripts and
