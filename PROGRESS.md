@@ -68,6 +68,21 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+Author control files now configure extension comments, schemas, dependencies,
+installation privileges and relocation restrictions. Real PostgreSQL checks
+verify permission failures, trusted installation, dependency ownership, native
+execution and same-session recovery. Control-only edits update publication
+metadata; failed edits invalidate stale publications and preserve an existing
+package. The complete PostgreSQL **18.6/Linux x64** suite discovers **9,250 tests**:
+**9,244 passed, zero failures and six Windows-only skips**, in **13m30.421s**.
+Both affected installed-tool cases also pass on macOS ARM64/PostgreSQL **18.6**
+and Windows x64/PostgreSQL **17.11**. Release, generated API and documentation
+checks pass. Previous CI for `47aa1ef` is green on all three platforms.
+Secondary control files, alternate SQL directories and all remaining faithful-port
+requirements stay open; no full-parity claim is made.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Custom MSBuild configurations now work across build, publish, install, package,
 schema, run and connect. Configuration-specific paths, imported properties,
 native results and no-build reuse are verified through the installed tool.
@@ -3235,6 +3250,10 @@ Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command opt
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
+Primary author control settings and native dependency/privilege behavior are now
+implemented through `AnkusExtensionControlFile`; secondary version controls and
+alternate SQL directory layouts remain required. See the author-control milestone
+for exact tests and platform evidence.
 
 NuGet packages now provide the extension-author project SDK, runtime, source generator, PostgreSQL configuration,
 testing harness, and .NET tool. The SDK embeds a framework-dependent .NET 10 native-build helper and references
@@ -14286,3 +14305,56 @@ macOS ARM64/PostgreSQL 18 passed in **9m58s**, Linux x64/PostgreSQL 18 passed in
 **36566574398** passed. No job timed out. These terminal outcomes were rechecked
 before commit/push. The full PostgreSQL/platform matrix, cross-target tooling,
 remaining CLI commands and all other full-port requirements remain open.
+
+
+### 2026-09-29 — Author extension control settings
+
+`AnkusExtensionControlFile` selects a project-relative or absolute author control
+file. Publishing merges comments, fixed schemas, extension dependencies,
+`superuser`, `trusted`, explicit relocation restrictions, and PostgreSQL 16+
+`no_relocate` settings. Generated version, native-library identity and UTF8 SQL
+encoding cannot be contradicted. A fixed schema disables relocation, and an
+author cannot enable relocation when generated SQL forbids it. The embedded
+native schema and published control file retain the same effective flag.
+
+`ExtensionControlFile` provides an immutable ASCII text codec with PostgreSQL
+quotes, comments, backslash/octal escapes, optional equals signs and repeated
+assignment precedence. Formatting orders parameter names and escapes values.
+Malformed syntax, NUL, non-ASCII control text and include directives fail
+explicitly. Alternate SQL directories and secondary version-specific controls
+remain required distribution work; they are not claimed as implemented here.
+
+| Requirement | Evidence |
+|---|---|
+| Exact control parsing, immutable values and deterministic escaped formatting | `ParsesAssignmentsWithoutLosingValues`, `DecodesPostgresEscapes`, `FormatsDeterministicEscapedText`, `ReadsControlFiles` |
+| Empty, malformed, null, invalid-name, encoding and include boundaries | `EmptyAndCommentInputRemainEmpty`, `RejectsInvalidControlText`, `RejectsInvalidFormatting`, `RejectsNullInputs` |
+| Generated identity, relocation and privilege defaults, Boolean forms and PG15/16 boundary | `MergesControlSettingsAndFixedSchema`, `PreservesRelocationAndPrivilegeDefaults`, `NormalizesPostgresBooleans`, `RejectsConflictingOrUnsupportedSettings`, `RejectsRelocationOfFixedGeneratedSql` |
+| Real dependency failures/recovery, privilege transitions, fixed schema, native execution, relocation and dependency ownership | `AuthoredControlSettingsPreservePostgresContracts` |
+| Control-only edits update native metadata, failed publication invalidates stale metadata and preserves an existing package, repair succeeds | `AuthoredControlChangesInvalidateFailedPublications` |
+
+The codec selection passes **28 tests**; control-setting validation passes
+**23 tests**, both with zero failures/skips. The corrected Linux x64/PostgreSQL
+**18.6** backend contract selection passes in **3m41.995s**. Both installed-tool
+cases pass on macOS **26.5.2**, ARM64/PostgreSQL **18.6**, SDK **10.0.401**, in
+**3m22.713s**, and Windows x64/PostgreSQL **17.11**, SDK **10.0.401**, in
+**8m04.870s**, with no failures/skips. These focused results do not replace
+complete platform CI. The complete plain `dotnet test` run on Debian **13.5**,
+Linux x64/PostgreSQL **18.6**, SDK **10.0.400**, discovers **9,250 tests**:
+**9,244 passed, 0 failed, 6 Windows-only skips**, in **13m30.421s**; integration
+takes **13m29.772s**. This is warm validation, not a controlled cold-cache
+measurement. The Release build passes with **0 warnings and 0 errors** in
+**41.06s**. `pnpm build` produces **260 pages**; `pnpm check` reports **0 errors,
+0 warnings and 0 hints**. API freshness passes for **213 pages / 2,557 members**.
+
+The initial relocation test needed a target schema owned by the test role;
+its corrected setup preserves the exact server error check and also verifies
+bootstrap ownership of the trusted extension's native function. Completed
+personal-platform validation checkouts and source archives have been removed.
+
+Previous CI **36570576987** for `47aa1ef` completed successfully: macOS
+ARM64/PostgreSQL 18 in **11m10s**, Windows x64/PostgreSQL 17 in **20m47s**,
+Linux x64/PostgreSQL 18 in **26m22s**, and quality in **9m58s**. All runtime
+jobs and Docs **36570576919** passed. No job timed out. These terminal outcomes
+were rechecked before commit/push. Secondary controls, alternate SQL directories,
+remaining CLI commands, cross-target tooling and the complete PostgreSQL/platform
+matrix remain required. No full-parity claim is made.

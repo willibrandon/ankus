@@ -16,12 +16,66 @@ Set extension properties in your project file:
 | --- | --- | --- |
 | `AnkusExtensionName` | Lowercase assembly name, with periods replaced by underscores | Names the control and SQL files |
 | `AnkusExtensionVersion` | Project `Version` | Selects the versioned SQL filename and control-file version |
+| `AnkusExtensionControlFile` | None | Adds author settings from a PostgreSQL control file; see [control settings](#extension-control-settings) |
 | `EnableDefaultAnkusUpgradeScripts` | Enabled | Includes `sql/<extension>--<old>--<new>.sql` upgrade files; set to `false` for explicit items only |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 | `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |
+
+## Extension control settings
+
+Select a control file relative to your project, or use an absolute path:
+
+```xml
+<PropertyGroup>
+  <AnkusExtensionControlFile>extension.control</AnkusExtensionControlFile>
+</PropertyGroup>
+```
+
+```ini
+comment = 'Search helpers'
+schema = 'search_helpers'
+requires = 'pg_trgm'
+superuser = true
+trusted = false
+```
+
+Publishing merges these settings into the generated control file. Installation
+and packaging preserve the result. `requires` names extensions that PostgreSQL
+must install first; `CREATE EXTENSION ... CASCADE` can install available
+dependencies. Use double quotes inside the value for mixed-case dependency names,
+for example `requires = '"My Dependency", pg_trgm'`.
+
+`schema` fixes the installation schema and makes the extension non-relocatable.
+Without it, Ankus derives relocatability from generated SQL. You can explicitly
+set `relocatable = false`, but cannot set it to `true` when generated SQL requires
+a fixed schema.
+
+`superuser` and `trusted` retain PostgreSQL's defaults when omitted: `true` and
+`false`, respectively. `trusted = true` with `superuser = true` lets database
+users with `CREATE` privilege install the extension; PostgreSQL executes its
+script as the bootstrap superuser. With `superuser = false`, the caller must
+have the privileges required by each SQL statement, including C-language
+function creation. Extension authors are responsible for deciding whether their
+extension is suitable for trusted installation.
+
+PostgreSQL 16 and later also accept `no_relocate`, a list of dependencies whose
+schemas must stay fixed. See PostgreSQL's [extension control parameters](https://www.postgresql.org/docs/18/extend-extensions.html#EXTEND-EXTENSIONS-FILES)
+for the server's dependency and privilege semantics.
+
+Control files use ASCII. Quotes, backslashes and comments follow PostgreSQL's
+configuration syntax; repeated assignments use the last value. Use SQL
+`COMMENT ON EXTENSION` for non-ASCII comments. Include directives are unsupported.
+
+Ankus owns `default_version`, `module_pathname` and `encoding`; if present, those
+values must match the generated publication. Set the version through
+`AnkusExtensionVersion`, the library name through `AssemblyName`, and retain
+`UTF8` for generated SQL. Alternate SQL `directory` settings and secondary
+version-specific control files are not supported yet.
+
+## PostgreSQL compilation symbols
 
 The SDK also defines one C# compilation symbol for the selected major:
 `ANKUS_PG13` through `ANKUS_PG19`. It uses the final `AnkusPostgresMajor`

@@ -9,6 +9,7 @@ Assembly: `Ankus.PgConfig.dll`
 
 ## Classes
 
+- [ExtensionControlFile](/api/ankus.pgconfig.extensioncontrolfile/)
 - [ExtensionSchema](/api/ankus.pgconfig.extensionschema/)
 - [PostgresDevelopmentCluster](/api/ankus.pgconfig.postgresdevelopmentcluster/)
 - [PostgresDevelopmentOptions](/api/ankus.pgconfig.postgresdevelopmentoptions/)

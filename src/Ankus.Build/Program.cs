@@ -84,11 +84,11 @@ try
         return 0;
     }
 
-    if (args.Length != 11)
+    if (args.Length is not (11 or 12))
     {
         throw new ArgumentException(
             "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
-            "extension name, version, library, runtime identifier, optional pg_config path, and target triple.");
+            "extension name, version, library, runtime identifier, optional pg_config path, target triple, and optional control file.");
     }
 
     string assembly = Path.GetFullPath(args[0]);
@@ -103,7 +103,14 @@ try
     }
 
     ExtensionManifest manifest = ExtensionManifest.Read(assembly);
-    IReadOnlyDictionary<string, string> package = ExtensionPackage.Create(args[5], args[6], args[7], manifest.Sql, manifest.Relocatable);
+    var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7], manifest.Sql, manifest.Relocatable));
+    bool relocatable = manifest.Relocatable;
+    if (args.Length == 12 && args[11].Length != 0)
+    {
+        (package[args[5] + ".control"], relocatable) = ExtensionControlSettings.Merge(
+            package[args[5] + ".control"], File.ReadAllText(args[11]), major);
+    }
+
     Directory.CreateDirectory(output);
     new PublishedExtension(major, args[8], args[7], args[5] + ".control",
         args[5] + "--" + args[6] + ".sql").Write(output);
@@ -117,7 +124,7 @@ try
     string source = Path.Combine(output, "bridge.c");
     string nativeObject = Path.Combine(output, OperatingSystem.IsWindows() ? "bridge.obj" : "bridge.o");
     WriteIfDifferent(source, manifest.NativeSource + NativeSchemaEmitter.Emit(args[5], args[6], args[7], major,
-        args[8], manifest.Relocatable, manifest.Sql));
+        args[8], relocatable, manifest.Sql));
     WriteIfDifferent(Path.Combine(output, "schema.sql"), manifest.Sql);
     WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol + "\n");
 

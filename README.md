@@ -79,6 +79,9 @@ PostgreSQL installation's directory layout.
 Use `--configuration Shipping` to select a custom MSBuild configuration when
 building, publishing, installing, or packaging an extension.
 
+Use `AnkusExtensionControlFile` for extension comments, a fixed schema,
+dependencies, and installation privileges. See [control settings](docs/src/content/docs/reference/build-settings.md#extension-control-settings).
+
 Keep SQL upgrade scripts in `sql/<extension>--<old>--<new>.sql`. Publishing,
 installing, and packaging include them so existing databases can use
 `ALTER EXTENSION ... UPDATE`. See [upgrading an extension](docs/src/content/docs/getting-started/publishing.md#upgrade-an-existing-extension).

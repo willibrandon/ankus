@@ -30,6 +30,7 @@
       <_AnkusCommand>$(_AnkusCommand) &quot;$(NativeBinaryPrefix)$(TargetName)$(NativeBinaryExt)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(RuntimeIdentifier)&quot; &quot;$(AnkusPgConfigPath)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(TargetTriple)&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionControlFile)&quot;</_AnkusCommand>
     </PropertyGroup>
     <Exec Command="$(_AnkusCommand)" />
     <ReadLinesFromFile File="$(_AnkusArtifacts)exports.txt">
