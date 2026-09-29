@@ -157,7 +157,7 @@ Parameters:
 
 `options` — [PostgresDevelopmentOptions](/api/ankus.pgconfig.postgresdevelopmentoptions/)
 
-Port, timeout, and literal PostgreSQL configuration settings.
+Port, timeout, instrumentation, and literal PostgreSQL configuration settings.
 
 `cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
 

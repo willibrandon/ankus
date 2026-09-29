@@ -75,7 +75,8 @@ CI selects the latest stable .NET 10 SDK allowed by `global.json`.
 
 The Linux service runs under its own unprivileged account. Provision PostgreSQL
 18 with server headers, Clang 20 or later with matching libclang, and the .NET
-runtime build prerequisites once. Keep Clang's `bin` directory on the service
+runtime build prerequisites, Valgrind and matching libc debug symbols once
+(`valgrind` and `libc6-dbg` on Debian/Ubuntu). Keep Clang's `bin` directory on the service
 PATH. On macOS, provision Homebrew's `llvm`, `postgresql@18`, `cmake`, `ninja`
 and `pkgconf`; run the runner as a user LaunchAgent. Keep the session logged in
 and the machine awake for queued work. Dedicated jobs validate the installed

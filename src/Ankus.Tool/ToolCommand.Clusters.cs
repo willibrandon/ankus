@@ -24,6 +24,7 @@ internal static partial class ToolCommand
             command.Options.Add(port);
             command.Options.Add(timeout);
             command.Options.Add(settings);
+            AddValgrindOption(command);
         }
 
         command.SetAction(async (result, token) =>
@@ -61,6 +62,7 @@ internal static partial class ToolCommand
             {
                 Port = result.GetValue(port),
                 TimeoutSeconds = result.GetValue(timeout),
+                UseValgrind = result.GetValue<bool>("--valgrind"),
                 Settings = ParseServerSettings(result.GetValue(settings) ?? []),
             } : null;
             foreach (PostgresInstallation installation in installations)
@@ -87,6 +89,12 @@ internal static partial class ToolCommand
         });
         return command;
     }
+
+    private static void AddValgrindOption(Command command)
+        => command.Options.Add(new Option<bool>("--valgrind")
+        {
+            Description = "Start PostgreSQL under Valgrind Memcheck from PATH; diagnostics go to the server log (supported Unix platforms).",
+        });
 
     private static Dictionary<string, string> ParseServerSettings(string[] settings)
     {

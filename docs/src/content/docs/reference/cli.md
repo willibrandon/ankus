@@ -138,6 +138,32 @@ overridden through `--postgresql-conf`. Existing unowned or incompatible data
 directories are rejected. A failed start preserves initialized data and reports
 the server log path so you can correct the setting and retry.
 
+### Inspect native memory with Valgrind
+
+On a Unix platform supported by Valgrind, install Valgrind and put it on `PATH`:
+
+```console
+ankus start --pg 18 --valgrind
+```
+
+`start`, `run`, `connect`, and `regress` accept `--valgrind`. PostgreSQL and its
+children run under Memcheck, with diagnostics in the server log. Error reports
+are delimited by `VALGRINDERROR-BEGIN` and `VALGRINDERROR-END`. Inspect that log
+after running your extension's queries and stopping the server. Instrumentation
+adds overhead; use `--timeout` when the server needs longer to start.
+A successful SQL test can still produce Memcheck reports, including diagnostics
+from PostgreSQL itself. Inspect the server log as part of memory testing.
+
+An already running server keeps its instrumentation mode. Stop it before using
+`start` or `connect` to change modes; `run` and `regress` restart it themselves.
+For PostgreSQL memory-context annotations, build the server using
+`ankus init --pg18 download --valgrind` with Valgrind development headers installed.
+That build option and the execution option serve separate purposes.
+
+Native Windows PostgreSQL cannot run under Valgrind. Other systems require a
+working Valgrind build for their architecture. Missing tools and unsupported
+startup fail explicitly, preserving initialized cluster data.
+
 ## Run SQL regression suites
 
 Place SQL files under `pg_regress/sql/` beside your extension project. Expected
@@ -183,7 +209,7 @@ ankus regress --pg 18 --dry-run
 Unfiltered runs report and skip tests without expected output. An explicit filter
 that matches nothing, or selects a test without expected output, fails.
 `--no-build` installs the existing publication. `--project`, `--configuration`,
-`--home`, `--port`, `--timeout`, and repeated `--postgresql-conf name=value`
+`--home`, `--port`, `--timeout`, `--valgrind`, and repeated `--postgresql-conf name=value`
 options select the project and development environment. `--dry-run` reports the
 selection and intended actions without building, starting a server, or writing files.
 
@@ -205,7 +231,7 @@ filter, `--auto`, or multiple iterations.
 SQL errors use psql's `terse` verbosity by default. Choose `default`, `verbose`,
 or `sqlstate` with `--psql-verbosity`. SQL errors can be expected test output;
 use `\set ON_ERROR_STOP on` in a SQL file when they should instead fail the
-client process. Valgrind execution and alternate operating-system users or data
+client process. Alternate operating-system users or data
 directories are not yet supported by this command.
 
 ## Build and publish

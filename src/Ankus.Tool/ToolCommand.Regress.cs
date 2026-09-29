@@ -11,6 +11,7 @@ internal static partial class ToolCommand
         var command = new Command("regress", "Run PostgreSQL SQL and expected-output regression tests for an extension.");
         AddSelectionOptions(command);
         AddBuildOptions(command);
+        AddValgrindOption(command);
         var filter = new Argument<string?>("filter") { Description = "Case-sensitive substring of SQL test names.", Arity = ArgumentArity.ZeroOrOne };
         var database = new Option<string?>("--database", "-d") { Description = "Literal test database name (default: EXTENSION_regress)." };
         var reset = new Option<bool>("--resetdb") { Description = "Recreate the selected database before each run." };
@@ -85,6 +86,7 @@ internal static partial class ToolCommand
             {
                 Port = result.GetValue<int?>("--port"),
                 TimeoutSeconds = result.GetValue<int>("--timeout"),
+                UseValgrind = result.GetValue<bool>("--valgrind"),
                 Settings = settings,
             };
             if (options.Port is int port)
@@ -98,6 +100,11 @@ internal static partial class ToolCommand
             if (result.GetValue(dry))
             {
                 Console.WriteLine($"Would {(result.GetValue(noBuild) ? "install existing publication for" : "build and install")} {name} ({GetConfiguration(result)}, pg{major}).");
+                if (options.UseValgrind)
+                {
+                    Console.WriteLine("Would start PostgreSQL under Valgrind Memcheck, with diagnostics in the server log.");
+                }
+
                 Console.WriteLine($"Would {(result.GetValue(reset) || newTest is not null || suite.SetupChanged ? "recreate" : "create or reuse")} database {targetDatabase}.");
                 if (newTest is not null)
                 {

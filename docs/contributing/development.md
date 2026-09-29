@@ -11,6 +11,11 @@ and PostgreSQL 18 with server development headers. Windows also needs the server
 import library. The repository's collation tests require PostgreSQL built with
 ICU support.
 
+Linux integration tests also require Valgrind and matching system-library debug
+symbols. On Debian/Ubuntu, install `valgrind` and `libc6-dbg`. The tests start real
+instrumented PostgreSQL servers, execute a Native AOT extension, and verify
+failure cleanup and retained data. A missing tool is a failed prerequisite.
+
 Build-tool tests compile standalone C layout and signature probes, including
 deliberately incompatible prototypes which must fail compilation. Header-type
 collection also uses Clang's structured AST and checks the packaged command against

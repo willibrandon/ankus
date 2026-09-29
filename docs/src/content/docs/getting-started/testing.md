@@ -24,6 +24,9 @@ fail initialization; tests are never silently skipped.
 For SQL files with expected text output, use `ankus regress --pg 18`.
 The [SQL regression guide](/reference/cli/#run-sql-regression-suites) covers
 PostgreSQL's native comparator, setup scripts, and reviewing changed expectations.
+On supported Unix systems, `ankus regress --pg 18 --valgrind` runs the server
+under Memcheck. See [native memory diagnostics](/reference/cli/#inspect-native-memory-with-valgrind)
+for prerequisites and reading the server log.
 
 ## Use the fixture
 

@@ -68,6 +68,22 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus start`, `run`, `connect` and `regress` can run PostgreSQL under Valgrind
+Memcheck through the shared development lifecycle. Native diagnostics remain in
+the server log; startup timeout and cancellation clean up owned processes even
+before PostgreSQL writes its PID file. The complete PostgreSQL **18.6/Linux x64**
+suite discovers **9,387 tests**: **9,379 passed, zero failures and eight
+Windows-only skips**, in **14m15.270s**. The affected lifecycle/CLI selection
+also passes on macOS ARM64/PostgreSQL **18.6** and Windows x64/PostgreSQL
+**17.11**, including explicit rejection of Valgrind on native Windows.
+Instrumented native startup probes pass on PostgreSQL **13–19/Linux x64**;
+these probes do not load an Ankus extension. Release, API freshness and site
+checks pass. Previous CI for `c11e4f8` is green on all three platforms.
+Remaining CLI/native/type/example contracts, runtime servicing and the complete
+PostgreSQL/platform matrix remain required.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `ankus regress` runs SQL/expected-output suites through the selected PostgreSQL
 driver, with setup/reset, filtering, new expectations, repeated diffs and explicit
 expected-output updates. Real psql completion prevents failed clients from being
@@ -79,8 +95,6 @@ API freshness and site checks pass. Previous CI for `c593e6b` is green on all
 three platforms. Shared lifecycle options, remaining CLI/native/type/example
 contracts, runtime servicing and the complete PostgreSQL/platform matrix remain
 required; this milestone does not establish full parity.
-
-Earlier verified milestones follow in reverse chronological order.
 
 `ankus get` queries effective primary control properties, evaluated extension
 names and project Git revisions. Managed metadata queries agree with native
@@ -3285,11 +3299,11 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. `--background-worker` adds a preloaded worker, shared results and a real backend test |
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Development/testing port bases persist atomically with registrations; omitted values remain unchanged. Automatic Windows source builds and persisted toolchain configuration remain required |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
-| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`; Valgrind execution remains required |
-| `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`; Valgrind execution and cross-target tooling remain required |
+| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`. Shared Valgrind startup now has actual PostgreSQL 13–19/Linux startup evidence and PostgreSQL 18.6 instrumentation, diagnostic and cancellation tests; complete version/platform validation remains required |
+| `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`. Both commands run Native AOT queries under Valgrind through the shared lifecycle; cross-target tooling and complete version/platform validation remain required |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
-| `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared lifecycle options and the complete version/platform matrix remain required; see the regression-suite milestone below |
+| `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared Valgrind startup is implemented and preserves native memory diagnostics. Remaining shared-option mappings and the complete version/platform matrix remain required; see the regression-suite and Valgrind milestones below |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
@@ -14825,3 +14839,144 @@ is removed after shutdown. Tooling uses an isolated matching glibc/debug-symbol
 set; host libraries are unchanged. This run loads no managed extension.
 Production Ankus integration, Native AOT execution, failure/cancellation
 boundaries and supported-version validation remain required.
+
+The ordinary Linux **Valgrind 3.24.0** package and matching
+**glibc 2.41-12+deb13u4** debug dependencies are now installed for implementation
+tests. A fresh native prototype using the system tool starts in **1.118s**,
+returns **42** and shuts down cleanly. Its owned cluster and the earlier isolated
+toolchain are removed. Production integration and managed-extension validation
+remain pending; no Valgrind command option is claimed implemented.
+
+Regression milestone `c11e4f8` is pushed. Its Docs **36608890280**, quality and
+all three runtime jobs pass. CI **36608890355** still has all three complete
+platform suites running, without a reported failure at this check.
+
+### 2026-09-29 — Shared Valgrind lifecycle implementation and validation
+
+The shared development options and `start`/`run`/`connect`/`regress` commands now
+have an uncommitted Valgrind execution implementation. It composes `pg_ctl` with
+child-only `PGDATA`, shell-quoted executable arguments and Memcheck diagnostics
+in the existing server log. Missing-tool preflight precedes initialization;
+native Windows requests fail before creating directories. Source review covers
+the `pg_ctl` startup contract across PostgreSQL 13–19.
+
+The first four-case Linux/PostgreSQL 18.6 run passes two cases, skips the Windows
+contract and fails the retained-data case on an unsuppressed PostgreSQL WAL
+padding report (`pwrite64` through `XLogWrite`), before any Ankus extension is
+loaded. PostgreSQL documents this padding in its own `src/tools/valgrind.supp`.
+No suppression file or disabled diagnostic is added. The revised clean-memory
+witness prepares catalog/WAL writes before instrumentation, then checks real
+Native AOT queries and persistent data under Memcheck. These revised checks,
+compiled native preload timeout/cancellation witnesses, and installed-command
+checks are still being verified. No complete validation is claimed yet.
+
+Review also identifies a startup ownership hazard: native `pg_ctl` can time out
+before an instrumented PostgreSQL process writes its PID file. The candidate
+uses an earlier managed deadline while `pg_ctl` still owns that child, so process
+tree cancellation can remove it. Early-startup timeout evidence remains required.
+
+Previous commit `c11e4f8` CI **36608890355** passes Windows in **18m29s** and macOS
+in **13m22s**, plus quality and all runtime jobs. Linux remains in progress at
+this check; Docs **36608890280** passes. Full-port inventory requirements remain
+open.
+
+CI **36608890355** now completes successfully on every job. Its Linux platform
+job takes **31m44s**; Windows **18m29s** and macOS **13m22s**. These are complete
+suites for `c11e4f8`, not evidence for the uncommitted Valgrind change.
+
+The next instrumented run exposes an actual cancellation cleanup race: after a
+process-tree kill, `pg_ctl status` can briefly observe the dying server, and fast
+shutdown then reports its unclean exit as failure. Cleanup now rechecks native
+status before reporting a surviving-server error. The native preload tests also
+show why relying solely on `pg_ctl`'s timeout can leave a blocked startup alive.
+A test-owned delayed launcher now witnesses timeout before `postmaster.pid`
+exists; the revised deadline and cleanup behavior are under verification.
+
+The revised focused Linux/PostgreSQL **18.6** run passes **eight cases**, with
+**zero failures and one Windows-only skip**, in **3m56.694s**. This includes
+witnessed timeout before PostgreSQL creates a PID file, live native preload
+cancellation, retained data, and all four installed CLI execution commands.
+Native AOT SQL returns exact values under Memcheck; the read-only query phases
+produce no unsuppressed memory-error reports. Catalog/WAL setup happens before
+instrumentation, so this does not claim PostgreSQL writes are report-free.
+The subsequent complete plain test suite is running; no full result is claimed.
+
+The dedicated Linux runner now has **Valgrind 3.24.0** and matching
+**glibc/libc6-dbg 2.41-12+deb13u4**. Its native `/bin/true` probe reports zero
+errors and zero suppressed errors. Installation occurred after its previous CI
+job finished. CI validates these prerequisites before running the full suite.
+
+Instrumented CLI startup, SQL **42**, shutdown and owned-directory cleanup now
+pass on Linux x64 with PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and
+19 beta 4**. PostgreSQL 13/14 each emit two statistics-message padding reports
+through `pgstat_send`, matching those versions' documented native behavior;
+15–19 emit no Memcheck errors in these native-only probes. No Ankus extension
+is loaded in this version sweep, so it is startup compatibility evidence only.
+All diagnostic logs are retained without suppressions.
+
+The version sweep also corrects an overbroad draft test assumption: startup
+cannot promise that PostgreSQL itself emits no memory diagnostics. The tests
+now check actual instrumentation and diagnostic preservation. An additional
+native fixture deliberately reads one freed byte and must produce the exact
+Memcheck report, its native function stack and delimiters, followed by a healthy
+query in the same backend. That new test is awaiting execution; existing broader
+runs started before this test-only adjustment.
+
+The first complete Linux/PostgreSQL **18.6** candidate passes **9,378 tests,
+zero failures and eight platform skips (9,386 total)** in **15m59.654s**; the
+integration module takes **15m59.032s**. This run predates the additional
+diagnostic-preservation case and revised older-server assertions. The final
+affected selection and subsequent plain full suite are now running. The same
+production source passes macOS ARM64/PostgreSQL **18.6** lifecycle/CLI checks:
+**23 passed, zero failed, nine platform skips (32 total)** in **2m23.388s**.
+Windows final verification remains in progress.
+
+Final Windows x64/PostgreSQL **17.11** lifecycle/CLI verification passes
+**24 cases, zero failures and eight platform skips (32 total)** in **5m36.997s**.
+Both platform selections use the unchanged candidate production source; their
+skipped Linux-only native fixture later receives atomic PID-marker publication.
+That fixture is verified by the final Linux selection/full run, still in progress.
+Generated API freshness remains **213 pages / 2,565 members**; the final site build
+and check pass with **zero errors, warnings or hints**.
+
+The final Valgrind selection passes **nine tests, zero failures and one
+Windows-only skip (10 total)** in **3m11.367s** on PostgreSQL **18.6/Linux x64**.
+The deliberately faulty native fixture produces the required Memcheck report
+and function stack, then the same backend returns **43**. The startup-timeout
+fixture publishes its PID marker atomically and confirms the child exits before
+a healthy restart. The final complete plain suite is now running. Completed
+Windows/macOS validation checkouts and temporary connection tools have been
+removed; shared runtime artifacts are preserved.
+
+The affected tests establish these specific contracts; the separate full-suite
+and release gates remain required:
+
+| Contract | Executed evidence |
+|---|---|
+| Selected native executable, quoted paths, exact settings, retained data and existing-server mode | `ValgrindStartupPreservesDataAndReportsInstrumentation` checks native process mappings, backend identity and exact SQL values through instrumented and ordinary restarts. |
+| Native diagnostics remain visible and the backend remains usable | `ValgrindReportsNativeErrorsAndPreservesDiagnostics` observes the deliberate native invalid read, function stack and report delimiters, then SQL **43** on the same connection. |
+| Bind failure preserves initialized data and permits recovery | `ValgrindStartupFailureRecovers` reserves the port, observes the real native bind error and executes SQL **42** after releasing it. |
+| Timeout and cancellation clean up an observed native startup | Both `ValgrindInterruptedStartupStopsOwnedServer` cases interrupt a compiled preload gate and verify stopped status plus a healthy restart. |
+| Cleanup before PostgreSQL publishes its PID | `ValgrindTimeoutBeforePostgresStartsTerminatesChild` observes the delayed launcher's PID, its actual exit and a subsequent successful native query. |
+| Invalid and unsupported requests preserve state | `ValgrindInvalidRequestsPreserveState` verifies invalid settings and pre-cancellation; `ValgrindRejectsWindowsBeforeChanges` executes the unsupported-platform contract on Windows. |
+| Installed command composition and dry-run isolation | `ValgrindCommandsExecuteNativeExtensionAndPreserveData` runs all four commands with real Native AOT SQL; `ValgrindMissingToolPreservesDataAndDryRuns` verifies missing-tool failure before initialization and unchanged files after a dry run without Valgrind. |
+
+The final plain `dotnet test` completes successfully on PostgreSQL **18.6/Linux
+x64**: **9,387 total, 9,379 passed, zero failed and eight Windows-only skips**,
+in **14m15.270s**. All six test modules complete; integration takes
+**14m14.481s**. Source hashes confirm the final tested candidate contains the
+diagnostic-preservation test and atomic PID-marker fixture, with no intervening
+source changes. The Release solution build passes in **30.69s**, with **zero
+warnings and errors**. API freshness validates **213 pages / 2,565 members**;
+the site builds **260 pages** and its check reports zero errors, warnings or hints.
+
+The README, CLI and testing guides, generated API pages, and development/CI
+prerequisites describe the implementation and its limitations. No runtime patch
+or analyzer relaxation is needed. The complete PostgreSQL/platform matrix and
+all remaining full-port requirements stay open; no NuGet packages are published.
+
+Before committing this milestone, previous commit `c11e4f8` CI **36608890355**
+and Docs **36608890280** are rechecked as successful. Linux takes **31m44s**,
+Windows **18m29s**, macOS **13m22s**, and quality **8m07s**. The three
+runtime jobs pass; no job times out. The three earlier CI/Docs milestones
+also pass, with no run still in progress at this check.

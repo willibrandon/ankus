@@ -62,7 +62,7 @@ public sealed partial class PostgresDevelopmentCluster
     /// Initializes a missing cluster and starts it, preserving existing databases and an already running server.
     /// Failed or canceled startup stops any server launched by this operation while retaining initialized data.
     /// </summary>
-    /// <param name="options">Port, timeout, and literal PostgreSQL configuration settings.</param>
+    /// <param name="options">Port, timeout, instrumentation, and literal PostgreSQL configuration settings.</param>
     /// <param name="cancellationToken">Cancels initialization or startup.</param>
     /// <returns>True when a server was started, or false when it was already running.</returns>
     public async Task<bool> StartAsync(PostgresDevelopmentOptions? options = null, CancellationToken cancellationToken = default)
@@ -71,17 +71,38 @@ public sealed partial class PostgresDevelopmentCluster
             options?.Port ?? _registry.GetPort(_installation.Version.Major));
         int timeout = options?.TimeoutSeconds ?? 60;
         cancellationToken.ThrowIfCancellationRequested();
+        bool useValgrind = options?.UseValgrind == true;
+        if (useValgrind && OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Valgrind requires a supported Unix platform; native Windows PostgreSQL cannot run under Valgrind.");
+        }
+
         Directory.CreateDirectory(_root);
         using FileStream operationLock = AcquireLock();
+        if (Path.Exists(DataDirectory))
+        {
+            RequireOwnedCluster();
+            if (await QueryRunningAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+        }
+
+        if (useValgrind)
+        {
+            try
+            {
+                await RunCheckedAsync("valgrind", ["--version"], cancellationToken).ConfigureAwait(false);
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                throw new InvalidOperationException("Install Valgrind and make its executable available on PATH before using Valgrind startup.", error);
+            }
+        }
+
         if (!Path.Exists(DataDirectory))
         {
             await InitializeAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        RequireOwnedCluster();
-        if (await QueryRunningAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return false;
         }
 
         string settings = Path.Combine(DataDirectory, "ankus.conf");
@@ -100,9 +121,45 @@ public sealed partial class PostgresDevelopmentCluster
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            await RunCheckedAsync(_installation.PgCtlPath,
-                ["start", "-D", DataDirectory, "-l", LogFilePath, "-w", "-t", timeout.ToString(CultureInfo.InvariantCulture)],
-                cancellationToken, allowDescendants: OperatingSystem.IsWindows()).ConfigureAwait(false);
+            string[] arguments = ["start", "-l", LogFilePath, "-w", "-t",
+                (useValgrind ? timeout + 60 : timeout).ToString(CultureInfo.InvariantCulture)];
+            Dictionary<string, string?>? environment = null;
+            if (useValgrind)
+            {
+                // pg_ctl inserts -D before -o arguments. Supply PGDATA instead so Valgrind
+                // receives its own options before the shell-quoted PostgreSQL executable.
+                string executable = "'" + Path.Combine(_installation.BinDirectory, "postgres").Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
+                arguments = [.. arguments, "-p", "valgrind", "-o",
+                    "--tool=memcheck --leak-check=no --time-stamp=yes " +
+                    "--error-markers=VALGRINDERROR-BEGIN,VALGRINDERROR-END --trace-children=yes " + executable];
+                environment = new Dictionary<string, string?> { ["PGDATA"] = DataDirectory };
+            }
+            else
+            {
+                arguments = [.. arguments, "-D", DataDirectory];
+            }
+
+            if (useValgrind)
+            {
+                // Keep pg_ctl alive beyond our deadline so cancellation can terminate its
+                // instrumented child even before PostgreSQL has written postmaster.pid.
+                using var startupTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                startupTimeout.CancelAfter(TimeSpan.FromSeconds(timeout));
+                try
+                {
+                    await RunCheckedAsync(_installation.PgCtlPath, arguments, startupTimeout.Token, environment: environment).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException($"PostgreSQL did not start within {timeout.ToString(CultureInfo.InvariantCulture)} seconds.");
+                }
+            }
+            else
+            {
+                await RunCheckedAsync(_installation.PgCtlPath, arguments, cancellationToken,
+                    allowDescendants: OperatingSystem.IsWindows()).ConfigureAwait(false);
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             return true;
         }
@@ -112,7 +169,19 @@ public sealed partial class PostgresDevelopmentCluster
             {
                 if (await QueryRunningAsync(CancellationToken.None).ConfigureAwait(false))
                 {
-                    await StopRunningAsync(CancellationToken.None).ConfigureAwait(false);
+                    try
+                    {
+                        await StopRunningAsync(CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Killing a canceled process tree may still be finishing when status
+                        // observes its server. pg_ctl reports an unclean exit as a stop failure.
+                        if (await QueryRunningAsync(CancellationToken.None).ConfigureAwait(false))
+                        {
+                            throw;
+                        }
+                    }
                 }
             }
             catch (Exception cleanupError)
@@ -249,9 +318,10 @@ public sealed partial class PostgresDevelopmentCluster
     private Task StopRunningAsync(CancellationToken cancellationToken)
         => RunCheckedAsync(_installation.PgCtlPath, ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", "60"], cancellationToken);
 
-    private async Task RunCheckedAsync(string executable, string[] arguments, CancellationToken token, bool allowDescendants = false)
+    private async Task RunCheckedAsync(string executable, string[] arguments, CancellationToken token, bool allowDescendants = false,
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
-        (int code, string output) = await RunAsync(executable, arguments, token, allowDescendants).ConfigureAwait(false);
+        (int code, string output) = await RunAsync(executable, arguments, token, allowDescendants, environment: environment).ConfigureAwait(false);
         if (code != 0)
         {
             throw new InvalidOperationException($"PostgreSQL command '{Path.GetFileName(executable)}' failed ({code}): {output}");
@@ -259,7 +329,8 @@ public sealed partial class PostgresDevelopmentCluster
     }
 
     private async Task<(int Code, string Output)> RunAsync(string executable, string[] arguments, CancellationToken token,
-        bool allowDescendants = false, string? input = null, bool postgresClient = false)
+        bool allowDescendants = false, string? input = null, bool postgresClient = false,
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
         token.ThrowIfCancellationRequested();
         // Windows pg_ctl passes inherited handles to its persistent server. Shell execution
@@ -297,6 +368,14 @@ public sealed partial class PostgresDevelopmentCluster
             start.StandardInputEncoding = new UTF8Encoding(false, true);
             start.StandardOutputEncoding = Encoding.UTF8;
             start.StandardErrorEncoding = Encoding.UTF8;
+        }
+
+        if (environment is not null)
+        {
+            foreach ((string name, string? value) in environment)
+            {
+                start.Environment[name] = value;
+            }
         }
 
         using var process = new Process { StartInfo = start };

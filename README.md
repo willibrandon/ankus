@@ -68,6 +68,8 @@ prerequisites and platform distribution availability.
 
 Use `ankus start --pg 18`, `ankus status --pg 18`, and `ankus stop --pg 18`
 to manage a persistent local development server. Stopping it preserves its databases.
+On supported Unix systems, add `--valgrind` to inspect native memory under Memcheck;
+see [Valgrind startup](docs/src/content/docs/reference/cli.md#inspect-native-memory-with-valgrind).
 
 `ankus run --pg 18` builds and installs your extension, then opens psql in its
 development database. `ankus connect --pg 18` reopens that database without a build.

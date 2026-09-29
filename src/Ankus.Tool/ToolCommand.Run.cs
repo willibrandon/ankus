@@ -66,6 +66,7 @@ internal static partial class ToolCommand
     {
         AddSelectionOptions(command);
         AddBuildOptions(command);
+        AddValgrindOption(command);
         command.Options.Add(new Option<string?>("--database", "-d") { Description = "Literal database name (default: the extension name)." });
         command.Options.Add(new Option<bool>("--pgcli") { Description = "Use pgcli from PATH instead of the selected installation's psql." });
         command.Options.Add(new Option<int?>("--port") { Description = "Port when starting a stopped server; an existing server keeps its actual port." });
@@ -83,6 +84,7 @@ internal static partial class ToolCommand
         {
             Port = result.GetValue<int?>("--port"),
             TimeoutSeconds = result.GetValue<int>("--timeout"),
+            UseValgrind = result.GetValue<bool>("--valgrind"),
             Settings = ParseServerSettings(result.GetValue<string[]>("--postgresql-conf") ?? []),
         };
 

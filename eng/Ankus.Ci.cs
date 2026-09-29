@@ -694,6 +694,8 @@ static void InstallPostgreSqlLinux(string repositoryRoot, string version)
     {
         string pgConfig = $"/usr/lib/postgresql/{version}/bin/pg_config";
         VerifyPostgreSqlHeaders(pgConfig);
+        Run("valgrind", ["--version"]);
+        Run("valgrind", ["--error-exitcode=1", "/bin/true"]);
         return;
     }
 
@@ -721,7 +723,7 @@ static void InstallPostgreSqlLinux(string repositoryRoot, string version)
     Run("sudo", ["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/postgresql.gpg", keyPath]);
     Run("sudo", ["install", "-m", "644", sourcePath, "/etc/apt/sources.list.d/pgdg.list"]);
     Run("sudo", ["apt-get", "update"]);
-    Run("sudo", ["apt-get", "install", "--yes", $"postgresql-{version}", $"postgresql-server-dev-{version}"]);
+    Run("sudo", ["apt-get", "install", "--yes", $"postgresql-{version}", $"postgresql-server-dev-{version}", "valgrind", "libc6-dbg"]);
 }
 
 static void VerifyPostgreSqlHeaders(string pgConfig)

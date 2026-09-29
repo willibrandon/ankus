@@ -6,6 +6,16 @@ namespace Ankus.PgConfig;
 public sealed class PostgresDevelopmentOptions
 {
     /// <summary>
+    /// Gets whether to run PostgreSQL under Valgrind Memcheck from PATH, writing diagnostics to the server log.
+    /// Requires a supported Unix platform and an installed Valgrind. An already running server keeps its current mode.
+    /// </summary>
+    public bool UseValgrind
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets the TCP port, or null to use the Ankus home's configured base plus the PostgreSQL major version.
     /// An unconfigured home uses a base of 28800.
     /// </summary>

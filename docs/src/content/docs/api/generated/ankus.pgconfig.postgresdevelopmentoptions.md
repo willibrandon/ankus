@@ -67,3 +67,16 @@ public int TimeoutSeconds { get; init; }
 ```
 
 Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+<a id="member-6b076381597a34aa"></a>
+
+### UseValgrind
+
+Gets whether to run PostgreSQL under Valgrind Memcheck from PATH, writing diagnostics to the server log.
+Requires a supported Unix platform and an installed Valgrind. An already running server keeps its current mode.
+
+```csharp
+public bool UseValgrind { get; init; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
