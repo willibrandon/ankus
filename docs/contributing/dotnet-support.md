@@ -31,12 +31,12 @@ referenceable from `net11.0` does not validate that mapping.
 
 The repository and generated projects select SDK 10.0.400 or a later stable
 10.0 feature band/patch through `latestFeature`; previews are excluded. CI
-explicitly installs 10.0.400. This selection must remain separate from the
+installs the latest stable 10.0 SDK. This selection must remain separate from the
 runtime included in published extensions.
 
 `eng/Ankus.Ci.cs` pins upstream `v10.0.12`, fork commit
-`c7962cbf000ed3e7bf2cc3876417f3ab36efc6e7`, runtime package
-`10.0.12-ankus.1`, and ILCompiler `10.0.12`. The SDK target and per-RID runtime
+`a96595dcd43cf770466315673afd6cf04669d4c8`, runtime package
+`10.0.12-ankus.2`, and ILCompiler `10.0.12`. The SDK target and per-RID runtime
 package properties carry matching identities. Framework runtime packs also use
 10.0.12 instead of following the installed SDK's default patch. Check
 `PROGRESS.md` for completed platform evidence and recheck upstream servicing

@@ -25,8 +25,9 @@ alignment operator. A Visual Studio Developer Command Prompt supplies headers
 and libraries. Install the Visual Studio Clang tools or LLVM for the independent
 standard C fixture and the header-type collector.
 
-CI selects LLVM 20 on Linux/macOS and verifies the preinstalled Windows LLVM
-frontend before running the suite. On macOS, Homebrew's `llvm@20` formula supplies
+Hosted CI selects LLVM 20 on Linux/macOS. Dedicated Linux/macOS CI uses its installed
+Clang and matching libclang; Windows uses its installed LLVM frontend. Each
+frontend is verified before running the suite. On macOS, Homebrew's `llvm` formula supplies
 the required compiler; put its `bin` directory on `PATH` for the test process.
 Linux packages are available from [LLVM's package repository](https://apt.llvm.org/).
 SDK extension builds and the transitive record collector need the matching `libclang` library;

@@ -4,12 +4,13 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Text.RegularExpressions;
 
 const string RuntimeRepository = "willibrandon/runtime";
 const string RuntimeBase = "v10.0.12";
-const string RuntimeCommit = "c7962cbf000ed3e7bf2cc3876417f3ab36efc6e7";
-const string RuntimeVersion = "10.0.12-ankus.1";
+const string RuntimeCommit = "a96595dcd43cf770466315673afd6cf04669d4c8";
+const string RuntimeVersion = "10.0.12-ankus.2";
 const string RuntimeCompilerVersion = "10.0.12";
 
 string repositoryRoot = FindRepositoryRoot();
@@ -106,6 +107,11 @@ try
         case "unit-test":
             RequireArguments(args, 1);
             RunUnitTests(repositoryRoot);
+            break;
+
+        case "prepare-reports":
+            RequireArguments(args, 1);
+            PrepareReports(repositoryRoot);
             break;
 
         case "release-managed":
@@ -295,6 +301,39 @@ static void BuildRuntime(string repositoryRoot, string platform, string architec
     }
 
     Run(Path.Combine(runtimeRoot, "build.sh"), arguments, runtimeRoot);
+    if (!IsMacOsCrossBuild(architecture))
+    {
+        VerifyNativeHostShutdown(repositoryRoot, platform, architecture);
+    }
+}
+
+// Prove that a newly built fork runtime preserves bounded native host shutdown and managed thread cleanup.
+static void VerifyNativeHostShutdown(string repositoryRoot, string platform, string architecture)
+{
+    string runtimeIdentifier = $"{platform}-{architecture}";
+    string probeRoot = Path.Combine(repositoryRoot, "runtime", "eng", "ankus", "fork-probes", "host-shutdown");
+    string output = Path.Combine(repositoryRoot, "artifacts", "runtime-checks", runtimeIdentifier);
+    Run(GetDotNetHost(),
+    [
+        "publish", Path.Combine(probeRoot, "NativeHostShutdownProbe.csproj"),
+        "--configuration", "Release", "--runtime", runtimeIdentifier, "--output", output,
+        $"-p:IlcSdkPath={GetBuiltRuntimePath(repositoryRoot, platform, architecture)}{Path.DirectorySeparatorChar}",
+    ]);
+
+    string host = Path.Combine(output, "host");
+    List<string> compilerArguments =
+    [
+        "-std=gnu17", "-O2", "-Wall", "-Wextra", "-Werror", Path.Combine(probeRoot, "host.c"),
+        "-pthread", "-o", host,
+    ];
+    if (OperatingSystem.IsLinux())
+    {
+        compilerArguments.Add("-ldl");
+    }
+
+    Run("clang", compilerArguments);
+    string library = "NativeHostShutdownProbe" + (OperatingSystem.IsMacOS() ? ".dylib" : ".so");
+    Run(host, [Path.Combine(output, library)]);
 }
 
 static bool IsMacOsCrossBuild(string architecture)
@@ -321,6 +360,14 @@ static void InstallRuntimePrerequisites()
 {
     if (!OperatingSystem.IsLinux())
     {
+        return;
+    }
+
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted")
+    {
+        Run("clang", ["--version"]);
+        Run("cmake", ["--version"]);
+        Run("ninja", ["--version"]);
         return;
     }
 
@@ -444,12 +491,18 @@ static void InstallPostgreSql(string repositoryRoot, string version)
     if (OperatingSystem.IsMacOS())
     {
         string formula = $"postgresql@{version}";
-        Run("brew", ["install", formula], environment: new Dictionary<string, string?>
+        if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "self-hosted")
         {
-            ["HOMEBREW_NO_AUTO_UPDATE"] = "1",
-        });
+            Run("brew", ["install", formula], environment: new Dictionary<string, string?>
+            {
+                ["HOMEBREW_NO_AUTO_UPDATE"] = "1",
+            });
+        }
+
         string prefix = Capture("brew", ["--prefix", formula]);
-        SelectPostgreSql(version, Path.Combine(prefix, "bin", "pg_config"));
+        string pgConfig = Path.Combine(prefix, "bin", "pg_config");
+        VerifyPostgreSqlHeaders(pgConfig);
+        SelectPostgreSql(version, pgConfig);
         return;
     }
 
@@ -554,7 +607,13 @@ static void ConfigureWindowsToolchain()
 static void ConfigureHeaderFrontend(string repositoryRoot)
 {
     string directory;
-    if (OperatingSystem.IsLinux())
+    if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) &&
+        Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted")
+    {
+        string resourceDirectory = Capture("clang", ["-print-resource-dir"]);
+        directory = Path.GetFullPath(Path.Combine(resourceDirectory, "..", "..", "..", "bin"));
+    }
+    else if (OperatingSystem.IsLinux())
     {
         Dictionary<string, string> operatingSystem = File.ReadAllLines("/etc/os-release")
             .Select(static line => line.Split('=', 2))
@@ -631,6 +690,13 @@ static void ConfigureBindingCache(string repositoryRoot)
 
 static void InstallPostgreSqlLinux(string repositoryRoot, string version)
 {
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted")
+    {
+        string pgConfig = $"/usr/lib/postgresql/{version}/bin/pg_config";
+        VerifyPostgreSqlHeaders(pgConfig);
+        return;
+    }
+
     Run("sudo", ["apt-get", "update"]);
     Run("sudo", ["apt-get", "install", "--yes", "ca-certificates", "gnupg"]);
 
@@ -658,6 +724,16 @@ static void InstallPostgreSqlLinux(string repositoryRoot, string version)
     Run("sudo", ["apt-get", "install", "--yes", $"postgresql-{version}", $"postgresql-server-dev-{version}"]);
 }
 
+static void VerifyPostgreSqlHeaders(string pgConfig)
+{
+    Run(pgConfig, ["--version"]);
+    string header = Path.Combine(Capture(pgConfig, ["--includedir-server"]), "postgres.h");
+    if (!File.Exists(header))
+    {
+        throw new FileNotFoundException("The runner requires PostgreSQL server headers.", header);
+    }
+}
+
 static void WriteEnvironment(string name, string value)
 {
     Environment.SetEnvironmentVariable(name, value);
@@ -678,6 +754,49 @@ static void RunUnitTests(string repositoryRoot)
 {
     BuildTests(repositoryRoot);
     RunUnitTestModules(repositoryRoot);
+}
+
+// Keep private machine identifiers out of uploaded files as well as masked job logs.
+static void PrepareReports(string repositoryRoot)
+{
+    string identifiers = Environment.GetEnvironmentVariable("ANKUS_RUNNER_PRIVATE_IDENTIFIERS") ?? string.Empty;
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "self-hosted" &&
+        string.IsNullOrWhiteSpace(identifiers))
+    {
+        throw new InvalidOperationException("Configure the runner privacy secret before uploading dedicated-runner reports.");
+    }
+
+    string[] replacements = [.. identifiers.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .SelectMany(static value => new[] { value, SecurityElement.Escape(value) ?? value })
+        .Distinct(StringComparer.Ordinal)
+        .OrderByDescending(static value => value.Length)];
+    string destination = Path.Combine(repositoryRoot, "artifacts", "ci-reports");
+    if (Directory.Exists(destination))
+    {
+        Directory.Delete(destination, true);
+    }
+
+    foreach ((string directory, string pattern) in new[] { ("test-results", "*.trx"), ("test-logs", "*.log") })
+    {
+        string source = Path.Combine(repositoryRoot, "artifacts", directory);
+        if (!Directory.Exists(source))
+        {
+            continue;
+        }
+
+        string target = Path.Combine(destination, directory);
+        Directory.CreateDirectory(target);
+        foreach (string file in Directory.EnumerateFiles(source, pattern))
+        {
+            string contents = File.ReadAllText(file);
+            foreach (string value in replacements)
+            {
+                contents = contents.Replace(value, "[private]", StringComparison.Ordinal);
+            }
+
+            File.WriteAllText(Path.Combine(target, Path.GetFileName(file)), contents);
+        }
+    }
 }
 
 static void BuildTests(string repositoryRoot)

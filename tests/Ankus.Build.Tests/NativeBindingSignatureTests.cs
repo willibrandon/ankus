@@ -3,6 +3,57 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// Forward typedefs resolve complete storage and preserve native calls after later tag declarations.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeCallsResolveForwardTagDefinitions()
+    {
+        const string Headers = """
+            struct Entry;
+            union Payload;
+            typedef struct Entry *Handle;
+            typedef union Payload Payload;
+            struct Entry
+            {
+                int value;
+            };
+
+            union Payload
+            {
+                int value;
+                double other;
+            };
+
+            struct Entry;
+            union Payload;
+            int native_forward(Handle entry, Payload *payload)
+            {
+                return entry->value + payload->value;
+            }
+            """;
+        const string Main = """
+            #include <stdio.h>
+            int main(void)
+            {
+                struct Entry entry = { 19 };
+                Payload payload = { 23 };
+                Handle entry_address = &entry;
+                Payload *payload_address = &payload;
+                int result = -1;
+                AnkusNativeCallArgument arguments[] = {{ &entry_address, sizeof(entry_address) }, { &payload_address, sizeof(payload_address) }};
+                if (ankus_native_call_native_forward(arguments, 2, &result, sizeof(result)) != ANKUS_CALL_OK || result != 42)
+                {
+                    return 1;
+                }
+
+                puts("forward tag definitions retained");
+                return 0;
+            }
+            """;
+        Assert.AreEqual("forward tag definitions retained\n", await ExecuteNativeCallsAsync(Headers, ["native_forward"], Main));
+    }
+
+    /// <summary>
     /// Qualified multidimensional typedefs and function parameters retain C adjustment when compiled and executed.
     /// </summary>
     [TestMethod]

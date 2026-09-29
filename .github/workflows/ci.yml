@@ -15,6 +15,7 @@ permissions:
   contents: read
 
 env:
+  ANKUS_RUNNER_PRIVATE_IDENTIFIERS: ${{ secrets.ANKUS_RUNNER_PRIVATE_IDENTIFIERS }}
   GIT_CONFIG_COUNT: 1
   GIT_CONFIG_KEY_0: core.longpaths
   GIT_CONFIG_VALUE_0: 'true'
@@ -28,7 +29,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.400
+          dotnet-version: 10.0.x
 
       - uses: actions/setup-node@v7
         with:
@@ -49,15 +50,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-linux-x64' || 'ubuntu-24.04' }}
             rid: linux-x64
             platform: linux
             architecture: x64
-          - runner: macos-15
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-macos-arm64' || 'macos-15' }}
             rid: osx-arm64
             platform: osx
             architecture: arm64
-          - runner: ${{ github.event_name == 'pull_request' && 'windows-2025' || 'ankus-windows-x64' }}
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-windows-x64' || 'windows-2025' }}
             rid: win-x64
             platform: windows
             architecture: x64
@@ -68,7 +69,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.400
+          dotnet-version: 10.0.x
 
       - name: Read runtime identity
         id: runtime
@@ -78,7 +79,7 @@ jobs:
         id: runtime-cache
         with:
           path: artifacts/nativeaot/${{ matrix.rid }}
-          key: nativeaot-v2-${{ matrix.rid }}-${{ steps.runtime.outputs.commit }}
+          key: nativeaot-v2-${{ matrix.rid }}-${{ runner.os != 'Windows' && runner.environment == 'self-hosted' && 'dedicated-' || '' }}${{ steps.runtime.outputs.commit }}
 
       - uses: actions/checkout@v5
         if: steps.runtime-cache.outputs.cache-hit != 'true'
@@ -120,13 +121,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-linux-x64' || 'ubuntu-24.04' }}
             rid: linux-x64
             postgresql: 18
-          - runner: macos-15
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-macos-arm64' || 'macos-15' }}
             rid: osx-arm64
             postgresql: 18
-          - runner: ${{ github.event_name == 'pull_request' && 'windows-2025' || 'ankus-windows-x64' }}
+          - runner: ${{ github.repository == 'willibrandon/ankus' && github.actor == 'willibrandon' && github.triggering_actor == 'willibrandon' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'ankus-windows-x64' || 'windows-2025' }}
             rid: win-x64
             postgresql: 17
     runs-on: ${{ matrix.runner }}
@@ -136,7 +137,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.400
+          dotnet-version: 10.0.x
 
       - name: Select Windows C++ toolchain
         if: runner.os == 'Windows'
@@ -190,22 +191,27 @@ jobs:
 
       - name: Run full PostgreSQL tests
         env:
-          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || (runner.environment == 'self-hosted' && vars.ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY) || '' }}
+          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || (runner.environment == 'self-hosted' && (runner.os == 'Windows' && vars.ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY || runner.os == 'Linux' && vars.ANKUS_LINUX_PACKAGE_TEST_CONCURRENCY || runner.os == 'macOS' && vars.ANKUS_MACOS_PACKAGE_TEST_CONCURRENCY)) || '' }}
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
-      - name: Save test results and timings
+      - name: Remove private identifiers from reports
         if: always()
+        id: reports
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- prepare-reports
+
+      - name: Save test results and timings
+        if: always() && steps.reports.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.rid }}
-          path: artifacts/test-results/*.trx
+          path: artifacts/ci-reports/test-results/*.trx
           if-no-files-found: ignore
           retention-days: 7
 
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: failure() && steps.reports.outcome == 'success'
         with:
           name: test-logs-${{ matrix.rid }}
-          path: artifacts/test-logs/**
+          path: artifacts/ci-reports/test-logs/**
           if-no-files-found: ignore
           retention-days: 7

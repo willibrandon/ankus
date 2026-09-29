@@ -7,7 +7,7 @@ namespace Ankus.Build.Tests;
 /// Verifies complete declaration identity, metadata and strict compiler-tree validation.
 /// </summary>
 [TestClass]
-public sealed class NativeBindingHeaderParserTests
+public sealed partial class NativeBindingHeaderParserTests
 {
     private const string Ast = """
         { "kind": "TranslationUnitDecl", "inner": [

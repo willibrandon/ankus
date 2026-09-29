@@ -13523,3 +13523,142 @@ dependencies, replacement groups, extension-attachment SQL and Graphviz output
 remain required. Full platform validation of this candidate, the remaining
 PostgreSQL/platform matrix and every other faithful-port inventory entry remain
 open. Dedicated Linux runner provisioning is in progress.
+
+### 2026-09-29 — Dedicated Linux/macOS runners and LLVM 23 declarations
+
+Dedicated Linux x64 and macOS ARM64 runners are registered and online. Linux
+uses Debian **13.7**, **six assigned logical processors** and **16 GiB RAM**;
+macOS uses **26.5.2/ARM64**. Both have stable SDK **10.0.401**, PostgreSQL
+**18.6** with server headers, and LLVM/libclang **23.1.2**. Their service-owned
+SDK, NuGet, binding-cache and temporary directories persist across jobs. Personal
+connection details and device paths are excluded from repository documentation.
+
+The candidate workflows select dedicated runners only for this repository's
+owner-triggered main-branch pushes/manual runs, checking both the original and
+rerun actors. Pull requests and other actors retain hosted runners. Release
+runtime routing checks the same actors. Repository policy requires approval for
+every external contributor; workflow edits still require review before approval.
+Every job retains its **60-minute** limit and automatic cancellation remains
+disabled, including release matrix fail-fast. Linux/macOS package-consumer
+limits have independent repository variables, initially **three** each; Windows
+retains **six**. No suite is sharded or reduced.
+
+Dedicated jobs reuse provisioned compilers and PostgreSQL headers without sudo
+or package installation. CI selects stable **10.0.x** SDK servicing updates;
+`global.json` still governs major/preview selection. Runtime cache keys distinguish
+dedicated Linux/macOS toolchains from hosted toolchains. The clean dedicated
+Linux runtime build succeeds with LLVM 23: **zero warnings/errors**, **1m26.50s**
+for the build, **1m54s** including checkout and cold tool acquisition.
+
+The first Linux solution build exposed an actual compiler-tree compatibility
+bug: LLVM 23's `RecordType` can reference the initial forward declaration rather
+than the later definition. The JSON parser treated `ActivePortal`'s pointed-to
+record as opaque, disagreeing with libclang's correctly completed record. Tag
+resolution now follows compiler `previousDecl` identities, retains later
+definitions through trailing declarations, and keeps unrelated same-name tags
+separate. Missing/incompatible links, cycles and duplicate definitions remain
+errors; no validation, analyzer or diagnostic is suppressed.
+
+| Requirement | Direct evidence |
+|---|---|
+| Struct/union/enum completeness through every declaration and reversed traversal | `TagRedeclarationsResolveCompleteDefinitions` checks forward, definition and trailing IDs plus an unrelated opaque same-name tag |
+| Invalid chains cannot invent tag identity or completeness | `InvalidTagRedeclarationsAreRejected` checks missing links, cycles, changed names/kinds/tags and duplicate bodies |
+| Fixed enum representation and truly opaque declarations | `FixedEnumRedeclarationsRetainKnownCompleteness` checks both states |
+| Independently compiled native call through forward typedefs | `NativeCallsResolveForwardTagDefinitions` executes the generated call and checks the exact sum **42** |
+
+The affected selection passes **57 tests, zero failures/skips**, on both local
+Clang **21** (**1.604s**) and dedicated Clang **23.1.2** (**1.081s**). The final
+local Release solution build passes with **zero warnings/errors**, **1m45.53s**.
+Plain local `dotnet test` passes **8,961 tests, zero failures and six
+Windows-only skips, 8,967 total**, in **10m33.293s** on SDK **10.0.400** and
+PostgreSQL **18.6/Linux x64**; the integration module takes **10m31.884s**.
+Workflow lint, engineering-app compilation, API freshness (**207 pages/2,524
+members**) and site checks (**254 pages**, no diagnostics) pass. The dedicated
+macOS runtime build also succeeds with **zero warnings/errors**, **1m30.53s**
+for the build and **1m57s** including cold acquisition. The dedicated Linux full
+suite passes **8,961 tests, zero failures and six skips, 8,967 total**; Release
+build plus all test modules takes **21m18s**, with **18m10.804s** for integration
+and **5.73 GiB** peak memory. An earlier failed build/focused checks had populated
+some caches, so this is not a pristine cold-cache measurement. The initial macOS
+full run takes **8m54s**, with **8,957 passes, one failure and nine platform skips**.
+The failure is a deadline during deliberately rejected shared-memory startup.
+A focused retry passes, which does not resolve the full-run failure. Native
+shutdown investigation and the correction below remain required before routing.
+Workflow routing has not yet been pushed.
+
+Previous CI **36521471450** completes successfully: Windows **12m42s**, Linux
+**34m15s**, macOS **51m18s**, with quality and all runtimes passing. Schema CI
+**36525071303** also completes successfully: Windows **17m20s**, hosted Linux
+**24m00s**, hosted macOS **44m57s**, and successful quality/runtime jobs. Schema
+docs **36525071305** passes. These outcomes were rechecked before the runtime
+correction commit. Remaining port and platform requirements remain open.
+
+### Dormant Native AOT host shutdown
+
+Native samples from two test-owned macOS postmasters show a deterministic runtime
+shutdown deadlock: native TLS destruction invokes managed `Thread.OnThreadExit`,
+but its reverse P/Invoke waits forever because the original host is dormant.
+The only remaining thread is the owner that would have to reopen admission.
+Linux ordinary process exit does not run pthread-key destructors, masking this
+path; explicitly exiting the native owner thread reproduces it there too.
+
+`RhForkThreadShutdownStarted` now reenters the dormant owner through the existing
+host-resume protocol before counting its shutdown. This restarts the collector,
+finalizer and managed services and permits ordinary thread-exit cleanup. It does
+not bypass managed cleanup or reopen admission during a fork checkpoint.
+
+The native `host-shutdown` regression supervisor bounds three independent fresh
+processes: `native-main-return`, `native-process-exit` and `native-thread-exit`.
+All three fail by deadline on the original macOS runtime; Linux reproduces the
+thread-exit failure. All three pass with the correction on macOS ARM64 and Linux
+x64. The thread-exit case additionally requires successful managed join, stopped
+thread state, abandoned-mutex recovery, allocation, GC and finalizer drain, so
+skipping the callback or leaving runtime services retired cannot pass.
+Release runtime rebuilds succeed without warnings/errors on both platforms.
+The correction is committed in the runtime fork as `a96595dcd43cf770466315673afd6cf04669d4c8`.
+Ankus selects a new immutable **10.0.12-ankus.2** payload identity; compiler and
+framework remain **10.0.12**. Corrected macOS **26.5.2/ARM64**, SDK
+**10.0.401**, LLVM **23.1.2**, PostgreSQL **18.6** validation passes the complete
+suite: **8,958 passes, zero failures, nine platform skips, 8,967 total**, in
+**8m45s** including runtime packing and Release build. Integration takes
+**7m38.618s**. The formerly failing shared-memory startup checks pass and no
+test-owned PostgreSQL processes remain after the run. Corrected dedicated Linux
+also passes all **8,961 tests**, with **zero failures and six platform skips**,
+in **21m15s** including packing and Release build; integration takes
+**18m08.402s**, peak memory is **6.02 GiB**, and swap remains unused. This validates
+the new payload on SDK **10.0.401**, LLVM **23.1.2** and PostgreSQL **18.6**.
+
+Fresh native Linux/macOS runtime builds now run the three shutdown probes before
+staging a payload. Cross-compiled macOS artifacts still require separate execution
+on their target architecture. The complete Linux automation path passes its
+runtime rebuild and all three probes. The complete macOS automation path passes the
+runtime rebuild and all three probes after moving its work directory to a neutral
+shared location; a binary scan finds no personal home path in the runtime payload.
+
+Runner machine names and personal user/home identifiers are held in a private
+repository secret for masking from the first job log. `prepare-reports` creates
+redacted TRX/server-log copies; uploads use those copies exclusively and require
+successful preparation. Raw reports remain local. Validation using six real macOS
+TRX reports preserves XML validity and exact result counters, removes identifiers,
+retains source files, redacts plain/escaped log text and rejects a missing secret
+on dedicated runners. No personal connection or device details are committed.
+
+One local full run exhausted the shared temporary filesystem and reported **72
+failures** from that resource exhaustion; it is not passing evidence. Inspection
+identified **132** inactive Ankus compile/source/probe directories with no live
+process references. Removing only those artifacts reclaimed **2.46 GiB**. The
+complete plain `dotnet test` rerun with a dedicated disk-backed temporary
+directory passes **8,961 tests, zero failures and six Windows-only skips, 8,967
+total**, in **10m23.374s** on SDK **10.0.400** and PostgreSQL **18.6/Linux x64**;
+integration takes **10m22.772s**. Unrelated temporary data is preserved. Dedicated
+runner temporary directories already use their own disk storage.
+
+The final local Release solution build passes with **zero warnings/errors** in
+**31.46s**. Engineering-app compilation and workflow lint pass. API freshness
+verifies **207 pages/2,524 members**; the site builds **254 pages** and checks with
+zero errors, warnings or hints. CI **36525071303** and Docs **36525071305** remain
+fully successful
+before committing this runner/runtime milestone; earlier CI **36521471450** also
+passes. New Windows payload/full-suite validation and fresh CI execution through
+the dedicated Linux/macOS runner services remain pending until the push. All
+remaining faithful-port and release-platform requirements remain open.

@@ -76,6 +76,7 @@ internal static class NativeBindingHeaderParser
 
         var declarations = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         Index(root);
+        Dictionary<string, JsonElement> tags = ResolveTags(declarations);
         var symbols = new SortedDictionary<string, NativeHeaderSymbol>(StringComparer.Ordinal);
         foreach (JsonElement node in Children(root))
         {
@@ -220,7 +221,9 @@ internal static class NativeBindingHeaderParser
                         NativeBindingCDeclaration.ValidateName(recordName);
                     }
 
-                    bool foundRecord = declarations.TryGetValue(Text(recordReference, "id"), out JsonElement record);
+                    string recordId = Text(recordReference, "id");
+                    bool foundRecord = declarations.TryGetValue(recordId, out JsonElement record);
+                    record = tags.GetValueOrDefault(recordId, record);
                     if (foundRecord && (Text(record, "kind") != Text(recordReference, "kind") || (OptionalText(record, "name") ?? "") != recordName))
                     {
                         throw Invalid("Native tag identity does not match its declaration.");
@@ -330,6 +333,79 @@ internal static class NativeBindingHeaderParser
                     throw Invalid($"Unsupported native compiler type '{kind}'.");
             }
         }
+    }
+
+    /// <summary>
+    /// Resolves tag redeclarations by compiler identity, including types that reference an initial forward declaration.
+    /// </summary>
+    private static Dictionary<string, JsonElement> ResolveTags(Dictionary<string, JsonElement> declarations)
+    {
+        var roots = new Dictionary<string, string>(StringComparer.Ordinal);
+        var definitions = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach ((string id, JsonElement declaration) in declarations)
+        {
+            if (Text(declaration, "kind") is not ("RecordDecl" or "EnumDecl"))
+            {
+                continue;
+            }
+
+            var chain = new HashSet<string>(StringComparer.Ordinal);
+            string currentId = id;
+            JsonElement current = declaration;
+            while (!roots.ContainsKey(currentId))
+            {
+                if (!chain.Add(currentId))
+                {
+                    throw Invalid("Cyclic native tag redeclarations.");
+                }
+
+                string? previous = OptionalText(current, "previousDecl");
+                if (previous is null)
+                {
+                    break;
+                }
+
+                if (!declarations.TryGetValue(previous, out JsonElement earlier) ||
+                    Text(earlier, "kind") != Text(current, "kind") ||
+                    OptionalText(earlier, "name") != OptionalText(current, "name") ||
+                    OptionalText(earlier, "tagUsed") != OptionalText(current, "tagUsed"))
+                {
+                    throw Invalid("Native tag redeclaration has a missing or incompatible identity.");
+                }
+
+                currentId = previous;
+                current = earlier;
+            }
+
+            string root = roots.GetValueOrDefault(currentId, currentId);
+            foreach (string member in chain)
+            {
+                roots.Add(member, root);
+            }
+
+            if (!definitions.TryGetValue(root, out JsonElement existing))
+            {
+                definitions.Add(root, declaration);
+            }
+            else if (HasDefinition(declaration))
+            {
+                if (HasDefinition(existing))
+                {
+                    throw Invalid("Duplicate native tag definitions.");
+                }
+
+                definitions[root] = declaration;
+            }
+            else if (!HasDefinition(existing) && declaration.TryGetProperty("fixedUnderlyingType", out _))
+            {
+                definitions[root] = declaration;
+            }
+        }
+
+        return roots.ToDictionary(static pair => pair.Key, pair => definitions[pair.Value], StringComparer.Ordinal);
+
+        static bool HasDefinition(JsonElement node) => Boolean(node, "completeDefinition") ||
+            Children(node).Any(static child => Text(child, "kind") == "EnumConstantDecl");
     }
 
     private static SortedDictionary<string, NativeHeaderRequest> Select(IReadOnlyList<NativeHeaderRequest> requests)

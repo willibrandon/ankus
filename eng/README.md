@@ -25,9 +25,16 @@ repository root with `dotnet run --file`.
 | `runtime-test-run` | Run every already-built test module using the PostgreSQL and compiler environment prepared by `runtime-test-build`. |
 | `header-frontend-check` | Check an explicit Clang executable for the declaration-only frontend required by header collection. |
 | `unit-test` | Build and run the five unit test modules. |
+| `prepare-reports` | Copy test results and server logs with private runner identifiers removed before artifact upload. |
 | `release-managed` | Pack the managed NuGet packages. |
 | `release-runtime` | Build and pack one platform runtime package. |
 | `publish` | Validate and publish the complete NuGet package set. |
+
+Native Linux/macOS runtime builds also execute the fork's bounded host-shutdown
+probes before staging a payload. They require normal process exit and managed
+thread cleanup, including mutex abandonment, GC and finalizer drain. A macOS
+cross-build compiles its payload but requires separate execution on that
+architecture; it does not claim native shutdown test evidence.
 
 Use `--` before command arguments:
 
@@ -35,8 +42,9 @@ Use `--` before command arguments:
 dotnet run --file ./eng/Ankus.Ci.cs -- metadata
 ```
 
-`runtime-test` installs and selects LLVM 20 on Linux and macOS, and selects the
-Windows runner's LLVM installation. It prints the compiler version and verifies
+`runtime-test` installs and selects LLVM 20 on hosted Linux and macOS, and uses
+dedicated Linux/macOS runners' Clang on PATH or the Windows runner's LLVM installation.
+It prints the compiler version and verifies
 `-skip-function-bodies` support before building or running tests. The platform
 default Clang can be too old even when Native AOT compilation works. Check a local
 compiler without installing or changing anything:
@@ -55,11 +63,36 @@ timeout. `runtime-test` retains the combined local command.
 Test commands write each module's TRX results and durations to
 `artifacts/test-results`; platform CI uploads available reports on every outcome.
 
-Main-branch and manually dispatched Windows jobs use the dedicated self-hosted
-runner labelled `ankus-windows-x64`. Pull requests retain `windows-2025` hosted
-runners; external contributors require workflow approval. Windows release builds
-also use the dedicated runner. Keep its service online before dispatching these
-jobs. It needs the pinned .NET SDK, PowerShell 7, Git, current Visual Studio C++
+Owner-triggered main-branch pushes and manual runs use the dedicated runners
+labelled `ankus-linux-x64`, `ankus-macos-arm64` and `ankus-windows-x64`. Both the original actor and
+the actor requesting a rerun must be the repository owner. Pull requests and
+other actors use GitHub-hosted runners; all external contributors require
+workflow approval. The same actor checks apply to release runtime builds.
+These workflow conditions route normal jobs; review workflow edits before
+approving an external run because approval also permits its changed workflow.
+Keep the runner services online before dispatching dedicated jobs.
+CI selects the latest stable .NET 10 SDK allowed by `global.json`.
+
+The Linux service runs under its own unprivileged account. Provision PostgreSQL
+18 with server headers, Clang 20 or later with matching libclang, and the .NET
+runtime build prerequisites once. Keep Clang's `bin` directory on the service
+PATH. On macOS, provision Homebrew's `llvm`, `postgresql@18`, `cmake`, `ninja`
+and `pkgconf`; run the runner as a user LaunchAgent. Keep the session logged in
+and the machine awake for queued work. Dedicated jobs validate the installed
+tools and do not run package-manager commands or require sudo. Runtime cache
+keys distinguish dedicated Linux/macOS builds from hosted builds so each
+toolchain is actually exercised. Runner labels identify platform roles and can
+move to replacement machines without changing workflows.
+
+Keep personal names and paths out of runner labels and work directories. Before
+assigning a personal machine its runner label, update the repository secret
+`ANKUS_RUNNER_PRIVATE_IDENTIFIERS` with one private identifier per line, including
+its machine name and any personal user/home paths. CI and release jobs reference
+that secret so GitHub masks startup logs. `prepare-reports` separately creates
+redacted copies of TRX results and server logs; only those copies are uploaded.
+Keep this secret current when replacing a runner. Raw reports remain local.
+
+Windows needs PowerShell 7, Git, current Visual Studio C++
 tools, CMake, Ninja, Python, LLVM 20 or later with matching libclang, and
 PostgreSQL 17.11 or later in major 17 with server headers and import libraries.
 Set `PGROOT` to the dedicated installation root when the machine's default
@@ -83,13 +116,15 @@ and `TMP` for its service account. Native binding entries persist in
 validation. Self-hosted jobs reuse these local caches; hosted jobs continue to
 restore and save GitHub caches. All platform suites remain complete and
 unsharded with the same 60-minute job limit. Workflows do not automatically
-cancel earlier runs; Windows jobs queue while the dedicated runner is busy.
+cancel earlier runs; jobs queue while their dedicated runner is busy.
 
 `ANKUS_PACKAGE_TEST_CONCURRENCY` controls package-consumer test slots and accepts
 any positive integer, with three as the fixture default. CI's manual
 `package-test-concurrency` input overrides it for a comparison run. The repository
-variable `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY` selects the dedicated Windows
-runner's normal setting. Compare complete suites at the same commit, SDK and
+variables `ANKUS_WINDOWS_PACKAGE_TEST_CONCURRENCY`,
+`ANKUS_LINUX_PACKAGE_TEST_CONCURRENCY` and `ANKUS_MACOS_PACKAGE_TEST_CONCURRENCY`
+select each dedicated runner's normal
+setting independently. Compare complete suites at the same commit, SDK and
 PostgreSQL version with equivalent cache conditions before raising that setting;
 record elapsed time, test outcomes and whether the run started with cold caches.
 
