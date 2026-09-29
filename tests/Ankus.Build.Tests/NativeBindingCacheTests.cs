@@ -10,6 +10,100 @@ public sealed class NativeBindingCacheTests(TestContext context)
     private const string Key = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
 
     /// <summary>
+    /// Linked SDK inputs reuse unchanged bytes but invalidate when their target or content changes.
+    /// </summary>
+    /// <param name="retarget">Whether to replace the link instead of modifying its target.</param>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CacheTracksLinkedDependencyContent(bool retarget)
+    {
+        string root = Directory.CreateTempSubdirectory("ankus-binding-cache-link-").FullName;
+        try
+        {
+            string target = Path.Combine(root, "target");
+            string input = Path.Combine(root, "input");
+            string cache = Path.Combine(root, "cache");
+            await File.WriteAllTextAsync(target, "original", context.CancellationToken);
+            File.CreateSymbolicLink(input, target);
+            int produced = 0;
+            async Task<IReadOnlyList<NativeBindingCacheFile>> Produce(string stage, CancellationToken token)
+            {
+                produced++;
+                string hash = await NativeBindingCache.HashAsync(input, token);
+                await File.WriteAllTextAsync(Path.Combine(stage, "binding.dll"), await File.ReadAllTextAsync(input, token), token);
+                return [new(input, hash)];
+            }
+
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                await using NativeBindingCacheLease lease = await NativeBindingCache.GetAsync(cache, Key, Produce, context.CancellationToken);
+                Assert.AreEqual("original", await File.ReadAllTextAsync(Path.Combine(lease.Directory, "binding.dll"), context.CancellationToken));
+                Assert.AreEqual(1, produced);
+            }
+
+            DateTime timestamp = File.GetLastWriteTimeUtc(target);
+            if (retarget)
+            {
+                target = Path.Combine(root, "replacement");
+                await File.WriteAllTextAsync(target, "modified", context.CancellationToken);
+                File.Delete(input);
+                File.CreateSymbolicLink(input, target);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(target, "modified", context.CancellationToken);
+            }
+
+            File.SetLastWriteTimeUtc(target, timestamp);
+            await using NativeBindingCacheLease changed = await NativeBindingCache.GetAsync(cache, Key, Produce, context.CancellationToken);
+            Assert.AreEqual(2, produced);
+            Assert.AreEqual("modified", await File.ReadAllTextAsync(Path.Combine(changed.Directory, "binding.dll"), context.CancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A linked output cannot be published as an owned immutable artifact even when its bytes match.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+    public async Task CacheRejectsLinkedArtifactsAndRecovers()
+    {
+        string root = Directory.CreateTempSubdirectory("ankus-binding-cache-artifact-link-").FullName;
+        try
+        {
+            string target = Path.Combine(root, "target");
+            string cache = Path.Combine(root, "cache");
+            await File.WriteAllTextAsync(target, "verified", context.CancellationToken);
+            IOException error = await Assert.ThrowsExactlyAsync<IOException>(() => NativeBindingCache.GetAsync(cache, Key, (stage, _) =>
+            {
+                File.CreateSymbolicLink(Path.Combine(stage, "binding.dll"), target);
+                return Task.FromResult<IReadOnlyList<NativeBindingCacheFile>>([]);
+            }, context.CancellationToken));
+            Assert.Contains("artifacts changed before publication", error.Message);
+            Assert.IsEmpty(Directory.GetDirectories(cache));
+            Assert.AreEqual("verified", await File.ReadAllTextAsync(target, context.CancellationToken));
+            await using NativeBindingCacheLease recovered = await NativeBindingCache.GetAsync(cache, Key, async (stage, token) =>
+            {
+                await File.WriteAllTextAsync(Path.Combine(stage, "binding.dll"), "verified", token);
+                return [];
+            }, context.CancellationToken);
+            string artifact = Path.Combine(recovered.Directory, "binding.dll");
+            Assert.IsFalse(File.GetAttributes(artifact).HasFlag(FileAttributes.ReparsePoint));
+            Assert.AreEqual("verified", await File.ReadAllTextAsync(artifact, context.CancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Repeated consumers reuse verified bytes while same-timestamp input and artifact changes force production.
     /// </summary>
     /// <param name="change">The independent cache invalidation boundary.</param>

@@ -13088,3 +13088,63 @@ no reported failure; Docs **36502786503** passes. These runs use the previous
 runtime and are not evidence for the newly serviced payload. Outcomes are checked
 again before push; the new commit requires fresh runtime builds and full platform
 suites.
+
+## SDK runtime selection and linked compiler dependencies
+
+The .NET 11 acceptance experiment uses isolated SDK
+**11.0.100-rc.1.26425.128** while retaining target **net10.0** and Ankus's
+**10.0.12-ankus.1** runtime / **10.0.12** compiler and framework packs. Stable
+repository and generated-project SDK selection remain unchanged. The initial
+managed build surfaced additional enforced style diagnostics; source corrections
+are still being reviewed in the isolated candidate, with no analyzer relaxation.
+Full SDK 11 and .NET 11 runtime support remain unproven.
+
+Real binding compilation exposed a separate defect: the .NET 10 helper launched
+SDK 11's MSBuild with `--fx-version` set to the helper's runtime. This failed with
+a missing `System.Runtime, Version=11.0.0.0`. MSBuild now selects its declared
+runtime, and its compiler apphosts receive the selected SDK installation. Cache
+inputs include that installation's host/fxr and shared runtimes, so changed
+runtime resolution invalidates compiled artifacts.
+
+SDK 11 also contains symbolic links to resource assemblies. The cache previously
+rejected all linked input files as changed, even when their content matched.
+Dependency links now undergo content verification; output artifacts still must
+be regular owned files. `CacheTracksLinkedDependencyContent` verifies unchanged
+reuse, same-timestamp target modification and link retargeting.
+`CacheRejectsLinkedArtifactsAndRecovers` checks rejection, staging cleanup,
+preservation of the external target and successful recovery with an owned output.
+These Unix filesystem cases run on Linux and macOS.
+
+`NativeBindingCompilationTests` now pins its actual build SDK in temporary
+consumers and checks the resolved identity. The concurrent-process witness fails
+before the runtime fix; the two linked-dependency cases fail before the cache
+fix. Offline consumers include downloaded framework reference packs while still
+independently rejecting a disallowed compiler dependency and recovering after
+source mapping is repaired. All **17 focused compiler/cache cases pass** under
+SDK 11 RC1 on Linux x64, with **zero failures/skips**, in **13.319s**. This is
+compiler-process evidence, not complete PostgreSQL or platform validation.
+
+The same **17 focused cases pass** on stable SDK **10.0.400**, with zero failures
+or skips, in **20.382s**. Release passes with **zero warnings/errors** in
+**1m11.35s**. API freshness verifies **206 pages/2,518 members**; the site builds
+**253 pages** and checks with **zero errors, warnings or hints**. The complete
+plain `dotnet test` suite passes **8,791 tests, zero failures and six Windows-only
+skips, 8,797 total**, on PostgreSQL **18.6/Linux x64**, in **10m15.168s**. The
+integration module passes in **10m14.486s**.
+
+The isolated SDK 11 candidate now passes Release with **zero warnings/errors**
+in **39.19s**. Required callback arguments remain intact; its additional fixture
+changes verify managed/native argument agreement, polymorphic type identity,
+moving inverse values, null FinalExtra values and actual post-seed transition
+inputs. These source changes remain under review in the experiment while its
+complete native PostgreSQL suite runs. They are not part of this focused binding
+fix milestone. No SDK 11 support or .NET 11 runtime compatibility is claimed.
+No NuGet packages are published; all remaining full-port requirements stay open.
+
+Before committing this milestone, CI **36503887699** (`f71cf62`) has successful
+quality and all three runtime builds. Its full PostgreSQL 18 jobs pass on Linux
+x64 in **31m40s** and macOS ARM64 in **38m52s**. The Windows x64/PostgreSQL 17
+full suite remains in progress without a reported failure. Docs **36503887812**
+passes. Superseded CI **36502786472** and **36500893838** are cancelled; their
+cancelled platform jobs are not completed evidence. Their documentation runs
+pass. Outcomes are checked and recorded again before push.

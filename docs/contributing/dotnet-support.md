@@ -3,7 +3,7 @@
 The [public .NET support policy](../src/content/docs/reference/dotnet-support.md)
 describes the extension-author contract. This document records the implementation
 plan and evidence required to make that contract supportable. .NET 11 work is
-pending; it is not evidence of current compatibility.
+in progress; it is not evidence of current compatibility.
 
 ## Basis for the policy
 
@@ -51,6 +51,23 @@ table when introducing a second runtime line; an unknown target must never
 fall back to the .NET 10 payload.
 
 ## Adding .NET 11
+
+An isolated SDK **11.0.100-rc.1.26425.128** experiment targeting `net10.0`
+found two binding-build defects. The helper forced MSBuild to use its own .NET 10
+runtime, and the cache rejected symbolic links shipped inside the SDK. Binding
+compilation now follows MSBuild's runtime configuration and selects the same SDK
+installation for compiler apphosts. Its cache inventories that installation's
+host and shared runtimes, and verifies linked dependency contents while requiring
+regular owned output artifacts.
+
+The real compiler-process tests pin the SDK that built the tests, including an
+isolated installation, rather than resolving an unrelated system SDK in their
+temporary projects. The compiler/cache scope passes **17 tests** under RC1,
+including offline restore, source-mapping rejection and recovery, concurrent
+compilation, content invalidation and linked-file cases. The broader candidate's
+Release build now passes with zero warnings/errors after source analyzer fixes;
+full native PostgreSQL validation is running. These additional source changes
+remain under review. This does not establish SDK 11 or `net11.0` support.
 
 1. Use an isolated writable runtime checkout based on the selected .NET 11
    release tag/commit. Keep reference clones read-only. Review each existing

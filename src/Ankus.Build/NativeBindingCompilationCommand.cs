@@ -47,17 +47,20 @@ internal static class NativeBindingCompilationCommand
         string cache = string.IsNullOrEmpty(arguments[7])
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ankus", "bindings")
             : Path.GetFullPath(arguments[7]);
-        string host = Path.GetFullPath(Path.Combine(sdk, "..", "..", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
+        string hostDirectory = Path.GetFullPath(Path.Combine(sdk, "..", ".."));
+        string host = Path.Combine(hostDirectory, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
         string assembly = (await File.ReadAllTextAsync(Path.Combine(source, "native-binding.assembly-name"), cancellationToken)).Trim();
         if (assembly.Length == 0 || assembly.Any(static value => !char.IsAsciiLetterOrDigit(value) && value != '.'))
         {
             throw new FormatException("The binding assembly name is invalid.");
         }
 
-        // Inventory every SDK/runtime file as well as hashing its existing content. New imports
-        // or analyzer dependencies cannot hide behind a manifest containing only older filenames.
+        // MSBuild uses its own runtime configuration, which may differ from this helper's runtime.
+        // Inventory the selected installation's host and shared runtimes too: servicing or adding
+        // a runtime can change framework resolution without changing any SDK files.
         string[] installation = [.. Directory.GetFiles(sdk, "*", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*", SearchOption.AllDirectories))
+            .Concat(Directory.GetFiles(Path.Combine(hostDirectory, "host", "fxr"), "*", SearchOption.AllDirectories))
+            .Concat(Directory.GetFiles(Path.Combine(hostDirectory, "shared", "Microsoft.NETCore.App"), "*", SearchOption.AllDirectories))
             .Append(host).Append(typeof(NativeBindingCompilationCommand).Assembly.Location).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
         string[] explicitFiles = [Path.Combine(source, "native-binding.g.cs"), runtime];
         var start = new ProcessStartInfo(host) { UseShellExecute = false };
@@ -76,6 +79,10 @@ internal static class NativeBindingCompilationCommand
 
         start.Environment["MSBuildSDKsPath"] = Path.Combine(sdk, "Sdks");
         start.Environment["DOTNET_MSBUILD_SDK_RESOLVER_CLI_DIR"] = Path.GetDirectoryName(host);
+        string architectureRoot = "DOTNET_ROOT_" + RuntimeInformation.ProcessArchitecture.ToString().ToUpperInvariant();
+        start.Environment["DOTNET_ROOT"] = hostDirectory;
+        start.Environment[architectureRoot] = hostDirectory;
+        start.Environment["DOTNET_HOST_PATH"] = host;
         // Only the hash of inherited settings participates in identity; values are not persisted.
         string settings = JsonSerializer.Serialize(start.Environment.OrderBy(static pair => pair.Key, StringComparer.Ordinal));
         string work = NativeBuildDirectory.PhysicalPath(Directory.CreateTempSubdirectory("ankus-binding-compile-"));
@@ -107,7 +114,7 @@ internal static class NativeBindingCompilationCommand
                 },
             }), cancellationToken);
             start.WorkingDirectory = work;
-            foreach (string argument in new[] { "exec", "--fx-version", Environment.Version.ToString(), Path.Combine(sdk, "MSBuild.dll"),
+            foreach (string argument in new[] { "exec", Path.Combine(sdk, "MSBuild.dll"),
                     "Ankus.NativeBindings.csproj", "-nologo", "-verbosity:minimal", "-nodeReuse:false" })
             {
                 start.ArgumentList.Add(argument);
@@ -118,6 +125,9 @@ internal static class NativeBindingCompilationCommand
             var restoreStart = new ProcessStartInfo(host) { UseShellExecute = false, WorkingDirectory = work };
             restoreStart.Environment["MSBuildSDKsPath"] = Path.Combine(sdk, "Sdks");
             restoreStart.Environment["DOTNET_MSBUILD_SDK_RESOLVER_CLI_DIR"] = Path.GetDirectoryName(host);
+            restoreStart.Environment["DOTNET_ROOT"] = hostDirectory;
+            restoreStart.Environment[architectureRoot] = hostDirectory;
+            restoreStart.Environment["DOTNET_HOST_PATH"] = host;
             foreach (string argument in start.ArgumentList)
             {
                 restoreStart.ArgumentList.Add(argument);

@@ -156,7 +156,7 @@ internal static class NativeBindingCache
             CancellationToken = cancellationToken,
         }, async (file, token) =>
         {
-            if (!await MatchesAsync(file.Path, file.Hash, token))
+            if (!await MatchesAsync(file.Path, file.Hash, allowSymbolicLink: true, token))
             {
                 Interlocked.Exchange(ref changed, 1);
             }
@@ -216,7 +216,7 @@ internal static class NativeBindingCache
         {
             if (artifact is null || string.IsNullOrEmpty(artifact.Path) || artifact.Path != Path.GetFileName(artifact.Path) ||
                 artifact.Path is "." or ".." or ManifestName || !names.Add(artifact.Path) ||
-                !await MatchesAsync(Path.Combine(directory, artifact.Path), artifact.Hash, cancellationToken))
+                !await MatchesAsync(Path.Combine(directory, artifact.Path), artifact.Hash, allowSymbolicLink: false, cancellationToken))
             {
                 return false;
             }
@@ -235,8 +235,8 @@ internal static class NativeBindingCache
             await MatchFilesAsync(manifest.Dependencies, cancellationToken);
     }
 
-    private static async Task<bool> MatchesAsync(string path, string hash, CancellationToken cancellationToken)
-        => File.Exists(path) && !File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint) &&
+    private static async Task<bool> MatchesAsync(string path, string hash, bool allowSymbolicLink, CancellationToken cancellationToken)
+        => File.Exists(path) && (allowSymbolicLink || !File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint)) &&
             await HashAsync(path, cancellationToken) == hash;
 }
 

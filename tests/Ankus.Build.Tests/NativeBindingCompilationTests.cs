@@ -12,6 +12,8 @@ namespace Ankus.Build.Tests;
 [TestClass]
 public sealed class NativeBindingCompilationTests(TestContext context)
 {
+    private static readonly string[] s_offlinePackages = ["microsoft.net.illink.tasks", "microsoft.netcore.app.ref", "microsoft.aspnetcore.app.ref"];
+
     private const string AssemblyName = "Ankus.Postgres.CacheProbe";
     private const string Source = """
         /// <summary>
@@ -137,7 +139,9 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             NativeBindingRestoreSettings initial = await NativeBindingRestoreSettings.ReadAsync(settings[2], context.CancellationToken);
             string configurationDirectory = Directory.CreateDirectory(Path.Combine(root, "feed settings")).FullName;
             string feed = Directory.CreateDirectory(Path.Combine(configurationDirectory, "feed")).FullName;
-            string[] packages = Directory.GetFiles(Path.Combine(initial.Packages, "microsoft.net.illink.tasks"), "*.nupkg", SearchOption.AllDirectories);
+            string[] packages = [.. s_offlinePackages
+                .Select(package => Path.Combine(initial.Packages, package)).Where(Directory.Exists)
+                .SelectMany(static directory => Directory.GetFiles(directory, "*.nupkg", SearchOption.AllDirectories))];
             Assert.IsNotEmpty(packages);
             foreach (string package in packages)
             {
@@ -147,7 +151,14 @@ public sealed class NativeBindingCompilationTests(TestContext context)
             var configuration = XDocument.Parse("""
                 <configuration>
                   <packageSources><clear /><add key="offline" value="feed" /></packageSources>
-                  <packageSourceMapping><clear /><packageSource key="offline"><package pattern="Microsoft.*" /></packageSource></packageSourceMapping>
+                  <packageSourceMapping>
+                    <clear />
+                    <packageSource key="offline">
+                      <package pattern="Microsoft.*" />
+                      <package pattern="Microsoft.NETCore.App.Ref" />
+                      <package pattern="Microsoft.AspNetCore.App.Ref" />
+                    </packageSource>
+                  </packageSourceMapping>
                   <config><add key="globalPackagesFolder" value="packages" /></config>
                 </configuration>
                 """);
@@ -198,12 +209,26 @@ public sealed class NativeBindingCompilationTests(TestContext context)
 
     private async Task<string[]> SettingsAsync(string root, string[]? restoreArguments = null)
     {
+        AssemblyMetadataAttribute[] metadata = [.. typeof(NativeBindingCompilationTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()];
+        string sdkVersion = Assert.ContainsSingle(metadata.Where(static item => item.Key == "AnkusTestSdkVersion")).Value!;
+        string sdkDirectory = Assert.ContainsSingle(metadata.Where(static item => item.Key == "AnkusTestSdkDirectory")).Value!;
+        await File.WriteAllTextAsync(Path.Combine(root, "global.json"), JsonSerializer.Serialize(new
+        {
+            sdk = new
+            {
+                version = sdkVersion,
+                rollForward = "disable",
+                allowPrerelease = true,
+                paths = new[] { Path.GetFullPath(Path.Combine(sdkDirectory, "..", "..")) },
+            },
+        }), context.CancellationToken);
         string project = Path.Combine(root, "Settings.csproj");
         await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>", context.CancellationToken);
         string properties = await NativeBindingLayoutCommand.RunProcessAsync("dotnet", ["msbuild", project, "-nologo",
             "-restore", "-target:ResolveReferences", "-verbosity:quiet", "-getProperty:NETCoreSdkVersion,MSBuildToolsPath,ProjectAssetsFile", .. restoreArguments ?? []], root, context.CancellationToken);
         using JsonDocument document = JsonDocument.Parse(properties);
         JsonElement values = document.RootElement.GetProperty("Properties");
+        Assert.AreEqual(sdkVersion, values.GetProperty("NETCoreSdkVersion").GetString());
         File.Copy(typeof(PgDatum).Assembly.Location, Path.Combine(root, "Ankus.Runtime.dll"), overwrite: true);
         return [values.GetProperty("NETCoreSdkVersion").GetString()!, values.GetProperty("MSBuildToolsPath").GetString()!, values.GetProperty("ProjectAssetsFile").GetString()!];
     }

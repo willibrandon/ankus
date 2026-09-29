@@ -50,9 +50,12 @@ or update its embedded runtime. See [.NET SDK selection](https://learn.microsoft
 
 Keep `net10.0` until Ankus documents support for another target. Ankus will select
 a matching runtime for each supported target; extension authors should not need
-to build a runtime fork or override compiler internals. The command-line tool
-and managed test host also need their declared .NET runtime on the development
-machine. PostgreSQL servers do not need a separately installed .NET runtime.
+to build a runtime fork or override compiler internals. The command-line tool,
+native binding helper, and managed test host also need their declared .NET runtime
+on the development machine. The selected SDK's compiler uses that SDK's own
+runtime requirements. Installing a newer SDK does not replace the .NET 10 runtime
+required by Ankus's managed tools. PostgreSQL servers do not need a separately
+installed .NET runtime.
 
 ## Runtime servicing and deployment
 
