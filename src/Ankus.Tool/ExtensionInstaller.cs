@@ -15,9 +15,10 @@ internal static class ExtensionInstaller
     /// <param name="installation">The target PostgreSQL installation.</param>
     /// <param name="destinationRoot">An optional staging root, analogous to DESTDIR.</param>
     /// <param name="token">Cancels copying between artifacts.</param>
+    /// <param name="packageLayout">Whether Windows output uses lib and share/extension relative to the package root.</param>
     /// <returns>The installed file paths.</returns>
     internal static IReadOnlyList<string> Install(string source, PostgresInstallation installation, string? destinationRoot,
-        CancellationToken token)
+        CancellationToken token, bool packageLayout = false)
     {
         source = Path.GetFullPath(source);
         PublishedExtension manifest = PublishedExtension.Read(source);
@@ -35,6 +36,14 @@ internal static class ExtensionInstaller
 
         string libraryDirectory = StagePath(installation.LibraryDirectory, destinationRoot);
         string extensionDirectory = StagePath(Path.Combine(installation.SharedDirectory, "extension"), destinationRoot);
+        if (packageLayout && OperatingSystem.IsWindows())
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(destinationRoot);
+            string root = Path.GetFullPath(destinationRoot);
+            libraryDirectory = Path.Combine(root, "lib");
+            extensionDirectory = Path.Combine(root, "share", "extension");
+        }
+
         (string Source, string Destination)[] files =
         [
             (Path.Combine(source, manifest.Library), Path.Combine(libraryDirectory, manifest.Library)),

@@ -34,6 +34,7 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateBuild("build", "Build the native extension and SQL files.", home));
         root.Subcommands.Add(CreateBuild("publish", "Publish the native extension and SQL files to a directory.", home));
         root.Subcommands.Add(CreateInstall(home));
+        root.Subcommands.Add(CreateInstall(home, package: true));
         root.Subcommands.Add(CreateSchema(home));
         try
         {
@@ -202,18 +203,19 @@ internal static partial class ToolCommand
         return command;
     }
 
-    private static Command CreateInstall(Option<string?> home)
+    private static Command CreateInstall(Option<string?> home, bool package = false)
     {
-        var command = new Command("install", "Build and copy an extension into a PostgreSQL installation.");
+        Command command = package
+            ? new Command("package", "Build an extension installation tree under a separate output directory.")
+            : new Command("install", "Build and copy an extension into a PostgreSQL installation.");
         AddSelectionOptions(command);
         AddBuildOptions(command);
-        var from = new Option<string?>("--from") { Description = "Install an existing publish directory without rebuilding." };
-        var destdir = new Option<string?>("--destdir")
-        {
-            Description = "Stage files under this root, preserving PostgreSQL's installation paths.",
-        };
+        var from = new Option<string?>("--from") { Description = "Use an existing publish directory without rebuilding." };
+        Option<string?> destination = package
+            ? new Option<string?>("--output", "-o") { Description = "Package root (default: extension-pgMAJOR beneath the publish directory)." }
+            : new Option<string?>("--destdir") { Description = "Stage files under this root, preserving PostgreSQL's installation paths." };
         command.Options.Add(from);
-        command.Options.Add(destdir);
+        command.Options.Add(destination);
         command.SetAction(async (result, token) =>
         {
             if (result.GetValue(from) is not null && result.GetValue<string?>("--project") is not null)
@@ -233,9 +235,16 @@ internal static partial class ToolCommand
                 }
             }
 
-            foreach (string path in ExtensionInstaller.Install(source, installation, result.GetValue(destdir), token))
+            string? root = result.GetValue(destination);
+            if (package && root is null)
             {
-                Console.WriteLine($"Installed {path}");
+                string name = Path.GetFileNameWithoutExtension(PublishedExtension.Read(source).Control);
+                root = Path.Combine(Path.GetFullPath(source), name + "-" + installation.Label);
+            }
+
+            foreach (string path in ExtensionInstaller.Install(source, installation, root, token, packageLayout: package))
+            {
+                Console.WriteLine($"{(package ? "Packaged" : "Installed")} {path}");
             }
 
             return 0;
@@ -290,7 +299,7 @@ internal static partial class ToolCommand
 
     private static string GetOutputDirectory(ParseResult result, PostgresInstallation installation)
     {
-        string? output = result.CommandResult.Command.Name is "install" or "run" ? null : result.GetValue<string?>("--output");
+        string? output = result.CommandResult.Command.Name is "install" or "package" or "run" ? null : result.GetValue<string?>("--output");
         string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
         string configuration = GetConfiguration(result);
         return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",

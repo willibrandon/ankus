@@ -3200,7 +3200,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: installed CLI validates manifests and copies/stages native libraries, control and versioned SQL files; upgrade scripts pending |
-| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: publish output; distribution command pending |
+| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release/explicit Debug, project or existing publication, default/explicit output, and custom native library names. Custom build configurations, cross-target packaging and upgrade-script distribution remain required; verification is recorded in the package milestone below |
 | `get` | Query extension control properties and derived extension metadata | Pending |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
 | `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
@@ -14059,3 +14059,65 @@ Persisted toolchain configuration, Valgrind execution, cross-target publication,
 Windows source provisioning for unavailable prerelease binaries, remaining CLI
 inventory and the complete extension platform/version matrix remain required.
 This milestone does not establish full-port parity.
+
+### 2026-09-29 — Extension installation packages
+
+`ankus package` publishes an extension and creates a separate installation tree,
+following pgrx's package/install composition. It shares the existing install
+command's artifact validation and copying rather than adding another installer.
+`--pg`/`--pg-config` select PostgreSQL; `--project` selects the extension; Release
+is the default and `--configuration Debug` selects a debug build. The generated
+extension name, version and custom native library name are retained.
+
+`--output`/`-o` selects the package root. The default is `<extension>-pg<major>`
+under the publication directory. `--from` packages a previous publication
+without rebuilding or requiring a project, and cannot be combined with
+`--project`. Native library and control/versioned installation SQL paths mirror
+the selected installation beneath the root on Unix. Windows follows pgrx's
+portable `lib/` and `share/extension/` layout. Repeated packaging replaces the
+payload while preserving unrelated output files. A failed build preserves an
+existing package; malformed or incompatible artifacts fail before copying.
+
+| Requirement | Evidence |
+|---|---|
+| Installed command discovery and required output-argument parsing | `InstalledToolProvidesHelp` and `InvalidArgumentsDoNotMutateConfiguration`, package rows |
+| Default Release/explicit Debug, default/explicit package roots, custom extension/library names and configuration-specific versions | `PackageBuildsConfiguredExtensionAndLoadsInPostgres`, both rows |
+| Existing publication without project/build, exact payload bytes, repeat replacement, unrelated-file/source preservation, moved-root loading and native SQL | `PackageExistingPublicationPreservesPayloadAndLoadsAfterMove`, both rows |
+| PostgreSQL major/RID mismatch, filename traversal and missing artifacts produce no partial installation | `InvalidArtifactDoesNotPartiallyInstall`, all install/package rows |
+| Conflicting source flags fail before PostgreSQL lookup or output creation | `PackageRejectsAmbiguousSources` |
+| A real compiler error returns failure and preserves the existing package tree | `FailedPackageBuildPreservesExistingTree` |
+
+Package execution checks query both the native `add` function and the installed
+extension version. PostgreSQL 18+ reads the packaged SQL directly from the moved
+tree; earlier versions use the actual packaged control and SQL in the test's
+owned installation. The original PostgreSQL installation's artifact paths and
+the source publication are checked for preservation. The initial focused
+installed-tool selection passes **35 tests, 0 failed, 0 skipped** in
+**5m53.273s** on Linux x64/PostgreSQL **18.6**.
+
+Final complete plain `dotnet test` runs use PostgreSQL **18.6** and .NET SDK
+**10.0.400**, with **9,130 tests** discovered on each platform:
+
+- Debian **13.5**, Linux x64: **9,124 passed, 0 failed, 6 Windows-only skips**
+  in **10m25.032s**.
+- macOS **26.5.2**, ARM64: **9,121 passed, 0 failed, 9 platform-only skips**
+  in **8m15.867s**.
+
+These are warm validation runs, including complete real-server integration
+tests. The final Release build passes with **0 warnings and 0 errors** in
+**28.93s**. The **259-page** documentation site builds successfully; site
+diagnostics report **0 errors, 0 warnings and 0 hints**. API freshness is checked
+against the existing **212 pages / 2,550 members**. The owned macOS validation
+checkout and unused fixtures from the superseded validation runs are removed.
+
+The preceding port-settings milestone's CI **36556602683** and Docs
+**36556602652** both completed successfully. Platform job durations are
+**22m49s** for Linux x64/PostgreSQL 18, **9m32s** for macOS ARM64/PostgreSQL 18,
+and **19m42s** for Windows x64/PostgreSQL 17. Quality passed in **9m40s**,
+all runtime jobs passed, and no job timed out. These results validate the
+previous milestone; Windows packaging still requires its next complete CI run.
+
+Custom build configurations, cross-target configuration/build/package,
+upgrade-script distribution, the remaining command inventory and the full
+extension version/platform matrix remain required. This command does not
+establish full-port parity.

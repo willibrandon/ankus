@@ -139,6 +139,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("build", "--project")]
     [DataRow("publish", "--output")]
     [DataRow("install", "--destdir")]
+    [DataRow("package", "--output")]
     [DataRow("schema", "--skip-build")]
     [DataRow("start", "--postgresql-conf")]
     [DataRow("stop", "--all")]
@@ -260,6 +261,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("info", "--pg=12")]
     [DataRow("info", "--pg=20")]
     [DataRow("publish", "--output")]
+    [DataRow("package", "--output")]
     public async Task InvalidArgumentsDoNotMutateConfiguration(string command, string option)
     {
         string home = CreateDirectory();
@@ -317,13 +319,18 @@ public sealed partial class ToolCommandTests(TestContext context)
     /// <summary>
     /// Verifies incompatible targets, unsafe filenames, and missing payloads fail before any installation files are copied.
     /// </summary>
+    /// <param name="operation">The installation or packaging operation.</param>
     /// <param name="failure">The artifact inconsistency to introduce.</param>
     [TestMethod]
-    [DataRow("major")]
-    [DataRow("runtime")]
-    [DataRow("path")]
-    [DataRow("missing")]
-    public async Task InvalidArtifactDoesNotPartiallyInstall(string failure)
+    [DataRow("install", "major")]
+    [DataRow("install", "runtime")]
+    [DataRow("install", "path")]
+    [DataRow("install", "missing")]
+    [DataRow("package", "major")]
+    [DataRow("package", "runtime")]
+    [DataRow("package", "path")]
+    [DataRow("package", "missing")]
+    public async Task InvalidArtifactDoesNotPartiallyInstall(string operation, string failure)
     {
         string source = CreateDirectory();
         Directory.CreateDirectory(Path.Combine(source, "extension"));
@@ -355,7 +362,8 @@ public sealed partial class ToolCommandTests(TestContext context)
         await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString(), context.CancellationToken);
         string stage = CreateDirectory();
         ProcessResult result = await InvokeAsync(
-            ["install", "--home", s_home, "--pg", MajorText(), "--from", source, "--destdir", stage],
+            [operation, "--home", s_home, "--pg", MajorText(), "--from", source,
+                operation == "package" ? "--output" : "--destdir", stage],
             context.CancellationToken);
         Assert.AreEqual(1, result.ExitCode);
         Assert.IsNotEmpty(result.StandardError);

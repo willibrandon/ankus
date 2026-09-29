@@ -227,4 +227,44 @@ paths, add `--destdir staging`.
 Connect to your database and run `CREATE EXTENSION` to make its functions
 available. `install` copies files; it does not modify databases.
 
+## Package for distribution
+
+Build an installation tree beneath a separate directory:
+
+```console
+ankus package --pg 18 --output dist
+```
+
+The package contains the native library, extension control file, and versioned
+installation SQL. Its paths mirror the selected installation's `--pkglibdir`
+and `--sharedir`, relative to the package root. For example, an installation
+whose libraries live in `/usr/lib/postgresql/18/lib` puts the packaged library
+under `dist/usr/lib/postgresql/18/lib`. Windows packages instead use `lib/` and
+`share/extension/` relative to the PostgreSQL installation root.
+The selected PostgreSQL installation and its databases are unchanged.
+
+Packages target the host operating system and architecture and the selected
+PostgreSQL major. Use a matching PostgreSQL directory layout when deploying the
+tree. You can move or archive the package root after creation.
+
+`--project` selects an extension project or directory. The default build
+configuration is `Release`; use `--configuration Debug` for a debug build.
+The package retains the extension name, version, and native library name from
+the publication, including a custom MSBuild `AssemblyName`.
+
+Package an existing publication without rebuilding:
+
+```console
+ankus package --from publish --pg 18 --output dist
+```
+
+`--from` and `--project` cannot be combined. Without `--output` (or `-o`), the
+package root is `<extension>-pg<major>` beneath the publish directory. For a
+new build, that directory is
+`bin/ankus/pg<major>/<runtime>/<configuration>/` in the project directory.
+
+The command validates the artifact set and PostgreSQL/runtime target before
+copying. Repeating it updates the package's files and preserves unrelated files
+in the output directory. A failed build leaves the existing package unchanged.
+
 Use `ankus --help` or `ankus <command> --help` for the available options.
