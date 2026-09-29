@@ -138,6 +138,76 @@ overridden through `--postgresql-conf`. Existing unowned or incompatible data
 directories are rejected. A failed start preserves initialized data and reports
 the server log path so you can correct the setting and retry.
 
+## Run SQL regression suites
+
+Place SQL files under `pg_regress/sql/` beside your extension project. Expected
+output lives in `pg_regress/expected/`, using the same basename and an `.out`
+extension. An optional `setup.sql` creates your extension and shared test objects:
+
+```sql
+CREATE EXTENSION hello;
+```
+
+For example, put `SELECT add(19, 23);` in `pg_regress/sql/addition.sql`, then
+record and review its initial output:
+
+```console
+ankus regress --pg 18 --add addition
+ankus regress --pg 18
+```
+
+`--add` recreates the regression database, runs setup first when present, and
+creates the new expected file. It also records setup output when that file is
+missing. Existing expectations cannot be overwritten with `--add`. Review the
+recorded output before committing it, including any SQL errors your test intends
+to exercise. A failed client process never becomes a successful expectation.
+
+Ankus stops the selected development server, builds and installs the extension,
+then restarts the server. It uses a database named `<extension>_regress`.
+`--database` selects another literal name. Ordinary runs preserve that database
+and skip setup on reuse.
+`--resetdb` recreates it and reruns setup. A setup script newer than its expected
+file also triggers recreation. Recreation disconnects existing clients to that
+database and deletes its contents. The development server remains running afterward.
+
+Tests run sequentially in ordinal filename order, with setup first when needed.
+Each file gets a separate psql session. A positional filter matches a
+case-sensitive substring of ordinary test names:
+
+```console
+ankus regress --pg 18 addition --no-build
+ankus regress --pg 18 --repeat 3 --verbose
+ankus regress --pg 18 --dry-run
+```
+
+Unfiltered runs report and skip tests without expected output. An explicit filter
+that matches nothing, or selects a test without expected output, fails.
+`--no-build` installs the existing publication. `--project`, `--configuration`,
+`--home`, `--port`, `--timeout`, and repeated `--postgresql-conf name=value`
+options select the project and development environment. `--dry-run` reports the
+selection and intended actions without building, starting a server, or writing files.
+
+Comparison uses the selected PostgreSQL installation's `pg_regress`, including
+its alternate expected outputs and `resultmap` behavior. That executable must
+be installed alongside PGXS; `diff` must be available on `PATH` (Git for Windows
+supplies it). Paths and test names that the native driver's shell command cannot
+represent safely are rejected. Spaces in suite paths and test names are supported.
+
+Results are written to `pg_regress/results/`; differences go to
+`pg_regress/regression.diffs`. `--verbose` prints the differences.
+With `--repeat`, each failed iteration keeps `regression.<number>.diffs`.
+Any failed iteration makes the command fail, even if a later iteration succeeds.
+`--auto` replaces expected output only for selected tests that the native
+comparator reports as different; the failed run still returns a nonzero exit code.
+Review those changes before accepting them. `--add` cannot be combined with a
+filter, `--auto`, or multiple iterations.
+
+SQL errors use psql's `terse` verbosity by default. Choose `default`, `verbose`,
+or `sqlstate` with `--psql-verbosity`. SQL errors can be expected test output;
+use `\set ON_ERROR_STOP on` in a SQL file when they should instead fail the
+client process. Valgrind execution and alternate operating-system users or data
+directories are not yet supported by this command.
+
 ## Build and publish
 
 For an interactive development loop, run this from your extension project or solution:

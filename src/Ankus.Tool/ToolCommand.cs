@@ -37,8 +37,14 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateInstall(home, package: true));
         root.Subcommands.Add(CreateSchema(home));
         root.Subcommands.Add(CreateGet(home));
+        root.Subcommands.Add(CreateRegress(home));
         try
         {
+            if (arguments.Length != 0 && arguments[0] == RegressionDriver.ClientSwitch)
+            {
+                return await RegressionDriver.RunClientAsync(arguments[1..], interactiveCancellation.Token);
+            }
+
             ParseResult result = root.Parse(arguments);
             bool interactive = result.CommandResult.Command.Name is "run" or "connect";
             if (interactive)
@@ -311,7 +317,7 @@ internal static partial class ToolCommand
 
     private static string GetOutputDirectory(ParseResult result, PostgresInstallation installation)
     {
-        string? output = result.CommandResult.Command.Name is "install" or "package" or "run" ? null : result.GetValue<string?>("--output");
+        string? output = result.CommandResult.Command.Name is "install" or "package" or "run" or "regress" ? null : result.GetValue<string?>("--output");
         string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
         string configuration = GetConfiguration(result);
         return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",

@@ -72,6 +72,10 @@ to manage a persistent local development server. Stopping it preserves its datab
 `ankus run --pg 18` builds and installs your extension, then opens psql in its
 development database. `ankus connect --pg 18` reopens that database without a build.
 
+`ankus regress --pg 18` runs SQL regression files through PostgreSQL's own test
+driver. See [SQL regression suites](docs/src/content/docs/reference/cli.md#run-sql-regression-suites)
+for setup SQL, expected output, filters, and repeated runs.
+
 `ankus package --pg 18 --output dist` builds an installation tree for distribution.
 It places the native library and SQL files beneath `dist`, using the selected
 PostgreSQL installation's directory layout.

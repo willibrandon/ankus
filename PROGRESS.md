@@ -68,6 +68,20 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus regress` runs SQL/expected-output suites through the selected PostgreSQL
+driver, with setup/reset, filtering, new expectations, repeated diffs and explicit
+expected-output updates. Real psql completion prevents failed clients from being
+accepted as expected output. The complete PostgreSQL **18.6/Linux x64** suite
+discovers **9,377 tests**: **9,370 passed, zero failures and seven Windows-only
+skips**, in **13m54.190s**. All **37 affected cases** pass on macOS
+ARM64/PostgreSQL **18.6** and Windows x64/PostgreSQL **17.11**. Release,
+API freshness and site checks pass. Previous CI for `c593e6b` is green on all
+three platforms. Shared lifecycle options, remaining CLI/native/type/example
+contracts, runtime servicing and the complete PostgreSQL/platform matrix remain
+required; this milestone does not establish full parity.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `ankus get` queries effective primary control properties, evaluated extension
 names and project Git revisions. Managed metadata queries agree with native
 publication and real PostgreSQL catalogs; publication queries need no server or
@@ -79,8 +93,6 @@ x64/PostgreSQL **17.11**. Release and documentation validation are recorded
 below. Previous CI for `45c7b21` is green on all three platforms. Remaining
 CLI, native API, type, example, runtime-servicing and complete PostgreSQL/platform
 requirements stay open; this milestone does not establish full parity.
-
-Earlier verified milestones follow in reverse chronological order.
 
 Custom SQL directories now flow through publication, installation and packaging.
 Omitted, empty, relative and absolute settings retain their PostgreSQL meanings;
@@ -3277,7 +3289,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`; Valgrind execution and cross-target tooling remain required |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
-| `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
+| `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared lifecycle options and the complete version/platform matrix remain required; see the regression-suite milestone below |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
@@ -14649,3 +14661,167 @@ were checked again before committing and both remain successful, with all
 platform jobs completed and no timeout.
 These are warm validation measurements, not a controlled cold-cache comparison.
 All remaining faithful-port requirements stay open.
+
+### SQL regression suites — implementation and validation
+
+The next command inventory covers pgrx's real `pg_regress` workflow: selected
+project/build/install/server composition, setup SQL freshness and reset,
+deterministic test selection, expected-output bootstrapping and promotion,
+read-only dry runs, repeated-run diffs, verbosity and lifecycle options.
+This work does not replace PostgreSQL's regression comparison with a smoke test.
+
+Initial implementation adds lazy regression-driver discovery through the selected
+installation's `pg_config --pgxs`, including the Windows executable suffix.
+Ordinary PostgreSQL discovery still works without regression tools. Development
+clusters gain exact-name database removal with explicit force, server identifier
+length validation and the existing UTF-8 SQL/process boundary. Regression drivers
+are present on the inspected Linux x64/macOS ARM64 PostgreSQL **18.6** and Windows
+x64 PostgreSQL **17.11** installations. Driver version commands succeed on all
+three. Command composition and full validation are not complete.
+
+The initial Linux x64/PostgreSQL **18.6** selection passes **five tests**, with
+**zero failures/skips**, in **5m13.844s**, including fixture startup. It exercises
+the new API boundaries and reruns existing creation behavior after extracting
+shared private database lookup and byte-length validation.
+
+| Requirement | Initial direct evidence |
+|---|---|
+| Authoritative PGXS path, driver version, relocation, missing optional tools and cancellation | `RegressionDriverFollowsPgxsAndReportsMissingTools` |
+| Exact Unicode/metacharacter names, absent removal, identifier boundaries, retained unrelated data, server identity and empty recreation | `DatabaseRemovalPreservesNamesOtherDataAndResetIdentity` |
+| Explicit force, active-session rejection, cancellation, operation locking, current-database errors and recovery | `DatabaseRemovalHonorsForceLocksCancellationAndRecovery` |
+| Invalid names and stopped servers make no filesystem changes | `DatabaseRemovalRejectsInvalidAndStoppedRequestsWithoutWrites` |
+| Existing creation and exact-name behavior survives the private helper extraction | `DevelopmentDatabasesPreserveExactNamesAndRejectTruncation` |
+
+PostgreSQL **13.23** source confirms native forced-drop support; this is source
+inspection, not a completed PostgreSQL 13 execution. No new friend assembly or
+diagnostic suppression is introduced. Full-suite, platform and documentation
+validation for these prerequisites remain required before the next milestone.
+API regeneration succeeds with **zero warnings/errors**, producing **213 pages
+/ 2,564 members** for the new public methods; site and freshness gates remain
+part of that milestone's final validation.
+
+CI **36599064160** for property-query commit `c593e6b` now passes every job.
+Complete platform jobs take **31m29s** on Linux x64/PostgreSQL 18, **13m00s** on
+macOS ARM64/PostgreSQL 18, and **22m16s** on Windows x64/PostgreSQL 17. Quality
+takes **9m19s**; all runtime jobs and Docs **36599064319** pass. No job times out.
+These are previous-commit outcomes, not evidence for the uncommitted regression command.
+
+The installed command now composes extension publication/installation, persistent
+development clusters and the selected native regression driver. It preserves
+setup freshness, exact database names, native alternate expected-output rules,
+ordinal selection, repeated-run failure status and per-iteration diffs. A managed
+psql launcher passes connection values as individual arguments and records each
+client's actual completion. Missing/nonzero client completion blocks both new
+expectation creation and automatic replacement. Dry runs avoid build/server/file
+changes, and invalid ports/timeouts are rejected before those actions.
+
+The first installed-tool selection executes **33 cases: 31 pass and two fail**.
+Both failures expose first-run cleanup attempting to remove a result beneath a
+not-yet-created results directory. Cleanup now removes stale selected output only
+when that directory exists; the real first-run tests are being rerun. The other
+cases already exercise native diff/alternate expectations, repeat aggregation,
+failed-client preservation, read-only selection and command help/configuration.
+This initial failing run is not counted as completed validation. Matching source
+snapshots are also under affected macOS/Windows validation. The CLI, testing guide
+and README now describe the implemented workflow and remaining lifecycle limits.
+
+The corrected Linux x64/PostgreSQL **18.6** selection passes all **33 cases**,
+with **zero failures/skips**, in **3m41.864s**. Release builds with **zero
+warnings/errors** in **48.46s**. API freshness passes at **213 pages / 2,564
+members**; the public site builds **260 pages** and reports **zero errors,
+warnings or hints**. The complete plain Linux suite is running separately.
+
+| Installed regression contract | Direct evidence |
+|---|---|
+| Real build/install/native calls, exact database names, settings, retained state, explicit reset and changed setup | `RegressBuildsAndPreservesSetupLifecycle` |
+| Setup bootstrap, test names with spaces, exact SQLSTATE output, SQL-error recovery and duplicate rejection | `RegressBootstrapsSetupAndPreservesErrorVerbosity` |
+| Native alternate expected files, stable ordering, missing-output skips, repeat diffs and selective promotion | `RegressRepeatsNativeDiffsAndPromotesOnlyFailedSelections` |
+| Nonzero psql completion cannot create or overwrite expected output; corrected SQL recovers | `RegressRejectsFailedClientOutput` |
+| Empty suites, read-only dry runs, case-sensitive filters, missing expectations, conflicting switches and invalid port/timeout/repeat values | `RegressDryRunAndSelectionAreReadOnly` |
+
+An additional Linux process-boundary probe invokes the framework-dependent tool
+through `dotnet`, observes an active native psql `pg_sleep` query, and sends SIGINT
+to the tool. It exits **130**, removes its bootstrap placeholder and suite lock,
+and the retained development server returns **42** from a subsequent independent
+query. The probe stops and removes only its owned cluster/installation afterward.
+This proves the Linux interruption boundary; Windows signal delivery remains a
+separate validation requirement.
+
+The first macOS ARM64/PostgreSQL **18.6** affected run executes **37 cases: 36
+pass and one fails**, in **3m17.048s**. All installed-command cases pass. The
+prerequisite test incorrectly compares textual temporary-directory prefixes:
+macOS's native tool resolves the system's `/var` alias to `/private/var`.
+The corrected assertion independently finds the staged driver, removes the
+discovered executable, and verifies that the staged file disappears while the
+original remains. This checks actual file ownership without assuming one spelling
+of a filesystem alias. The four prerequisite cases are being rerun on macOS;
+Windows validation is still running.
+
+The corrected macOS prerequisite selection passes all **four tests**, with
+**zero failures/skips**, in **1m43.823s**. Windows then exposes a real native
+dependency issue: its regression driver lives outside `bin` and exits with
+`STATUS_DLL_NOT_FOUND` when its selected installation is absent from the child
+search path. Import inspection identifies `libpq.dll` and `libintl-9.dll`; a
+direct driver probe succeeds once that installation's `bin` is supplied.
+The first Windows affected run records **32 passes, five failures and zero
+skips**, in **7m33.049s**. Those failures cover driver startup and dependent
+installed regression operations; they are not waived.
+
+The command now prepends the selected PostgreSQL binary directory to the child
+process's `PATH`, without changing the parent or machine environment. The public
+driver-path API documents the Windows loading requirement, and the prerequisite
+test also executes the relocated driver before removing it. On this corrected
+candidate, macOS ARM64/PostgreSQL **18.6** passes all **37 affected tests** with
+**zero failures/skips**, in **2m29.912s**. All **1,306 source hashes** match the
+Windows and macOS validation copies. Windows is rerunning the same 37 cases.
+The Linux full run began before this last correction; its result will be recorded
+separately, and final-candidate validation remains required before committing.
+
+The corrected Windows x64/PostgreSQL **17.11** affected run passes all **37
+tests**, with **zero failures/skips**, in **6m43.989s**. The full Linux run
+started before that correction also passes: **9,377 tests discovered, 9,370
+passed, zero failures and seven Windows-only skips**, in **15m40.231s**;
+integration takes **15m39.099s**. All six modules execute. The final candidate's
+Release, documentation/API and complete Linux checks are being refreshed before
+commit; neither affected platform selection substitutes for full CI validation.
+
+Final-candidate Release verification passes with **zero warnings/errors** in
+**38.82s**. API regeneration/freshness still verifies **213 pages / 2,564
+members**. The site builds **260 pages** and its check reports **zero errors,
+warnings or hints**. Completed Windows/macOS validation checkouts and source
+archives have been removed, preserving their shared runtime artifacts.
+
+The final complete plain `dotnet test` run passes on Debian **13.5**, Linux x64,
+PostgreSQL **18.6**, SDK **10.0.400**: **9,377 tests discovered, 9,370 passed,
+zero failures and seven Windows-only skips**, in **13m54.190s**. Integration
+takes **13m53.574s**, and all six modules execute. The matching affected platform
+runs use Windows **10.0.26200** and macOS **26.5.2**, both with SDK **10.0.401**.
+These are warm validation measurements, not a controlled cold-cache comparison.
+Static requirement/assertion review confirms actual native outputs, independent
+database state/ownership checks, and failure/recovery observations; no executed
+mutation or coverage percentage is claimed. No analyzer mode, diagnostic or
+assertion is suppressed or relaxed.
+
+Before committing, previous CI **36599064160** and Docs **36599064319** are
+rechecked as successful. The preceding two CI/Docs milestones also pass; none
+is in progress and no job timed out. Shared Valgrind lifecycle, alternate-user
+and data-directory contracts, the remaining CLI/native/type/example inventory
+and the complete PostgreSQL/platform matrix remain open. No packages are published.
+
+### Shared Valgrind lifecycle — native feasibility
+
+Source review identifies a native `pg_ctl` composition for the remaining shared
+Valgrind start/run/connect/regress capability: pass an owned data directory in
+child-only `PGDATA`, omit the separate `-D` startup argument, and select Valgrind
+and its PostgreSQL command through `-p`/`-o`. The relevant launcher behavior is
+present in the inspected PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11, 18.6
+and 19 beta 3** sources.
+
+A Linux x64/PostgreSQL **18.6** prototype executes under **Valgrind 3.24.0**:
+startup and status succeed, readiness takes **1.017s**, an independent query
+returns **42**, and fast shutdown succeeds. All eleven recorded Memcheck process
+summaries report **zero errors and zero suppressed contexts**. The owned cluster
+is removed after shutdown. Tooling uses an isolated matching glibc/debug-symbol
+set; host libraries are unchanged. This run loads no managed extension.
+Production Ankus integration, Native AOT execution, failure/cancellation
+boundaries and supported-version validation remain required.

@@ -21,6 +21,10 @@ The fixture discovers PostgreSQL 18 by default. Register a nonstandard
 installation with `ankus init --pg18 /path/to/pg_config`. Missing prerequisites
 fail initialization; tests are never silently skipped.
 
+For SQL files with expected text output, use `ankus regress --pg 18`.
+The [SQL regression guide](/reference/cli/#run-sql-regression-suites) covers
+PostgreSQL's native comparator, setup scripts, and reviewing changed expectations.
+
 ## Use the fixture
 
 [`PostgresExtensionTest`](/api/ankus.testing.postgresextensiontest/) is included

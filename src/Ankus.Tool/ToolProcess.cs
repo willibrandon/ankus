@@ -16,9 +16,12 @@ internal static class ToolProcess
     /// <param name="diagnosticsToStandardError">Whether to stream the child's stdout to stderr.</param>
     /// <param name="outputStream">An optional destination for captured stdout.</param>
     /// <param name="postgresClient">Whether to clear inherited PostgreSQL connection settings.</param>
+    /// <param name="workingDirectory">An optional child working directory.</param>
+    /// <param name="environment">Optional child-only environment overrides, applied after PostgreSQL connection isolation.</param>
     /// <returns>The process exit code.</returns>
     internal static async Task<int> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken token,
-        bool diagnosticsToStandardError = false, Stream? outputStream = null, bool postgresClient = false)
+        bool diagnosticsToStandardError = false, Stream? outputStream = null, bool postgresClient = false,
+        string? workingDirectory = null, IReadOnlyDictionary<string, string?>? environment = null)
     {
         token.ThrowIfCancellationRequested();
         using var process = new Process
@@ -27,6 +30,7 @@ internal static class ToolProcess
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = diagnosticsToStandardError || outputStream is not null,
+                WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
             },
         };
         foreach (string argument in arguments)
@@ -42,6 +46,14 @@ internal static class ToolProcess
             }
 
             process.StartInfo.Environment["PGCLIENTENCODING"] = "UTF8";
+        }
+
+        if (environment is not null)
+        {
+            foreach ((string name, string? value) in environment)
+            {
+                process.StartInfo.Environment[name] = value;
+            }
         }
 
         process.Start();

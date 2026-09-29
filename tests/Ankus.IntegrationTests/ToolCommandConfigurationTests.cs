@@ -29,7 +29,7 @@ public sealed partial class ToolCommandTests
     {
         string home = CreateDirectory();
         string project = Path.Combine(home, "missing.csproj");
-        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get" })
+        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get", "regress" })
         {
             string[] command = operation == "get" ? [operation, "comment"] : [operation];
             ProcessResult result = await InvokeAsync([.. command, "--home", home, "--project", project,

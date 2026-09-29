@@ -46,30 +46,41 @@ public sealed partial class PostgresDevelopmentCluster
         // and use percent-encoded connection parameters rather than Unicode arguments.
         string[] arguments = ["--no-psqlrc", "--no-password", "--quiet", "--tuples-only", "--no-align",
             "--set=ON_ERROR_STOP=1", "--dbname=" + connection, "--file=-"];
-        string literal = "E'" + database.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal) + "'";
-        (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
-            input: $"SELECT current_setting('max_identifier_length'), EXISTS (SELECT FROM pg_catalog.pg_database WHERE datname = {literal});\n",
-            postgresClient: true).ConfigureAwait(false);
-        RequireDatabaseCommand(code, output);
-        string[] fields = output.Trim().Split('|');
-        if (fields.Length != 2 || !int.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out int limit) ||
-            fields[1] is not ("t" or "f"))
-        {
-            throw new FormatException($"Unexpected PostgreSQL database metadata: {output}");
-        }
-
-        if (byteCount > limit)
-        {
-            throw new ArgumentException($"The database name exceeds PostgreSQL's {limit}-byte identifier limit.", nameof(database));
-        }
-
-        if (fields[1] == "t")
+        if (await DatabaseExistsAsync(database, byteCount, arguments, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
 
-        (code, output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
+        (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
             input: "CREATE DATABASE \"" + database.Replace("\"", "\"\"", StringComparison.Ordinal) + "\";\n", postgresClient: true).ConfigureAwait(false);
+        RequireDatabaseCommand(code, output);
+        return true;
+    }
+
+    /// <summary>
+    /// Drops an exact database from the running development cluster, or leaves an absent database unchanged.
+    /// Other databases and the server remain running. PostgreSQL errors preserve their diagnostics.
+    /// </summary>
+    /// <param name="database">The literal database name. Names exceeding the server's identifier limit are rejected.</param>
+    /// <param name="force">Whether PostgreSQL should terminate connections to the selected database before dropping it.</param>
+    /// <param name="cancellationToken">Cancels database queries and removal.</param>
+    /// <returns>True when a database was dropped, or false when it was already absent.</returns>
+    public async Task<bool> DropDatabaseAsync(string database, bool force = false, CancellationToken cancellationToken = default)
+    {
+        int byteCount = ValidateDatabaseName(database);
+        string connection = await GetConnectionStringAsync("postgres", cancellationToken).ConfigureAwait(false);
+        using FileStream operationLock = AcquireLock();
+        string[] arguments = ["--no-psqlrc", "--no-password", "--quiet", "--tuples-only", "--no-align",
+            "--set=ON_ERROR_STOP=1", "--dbname=" + connection, "--file=-"];
+        if (!await DatabaseExistsAsync(database, byteCount, arguments, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        string command = "DROP DATABASE \"" + database.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"" +
+            (force ? " WITH (FORCE)" : "") + ";\n";
+        (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
+            input: command, postgresClient: true).ConfigureAwait(false);
         RequireDatabaseCommand(code, output);
         return true;
     }
@@ -95,6 +106,28 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         return new UTF8Encoding(false, true).GetByteCount(database);
+    }
+
+    private async Task<bool> DatabaseExistsAsync(string database, int byteCount, string[] arguments, CancellationToken cancellationToken)
+    {
+        string literal = "E'" + database.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal) + "'";
+        (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
+            input: $"SELECT current_setting('max_identifier_length'), EXISTS (SELECT FROM pg_catalog.pg_database WHERE datname = {literal});\n",
+            postgresClient: true).ConfigureAwait(false);
+        RequireDatabaseCommand(code, output);
+        string[] fields = output.Trim().Split('|');
+        if (fields.Length != 2 || !int.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out int limit) ||
+            fields[1] is not ("t" or "f"))
+        {
+            throw new FormatException($"Unexpected PostgreSQL database metadata: {output}");
+        }
+
+        if (byteCount > limit)
+        {
+            throw new ArgumentException($"The database name exceeds PostgreSQL's {limit}-byte identifier limit.", nameof(database));
+        }
+
+        return fields[1] == "t";
     }
 
     private static void RequireDatabaseCommand(int code, string output)

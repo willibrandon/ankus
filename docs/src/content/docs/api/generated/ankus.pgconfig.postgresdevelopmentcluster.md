@@ -68,6 +68,35 @@ Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.thread
 
 True when a database was created, or false when it already existed.
 
+<a id="member-92cf619e8870aba5"></a>
+
+### DropDatabaseAsync(string, bool, CancellationToken)
+
+Drops an exact database from the running development cluster, or leaves an absent database unchanged.
+Other databases and the server remain running. PostgreSQL errors preserve their diagnostics.
+
+```csharp
+public Task<bool> DropDatabaseAsync(string database, bool force = false, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`database` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal database name. Names exceeding the server's identifier limit are rejected.
+
+`force` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether PostgreSQL should terminate connections to the selected database before dropping it.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels database queries and removal.
+
+Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+True when a database was dropped, or false when it was already absent.
+
 <a id="member-b95391396e2965d2"></a>
 
 ### GetConnectionStringAsync(string, CancellationToken)

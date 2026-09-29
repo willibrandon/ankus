@@ -105,6 +105,34 @@ public sealed class PostgresInstallation
     public string PsqlPath => GetExecutablePath("psql");
 
     /// <summary>
+    /// Locates this installation's PostgreSQL regression driver through its PGXS configuration.
+    /// Ordinary installation discovery does not require the regression tools to be installed.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the PGXS query.</param>
+    /// <returns>The absolute path to the installed pg_regress executable.</returns>
+    /// <remarks>
+    /// On Windows, include this installation's BinDirectory in the child process PATH so the driver can load its PostgreSQL DLLs.
+    /// </remarks>
+    /// <exception cref="FileNotFoundException">The selected installation does not contain its regression driver.</exception>
+    public async Task<string> GetRegressionDriverPathAsync(CancellationToken cancellationToken = default)
+    {
+        string pgxs = Path.GetFullPath(await QueryAsync(PgConfigPath, "--pgxs", cancellationToken).ConfigureAwait(false));
+        string? sourceDirectory = Path.GetDirectoryName(Path.GetDirectoryName(pgxs));
+        if (sourceDirectory is null)
+        {
+            throw new FormatException("PostgreSQL's PGXS path does not identify an installed development tree.");
+        }
+
+        string driver = Path.Combine(sourceDirectory, "test", "regress", OperatingSystem.IsWindows() ? "pg_regress.exe" : "pg_regress");
+        if (!File.Exists(driver))
+        {
+            throw new FileNotFoundException("The selected PostgreSQL installation is missing pg_regress. Install its development and regression tools.", driver);
+        }
+
+        return driver;
+    }
+
+    /// <summary>
     /// Discovers PostgreSQL 18 from persisted configuration, managed installations, PATH, and platform installation locations.
     /// </summary>
     /// <param name="cancellationToken">Cancels <c>pg_config</c> queries.</param>

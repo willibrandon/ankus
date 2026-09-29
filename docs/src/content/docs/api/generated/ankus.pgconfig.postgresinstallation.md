@@ -272,3 +272,30 @@ Cancels <code>pg_config</code> queries.
 Returns: [Task&lt;PostgresInstallation&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 The discovered PostgreSQL installation.
+
+<a id="member-5afc9641d33c7e20"></a>
+
+### GetRegressionDriverPathAsync(CancellationToken)
+
+Locates this installation's PostgreSQL regression driver through its PGXS configuration.
+Ordinary installation discovery does not require the regression tools to be installed.
+
+```csharp
+public Task<string> GetRegressionDriverPathAsync(CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels the PGXS query.
+
+Returns: [Task&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The absolute path to the installed pg_regress executable.
+
+Exceptions:
+
+- [FileNotFoundException](https://learn.microsoft.com/dotnet/api/system.io.filenotfoundexception): The selected installation does not contain its regression driver.
+
+On Windows, include this installation's BinDirectory in the child process PATH so the driver can load its PostgreSQL DLLs.
