@@ -70,7 +70,7 @@ internal static class ExtensionBuilder
         PublishedExtension.Invalidate(output);
         int exitCode = await ToolProcess.RunAsync("dotnet",
         [
-            "publish", path, "--configuration", configuration, "--runtime", RuntimeInformation.RuntimeIdentifier,
+            "publish", path, "-p:Configuration=" + EscapeProperty(configuration), "--runtime", RuntimeInformation.RuntimeIdentifier,
             "--self-contained", "true", "--output", Path.GetFullPath(output),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
@@ -109,7 +109,7 @@ internal static class ExtensionBuilder
         using var output = new MemoryStream();
         int code = await ToolProcess.RunAsync("dotnet",
             ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName",
-                "-p:Configuration=" + configuration,
+                "-p:Configuration=" + EscapeProperty(configuration),
                 "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
                 "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath)], token, outputStream: output);
         if (code != 0)

@@ -16,6 +16,7 @@ public sealed partial class ToolCommandTests
     [TestMethod]
     [DataRow(null, "2.3.4")]
     [DataRow("Debug", "2.3.5-debug")]
+    [DataRow("Profilé Candidate", "2.3.6-candidate")]
     public async Task PackageBuildsConfiguredExtensionAndLoadsInPostgres(string? configuration, string version)
     {
         CancellationToken token = context.CancellationToken;
@@ -26,7 +27,8 @@ public sealed partial class ToolCommandTests
             new XElement("AssemblyName", "Packaged.Custom.Library"),
             new XElement("AnkusExtensionName", "ankus_package_probe"),
             new XElement("AnkusExtensionVersion", "2.3.4"),
-            new XElement("AnkusExtensionVersion", new XAttribute("Condition", "'$(Configuration)' == 'Debug'"), "2.3.5-debug")));
+            new XElement("AnkusExtensionVersion", new XAttribute("Condition", "'$(Configuration)' == 'Debug'"), "2.3.5-debug"),
+            new XElement("AnkusExtensionVersion", new XAttribute("Condition", "'$(Configuration)' == 'Profilé Candidate'"), "2.3.6-candidate")));
         document.Save(project);
         File.Copy(Path.Combine(Path.GetDirectoryName(s_project)!, "Hello.cs"), Path.Combine(directory, "Hello.cs"));
         string publication = Path.Combine(directory, "bin", "ankus", s_installation.Label,

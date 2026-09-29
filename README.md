@@ -76,6 +76,9 @@ development database. `ankus connect --pg 18` reopens that database without a bu
 It places the native library and SQL files beneath `dist`, using the selected
 PostgreSQL installation's directory layout.
 
+Use `--configuration Shipping` to select a custom MSBuild configuration when
+building, publishing, installing, or packaging an extension.
+
 Keep SQL upgrade scripts in `sql/<extension>--<old>--<new>.sql`. Publishing,
 installing, and packaging include them so existing databases can use
 `ALTER EXTENSION ... UPDATE`. See [upgrading an extension](docs/src/content/docs/getting-started/publishing.md#upgrade-an-existing-extension).

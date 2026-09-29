@@ -107,19 +107,23 @@ public sealed partial class ToolCommandTests
     /// Database defaults follow evaluated imported configuration and the SDK's normalized assembly-name fallback.
     /// </summary>
     /// <param name="explicitName">Whether the project imports an explicit extension name.</param>
+    /// <param name="configuration">The exact MSBuild configuration used to select imported properties.</param>
     [TestMethod]
-    [DataRow(true)]
-    [DataRow(false)]
-    public async Task ConnectEvaluatesDefaultDatabaseName(bool explicitName)
+    [DataRow(true, "Release")]
+    [DataRow(false, "Release")]
+    [DataRow(true, "Shipping;Channel=canary")]
+    [DataRow(false, "Profilé Candidate")]
+    public async Task ConnectEvaluatesDefaultDatabaseName(bool explicitName, string configuration)
     {
         CancellationToken token = context.CancellationToken;
         string home = CreateDirectory();
         string projectRoot = CreateDirectory();
         string project = Path.Combine(projectRoot, "NameProbe.csproj");
         new XDocument(new XElement("Project", new XAttribute("Sdk", "Microsoft.NET.Sdk"),
-            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"), new XElement("AssemblyName", "Different.Target")),
+            new XElement("PropertyGroup", new XElement("TargetFramework", "net10.0"), new XElement("AssemblyName", "Wrong.Target")),
             new XElement("Import", new XAttribute("Project", "name.props")))).Save(project);
-        new XDocument(new XElement("Project", new XElement("PropertyGroup", new XAttribute("Condition", "'$(Configuration)' == 'Release'"),
+        new XDocument(new XElement("Project", new XElement("PropertyGroup", new XAttribute("Condition", $"'$(Configuration)' == '{configuration}'"),
+            new XElement("AssemblyName", "Different.Target"),
             new XElement("AnkusExtensionName", explicitName ? "imported_name" : "")))).Save(Path.Combine(projectRoot, "name.props"));
         string expected = explicitName ? "imported_name" : "different_target";
         var cluster = new PostgresDevelopmentCluster(s_installation, home);
@@ -129,7 +133,8 @@ public sealed partial class ToolCommandTests
         try
         {
             ProcessResult result = await InvokeAsync(["connect", "--home", home, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath,
-                "--project", project, "--port", port.ToString(CultureInfo.InvariantCulture), "--", "-X", "-A", "-t", "-c", "SELECT current_database()"], token);
+                "--project", project, "--configuration", configuration, "--port", port.ToString(CultureInfo.InvariantCulture),
+                "--", "-X", "-A", "-t", "-c", "SELECT current_database()"], token);
             Assert.AreEqual(0, result.ExitCode, result.StandardError);
             Assert.Contains("Created database " + expected, result.StandardOutput);
             Assert.EndsWith(expected + Environment.NewLine, result.StandardOutput);
@@ -144,8 +149,12 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Run publishes and installs into an isolated installation, then no-build starts the retained publication and executes real extension SQL.
     /// </summary>
+    /// <param name="configuration">A custom configuration, or null to retain the Release default.</param>
+    /// <param name="version">The expected configuration-specific extension version.</param>
     [TestMethod]
-    public async Task RunBuildsInstallsAndLoadsNativeExtension()
+    [DataRow(null, "0.1.0")]
+    [DataRow("Staging", "7.8.9")]
+    public async Task RunBuildsInstallsAndLoadsNativeExtension(string? configuration, string version)
     {
         CancellationToken token = context.CancellationToken;
         await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(s_installation, CreateDirectory(), token);
@@ -155,13 +164,16 @@ public sealed partial class ToolCommandTests
         string project = Path.Combine(projectRoot, "RunProbe.csproj");
         XDocument definition = XDocument.Load(s_project);
         definition.Descendants("AnkusExtensionName").Single().Value = "ankus_run_probe";
+        definition.Root!.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(Configuration)' == 'Staging'"),
+            new XElement("AnkusExtensionVersion", "7.8.9")));
         definition.Save(project);
         File.Copy(Path.Combine(Path.GetDirectoryName(s_project)!, "Hello.cs"), Path.Combine(projectRoot, "Hello.cs"));
         var cluster = new PostgresDevelopmentCluster(installation, home);
         using PortReservation reservation = PortReservation.Create();
         int port = reservation.Port;
         reservation.Dispose();
-        string[] options = ["run", "--home", home, "--pg", MajorText(), "--pg-config", installation.PgConfigPath, "--project", project];
+        string[] options = ["run", "--home", home, "--pg", MajorText(), "--pg-config", installation.PgConfigPath, "--project", project,
+            .. configuration is null ? Array.Empty<string>() : ["--configuration", configuration]];
         try
         {
             ProcessResult install = await InvokeAsync([.. options, "--install-only"], token);
@@ -170,8 +182,9 @@ public sealed partial class ToolCommandTests
             Assert.IsFalse(Directory.Exists(cluster.DataDirectory));
             string control = Path.Combine(installation.SharedDirectory, "extension", "ankus_run_probe.control");
             Assert.IsTrue(File.Exists(control));
-            string publication = Path.Combine(projectRoot, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, "Release");
+            string publication = Path.Combine(projectRoot, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, configuration ?? "Release");
             PublishedExtension manifest = PublishedExtension.Read(publication);
+            Assert.AreEqual("ankus_run_probe--" + version + ".sql", manifest.Sql);
             Assert.IsTrue(File.Exists(Path.Combine(installation.LibraryDirectory, manifest.Library)));
             ProcessResult run = await InvokeAsync([.. options, "--port", port.ToString(CultureInfo.InvariantCulture), "--",
                 "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", "CREATE EXTENSION ankus_run_probe; SELECT add(19, 23)"], token);

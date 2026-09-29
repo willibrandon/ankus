@@ -271,11 +271,22 @@ internal static partial class ToolCommand
         {
             Description = "Extension project or directory (default: current directory).",
         });
-        command.Options.Add(new Option<string>("--configuration", "-c")
+        var configuration = new Option<string>("--configuration", "-c")
         {
-            Description = "Build configuration.",
+            Description = "MSBuild configuration, including custom configurations (default: Release).",
             DefaultValueFactory = _ => "Release",
+        };
+        configuration.Validators.Add(result =>
+        {
+            string? value = result.GetValueOrDefault<string>();
+            if (string.IsNullOrWhiteSpace(value) || value is "." or ".." ||
+                value.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0 ||
+                value.Any(char.IsControl) || value.EndsWith(' ') || value.EndsWith('.'))
+            {
+                result.AddError("Configuration must be a nonempty directory name without path separators, invalid filename characters, or a trailing dot or space.");
+            }
         });
+        command.Options.Add(configuration);
     }
 
     private static async Task<PostgresInstallation> SelectAsync(ParseResult result, Option<string?> home, CancellationToken token)
@@ -319,14 +330,5 @@ internal static partial class ToolCommand
         return code;
     }
 
-    private static string GetConfiguration(ParseResult result)
-    {
-        string configuration = result.GetValue<string>("--configuration")!;
-        if (configuration is not ("Debug" or "Release"))
-        {
-            throw new ArgumentException("Configuration must be Debug or Release.");
-        }
-
-        return configuration;
-    }
+    private static string GetConfiguration(ParseResult result) => result.GetValue<string>("--configuration")!;
 }

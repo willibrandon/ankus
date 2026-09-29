@@ -68,14 +68,27 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+Custom MSBuild configurations now work across build, publish, install, package,
+schema, run and connect. Configuration-specific paths, imported properties,
+native results and no-build reuse are verified through the installed tool.
+The complete PostgreSQL **18.6/Linux x64** suite discovers **9,197 tests**:
+**9,191 passed, zero failures and six Windows-only skips**, in **13m06.460s**.
+The **32-case** affected selection passes on Linux x64/PostgreSQL **18.6**,
+macOS ARM64/PostgreSQL **18.6**, and Windows x64/PostgreSQL **17.11**.
+Release, generated API and documentation checks pass. Previous CI for `51555c6`
+is green on all three platforms, including the Windows terminal-report repair.
+Cross-target tooling and the remaining faithful-port requirements stay open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 SQL upgrade scripts now flow through publishing, installation and packaging.
 A real two-step PostgreSQL update preserves existing rows, rolls back a failed
 update, then retries successfully in the same backend using a new native library.
 Complete PostgreSQL **18.6** suites discover **9,178 tests**: Linux x64 passes
 **9,172**, with six platform skips, in **11m45.786s**; macOS ARM64 passes
 **9,169**, with nine platform skips, in **8m29.128s**. Both have zero failures.
-Windows x64/PostgreSQL **17.11** passes **71 focused cases**; its complete
-CI run remains required. Release, generated API and documentation checks pass.
+Windows x64/PostgreSQL **17.11** passes **71 focused cases**; its subsequent
+complete CI job passes in **19m50s**. Release, generated API and documentation checks pass.
 The prior Windows terminal-report failure is repaired with exact server-log
 and backend-recovery checks. Remaining faithful-port requirements stay open.
 
@@ -3213,7 +3226,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
-| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release/explicit Debug, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Custom build configurations and cross-target packaging remain required; verification is recorded in the package and SQL-upgrade milestones below |
+| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
 | `get` | Query extension control properties and derived extension metadata | Pending |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
 | `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
@@ -14224,3 +14237,52 @@ Remaining full-port inventory, automatic native-library versioning policy,
 custom build configurations, cross-target packaging, and the complete
 PostgreSQL/platform matrix remain required. No package release or full-parity
 claim is made.
+
+
+### 2026-09-29 — Custom MSBuild configurations
+
+The shared `--configuration`/`-c` option now accepts custom MSBuild configuration
+names, preserving the `Release` default. Selection reaches both Native AOT
+publishing and imported-property evaluation for development database names.
+Default publication paths and no-build schema/run lookup retain the exact
+configuration. Invalid directory components fail during parsing, before project,
+PostgreSQL or server changes. MSBuild property metacharacters are escaped when
+forwarded; configuration names are not treated as extra property assignments.
+
+The installed-tool probes extend package, schema, run and connect cases with
+custom selections. A separate build/publish/install probe checks conditional
+assembly/extension/version settings, a compile-time native result and exact
+staged bytes. Unicode/interior-space names, literal property separators,
+configuration-specific no-build lookup, retained defaults, compiler failures and
+command-wide invalid-path rejection are covered. The initial installed-tool
+selection passes **32 tests, 0 failed, 0 skipped** on Linux x64/PostgreSQL
+**18.6** in **7m43.518s**. The matching
+macOS ARM64/PostgreSQL **18.6** selection passes **32 tests, 0 failed, 0 skipped**
+in **5m10.481s**. Windows x64/PostgreSQL **17.11**, SDK **10.0.401**, passes
+the same **32 cases, 0 failed, 0 skipped**, in **10m29.235s**. These focused
+platform runs do not substitute for full CI on the new commit.
+
+The complete plain `dotnet test` run on Debian **13.5**, Linux x64,
+PostgreSQL **18.6**, SDK **10.0.400**, discovers **9,197 tests**: **9,191 passed,
+0 failed, 6 Windows-only skips**, in **13m06.460s**. Integration takes
+**13m05.630s**. This is warm validation, not a controlled cold-cache measurement.
+The Release build passes with **0 warnings and 0 errors** in **44.67s**.
+`pnpm build` succeeds for **259 pages**; `pnpm check` reports **0 errors,
+0 warnings and 0 hints**. API freshness passes for **212 pages / 2,554 members**.
+
+| Requirement | Evidence |
+|---|---|
+| Shared validation rejects invalid configurations before project/installation/server access | `InvalidBuildConfigurationsDoNotMutateState`, 12 invalid partitions across all seven commands |
+| Build/publish/install retain configuration-specific paths, imported identity, native behavior and staged payload | `CustomBuildCommandsPreserveConfiguration` |
+| Package retains Release/Debug behavior and supports Unicode/interior-space custom selection | `PackageBuildsConfiguredExtensionAndLoadsInPostgres`, all three rows execute the packaged extension |
+| Connect evaluates custom imported names and normalized assembly fallback without building | `ConnectEvaluatesDefaultDatabaseName`, including a literal semicolon/property-like suffix |
+| Schema build/existing-publication paths agree, preserve identity checks and handle failed rebuilds | `SchemaReadsExistingProjectPublication` and `SchemaBuildsBeforeEmittingSql`, default/custom rows |
+| Run build/no-build selects the custom publication and preserves lifecycle/error behavior | `RunBuildsInstallsAndLoadsNativeExtension`, default Release and Staging rows |
+
+Previous CI **36566574424** for `51555c6` completed successfully. Windows
+x64/PostgreSQL 17 passed in **19m50s**, confirming the terminal-report fix;
+macOS ARM64/PostgreSQL 18 passed in **9m58s**, Linux x64/PostgreSQL 18 passed in
+**23m58s**, and quality passed in **9m33s**. All runtime jobs and Docs
+**36566574398** passed. No job timed out. These terminal outcomes were rechecked
+before commit/push. The full PostgreSQL/platform matrix, cross-target tooling,
+remaining CLI commands and all other full-port requirements remain open.

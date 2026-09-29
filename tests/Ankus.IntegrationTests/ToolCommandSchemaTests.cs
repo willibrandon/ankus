@@ -115,7 +115,6 @@ public sealed partial class ToolCommandTests
     [DataRow("--runtime", "unsupported", "Project schema builds use the host runtime identifier")]
     [DataRow("--pg", "12", "major")]
     [DataRow("--pg", "20", "major")]
-    [DataRow("--configuration", "Custom", "Configuration must be Debug or Release")]
     [DataRow("--pg-config", "unused", "--pg-config requires a build")]
     public async Task SchemaRejectsInvalidProjectSelection(string option, string value, string diagnostic)
     {
@@ -183,6 +182,8 @@ public sealed partial class ToolCommandTests
     [TestMethod]
     [DataRow("Debug")]
     [DataRow("Release")]
+    [DataRow("Profilé Candidate")]
+    [DataRow("Shipping;Channel=canary")]
     public async Task SchemaReadsExistingProjectPublication(string configuration)
     {
         CancellationToken token = context.CancellationToken;
@@ -218,8 +219,11 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// A fresh package-only build emits only SQL on stdout; a failed rebuild never emits or replaces stale SQL.
     /// </summary>
+    /// <param name="configuration">The configuration used by the build and existing-publication lookup.</param>
     [TestMethod]
-    public async Task SchemaBuildsBeforeEmittingSql()
+    [DataRow("Release")]
+    [DataRow("Shipping")]
+    public async Task SchemaBuildsBeforeEmittingSql(string configuration)
     {
         CancellationToken token = context.CancellationToken;
         string directory = CreateDirectory();
@@ -234,16 +238,18 @@ public sealed partial class ToolCommandTests
                 public static int FreshSchemaValue() => 42;
             }
             """, token);
-        string[] arguments = ["schema", "--project", project, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath];
+        string[] arguments = ["schema", "--project", project, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath,
+            "--configuration", configuration];
         ProcessResult built = await InvokeAsync(arguments, token);
         Assert.AreEqual(0, built.ExitCode, built.StandardError);
-        string published = Path.Combine(directory, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, "Release");
+        string published = Path.Combine(directory, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, configuration);
         PublishedExtension publication = PublishedExtension.Read(published);
         string expected = await File.ReadAllTextAsync(Path.Combine(published, "extension", publication.Sql), token);
         Assert.AreEqual(expected, built.StandardOutput);
         Assert.Contains("fresh_schema_value", built.StandardOutput);
         Assert.Contains("Fresh", built.StandardError);
-        ProcessResult existing = await InvokeAsync(["schema", "--project", directory, "--pg", MajorText(), "--skip-build"], token);
+        ProcessResult existing = await InvokeAsync(["schema", "--project", directory, "--pg", MajorText(),
+            "--configuration", configuration, "--skip-build"], token);
         Assert.AreEqual(0, existing.ExitCode, existing.StandardError);
         Assert.AreEqual(expected, existing.StandardOutput);
         Assert.IsEmpty(existing.StandardError);

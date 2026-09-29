@@ -153,8 +153,9 @@ contents. In psql, use `CREATE EXTENSION your_extension;` to load the installed
 extension into the database. Rebuilding does not automatically upgrade SQL
 objects in an existing database.
 
-Use `--project` to select another project, `--configuration Debug` to change the
-build configuration, or `--database` to choose a literal database name.
+Use `--project` to select another project, `--configuration Debug` or a custom
+configuration such as `Shipping` to change the build settings, or `--database`
+to choose a literal database name.
 `--no-build` installs the project's existing publication. `--install-only`
 leaves PostgreSQL stopped after installation and does not open a client.
 Installation requires write access to the selected PostgreSQL installation.
@@ -196,7 +197,9 @@ ankus publish --output publish
 ```
 
 Both commands compile the native library and generate the SQL installation files.
-The default configuration is `Release`; use `--configuration Debug` to change it.
+The default configuration is `Release`; use `--configuration Debug` or a
+[custom configuration](/getting-started/publishing/#custom-build-configurations)
+such as `--configuration Shipping` to change it.
 Builds target the host operating system and architecture.
 
 Use `--project` to select a project elsewhere. `--pg` selects a registered
@@ -249,7 +252,8 @@ PostgreSQL major. Use a matching PostgreSQL directory layout when deploying the
 tree. You can move or archive the package root after creation.
 
 `--project` selects an extension project or directory. The default build
-configuration is `Release`; use `--configuration Debug` for a debug build.
+configuration is `Release`; `--configuration` also accepts `Debug` and custom
+MSBuild configurations such as `Shipping`.
 The package retains the extension name, version, and native library name from
 the publication, including a custom MSBuild `AssemblyName`.
 

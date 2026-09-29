@@ -46,6 +46,35 @@ dotnet publish src/Hello/Hello.csproj -c Release -r linux-x64 -o publish -p:Anku
 The SDK supplies Native AOT settings and native build integration. No Ankus source
 checkout is needed, and the server does not need an installed .NET runtime.
 
+### Custom build configurations
+
+Ankus defaults to `Release`. Use `--configuration` (or `-c`) to select `Debug`
+or a custom MSBuild configuration:
+
+```xml
+<PropertyGroup Condition="'$(Configuration)' == 'Shipping'">
+  <Optimize>true</Optimize>
+  <AnkusExtensionVersion>0.2.0</AnkusExtensionVersion>
+</PropertyGroup>
+```
+
+```console
+ankus publish --configuration Shipping
+ankus package --configuration Shipping --output dist
+```
+
+Custom configurations use your project's settings; they do not automatically
+inherit `Release` settings. The default publication directory includes the
+configuration name, keeping configurations separate. Use the same name with
+`schema --skip-build` or `run --no-build` to reuse that publication.
+
+`build`, `publish`, `install`, `package`, `schema`, `run`, and `connect` share this
+option. Names may include spaces and Unicode; quote names containing spaces.
+Each name must fit one directory component, without path separators, invalid
+filename characters, or a trailing dot or space.
+
+### Published files
+
 For a project named `Hello`, with extension name `hello` and version `0.1.0`, the
 output includes:
 
