@@ -80,6 +80,45 @@ ankus info --pg 18
 installation in `~/.ankus/config.json`. It preserves other registrations. Use
 `--home` to keep a separate Ankus configuration directory.
 
+## Run a development server
+
+```console
+ankus start --pg 18
+ankus status --pg 18
+psql -h 127.0.0.1 -p 28818 -U postgres -d postgres
+ankus stop --pg 18
+```
+
+The first `start` initializes a persistent cluster under `~/.ankus/clusters/pg18`.
+Later starts reuse its databases. `stop` performs a fast shutdown and keeps the
+data. Repeating `start` or `stop` is harmless. `status` reports `running` or
+`stopped`; it does not create a missing cluster. All three commands accept
+`--all` to select every registered major, or `--pg-config` with `--pg` to select
+an installation explicitly.
+
+Each major has its own cluster and TCP port: 28800 plus the major version.
+Servers listen on `127.0.0.1` and use local trust authentication as the `postgres`
+database user. These are development clusters; other local processes can connect.
+Server logs live beside the data directories, such as `~/.ankus/clusters/pg18.log`.
+
+Choose a different port or pass literal PostgreSQL settings when starting:
+
+```console
+ankus start --pg 18 --port 15432 --postgresql-conf work_mem=16MB
+```
+
+Repeat `--postgresql-conf` for multiple `name=value` settings. Values do not need
+PostgreSQL quotes; use your shell's quoting when an argument contains spaces.
+Settings and the port apply to that start. Repeat them after stopping the server
+to use them again. An already running server keeps its current settings.
+`--timeout` changes the startup wait from 60 seconds, with a range of 1–600.
+
+Ankus manages data and authentication paths, loopback connection routing, and
+log routing. Those settings and configuration include directives cannot be
+overridden through `--postgresql-conf`. Existing unowned or incompatible data
+directories are rejected. A failed start preserves initialized data and reports
+the server log path so you can correct the setting and retry.
+
 ## Build and publish
 
 From an extension project directory, or a solution directory containing one Ankus SDK project:

@@ -24,6 +24,9 @@ internal static partial class ToolCommand
         var root = new RootCommand("Build and manage .NET PostgreSQL extensions.") { home };
         root.Subcommands.Add(CreateInit(home));
         root.Subcommands.Add(CreateInfo(home));
+        root.Subcommands.Add(CreateCluster("start", home));
+        root.Subcommands.Add(CreateCluster("stop", home));
+        root.Subcommands.Add(CreateCluster("status", home));
         root.Subcommands.Add(CreateNew());
         root.Subcommands.Add(CreateBuild("build", "Build the native extension and SQL files.", home));
         root.Subcommands.Add(CreateBuild("publish", "Publish the native extension and SQL files to a directory.", home));

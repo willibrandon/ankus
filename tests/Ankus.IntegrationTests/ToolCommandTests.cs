@@ -140,6 +140,9 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("publish", "--output")]
     [DataRow("install", "--destdir")]
     [DataRow("schema", "--skip-build")]
+    [DataRow("start", "--postgresql-conf")]
+    [DataRow("stop", "--all")]
+    [DataRow("status", "--pg-config")]
     public async Task InstalledToolProvidesHelp(string command, string expected)
     {
         string[] arguments = command.Length == 0 ? ["--help"] : [command, "--help"];

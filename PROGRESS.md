@@ -33,7 +33,7 @@ Linux, and macOS.
 | Item | Value |
 |---|---|
 | .NET SDK | 10.0.400; `global.json` uses `rollForward: latestFeature`, stable 10.0 SDKs only |
-| Embedded Native AOT runtime | 10.0.12-ankus.1 with ILCompiler and framework runtime packs 10.0.12; complete platform validation required before initial release |
+| Embedded Native AOT runtime | 10.0.12-ankus.2 with ILCompiler and framework runtime packs 10.0.12; complete platform/version validation required before initial release |
 | C toolchain | clang 21 + lld; GCC 14 used for the local PostgreSQL build |
 | Primary test target | **PostgreSQL 18** |
 | Initial Ankus release (planned) | **0.1.0** |
@@ -67,6 +67,30 @@ possible; introduce servicing branches only when needed. Do not add legacy TFMs,
 relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
+
+`ankus start`, `ankus status` and `ankus stop` manage persistent development
+clusters with independent PostgreSQL **13–19** selections. Lifecycle probes pass
+on Linux x64 for all seven majors, Windows x64 for **13–18**, and macOS ARM64 for
+**18.6**, preserving exact SQL rows across restart. The complete PostgreSQL
+**18.6/Linux x64** suite passes **9,058 tests, zero failures and six Windows-only
+skips, 9,064 total**, in **10m18.142s**. Release, API freshness and documentation
+checks pass. These lifecycle checks do not establish full Ankus parity across
+the version/platform matrix. Remaining CLI and faithful-port requirements stay
+open; see the detailed lifecycle milestone below.
+
+Earlier verified milestones follow in reverse chronological order.
+
+`ankus init` downloads and registers independent PostgreSQL 13–19 installations.
+Actual provisioning and backend checks pass on Linux x64 for **13.23, 14.24,
+15.19, 16.15, 17.11, 18.6 and 19beta4**, on Windows x64 for **13–18**, and on
+macOS ARM64 for **18.6**. The full PostgreSQL 18.6/Linux x64 suite passes **9,010
+tests, zero failures and six Windows-only skips, 9,016 total**, in **10m43.105s**;
+a subsequent focused case brings discovery to **9,017**. These installation
+checks do not establish full Ankus parity across every version/platform.
+Automatic Windows source provisioning for unavailable prerelease distributions
+and all other faithful-port requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
 
 Native libraries now retain exact installation SQL and publication metadata.
 `ankus schema` extracts the script from a new build, an existing publication or
@@ -3154,9 +3178,9 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | Source command | Required equivalent behavior | Evidence / status |
 |---|---|---|
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. `--background-worker` adds a preloaded worker, shared results and a real backend test |
-| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: installed CLI registration with locked/atomic configuration updates; provisioning pending |
+| `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Build-option isolation, cancellation and existing-file preservation verified; automatic Windows source builds and persisted base-port/toolchain configuration remain required |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
-| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: isolated test lifecycle in `src/Ankus.Testing`; development CLI pending |
+| `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`; Valgrind execution and persisted base-port configuration remain required |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
@@ -13746,3 +13770,83 @@ not currently publish the selected PostgreSQL **19beta4** Windows archive;
 registration of an existing Windows build remains available, while automatic
 Windows source provisioning remains required. No older release is substituted.
 All remaining faithful-port requirements remain open.
+
+### 2026-09-29 — Persistent development-cluster lifecycle
+
+`ankus start`, `ankus stop`, and `ankus status` now manage persistent development
+clusters under the Ankus home, with independent data directories, logs and
+default ports for PostgreSQL **13–19**. Commands accept the existing registered
+or explicit installation selection and `--all`. Startup initializes a missing
+cluster atomically; duplicate starts/stops preserve the current server and data.
+Fast shutdown retains databases for the next start.
+
+The public `PostgresDevelopmentCluster` API lives in `Ankus.PgConfig`; production
+tools do not access testing internals. Settings are escaped as literal PostgreSQL
+configuration values. `--port`, `--timeout` and repeated `--postgresql-conf`
+arguments customize startup. Managed connection routing uses loopback TCP and
+trust authentication for local development. Ownership, authentication and routing
+overrides and configuration include directives are rejected. Existing foreign or
+wrong-major data directories remain untouched; per-major operation locks exclude
+simultaneous mutations. Canceled initialization removes its unpublished staging
+tree; canceled or failed startup stops its server while preserving initialized
+data. Windows startup uses the operating system's executable launcher so the
+persistent server does not retain the caller's captured input/output handles.
+
+| Requirement | Evidence |
+|---|---|
+| Independent ports, exact literal settings and accepted/rejected option boundaries | `DefaultConfigurationUsesIndependentLoopbackPorts`, `SettingsAreQuotedWithoutShellOrConfigurationExpansion`, `AcceptsOptionBoundaries`, `RejectsOptionValuesOutsideBounds` |
+| Managed ownership/routing/include settings, injection and null rejection | `RejectsManagedSettingOverrides`, `RejectsConfigurationInjection`, `RejectsNullSettingsAndValues` |
+| Installed start/status/stop, duplicate operations, exact Unicode settings, unchanged backend and retained SQL rows after restart | `ClusterCommandsPreserveDataAcrossRestarts` |
+| Actual occupied-port failure, retained data, cleanup and successful retry | `DevelopmentClusterRecoversAfterStartupFailure` |
+| No effects for missing clusters, invalid/canceled calls, and operation-lock contention | `DevelopmentClusterValidatesBeforeChangesAndHonorsOperationLock` |
+| Foreign and wrong-major data preservation across every lifecycle operation | `DevelopmentClusterPreservesUnownedAndIncompatibleData` |
+| Registered/all selections, malformed settings and conflicting options | `ClusterCommandsValidateSelectionsAndSettings`; actual seven-version CLI `--all` startup/status/duplicate-start/shutdown probe |
+
+The affected installed-tool/API selection passes **six cases, zero failures or
+skips**, in **4m12.479s**. Independent lifecycle probes initialize, start, query,
+stop and restart PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and
+19beta4/Linux x64**, **13.23–18.6/Windows x64**, and **18.6/macOS ARM64**.
+Each preserves the literal SQL row **42** across restart. Linux checks all seven
+majors' default ports, redundant start/stop and the real CLI `--all` operations.
+Actual cancellation during `initdb` leaves no published cluster or staging tree;
+cancellation after `postmaster.pid` appears stops the server and permits restart.
+All owned validation clusters are stopped and their data directories removed
+after verification; diagnostic logs are retained privately.
+
+README, the public CLI guide and generated API pages document the author workflow.
+API freshness checks **211 pages/2,540 members**. The site builds **258 pages**
+and checks with **zero errors, warnings or hints**. The complete plain
+`dotnet test` suite against PostgreSQL **18.6/Linux x64** passes **9,058 tests,
+zero failures and six Windows-only skips, 9,064 total**, in **10m18.142s** after
+the Windows startup correction. This includes all **225 PgConfig cases**.
+A concurrent local Release attempt
+reports **MSB4166** for four workers; it has no retained worker crash report or
+kernel OOM evidence and is not counted as passing validation. A subsequent
+separate Release build passes with **zero warnings/errors** in **1m10.80s**.
+The final Release build also passes with **zero warnings/errors** in **1m06.55s**;
+the worker failure does not recur.
+
+An explicit Windows parent-process probe finds a real startup hang: `pg_ctl`
+passes inherited caller pipe handles to its persistent server, preventing the
+parent's output reader from reaching EOF. Redirecting only the immediate child
+does not resolve the inherited handles. The final implementation uses the built-in
+Windows executable launcher, with the explicit server log path and native exit
+code retained. The same captured-output probe passes afterward on Windows
+PostgreSQL **13–18**, including paths with spaces, while each server remains
+running. A Windows PostgreSQL **18.6** occupied-port probe also preserves the
+competing listener, recovers after its release and retains the exact SQL row
+**42** across restart. The installed lifecycle regression bounds command
+completion and checks real SQL state before stopping the server.
+
+The preceding milestone's CI **36535732717** and Docs **36535732848** complete
+successfully. Full platform jobs take **22m14s** on Linux x64/PostgreSQL 18,
+**9m15s** on macOS ARM64/PostgreSQL 18 and **16m34s** on Windows x64/PostgreSQL
+17. Quality takes **8m45s**; all three runtime checks pass. No job times out.
+The pre-commit recheck confirms these runs and the prior two milestones remain
+successful, with no runs in progress.
+
+Remaining lifecycle scope includes persisted base-port configuration and Valgrind
+execution. `run`/`connect`, other CLI parity, automatic Windows source provisioning
+for unavailable prerelease distributions, and the complete Ankus platform/version
+matrix remain required. These lifecycle probes do not establish full extension
+parity across the matrix. All remaining faithful-port requirements remain open.

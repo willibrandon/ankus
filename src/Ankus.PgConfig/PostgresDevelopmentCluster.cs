@@ -1,0 +1,317 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
+
+namespace Ankus.PgConfig;
+
+/// <summary>
+/// Manages one persistent, local-only development cluster per PostgreSQL major in an Ankus home.
+/// Stopping a server preserves its databases. Existing unowned directories are never initialized or modified.
+/// </summary>
+public sealed class PostgresDevelopmentCluster
+{
+    private readonly PostgresInstallation _installation;
+    private readonly string _root;
+
+    /// <summary>
+    /// Describes a development cluster without creating directories or starting processes.
+    /// </summary>
+    /// <param name="installation">The PostgreSQL installation that runs the cluster.</param>
+    /// <param name="homeDirectory">The Ankus home, defaulting to ~/.ankus.</param>
+    public PostgresDevelopmentCluster(PostgresInstallation installation, string? homeDirectory = null)
+    {
+        ArgumentNullException.ThrowIfNull(installation);
+        ArgumentOutOfRangeException.ThrowIfLessThan(installation.Version.Major, 13);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(installation.Version.Major, 19);
+        _installation = installation;
+        _root = Path.Combine(new PostgresRegistry(homeDirectory).HomeDirectory, "clusters");
+        DataDirectory = Path.Combine(_root, installation.Label);
+        LogFilePath = Path.Combine(_root, installation.Label + ".log");
+    }
+
+    /// <summary>
+    /// Gets the persistent data directory for this PostgreSQL major.
+    /// </summary>
+    public string DataDirectory { get; }
+
+    /// <summary>
+    /// Gets the server log path outside the data directory.
+    /// </summary>
+    public string LogFilePath { get; }
+
+    /// <summary>
+    /// Reports whether the managed cluster is running. A missing cluster is stopped and is not created.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the native status query.</param>
+    /// <returns>True when pg_ctl reports a running server.</returns>
+    public async Task<bool> IsRunningAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Path.Exists(DataDirectory))
+        {
+            return false;
+        }
+
+        RequireOwnedCluster();
+        return await QueryRunningAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Initializes a missing cluster and starts it, preserving existing databases and an already running server.
+    /// Failed or canceled startup stops any server launched by this operation while retaining initialized data.
+    /// </summary>
+    /// <param name="options">Port, timeout, and literal PostgreSQL configuration settings.</param>
+    /// <param name="cancellationToken">Cancels initialization or startup.</param>
+    /// <returns>True when a server was started, or false when it was already running.</returns>
+    public async Task<bool> StartAsync(PostgresDevelopmentOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        string configuration = CreateConfiguration(_installation.Version.Major, options ?? new PostgresDevelopmentOptions());
+        int timeout = options?.TimeoutSeconds ?? 60;
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(_root);
+        using FileStream operationLock = AcquireLock();
+        if (!Path.Exists(DataDirectory))
+        {
+            await InitializeAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        RequireOwnedCluster();
+        if (await QueryRunningAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        string settings = Path.Combine(DataDirectory, "ankus.conf");
+        string temporary = settings + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporary, configuration, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(temporary, settings, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await RunCheckedAsync(_installation.PgCtlPath,
+                ["start", "-D", DataDirectory, "-l", LogFilePath, "-w", "-t", timeout.ToString(CultureInfo.InvariantCulture)],
+                cancellationToken, allowDescendants: OperatingSystem.IsWindows()).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
+        catch (Exception startupError)
+        {
+            try
+            {
+                if (await QueryRunningAsync(CancellationToken.None).ConfigureAwait(false))
+                {
+                    await StopRunningAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException($"PostgreSQL startup and cleanup failed. Server log: {LogFilePath}",
+                    startupError, cleanupError);
+            }
+
+            if (startupError is OperationCanceledException)
+            {
+                throw;
+            }
+
+            throw new InvalidOperationException($"PostgreSQL startup failed. Server log: {LogFilePath}\n{startupError.Message}", startupError);
+        }
+    }
+
+    /// <summary>
+    /// Stops a running managed server with fast shutdown, preserving its data. A missing or stopped cluster is unchanged.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the shutdown command.</param>
+    /// <returns>True when a running server was stopped.</returns>
+    public async Task<bool> StopAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Path.Exists(DataDirectory))
+        {
+            return false;
+        }
+
+        RequireOwnedCluster();
+        using FileStream operationLock = AcquireLock();
+        if (!await QueryRunningAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        await StopRunningAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>
+    /// Validates and formats literal settings before any filesystem changes or subprocesses.
+    /// </summary>
+    internal static string CreateConfiguration(int major, PostgresDevelopmentOptions options)
+    {
+        int port = options.Port ?? 28800 + major;
+        ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.TimeoutSeconds, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.TimeoutSeconds, 600);
+        ArgumentNullException.ThrowIfNull(options.Settings);
+        var configuration = new StringBuilder();
+        foreach ((string name, string value) in options.Settings)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            ArgumentNullException.ThrowIfNull(value);
+            if (!(char.IsAsciiLetter(name[0]) || name[0] == '_') ||
+                name.Any(static character => !(char.IsAsciiLetterOrDigit(character) || character is '_' or '.')) ||
+                value.IndexOfAny(['\0', '\r', '\n']) >= 0)
+            {
+                throw new ArgumentException($"Invalid PostgreSQL setting: {name}", nameof(options));
+            }
+
+            if (name.ToLowerInvariant() is "data_directory" or "config_file" or "hba_file" or "ident_file" or
+                "external_pid_file" or "port" or "listen_addresses" or "unix_socket_directories" or
+                "log_destination" or "logging_collector" or "include" or "include_dir" or "include_if_exists")
+            {
+                throw new ArgumentException($"Ankus manages the PostgreSQL setting '{name}'. Use the port option to select a TCP port.", nameof(options));
+            }
+
+            configuration.Append(name).Append(" = '").Append(value.Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("'", "''", StringComparison.Ordinal)).AppendLine("'");
+        }
+
+        configuration.AppendLine(CultureInfo.InvariantCulture, $"port = {port}");
+        configuration.AppendLine("listen_addresses = '127.0.0.1'");
+        configuration.AppendLine("unix_socket_directories = ''");
+        configuration.AppendLine("log_destination = 'stderr'");
+        configuration.AppendLine("logging_collector = off");
+        return configuration.ToString();
+    }
+
+    private FileStream AcquireLock()
+        => new(Path.Combine(_root, _installation.Label + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+
+    private void RequireOwnedCluster()
+    {
+        string marker = Path.Combine(DataDirectory, ".ankus-cluster");
+        string version = Path.Combine(DataDirectory, "PG_VERSION");
+        if ((File.GetAttributes(DataDirectory) & FileAttributes.ReparsePoint) != 0 ||
+            !File.Exists(marker) || !File.Exists(version) ||
+            File.ReadAllText(marker) != _installation.Label ||
+            File.ReadAllText(version).Trim() != _installation.Version.Major.ToString(CultureInfo.InvariantCulture))
+        {
+            throw new InvalidOperationException($"Refusing an unowned or incompatible PostgreSQL data directory: {DataDirectory}");
+        }
+    }
+
+    private async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        string staging = Path.Combine(_root, ".init-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await RunCheckedAsync(_installation.InitDbPath,
+                ["-D", staging, "--auth=trust", "--encoding=UTF8", "--locale=C", "--username=postgres",
+                    "-L", _installation.SharedDirectory], cancellationToken).ConfigureAwait(false);
+            await File.AppendAllTextAsync(Path.Combine(staging, "postgresql.conf"),
+                "\n# Settings supplied by ankus start.\ninclude = 'ankus.conf'\n", cancellationToken).ConfigureAwait(false);
+            await File.WriteAllTextAsync(Path.Combine(staging, ".ankus-cluster"), _installation.Label, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.Move(staging, DataDirectory);
+        }
+        finally
+        {
+            if (Directory.Exists(staging))
+            {
+                Directory.Delete(staging, recursive: true);
+            }
+        }
+    }
+
+    private async Task<bool> QueryRunningAsync(CancellationToken cancellationToken)
+    {
+        (int code, string output) = await RunAsync(_installation.PgCtlPath, ["status", "-D", DataDirectory], cancellationToken).ConfigureAwait(false);
+        return code switch
+        {
+            0 => true,
+            3 => false,
+            _ => throw new InvalidOperationException($"PostgreSQL status failed ({code}): {output}"),
+        };
+    }
+
+    private Task StopRunningAsync(CancellationToken cancellationToken)
+        => RunCheckedAsync(_installation.PgCtlPath, ["stop", "-D", DataDirectory, "-m", "fast", "-w", "-t", "60"], cancellationToken);
+
+    private async Task RunCheckedAsync(string executable, string[] arguments, CancellationToken token, bool allowDescendants = false)
+    {
+        (int code, string output) = await RunAsync(executable, arguments, token, allowDescendants).ConfigureAwait(false);
+        if (code != 0)
+        {
+            throw new InvalidOperationException($"PostgreSQL command '{Path.GetFileName(executable)}' failed ({code}): {output}");
+        }
+    }
+
+    private async Task<(int Code, string Output)> RunAsync(string executable, string[] arguments, CancellationToken token,
+        bool allowDescendants = false)
+    {
+        token.ThrowIfCancellationRequested();
+        // Windows pg_ctl passes inherited handles to its persistent server. Shell execution
+        // isolates it from caller pipes; server diagnostics still go to the explicit -l log.
+        bool detached = OperatingSystem.IsWindows() && allowDescendants;
+        var start = new ProcessStartInfo(executable)
+        {
+            UseShellExecute = detached,
+            WindowStyle = ProcessWindowStyle.Hidden,
+            RedirectStandardOutput = !detached,
+            RedirectStandardError = !detached,
+            RedirectStandardInput = !detached,
+            WorkingDirectory = _root,
+        };
+        foreach (string argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        if (!detached)
+        {
+            start.Environment.Remove("PGDATA");
+            start.Environment.Remove("PGHOST");
+            start.Environment.Remove("PGPORT");
+        }
+
+        using var process = new Process { StartInfo = start };
+        process.Start();
+        if (!detached)
+        {
+            process.StandardInput.Close();
+        }
+
+        Task<string> output = detached ? Task.FromResult(string.Empty) : process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        Task<string> error = detached ? Task.FromResult(string.Empty) : process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException) when (process.HasExited)
+            {
+                // The process exited before cancellation was delivered.
+            }
+
+            await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            await Task.WhenAll(output, error).ConfigureAwait(false);
+            throw;
+        }
+
+        return (process.ExitCode, await output.ConfigureAwait(false) + await error.ConfigureAwait(false));
+    }
+}
