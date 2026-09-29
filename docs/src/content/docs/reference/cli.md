@@ -154,6 +154,15 @@ adds overhead; use `--timeout` when the server needs longer to start.
 A successful SQL test can still produce Memcheck reports, including diagnostics
 from PostgreSQL itself. Inspect the server log as part of memory testing.
 
+Valgrind limits the virtual address space available to an instrumented process.
+Ankus supplies a **32 GiB** .NET GC region range for Valgrind launches when
+`DOTNET_GCRegionRange` is unset or empty. This reserves address space; it does not
+allocate 32 GiB of physical memory. An explicit `DOTNET_GCRegionRange` is
+preserved, and ordinary server starts keep their existing runtime settings.
+See [.NET GC region range](https://learn.microsoft.com/dotnet/core/runtime-config/garbage-collector#region-range)
+for hexadecimal environment-variable values and sizing guidance. Multiple
+Native AOT extensions in one backend each need space for their runtime's range.
+
 An already running server keeps its instrumentation mode. Stop it before using
 `start` or `connect` to change modes; `run` and `regress` restart it themselves.
 For PostgreSQL memory-context annotations, build the server using

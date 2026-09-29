@@ -90,6 +90,8 @@ dotnet test --project tests/Ankus.IntegrationTests/Ankus.IntegrationTests.csproj
 Filtering still runs Native AOT publishing and cluster startup. Server logs are
 retained in `artifacts/test-logs`. A failure report includes the failing test's
 PostgreSQL session log.
+The installed-tool Valgrind test also retains its final server log there before
+removing its development cluster, including when a native query fails.
 
 Each fixture extension publish also writes a uniquely named MSBuild binary log
 under `artifacts/test-logs/publish`. CI includes these files in its failed-job

@@ -103,6 +103,30 @@ public sealed partial class ToolCommandTests(TestContext context)
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Hello", "Hello.cs"), Path.Combine(projectDirectory, "Hello.cs"));
         File.Copy(Path.Combine(repository, "samples", "Ankus.Examples.Initialization", "Startup.cs"),
             Path.Combine(projectDirectory, "Startup.cs"));
+        await File.WriteAllTextAsync(Path.Combine(projectDirectory, "RuntimeProbe.cs"), """
+            namespace Ankus.Examples.Hello;
+
+            /// <summary>
+            /// Exposes the native runtime's actual configuration for instrumented startup checks.
+            /// </summary>
+            public static class RuntimeProbe
+            {
+                /// <summary>
+                /// Reports the GC's initialized virtual region range.
+                /// </summary>
+                /// <returns>The configured range in bytes.</returns>
+                [PgFunction]
+                public static long ToolGcRegionRange()
+                    => Convert.ToInt64(GC.GetConfigurationVariables()["GCRegionRange"], System.Globalization.CultureInfo.InvariantCulture);
+
+                /// <summary>
+                /// Reports the environment setting inherited by this PostgreSQL backend.
+                /// </summary>
+                /// <returns>The exact setting, or SQL NULL when absent.</returns>
+                [PgFunction]
+                public static string? ToolGcRegionSetting() => Environment.GetEnvironmentVariable("DOTNET_GCRegionRange");
+            }
+            """, token);
         (await InvokeAsync(
             ["publish", "--home", s_home, "--pg", MajorText(), "--project", s_project, "--output", s_published], token))
             .EnsureSuccess(s_tool, ["publish"]);

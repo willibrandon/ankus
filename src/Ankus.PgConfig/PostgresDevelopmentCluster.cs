@@ -133,6 +133,13 @@ public sealed partial class PostgresDevelopmentCluster
                     "--tool=memcheck --leak-check=no --time-stamp=yes " +
                     "--error-markers=VALGRINDERROR-BEGIN,VALGRINDERROR-END --trace-children=yes " + executable];
                 environment = new Dictionary<string, string?> { ["PGDATA"] = DataDirectory };
+                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_GCRegionRange")))
+                {
+                    // Memcheck shares a bounded virtual address space with its client. The
+                    // runtime's host-sized reservation can exceed it before any SQL executes.
+                    // Use a 32 GiB region range only for instrumentation; honor explicit settings.
+                    environment["DOTNET_GCRegionRange"] = "800000000";
+                }
             }
             else
             {

@@ -68,18 +68,16 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
-`ankus start`, `run`, `connect` and `regress` can run PostgreSQL under Valgrind
-Memcheck through the shared development lifecycle. Native diagnostics remain in
-the server log; startup timeout and cancellation clean up owned processes even
-before PostgreSQL writes its PID file. The complete PostgreSQL **18.6/Linux x64**
-suite discovers **9,387 tests**: **9,379 passed, zero failures and eight
-Windows-only skips**, in **14m15.270s**. The affected lifecycle/CLI selection
-also passes on macOS ARM64/PostgreSQL **18.6** and Windows x64/PostgreSQL
-**17.11**, including explicit rejection of Valgrind on native Windows.
-Instrumented native startup probes pass on PostgreSQL **13–19/Linux x64**;
-these probes do not load an Ankus extension. Release, API freshness and site
-checks pass. Previous CI for `c11e4f8` is green on all three platforms.
-Remaining CLI/native/type/example contracts, runtime servicing and the complete
+Valgrind startup now supplies a **32 GiB** GC virtual region range when the
+caller has not selected one, fixing the native runtime initialization failure
+on Linux CI. Explicit overrides and ordinary startup remain unchanged. All
+**12 affected cases** complete on the previously failing PostgreSQL **18.6/Linux
+x64** runner: **11 passed, zero failed and one Windows-only skip**. The complete
+local PostgreSQL **18.6/Linux x64** suite reports **9,389 total, 9,381 passed,
+zero failed and eight Windows-only skips**, in **14m58.594s**. Release, API
+freshness and documentation checks pass. The preceding Linux CI failure is
+recorded below; no new full-platform CI pass is claimed yet. Remaining
+CLI/native/type/example contracts, runtime servicing and the complete
 PostgreSQL/platform matrix remain required.
 
 Earlier verified milestones follow in reverse chronological order.
@@ -14980,3 +14978,70 @@ and Docs **36608890280** are rechecked as successful. Linux takes **31m44s**,
 Windows **18m29s**, macOS **13m22s**, and quality **8m07s**. The three
 runtime jobs pass; no job times out. The three earlier CI/Docs milestones
 also pass, with no run still in progress at this check.
+
+### 2026-09-29 — Valgrind runtime address-space startup failure
+
+CI **36617656321** for `cd4a6e2` fails on Linux/PostgreSQL **18.6** after
+**31m56s**. Integration reports **3,931 passed, one failed and two skipped**
+in **28m03.162s**. The installed-tool Valgrind test loses its backend during
+the first Native AOT query. macOS (**13m13s**), Windows (**22m01s**), quality,
+all runtime jobs and Docs **36617656308** pass. No job times out.
+
+The unchanged failing test reproduces by itself on Linux x64: **one failed**,
+**7m13.741s** including fixture publication. Capturing its otherwise disposable
+server log identifies a runtime initialization abort. A standalone PostgreSQL
+backend loading the exact same native library reproduces it under Memcheck;
+the native syscall trace shows a **134,205,796,352-byte** `PROT_NONE` reservation
+rejected with `EINVAL`. Ordinary execution succeeds. The workstation GC sizes
+its default region range from physical memory, while Valgrind's Linux address
+space manager places client mappings in a shared **128 GiB** arena. The failure
+is virtual address reservation, not allocation of that much physical memory.
+
+The identical library initializes and exits normally under Memcheck with both
+**32 GiB** and **8 GiB** explicit GC ranges. The shared development lifecycle
+now supplies `DOTNET_GCRegionRange=800000000` (hexadecimal **32 GiB**) only for
+Valgrind launches whose setting is absent or empty. Explicit settings remain
+unchanged; ordinary starts and the parent process retain their environment.
+This uses the upstream [.NET GC region-range setting](https://learn.microsoft.com/dotnet/core/runtime-config/garbage-collector#region-range).
+The runtime fork, diagnostics, analyzer standards and CI limits are unchanged.
+
+The installed-tool regression now checks absent, empty and explicit **8 GiB**
+settings through native SQL that reads `GC.GetConfigurationVariables()` and
+the backend environment. Existing run/connect/start/regress execution, retained
+rows and Memcheck diagnostics remain required. Its final server log is retained
+in the CI report directory even after query or shutdown failure. The CLI guide
+documents address-space sizing and multiple embedded runtimes; contributor
+documentation describes the retained log. Candidate validation remains in
+progress; this diagnosis and the standalone probes do not establish a complete
+test-suite pass or resolve the full port's remaining requirements.
+
+The affected selection now passes on the previously failing Linux x64 runner
+with PostgreSQL **18.6**, SDK **10.0.401** and Valgrind **3.24.0**:
+**11 passed, zero failed and one Windows-only skip (12 total)** in
+**6m15.930s**, including fixture publication. All three installed-tool setting
+cases produce retained server-log artifacts. The runner's Release integration
+build passes with zero warnings/errors in **3m45.54s**. Independent local
+Release validation passes with zero warnings/errors in **2m48.65s**; API
+freshness verifies **213 pages / 2,565 members**, the site builds **260 pages**,
+and its check reports zero errors, warnings or hints. The complete local suite
+remains in progress; no new complete-platform CI result is claimed yet.
+
+The final plain `dotnet test` passes on PostgreSQL **18.6/Linux x64**:
+**9,389 total, 9,381 passed, zero failed and eight Windows-only skips**.
+The test run reports **14m58.594s**, with integration **14m57.744s**; all six
+modules complete. The three new setting rows also produce their retained logs
+in this complete run. Source hashes match the candidate independently tested
+on the previously failing runner. No source changes occur during validation.
+
+| Requirement | Executed evidence |
+|---|---|
+| Default and empty instrumentation settings initialize a real runtime | `ValgrindCommandsExecuteNativeExtensionAndPreserveData` null/empty rows return SQL **42/43** and exactly **34,359,738,368** bytes from the initialized GC. |
+| Explicit caller settings and ordinary startup are preserved | The same test's explicit row returns exactly **8,589,934,592** bytes; all rows verify the ordinary backend's exact environment and unchanged parent environment. |
+| Existing instrumentation, recovery and cleanup remain functional | All **12** affected cases complete, including native invalid-read diagnostics, startup failure, timeout/cancellation cleanup, retained data and installed run/connect/start/regress workflows. |
+
+Before committing, CI **36617656321** is rechecked as completed with the recorded
+Linux failure; its other jobs and Docs **36617656308** passed. Previous
+`c11e4f8` CI **36608890355** and Docs **36608890280** remain successful.
+No previous run is still active. This correction addresses the reproduced
+failure without weakening tests or diagnostics. Complete cross-platform CI
+for the correction and all remaining full-port requirements stay open.

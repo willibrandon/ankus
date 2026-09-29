@@ -11,11 +11,18 @@ public sealed partial class ToolCommandTests
     /// <summary>
     /// Installed run, connect, start and regress commands execute native extension SQL under actual Memcheck processes.
     /// </summary>
+    /// <param name="configuredRange">The caller's optional GC region range.</param>
+    /// <param name="expectedRange">The actual instrumented runtime range in bytes.</param>
     [TestMethod]
+    [DataRow(null, 34359738368L)]
+    [DataRow("", 34359738368L)]
+    [DataRow("200000000", 8589934592L)]
     [OSCondition(OperatingSystems.Linux)]
-    public async Task ValgrindCommandsExecuteNativeExtensionAndPreserveData()
+    public async Task ValgrindCommandsExecuteNativeExtensionAndPreserveData(string? configuredRange, long expectedRange)
     {
         CancellationToken token = context.CancellationToken;
+        string? parentRange = Environment.GetEnvironmentVariable("DOTNET_GCRegionRange");
+        var environment = new Dictionary<string, string?>(s_environment) { ["DOTNET_GCRegionRange"] = configuredRange };
         await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(s_installation, CreateDirectory(), token);
         string home = CreateDirectory();
         string project = PrepareRegressionProject();
@@ -32,53 +39,81 @@ public sealed partial class ToolCommandTests
             // Prepare catalog and WAL writes before instrumentation. PostgreSQL documents
             // uninitialized WAL padding in src/tools/valgrind.supp. The query phases
             // below isolate Native AOT execution; all native diagnostics remain visible.
-            ProcessResult installed = await InvokeAsync(["run", .. selection.Where(static item => item != "--valgrind"),
-                "--project", project, "--no-build", "--install-only"], token);
+            ProcessResult installed = await InvokeValgrindCommandAsync(["run", .. selection.Where(static item => item != "--valgrind"),
+                "--project", project, "--no-build", "--install-only"], environment, token);
             Assert.AreEqual(0, installed.ExitCode, installed.StandardOutput + installed.StandardError);
-            Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
+            ProcessResult ordinary = await InvokeValgrindCommandAsync(["start", .. selection.Where(static item => item != "--valgrind")], environment, token);
+            Assert.AreEqual(0, ordinary.ExitCode, ordinary.StandardOutput + ordinary.StandardError);
             Assert.IsTrue(await cluster.CreateDatabaseAsync("ankus_tool_probe", token));
             await using (NpgsqlConnection seed = await OpenRegressionConnectionAsync(port, "ankus_tool_probe", token))
             {
                 await using var setup = new NpgsqlCommand("CREATE EXTENSION ankus_tool_probe; CREATE TABLE retained AS SELECT 42 AS value", seed);
                 await setup.ExecuteNonQueryAsync(token);
+                await using var setting = new NpgsqlCommand("SELECT tool_gc_region_setting()", seed);
+                Assert.AreEqual((object?)configuredRange ?? DBNull.Value, await setting.ExecuteScalarAsync(token));
             }
 
             Assert.IsTrue(await cluster.StopAsync(token));
             File.Delete(cluster.LogFilePath);
-            ProcessResult run = await InvokeAsync(["run", .. selection, "--project", project, "--no-build", "--", "-X", "-A", "-t",
-                "-v", "ON_ERROR_STOP=1", "-c", "SELECT add(value, 0) FROM retained"], token);
+            ProcessResult run = await InvokeValgrindCommandAsync(["run", .. selection, "--project", project, "--no-build", "--", "-X", "-A", "-t",
+                "-v", "ON_ERROR_STOP=1", "-c", "SELECT add(value, 0)::text || ':' || tool_gc_region_range()::text FROM retained"], environment, token);
             Assert.AreEqual(0, run.ExitCode, run.StandardOutput + run.StandardError);
-            Assert.EndsWith("42" + Environment.NewLine, run.StandardOutput);
+            Assert.EndsWith("42:" + expectedRange.ToString(CultureInfo.InvariantCulture) + Environment.NewLine, run.StandardOutput);
             Assert.IsTrue(await cluster.StopAsync(token));
             await AssertValgrindLogAsync(cluster.LogFilePath, token);
             File.Delete(cluster.LogFilePath);
 
-            ProcessResult connect = await InvokeAsync(["connect", .. selection, "--database", "ankus_tool_probe", "--",
-                "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", "SELECT add(value, 1) FROM retained"], token);
+            ProcessResult connect = await InvokeValgrindCommandAsync(["connect", .. selection, "--database", "ankus_tool_probe", "--",
+                "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", "SELECT add(value, 1)::text || ':' || tool_gc_region_range()::text FROM retained"], environment, token);
             Assert.AreEqual(0, connect.ExitCode, connect.StandardOutput + connect.StandardError);
-            Assert.EndsWith("43" + Environment.NewLine, connect.StandardOutput);
+            Assert.EndsWith("43:" + expectedRange.ToString(CultureInfo.InvariantCulture) + Environment.NewLine, connect.StandardOutput);
             Assert.IsTrue(await cluster.StopAsync(token));
             await AssertValgrindLogAsync(cluster.LogFilePath, token);
             File.Delete(cluster.LogFilePath);
 
-            ProcessResult start = await InvokeAsync(["start", .. selection], token);
+            ProcessResult start = await InvokeValgrindCommandAsync(["start", .. selection], environment, token);
             Assert.AreEqual(0, start.ExitCode, start.StandardOutput + start.StandardError);
             Assert.IsTrue(await cluster.IsRunningAsync(token));
             Assert.IsTrue(await cluster.StopAsync(token));
             await AssertValgrindLogAsync(cluster.LogFilePath, token);
             File.Delete(cluster.LogFilePath);
 
-            ProcessResult regress = await InvokeAsync([.. RegressionOptions(owner.Installation, home, project, port, "ankus_tool_probe"), "--valgrind", "--no-build"], token);
+            ProcessResult regress = await InvokeValgrindCommandAsync([.. RegressionOptions(owner.Installation, home, project, port, "ankus_tool_probe"), "--valgrind", "--no-build"], environment, token);
             Assert.AreEqual(0, regress.ExitCode, regress.StandardOutput + regress.StandardError);
             Assert.AreEqual("\\set ECHO none\n42\n", (await File.ReadAllTextAsync(Path.Combine(suite, "results", "native.out"), token)).ReplaceLineEndings("\n"));
             Assert.IsTrue(await cluster.StopAsync(token));
             await AssertValgrindLogAsync(cluster.LogFilePath, token);
+            Assert.AreEqual(parentRange, Environment.GetEnvironmentVariable("DOTNET_GCRegionRange"));
         }
         finally
         {
-            await cluster.StopAsync(CancellationToken.None);
+            try
+            {
+                await cluster.StopAsync(CancellationToken.None);
+            }
+            finally
+            {
+                if (File.Exists(cluster.LogFilePath))
+                {
+                    string logs = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs");
+                    Directory.CreateDirectory(logs);
+                    string retainedLog = Path.Combine(logs, "valgrind-commands-" + Guid.NewGuid().ToString("N") + ".log");
+                    File.Copy(cluster.LogFilePath, retainedLog);
+                    context.AddResultFile(retainedLog);
+                }
+            }
         }
     }
+
+    /// <summary>
+    /// Runs a packaged command with a caller-owned environment instead of changing the parallel test host.
+    /// </summary>
+    /// <param name="arguments">The installed-tool arguments.</param>
+    /// <param name="environment">The child process settings.</param>
+    /// <param name="token">Cancels the command.</param>
+    /// <returns>The actual process result.</returns>
+    private static Task<ProcessResult> InvokeValgrindCommandAsync(string[] arguments, Dictionary<string, string?> environment, CancellationToken token)
+        => ProcessRunner.RunAsync(s_tool, arguments, environment, token, workingDirectory: s_root);
 
     /// <summary>
     /// Missing instrumentation fails before initialization; dry-run selection requires neither a tool nor a server.
