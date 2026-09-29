@@ -406,6 +406,13 @@ extension/
     ankus_hello--0.1.0.sql
 ```
 
+The native library also embeds its installation SQL and publication identity.
+`ankus schema --from publish/MyExtension.so` extracts the full installation script
+without loading the library or reading sidecar files. `ankus schema` builds the
+selected project first; `--output schema.sql` writes the script to a file.
+`Ankus.PgConfig.ExtensionSchema.Read` exposes the metadata to .NET applications;
+see [schema extraction](docs/src/content/docs/getting-started/publishing.md#inspect-installation-sql).
+
 `AnkusExtensionName` selects the extension name; its default is the assembly name
 lowercased with periods replaced by underscores. `AnkusExtensionVersion` defaults
 to the project's `Version`. The control file resolves the native library through

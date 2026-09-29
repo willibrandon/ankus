@@ -95,6 +95,35 @@ Use `TargetFramework=net10.0` and let Ankus select the matching compiler, patche
 runtime and framework libraries. A conflicting `RuntimeFrameworkVersion`
 override is rejected.
 
+## Embedded installation metadata
+
+Published libraries also contain their original installation SQL and publication
+identity. Use [`ankus schema`](/getting-started/publishing/#inspect-installation-sql)
+to extract the complete script. With the matching `Ankus.PgConfig` package, read this metadata without
+loading the library or needing its adjacent JSON, control, or SQL files:
+
+```csharp
+using Ankus.PgConfig;
+
+ExtensionSchema schema = ExtensionSchema.Read("publish/MyExtension.so");
+Console.WriteLine(schema.Name);
+Console.WriteLine(schema.Sql);
+```
+
+Use `.dll` on Windows or `.dylib` on macOS. The reader supports Linux x64,
+Windows x64, and macOS x64/ARM64 libraries. For a universal macOS library,
+pass `"osx-x64"` or `"osx-arm64"` as the second argument to select its slice.
+For a thin library, that optional argument checks the native target instead.
+`Artifacts` reports the original native filename, PostgreSQL major, runtime
+identifier, and installation filenames even if the library was renamed.
+
+`Sql` preserves the complete installation script, including PostgreSQL's
+`MODULE_PATHNAME` substitution marker. It is intended for extension installation;
+direct SQL replay must resolve that marker to the library's location first.
+Missing, malformed, incompatible, or oversized metadata raises `FormatException`.
+The native schema section is limited to 64 MiB. This metadata does not replace
+the control and SQL files PostgreSQL needs for `CREATE EXTENSION`.
+
 ## Installation directories
 
 | Artifact | Standard location |

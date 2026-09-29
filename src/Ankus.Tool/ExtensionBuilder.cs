@@ -58,9 +58,10 @@ internal static class ExtensionBuilder
     /// <param name="installation">The exact PostgreSQL installation.</param>
     /// <param name="output">The output directory.</param>
     /// <param name="token">Cancels publishing and terminates its process tree.</param>
+    /// <param name="diagnosticsToStandardError">Whether build output belongs on stderr, leaving stdout available for SQL.</param>
     /// <returns>The dotnet publish exit code.</returns>
     internal static async Task<int> PublishAsync(string? project, string configuration, PostgresInstallation installation,
-        string output, CancellationToken token)
+        string output, CancellationToken token, bool diagnosticsToStandardError = false)
     {
         string path = ResolveProject(project);
         Directory.CreateDirectory(output);
@@ -72,7 +73,7 @@ internal static class ExtensionBuilder
             "--self-contained", "true", "--output", Path.GetFullPath(output),
             "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
             "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
-        ], token);
+        ], token, diagnosticsToStandardError);
         if (exitCode == 0)
         {
             PublishedExtension manifest = PublishedExtension.Read(output);

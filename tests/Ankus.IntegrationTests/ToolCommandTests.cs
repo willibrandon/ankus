@@ -139,6 +139,7 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("build", "--project")]
     [DataRow("publish", "--output")]
     [DataRow("install", "--destdir")]
+    [DataRow("schema", "--skip-build")]
     public async Task InstalledToolProvidesHelp(string command, string expected)
     {
         string[] arguments = command.Length == 0 ? ["--help"] : [command, "--help"];

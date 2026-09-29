@@ -13,11 +13,20 @@ internal static class ToolProcess
     /// <param name="executable">The executable name or path.</param>
     /// <param name="arguments">Individual command-line arguments.</param>
     /// <param name="token">Cancels process execution.</param>
+    /// <param name="diagnosticsToStandardError">Whether to stream the child's stdout to stderr.</param>
     /// <returns>The process exit code.</returns>
-    internal static async Task<int> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken token)
+    internal static async Task<int> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken token,
+        bool diagnosticsToStandardError = false)
     {
         token.ThrowIfCancellationRequested();
-        using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false } };
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(executable)
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = diagnosticsToStandardError,
+            },
+        };
         foreach (string argument in arguments)
         {
             process.StartInfo.ArgumentList.Add(argument);
@@ -26,7 +35,10 @@ internal static class ToolProcess
         process.Start();
         try
         {
-            await process.WaitForExitAsync(token);
+            Task output = diagnosticsToStandardError
+                ? process.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardError(), token)
+                : Task.CompletedTask;
+            await Task.WhenAll(output, process.WaitForExitAsync(token));
         }
         catch (OperationCanceledException)
         {

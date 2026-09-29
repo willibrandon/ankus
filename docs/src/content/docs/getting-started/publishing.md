@@ -60,6 +60,40 @@ extension/
 
 The library suffix is `.dll` on Windows and `.dylib` on macOS.
 
+## Inspect installation SQL
+
+Build your extension and write its installation SQL to a file:
+
+```console
+ankus schema --output schema.sql
+```
+
+Without `--output`, SQL goes to stdout and build diagnostics go to stderr.
+Use the same `--project`, `--pg`, `--pg-config`, and `--configuration` options
+as `ankus publish`. `ankus schema --skip-build` reads the project's existing
+default publication under `bin/ankus/`, selected by PostgreSQL major, host
+runtime, and configuration. It does not require a registered PostgreSQL
+installation; use `--pg` to select the existing publication's major.
+
+To read a library published to another directory, use its path directly:
+
+```console
+ankus schema --from publish/Hello.so --output schema.sql
+```
+
+This reads the library's embedded metadata without loading its native code,
+building the project, or requiring adjacent SQL, control, or JSON files. Use
+`.dll` on Windows or `.dylib` on macOS. You can inspect another supported
+platform's library; `--runtime osx-arm64` or `--runtime osx-x64` selects a slice
+from a universal macOS library. For a thin library, `--runtime` checks its target.
+Do not combine `--from` with project, configuration, PostgreSQL, or build options.
+
+The output is the complete installation script, including custom SQL and
+declarations in dependency order. It retains PostgreSQL's `MODULE_PATHNAME`
+marker, which `CREATE EXTENSION` resolves through the control file. Extracting
+SQL does not install the extension or replace those installation files. Named-item
+selection, extension-attachment SQL, and Graphviz output are not yet available.
+
 ## Load into PostgreSQL
 
 Install the published files:

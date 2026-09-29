@@ -110,9 +110,10 @@ try
 
     string source = Path.Combine(output, "bridge.c");
     string nativeObject = Path.Combine(output, OperatingSystem.IsWindows() ? "bridge.obj" : "bridge.o");
-    WriteIfDifferent(source, manifest.NativeSource);
+    WriteIfDifferent(source, manifest.NativeSource + NativeSchemaEmitter.Emit(args[5], args[6], args[7], major,
+        args[8], manifest.Relocatable, manifest.Sql));
     WriteIfDifferent(Path.Combine(output, "schema.sql"), manifest.Sql);
-    WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports);
+    WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol + "\n");
 
     var libraries = new List<string> { nativeObject };
     var compilerArguments = new List<string>();

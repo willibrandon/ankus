@@ -7,7 +7,7 @@ namespace Ankus.Tool;
 /// <summary>
 /// Defines the command-line interface for PostgreSQL registration and native extension builds.
 /// </summary>
-internal static class ToolCommand
+internal static partial class ToolCommand
 {
     /// <summary>
     /// Parses and executes one command, reporting failures with a nonzero exit code.
@@ -28,6 +28,7 @@ internal static class ToolCommand
         root.Subcommands.Add(CreateBuild("build", "Build the native extension and SQL files.", home));
         root.Subcommands.Add(CreateBuild("publish", "Publish the native extension and SQL files to a directory.", home));
         root.Subcommands.Add(CreateInstall(home));
+        root.Subcommands.Add(CreateSchema(home));
         try
         {
             return await root.Parse(arguments).InvokeAsync(new InvocationConfiguration

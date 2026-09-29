@@ -68,6 +68,17 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+Native libraries now retain exact installation SQL and publication metadata.
+`ankus schema` extracts the script from a new build, an existing publication or
+a standalone library without executing native code. The complete plain
+`dotnet test` suite passes **8,944 tests, zero failures and six Windows-only
+skips, 8,950 total**, on PostgreSQL **18.6/Linux x64**, in **9m55.173s**.
+Release, API freshness and documentation checks pass. Structured schema graphs,
+named-item extraction and all other remaining faithful-port requirements stay
+open. See the detailed schema milestone below for platform evidence.
+
+Earlier verified milestones follow in reverse chronological order.
+
 The complete plain `dotnet test` suite passes on both SDK **10.0.400** and
 **11.0.100-rc.1.26425.128**, targeting `net10.0` on PostgreSQL **18.6/Linux
 x64**: each runs **8,797 tests with 8,791 passes, zero failures and six
@@ -3120,7 +3131,7 @@ The target architecture consists of:
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | Selected-header records, enums, functions, globals, indirect calls, static callbacks and selected helpers implemented; variadics, remaining conveniences/protocols and the complete platform/version matrix remain required |
 | `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | Checked native node views and a real custom-scan provider with parallel execution, parameter remapping, registry/lifetime/error handling and older-version adaptation implemented; remaining contracts and the complete platform/version matrix remain required |
 | `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
-| `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time assembly metadata extraction |
+| `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time metadata plus embedded native full-script extraction through `ankus schema`; named selection, retained graph and Graphviz remain required |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
 
 ## Repository-derived parity inventory
@@ -3150,7 +3161,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
-| `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `src/Ankus.Build` reads managed metadata without loading extension code |
+| `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: installed CLI validates manifests and copies/stages native libraries, control and versioned SQL files; upgrade scripts pending |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: publish output; distribution command pending |
 | `get` | Query extension control properties and derived extension metadata | Pending |
@@ -13438,3 +13449,77 @@ Windows records no additional TCP port-exhaustion or resource-exhaustion events
 during either corrected full run. Available test reports preserve each module's
 counts, individual results and recorded concurrency. Outcomes are checked again
 before push and the next actual CI run is monitored separately.
+
+Actual CI **36521471450** at `ab9ee80` now passes the dedicated Windows
+x64/PostgreSQL **17.11** job **109255231408** in **12m42s**, including a
+**1m11s** test build and **11m08s** complete test step. All six reports total
+**8,806 passes, zero failures and seven platform-specific skips, 8,813 tests**;
+the integration report records **six package-consumer slots**. This is complete
+Windows CI evidence, compared with the last recorded hosted Windows pass of
+**59m32s**. The comparison includes the machine and cache changes; it does not
+attribute the entire improvement to concurrency.
+
+As of **2026-09-29 05:10 UTC**, that run also passes quality, all three
+runtime jobs and the Linux x64/PostgreSQL 18 full-suite job in **34m15s**.
+The macOS full suite remains in progress and requires its own completed outcome.
+The dedicated Linux machine has been inspected: Debian 13.7 x64, stable SDK
+10.0.401, and six assigned logical processors. Runner provisioning and complete
+PostgreSQL 18 validation are in progress; hosted Linux remains selected until
+the dedicated setup is verified.
+
+### 2026-09-29 — Embedded native installation SQL and schema command
+
+Native publication now retains a versioned, length-delimited metadata section
+containing exact installation SQL and publication identity. `ExtensionSchema.Read`
+reads ELF64, PE32+ and thin/universal Mach-O libraries through bounded file ranges,
+without executing extension code or trusting adjacent files. It checks the
+container architecture, file-backed section bounds, duplicate sections, strict
+text encoding and matching publication RID. Universal macOS libraries require
+an explicit architecture. The metadata section is limited to 64 MiB.
+
+The installed `ankus schema` command publishes the selected project and emits
+its complete script to stdout, with build diagnostics on stderr. `--output`
+writes UTF-8 without a BOM and replaces an existing destination only after
+successful extraction. `--skip-build` reads the selected configuration's default
+publication without PostgreSQL registration; `--from` reads a standalone native
+library, including a renamed library without sidecars. Contradictory source/build
+options and mismatched manifests are rejected. Failed builds preserve existing
+SQL output and invalidate stale publication manifests.
+
+| Requirement | Direct evidence |
+|---|---|
+| Native container bytes, architecture and malformed ranges | `NativeSchemaSectionTests.ReadsEachPublishedFormat`, `SelectsUniversalArchitecture`, `RejectsMalformedImage`, `RejectsEveryTruncatedPrefix`, `RejectsWrongRuntimeIdentifier` |
+| Exact metadata, Unicode, versioning and corruption | `ExtensionSchemaTests.ReadsIndependentMetadata`, `PreservesNonrelocatableAndWhitespaceContracts`, `RejectsInvalidFraming`, `RejectsInvalidMetadata`, `RejectsShortHeaders` |
+| Actual optimized native link retention | `NativeBindingNativeTests.LinkedLibraryRetainsEmbeddedSchema` passes on Linux x64 and Windows x64; Windows uses LLVM 21.1.7/MSVC 14.51 with Windows SDK 10.0.26100.0 |
+| Installed CLI output and backend behavior without sidecars | `ToolCommandTests.PublishedLibraryRetainsExecutableSchemaWithoutSidecars` checks exact stdout/file bytes and publication fields, executes extracted SQL in PostgreSQL, verifies values/Unicode, and recovers from overflow on the same backend |
+| Source/build option conflicts and invalid targets | `SchemaRejectsConflictingArtifactOptions`, `SchemaRejectsInvalidProjectSelection`, `SchemaFailurePreservesOutput` |
+| Existing Debug/Release selection and manifest integrity | `SchemaReadsExistingProjectPublication` |
+| Fresh package-only build, clean SQL stdout and failed-rebuild preservation | `SchemaBuildsBeforeEmittingSql` |
+
+The focused parser/metadata suite passes **118 cases, zero failures/skips** in
+**2.015s**. The initial installed-command/backend selection passes **13 cases,
+zero failures/skips** in **4m14.772s** on PostgreSQL **18.6/Linux x64**.
+Additional project-selection and output-replacement assertions are included in
+the final complete plain `dotnet test` suite: **8,944 passes, zero failures,
+six Windows-only skips, 8,950 total**, in **9m55.173s** on SDK **10.0.400**
+and PostgreSQL **18.6/Linux x64**. All six test modules pass; the integration
+module completes in **9m54.402s**. The Release build passes with **zero warnings/errors**
+in **36.22s**. Generated API pages and public publishing/build-settings guides
+describe the implemented behavior; the API reference contains **207 pages and
+2,524 members**, and the site builds **254 pages**. Documentation checking
+reports zero errors, warnings or hints.
+
+One local Release attempt ended when two MSBuild children received SIGBUS while
+the temporary tmpfs was almost full. The subsequent Release build passed without
+source or analyzer changes. Inspection also identified **27 inactive historical
+native-probe directories**; removing only those artifacts reclaimed approximately
+**2.7 GiB**. Current binding collection already disposes its large temporary
+artifacts in `finally`; active processes and unrelated temporary directories were
+left intact.
+
+This is a full-script extraction milestone, not completed schema or CLI parity.
+Retaining structured graph entities, named-item resolution and transitive
+dependencies, replacement groups, extension-attachment SQL and Graphviz output
+remain required. Full platform validation of this candidate, the remaining
+PostgreSQL/platform matrix and every other faithful-port inventory entry remain
+open. Dedicated Linux runner provisioning is in progress.

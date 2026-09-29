@@ -1,0 +1,261 @@
+using System.Runtime.InteropServices;
+using Ankus.PgConfig;
+using Ankus.Testing;
+using Npgsql;
+
+namespace Ankus.IntegrationTests;
+
+public sealed partial class ToolCommandTests
+{
+    /// <summary>
+    /// A package-only Native AOT library retains exact SQL without sidecars and replays it in PostgreSQL.
+    /// </summary>
+    [TestMethod]
+    public async Task PublishedLibraryRetainsExecutableSchemaWithoutSidecars()
+    {
+        CancellationToken token = context.CancellationToken;
+        PublishedExtension publication = PublishedExtension.Read(s_published);
+        string expected = await File.ReadAllTextAsync(Path.Combine(s_published, "extension", publication.Sql), token);
+        string directory = CreateDirectory();
+        string library = Path.Combine(directory, "renamed" + Path.GetExtension(publication.Library));
+        File.Copy(Path.Combine(s_published, publication.Library), library);
+        Assert.HasCount(1, Directory.GetFiles(directory));
+
+        ExtensionSchema schema = ExtensionSchema.Read(library);
+        Assert.AreEqual("ankus_tool_probe", schema.Name);
+        Assert.AreEqual("0.1.0", schema.Version);
+        Assert.AreEqual(s_installation.Version.Major, schema.Artifacts.PostgresMajor);
+        Assert.AreEqual(RuntimeInformation.RuntimeIdentifier, schema.Artifacts.RuntimeIdentifier);
+        Assert.AreEqual(publication.Library, schema.Artifacts.Library);
+        Assert.AreEqual(publication.Control, schema.Artifacts.Control);
+        Assert.AreEqual(publication.Sql, schema.Artifacts.Sql);
+        Assert.IsTrue(schema.Relocatable);
+        Assert.AreEqual(expected, schema.Sql);
+
+        await File.WriteAllTextAsync(Path.Combine(directory, PublishedExtension.FileName), "invalid sidecar", token);
+        await File.WriteAllTextAsync(Path.Combine(directory, publication.Sql), "SELECT 'incorrect sidecar';", token);
+        Assert.AreEqual(expected, ExtensionSchema.Read(library, RuntimeInformation.RuntimeIdentifier).Sql);
+        Assert.ThrowsExactly<FormatException>(() => ExtensionSchema.Read(library,
+            OperatingSystem.IsWindows() ? "linux-x64" : "win-x64"));
+
+        ProcessResult extracted = await InvokeAsync(["schema", "--from", library, "--home", Path.Combine(directory, "unregistered")], token);
+        Assert.AreEqual(0, extracted.ExitCode, extracted.StandardError);
+        Assert.AreEqual(expected, extracted.StandardOutput);
+        Assert.IsEmpty(extracted.StandardError);
+        string output = Path.Combine(directory, "nested", "工具.sql");
+        ProcessResult written = await InvokeAsync(["schema", "--from", library, "--runtime", RuntimeInformation.RuntimeIdentifier,
+            "--output", output], token);
+        Assert.AreEqual(0, written.ExitCode, written.StandardError);
+        Assert.IsEmpty(written.StandardOutput);
+        Assert.IsEmpty(written.StandardError);
+        Assert.AreSequenceEqual(System.Text.Encoding.UTF8.GetBytes(expected), await File.ReadAllBytesAsync(output, token));
+        await File.WriteAllTextAsync(output, "Replace this old SQL", token);
+        ProcessResult replaced = await InvokeAsync(["schema", "--from", library, "-o", output], token);
+        Assert.AreEqual(0, replaced.ExitCode, replaced.StandardError);
+        Assert.IsEmpty(replaced.StandardOutput);
+        Assert.AreEqual(expected, await File.ReadAllTextAsync(output, token));
+        Assert.HasCount(1, Directory.GetFiles(Path.GetDirectoryName(output)!));
+
+        await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+        {
+            Installation = s_installation,
+            DataDirectoryBase = Path.Combine(s_root, "pgdata"),
+            LogDirectory = Path.Combine(IntegrationEnvironment.RepositoryRoot, "artifacts", "test-logs"),
+        }, token);
+        await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
+        await using var command = new NpgsqlCommand(extracted.StandardOutput.Replace("'MODULE_PATHNAME'", "'" + EscapeSetting(library) + "'",
+            StringComparison.Ordinal), connection);
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = "SELECT public.add(40, 2)";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT public.greet('工具')";
+        Assert.AreEqual("Hello, 工具!", await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT pg_backend_pid()";
+        int backend = (int)(await command.ExecuteScalarAsync(token))!;
+        command.CommandText = "SELECT public.add(2147483647, 1)";
+        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+        Assert.AreEqual("38000", error.SqlState);
+        Assert.AreEqual(new OverflowException().Message, error.MessageText);
+        command.CommandText = "SELECT public.add(19, 23)";
+        Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT pg_backend_pid()";
+        Assert.AreEqual(backend, await command.ExecuteScalarAsync(token));
+    }
+
+    /// <summary>
+    /// Rejects options that would silently ignore project, build, or PostgreSQL selection with a direct library.
+    /// </summary>
+    /// <param name="option">The conflicting project-selection option.</param>
+    /// <param name="value">Its value, when required.</param>
+    [TestMethod]
+    [DataRow("--project", "ignored.csproj")]
+    [DataRow("--pg", "18")]
+    [DataRow("--pg-config", "ignored")]
+    [DataRow("--configuration", "Release")]
+    [DataRow("--skip-build", null)]
+    public async Task SchemaRejectsConflictingArtifactOptions(string option, string? value)
+    {
+        string library = Path.Combine(s_published, PublishedExtension.Read(s_published).Library);
+        string[] arguments = value is null
+            ? ["schema", "--from", library, option]
+            : ["schema", "--from", library, option, value];
+        ProcessResult result = await InvokeAsync(arguments, context.CancellationToken);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.IsEmpty(result.StandardOutput);
+        Assert.Contains("Use either --from or " + option, result.StandardError);
+    }
+
+    /// <summary>
+    /// Rejects unsupported project selections before creating an output file or attempting a native build.
+    /// </summary>
+    /// <param name="option">The invalid selection option.</param>
+    /// <param name="value">Its rejected value.</param>
+    /// <param name="diagnostic">The expected command diagnostic.</param>
+    [TestMethod]
+    [DataRow("--runtime", "unsupported", "Project schema builds use the host runtime identifier")]
+    [DataRow("--pg", "12", "major")]
+    [DataRow("--pg", "20", "major")]
+    [DataRow("--configuration", "Custom", "Configuration must be Debug or Release")]
+    [DataRow("--pg-config", "unused", "--pg-config requires a build")]
+    public async Task SchemaRejectsInvalidProjectSelection(string option, string value, string diagnostic)
+    {
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "Probe.csproj");
+        File.Copy(s_project, project);
+        string output = Path.Combine(directory, "schema.sql");
+        ProcessResult result = await InvokeAsync(["schema", "--project", project, "--skip-build", option, value,
+            "--output", output], context.CancellationToken);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.IsEmpty(result.StandardOutput);
+        Assert.Contains(diagnostic, result.StandardError);
+        Assert.IsFalse(File.Exists(output));
+    }
+
+    /// <summary>
+    /// Failed extraction preserves the source library and any existing destination SQL.
+    /// </summary>
+    /// <param name="failure">The invalid input or output partition.</param>
+    [TestMethod]
+    [DataRow("malformed")]
+    [DataRow("runtime")]
+    [DataRow("overwrite")]
+    public async Task SchemaFailurePreservesOutput(string failure)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string library = Path.Combine(directory, "library");
+        File.Copy(Path.Combine(s_published, PublishedExtension.Read(s_published).Library), library);
+        if (failure == "malformed")
+        {
+            await File.WriteAllTextAsync(library, "Not a native library", token);
+        }
+
+        byte[] original = await File.ReadAllBytesAsync(library, token);
+        string output = failure == "overwrite" ? library : Path.Combine(directory, "existing.sql");
+        if (failure != "overwrite")
+        {
+            await File.WriteAllTextAsync(output, "Preserve this SQL", token);
+        }
+
+        string[] arguments = failure == "runtime"
+            ? ["schema", "--from", library, "--output", output, "--runtime", "unsupported"]
+            : ["schema", "--from", library, "--output", output];
+        ProcessResult result = await InvokeAsync(arguments, token);
+        Assert.AreEqual(1, result.ExitCode);
+        Assert.IsEmpty(result.StandardOutput);
+        Assert.Contains(failure switch
+        {
+            "malformed" => "Unsupported native library format",
+            "runtime" => "does not match the requested runtime identifier",
+            _ => "SQL output must differ",
+        }, result.StandardError);
+        Assert.AreSequenceEqual(original, await File.ReadAllBytesAsync(library, token));
+        if (failure != "overwrite")
+        {
+            Assert.AreEqual("Preserve this SQL", await File.ReadAllTextAsync(output, token));
+        }
+    }
+
+    /// <summary>
+    /// Selects an existing project's configuration without PostgreSQL registration and rejects conflicting identities.
+    /// </summary>
+    /// <param name="configuration">The selected existing publication configuration.</param>
+    [TestMethod]
+    [DataRow("Debug")]
+    [DataRow("Release")]
+    public async Task SchemaReadsExistingProjectPublication(string configuration)
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "Probe.csproj");
+        File.Copy(s_project, project);
+        string published = Path.Combine(directory, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, configuration);
+        Directory.CreateDirectory(published);
+        PublishedExtension publication = PublishedExtension.Read(s_published);
+        File.Copy(Path.Combine(s_published, publication.Library), Path.Combine(published, publication.Library));
+        publication.Write(published);
+        string[] arguments = ["schema", "--project", project, "--pg", MajorText(), "--configuration", configuration,
+            "--skip-build", "--home", Path.Combine(directory, "unregistered")];
+        ProcessResult extracted = await InvokeAsync(arguments, token);
+        Assert.AreEqual(0, extracted.ExitCode, extracted.StandardError);
+        Assert.AreEqual(ExtensionSchema.Read(Path.Combine(s_published, publication.Library)).Sql, extracted.StandardOutput);
+        Assert.IsEmpty(extracted.StandardError);
+
+        new PublishedExtension(DifferentMajor(), publication.RuntimeIdentifier, publication.Library, publication.Control, publication.Sql)
+            .Write(published);
+        ProcessResult wrongTarget = await InvokeAsync(arguments, token);
+        Assert.AreEqual(1, wrongTarget.ExitCode);
+        Assert.IsEmpty(wrongTarget.StandardOutput);
+        Assert.Contains("does not match the selected PostgreSQL target", wrongTarget.StandardError);
+        new PublishedExtension(publication.PostgresMajor, publication.RuntimeIdentifier, publication.Library, "different.control", publication.Sql)
+            .Write(published);
+        ProcessResult wrongIdentity = await InvokeAsync(arguments, token);
+        Assert.AreEqual(1, wrongIdentity.ExitCode);
+        Assert.IsEmpty(wrongIdentity.StandardOutput);
+        Assert.Contains("manifest disagrees with the embedded schema identity", wrongIdentity.StandardError);
+    }
+
+    /// <summary>
+    /// A fresh package-only build emits only SQL on stdout; a failed rebuild never emits or replaces stale SQL.
+    /// </summary>
+    [TestMethod]
+    public async Task SchemaBuildsBeforeEmittingSql()
+    {
+        CancellationToken token = context.CancellationToken;
+        string directory = CreateDirectory();
+        string project = Path.Combine(directory, "Fresh.csproj");
+        File.Copy(s_project, project);
+        string source = Path.Combine(directory, "Fresh.cs");
+        await File.WriteAllTextAsync(source, """
+            using Ankus;
+            public static class Fresh
+            {
+                [PgFunction]
+                public static int FreshSchemaValue() => 42;
+            }
+            """, token);
+        string[] arguments = ["schema", "--project", project, "--pg", MajorText(), "--pg-config", s_installation.PgConfigPath];
+        ProcessResult built = await InvokeAsync(arguments, token);
+        Assert.AreEqual(0, built.ExitCode, built.StandardError);
+        string published = Path.Combine(directory, "bin", "ankus", s_postgresKey, RuntimeInformation.RuntimeIdentifier, "Release");
+        PublishedExtension publication = PublishedExtension.Read(published);
+        string expected = await File.ReadAllTextAsync(Path.Combine(published, "extension", publication.Sql), token);
+        Assert.AreEqual(expected, built.StandardOutput);
+        Assert.Contains("fresh_schema_value", built.StandardOutput);
+        Assert.Contains("Fresh", built.StandardError);
+        ProcessResult existing = await InvokeAsync(["schema", "--project", directory, "--pg", MajorText(), "--skip-build"], token);
+        Assert.AreEqual(0, existing.ExitCode, existing.StandardError);
+        Assert.AreEqual(expected, existing.StandardOutput);
+        Assert.IsEmpty(existing.StandardError);
+
+        await File.WriteAllTextAsync(source, "#error schema_build_failure", token);
+        string output = Path.Combine(directory, "previous.sql");
+        await File.WriteAllTextAsync(output, "Preserve previous output", token);
+        ProcessResult failed = await InvokeAsync([.. arguments, "--output", output], token);
+        Assert.AreNotEqual(0, failed.ExitCode);
+        Assert.IsEmpty(failed.StandardOutput);
+        Assert.Contains("schema_build_failure", failed.StandardError);
+        Assert.AreEqual("Preserve previous output", await File.ReadAllTextAsync(output, token));
+        Assert.IsFalse(File.Exists(Path.Combine(published, PublishedExtension.FileName)));
+    }
+}
