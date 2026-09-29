@@ -18,6 +18,7 @@ Set extension properties in your project file:
 | `AnkusExtensionVersion` | Project `Version` | Selects the versioned SQL filename and control-file version |
 | `AnkusExtensionControlFile` | None | Adds author settings from a PostgreSQL control file; see [control settings](#extension-control-settings) |
 | `EnableDefaultAnkusUpgradeScripts` | Enabled | Includes `sql/<extension>--<old>--<new>.sql` upgrade files; set to `false` for explicit items only |
+| `EnableDefaultAnkusVersionControlFiles` | Enabled | Includes `sql/<extension>--<version>.control` files; set to `false` for explicit items only |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
@@ -72,8 +73,50 @@ configuration syntax; repeated assignments use the last value. Use SQL
 Ankus owns `default_version`, `module_pathname` and `encoding`; if present, those
 values must match the generated publication. Set the version through
 `AnkusExtensionVersion`, the library name through `AssemblyName`, and retain
-`UTF8` for generated SQL. Alternate SQL `directory` settings and secondary
-version-specific control files are not supported yet.
+`UTF8` for generated SQL. Alternate SQL `directory` settings are not supported yet.
+
+### Version-specific control files
+
+Put overrides in `sql/<extension>--<version>.control`, for example
+`sql/hello--0.2.0.control`:
+
+```ini
+requires = 'pg_trgm'
+trusted = false
+relocatable = false
+```
+
+PostgreSQL applies these assignments over the primary control file when
+installing or updating to that version. Omitted assignments inherit the primary
+settings. Use `requires = ''` to clear inherited dependencies. Each version
+starts from the primary settings; it does not inherit the previous version's
+overrides. The server updates dependency ownership transactionally with the SQL
+upgrade. A `schema` override selects the schema for initial installation;
+PostgreSQL does not move objects during an update.
+
+Secondary files cannot set `default_version` or `directory`. The current
+version's `module_pathname` must match its generated native library. Other
+versions can name their own libraries, which must be distributed separately.
+All published scripts use UTF-8, so an explicit `encoding` must remain `UTF8`.
+The current version's relocation flag also appears in its embedded native schema
+metadata and cannot contradict generated SQL. Adding a fixed `schema` without
+an explicit relocation flag writes `relocatable = false` into the secondary file.
+
+Use ordinary MSBuild items to customize discovery:
+
+```xml
+<ItemGroup>
+  <AnkusVersionControlFile Remove="sql/hello--0.2.0.control" />
+  <AnkusVersionControlFile Include="controls/hello--0.2.0.control" />
+</ItemGroup>
+```
+
+Set `EnableDefaultAnkusVersionControlFiles` to `false` for explicit items only.
+Publishing validates and snapshots the selected files before native compilation.
+Installing and packaging include exactly those snapshots. A successful republish
+removes obsolete control files owned by the previous publication and preserves
+unlisted files. Control assignments use literal values; SQL upgrade token
+expansion does not apply to control files.
 
 ## PostgreSQL compilation symbols
 

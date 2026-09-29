@@ -165,6 +165,34 @@ public sealed class UpgradeSqlCommandTests(TestContext context)
         Assert.AreEqual("probe.control", PublishedExtension.Read(arguments[1]).Control);
     }
 
+    /// <summary>
+    /// Version controls are read from the native build snapshot and prevalidated before replacing published payloads.
+    /// </summary>
+    [TestMethod]
+    public async Task PublishesVersionControlSnapshotAndRejectsMissingPayload()
+    {
+        string[] arguments = Prepare();
+        var manifest = new PublishedExtension(18, "linux-x64", "Probe.so", "probe.control", "probe--release.sql", [],
+            ["probe--base.control", "probe--release.control"]);
+        manifest.Write(arguments[0]);
+        string extension = Path.Combine(arguments[0], "extension");
+        string first = Path.Combine(extension, "probe--base.control");
+        string second = Path.Combine(extension, "probe--release.control");
+        File.WriteAllText(first, "module_pathname='Old.so'\r\n");
+        File.WriteAllText(second, "requires='helper'\n");
+        await UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken);
+        Assert.AreSequenceEqual(manifest.VersionControlFiles, PublishedExtension.Read(arguments[1]).VersionControlFiles);
+        Assert.AreSequenceEqual(File.ReadAllBytes(first), File.ReadAllBytes(Path.Combine(arguments[1], "extension", "probe--base.control")));
+        Assert.AreSequenceEqual(File.ReadAllBytes(second), File.ReadAllBytes(Path.Combine(arguments[1], "extension", "probe--release.control")));
+        File.WriteAllText(first, "changed");
+        File.Delete(second);
+        FileNotFoundException error = await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken));
+        Assert.AreEqual(second, error.FileName);
+        Assert.AreEqual("module_pathname='Old.so'\r\n", File.ReadAllText(Path.Combine(arguments[1], "extension", "probe--base.control")));
+        Assert.AreEqual("requires='helper'\n", File.ReadAllText(Path.Combine(arguments[1], "extension", "probe--release.control")));
+        Assert.IsFalse(File.Exists(Path.Combine(arguments[1], PublishedExtension.FileName)));
+    }
+
     private string[] Prepare()
     {
         string artifacts = Path.Combine(_root, "artifacts");

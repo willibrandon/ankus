@@ -50,6 +50,8 @@ internal static class ExtensionInstaller
             (Path.Combine(source, "extension", manifest.Sql), Path.Combine(extensionDirectory, manifest.Sql)),
             .. manifest.UpgradeScripts.Select(script =>
                 (Path.Combine(source, "extension", script), Path.Combine(extensionDirectory, script))),
+            .. manifest.VersionControlFiles.Select(control =>
+                (Path.Combine(source, "extension", control), Path.Combine(extensionDirectory, control))),
             (Path.Combine(source, "extension", manifest.Control), Path.Combine(extensionDirectory, manifest.Control)),
         ];
         foreach ((string input, _) in files)

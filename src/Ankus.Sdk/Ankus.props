@@ -14,5 +14,9 @@
                         Condition="'$(EnableDefaultAnkusUpgradeScripts)' != 'false' and '$(AnkusExtensionName)' != ''" />
     <AnkusUpgradeScript Include="sql/$(TargetName.ToLowerInvariant().Replace('.', '_'))--*--*.sql"
                         Condition="'$(EnableDefaultAnkusUpgradeScripts)' != 'false' and '$(AnkusExtensionName)' == ''" />
+    <AnkusVersionControlFile Include="sql/$(AnkusExtensionName)--*.control"
+                             Condition="'$(EnableDefaultAnkusVersionControlFiles)' != 'false' and '$(AnkusExtensionName)' != ''" />
+    <AnkusVersionControlFile Include="sql/$(TargetName.ToLowerInvariant().Replace('.', '_'))--*.control"
+                             Condition="'$(EnableDefaultAnkusVersionControlFiles)' != 'false' and '$(AnkusExtensionName)' == ''" />
   </ItemGroup>
 </Project>

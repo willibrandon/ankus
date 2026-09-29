@@ -9,7 +9,7 @@ Namespace: [Ankus.PgConfig](/api/ankus.pgconfig/)
 
 Assembly: `Ankus.PgConfig.dll`
 
-Describes the native library and SQL files produced by one extension publish.
+Describes the native library, SQL scripts and control files produced by one extension publish.
 
 ```csharp
 public sealed class PublishedExtension
@@ -87,6 +87,46 @@ The installation SQL filename under extension/.
 
 Upgrade filenames in extension--old--new.sql form.
 
+<a id="member-509a556a379535dd"></a>
+
+### PublishedExtension(int, string, string, string, string, IReadOnlyList&lt;string&gt;, IReadOnlyList&lt;string&gt;)
+
+Creates a manifest with owned, ordered upgrade scripts and version-specific control files.
+
+```csharp
+public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql, IReadOnlyList<string> upgradeScripts, IReadOnlyList<string> versionControlFiles)
+```
+
+Parameters:
+
+`postgresMajor` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The PostgreSQL header major used to compile the extension.
+
+`runtimeIdentifier` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The Native AOT runtime identifier.
+
+`library` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The native library filename.
+
+`control` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The primary control filename under extension/.
+
+`sql` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The installation SQL filename under extension/.
+
+`upgradeScripts` — [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+Upgrade filenames in extension--old--new.sql form.
+
+`versionControlFiles` — [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+Secondary control filenames in extension--version.control form.
+
 
 ## Methods
 
@@ -94,7 +134,7 @@ Upgrade filenames in extension--old--new.sql form.
 
 ### CompletePublish(string)
 
-Validates the complete payload, removes obsolete owned SQL, and makes the publication installable.
+Validates the complete payload, removes obsolete owned SQL and control files, and makes the publication installable.
 
 ```csharp
 public void CompletePublish(string directory)
@@ -229,6 +269,18 @@ Gets the ordered upgrade filenames within the extension directory.
 
 ```csharp
 public IReadOnlyList<string> UpgradeScripts { get; }
+```
+
+Value: [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+<a id="member-612ab8564ecedd05"></a>
+
+### VersionControlFiles
+
+Gets the ordered version-specific control filenames within the extension directory.
+
+```csharp
+public IReadOnlyList<string> VersionControlFiles { get; }
 ```
 
 Value: [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)

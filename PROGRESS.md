@@ -68,6 +68,21 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+Version-specific control files now carry per-release dependency, privilege,
+schema and relocation settings through publishing, installation and packaging.
+Real PostgreSQL tests verify trusted installation, failed-update rollback,
+dependency changes and same-session native recovery. Secondary-only edits update
+embedded native metadata; removed files are cleaned without deleting unlisted
+files. The complete PostgreSQL **18.6/Linux x64** suite discovers **9,295 tests**:
+**9,289 passed, zero failures and six Windows-only skips**, in **14m42.975s**.
+All **16 affected installed-tool cases** also pass on macOS ARM64/PostgreSQL
+**18.6** and Windows x64/PostgreSQL **17.11**. Release, API freshness and
+documentation checks pass. Previous CI for `6a4fbdc` is green on all three
+platforms. Alternate SQL directories and all other full-port requirements remain
+required; no full-parity claim is made.
+
+Earlier verified milestones follow in reverse chronological order.
+
 Author control files now configure extension comments, schemas, dependencies,
 installation privileges and relocation restrictions. Real PostgreSQL checks
 verify permission failures, trusted installation, dependency ownership, native
@@ -78,10 +93,6 @@ package. The complete PostgreSQL **18.6/Linux x64** suite discovers **9,250 test
 Both affected installed-tool cases also pass on macOS ARM64/PostgreSQL **18.6**
 and Windows x64/PostgreSQL **17.11**. Release, generated API and documentation
 checks pass. Previous CI for `47aa1ef` is green on all three platforms.
-Secondary control files, alternate SQL directories and all remaining faithful-port
-requirements stay open; no full-parity claim is made.
-
-Earlier verified milestones follow in reverse chronological order.
 
 Custom MSBuild configurations now work across build, publish, install, package,
 schema, run and connect. Configuration-specific paths, imported properties,
@@ -3250,10 +3261,11 @@ Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command opt
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
-Primary author control settings and native dependency/privilege behavior are now
-implemented through `AnkusExtensionControlFile`; secondary version controls and
-alternate SQL directory layouts remain required. See the author-control milestone
-for exact tests and platform evidence.
+Primary author settings and native dependency/privilege behavior are implemented
+through `AnkusExtensionControlFile`. `AnkusVersionControlFile` now carries
+version-specific overrides through publish, install and package, with transactional
+PostgreSQL update evidence. Alternate SQL directory layouts remain required. See
+the control milestones for exact tests and platform evidence.
 
 NuGet packages now provide the extension-author project SDK, runtime, source generator, PostgreSQL configuration,
 testing harness, and .NET tool. The SDK embeds a framework-dependent .NET 10 native-build helper and references
@@ -14358,3 +14370,64 @@ jobs and Docs **36570576919** passed. No job timed out. These terminal outcomes
 were rechecked before commit/push. Secondary controls, alternate SQL directories,
 remaining CLI commands, cross-target tooling and the complete PostgreSQL/platform
 matrix remain required. No full-parity claim is made.
+
+
+### 2026-09-29 — Version-specific extension controls
+
+`AnkusVersionControlFile` includes `sql/<extension>--<version>.control` by
+default, with ordinary MSBuild item customization and an opt-out property.
+Publishing validates all selected names and settings before native compilation,
+snapshots the normalized assignments, and embeds the current version's effective
+relocation flag. Historical versions can select their own native-library and
+relocation contracts; the current version remains bound to generated SQL and
+library identity. Primary settings supply defaults for each version independently.
+
+Manifest format 3 owns an immutable, ordered secondary-control inventory. Older
+formats remain readable, and publications without secondary controls retain
+their older format. Final publication and both installation commands validate
+the complete declared payload. Successful republishing removes only obsolete
+owned files; incomplete rebuilds retain previous ownership for recovery.
+
+| Requirement | Evidence |
+|---|---|
+| Ordered immutable inventory, old-format compatibility and malformed/name/null/collision partitions | `VersionControlManifestOwnsOrderedFiles`, `RejectsInvalidVersionControlNames`, `RejectsNullAndDuplicateVersionControls`, `RejectsMalformedVersionControlManifests`, existing `PublishedExtensionTests` |
+| Missing secondary payload preserves ownership until repair; obsolete controls are removed without deleting unlisted files | `MissingVersionControlPreservesPreviousFilesUntilRepair`, `PublishesVersionControlSnapshotAndRejectsMissingPayload` |
+| Inheritance, explicit empty requirements, Boolean normalization and fixed-schema relocation | `VersionOverridesPreserveInheritanceAndExplicitClearing`, `VersionSchemaDisablesRelocationAndRespectsInheritedSchema` |
+| Current versus historical native/relocation contracts, prohibited fields, encoding and PostgreSQL 15/16 boundary | `HistoricalVersionsHaveIndependentNativeAndRelocationContracts`, `RejectsInvalidVersionControlSettings`, `VersionControlsAcceptNoRelocateAtPostgres16Boundary` |
+| Default/explicit file selection with named/fallback extension identity and consumer item customization | `ArtifactItemsHonorConsumerEvaluation`, all eight rows |
+| Exact declared bytes through install/package and rejection before any copying | `InstallAndPackageCopyOnlyDeclaredExtensionFiles`, `InvalidArtifactDoesNotPartiallyInstall` |
+| Real trusted installation, per-version schema/comment, dependency and privilege failures, SQL rollback, dependency changes and same-session native recovery | `VersionControlsPreservePostgresInstallAndUpdateContracts` |
+| Secondary-only edits update embedded metadata; invalid settings invalidate publication; removal cleans previous ownership | `VersionControlChangesUpdateNativeMetadataAndCleanRemovedFiles` |
+
+Initial narrow validation passes **47 manifest tests** and **55 build/settings/SDK
+tests**, with no failures or skips. The initial installed-tool selection passes
+**16 tests** on Linux x64/PostgreSQL **18.6** in **5m05.938s**, and on macOS
+ARM64/PostgreSQL **18.6** in **3m23.572s**. Review then assigned the new probes a
+distinct extension name to avoid leaving secondary files that could affect
+existing primary-control tests in pooled pre-18 installations. Final-source
+results follow below. Alternate SQL directories and all other full-port
+requirements remain required.
+
+Previous CI **36575630151** for `6a4fbdc` completed successfully: Linux
+x64/PostgreSQL 18 in **27m39s**, Windows x64/PostgreSQL 17 in **20m12s**,
+macOS ARM64/PostgreSQL 18 in **11m35s**, and quality in **9m52s**. All runtime
+jobs and Docs **36575630175** passed. No job timed out. Final-source macOS
+ARM64/PostgreSQL **18.6**, SDK **10.0.401**, passes the same **16 cases**
+in **3m21.126s**, with no failures/skips. Its completed validation checkout and
+source archives have been removed; the shared runtime remains intact.
+
+The complete plain `dotnet test` run on Debian **13.5**, Linux x64, PostgreSQL
+**18.6**, SDK **10.0.400**, discovers **9,295 tests**: **9,289 passed, zero failed
+and six Windows-only skips**, in **14m42.975s**. Integration takes
+**14m41.722s**. This is warm validation, not a controlled cold-cache measurement.
+
+Final-source Windows x64/PostgreSQL **17.11**, SDK **10.0.401**, passes all
+**16 affected installed-tool cases** in **7m36.915s**, with no failures/skips.
+The **47 manifest cases** also pass on Windows, including filename collisions
+on a case-insensitive platform. These focused platform checks do not substitute
+for complete CI on the new commit. The Release build passes with **zero warnings
+and errors** in **42.75s**. `pnpm build` produces **260 pages**; `pnpm check`
+reports **zero errors, warnings and hints**. API freshness passes for **213 pages
+/ 2,559 members**. Both personal-platform validation checkouts and source
+archives have been removed, while shared runtimes remain intact. These successful
+prior CI outcomes were rechecked before commit and push.

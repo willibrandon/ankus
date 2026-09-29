@@ -151,12 +151,13 @@ public sealed partial class ToolCommandTests
         Assert.IsTrue(ExtensionSchema.Read(Path.Combine(output, manifest.Library)).Relocatable);
     }
 
-    private static async Task<string> CreateControlProjectAsync(string directory, CancellationToken token)
+    private static async Task<string> CreateControlProjectAsync(string directory, CancellationToken token,
+        string extensionName = "ankus_control_probe")
     {
         string project = Path.Combine(directory, "ControlProbe.csproj");
         XDocument definition = XDocument.Load(s_project);
         definition.Root!.Add(new XElement("PropertyGroup",
-            new XElement("AnkusExtensionName", "ankus_control_probe"),
+            new XElement("AnkusExtensionName", extensionName),
             new XElement("AnkusExtensionControlFile", "author settings.control")));
         definition.Save(project);
         await File.WriteAllTextAsync(Path.Combine(directory, "Functions.cs"), """

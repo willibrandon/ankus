@@ -205,3 +205,9 @@ explicitly. Duplicate output names and invalid upgrade filenames fail the
 publish. A successful republish removes obsolete SQL files owned by the previous
 publication and preserves unrelated files. Installation preserves previously
 installed versions so databases can still use their existing libraries.
+
+When an upgrade changes dependencies or installation permissions, add
+`sql/hello--0.2.0.control`. PostgreSQL uses that version's overrides for both
+installation and updates. Publishing, installing and packaging include these
+files. See [version-specific control files](/reference/build-settings/#version-specific-control-files)
+for inheritance, item selection and native-library settings.

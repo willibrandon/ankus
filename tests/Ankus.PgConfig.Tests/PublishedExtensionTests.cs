@@ -34,6 +34,7 @@ public sealed class PublishedExtensionTests
         Assert.AreEqual("probe.control", actual.Control);
         Assert.AreEqual("probe--1.sql", actual.Sql);
         Assert.IsEmpty(actual.UpgradeScripts);
+        Assert.IsEmpty(actual.VersionControlFiles);
     }
 
     /// <summary>
@@ -97,7 +98,7 @@ public sealed class PublishedExtensionTests
     /// </summary>
     /// <param name="fragment">The invalid format and upgrade fields.</param>
     [TestMethod]
-    [DataRow("\"formatVersion\":3")]
+    [DataRow("\"formatVersion\":4")]
     [DataRow("\"formatVersion\":1,\"upgradeScripts\":[]")]
     [DataRow("\"formatVersion\":2")]
     [DataRow("\"formatVersion\":2,\"upgradeScripts\":null")]

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Ankus.PgConfig;
 
 /// <summary>
-/// Describes the native library and SQL files produced by one extension publish.
+/// Describes the native library, SQL scripts and control files produced by one extension publish.
 /// </summary>
 public sealed class PublishedExtension
 {
@@ -39,6 +39,22 @@ public sealed class PublishedExtension
     /// <param name="upgradeScripts">Upgrade filenames in extension--old--new.sql form.</param>
     public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql,
         IReadOnlyList<string> upgradeScripts)
+        : this(postgresMajor, runtimeIdentifier, library, control, sql, upgradeScripts, [])
+    {
+    }
+
+    /// <summary>
+    /// Creates a manifest with owned, ordered upgrade scripts and version-specific control files.
+    /// </summary>
+    /// <param name="postgresMajor">The PostgreSQL header major used to compile the extension.</param>
+    /// <param name="runtimeIdentifier">The Native AOT runtime identifier.</param>
+    /// <param name="library">The native library filename.</param>
+    /// <param name="control">The primary control filename under extension/.</param>
+    /// <param name="sql">The installation SQL filename under extension/.</param>
+    /// <param name="upgradeScripts">Upgrade filenames in extension--old--new.sql form.</param>
+    /// <param name="versionControlFiles">Secondary control filenames in extension--version.control form.</param>
+    public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql,
+        IReadOnlyList<string> upgradeScripts, IReadOnlyList<string> versionControlFiles)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(postgresMajor, 13);
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeIdentifier);
@@ -72,6 +88,26 @@ public sealed class PublishedExtension
 
         Array.Sort(upgrades, StringComparer.Ordinal);
         UpgradeScripts = Array.AsReadOnly(upgrades);
+        ArgumentNullException.ThrowIfNull(versionControlFiles);
+        string[] controls = [.. versionControlFiles];
+        foreach (string file in controls)
+        {
+            ValidateFileName(file);
+            if (!file.StartsWith(prefix, StringComparison.Ordinal) || !file.EndsWith(".control", StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Secondary control files must belong to the extension and end in .control.", nameof(versionControlFiles));
+            }
+
+            string version = file[prefix.Length..^".control".Length];
+            if (version.Length == 0 || version[0] == '-' || version[^1] == '-' ||
+                version.Contains("--", StringComparison.Ordinal) || !names.Add(file))
+            {
+                throw new ArgumentException("Secondary control files require unique filenames with one nonempty PostgreSQL version.", nameof(versionControlFiles));
+            }
+        }
+
+        Array.Sort(controls, StringComparer.Ordinal);
+        VersionControlFiles = Array.AsReadOnly(controls);
         PostgresMajor = postgresMajor;
         RuntimeIdentifier = runtimeIdentifier;
         Library = library;
@@ -110,6 +146,11 @@ public sealed class PublishedExtension
     public IReadOnlyList<string> UpgradeScripts { get; }
 
     /// <summary>
+    /// Gets the ordered version-specific control filenames within the extension directory.
+    /// </summary>
+    public IReadOnlyList<string> VersionControlFiles { get; }
+
+    /// <summary>
     /// Reads a published manifest without reflection-based deserialization.
     /// </summary>
     /// <param name="directory">The publish directory.</param>
@@ -133,7 +174,7 @@ public sealed class PublishedExtension
             }
 
             int format = root.GetProperty("formatVersion").GetInt32();
-            if (format is not (1 or 2))
+            if (format is not (1 or 2 or 3))
             {
                 throw new FormatException("Unsupported Ankus extension manifest version.");
             }
@@ -143,11 +184,18 @@ public sealed class PublishedExtension
                 throw new FormatException("Upgrade scripts require extension manifest version 2.");
             }
 
-            string[] upgrades = format == 2
+            if (format < 3 && root.TryGetProperty("versionControlFiles", out _))
+            {
+                throw new FormatException("Secondary control files require extension manifest version 3.");
+            }
+
+            string[] upgrades = format >= 2
                 ? [.. root.GetProperty("upgradeScripts").EnumerateArray().Select(static item => item.GetString()!)] : [];
+            string[] controls = format == 3
+                ? [.. root.GetProperty("versionControlFiles").EnumerateArray().Select(static item => item.GetString()!)] : [];
             return new PublishedExtension(root.GetProperty("postgresMajor").GetInt32(),
                 root.GetProperty("runtimeIdentifier").GetString()!, root.GetProperty("library").GetString()!,
-                root.GetProperty("control").GetString()!, root.GetProperty("sql").GetString()!, upgrades);
+                root.GetProperty("control").GetString()!, root.GetProperty("sql").GetString()!, upgrades, controls);
         }
         catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException or
             ArgumentException or OverflowException)
@@ -165,18 +213,29 @@ public sealed class PublishedExtension
         using FileStream stream = File.Create(Path.Combine(directory, FileName));
         using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
         writer.WriteStartObject();
-        writer.WriteNumber("formatVersion", UpgradeScripts.Count == 0 ? 1 : 2);
+        writer.WriteNumber("formatVersion", VersionControlFiles.Count > 0 ? 3 : UpgradeScripts.Count > 0 ? 2 : 1);
         writer.WriteNumber("postgresMajor", PostgresMajor);
         writer.WriteString("runtimeIdentifier", RuntimeIdentifier);
         writer.WriteString("library", Library);
         writer.WriteString("control", Control);
         writer.WriteString("sql", Sql);
-        if (UpgradeScripts.Count > 0)
+        if (UpgradeScripts.Count > 0 || VersionControlFiles.Count > 0)
         {
             writer.WriteStartArray("upgradeScripts");
             foreach (string script in UpgradeScripts)
             {
                 writer.WriteStringValue(script);
+            }
+
+            writer.WriteEndArray();
+        }
+
+        if (VersionControlFiles.Count > 0)
+        {
+            writer.WriteStartArray("versionControlFiles");
+            foreach (string control in VersionControlFiles)
+            {
+                writer.WriteStringValue(control);
             }
 
             writer.WriteEndArray();
@@ -199,13 +258,13 @@ public sealed class PublishedExtension
     }
 
     /// <summary>
-    /// Validates the complete payload, removes obsolete owned SQL, and makes the publication installable.
+    /// Validates the complete payload, removes obsolete owned SQL and control files, and makes the publication installable.
     /// </summary>
     /// <param name="directory">The directory containing the native library and extension files.</param>
     public void CompletePublish(string directory)
     {
         Invalidate(directory);
-        string[] files = [Control, Sql, .. UpgradeScripts];
+        string[] files = [Control, Sql, .. UpgradeScripts, .. VersionControlFiles];
         foreach (string path in files.Select(file => Path.Combine(directory, "extension", file))
                      .Prepend(Path.Combine(directory, Library)))
         {
@@ -219,7 +278,7 @@ public sealed class PublishedExtension
         if (File.Exists(previousPath))
         {
             PublishedExtension previous = ReadFile(previousPath);
-            string[] previousFiles = [previous.Control, previous.Sql, .. previous.UpgradeScripts];
+            string[] previousFiles = [previous.Control, previous.Sql, .. previous.UpgradeScripts, .. previous.VersionControlFiles];
             foreach (string file in previousFiles.Except(files, s_fileComparer))
             {
                 File.Delete(Path.Combine(directory, "extension", file));

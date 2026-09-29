@@ -5,7 +5,7 @@ using Ankus.PgConfig;
 namespace Ankus.Build;
 
 /// <summary>
-/// Publishes declared upgrade scripts after validating their names and expanding author tokens.
+/// Publishes native-build control snapshots and declared upgrades after validating names and expanding SQL tokens.
 /// </summary>
 internal static class UpgradeSqlCommand
 {
@@ -29,7 +29,7 @@ internal static class UpgradeSqlCommand
         PublishedExtension original = PublishedExtension.Read(artifacts);
         string[] scripts = File.ReadAllLines(arguments[2]);
         var manifest = new PublishedExtension(original.PostgresMajor, original.RuntimeIdentifier, original.Library,
-            original.Control, original.Sql, [.. scripts.Select(static path => Path.GetFileName(path))]);
+            original.Control, original.Sql, [.. scripts.Select(static path => Path.GetFileName(path))], original.VersionControlFiles);
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         var contents = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         string? gitHash = null;
@@ -46,8 +46,9 @@ internal static class UpgradeSqlCommand
             contents.Add(Path.GetFileName(script), encoding.GetBytes(content));
         }
 
-        // Read the entire SQL payload before changing any published SQL files.
-        foreach (string name in new[] { original.Control, original.Sql })
+        // Read the entire SQL and control payload before changing any published files.
+        string[] artifactFiles = [original.Control, original.Sql, .. original.VersionControlFiles];
+        foreach (string name in artifactFiles)
         {
             contents.Add(name, await File.ReadAllBytesAsync(Path.Combine(artifacts, "extension", name), cancellationToken));
         }

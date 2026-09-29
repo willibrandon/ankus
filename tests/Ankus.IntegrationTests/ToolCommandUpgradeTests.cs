@@ -105,13 +105,13 @@ public sealed partial class ToolCommandTests
     }
 
     /// <summary>
-    /// Existing publications install all declared upgrade bytes and exclude unlisted SQL through both commands.
+    /// Existing publications install all declared upgrade and secondary control bytes and exclude unlisted files.
     /// </summary>
     /// <param name="operation">The installation or packaging command.</param>
     [TestMethod]
     [DataRow("install")]
     [DataRow("package")]
-    public async Task InstallAndPackageCopyOnlyDeclaredUpgrades(string operation)
+    public async Task InstallAndPackageCopyOnlyDeclaredExtensionFiles(string operation)
     {
         CancellationToken token = context.CancellationToken;
         PublishedExtension original = PublishedExtension.Read(s_published);
@@ -120,7 +120,7 @@ public sealed partial class ToolCommandTests
         Directory.CreateDirectory(extension);
         string[] scripts = ["ankus_tool_probe--base--middle.sql", "ankus_tool_probe--middle--0.1.0.sql"];
         var manifest = new PublishedExtension(original.PostgresMajor, original.RuntimeIdentifier, original.Library,
-            original.Control, original.Sql, scripts);
+            original.Control, original.Sql, scripts, ["ankus_tool_probe--base.control"]);
         manifest.Write(source);
         File.Copy(Path.Combine(s_published, original.Library), Path.Combine(source, original.Library));
         foreach (string file in new[] { original.Control, original.Sql })
@@ -128,24 +128,28 @@ public sealed partial class ToolCommandTests
             File.Copy(Path.Combine(s_published, "extension", file), Path.Combine(extension, file));
         }
 
-        foreach (string script in scripts)
+        foreach (string script in scripts.Concat(manifest.VersionControlFiles))
         {
-            await File.WriteAllTextAsync(Path.Combine(extension, script), "-- " + script + "\r\nSELECT 'café 🐘';\r\n", token);
+            string content = script.EndsWith(".control", StringComparison.Ordinal)
+                ? "comment='version # control'\r\nrequires=''\r\n" : "-- " + script + "\r\nSELECT 'café 🐘';\r\n";
+            await File.WriteAllTextAsync(Path.Combine(extension, script), content, token);
         }
 
         await File.WriteAllTextAsync(Path.Combine(extension, "unlisted.sql"), "do not distribute", token);
+        await File.WriteAllTextAsync(Path.Combine(extension, "unlisted.control"), "do not distribute", token);
         string stage = CreateDirectory();
         ProcessResult result = await InvokeAsync([operation, "--home", s_home, "--pg", MajorText(), "--from", source,
             operation == "package" ? "--output" : "--destdir", stage], token);
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
         string shared = operation == "package" ? PackageSharedDirectory(stage) : StagedPath(stage, s_installation.SharedDirectory);
-        foreach (string script in scripts)
+        foreach (string script in scripts.Concat(manifest.VersionControlFiles))
         {
             Assert.AreSequenceEqual(await File.ReadAllBytesAsync(Path.Combine(extension, script), token),
                 await File.ReadAllBytesAsync(Path.Combine(shared, "extension", script), token));
         }
 
-        Assert.HasCount(5, Directory.GetFiles(stage, "*", SearchOption.AllDirectories));
+        Assert.HasCount(6, Directory.GetFiles(stage, "*", SearchOption.AllDirectories));
+        Assert.IsFalse(File.Exists(Path.Combine(shared, "extension", "unlisted.control")));
         Assert.IsFalse(File.Exists(Path.Combine(shared, "extension", "unlisted.sql")));
     }
 
@@ -156,7 +160,7 @@ public sealed partial class ToolCommandTests
             return;
         }
 
-        string[] files = [manifest.Sql, .. manifest.UpgradeScripts, manifest.Control];
+        string[] files = [manifest.Sql, .. manifest.UpgradeScripts, .. manifest.VersionControlFiles, manifest.Control];
         foreach (string file in files)
         {
             File.Copy(Path.Combine(PackageSharedDirectory(package), "extension", file),

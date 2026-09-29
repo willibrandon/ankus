@@ -16,26 +16,54 @@ internal static class ExtensionControlSettings
     /// <returns>The complete control text and effective relocation flag.</returns>
     internal static (string Control, bool Relocatable) Merge(string generated, string authored, int major)
     {
-        var values = new Dictionary<string, string>(ExtensionControlFile.Parse(generated), StringComparer.Ordinal);
-        IReadOnlyDictionary<string, string> settings = ExtensionControlFile.Parse(authored);
-        bool generatedRelocatable = values["relocatable"] == "true";
+        IReadOnlyDictionary<string, string> identity = ExtensionControlFile.Parse(generated);
+        Dictionary<string, string> settings = ReadSettings(identity, authored, major, secondary: false, currentVersion: true);
+        (Dictionary<string, string> values, bool relocatable) = Apply(identity, settings, identity["relocatable"] == "true");
+        return (ExtensionControlFile.Format(values), relocatable);
+    }
+
+    /// <summary>
+    /// Validates a version override and returns only its normalized assignments and effective relocation flag.
+    /// </summary>
+    /// <param name="primary">The complete primary control assignments.</param>
+    /// <param name="authored">The version-specific author assignments.</param>
+    /// <param name="major">The selected PostgreSQL major.</param>
+    /// <param name="currentVersion">Whether this file describes the generated installation SQL and native library.</param>
+    /// <param name="generatedRelocatable">Whether the current generated SQL permits relocation.</param>
+    /// <returns>The secondary control text and effective relocation flag.</returns>
+    internal static (string Control, bool Relocatable) MergeVersion(string primary, string authored, int major,
+        bool currentVersion, bool generatedRelocatable)
+    {
+        IReadOnlyDictionary<string, string> identity = ExtensionControlFile.Parse(primary);
+        Dictionary<string, string> settings = ReadSettings(identity, authored, major, secondary: true, currentVersion);
+        (_, bool relocatable) = Apply(identity, settings, !currentVersion || generatedRelocatable);
+        return (ExtensionControlFile.Format(settings), relocatable);
+    }
+
+    private static Dictionary<string, string> ReadSettings(IReadOnlyDictionary<string, string> identity,
+        string authored, int major, bool secondary, bool currentVersion)
+    {
+        var settings = new Dictionary<string, string>(ExtensionControlFile.Parse(authored), StringComparer.Ordinal);
         foreach ((string name, string value) in settings)
         {
             switch (name)
             {
+                case "default_version" when secondary:
+                case "directory" when secondary:
+                    throw new FormatException($"Control parameter '{name}' cannot be set in a secondary extension control file.");
                 case "default_version":
-                case "module_pathname":
+                case "module_pathname" when currentVersion:
                 case "encoding":
-                    if (value != values[name])
+                    if (value != identity[name])
                     {
-                        throw new FormatException($"Control parameter '{name}' conflicts with the generated publication value '{values[name]}'.");
+                        throw new FormatException($"Control parameter '{name}' conflicts with the generated publication value '{identity[name]}'.");
                     }
 
                     break;
                 case "relocatable":
                 case "superuser":
                 case "trusted":
-                    values[name] = ReadBoolean(name, value) ? "true" : "false";
+                    settings[name] = ReadBoolean(name, value) ? "true" : "false";
                     break;
                 case "no_relocate":
                     if (major < 16)
@@ -43,12 +71,11 @@ internal static class ExtensionControlSettings
                         throw new FormatException("Control parameter 'no_relocate' requires PostgreSQL 16 or later.");
                     }
 
-                    values[name] = value;
                     break;
+                case "module_pathname":
                 case "comment":
                 case "schema":
                 case "requires":
-                    values[name] = value;
                     break;
                 case "directory":
                     throw new FormatException("Control parameter 'directory' is not supported; Ankus publishes SQL beside the control file.");
@@ -57,9 +84,21 @@ internal static class ExtensionControlSettings
             }
         }
 
-        if (values.ContainsKey("schema") && !settings.ContainsKey("relocatable"))
+        return settings;
+    }
+
+    private static (Dictionary<string, string> Values, bool Relocatable) Apply(IReadOnlyDictionary<string, string> primary,
+        Dictionary<string, string> settings, bool generatedRelocatable)
+    {
+        if ((primary.ContainsKey("schema") || settings.ContainsKey("schema")) && !settings.ContainsKey("relocatable"))
         {
-            values["relocatable"] = "false";
+            settings["relocatable"] = "false";
+        }
+
+        var values = new Dictionary<string, string>(primary, StringComparer.Ordinal);
+        foreach ((string name, string value) in settings)
+        {
+            values[name] = value;
         }
 
         bool relocatable = values["relocatable"] == "true";
@@ -68,7 +107,7 @@ internal static class ExtensionControlSettings
             throw new FormatException("Control parameter 'relocatable' cannot be true with a fixed schema or non-relocatable generated SQL.");
         }
 
-        return (ExtensionControlFile.Format(values), relocatable);
+        return (values, relocatable);
     }
 
     private static bool ReadBoolean(string name, string value)

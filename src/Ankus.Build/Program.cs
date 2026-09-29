@@ -84,11 +84,11 @@ try
         return 0;
     }
 
-    if (args.Length is not (11 or 12))
+    if (args.Length is not (11 or 12 or 13))
     {
         throw new ArgumentException(
             "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
-            "extension name, version, library, runtime identifier, optional pg_config path, target triple, and optional control file.");
+            "extension name, version, library, runtime identifier, optional pg_config path, target triple, optional control file, and optional secondary control list.");
     }
 
     string assembly = Path.GetFullPath(args[0]);
@@ -105,15 +105,30 @@ try
     ExtensionManifest manifest = ExtensionManifest.Read(assembly);
     var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7], manifest.Sql, manifest.Relocatable));
     bool relocatable = manifest.Relocatable;
-    if (args.Length == 12 && args[11].Length != 0)
+    if (args.Length >= 12 && args[11].Length != 0)
     {
         (package[args[5] + ".control"], relocatable) = ExtensionControlSettings.Merge(
             package[args[5] + ".control"], File.ReadAllText(args[11]), major);
     }
 
+    string[] controls = args.Length == 13 ? File.ReadAllLines(args[12]) : [];
+    var publication = new PublishedExtension(major, args[8], args[7], args[5] + ".control",
+        args[5] + "--" + args[6] + ".sql", [], [.. controls.Select(static path => Path.GetFileName(path))]);
+    foreach (string path in controls)
+    {
+        string name = Path.GetFileName(path);
+        bool currentVersion = name == args[5] + "--" + args[6] + ".control";
+        (string control, bool effectiveRelocatable) = ExtensionControlSettings.MergeVersion(package[publication.Control],
+            File.ReadAllText(path), major, currentVersion, manifest.Relocatable);
+        package.Add(name, control);
+        if (currentVersion)
+        {
+            relocatable = effectiveRelocatable;
+        }
+    }
+
     Directory.CreateDirectory(output);
-    new PublishedExtension(major, args[8], args[7], args[5] + ".control",
-        args[5] + "--" + args[6] + ".sql").Write(output);
+    publication.Write(output);
     string extensionDirectory = Path.Combine(output, "extension");
     Directory.CreateDirectory(extensionDirectory);
     foreach ((string name, string content) in package)
