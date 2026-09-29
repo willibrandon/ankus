@@ -121,6 +121,54 @@ the server log path so you can correct the setting and retry.
 
 ## Build and publish
 
+For an interactive development loop, run this from your extension project or solution:
+
+```console
+ankus run --pg 18
+```
+
+`run` stops the selected development server, publishes and installs the native
+extension, starts the server, and opens `psql`. It creates a database named after
+the extension if that database does not exist. Existing databases retain their
+contents. In psql, use `CREATE EXTENSION your_extension;` to load the installed
+extension into the database. Rebuilding does not automatically upgrade SQL
+objects in an existing database.
+
+Use `--project` to select another project, `--configuration Debug` to change the
+build configuration, or `--database` to choose a literal database name.
+`--no-build` installs the project's existing publication. `--install-only`
+leaves PostgreSQL stopped after installation and does not open a client.
+Installation requires write access to the selected PostgreSQL installation.
+
+To open a database without rebuilding or installing an extension:
+
+```console
+ankus connect --pg 18
+ankus connect --pg 18 --database playground
+```
+
+`connect` starts a stopped development server and creates or reuses the database.
+Without `--database`, it evaluates the selected project's extension name, including
+imported MSBuild properties. An explicit database name works outside a project.
+Both commands leave the server running when the client exits; use `ankus stop`
+to shut it down. An already running server retains its actual port and settings.
+
+Both commands accept the startup options described above, and `--pgcli` selects
+an installed `pgcli` from PATH. Arguments after `--` go directly to the client:
+
+```console
+ankus connect --pg 18 --database playground -- -c "SELECT 19 + 23"
+```
+
+Client input and output stay interactive, and its exit code becomes the Ankus
+exit code. In an interactive session, Ctrl+C interrupts the query while keeping
+the client open. During preparation or noninteractive execution, Ctrl+C cancels
+the command. Database names are literal, including quotes and connection-string
+characters. Names exceeding PostgreSQL's identifier limit are rejected rather
+than truncated.
+
+### Publish without starting a server
+
 From an extension project directory, or a solution directory containing one Ankus SDK project:
 
 ```console

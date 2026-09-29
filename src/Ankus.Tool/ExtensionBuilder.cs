@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Xml.Linq;
 using Ankus.PgConfig;
 
@@ -91,5 +92,41 @@ internal static class ExtensionBuilder
         // MSBuild treats these characters as property-list separators or expansion syntax.
         return string.Concat(value.Select(static c => c is '%' or ';' or ',' or '$' or '@' or '(' or ')' or '\'' or '*' or '?' or '"'
             ? "%" + ((int)c).ToString("X2", CultureInfo.InvariantCulture) : c.ToString()));
+    }
+
+    /// <summary>
+    /// Evaluates the extension's database name with MSBuild, including imported and configuration-specific properties.
+    /// </summary>
+    /// <param name="project">The extension project or directory.</param>
+    /// <param name="configuration">The selected build configuration.</param>
+    /// <param name="installation">The selected PostgreSQL installation.</param>
+    /// <param name="token">Cancels project evaluation.</param>
+    /// <returns>The explicit extension name or the SDK's normalized target name.</returns>
+    internal static async Task<string> GetExtensionNameAsync(string? project, string configuration,
+        PostgresInstallation installation, CancellationToken token)
+    {
+        string path = ResolveProject(project);
+        using var output = new MemoryStream();
+        int code = await ToolProcess.RunAsync("dotnet",
+            ["msbuild", path, "-nologo", "-verbosity:quiet", "-getProperty:AnkusExtensionName,TargetName",
+                "-p:Configuration=" + configuration,
+                "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
+                "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath)], token, outputStream: output);
+        if (code != 0)
+        {
+            Console.Error.Write(System.Text.Encoding.UTF8.GetString(output.ToArray()));
+            throw new InvalidOperationException($"Project evaluation failed ({code}).");
+        }
+
+        using JsonDocument document = JsonDocument.Parse(output.ToArray());
+        JsonElement properties = document.RootElement.GetProperty("Properties");
+        string name = properties.GetProperty("AnkusExtensionName").GetString()!;
+        if (name.Length == 0)
+        {
+            name = properties.GetProperty("TargetName").GetString()!.ToLowerInvariant().Replace('.', '_');
+        }
+
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        return name;
     }
 }

@@ -8,7 +8,7 @@ namespace Ankus.PgConfig;
 /// Manages one persistent, local-only development cluster per PostgreSQL major in an Ankus home.
 /// Stopping a server preserves its databases. Existing unowned directories are never initialized or modified.
 /// </summary>
-public sealed class PostgresDevelopmentCluster
+public sealed partial class PostgresDevelopmentCluster
 {
     private readonly PostgresInstallation _installation;
     private readonly string _root;
@@ -256,7 +256,7 @@ public sealed class PostgresDevelopmentCluster
     }
 
     private async Task<(int Code, string Output)> RunAsync(string executable, string[] arguments, CancellationToken token,
-        bool allowDescendants = false)
+        bool allowDescendants = false, string? input = null, bool postgresClient = false)
     {
         token.ThrowIfCancellationRequested();
         // Windows pg_ctl passes inherited handles to its persistent server. Shell execution
@@ -283,9 +283,22 @@ public sealed class PostgresDevelopmentCluster
             start.Environment.Remove("PGPORT");
         }
 
+        if (postgresClient)
+        {
+            foreach (string key in start.Environment.Keys.Where(static key => key.StartsWith("PG", StringComparison.OrdinalIgnoreCase)).ToArray())
+            {
+                start.Environment.Remove(key);
+            }
+
+            start.Environment["PGCLIENTENCODING"] = "UTF8";
+            start.StandardInputEncoding = new UTF8Encoding(false, true);
+            start.StandardOutputEncoding = Encoding.UTF8;
+            start.StandardErrorEncoding = Encoding.UTF8;
+        }
+
         using var process = new Process { StartInfo = start };
         process.Start();
-        if (!detached)
+        if (!detached && input is null)
         {
             process.StandardInput.Close();
         }
@@ -294,6 +307,12 @@ public sealed class PostgresDevelopmentCluster
         Task<string> error = detached ? Task.FromResult(string.Empty) : process.StandardError.ReadToEndAsync(CancellationToken.None);
         try
         {
+            if (input is not null)
+            {
+                await process.StandardInput.WriteAsync(input.AsMemory(), token).ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
+
             await process.WaitForExitAsync(token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)

@@ -68,6 +68,21 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus run` builds and installs an extension, starts its development server and
+opens psql; `ankus connect` reuses the database without rebuilding. Exact database
+names, existing ports and client exit codes are preserved, including Windows
+Unicode arguments. Interactive query interruption retains the client session.
+Final client probes pass PostgreSQL **13–19/Linux x64**, **13–18/Windows x64** and
+**18.6/macOS ARM64**; terminal interruption is verified on Linux and macOS.
+The full PostgreSQL **18.6/Linux x64** suite passes **9,067 tests, zero failures
+and six Windows-only skips, 9,073 total**, in **10m46.250s**. The solution Release
+build passes with **zero warnings/errors**; API freshness and documentation
+checks pass.
+These client checks do not establish complete platform/version parity. All
+remaining faithful-port requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `ankus start`, `ankus status` and `ankus stop` manage persistent development
 clusters with independent PostgreSQL **13–19** selections. Lifecycle probes pass
 on Linux x64 for all seven majors, Windows x64 for **13–18**, and macOS ARM64 for
@@ -77,8 +92,6 @@ skips, 9,064 total**, in **10m18.142s**. Release, API freshness and documentatio
 checks pass. These lifecycle checks do not establish full Ankus parity across
 the version/platform matrix. Remaining CLI and faithful-port requirements stay
 open; see the detailed lifecycle milestone below.
-
-Earlier verified milestones follow in reverse chronological order.
 
 `ankus init` downloads and registers independent PostgreSQL 13–19 installations.
 Actual provisioning and backend checks pass on Linux x64 for **13.23, 14.24,
@@ -3181,7 +3194,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Build-option isolation, cancellation and existing-file preservation verified; automatic Windows source builds and persisted base-port/toolchain configuration remain required |
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`; Valgrind execution and persisted base-port configuration remain required |
-| `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Pending |
+| `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`; Valgrind execution and cross-target tooling remain required |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
@@ -13850,3 +13863,114 @@ execution. `run`/`connect`, other CLI parity, automatic Windows source provision
 for unavailable prerelease distributions, and the complete Ankus platform/version
 matrix remain required. These lifecycle probes do not establish full extension
 parity across the matrix. All remaining faithful-port requirements remain open.
+
+### 2026-09-29 — Interactive run/connect workflows
+
+`ankus run` follows pgrx's development loop: stop the selected managed cluster,
+publish and install the native extension, start PostgreSQL, create or reuse the
+extension-named database, and open the SQL client. `--install-only` leaves the
+server stopped; `--no-build` uses the existing publication. Existing SQL objects
+are preserved, and authors explicitly create or upgrade the extension in SQL.
+Build failures retain their exit status and do not start a server or install a
+stale publication.
+
+`ankus connect` starts a missing/stopped development server and creates or reuses
+a database without building or installing an extension. Its default name comes
+from evaluated MSBuild properties, including imports and configuration, with the
+SDK's target-name fallback. `--database` accepts a literal name outside a project.
+Both commands pass arguments after `--` to psql or an installed `pgcli`, inherit
+interactive input/output, preserve client exit status and leave the server running
+when the client exits. Existing servers retain their actual running port.
+
+The public cluster API exposes `GetConnectionStringAsync` and
+`CreateDatabaseAsync`. It validates cluster ownership, reads PostgreSQL's recorded
+active port, serializes database mutations under the cluster lock, and rejects
+identifier-length truncation using the server's actual limit. No production tool
+accesses testing internals or adds a database-driver dependency.
+
+An actual Windows probe reveals that native psql command-line decoding changes
+Unicode arguments through the active ANSI code page, causing invalid UTF-8 and
+failed SQL variable substitution. Internal SQL now travels through UTF-8 standard
+input with separately escaped SQL literals and identifiers. Libpq connection
+URIs percent-encode the exact database name into ASCII, preserving Unicode and
+connection-string metacharacters without changing machine-wide settings.
+
+An actual Linux x64 terminal probe also finds that unconditional command cancellation
+closes psql after Ctrl+C. Run/connect now let an interactive client receive its
+own terminal interrupt while retaining cancellation during preparation and
+noninteractive execution. The repeated probe cancels `pg_sleep`, keeps the
+session open, returns **42** from the next query and exits normally with `\q`.
+SIGTERM still returns **130**, terminates the client and retains the development
+server. Other commands retain their existing cancellation handling.
+
+| Requirement | Evidence |
+|---|---|
+| Exact ASCII connection representation, Unicode/connection metacharacters, invalid names and port bounds | `ConnectionValuesPreserveDatabaseNames`, `InvalidConnectionValuesFailExplicitly` |
+| Actual creation/reuse, special names, SQL injection characters and identifier byte limits without truncation | `DevelopmentDatabasesPreserveExactNamesAndRejectTruncation` |
+| Installed connect, real retained row 42, existing custom port, inherited connection-variable isolation and client failure status | `ConnectPreservesDatabaseAndUsesRunningPort` |
+| Imported/configuration-specific extension name and normalized assembly-name fallback without building | `ConnectEvaluatesDefaultDatabaseName`, both rows |
+| Real Native AOT publication, installation, loading and SQL; install-only/no-build; retained state and failed-build propagation | `RunBuildsInstallsAndLoadsNativeExtension` |
+
+Initial affected integration verification passes **five cases, zero failures or
+skips**, in **5m38.179s**. After the Windows encoding correction, all **227
+PgConfig tests** pass. Independent corrected client probes pass PostgreSQL
+**13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and 19beta4/Linux x64**, **13–18/Windows
+x64**, and **18.6/macOS ARM64**. Each verifies an exact unusual database name,
+retained row **42**, actual custom port and captured client output; Linux also
+passes with **pgcli 4.7.1**. Their owned clusters are stopped and removed.
+
+The final tool Release build passes with **zero warnings/errors**. API freshness
+checks **211 pages/2,542 members**; the site builds **258 pages** and checks with
+**zero errors, warnings or hints**. The preceding milestone's CI **36540556401**
+and Docs **36540556480** both complete successfully before the session's access
+change. Linux takes **22m16s**, macOS **9m12s**, Windows **18m42s**, and quality
+**9m58s**; all three runtime jobs also pass. No job times out.
+
+The session temporarily switches to restricted network access and read-only Git
+metadata during final verification. The first complete local test run loses its
+execution handle without a final summary and is not counted as passing.
+Full-suite/Release verification and the macOS terminal-probe cleanup are completed
+after access is restored, as recorded below. Full platform validation remains
+required in CI.
+
+Follow-up diagnostics isolate the stalled Release build to the `clang` launcher
+selected through PATH: its Swift toolchain manager reports a socket-creation
+failure and fails to exit. Selecting the installed Clang **21.0.0** compiler and
+matching libclang directly completes PostgreSQL **18.6/Linux x64** native checks
+for **1,336 shared declarations, 9,245 available inventory entries, 499 native
+values and 3,694 fields**. No compiler or analyzer requirement is relaxed.
+The subsequent binding restore reports **NU1900** because the session cannot
+reach NuGet's vulnerability feed; audit remains enforced. The attempts are
+stopped after diagnosis and do not count as successful solution builds.
+
+A direct socket probe confirms that TCP socket creation is denied with
+`Operation not permitted`, preventing real PostgreSQL validation in this session.
+The final Release tool's `run --help` and `connect --help` both exit **0** and
+expose the expected client/startup options. GitHub remains unreachable and Git
+metadata remains read-only; the pending full-suite, platform and publication
+requirements above are unchanged.
+
+Session access is subsequently restored. The same final tool assembly passes
+the captured client probes again on Linux x64/PostgreSQL **13.23, 14.24, 15.19,
+16.15, 17.11, 18.6 and 19beta4**, including **pgcli 4.7.1**, Windows
+x64/PostgreSQL **13.23, 14.24, 15.19,
+16.15, 17.11 and 18.6**, and macOS ARM64/PostgreSQL **18.6**. A macOS terminal
+probe cancels `pg_sleep` with Ctrl+C, retains the prompt, returns **42** from the
+next query, and exits **0** with `\q`. Its stopped, marked cluster is removed;
+the earlier interrupted terminal validation has no remaining server or data.
+The completed plain `dotnet test` run against PostgreSQL **18.6/Linux x64**
+passes **9,067 tests, zero failures and six Windows-only skips, 9,073 total**,
+in **10m46.250s**, including the final installed-tool integration cases.
+The final solution Release build passes with **zero warnings/errors** in
+**38.97s**. Before committing, the preceding three milestones' CI and Docs runs
+are rechecked: all six runs completed successfully, with none in progress.
+
+Six long README paragraphs are split at topic boundaries. A whitespace-normalized
+comparison confirms that their wording and links are unchanged; `git diff --check`
+passes.
+
+Persisted base-port/toolchain configuration, Valgrind execution, cross-target
+publication, Windows source provisioning for missing prerelease binaries, the
+remaining CLI inventory and the complete extension platform/version matrix remain
+required. These client probes do not establish full extension parity across every
+combination. All other faithful-port requirements remain open.

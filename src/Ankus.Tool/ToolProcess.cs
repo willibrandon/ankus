@@ -14,9 +14,11 @@ internal static class ToolProcess
     /// <param name="arguments">Individual command-line arguments.</param>
     /// <param name="token">Cancels process execution.</param>
     /// <param name="diagnosticsToStandardError">Whether to stream the child's stdout to stderr.</param>
+    /// <param name="outputStream">An optional destination for captured stdout.</param>
+    /// <param name="postgresClient">Whether to clear inherited PostgreSQL connection settings.</param>
     /// <returns>The process exit code.</returns>
     internal static async Task<int> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken token,
-        bool diagnosticsToStandardError = false)
+        bool diagnosticsToStandardError = false, Stream? outputStream = null, bool postgresClient = false)
     {
         token.ThrowIfCancellationRequested();
         using var process = new Process
@@ -24,7 +26,7 @@ internal static class ToolProcess
             StartInfo = new ProcessStartInfo(executable)
             {
                 UseShellExecute = false,
-                RedirectStandardOutput = diagnosticsToStandardError,
+                RedirectStandardOutput = diagnosticsToStandardError || outputStream is not null,
             },
         };
         foreach (string argument in arguments)
@@ -32,11 +34,21 @@ internal static class ToolProcess
             process.StartInfo.ArgumentList.Add(argument);
         }
 
+        if (postgresClient)
+        {
+            foreach (string key in process.StartInfo.Environment.Keys.Where(static key => key.StartsWith("PG", StringComparison.OrdinalIgnoreCase)).ToArray())
+            {
+                process.StartInfo.Environment.Remove(key);
+            }
+
+            process.StartInfo.Environment["PGCLIENTENCODING"] = "UTF8";
+        }
+
         process.Start();
         try
         {
-            Task output = diagnosticsToStandardError
-                ? process.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardError(), token)
+            Task output = process.StartInfo.RedirectStandardOutput
+                ? process.StandardOutput.BaseStream.CopyToAsync(outputStream ?? Console.OpenStandardError(), token)
                 : Task.CompletedTask;
             await Task.WhenAll(output, process.WaitForExitAsync(token));
         }

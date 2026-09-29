@@ -41,34 +41,57 @@ The PostgreSQL installation that runs the cluster.
 The Ankus home, defaulting to ~/.ankus.
 
 
-## Properties
-
-<a id="member-a7c9a9fc7f2207ff"></a>
-
-### DataDirectory
-
-Gets the persistent data directory for this PostgreSQL major.
-
-```csharp
-public string DataDirectory { get; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-<a id="member-37c14030cf6b578e"></a>
-
-### LogFilePath
-
-Gets the server log path outside the data directory.
-
-```csharp
-public string LogFilePath { get; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-
 ## Methods
+
+<a id="member-73b306aac5d399fe"></a>
+
+### CreateDatabaseAsync(string, CancellationToken)
+
+Creates a database in the running cluster, or reuses an existing database without modifying it.
+Names retain their exact UTF-8 spelling; names exceeding the server's identifier limit are rejected.
+
+```csharp
+public Task<bool> CreateDatabaseAsync(string database, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`database` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal database name.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels database queries and creation.
+
+Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+True when a database was created, or false when it already existed.
+
+<a id="member-b95391396e2965d2"></a>
+
+### GetConnectionStringAsync(string, CancellationToken)
+
+Gets a libpq connection string for the running cluster's actual port and an exact database name.
+This does not start the server or create the database.
+
+```csharp
+public Task<string> GetConnectionStringAsync(string database, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`database` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The literal database name, not a connection string.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels status and port discovery.
+
+Returns: [Task&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+Connection settings suitable for psql or another libpq client.
 
 <a id="member-591b22aeb83cd9e0"></a>
 
@@ -134,3 +157,30 @@ Cancels the shutdown command.
 Returns: [Task&lt;bool&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 True when a running server was stopped.
+
+
+## Properties
+
+<a id="member-a7c9a9fc7f2207ff"></a>
+
+### DataDirectory
+
+Gets the persistent data directory for this PostgreSQL major.
+
+```csharp
+public string DataDirectory { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-37c14030cf6b578e"></a>
+
+### LogFilePath
+
+Gets the server log path outside the data directory.
+
+```csharp
+public string LogFilePath { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)

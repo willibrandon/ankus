@@ -16,6 +16,7 @@ internal static partial class ToolCommand
     /// <returns>The command exit code.</returns>
     internal static async Task<int> RunAsync(string[] arguments)
     {
+        using var interactiveCancellation = new InteractiveCommandCancellation();
         var home = new Option<string?>("--home")
         {
             Description = "Ankus home directory (default: ~/.ankus).",
@@ -27,6 +28,8 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateCluster("start", home));
         root.Subcommands.Add(CreateCluster("stop", home));
         root.Subcommands.Add(CreateCluster("status", home));
+        root.Subcommands.Add(CreateConnect(home, interactiveCancellation));
+        root.Subcommands.Add(CreateRun(home, interactiveCancellation));
         root.Subcommands.Add(CreateNew());
         root.Subcommands.Add(CreateBuild("build", "Build the native extension and SQL files.", home));
         root.Subcommands.Add(CreateBuild("publish", "Publish the native extension and SQL files to a directory.", home));
@@ -34,11 +37,18 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateSchema(home));
         try
         {
-            return await root.Parse(arguments).InvokeAsync(new InvocationConfiguration
+            ParseResult result = root.Parse(arguments);
+            bool interactive = result.CommandResult.Command.Name is "run" or "connect";
+            if (interactive)
+            {
+                interactiveCancellation.Enable();
+            }
+
+            return await result.InvokeAsync(new InvocationConfiguration
             {
                 EnableDefaultExceptionHandler = false,
-                ProcessTerminationTimeout = TimeSpan.FromSeconds(30),
-            });
+                ProcessTerminationTimeout = interactive ? null : TimeSpan.FromSeconds(30),
+            }, interactiveCancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -272,7 +282,7 @@ internal static partial class ToolCommand
 
     private static string GetOutputDirectory(ParseResult result, PostgresInstallation installation)
     {
-        string? output = result.CommandResult.Command.Name == "install" ? null : result.GetValue<string?>("--output");
+        string? output = result.CommandResult.Command.Name is "install" or "run" ? null : result.GetValue<string?>("--output");
         string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
         string configuration = GetConfiguration(result);
         return Path.GetFullPath(output ?? Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",

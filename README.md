@@ -2,7 +2,9 @@
 
 Ankus ports [pgrx](https://github.com/pgcentralfoundation/pgrx) to .NET Native AOT.
 Define PostgreSQL functions, aggregates, operators, casts, triggers, custom types, and
-configuration settings in C#. Run background workers, share memory between backends,
+configuration settings in C#.
+
+Run background workers, share memory between backends,
 and extend the planner and executor with native hooks and custom scan providers.
 Access PostgreSQL's native APIs through generated bindings. Publish it all as a
 native extension.
@@ -66,6 +68,9 @@ prerequisites and platform distribution availability.
 
 Use `ankus start --pg 18`, `ankus status --pg 18`, and `ankus stop --pg 18`
 to manage a persistent local development server. Stopping it preserves its databases.
+
+`ankus run --pg 18` builds and installs your extension, then opens psql in its
+development database. `ankus connect --pg 18` reopens that database without a build.
 
 ## Function types
 
@@ -273,9 +278,11 @@ dependencies from the selected server headers using Clang 20 or later and
 matching `libclang`, preserving fields, enums, unions, arrays and bitfields.
 Fields follow the selected installation, including changes between prerelease
 snapshots; incompatible node tags or inheritance fail validation.
+
 Anonymous structs and unions expose their promoted members directly on the
 enclosing record, preserving C field access and shared storage.
 Projects using the same measured contract share their native type identity.
+
 The SDK defines `ANKUS_PG13` through `ANKUS_PG19` for the selected major so
 consumer code can select version-specific declarations at compile time; see
 [build settings](docs/src/content/docs/reference/build-settings.md).
@@ -288,7 +295,9 @@ boundary and returns owned text.
 `NativeMethods` exposes selected-header fixed functions and helpers for alignment,
 memory contexts, pages and tuples through the native error guard. `NativeGlobals`
 provides guarded value copies and explicit native addresses for selected-header
-globals. Native function pointers have typed borrowed values whose `Invoke`
+globals.
+
+Native function pointers have typed borrowed values whose `Invoke`
 methods use the same native error guard. Method-table fields expose callback
 types named after their record and field; global hooks also expose
 `NativeGlobals_<Global>Callback` names independent of unrelated typedef aliases.
@@ -302,7 +311,9 @@ See [native PostgreSQL declarations](docs/src/content/docs/raw-values.md#native-
 The [custom-scan sample](samples/Ankus.Examples.CustomScans) uses these method
 tables to trace actual sequential and index paths, child-plan execution, rescans
 and EXPLAIN. Index children retain their supported backward and mark/restore
-capabilities. Parameter diagnostics follow partition ancestry without reevaluating
+capabilities.
+
+Parameter diagnostics follow partition ancestry without reevaluating
 the child's clauses. Parallel scans combine observations in PostgreSQL-owned shared
 memory using native atomics. See [custom scan providers](docs/src/content/docs/custom-scans.md)
 for registration, plan/state ownership and parallel lifecycle requirements.
@@ -367,7 +378,9 @@ bounded-collection updates. `Value` provides copied access and replacement.
 
 `PgAtomic<T>` provides scalar reads, exchanges, comparisons
 and integer updates across backends and managed threads with .NET `Interlocked`
-semantics. `PgShared<T>` gives scoped readonly access to immutable aggregates and
+semantics.
+
+`PgShared<T>` gives scoped readonly access to immutable aggregates and
 inline `PgAtomicValue<T>` fields. Inline `PgSpinLockValue<T>` fields provide
 exclusive guards for very short updates; `PgSpinLock<T>` owns stable local
 storage with the same guard API. Scoped guard reads operate on original nested
@@ -407,7 +420,9 @@ Declare PostgreSQL settings with `[PgGucBool]`, `[PgGucInt]`, `[PgGucReal]`,
 `[PgGucString]`, or `[PgGucEnum]` on static partial getters. PostgreSQL owns their
 storage, startup source priority, permissions, SET/RESET behavior, and transaction restoration. See
 [configuration settings](docs/src/content/docs/configuration.md) for typed hooks,
-units, owned extra data, and shared preload. An assembly `PgGucPrefix`
+units, owned extra data, and shared preload.
+
+An assembly `PgGucPrefix`
 attribute checks unknown settings after registration. Hooks can use `PgLog` during reload,
 rollback, and client reporting. Parallel workers restore typed values and regenerate
 hook extra data in their own managed runtime.
