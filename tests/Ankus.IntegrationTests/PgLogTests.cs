@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Ankus.Testing;
 using Npgsql;
 
@@ -243,15 +244,41 @@ public sealed class PgLogTests(TestContext context)
         var notices = new List<PostgresNotice>();
         connection.Notice += (_, args) => notices.Add(args.Notice);
         string marker = "terminal-" + Guid.NewGuid().ToString("N");
+        await using (var identify = new NpgsqlCommand($"SET application_name = '{marker}'; SET log_error_verbosity = verbose", connection))
+        {
+            await identify.ExecuteNonQueryAsync(token);
+        }
+
         await using var command = new NpgsqlCommand("SELECT log_terminal($1, $2)", connection);
         command.Parameters.AddWithValue(level);
         command.Parameters.AddWithValue(marker);
-        PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
-        Assert.AreEqual(severity, error.InvariantSeverity);
-        Assert.AreEqual("P0001", error.SqlState);
-        Assert.AreEqual(marker, error.MessageText);
-        Assert.HasCount(1, notices);
-        Assert.AreEqual("finally " + marker, notices[0].MessageText);
+        NpgsqlException terminalFailure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteScalarAsync(token));
+        if (terminalFailure is PostgresException error)
+        {
+            Assert.AreEqual(severity, error.InvariantSeverity);
+            Assert.AreEqual("P0001", error.SqlState);
+            Assert.AreEqual(marker, error.MessageText);
+            Assert.AreEqual("finally " + marker, Assert.ContainsSingle(notices).MessageText);
+        }
+        else
+        {
+            Assert.IsTrue(OperatingSystem.IsWindows());
+            IOException transport = Assert.IsInstanceOfType<IOException>(terminalFailure.InnerException);
+            SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+            Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+            if (notices.Count != 0)
+            {
+                Assert.AreEqual("finally " + marker, Assert.ContainsSingle(notices).MessageText);
+            }
+        }
+
+        string log = string.Join('\n', cluster.ReadServerLog().Split('\n')
+            .Where(line => line.Contains($"[{marker}]:", StringComparison.Ordinal)));
+        string terminal = severity + ":  P0001: " + marker;
+        Assert.Contains(terminal, log);
+        Assert.Contains("finally " + marker, log);
+        Assert.IsLessThan(log.IndexOf(terminal, StringComparison.Ordinal), log.IndexOf("finally " + marker, StringComparison.Ordinal));
+        Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
 
         if (level == 11)
         {
@@ -292,10 +319,5 @@ public sealed class PgLogTests(TestContext context)
 
             Assert.Contains("reinitializing", cluster.ReadServerLog());
         }
-
-        string log = cluster.ReadServerLog();
-        Assert.Contains(severity + ":  " + marker, log);
-        Assert.IsLessThan(log.IndexOf(severity + ":  " + marker, StringComparison.Ordinal),
-            log.IndexOf("WARNING:  finally " + marker, StringComparison.Ordinal));
     }
 }

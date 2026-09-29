@@ -67,7 +67,7 @@ internal static class ExtensionBuilder
         string path = ResolveProject(project);
         Directory.CreateDirectory(output);
         // A failed build must not leave an earlier manifest that looks installable.
-        File.Delete(Path.Combine(output, PublishedExtension.FileName));
+        PublishedExtension.Invalidate(output);
         int exitCode = await ToolProcess.RunAsync("dotnet",
         [
             "publish", path, "--configuration", configuration, "--runtime", RuntimeInformation.RuntimeIdentifier,

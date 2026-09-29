@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Npgsql;
 
 namespace Ankus.IntegrationTests;
@@ -39,13 +40,42 @@ public sealed class GucEncodingTests(TestContext context)
             await connection.OpenAsync(token);
             await using var command = new NpgsqlCommand($"LOAD '{library}'; {setup}", connection);
             await command.ExecuteNonQueryAsync(token);
+            string session = "ankus-guc-encoding-terminal-" + Guid.NewGuid().ToString("N");
+            command.CommandText = $"SET application_name = '{session}'; SET log_error_verbosity = verbose; SET log_min_messages = notice";
+            await command.ExecuteNonQueryAsync(token);
             var notices = new List<PostgresNotice>();
             connection.Notice += (_, args) => notices.Add(args.Notice);
             command.CommandText = trigger;
-            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteNonQueryAsync(token));
-            Assert.AreEqual("FATAL", error.InvariantSeverity);
-            Assert.AreEqual("22P05", error.SqlState);
-            Assert.AreEqual(marker, Assert.ContainsSingle(notices).MessageText);
+            NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteNonQueryAsync(token));
+            if (failure is PostgresException error)
+            {
+                Assert.AreEqual("FATAL", error.InvariantSeverity);
+                Assert.AreEqual("22P05", error.SqlState);
+                Assert.AreEqual(marker, Assert.ContainsSingle(notices).MessageText);
+            }
+            else
+            {
+                Assert.IsTrue(OperatingSystem.IsWindows());
+                IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
+                SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+                Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+                if (notices.Count != 0)
+                {
+                    Assert.AreEqual(marker, Assert.ContainsSingle(notices).MessageText);
+                }
+            }
+
+            string log = string.Join('\n', PostgresFixture.Cluster.ReadServerLog().Split('\n')
+                .Where(line => line.Contains($"[{session}]:", StringComparison.Ordinal)));
+            Assert.Contains("FATAL:  22P05:", log);
+            Assert.Contains(marker, log);
+            Assert.IsLessThan(log.IndexOf("FATAL:  22P05:", StringComparison.Ordinal), log.IndexOf(marker, StringComparison.Ordinal));
+            Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
+            await using (var observer = new NpgsqlCommand("SELECT 42", administrator))
+            {
+                Assert.AreEqual(42, await observer.ExecuteScalarAsync(token));
+            }
+
             await using var healthy = new NpgsqlConnection(builder.ConnectionString);
             await healthy.OpenAsync(token);
             await using var probe = new NpgsqlCommand("SELECT 42", healthy);

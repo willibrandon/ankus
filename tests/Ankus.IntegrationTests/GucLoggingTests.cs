@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Ankus.Testing;
 using Npgsql;
 
@@ -151,16 +152,8 @@ public sealed class GucLoggingTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         await ExecuteAsync(connection, "LOAD 'Ankus.GucAssignExtension'");
-        var notices = new List<PostgresNotice>();
-        connection.Notice += (_, args) => notices.Add(args.Notice);
-        PostgresException error = await FailureAsync(connection, $"SET ankus_guc_assign.count = '{value}'");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
-        Assert.AreEqual("P0001", error.SqlState);
-        Assert.AreEqual("Assignment requested termination.", error.MessageText);
-        Assert.AreEqual("Managed frames unwind first.", error.Detail);
-        Assert.AreEqual($"Assignment finally {value}.", Assert.ContainsSingle(notices).MessageText);
-        await using NpgsqlConnection healthy = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
-        Assert.AreEqual(42, await ScalarAsync(healthy, "SELECT 42"));
+        await AssertFatalAsync(connection, $"SET ankus_guc_assign.count = '{value}'",
+            "Assignment requested termination.", $"Assignment finally {value}.", "Managed frames unwind first.");
     }
 
     /// <summary>
@@ -171,15 +164,8 @@ public sealed class GucLoggingTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         await ExecuteAsync(connection, "LOAD 'Ankus.GucShowExtension'; SET ankus_guc_show.count = '668'");
-        var notices = new List<PostgresNotice>();
-        connection.Notice += (_, args) => notices.Add(args.Notice);
-        PostgresException error = await FailureAsync(connection, "SHOW ankus_guc_show.count");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
-        Assert.AreEqual("P0001", error.SqlState);
-        Assert.AreEqual("Display requested termination.", error.MessageText);
-        Assert.AreEqual("Display finally 668.", Assert.ContainsSingle(notices).MessageText);
-        await using NpgsqlConnection healthy = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
-        Assert.AreEqual(42, await ScalarAsync(healthy, "SELECT 42"));
+        await AssertFatalAsync(connection, "SHOW ankus_guc_show.count",
+            "Display requested termination.", "Display finally 668.", "Managed frames unwind first.");
     }
 
     /// <summary>
@@ -190,15 +176,8 @@ public sealed class GucLoggingTests(TestContext context)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
         await ExecuteAsync(connection, "LOAD 'Ankus.TestExtension'; SET ankus_guc.control = 'check-log-fatal'");
-        var notices = new List<PostgresNotice>();
-        connection.Notice += (_, args) => notices.Add(args.Notice);
-        PostgresException error = await FailureAsync(connection, "SET ankus_guc.hook_int = '20'");
-        Assert.AreEqual("FATAL", error.InvariantSeverity);
-        Assert.AreEqual("P0001", error.SqlState);
-        Assert.AreEqual("Check requested termination.", error.MessageText);
-        Assert.AreEqual("Check finally.", Assert.ContainsSingle(notices).MessageText);
-        await using NpgsqlConnection healthy = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
-        Assert.AreEqual(42, await ScalarAsync(healthy, "SELECT 42"));
+        await AssertFatalAsync(connection, "SET ankus_guc.hook_int = '20'",
+            "Check requested termination.", "Check finally.", null);
     }
 
     /// <summary>
@@ -273,4 +252,52 @@ public sealed class GucLoggingTests(TestContext context)
 
     private async Task<PostgresException> FailureAsync(NpgsqlConnection connection, string sql)
         => await Assert.ThrowsExactlyAsync<PostgresException>(() => ExecuteAsync(connection, sql));
+
+    private async Task AssertFatalAsync(NpgsqlConnection connection, string sql, string message, string finallyMessage, string? detail)
+    {
+        string session = "ankus-guc-terminal-" + Guid.NewGuid().ToString("N");
+        await ExecuteAsync(connection, $"SET application_name = '{session}'; SET log_error_verbosity = verbose; SET log_min_messages = notice");
+        await using NpgsqlConnection observer = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        int observerProcess = observer.ProcessID;
+        var notices = new List<PostgresNotice>();
+        connection.Notice += (_, args) => notices.Add(args.Notice);
+        NpgsqlException failure = await Assert.ThrowsAsync<NpgsqlException>(() => ExecuteAsync(connection, sql));
+        if (failure is PostgresException error)
+        {
+            Assert.AreEqual("FATAL", error.InvariantSeverity);
+            Assert.AreEqual("P0001", error.SqlState);
+            Assert.AreEqual(message, error.MessageText);
+            Assert.AreEqual(detail, error.Detail);
+            Assert.AreEqual(finallyMessage, Assert.ContainsSingle(notices).MessageText);
+        }
+        else
+        {
+            // PostgreSQL has already flushed FATAL, but Windows can reset the closing socket before it is read.
+            Assert.IsTrue(OperatingSystem.IsWindows());
+            IOException transport = Assert.IsInstanceOfType<IOException>(failure.InnerException);
+            SocketException socket = Assert.IsInstanceOfType<SocketException>(transport.InnerException);
+            Assert.AreEqual(SocketError.ConnectionReset, socket.SocketErrorCode);
+            if (notices.Count != 0)
+            {
+                Assert.AreEqual(finallyMessage, Assert.ContainsSingle(notices).MessageText);
+            }
+        }
+
+        string log = string.Join('\n', PostgresFixture.Cluster.ReadServerLog().Split('\n')
+            .Where(line => line.Contains($"[{session}]:", StringComparison.Ordinal)));
+        string terminal = "FATAL:  P0001: " + message;
+        Assert.Contains(terminal, log);
+        Assert.Contains(finallyMessage, log);
+        Assert.IsLessThan(log.IndexOf(terminal, StringComparison.Ordinal), log.IndexOf(finallyMessage, StringComparison.Ordinal));
+        if (detail is not null)
+        {
+            Assert.Contains("DETAIL:  " + detail, log);
+        }
+
+        Assert.AreEqual(System.Data.ConnectionState.Closed, connection.State);
+        Assert.AreEqual(42, await ScalarAsync(observer, "SELECT 42"));
+        Assert.AreEqual(observerProcess, await ScalarAsync(observer, "SELECT pg_backend_pid()"));
+        await using NpgsqlConnection healthy = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);
+        Assert.AreEqual(42, await ScalarAsync(healthy, "SELECT 42"));
+    }
 }

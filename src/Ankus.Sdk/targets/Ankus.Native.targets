@@ -1,5 +1,17 @@
 <Project>
-  <Target Name="_ValidateAnkusPublish" BeforeTargets="PrepareForPublish">
+  <Target Name="_InvalidateAnkusPublication" BeforeTargets="PrepareForBuild" Condition="'$(_IsPublishing)' == 'true'"
+          DependsOnTargets="_InvalidateAnkusPublishManifest" />
+
+  <Target Name="_InvalidateAnkusPublishManifest">
+    <PropertyGroup>
+      <_AnkusPublishedManifest>$(PublishDir.TrimEnd('/').TrimEnd('\'))/ankus.extension.json</_AnkusPublishedManifest>
+      <_AnkusPreviousManifest>$(PublishDir.TrimEnd('/').TrimEnd('\'))/ankus.extension.previous.json</_AnkusPreviousManifest>
+    </PropertyGroup>
+    <Move SourceFiles="$(_AnkusPublishedManifest)" DestinationFiles="$(_AnkusPreviousManifest)"
+          Condition="Exists('$(_AnkusPublishedManifest)')" />
+  </Target>
+
+  <Target Name="_ValidateAnkusPublish" BeforeTargets="PrepareForPublish" DependsOnTargets="_InvalidateAnkusPublishManifest">
     <Error Condition="'$(PublishAot)' != 'true'" Text="Ankus extensions require PublishAot=true." />
     <Error Condition="'$(OutputType)' != 'Library' or '$(NativeLib)' != 'Shared'"
            Text="Ankus extensions require OutputType=Library and NativeLib=Shared." />
@@ -71,16 +83,19 @@
   </Target>
 
   <Target Name="_PublishAnkusSchema" AfterTargets="Publish" Condition="'$(PublishAot)' == 'true'">
+    <Copy SourceFiles="$(_AnkusArtifacts)schema.sql" DestinationFiles="$(PublishDir)$(TargetName).sql" />
+    <WriteLinesToFile File="$(_AnkusArtifacts)upgrade-scripts.txt" Lines="@(AnkusUpgradeScript->'%(FullPath)')"
+                      Overwrite="true" Encoding="UTF-8" />
+    <Exec Command="dotnet &quot;$(_AnkusBuildTool)&quot; publish-sql &quot;$(_AnkusArtifacts.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(PublishDir.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(_AnkusArtifacts)upgrade-scripts.txt&quot; &quot;$(MSBuildProjectDirectory)&quot; &quot;$(AnkusExtensionVersion)&quot;" />
     <ItemGroup>
       <_AnkusPackageFile Include="$(_AnkusArtifacts)extension/$(AnkusExtensionName).control" />
       <_AnkusPackageFile Include="$(_AnkusArtifacts)extension/$(AnkusExtensionName)--$(AnkusExtensionVersion).sql" />
+      <_AnkusPackageFile Include="@(AnkusUpgradeScript)" />
     </ItemGroup>
-    <Copy SourceFiles="$(_AnkusArtifacts)schema.sql" DestinationFiles="$(PublishDir)$(TargetName).sql" />
-    <Copy SourceFiles="@(_AnkusPackageFile)" DestinationFolder="$(PublishDir)extension/" />
-    <Copy SourceFiles="$(_AnkusArtifacts)ankus.extension.json" DestinationFolder="$(PublishDir)" />
     <ItemGroup>
       <FileWrites Include="$(PublishDir)$(TargetName).sql" />
-      <FileWrites Include="$(PublishDir)ankus.extension.json" />
+      <FileWrites Include="$(_AnkusArtifacts)upgrade-scripts.txt" />
+      <FileWrites Include="$(PublishDir.TrimEnd('/').TrimEnd('\'))/ankus.extension.json" />
       <FileWrites Include="@(_AnkusPackageFile->'$(PublishDir)extension/%(Filename)%(Extension)')" />
     </ItemGroup>
   </Target>

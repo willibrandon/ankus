@@ -326,10 +326,12 @@ public sealed partial class ToolCommandTests(TestContext context)
     [DataRow("install", "runtime")]
     [DataRow("install", "path")]
     [DataRow("install", "missing")]
+    [DataRow("install", "upgrade")]
     [DataRow("package", "major")]
     [DataRow("package", "runtime")]
     [DataRow("package", "path")]
     [DataRow("package", "missing")]
+    [DataRow("package", "upgrade")]
     public async Task InvalidArtifactDoesNotPartiallyInstall(string operation, string failure)
     {
         string source = CreateDirectory();
@@ -356,6 +358,10 @@ public sealed partial class ToolCommandTests(TestContext context)
                 break;
             case "missing":
                 File.Delete(Path.Combine(source, "extension", manifest["sql"]!.GetValue<string>()));
+                break;
+            case "upgrade":
+                manifest["formatVersion"] = 2;
+                manifest["upgradeScripts"] = new JsonArray("ankus_tool_probe--previous--0.1.0.sql");
                 break;
         }
 

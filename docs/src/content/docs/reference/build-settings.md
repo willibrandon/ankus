@@ -16,6 +16,7 @@ Set extension properties in your project file:
 | --- | --- | --- |
 | `AnkusExtensionName` | Lowercase assembly name, with periods replaced by underscores | Names the control and SQL files |
 | `AnkusExtensionVersion` | Project `Version` | Selects the versioned SQL filename and control-file version |
+| `EnableDefaultAnkusUpgradeScripts` | Enabled | Includes `sql/<extension>--<old>--<new>.sql` upgrade files; set to `false` for explicit items only |
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
@@ -73,6 +74,10 @@ guarded entirely in native code before control returns to managed code.
 An extension uses `Ankus.Sdk` as its project SDK. The SDK sets `PublishAot` and
 `IsAotCompatible` to `true`, `NativeLib` to `Shared`, and enables unsafe code for
 generated native entry points. The output type is `Library`.
+
+Use `AnkusUpgradeScript` items to select SQL upgrades. See
+[upgrading an extension](/getting-started/publishing/#upgrade-an-existing-extension)
+for file naming, tokens, and native library versioning.
 
 Pin the SDK version in the project (`Ankus.Sdk/0.1.0`) or centrally in `global.json`:
 

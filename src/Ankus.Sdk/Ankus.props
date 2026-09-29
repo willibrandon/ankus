@@ -10,5 +10,9 @@
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
+    <AnkusUpgradeScript Include="sql/$(AnkusExtensionName)--*--*.sql"
+                        Condition="'$(EnableDefaultAnkusUpgradeScripts)' != 'false' and '$(AnkusExtensionName)' != ''" />
+    <AnkusUpgradeScript Include="sql/$(TargetName.ToLowerInvariant().Replace('.', '_'))--*--*.sql"
+                        Condition="'$(EnableDefaultAnkusUpgradeScripts)' != 'false' and '$(AnkusExtensionName)' == ''" />
   </ItemGroup>
 </Project>

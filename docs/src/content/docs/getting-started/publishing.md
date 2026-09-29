@@ -112,3 +112,67 @@ SELECT public.greet('world');   -- Hello, world!
 
 See [build settings](/reference/build-settings/) to change the extension name or
 version.
+
+## Upgrade an existing extension
+
+Changing `AnkusExtensionVersion` creates a new installation script. Existing
+databases also need an upgrade script that changes their current SQL objects.
+Place it in your extension project's `sql/` directory:
+
+```text
+sql/
+  hello--0.1.0--0.2.0.sql
+```
+
+For example, an extension that already owns a `hello_settings` table could add
+a column with:
+
+```sql
+ALTER TABLE hello_settings ADD COLUMN enabled boolean NOT NULL DEFAULT true;
+```
+
+Set `AnkusExtensionVersion` to `0.2.0`, publish and install the new files, then
+update each database:
+
+```console
+ankus install --pg 18
+```
+
+```sql
+ALTER EXTENSION hello UPDATE TO '0.2.0';
+```
+
+`dotnet publish`, `ankus publish`, `ankus install`, and `ankus package` include
+the selected upgrade scripts. PostgreSQL chooses the upgrade path, including
+multiple intermediate scripts. Version names are literal PostgreSQL versions;
+they need not follow semantic versioning. PostgreSQL rolls back SQL changes
+when an upgrade fails.
+
+Write scripts as UTF-8. Ankus replaces `@EXTENSION_VERSION@` with the configured
+extension version and `@GIT_HASH@` with the project's current commit. Git is
+required only when a script uses that token. PostgreSQL resolves
+`MODULE_PATHNAME` through the new control file when it executes the script.
+
+When native functions change, use a distinct `AssemblyName`, such as
+`Hello.0.2.0`, and replace their SQL declarations in the upgrade script with
+`CREATE OR REPLACE FUNCTION ... AS 'MODULE_PATHNAME', 'native_export'`.
+Use the matching generated installation SQL for the actual declarations and
+export names. Already connected backends can then load the new library while
+retaining references to the old one. Ankus does not automatically version the
+native filename or generate migration SQL.
+
+Default discovery includes matching files directly under `sql/`. To remove a
+default item or include a script from elsewhere:
+
+```xml
+<ItemGroup>
+  <AnkusUpgradeScript Remove="sql/hello--0.1.0--0.2.0.sql" />
+  <AnkusUpgradeScript Include="migrations/hello--0.1.0--0.2.0.sql" />
+</ItemGroup>
+```
+
+Set `EnableDefaultAnkusUpgradeScripts` to `false` to select every script
+explicitly. Duplicate output names and invalid upgrade filenames fail the
+publish. A successful republish removes obsolete SQL files owned by the previous
+publication and preserves unrelated files. Installation preserves previously
+installed versions so databases can still use their existing libraries.

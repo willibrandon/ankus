@@ -235,8 +235,9 @@ Build an installation tree beneath a separate directory:
 ankus package --pg 18 --output dist
 ```
 
-The package contains the native library, extension control file, and versioned
-installation SQL. Its paths mirror the selected installation's `--pkglibdir`
+The package contains the native library, extension control file, versioned
+installation SQL, and selected [upgrade scripts](/getting-started/publishing/#upgrade-an-existing-extension).
+Its paths mirror the selected installation's `--pkglibdir`
 and `--sharedir`, relative to the package root. For example, an installation
 whose libraries live in `/usr/lib/postgresql/18/lib` puts the packaged library
 under `dist/usr/lib/postgresql/18/lib`. Windows packages instead use `lib/` and

@@ -68,6 +68,19 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+SQL upgrade scripts now flow through publishing, installation and packaging.
+A real two-step PostgreSQL update preserves existing rows, rolls back a failed
+update, then retries successfully in the same backend using a new native library.
+Complete PostgreSQL **18.6** suites discover **9,178 tests**: Linux x64 passes
+**9,172**, with six platform skips, in **11m45.786s**; macOS ARM64 passes
+**9,169**, with nine platform skips, in **8m29.128s**. Both have zero failures.
+Windows x64/PostgreSQL **17.11** passes **71 focused cases**; its complete
+CI run remains required. Release, generated API and documentation checks pass.
+The prior Windows terminal-report failure is repaired with exact server-log
+and backend-recovery checks. Remaining faithful-port requirements stay open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `ankus run` builds and installs an extension, starts its development server and
 opens psql; `ankus connect` reuses the database without rebuilding. Exact database
 names, existing ports and client exit codes are preserved, including Windows
@@ -3199,8 +3212,8 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Pending |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
-| `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Partial: installed CLI validates manifests and copies/stages native libraries, control and versioned SQL files; upgrade scripts pending |
-| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release/explicit Debug, project or existing publication, default/explicit output, and custom native library names. Custom build configurations, cross-target packaging and upgrade-script distribution remain required; verification is recorded in the package milestone below |
+| `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
+| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release/explicit Debug, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Custom build configurations and cross-target packaging remain required; verification is recorded in the package and SQL-upgrade milestones below |
 | `get` | Query extension control properties and derived extension metadata | Pending |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
 | `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Pending; distinct from PostgreSQL extension SQL upgrades |
@@ -14121,3 +14134,93 @@ Custom build configurations, cross-target configuration/build/package,
 upgrade-script distribution, the remaining command inventory and the full
 extension version/platform matrix remain required. This command does not
 establish full-port parity.
+
+
+### 2026-09-29 — SQL upgrade distribution and terminal-report validation
+
+The SDK now selects `sql/<extension>--<old>--<new>.sql` through
+`AnkusUpgradeScript` items, including normal MSBuild additions/removals and an
+explicit default-discovery opt-out. Publishing validates UTF-8 and filenames,
+substitutes `@EXTENSION_VERSION@` and optional `@GIT_HASH@`, and declares the
+upgrade files in a version-two publication manifest. Publications without
+upgrades retain version one. Install and package consume the full declared
+payload and check for missing scripts before copying.
+
+Publishing invalidates its previous manifest before compilation. The retained
+inventory allows successful republishing to remove obsolete owned SQL while
+preserving unrelated files and previously published native libraries. The
+manifest is written after the complete payload is present. PostgreSQL retains
+responsibility for selecting update paths and rolling back failed updates.
+
+| Requirement | Evidence |
+|---|---|
+| Version-one compatibility, immutable ordered literal-version upgrades and malformed-input rejection | `PublishedExtensionTests`, including round trips, invalid names/JSON, nulls and output collisions |
+| Consumer default discovery, explicit Include/Remove/Update and opt-out | `SdkUpgradeScriptsTests.UpgradeItemsHonorConsumerEvaluation`, all four cases evaluate actual MSBuild items |
+| Publication invalidation before compilation, both directory spellings, and ordinary-build preservation | `SdkPublishInvalidationTests.PrepareForBuildInvalidatesOnlyPublication` and `ToolCommandTests.DirectPublishFailureInvalidatesPreviousManifest` |
+| UTF-8/BOM/newline preservation, version/Git tokens and unchanged source files | `UpgradeSqlCommandTests.PublishesExactUtf8AndVersionWithoutGit`, both rows, and `GitTokenUsesCommittedProjectIdentity` |
+| Invalid input cannot leave an installable manifest or partly replace SQL | `InvalidScriptLeavesSqlIntactAndPublicationUninstallable`, all five rows; `InvalidArgumentsAndCancellationDoNotMutatePublication` |
+| Failed-publication recovery and removal of only obsolete owned SQL | `FailedPublishPreservesInventoryUntilCompleteReplacement` and `EmptySelectionRemovesOnlyPreviouslyPublishedUpgrade` |
+| Install/package copy all declared upgrade bytes and reject missing files before copying | `InstallAndPackageCopyOnlyDeclaredUpgrades`, both commands; `InvalidArtifactDoesNotPartiallyInstall`, upgrade rows |
+| Actual two-step update, rollback, data preservation, replacement native behavior and same-backend retry | `PackagedUpgradePreservesDataAndRecoversFromFailedUpdate` |
+
+The real PostgreSQL upgrade probe installs a base version, retains table rows,
+packages a new versioned Native AOT library and a two-step SQL upgrade, and
+checks failed-update rollback followed by successful repair in the same backend.
+The probe uses the replacement library's generated export names; changing
+`AssemblyName` also changes that export identity. Public publishing, build
+settings, CLI and README guidance now cover the author workflow.
+
+Previous [CI 36560285848](https://github.com/willibrandon/ankus/actions/runs/36560285848)
+for `79cb0c7` finished: Linux/PostgreSQL 18 passed in **23m34s**, macOS/PostgreSQL
+18 passed in **9m49s**, and Windows/PostgreSQL 17 failed in **18m20s**. Quality,
+runtime jobs and [Docs 36560285858](https://github.com/willibrandon/ankus/actions/runs/36560285858)
+passed. No job timed out. The Windows failure was
+`GucLoggingTests.AssignmentReportsTerminateTheAffectedBackend(668)`: its client
+received the precise Windows connection-reset exception instead of a readable
+PostgreSQL terminal error. The server log records the managed finally notice,
+then the expected FATAL and detail for that same backend and command.
+
+The affected GUC logging tests now require a uniquely identified server log,
+exact terminal severity/SQLSTATE/message/detail, managed-finally ordering, a
+closed failed connection, a surviving pre-existing peer, and a healthy new
+connection. A wire error still requires its full diagnostic. Only Windows may
+report the specific nested connection-reset exception. The related terminal
+encoding and general FATAL/PANIC tests use the same transport contract while
+retaining their diagnostic, rollback and crash-recovery checks.
+
+Final complete plain `dotnet test` runs discover **9,178 tests** on .NET SDK
+**10.0.400** with PostgreSQL **18.6**:
+
+- Debian **13.5**, Linux x64: **9,172 passed, 0 failed, 6 Windows-only skips**
+  in **11m45.786s**; integration takes **11m44.602s**.
+- macOS **26.5.2**, ARM64: **9,169 passed, 0 failed, 9 platform-only skips**
+  in **8m29.128s**; integration takes **8m28.758s**.
+
+These are warm validation runs with the complete real-server integration suite.
+Windows x64/PostgreSQL **17.11**, SDK **10.0.401**, passes all **29 focused
+integration cases** in **7m45.599s**. Its publisher/SDK and manifest selections
+pass **18** and **24** cases respectively, with no failures/skips. A Windows
+cleanup failure exposed read-only Git object files in the new test repository;
+cleanup now clears that attribute only within its owned temporary directory.
+The final cleanup change is also checked by the **18-case** Linux Release
+selection and **10-case** macOS publisher selection. Focused Windows evidence
+is not a substitute for the next complete CI run.
+
+The final Release build passes with **0 warnings and 0 errors** in **35.78s**.
+`pnpm build` succeeds for **259 pages**; `pnpm check` reports **0 errors,
+0 warnings and 0 hints**. Generated API freshness passes for **212 pages /
+2,554 members**. Earlier failed direct-publish probes found missing directory
+separation in early manifest invalidation; the four MSBuild cases and final
+real-consumer test cover that correction. Earlier runs against superseded
+source are not counted as final validation.
+
+Two abandoned macOS test processes predated the corrected runtime payload.
+Fresh native samples show the already-fixed dormant-host TLS shutdown wait;
+their test directories and parent were gone, with no children or listening
+sockets. After confirming their identities, only those abandoned processes
+were terminated. This required no additional runtime patch.
+
+Remaining full-port inventory, automatic native-library versioning policy,
+custom build configurations, cross-target packaging, and the complete
+PostgreSQL/platform matrix remain required. No package release or full-parity
+claim is made.

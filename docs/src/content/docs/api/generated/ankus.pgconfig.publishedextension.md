@@ -51,6 +51,113 @@ The control filename under extension/.
 
 The versioned SQL filename under extension/.
 
+<a id="member-104773a5f8d4c398"></a>
+
+### PublishedExtension(int, string, string, string, string, IReadOnlyList&lt;string&gt;)
+
+Creates a manifest with an owned, ordered collection of extension upgrade scripts.
+
+```csharp
+public PublishedExtension(int postgresMajor, string runtimeIdentifier, string library, string control, string sql, IReadOnlyList<string> upgradeScripts)
+```
+
+Parameters:
+
+`postgresMajor` — [int](https://learn.microsoft.com/dotnet/api/system.int32)
+
+The PostgreSQL header major used to compile the extension.
+
+`runtimeIdentifier` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The Native AOT runtime identifier.
+
+`library` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The native library filename.
+
+`control` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The control filename under extension/.
+
+`sql` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The installation SQL filename under extension/.
+
+`upgradeScripts` — [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
+Upgrade filenames in extension--old--new.sql form.
+
+
+## Methods
+
+<a id="member-1e2d25e653bc86c5"></a>
+
+### CompletePublish(string)
+
+Validates the complete payload, removes obsolete owned SQL, and makes the publication installable.
+
+```csharp
+public void CompletePublish(string directory)
+```
+
+Parameters:
+
+`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The directory containing the native library and extension files.
+
+<a id="member-c2b397ac31c49165"></a>
+
+### Invalidate(string)
+
+Invalidates a previous publication while retaining its file inventory for the next successful publish.
+
+```csharp
+public static void Invalidate(string directory)
+```
+
+Parameters:
+
+`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The publish directory.
+
+<a id="member-373c1cacf958991f"></a>
+
+### Read(string)
+
+Reads a published manifest without reflection-based deserialization.
+
+```csharp
+public static PublishedExtension Read(string directory)
+```
+
+Parameters:
+
+`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The publish directory.
+
+Returns: [PublishedExtension](/api/ankus.pgconfig.publishedextension/)
+
+The validated manifest.
+
+<a id="member-fea83ec67da427ca"></a>
+
+### Write(string)
+
+Writes the manifest to an existing artifact directory.
+
+```csharp
+public void Write(string directory)
+```
+
+Parameters:
+
+`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The artifact directory.
+
 
 ## Properties
 
@@ -114,6 +221,18 @@ public string Sql { get; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-72da41d409c13a13"></a>
+
+### UpgradeScripts
+
+Gets the ordered upgrade filenames within the extension directory.
+
+```csharp
+public IReadOnlyList<string> UpgradeScripts { get; }
+```
+
+Value: [IReadOnlyList&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ireadonlylist-1)
+
 
 ## Fields
 
@@ -126,42 +245,3 @@ Gets the manifest filename placed alongside a published native library.
 ```csharp
 public const string FileName = "ankus.extension.json"
 ```
-
-
-## Methods
-
-<a id="member-373c1cacf958991f"></a>
-
-### Read(string)
-
-Reads a published manifest without reflection-based deserialization.
-
-```csharp
-public static PublishedExtension Read(string directory)
-```
-
-Parameters:
-
-`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-The publish directory.
-
-Returns: [PublishedExtension](/api/ankus.pgconfig.publishedextension/)
-
-The validated manifest.
-
-<a id="member-fea83ec67da427ca"></a>
-
-### Write(string)
-
-Writes the manifest to an existing artifact directory.
-
-```csharp
-public void Write(string directory)
-```
-
-Parameters:
-
-`directory` — [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-The artifact directory.

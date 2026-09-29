@@ -7,6 +7,7 @@
     <ProjectReference Include="..\..\src\Ankus.Runtime\Ankus.Runtime.csproj" />
     <None Include="../../src/Ankus.Sdk/Ankus.props" Link="Sdk/Ankus.props" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/Ankus.Sdk/targets/Ankus.Bindings.targets" Link="Sdk/Ankus.Bindings.targets" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Ankus.Sdk/targets/Ankus.Native.targets" Link="Sdk/Ankus.Native.targets" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <PropertyGroup>
     <EnableMSTestSourceGeneration>true</EnableMSTestSourceGeneration>

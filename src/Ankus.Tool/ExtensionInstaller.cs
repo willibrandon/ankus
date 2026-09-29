@@ -4,7 +4,7 @@ using Ankus.PgConfig;
 namespace Ankus.Tool;
 
 /// <summary>
-/// Installs only the manifest's native library, versioned SQL, and control file.
+/// Installs only the manifest's native library, installation and upgrade SQL, and control file.
 /// </summary>
 internal static class ExtensionInstaller
 {
@@ -48,6 +48,8 @@ internal static class ExtensionInstaller
         [
             (Path.Combine(source, manifest.Library), Path.Combine(libraryDirectory, manifest.Library)),
             (Path.Combine(source, "extension", manifest.Sql), Path.Combine(extensionDirectory, manifest.Sql)),
+            .. manifest.UpgradeScripts.Select(script =>
+                (Path.Combine(source, "extension", script), Path.Combine(extensionDirectory, script))),
             (Path.Combine(source, "extension", manifest.Control), Path.Combine(extensionDirectory, manifest.Control)),
         ];
         foreach ((string input, _) in files)
