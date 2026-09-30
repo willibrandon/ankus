@@ -38,6 +38,7 @@ internal static partial class ToolCommand
         root.Subcommands.Add(CreateSchema(home));
         root.Subcommands.Add(CreateGet(home));
         root.Subcommands.Add(CreateRegress(home));
+        root.Subcommands.Add(CreateTest(home));
         root.Subcommands.Add(CreateUpgrade());
         try
         {
@@ -47,7 +48,7 @@ internal static partial class ToolCommand
             }
 
             ParseResult result = root.Parse(arguments);
-            bool interactive = result.CommandResult.Command.Name is "run" or "connect";
+            bool interactive = result.CommandResult.Command.Name is "run" or "connect" or "test";
             if (interactive)
             {
                 interactiveCancellation.Enable();
@@ -279,23 +280,33 @@ internal static partial class ToolCommand
         {
             Description = "Extension project or directory (default: current directory).",
         });
+        AddConfigurationOption(command, "Release");
+    }
+
+    private static void AddConfigurationOption(Command command, string defaultConfiguration)
+    {
         var configuration = new Option<string>("--configuration", "-c")
         {
-            Description = "MSBuild configuration, including custom configurations (default: Release).",
-            DefaultValueFactory = _ => "Release",
+            Description = $"MSBuild configuration, including custom configurations (default: {defaultConfiguration}).",
+            DefaultValueFactory = _ => defaultConfiguration,
         };
         configuration.Validators.Add(result =>
         {
             string? value = result.GetValueOrDefault<string>();
-            if (string.IsNullOrWhiteSpace(value) || value is "." or ".." ||
-                value.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0 ||
-                value.Any(char.IsControl) || value.EndsWith(' ') || value.EndsWith('.'))
+            if (ConfigurationError(value) is string error)
             {
-                result.AddError("Configuration must be a nonempty directory name without path separators, invalid filename characters, or a trailing dot or space.");
+                result.AddError(error);
             }
         });
         command.Options.Add(configuration);
     }
+
+    private static string? ConfigurationError(string? value)
+        => string.IsNullOrWhiteSpace(value) || value is "." or ".." ||
+            value.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0 ||
+            value.Any(char.IsControl) || value.EndsWith(' ') || value.EndsWith('.')
+            ? "Configuration must be a nonempty directory name without path separators, invalid filename characters, or a trailing dot or space."
+            : null;
 
     private static async Task<PostgresInstallation> SelectAsync(ParseResult result, Option<string?> home, CancellationToken token)
     {

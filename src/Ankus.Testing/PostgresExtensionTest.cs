@@ -185,11 +185,17 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 : await PostgresInstallation.CreateAsync(testPgConfig, cancellationToken).ConfigureAwait(false);
         }
 
+        TestCommandContext.ValidateInstallation(installation);
+        string? session = TestCommandContext.SessionDirectory;
         string root = Path.GetDirectoryName(projectPath)!;
         string invocation = Guid.NewGuid().ToString("N");
-        string output = Path.Combine(root, "bin", "ankus-test-publish", invocation);
+        string output = session is null
+            ? Path.Combine(root, "bin", "ankus-test-publish", invocation)
+            : Path.Combine(session, "publish", invocation);
         string logs = Path.Combine(root, "bin", "ankus-test-logs");
-        string dataDirectoryBase = Path.Combine(Path.GetTempPath(), "ankus-test-pgdata-" + invocation);
+        string dataDirectoryBase = session is null
+            ? Path.Combine(Path.GetTempPath(), "ankus-test-pgdata-" + invocation)
+            : Path.Combine(session, "pgdata", invocation);
         Directory.CreateDirectory(output);
         Directory.CreateDirectory(logs);
         PostgresTestCluster? cluster = null;
@@ -223,7 +229,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             }
             else
             {
-                string stageRoot = Path.Combine(Path.GetTempPath(), "ankus-test-postgresql-" + invocation);
+                string stageRoot = session is null
+                    ? Path.Combine(Path.GetTempPath(), "ankus-test-postgresql-" + invocation)
+                    : Path.Combine(session, "postgresql", invocation);
                 stagedInstallation = await PostgresTestInstallation.StageAsync(installation, stageRoot, cancellationToken)
                     .ConfigureAwait(false);
                 stagedInstallation.InstallExtensionFiles(output);

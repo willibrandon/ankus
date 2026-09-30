@@ -31,9 +31,8 @@ internal static class NativeBindingCollectionCommand
         string directory = Directory.CreateTempSubdirectory("ankus-node-").FullName;
         try
         {
-            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(major),
-                NativeBindingHeaderHelpers.RequiredTypes);
-            string headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, major);
+            string includes = NativeBindingResources.ReadHeaders(major);
+            string headers = NativeBindingHeaderTarget.GenerateSource(includes, major);
             string file = Path.Combine(directory, "native-node-types.c");
             await File.WriteAllTextAsync(file, headers, cancellationToken);
             string[] frontend = ["", arguments[0], arguments[1], directory, compiler,
@@ -41,12 +40,16 @@ internal static class NativeBindingCollectionCommand
             string observations = Path.Combine(directory, "native-node-target.json");
             await NativeBindingHeaderCommand.InspectAsync(installation, frontend, file, observations, directory, cancellationToken);
             NativeBindingAvailability availability;
+            NativeBindingCatalog selected;
             await using (FileStream stream = File.OpenRead(observations))
             {
                 using JsonDocument document = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { MaxDepth = 512 }, cancellationToken);
                 availability = NativeBindingHeaderAvailability.Read(document.RootElement, inventory, required);
+                selected = NativeBindingNodeTags.Select(catalog, NativeBindingNodeTags.Read(document.RootElement));
             }
 
+            NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(selected, includes, NativeBindingHeaderHelpers.RequiredTypes);
+            headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, major);
             NativeHeaderRequest[] requests = [.. roots.Requests, .. availability.Available];
             await File.WriteAllTextAsync(file, NativeBindingHeaderParser.GenerateSource(headers, requests), cancellationToken);
             await NativeBindingHeaderCommand.InspectAsync(installation, frontend, file, observations, directory, cancellationToken);

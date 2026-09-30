@@ -16,7 +16,7 @@ internal static class NativeBindingSourceCache
     internal static IReadOnlyList<string> Artifacts { get; } = Array.AsReadOnly<string>(
     [
         "native-records.json", "native-availability.json", "native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity",
-        "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json",
+        "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json", "native-node-declarations.json",
     ]);
 
     /// <summary>
@@ -98,8 +98,10 @@ internal static class NativeBindingSourceCache
                 await using FileStream stream = File.OpenRead(Path.Combine(snapshot, Artifacts[0]));
                 NativeHeaderRecords records = await JsonSerializer.DeserializeAsync<NativeHeaderRecords>(stream,
                     NativeBindingRecordWorker.JsonOptions, cancellationToken) ?? throw new FormatException("Missing cached native declarations.");
-                await NativeBindingCollectionCommand.VerifyAsync(records, roots.Source, installation, arguments, directory, cancellationToken);
                 NativeBindingSelectedNodes nodes = NativeBindingNodeAvailability.Read(catalog, records.Graph);
+                NativeBindingNodeRoots currentRoots = NativeBindingNodeRecords.CreateRoots(nodes.Catalog,
+                    NativeBindingResources.ReadHeaders(catalog.PostgresMajor), NativeBindingHeaderHelpers.RequiredTypes);
+                await NativeBindingCollectionCommand.VerifyAsync(records, currentRoots.Source, installation, arguments, directory, cancellationToken);
                 string[] selected = [arguments[0], arguments[1], directory,
                     arguments.Length >= 4 ? arguments[3] : "", frontend[5], frontend[6], frontend[7]];
                 NativeBindingLayout layout = await NativeBindingLayoutCommand.MeasureAsync(nodes, selected, cancellationToken);

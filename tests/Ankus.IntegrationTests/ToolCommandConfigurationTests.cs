@@ -29,10 +29,11 @@ public sealed partial class ToolCommandTests
     {
         string home = CreateDirectory();
         string project = Path.Combine(home, "missing.csproj");
-        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get", "regress" })
+        foreach (string operation in new[] { "build", "publish", "install", "package", "schema", "run", "connect", "get", "regress", "test" })
         {
             string[] command = operation == "get" ? [operation, "comment"] : [operation];
-            ProcessResult result = await InvokeAsync([.. command, "--home", home, "--project", project,
+            string[] projectArguments = operation == "test" ? [] : ["--project", project];
+            ProcessResult result = await InvokeAsync([.. command, "--home", home, .. projectArguments,
                 "--configuration", configuration], context.CancellationToken);
             Assert.AreEqual(1, result.ExitCode, operation + ": " + result.StandardOutput + result.StandardError);
             Assert.Contains("Configuration must be a nonempty directory name", result.StandardError);

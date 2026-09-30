@@ -34,7 +34,8 @@ public PostgresExtensionTestOptions()
 
 ### Configuration
 
-Gets the MSBuild configuration used to publish the extension. The default is Release.
+Gets the MSBuild configuration used to publish the extension. The default is the ankus test
+command's configuration when invoked through that command, and Release otherwise.
 
 ```csharp
 public string Configuration { get; init; }

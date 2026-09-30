@@ -87,7 +87,12 @@ internal static class ExtensionBuilder
         return exitCode;
     }
 
-    private static string EscapeProperty(string value)
+    /// <summary>
+    /// Escapes a literal value for one MSBuild command-line property.
+    /// </summary>
+    /// <param name="value">The literal property value.</param>
+    /// <returns>The escaped property value.</returns>
+    internal static string EscapeProperty(string value)
     {
         // MSBuild treats these characters as property-list separators or expansion syntax.
         return string.Concat(value.Select(static c => c is '%' or ';' or ',' or '$' or '@' or '(' or ')' or '\'' or '*' or '?' or '"'

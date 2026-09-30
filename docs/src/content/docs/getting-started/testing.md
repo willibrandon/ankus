@@ -21,6 +21,17 @@ The fixture discovers PostgreSQL 18 by default. Register a nonstandard
 installation with `ankus init --pg18 /path/to/pg_config`. Missing prerequisites
 fail initialization; tests are never silently skipped.
 
+Use `ankus test --pg 17` to build and test against another registered version,
+or `ankus test --all` to run against every registered major. Pass normal runner
+arguments after `--`, for example:
+
+```console
+ankus test --pg 18 -- --filter "FullyQualifiedName~BackendTests" --report-trx
+```
+
+The command selects matching headers and servers, keeps reports per major, and
+cleans up fixtures after an aborted host. See [test command options](/reference/cli/#run-extension-tests).
+
 For SQL files with expected text output, use `ankus regress --pg 18`.
 The [SQL regression guide](/reference/cli/#run-sql-regression-suites) covers
 PostgreSQL's native comparator, setup scripts, and reviewing changed expectations.
@@ -93,7 +104,8 @@ extension = await PostgresExtensionTest.StartAsync(new PostgresExtensionTestOpti
 ```
 
 Dispose it during test-class cleanup. The options also select `Installation`,
-`Configuration` (default `Release`), `SharedPreload` and `Port`.
+`Configuration` (default `Release` for direct fixtures, or the configuration
+selected by `ankus test`), `SharedPreload` and `Port`.
 The fixture uses the selected installation's headers and server together.
 
 Each case runs in its own transaction, which rolls back after success, failure
@@ -110,9 +122,8 @@ including a schema supplied by its control file.
 
 Normal `dotnet publish` excludes test functions. The fixture explicitly sets
 `AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
-can consume the same framework-neutral catalog and fixture. Backend benchmarks,
-additional framework templates and automatic multi-version test runs remain
-unimplemented.
+can consume the same framework-neutral catalog and fixture. Backend benchmarks
+and additional framework templates remain unimplemented.
 
 ## Use the fixture
 

@@ -21,8 +21,50 @@ default to snake case (`acme_search`); use `--extension-name` to choose one expl
 `--output` selects a new destination directory. Existing destinations are preserved.
 
 Creation needs no PostgreSQL installation. Running the generated backend tests
-requires PostgreSQL 18+ with development headers and the Native AOT toolchain.
+requires PostgreSQL with development headers and the Native AOT toolchain.
+The default selection is PostgreSQL 18; use `ankus test` to select another major.
 See [testing an extension](/getting-started/testing/).
+
+## Run extension tests
+
+```console
+ankus test --pg 18
+ankus test --pg 17 -- --filter "FullyQualifiedName~BackendTests"
+ankus test --all --configuration Release -- --report-trx
+```
+
+`test` runs ordinary `dotnet test` from the current directory. It selects the
+same PostgreSQL major for the managed build and the backend fixture's native
+publication. Use `--pg` for a registered version from 13 through 19, or combine
+it with `--pg-config /path/to/pg_config` for an explicit installation. The default
+is the registered PostgreSQL 18 installation.
+
+`--all` runs each registered version in order. Every registration is checked
+before tests start. A missing or broken installation fails the command. Test
+failures do not prevent later versions from running; the command returns the
+first nonzero runner exit code. Do not combine `--all` with `--pg` or `--pg-config`.
+
+Put ordinary test-runner arguments after `--`, including `--project`, `--solution`,
+filters and reporting options. Use the syntax supported by your project's test
+platform. Ankus passes individual arguments without shell interpretation.
+
+`--configuration` defaults to `Debug` and accepts custom configurations. Set it
+on `ankus test` or in the forwarded arguments so both the host build and default
+fixture publication agree. Conflicting configuration options fail before tests start.
+An explicitly configured fixture can still choose its own build configuration.
+The command's PostgreSQL build properties take precedence over forwarded values;
+a fixture that selects a different major fails rather than silently testing the
+wrong version.
+
+Reports go beneath `TestResults/ankus/<invocation>/pg<major>`. Set the command's
+`--results-directory` to choose another root. Each major keeps its own directory,
+including when you request a fixed report filename from the test runner.
+
+Fixtures keep build and server logs under the extension project's
+`bin/ankus-test-logs/`. The command owns temporary publications, installations,
+cluster data and sockets. It shuts down surviving fixture servers after a host
+failure or cancellation before removing that storage. Direct `dotnet test`
+continues to work with the fixture's ordinary discovery and defaults.
 
 ## Upgrade Ankus references
 

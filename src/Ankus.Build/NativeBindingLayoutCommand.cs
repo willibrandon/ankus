@@ -66,6 +66,8 @@ internal static class NativeBindingLayoutCommand
         await File.WriteAllTextAsync(Path.Combine(output, "native-layout.json"), json, cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(output, "native-node-availability.json"),
             JsonSerializer.Serialize(selected.AbsentFields, s_jsonOptions) + "\n", cancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(output, "native-node-declarations.json"),
+            JsonSerializer.Serialize(selected.Declarations, s_jsonOptions) + "\n", cancellationToken);
         Console.WriteLine($"PG{major}: measured {layout.Types.Count} native values and {layout.Types.Values.Sum(static type => type.Fields.Count)} fields.");
         return layout;
     }

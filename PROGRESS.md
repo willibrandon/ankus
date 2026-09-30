@@ -80,8 +80,9 @@ with six package-consumer slots. All **14 affected cases** pass independently
 on Linux x64/macOS ARM64 PostgreSQL **18.6** and Windows x64 PostgreSQL **17.11**.
 Release, API freshness and documentation checks pass. The Windows CRLF
 expectations from CI **36649700631** are corrected and all **50** graph cases
-pass against an actual Windows CRLF source copy. The previous Linux/macOS jobs
-and Docs pass; this milestone still requires its own complete platform CI.
+pass against an actual Windows CRLF source copy. Replacement CI **36658860112** passes on all three platforms: Linux
+**34m08s**, macOS **14m17s**, Windows **20m56s**. Quality, runtime jobs and
+Docs **36658860101** also pass; none timed out.
 CLI forwarding, additional framework templates, benchmarks, remaining native/type
 contracts, runtime servicing and the complete PostgreSQL/platform matrix remain
 required. This is not full port completion.
@@ -15825,4 +15826,141 @@ fails only the two corrected Windows expectations; Linux **32m44s**, macOS
 Earlier CI **36642212368** and Docs **36642212346** pass. No newer run is
 active, and the remote branch matches the local base. Full replacement platform
 CI remains pending until push. CLI forwarding, additional framework templates,
+backend benchmarks and every other unresolved full-port requirement remain open.
+
+### 2026-09-29 — PostgreSQL-aware test command in progress
+
+Added `ankus test` with registered/explicit PostgreSQL 13–19 selection,
+sequential `--all`, ordinary runner argument forwarding, host/fixture build
+configuration and separate report directories per major. Selection is validated
+before execution; the first failing runner exit is preserved while later
+registered versions still run. A selected major cannot silently become a
+different fixture major. Direct fixture discovery and Release defaults remain
+available outside the command.
+
+Each command invocation owns temporary fixture publication, staged installation,
+PGDATA and socket storage. Cleanup checks for surviving servers after an aborted
+host before deleting that storage; logs remain in the author project. This
+behavior is under active validation, not yet a verified milestone. Installed
+consumer tests now exercise actual server version/configuration, named backend
+case reports, literal filters/paths, invalid selectors and abrupt host exit.
+The tool Release build passes with zero warnings/errors. The focused integration
+run is active.
+
+Previous CI **36658860112** has successful runtime jobs, quality and macOS
+ARM64/PostgreSQL 18.6 (**14m17s**). Linux and Windows full suites remain in
+progress; Docs **36658860101** passes. Further framework scaffolds,
+no-schema/runas/custom data-directory test-command behavior, benchmarks and the
+complete version/platform matrix remain required for full parity.
+
+The test-command focused scope passes **15/15** on PostgreSQL **18.6/Linux x64**
+(**5m33.505s**). The expanded scope including shared configuration validation
+passes **27/27** on PostgreSQL **18.6/macOS ARM64** (**3m47.016s**). Windows
+x64/PostgreSQL **17.11** passes **14**, with **one POSIX-signal-only skip**, in
+**9m28.057s**; abrupt host termination and surviving-server cleanup execute
+there. Later test-only additions strengthen broken-registration prevalidation,
+cleanup fallback and conflicting forwarded configuration; the complete local
+suite is running against the final test source. The Release solution build
+passes with zero warnings/errors (**48.72s**); API freshness remains
+**220 pages / 2,605 members**, and the site builds **267 pages** with zero
+check errors/warnings/hints.
+
+A real `--all` native consumer matrix passes all three selected cases against
+PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11 and 18.6** on Linux x64. Each
+report independently proves the selected managed-build major, actual server
+major, configuration-sensitive native function and named backend tests.
+
+PostgreSQL **19beta4** exposes an existing binding-generation defect: the
+reference inventory has **503** node tags, while the selected headers have
+**488**. Fifteen reference node types are absent and **426** retained tags have
+different numeric values. Collection currently emits reference node roots
+before checking header availability. The fix must select actual node/tag
+availability and numeric values from successful compiler observations, preserve
+explicit absence evidence, and retain independent native ABI verification on
+both cold collection and cache reuse. Simply deleting the failed declarations
+or keeping reference tag numbers is insufficient. This failure remains open;
+the CLI milestone is not committed or claimed complete.
+
+CI **36658860112** is now fully green: Linux **34m08s**, macOS **14m17s**,
+Windows **20m56s**, with successful quality/runtime jobs and Docs
+**36658860101**. None timed out.
+
+The complete local candidate run finishes with **9,585 total: 9,573 passed,
+three failed and nine Windows-only skips**, in **12m27.151s**. All three failures
+come from the deliberately conflicting forwarded configuration case: the SDK
+applies its `--configuration` option after raw MSBuild properties, producing a
+Release host alongside a Shipping native extension. The command now resolves
+forwarded configuration options before execution, shares the selected value
+with the fixture, and rejects conflicting explicit choices. A clean rerun is
+required; this failed run is not completion evidence.
+
+The PostgreSQL 19 fix now reads available node tags before emitting reference
+node roots, uses installed numeric values for enum/cast/allocation metadata,
+and records absent types/tags, added tags and renumbered values. Cached bindings
+repeat native verification using the selected roots and compare this evidence
+again. Focused regression and real PostgreSQL 19 validation remain in progress.
+
+The real PostgreSQL 19 cold build then exposes the corresponding embedded-enum
+drift: **seven removed members and 178 renumbered values across four enums**.
+Those member inventories now come from the validated native graph before the
+independent C probe. Both cold generation and verified cache reuse pass against
+**19beta4/Linux x64**, measuring **508 native values and 3,800 fields**. Native
+execution remains a separate matrix gate.
+
+The corrected command/cache scope passes **28/28** on PostgreSQL **18.6/Linux
+x64** (**5m37.407s**) and **18.6/macOS ARM64** (**4m15.447s**). The final native
+binding scope, including enum drift, passes **339** with **six Windows-only
+skips** on Linux (**13.247s**). The Release build initially loses MSBuild worker
+processes during overlapping local checks; no compiler diagnostic explains the
+worker exits. Its isolated retry with node reuse disabled and six build workers
+passes with **zero warnings/errors, 45.48s**. This is local validation evidence,
+not a CI timing comparison. A final plain complete suite is now running.
+
+### 2026-09-29 — PostgreSQL-aware test command verified milestone
+
+The final plain `dotnet test` run passes against **PostgreSQL 18.6/Linux x64**:
+**9,617 total, 9,608 passed, zero failed, nine Windows-only skips**, in
+**14m24.132s**, with six package-consumer slots. All six modules complete,
+including Valgrind, configuration forwarding and cache corruption/recovery.
+The separate seven-version matrix ran concurrently; these durations are not a
+controlled performance comparison.
+
+The installed command's native matrix passes **all 21 named cases** against
+**13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and 19beta4** on Linux x64, in
+**9m19.681s**. Every major proves the actual server version, managed build major,
+Shipping configuration in both the host and native function, and both declared
+backend cases. A separate registry containing PostgreSQL 13 and 19 deliberately
+fails the first major after its native assertions: the later major still passes
+all three cases, and the command returns **2**, matching direct `dotnet test`
+against the same failing consumer. The private consumer is restored afterward.
+
+| Acceptance boundary | Verified evidence |
+|---|---|
+| Registered, explicit, all and forwarded configuration selections | Four variants of `TestCommandRunsSelectedBackendTests`; actual SQL values/server version, build metadata, three named TRX outcomes, literal report paths and removed command-owned storage |
+| Early selection and configuration errors | `TestCommandRejectsInvalidSelection`, eleven `TestCommandRejectsForwardedConfiguration` partitions, and shared `InvalidBuildConfigurationsDoNotMutateState` cases; no runner/report mutation before rejection |
+| Fixture context and ordinary direct defaults | `TestCommandRejectsConflictingFixtureInstallation` checks malformed/mismatched majors, explicit fixture configuration and invalid session paths before publication; complete suite retains direct fixture coverage |
+| Failure/cancellation ownership | `TestCommandPreservesRunnerExitAndCleansAbandonedCluster` and `TestCommandCancellationStopsCluster`; real postmaster PID disappearance, original exits, retained logs and preserved unrelated files |
+| Available nodes and exact tag values | `SelectedNodeTagsFollowNativeDeclarations`; compiled C and managed enum values, parent/leaf cast acceptance and rejection, sizes and concrete allocation metadata |
+| Invalid compiler observations | `NativeNodeTagReaderPreservesEvaluatedAndImplicitValues`, `NativeNodeTagReaderRejectsInvalidMembers`, `NativeNodeTagReaderRejectsIncompleteTranslationUnits`; explicit/implicit values, unsigned boundary, invalid zero, duplicate/missing enums and identifiers, overflow and malformed expressions |
+| Embedded enum drift | `SelectedNodeEnumsFollowNativeDeclarations`; removed/added/renumbered members, signed native storage, exact generated values and absence of the removed member |
+| Cache verification and recovery | `PackagedNodeBindingFailurePreservesCompanionAndRecovers` now corrupts node-declaration evidence too; failure preserves every prior artifact and recovery works concurrently. Existing independent layout, prefix and contradictory-record checks remain passing |
+| CLI platform scope | Linux/PG18.6 **28 passed, 5m37.407s**; macOS ARM64/PG18.6 **28 passed, 4m15.447s**; Windows x64/PG17.11 **27 passed, one POSIX-only skip, 9m37.352s** |
+| Final native binding platform scope | Linux **339 passed/six platform skips, 13.247s**; macOS ARM64 **338 passed/seven platform skips, 55.967s**; Windows x64 **344 passed/one platform skip, 19.292s**. Final packaged cache recovery also passes separately on macOS/PG18.6 (**3m11.133s**) and Windows/PG17.11 (**8m20.994s**), including fixture setup |
+| Release and documentation | Release solution build: **zero warnings/errors, 45.48s**. API freshness: **220 pages/2,605 members**. Site: **267 pages**, zero check errors/warnings/hints |
+
+Assertion and static behavior-gap review retain independent native witnesses,
+named outcomes and actual process ownership checks. No coverage percentage or
+broad mutation-execution claim is made. Production and test source hashes match
+the final platform validation copies. Those owned copies were removed after
+verification; shared runtime artifacts were preserved.
+
+Before committing, CI **36658860112** and Docs **36658860101** are rechecked and
+remain successful; no newer run is active. Linux completes in **34m08s**, macOS
+in **14m17s**, and Windows in **20m56s**. Earlier CI **36649700631** failed only
+the Windows expectations already fixed by the current base; the remote branch
+still matches that base. Replacement full platform CI is required after push.
+
+These seven-version cases prove this command and binding milestone, not the
+entire version/platform port. PostgreSQL 19's full platform matrix, test-command
+no-schema/runas/custom data-directory behavior, additional framework templates,
 backend benchmarks and every other unresolved full-port requirement remain open.

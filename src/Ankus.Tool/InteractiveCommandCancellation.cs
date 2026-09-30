@@ -18,7 +18,7 @@ internal sealed class InteractiveCommandCancellation : IDisposable
     internal CancellationToken Token => _cancellation.Token;
 
     /// <summary>
-    /// Installs handlers for run/connect, replacing System.CommandLine's unconditional interrupt cancellation.
+    /// Installs handlers for run, connect and test, allowing command-owned cleanup after cancellation.
     /// </summary>
     internal void Enable()
     {

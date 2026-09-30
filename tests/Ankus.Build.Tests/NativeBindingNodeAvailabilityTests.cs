@@ -404,7 +404,9 @@ public sealed partial class NativeBindingNativeTests
         string directory, string declarations, string headers)
     {
         NativeBindingCatalog catalog = NativeBindingParser.Parse(declarations, 18);
-        NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, headers);
+        NativeHeaderRecords tags = await CollectCallRecordsAsync(headers + "\nextern NodeTag ankus_node_tag_contract;",
+            [new("ankus_node_tag_contract", "ankus_node_tag_contract", false)], directory);
+        NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(NativeBindingNodeTags.Select(catalog, tags.Graph), headers);
         NativeHeaderRecords records = await CollectCallRecordsAsync(roots.Source, [.. roots.Requests], directory);
         NativeBindingSelectedNodes selected = NativeBindingNodeAvailability.Read(catalog, records.Graph);
         string source = Path.Combine(directory, "selected-probe.c");

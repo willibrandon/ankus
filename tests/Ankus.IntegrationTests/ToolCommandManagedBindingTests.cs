@@ -707,7 +707,8 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         string[] names = ["native-binding.g.cs", "native-binding.assembly-name", "native-binding.identity", "Ankus.NativeBindings.csproj",
-            "native-records.json", "native-availability.json", "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json"];
+            "native-records.json", "native-availability.json", "native-layout.c", "native-layout.txt", "native-layout.json", "native-node-availability.json",
+            "native-node-declarations.json"];
         var expected = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (string name in names)
         {
@@ -758,6 +759,19 @@ public sealed partial class ToolCommandTests
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
         Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
         await ReplaceCachedArtifactAsync(cache, "native-node-availability.json", expected["native-node-availability.json"], token);
+        await ReplaceCachedArtifactAsync(cache, "native-node-declarations.json",
+            "{\"AbsentTypes\":[\"RangeTblRef\"],\"AbsentTags\":[],\"AdditionalTags\":[],\"ChangedTags\":[]}"u8.ToArray(), token);
+        ProcessResult invalidDeclarations = await ProcessRunner.RunAsync("dotnet", command, environment, token, workingDirectory: s_root);
+        Assert.AreEqual(1, invalidDeclarations.ExitCode);
+        Assert.Contains("Current native node observations disagree with the cached companion contract", invalidDeclarations.StandardError);
+        foreach (string name in names)
+        {
+            Assert.AreSequenceEqual(expected[name], await File.ReadAllBytesAsync(Path.Combine(output, name), token), name);
+        }
+
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-node-*"));
+        Assert.IsEmpty(Directory.GetDirectories(temporary, "ankus-source-*"));
+        await ReplaceCachedArtifactAsync(cache, "native-node-declarations.json", expected["native-node-declarations.json"], token);
         string concurrentOutput = Path.Combine(temporary, "concurrent consumer");
         string[] concurrentCommand = [.. command];
         concurrentCommand[4] = concurrentOutput;

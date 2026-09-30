@@ -1,0 +1,466 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+using System.Xml.Linq;
+using Ankus.Testing;
+
+namespace Ankus.IntegrationTests;
+
+public sealed partial class ToolCommandTests
+{
+    /// <summary>
+    /// Registered and explicit selections reach both the managed build and the real native backend, with literal filters and reports.
+    /// </summary>
+    /// <param name="selection">The installation selection mode.</param>
+    [TestMethod]
+    [DataRow("registered")]
+    [DataRow("explicit")]
+    [DataRow("all")]
+    [DataRow("forwarded")]
+    public async Task TestCommandRunsSelectedBackendTests(string selection)
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await CreateTestCommandProjectAsync(token);
+        string[] selected = selection switch
+        {
+            "all" => ["--home", s_home, "--all"],
+            "explicit" => ["--pg", MajorText(), "--pg-config", s_installation.PgConfigPath],
+            _ => ["--home", s_home, "--pg", MajorText()],
+        };
+        string reports = Path.Combine(output, "reports with spaces");
+        string host = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
+        string[] configuration = selection == "forwarded" ? [] : ["-c", "Shipping"];
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ["test", .. selected, .. configuration, "--results-directory", reports, "--", "--project", host,
+                "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
+                "FullyQualifiedName~ConfigurationAndVersionReachBackend|FullyQualifiedName~DeclaredTestsExecuteInPostgres",
+                "--configuration", "Shipping", "-p:Configuration=Release",
+                "-p:AnkusPostgresMajor=" + DifferentMajor().ToString(CultureInfo.InvariantCulture)],
+            s_environment, token, workingDirectory: output);
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains(s_postgresKey + ": dotnet test exited 0.", result.StandardOutput);
+        string report = Path.Combine(reports, s_postgresKey, "selected.trx");
+        XDocument trx = XDocument.Load(report);
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        Dictionary<string, string> outcomes = trx.Descendants(ns + "UnitTestResult").ToDictionary(
+            item => item.Attribute("testName")!.Value, item => item.Attribute("outcome")!.Value);
+        Assert.HasCount(3, outcomes);
+        Assert.AreEqual("Passed", outcomes["ConfigurationAndVersionReachBackend"]);
+        Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.AdditionInsidePostgres()"]);
+        Assert.AreEqual("Passed", outcomes["TestCommandProbe.BackendChecks.ExpectedFailure()"]);
+        string session = await File.ReadAllTextAsync(Path.Combine(TestCommandHostDirectory(output, "Shipping"), "session-path.txt"), token);
+        Assert.IsFalse(Directory.Exists(session), "Command-owned data, sockets and publication must be removed.");
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(output, "src", "TestCommandProbe", "bin", "ankus-test-logs"), "*.log"));
+    }
+
+    /// <summary>
+    /// Invalid or conflicting forwarded configuration options fail before PostgreSQL selection or test execution.
+    /// </summary>
+    /// <param name="partition">The invalid argument form.</param>
+    [TestMethod]
+    [DataRow("conflict")]
+    [DataRow("short-conflict")]
+    [DataRow("equals-conflict")]
+    [DataRow("colon-conflict")]
+    [DataRow("short-equals-conflict")]
+    [DataRow("short-colon-conflict")]
+    [DataRow("duplicate-conflict")]
+    [DataRow("missing")]
+    [DataRow("separator")]
+    [DataRow("invalid")]
+    [DataRow("empty")]
+    public async Task TestCommandRejectsForwardedConfiguration(string partition)
+    {
+        string root = CreateDirectory();
+        string reports = Path.Combine(root, "reports");
+        string[] forwarded = partition switch
+        {
+            "conflict" => ["--configuration", "Release"],
+            "short-conflict" => ["-c", "Release"],
+            "equals-conflict" => ["--configuration=Release"],
+            "colon-conflict" => ["--configuration:Release"],
+            "short-equals-conflict" => ["-c=Release"],
+            "short-colon-conflict" => ["-c:Release"],
+            "duplicate-conflict" => ["--configuration", "Shipping", "-c", "Release"],
+            "missing" => ["--configuration"],
+            "separator" => ["-c", "--"],
+            "invalid" => ["--configuration=../outside"],
+            _ => ["-c="],
+        };
+        ProcessResult result = await InvokeAsync(["test", "--home", root, "-c", "Shipping", "--results-directory", reports, "--", .. forwarded], context.CancellationToken);
+        Assert.AreNotEqual(0, result.ExitCode);
+        string expected = partition.EndsWith("conflict", StringComparison.Ordinal) ? "Select the same configuration" :
+            partition is "missing" or "separator" ? "configuration option requires a value" : "Configuration must be a nonempty directory name";
+        Assert.Contains(expected, result.StandardError);
+        Assert.DoesNotContain("Testing PostgreSQL", result.StandardOutput);
+        Assert.IsFalse(Directory.Exists(reports));
+    }
+
+    /// <summary>
+    /// Invalid selectors fail before invoking a test project or creating reports.
+    /// </summary>
+    /// <param name="selection">The rejected selector partition.</param>
+    [TestMethod]
+    [DataRow("empty-all")]
+    [DataRow("missing-default")]
+    [DataRow("all-major")]
+    [DataRow("all-path")]
+    [DataRow("low-major")]
+    [DataRow("high-major")]
+    [DataRow("wrong-major")]
+    [DataRow("broken-registry")]
+    [DataRow("configuration")]
+    public async Task TestCommandRejectsInvalidSelection(string selection)
+    {
+        string root = CreateDirectory();
+        string reports = Path.Combine(root, "reports");
+        string[] arguments = selection switch
+        {
+            "empty-all" or "broken-registry" => ["--all"],
+            "missing-default" => [],
+            "all-major" => ["--all", "--pg", MajorText()],
+            "all-path" => ["--all", "--pg-config", s_installation.PgConfigPath],
+            "low-major" => ["--pg", "12"],
+            "high-major" => ["--pg", "20"],
+            "wrong-major" => ["--pg", DifferentMajor().ToString(CultureInfo.InvariantCulture), "--pg-config", s_installation.PgConfigPath],
+            _ => ["-c", "../outside"],
+        };
+        if (selection == "broken-registry")
+        {
+            var entries = new Dictionary<string, string>
+            {
+                [s_postgresKey] = s_installation.PgConfigPath,
+                ["pg" + DifferentMajor().ToString(CultureInfo.InvariantCulture)] = "missing-pg-config",
+            };
+            await File.WriteAllTextAsync(Path.Combine(root, "config.json"), JsonSerializer.Serialize(entries), context.CancellationToken);
+        }
+
+        ProcessResult result = await InvokeAsync(["test", "--home", root, "--results-directory", reports, .. arguments], context.CancellationToken);
+        Assert.AreNotEqual(0, result.ExitCode);
+        Assert.IsNotEmpty(result.StandardError);
+        Assert.DoesNotContain("Testing PostgreSQL", result.StandardOutput);
+        Assert.IsFalse(Directory.Exists(reports));
+    }
+
+    /// <summary>
+    /// Fixtures reject an invalid command context or a different major before publication and retain explicit option values.
+    /// </summary>
+    [TestMethod]
+    public async Task TestCommandRejectsConflictingFixtureInstallation()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await CreateTestCommandProjectAsync(token);
+        await File.WriteAllTextAsync(Path.Combine(output, "tests", "TestCommandProbe.Tests", "SelectionGuardTests.cs"), """
+            using System.Globalization;
+            using System.Runtime.CompilerServices;
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            namespace TestCommandProbe.Tests;
+            [TestClass]
+            public sealed class SelectionGuardTests(TestContext context)
+            {
+                [TestMethod]
+                public async Task RejectsConflictingInstallationBeforePublication()
+                {
+                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
+                    string project = ProjectPath();
+                    var options = new PostgresExtensionTestOptions { ProjectPath = project, Installation = installation };
+                    Assert.AreEqual("Debug", options.Configuration);
+                    Assert.AreEqual("Custom", new PostgresExtensionTestOptions { ProjectPath = project, Configuration = "Custom" }.Configuration);
+                    string? original = Environment.GetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR");
+                    try
+                    {
+                        foreach (string invalid in new[] { "12", "20", " 18", "garbage" })
+                        {
+                            Environment.SetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR", invalid);
+                            InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresExtensionTest.StartAsync(options, context.CancellationToken));
+                            Assert.Contains("ANKUS_TEST_POSTGRES_MAJOR", error.Message);
+                        }
+
+                        Environment.SetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR", (installation.Version.Major == 13 ? 14 : 13).ToString(CultureInfo.InvariantCulture));
+                        InvalidOperationException mismatch = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresExtensionTest.StartAsync(options, context.CancellationToken));
+                        Assert.Contains("but the fixture selected PostgreSQL", mismatch.Message);
+                        InvalidOperationException clusterMismatch = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresTestCluster.StartAsync(
+                            new PostgresTestClusterOptions { Installation = installation }, context.CancellationToken));
+                        Assert.AreEqual(mismatch.Message, clusterMismatch.Message);
+                    }
+                    finally
+                    {
+                        Environment.SetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR", original);
+                    }
+
+                    string? session = Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY");
+                    try
+                    {
+                        Environment.SetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY", "relative-session");
+                        InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresExtensionTest.StartAsync(options, context.CancellationToken));
+                        Assert.Contains("existing absolute directory", error.Message);
+                    }
+                    finally
+                    {
+                        Environment.SetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY", session);
+                    }
+
+                    Assert.IsFalse(Directory.Exists(Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus-test-logs")));
+                }
+
+                private static string ProjectPath([CallerFilePath] string source = "")
+                    => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../src/TestCommandProbe/TestCommandProbe.csproj"));
+            }
+            """, token);
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ["test", "--home", s_home, "--pg", MajorText(), "--results-directory", Path.Combine(output, "guard reports"), "--",
+                "--filter", "FullyQualifiedName~RejectsConflictingInstallationBeforePublication", "--report-trx", "--report-trx-filename", "guards.trx"],
+            s_environment, token, workingDirectory: output);
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        XDocument report = XDocument.Load(Path.Combine(output, "guard reports", s_postgresKey, "guards.trx"));
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        XElement outcome = report.Descendants(ns + "UnitTestResult").Single();
+        Assert.AreEqual("RejectsConflictingInstallationBeforePublication", outcome.Attribute("testName")!.Value);
+        Assert.AreEqual("Passed", outcome.Attribute("outcome")!.Value);
+    }
+
+    /// <summary>
+    /// The CLI preserves an ordinary runner's failure exit and cleans up even when a host leaves a server undisposed.
+    /// </summary>
+    [TestMethod]
+    public async Task TestCommandPreservesRunnerExitAndCleansAbandonedCluster()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await CreateTestCommandProjectAsync(token);
+        string hostRoot = Path.Combine(output, "tests", "TestCommandProbe.Tests");
+        await File.WriteAllTextAsync(Path.Combine(hostRoot, "AbandonedTests.cs"), """
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            namespace TestCommandProbe.Tests;
+            [TestClass]
+            public sealed class AbandonedTests(TestContext context)
+            {
+                [TestMethod]
+                public async Task AbandonsCluster()
+                {
+                    Assert.AreEqual("Debug", typeof(AbandonedTests).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+                        .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration);
+                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
+                    PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+                    {
+                        Installation = installation,
+                        LogDirectory = "retained logs",
+                    }, context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-data.txt", cluster.DataDirectory, context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-pid.txt", (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0], context.CancellationToken);
+                    await File.WriteAllTextAsync("abandoned-session.txt", Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, context.CancellationToken);
+                    // Abrupt termination bypasses the cluster's normal ProcessExit cleanup.
+                    System.Diagnostics.Process.GetCurrentProcess().Kill();
+                }
+            }
+            """, token);
+        string reports = Path.Combine(output, "abandoned reports");
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ["test", "--home", s_home, "--all", "--results-directory", reports, "--", "--filter", "FullyQualifiedName~AbandonsCluster"],
+            s_environment, token, workingDirectory: output);
+        Assert.AreNotEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains(s_postgresKey + ": dotnet test exited " + result.ExitCode.ToString(CultureInfo.InvariantCulture) + ".", result.StandardOutput);
+        string executionDirectory = TestCommandHostDirectory(output, "Debug");
+        string dataDirectory = await File.ReadAllTextAsync(Path.Combine(executionDirectory, "abandoned-data.txt"), token);
+        string session = await File.ReadAllTextAsync(Path.Combine(executionDirectory, "abandoned-session.txt"), token);
+        Assert.IsFalse(Directory.Exists(dataDirectory));
+        Assert.IsFalse(Directory.Exists(session));
+        int serverId = int.Parse(await File.ReadAllTextAsync(Path.Combine(executionDirectory, "abandoned-pid.txt"), token), CultureInfo.InvariantCulture);
+        AssertServerExited(serverId);
+        Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(executionDirectory, "retained logs"), "*.log"));
+        Assert.IsTrue(File.Exists(Path.Combine(hostRoot, "AbandonedTests.cs")), "Unrelated author files must remain intact.");
+    }
+
+    /// <summary>
+    /// Terminating the owning command stops its active host and PostgreSQL server before removing session storage.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+    public async Task TestCommandCancellationStopsCluster()
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await CreateTestCommandProjectAsync(token);
+        await File.WriteAllTextAsync(Path.Combine(output, "tests", "TestCommandProbe.Tests", "CancellationTests.cs"), """
+            using Ankus.PgConfig;
+            using Ankus.Testing;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            namespace TestCommandProbe.Tests;
+            [TestClass]
+            public sealed class CancellationTests(TestContext context)
+            {
+                [TestMethod]
+                public async Task WaitsForCommandCancellation()
+                {
+                    PostgresInstallation installation = await PostgresInstallation.CreateAsync(Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG")!, context.CancellationToken);
+                    await using PostgresTestCluster cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
+                    {
+                        Installation = installation,
+                        LogDirectory = "retained logs",
+                    }, context.CancellationToken);
+                    string serverId = (await File.ReadAllLinesAsync(Path.Combine(cluster.DataDirectory, "postmaster.pid"), context.CancellationToken))[0];
+                    await File.WriteAllLinesAsync("cancellation-pending.txt", [Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, serverId], context.CancellationToken);
+                    File.Move("cancellation-pending.txt", "cancellation-ready.txt");
+                    await Task.Delay(Timeout.InfiniteTimeSpan, context.CancellationToken);
+                }
+            }
+            """, token);
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(s_tool)
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = output,
+            },
+        };
+        foreach (string argument in new[] { "test", "--home", s_home, "--pg", MajorText(), "--", "--filter", "FullyQualifiedName~WaitsForCommandCancellation" })
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        foreach ((string name, string? value) in s_environment)
+        {
+            process.StartInfo.Environment[name] = value;
+        }
+
+        Assert.IsTrue(process.Start());
+        Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(token);
+        Task<string> standardError = process.StandardError.ReadToEndAsync(token);
+        string executionDirectory = TestCommandHostDirectory(output, "Debug");
+        string ready = Path.Combine(executionDirectory, "cancellation-ready.txt");
+        try
+        {
+            using var startup = CancellationTokenSource.CreateLinkedTokenSource(token);
+            startup.CancelAfter(TimeSpan.FromMinutes(3));
+            while (!File.Exists(ready) && !process.HasExited)
+            {
+                await Task.Delay(100, startup.Token);
+            }
+
+            Assert.IsFalse(process.HasExited, process.HasExited ? await standardOutput + await standardError : "");
+            ProcessResult signal = await ProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
+                new Dictionary<string, string?>(), token);
+            Assert.AreEqual(0, signal.ExitCode, signal.StandardError);
+            using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(token);
+            shutdown.CancelAfter(TimeSpan.FromSeconds(45));
+            await process.WaitForExitAsync(shutdown.Token);
+            Assert.AreEqual(130, process.ExitCode, await standardOutput + await standardError);
+            string[] evidence = await File.ReadAllLinesAsync(ready, token);
+            Assert.HasCount(2, evidence);
+            Assert.IsFalse(Directory.Exists(evidence[0]));
+            AssertServerExited(int.Parse(evidence[1], CultureInfo.InvariantCulture));
+            Assert.IsNotEmpty(Directory.GetFiles(Path.Combine(executionDirectory, "retained logs"), "*.log"));
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                await ProcessRunner.RunAsync("/bin/kill", ["-TERM", process.Id.ToString(CultureInfo.InvariantCulture)],
+                    new Dictionary<string, string?>(), CancellationToken.None);
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                try
+                {
+                    await process.WaitForExitAsync(cleanup.Token);
+                }
+                catch (OperationCanceledException) when (cleanup.IsCancellationRequested)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(CancellationToken.None);
+                }
+            }
+
+            if (File.Exists(ready))
+            {
+                string[] evidence = await File.ReadAllLinesAsync(ready, CancellationToken.None);
+                string session = evidence[0];
+                if (Directory.Exists(session))
+                {
+                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    foreach (string pid in Directory.EnumerateFiles(session, "postmaster.pid", SearchOption.AllDirectories))
+                    {
+                        await ProcessRunner.RunCheckedAsync(s_installation.PgCtlPath,
+                            ["stop", "-D", Path.GetDirectoryName(pid)!, "-m", "immediate", "-w", "-t", "25"],
+                            new Dictionary<string, string?>(), cleanup.Token);
+                    }
+
+                    Directory.Delete(session, recursive: true);
+                }
+            }
+        }
+    }
+
+    private static void AssertServerExited(int processId)
+    {
+        try
+        {
+            using Process server = Process.GetProcessById(processId);
+            Assert.IsTrue(server.HasExited, "The owned PostgreSQL server is still running.");
+        }
+        catch (ArgumentException)
+        {
+            // The operating system has already reaped the owned server.
+        }
+    }
+
+    private static string TestCommandHostDirectory(string project, string configuration)
+        => Path.Combine(project, "tests", "TestCommandProbe.Tests", "bin", configuration, "net10.0");
+
+    private static async Task<string> CreateTestCommandProjectAsync(CancellationToken token)
+    {
+        string output = Path.Combine(CreateDirectory(), "test command project");
+        (await InvokeAsync(["new", "TestCommandProbe", "-o", output], token)).EnsureSuccess(s_tool, ["new"]);
+        string buildFile = Path.Combine(output, "Directory.Build.props");
+        XDocument build = XDocument.Load(buildFile);
+        build.Root!.Add(new XElement("PropertyGroup", new XAttribute("Condition", "'$(Configuration)' == 'Shipping'"),
+            new XElement("DefineConstants", "$(DefineConstants);TEST_CONFIGURATION")));
+        build.Root.Add(new XElement("ItemGroup", new XElement("AssemblyMetadata", new XAttribute("Include", "SelectedMajor"),
+            new XAttribute("Value", "$(AnkusPostgresMajor)"))));
+        build.Save(buildFile);
+        await File.WriteAllTextAsync(Path.Combine(output, "src", "TestCommandProbe", "ConfigurationProbe.cs"), """
+            using Ankus;
+            namespace TestCommandProbe;
+            public static class ConfigurationProbe
+            {
+                [PgFunction]
+                public static int TestConfiguration()
+                {
+            #if TEST_CONFIGURATION
+                    return 42;
+            #else
+                    return -1;
+            #endif
+                }
+            }
+            """, token);
+        await File.WriteAllTextAsync(Path.Combine(output, "tests", "TestCommandProbe.Tests", "SelectionTests.cs"), """
+            using System.Globalization;
+            using System.Reflection;
+            using Microsoft.VisualStudio.TestTools.UnitTesting;
+            using Npgsql;
+            namespace TestCommandProbe.Tests;
+            public sealed partial class BackendTests
+            {
+                [TestMethod]
+                public async Task ConfigurationAndVersionReachBackend()
+                {
+                    int expected = int.Parse(Environment.GetEnvironmentVariable("ANKUS_TEST_POSTGRES_MAJOR")!, CultureInfo.InvariantCulture);
+                    string built = typeof(BackendTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(value => value.Key == "SelectedMajor").Value!;
+                    Assert.AreEqual(expected.ToString(CultureInfo.InvariantCulture), built);
+                    Assert.AreEqual(42, ConfigurationProbe.TestConfiguration(), "The host must use Shipping.");
+                    await using NpgsqlConnection connection = await s_extension!.Cluster.OpenConnectionAsync(context.CancellationToken);
+                    await using var command = new NpgsqlCommand("SELECT current_setting('server_version_num')::integer / 10000, test_configuration()", connection);
+                    await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(context.CancellationToken);
+                    Assert.IsTrue(await reader.ReadAsync(context.CancellationToken));
+                    Assert.AreEqual(expected, reader.GetInt32(0));
+                    Assert.AreEqual(42, reader.GetInt32(1), "The fixture publication must use Shipping.");
+                    await File.WriteAllTextAsync("session-path.txt", Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY")!, context.CancellationToken);
+                }
+            }
+            """, token);
+        return output;
+    }
+}

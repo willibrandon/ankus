@@ -26,13 +26,14 @@ public sealed class PostgresExtensionTestOptions
     }
 
     /// <summary>
-    /// Gets the MSBuild configuration used to publish the extension. The default is Release.
+    /// Gets the MSBuild configuration used to publish the extension. The default is the ankus test
+    /// command's configuration when invoked through that command, and Release otherwise.
     /// </summary>
     public string Configuration
     {
         get;
         init;
-    } = "Release";
+    } = TestCommandContext.Configuration;
 
     /// <summary>
     /// Gets whether the publication includes PgTest native entry points and SQL. The default is false.

@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 namespace Ankus.Build;
 
 /// <summary>
-/// Selects reference node fields from complete native declarations without changing tag or prefix contracts.
+/// Selects available reference nodes and fields while preserving native tag values and verified prefix contracts.
 /// </summary>
 internal static class NativeBindingNodeAvailability
 {
@@ -14,7 +14,8 @@ internal static class NativeBindingNodeAvailability
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(graph);
-        NativeBindingRecordValidation.Validate(graph, graph.Target, graph.Roots.Keys);
+        NativeBindingCatalog reference = catalog;
+        catalog = NativeBindingNodeTags.Select(catalog, graph);
         if (graph.Target.PostgresVersion / 10000 != catalog.PostgresMajor)
         {
             throw new FormatException("Native node availability describes a different PostgreSQL major.");
@@ -93,8 +94,23 @@ internal static class NativeBindingNodeAvailability
             types[entry.Type.Name] = entry.Type with { Fields = fields.AsReadOnly() };
         }
 
-        return new(catalog with { Types = new ReadOnlyDictionary<string, NativeBindingType>(types) },
-            Array.AsReadOnly(absent.OrderBy(static field => field.Type, StringComparer.Ordinal).ThenBy(static field => field.Field, StringComparer.Ordinal).ToArray()));
+        catalog = NativeBindingEnums.SelectNative(catalog with { Types = new ReadOnlyDictionary<string, NativeBindingType>(types) }, graph);
+        NativeBindingEnumChanges[] enums = [.. NativeBindingEnums.Select(catalog).OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new NativeBindingEnumChanges(pair.Key,
+                Array.AsReadOnly(reference.Enums[pair.Key].Values.Keys.Except(pair.Value.Values.Keys).Order(StringComparer.Ordinal).ToArray()),
+                Array.AsReadOnly(pair.Value.Values.Keys.Except(reference.Enums[pair.Key].Values.Keys).Order(StringComparer.Ordinal).ToArray()),
+                Array.AsReadOnly(pair.Value.Values.Where(value => reference.Enums[pair.Key].Values.TryGetValue(value.Key, out string? previous) && previous != value.Value)
+                    .OrderBy(static value => value.Key, StringComparer.Ordinal)
+                    .Select(value => new NativeBindingChangedEnumValue(value.Key, reference.Enums[pair.Key].Values[value.Key], value.Value)).ToArray())))
+            .Where(static value => value.AbsentValues.Count != 0 || value.AdditionalValues.Count != 0 || value.ChangedValues.Count != 0)];
+        return new(catalog,
+            Array.AsReadOnly(absent.OrderBy(static field => field.Type, StringComparer.Ordinal).ThenBy(static field => field.Field, StringComparer.Ordinal).ToArray()),
+            new(Array.AsReadOnly(reference.Types.Keys.Except(catalog.Types.Keys).Order(StringComparer.Ordinal).ToArray()),
+                Array.AsReadOnly(reference.Tags.Keys.Except(catalog.Tags.Keys).Order(StringComparer.Ordinal).ToArray()),
+                Array.AsReadOnly(catalog.Tags.Keys.Except(reference.Tags.Keys).Order(StringComparer.Ordinal).ToArray()),
+                Array.AsReadOnly(catalog.Tags.Where(pair => reference.Tags.TryGetValue(pair.Key, out uint value) && value != pair.Value)
+                    .OrderBy(static pair => pair.Key, StringComparer.Ordinal).Select(pair => new NativeBindingChangedNodeTag(pair.Key, reference.Tags[pair.Key], pair.Value)).ToArray()),
+                Array.AsReadOnly(enums)));
 
         NativeRecordType Canonical(int index) => graph.Types[graph.Types[index].Canonical];
 
@@ -141,7 +157,30 @@ internal static class NativeBindingNodeAvailability
 /// <summary>
 /// Retains selected reference fields and the exact fields absent from the installed headers.
 /// </summary>
-internal sealed record NativeBindingSelectedNodes(NativeBindingCatalog Catalog, IReadOnlyList<NativeBindingAbsentNodeField> AbsentFields);
+internal sealed record NativeBindingSelectedNodes(NativeBindingCatalog Catalog, IReadOnlyList<NativeBindingAbsentNodeField> AbsentFields,
+    NativeBindingNodeChanges Declarations);
+
+/// <summary>
+/// Records selected-header node differences without treating absent declarations as compiler failures.
+/// </summary>
+internal sealed record NativeBindingNodeChanges(IReadOnlyList<string> AbsentTypes, IReadOnlyList<string> AbsentTags,
+    IReadOnlyList<string> AdditionalTags, IReadOnlyList<NativeBindingChangedNodeTag> ChangedTags, IReadOnlyList<NativeBindingEnumChanges> Enums);
+
+/// <summary>
+/// Records removed, added and changed members of an enum embedded in a selected node.
+/// </summary>
+internal sealed record NativeBindingEnumChanges(string Name, IReadOnlyList<string> AbsentValues,
+    IReadOnlyList<string> AdditionalValues, IReadOnlyList<NativeBindingChangedEnumValue> ChangedValues);
+
+/// <summary>
+/// Preserves an enum member's reference expression and exact native value for review.
+/// </summary>
+internal sealed record NativeBindingChangedEnumValue(string Name, string Reference, string Native);
+
+/// <summary>
+/// Retains a reference discriminator and its independently observed native replacement.
+/// </summary>
+internal sealed record NativeBindingChangedNodeTag(string Name, uint Reference, uint Native);
 
 /// <summary>
 /// Identifies a reference field that the installed native declaration no longer contains.

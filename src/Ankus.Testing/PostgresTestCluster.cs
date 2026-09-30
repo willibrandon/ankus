@@ -23,11 +23,14 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         _environment = new Dictionary<string, string?>(options.ProcessEnvironment);
         Port = port;
         string invocation = $"{options.Installation.Version.Major}-{Environment.ProcessId}-{Guid.NewGuid():N}";
-        DataDirectory = Path.GetFullPath(Path.Combine(options.DataDirectoryBase, invocation));
+        string? session = TestCommandContext.SessionDirectory;
+        DataDirectory = Path.GetFullPath(Path.Combine(session is null ? options.DataDirectoryBase : Path.Combine(session, "pgdata"), invocation));
         LogFilePath = Path.GetFullPath(Path.Combine(options.LogDirectory, $"{invocation}.log"));
         SocketDirectory = OperatingSystem.IsWindows()
             ? null
-            : Path.Combine(OperatingSystem.IsMacOS() ? "/tmp" : Path.GetTempPath(), $"ak-{Guid.NewGuid():N}");
+            : session is null
+                ? Path.Combine(OperatingSystem.IsMacOS() ? "/tmp" : Path.GetTempPath(), $"ak-{Guid.NewGuid():N}")
+                : Path.Combine(session, $"s-{Guid.NewGuid():N}");
     }
 
     /// <summary>
@@ -87,6 +90,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.Installation);
+        TestCommandContext.ValidateInstallation(options.Installation);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DatabaseName);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.UserName);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.StartupTimeout, TimeSpan.Zero);

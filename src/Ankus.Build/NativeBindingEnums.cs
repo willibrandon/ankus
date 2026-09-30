@@ -11,6 +11,29 @@ namespace Ankus.Build;
 internal static class NativeBindingEnums
 {
     /// <summary>
+    /// Replaces reference member inventories with the independently collected native enum values before probing.
+    /// </summary>
+    internal static NativeBindingCatalog SelectNative(NativeBindingCatalog catalog, NativeRecordGraph graph)
+    {
+        Dictionary<string, NativeBindingEnum> enums = catalog.Enums.ToDictionary(StringComparer.Ordinal);
+        foreach ((string name, NativeBindingEnum reference) in Select(catalog))
+        {
+            int[] identities = [.. graph.Types.Where(type => type.Kind == "alias" && type.Name == name)
+                .Select(type => graph.Types[type.Canonical].Declaration).OfType<int>().Distinct()];
+            if (identities.Length != 1 || graph.Declarations[identities[0]].Kind != "enum")
+            {
+                throw new FormatException($"Native enum '{name}' requires a distinct measured enum identity.");
+            }
+
+            var values = new ReadOnlyDictionary<string, string>(graph.Declarations[identities[0]].EnumValues
+                .ToDictionary(static value => value.Name, static value => value.Value, StringComparer.Ordinal));
+            enums[name] = reference with { Values = values };
+        }
+
+        return catalog with { Enums = new ReadOnlyDictionary<string, NativeBindingEnum>(enums) };
+    }
+
+    /// <summary>
     /// Finds named enums embedded by value in selected nodes and their complete dependencies.
     /// </summary>
     /// <param name="catalog">The pinned native declarations.</param>
