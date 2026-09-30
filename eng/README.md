@@ -83,6 +83,9 @@ Timed-out runs also upload available redacted failure logs. Test builds print
 an MSBuild performance summary and retain a unique binary log in
 `artifacts/test-logs` for local investigation. Binary logs can contain machine
 paths and environment values; they remain local and are not uploaded.
+Hosted test runs also print each completed case and its duration. These records
+remain in the job log if a timeout prevents the final integration TRX from being
+written. Captured test output is printed for failures.
 
 The Linux service runs under its own unprivileged account. Provision PostgreSQL
 18 with server headers, Clang 20 or later with matching libclang, and the .NET

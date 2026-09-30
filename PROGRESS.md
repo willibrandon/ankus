@@ -16581,3 +16581,23 @@ runtime and macOS ARM64/PG18 jobs; Linux PG18 and Windows PG17 remain active.
 Docs **36695388036** succeeds. The preceding complete dedicated-platform run
 **36693516529** succeeds. Intel **36693552190** remains timed out as documented
 above; successful full Intel evidence and its performance fix are still required.
+
+### 2026-09-30 — Preserve hosted test progress before timeout
+
+Hosted CI now prints completed test cases and their durations using the installed
+Microsoft.Testing.Platform reporter. The previous timeout left no final
+integration TRX, so its completed-case timings were unavailable. Captured stdout
+and stderr remain available for failures; test selection and execution do not
+change. Dedicated-runner console settings remain unchanged.
+
+The CI file-based app builds successfully in Release. The exact new reporter
+options execute the existing Hello test module: **five passed, zero failed or
+skipped, 790ms**, with each case and duration present in the log. The completed
+plain PostgreSQL 17.11/Linux x64 suite immediately preceding this reporting-only
+change is **9,765 total, zero failed**, as recorded above. This adds diagnostic
+evidence for the next complete hosted run; it is not a timeout fix.
+
+Before commit, selection milestone `cb9beec` is pushed: CI **36701969924** is
+queued and Docs **36701969956** is active. Nullability CI **36695387927** remains
+active with successful quality/runtime/macOS ARM64 jobs; its Docs run succeeds.
+The last Intel run **36693552190** timed out, and that issue remains open.

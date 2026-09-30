@@ -835,7 +835,7 @@ static void RunTestModule(string repositoryRoot, string testModule)
         throw new FileNotFoundException("A required test module was not built.", path);
     }
 
-    string[] arguments =
+    List<string> arguments =
     [
         "test",
         "--test-modules",
@@ -848,6 +848,12 @@ static void RunTestModule(string repositoryRoot, string testModule)
         "--results-directory",
         Path.Combine(repositoryRoot, "artifacts", "test-results"),
     ];
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
+    {
+        // Completed case names and durations survive a timeout that prevents the final TRX from being written.
+        arguments.AddRange(["--output", "Detailed", "--show-stdout", "Failed", "--show-stderr", "Failed"]);
+    }
+
     Run(GetDotNetHost(), arguments, repositoryRoot);
 }
 
