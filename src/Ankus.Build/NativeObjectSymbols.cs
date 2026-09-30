@@ -23,10 +23,36 @@ internal static partial class NativeObjectSymbols
         return reader.Read();
     }
 
-    private ref partial struct Reader(ReadOnlySpan<byte> image, ReadOnlySpan<byte> prefix)
+    /// <summary>
+    /// Finds exact COFF import names with no remaining relocations after removing backend-only probe sections.
+    /// </summary>
+    /// <param name="image">A complete relocatable COFF object.</param>
+    /// <returns>Undefined symbols whose removal cannot change any remaining relocation.</returns>
+    internal static NativeObjectImports ReadUnreferencedCoffImports(ReadOnlySpan<byte> image)
+    {
+        var reader = new Reader(image, [], unreferencedOnly: true);
+        return reader.ReadCoff();
+    }
+
+    /// <summary>
+    /// Gives discarded header unwind sections a distinct name without changing live unwind records.
+    /// </summary>
+    /// <param name="image">The selected compiler's complete COFF object.</param>
+    internal static void IdentifyCoffProbeUnwindSections(Span<byte> image)
+    {
+        var reader = new Reader(image, [], unreferencedOnly: true);
+        reader.ReadCoff();
+        foreach (int offset in reader.CoffProbeUnwindSections())
+        {
+            "ankus_eh"u8.CopyTo(image.Slice(offset, 8));
+        }
+    }
+
+    private ref partial struct Reader(ReadOnlySpan<byte> image, ReadOnlySpan<byte> prefix, bool unreferencedOnly = false)
     {
         private readonly ReadOnlySpan<byte> _image = image;
         private readonly ReadOnlySpan<byte> _prefix = prefix;
+        private readonly bool _unreferencedOnly = unreferencedOnly;
         private readonly SortedSet<string> _symbols = new(StringComparer.Ordinal);
         private bool _littleEndian = true;
 
@@ -120,5 +146,5 @@ internal static partial class NativeObjectSymbols
 /// <param name="Format">The relocatable container: elf, coff or mach-o.</param>
 /// <param name="Architecture">The processor encoded in the object header.</param>
 /// <param name="IsLittleEndian">Whether object integers use little-endian encoding.</param>
-/// <param name="Symbols">Unique, ordinally sorted C names after platform decoration is removed.</param>
+/// <param name="Symbols">Unique, ordinally sorted names; generated-namespace selection removes platform C decoration.</param>
 internal sealed record NativeObjectImports(string Format, string Architecture, bool IsLittleEndian, IReadOnlyList<string> Symbols);

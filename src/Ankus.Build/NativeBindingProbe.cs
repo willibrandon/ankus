@@ -17,7 +17,7 @@ internal static class NativeBindingProbe
     /// <returns>C source that prints versioned, complete ABI observations.</returns>
     internal static string GenerateSource(NativeBindingCatalog catalog, string headers)
     {
-        var source = new StringBuilder(headers);
+        var source = new StringBuilder(NativeProbeHeaders.Wrap(headers));
         source.AppendLine();
         source.AppendLine("#include <stddef.h>");
         source.AppendLine("#include <limits.h>");

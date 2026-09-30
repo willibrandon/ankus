@@ -105,7 +105,7 @@ internal static partial class NativeBindingRecordChecks
         /// </summary>
         internal string Generate(string headers)
         {
-            _source.AppendLine(headers);
+            _source.AppendLine(NativeProbeHeaders.Wrap(headers));
             _source.AppendLine("#include <stddef.h>\n#include <stdint.h>\n#include <limits.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>");
             NativeBindingTarget.WriteChecks(_source, _graph.Target, "Native record");
             NativeBindingCompilerShims.Write(_source, records.Headers.Symbols.Values);

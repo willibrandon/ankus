@@ -21,8 +21,17 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         // PostgreSQL writes the active TCP port on line four, independently of later configuration edits.
-        string[] lines = await File.ReadAllLinesAsync(Path.Combine(DataDirectory, "postmaster.pid"), cancellationToken).ConfigureAwait(false);
-        if (lines.Length < 4 || !int.TryParse(lines[3], NumberStyles.None, CultureInfo.InvariantCulture, out int port) || port is < 1 or > 65535)
+        // Its status updates may keep a writable handle open while clients read that stable field.
+        using var status = new FileStream(Path.Combine(DataDirectory, "postmaster.pid"), FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var reader = new StreamReader(status);
+        string? portText = null;
+        for (int line = 0; line < 4; line++)
+        {
+            portText = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out int port) || port is < 1 or > 65535)
         {
             throw new FormatException("The running PostgreSQL server has no valid TCP port in postmaster.pid.");
         }
@@ -42,8 +51,8 @@ public sealed partial class PostgresDevelopmentCluster
         int byteCount = ValidateDatabaseName(database);
         string connection = await GetConnectionStringAsync("postgres", cancellationToken).ConfigureAwait(false);
         using FileStream operationLock = AcquireLock();
-        // Windows native argv may use an ANSI code page. Send names as UTF-8 SQL input,
-        // and use percent-encoded connection parameters rather than Unicode arguments.
+        // Encode names in SQL so native argv code pages and psql's text-mode input
+        // cannot change Unicode, CRLF or control characters in identifiers.
         string[] arguments = ["--no-psqlrc", "--no-password", "--quiet", "--tuples-only", "--no-align",
             "--set=ON_ERROR_STOP=1", "--dbname=" + connection, "--file=-"];
         if (await DatabaseExistsAsync(database, byteCount, arguments, cancellationToken).ConfigureAwait(false))
@@ -52,7 +61,7 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
-            input: "CREATE DATABASE \"" + database.Replace("\"", "\"\"", StringComparison.Ordinal) + "\";\n", postgresClient: true).ConfigureAwait(false);
+            input: "CREATE DATABASE " + QuoteDatabaseName(database) + ";\n", postgresClient: true).ConfigureAwait(false);
         RequireDatabaseCommand(code, output);
         return true;
     }
@@ -77,7 +86,7 @@ public sealed partial class PostgresDevelopmentCluster
             return false;
         }
 
-        string command = "DROP DATABASE \"" + database.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"" +
+        string command = "DROP DATABASE " + QuoteDatabaseName(database) +
             (force ? " WITH (FORCE)" : "") + ";\n";
         (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
             input: command, postgresClient: true).ConfigureAwait(false);
@@ -110,7 +119,7 @@ public sealed partial class PostgresDevelopmentCluster
 
     private async Task<bool> DatabaseExistsAsync(string database, int byteCount, string[] arguments, CancellationToken cancellationToken)
     {
-        string literal = "E'" + database.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "''", StringComparison.Ordinal) + "'";
+        string literal = "convert_from(decode('" + Convert.ToHexString(Encoding.UTF8.GetBytes(database)) + "', 'hex'), 'UTF8')";
         (int code, string output) = await RunAsync(_installation.PsqlPath, arguments, cancellationToken,
             input: $"SELECT current_setting('max_identifier_length'), EXISTS (SELECT FROM pg_catalog.pg_database WHERE datname = {literal});\n",
             postgresClient: true).ConfigureAwait(false);
@@ -128,6 +137,20 @@ public sealed partial class PostgresDevelopmentCluster
         }
 
         return fields[1] == "t";
+    }
+
+    /// <summary>
+    /// Represents every Unicode scalar with an ASCII SQL escape, including quotes and line endings.
+    /// </summary>
+    private static string QuoteDatabaseName(string database)
+    {
+        var result = new StringBuilder("U&\"");
+        foreach (Rune value in database.EnumerateRunes())
+        {
+            result.Append("\\+").Append(value.Value.ToString("X6", CultureInfo.InvariantCulture));
+        }
+
+        return result.Append('"').ToString();
     }
 
     private static void RequireDatabaseCommand(int code, string output)

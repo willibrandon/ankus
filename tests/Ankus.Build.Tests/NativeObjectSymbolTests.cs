@@ -114,6 +114,145 @@ public sealed class NativeObjectSymbolTests
         Assert.AreEqual("prefix", empty.ParamName);
     }
 
+    /// <summary>
+    /// Only names with no relocations or weak fallbacks may be removed from standalone objects.
+    /// </summary>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void UnreferencedCoffImportsPreserveRelocationsAndWeakFallbacks(bool big)
+    {
+        Sample sample = Coff(big);
+        Assert.AreSequenceEqual<string>(["ankus_x"], NativeObjectSymbols.ReadUnreferencedCoffImports(sample.Image).Symbols);
+        int header = big ? 56 : 20;
+        byte[] image = [.. sample.Image, .. new byte[10]];
+        Write(image, header + 24, 4, (uint)sample.Image.Length);
+        Write(image, header + 32, 2, 1);
+        Write(image, sample.Image.Length + 4, 4, 1);
+        byte[] original = [.. image];
+        Assert.IsEmpty(NativeObjectSymbols.ReadUnreferencedCoffImports(image).Symbols);
+        Assert.AreSequenceEqual(original, image);
+        Write(image, sample.Image.Length + 4, 4, 0);
+        Assert.AreSequenceEqual<string>(["ankus_x"], NativeObjectSymbols.ReadUnreferencedCoffImports(image).Symbols);
+        Write(image, sample.Image.Length + 4, 4, 8);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+        Write(image, sample.Image.Length + 4, 4, 1);
+        Write(image, header + 24, 4, uint.MaxValue);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+        Write(image, header + 24, 4, 0);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+        int width = big ? 20 : 18;
+        Write(sample.Image, header + 40 + 3 * width, 4, 8);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(sample.Image));
+    }
+
+    /// <summary>
+    /// Extended relocation counts preserve live imports and reject malformed overflow metadata.
+    /// </summary>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void UnreferencedCoffImportsRetainExtendedRelocations(bool big)
+    {
+        Sample sample = Coff(big);
+        int header = big ? 56 : 20;
+        int count = ushort.MaxValue + 1;
+        byte[] image = [.. sample.Image, .. new byte[count * 10]];
+        Write(image, header + 24, 4, (uint)sample.Image.Length);
+        Write(image, header + 32, 2, ushort.MaxValue);
+        Write(image, header + 36, 4, 0x01000000);
+        Write(image, sample.Image.Length, 4, (uint)count);
+        Write(image, sample.Image.Length + (count - 1) * 10 + 4, 4, 1);
+        Assert.IsEmpty(NativeObjectSymbols.ReadUnreferencedCoffImports(image).Symbols);
+        Write(image, sample.Image.Length, 4, (uint)count + 1);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+        Write(image, sample.Image.Length, 4, ushort.MaxValue);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+        Write(image, header + 32, 2, 1);
+        Assert.ThrowsExactly<FormatException>(() => NativeObjectSymbols.ReadUnreferencedCoffImports(image));
+    }
+
+    /// <summary>
+    /// Header-only unwind records can be discarded, while mixed tables and shared live metadata remain intact.
+    /// </summary>
+    [TestMethod]
+    [DataRow(false, false, false)]
+    [DataRow(true, false, false)]
+    [DataRow(false, true, false)]
+    [DataRow(true, true, false)]
+    [DataRow(false, false, true)]
+    [DataRow(true, false, true)]
+    public void ProbeUnwindSectionsPreserveLiveAndSharedRecords(bool big, bool mixed, bool shared)
+    {
+        byte[] image = CoffUnwind(big, mixed, shared);
+        byte[] expected = [.. image];
+        int header = big ? 56 : 20;
+        if (!mixed)
+        {
+            "ankus_eh"u8.CopyTo(expected.AsSpan(header + 40, 8));
+            if (!shared)
+            {
+                "ankus_eh"u8.CopyTo(expected.AsSpan(header + 80, 8));
+            }
+        }
+
+        NativeObjectSymbols.IdentifyCoffProbeUnwindSections(image);
+        Assert.AreSequenceEqual(expected, image);
+        NativeObjectSymbols.IdentifyCoffProbeUnwindSections(image);
+        Assert.AreSequenceEqual(expected, image);
+    }
+
+    /// <summary>
+    /// Independently encodes separate backend and live unwind records with real COFF relocation identities.
+    /// </summary>
+    private static byte[] CoffUnwind(bool big, bool mixed, bool shared)
+    {
+        int header = big ? 56 : 20;
+        int width = big ? 20 : 18;
+        int symbols = header + 6 * 40;
+        int strings = symbols + 6 * width;
+        byte[] longName = "ankus_header_code\0"u8.ToArray();
+        int relocations = strings + 4 + longName.Length;
+        byte[] image = new byte[relocations + 60];
+        if (big)
+        {
+            Write(image, 2, 2, 0xffff);
+            Write(image, 4, 2, 2);
+            Write(image, 6, 2, 0x8664);
+            new Guid("d1baa1c7-baee-4ba9-af20-faf66aa4dcb8").TryWriteBytes(image.AsSpan(12, 16));
+        }
+        else
+        {
+            Write(image, 0, 2, 0x8664);
+        }
+
+        Write(image, big ? 44 : 2, big ? 4 : 2, 6);
+        Write(image, big ? 48 : 8, 4, (uint)symbols);
+        Write(image, big ? 52 : 12, 4, 6);
+        Write(image, strings, 4, (uint)(4 + longName.Length));
+        longName.CopyTo(image, strings + 4);
+        string[] names = ["/4", ".pdata", ".xdata", ".text", ".pdata", ".xdata"];
+        for (int index = 0; index < names.Length; index++)
+        {
+            Encoding.ASCII.GetBytes(names[index]).CopyTo(image, header + index * 40);
+            Encoding.ASCII.GetBytes("s" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)).CopyTo(image, symbols + index * width);
+            Write(image, symbols + index * width + 12, big ? 4 : 2, (uint)index + 1);
+            image[symbols + (index + 1) * width - 2] = 3;
+        }
+
+        Write(image, header + 40 + 24, 4, (uint)relocations);
+        Write(image, header + 40 + 32, 2, 3);
+        Write(image, header + 160 + 24, 4, (uint)relocations + 30);
+        Write(image, header + 160 + 32, 2, 3);
+        uint[] targets = [0, mixed ? 3u : 0u, 2, 3, 3, shared ? 2u : 5u];
+        for (int index = 0; index < targets.Length; index++)
+        {
+            Write(image, relocations + index * 10 + 4, 4, targets[index]);
+        }
+
+        return image;
+    }
+
     private static Sample Create(string kind) => kind switch
     {
         "coff" => Coff(false),

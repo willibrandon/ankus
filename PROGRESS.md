@@ -92,6 +92,20 @@ remains incomplete; the following work is additional to the open parity gates.
 
 ## Current verified milestone
 
+Windows standalone probes isolate backend header implementations while preserving
+the selected compiler's layout checks, live imports and executable unwind tables.
+Database-name transport preserves exact Unicode and control characters through
+Windows psql, and connection discovery permits PostgreSQL's status-file writer.
+
+The complete plain suite passes on **Windows x64/PostgreSQL 17.11**:
+**10,043 total, 10,018 passed, zero failed, 25 platform skips**, in
+**30m16.299s**, using three package slots. Linux x64/PostgreSQL 18.6 database
+regressions and the native/COFF scope also pass. Release, API freshness and
+documentation checks pass. Dedicated CI for this repair remains pending; the
+full port, generator conversion and wider platform/version matrix remain open.
+
+## Previous verified milestone — pgrx and PostgreSQL 19 inputs
+
 Native inventories, headers and OIDs now follow pgrx **0.19.3**. PostgreSQL 19
 inputs use **beta 4** consistently. Standalone probes discard unreachable header
 implementation bodies while retaining real signature/layout checks and unresolved
@@ -17579,3 +17593,93 @@ Docs runs also succeed. Windows used **six package slots / 32 logical processors
 its full-test step took **35m30s**. These durations are observed CI outcomes,
 not controlled performance comparisons. Hosted Intel macOS timeouts and the
 full-port/review gaps remain open.
+
+## Windows probe isolation and exact database-name transport
+
+Refresh CI [36762725364](https://github.com/willibrandon/ankus/actions/runs/36762725364)
+completed with quality and Linux/macOS success, but Windows failed three tests.
+Platform job durations were **22m40s** on Linux x64/PostgreSQL 18, **18m24s** on
+macOS ARM64/PostgreSQL 18 and **24m18s** on Windows x64/PostgreSQL 17. No platform
+job timed out. Documentation run **36762725346** succeeded.
+
+Two failures exposed Windows text-mode input converting CRLF inside literal
+database names. Database existence checks now transmit UTF-8 bytes as hexadecimal
+SQL data, and DDL identifiers use Unicode scalar escapes. No user name appears
+as raw input control characters or client commands. Creation, lookup and removal
+must distinguish LF, CR and CRLF on servers that permit them; PostgreSQL 19's
+rejection remains authoritative. The integration cases also cover DOS EOF,
+supplementary Unicode, quotes, backslashes, identifier byte limits and altered
+`standard_conforming_strings`, preserving other databases and session identity.
+
+The native failure exposed a COFF distinction: Windows linkers resolve imports
+before discarding unreferenced COMDATs. Standalone probes now compile the full
+header declarations with the selected C compiler, place backend implementations
+in separate sections, and remove those sections from the executable object.
+The CRT used by the probe remains outside those sections, after PostgreSQL's
+required configuration header. Only imports without remaining relocations or
+weak fallback references are removed. References into removed definitions and
+reachable unresolved imports still fail. Extension code retains its original
+header implementations; no warning or unresolved-symbol suppression is used.
+The object reader validates ordinary/extended relocation tables and preserves
+weak fallback identities, including duplicate symbol names.
+
+Focused native/COFF tests pass on Linux x64 (**75 passed**) and Windows x64
+(**74 passed, one Linux-only skip**). Actual PostgreSQL **17.11/Windows x64**
+binding generation passes, including **491 native values and 3,601 fields**.
+Complete tests, final Release and documentation verification remain pending.
+
+The first local complete Windows run additionally exposed a real concurrent
+`postmaster.pid` read: `ReadAllLinesAsync` denied PostgreSQL's open writer.
+Connection discovery now reads the stable port field with read/write/delete
+sharing, matching the server's ownership of that file. The regression holds an
+open writable handle across database operations so Windows reliably exercises
+the conflict. This changes sharing permissions, with no retries or swallowed I/O
+errors. The local launcher also needed Git added to its PATH; that environment
+mistake caused two unrelated Build tests to fail and will be verified separately.
+
+Final focused Linux x64/PostgreSQL **18.6** database prerequisites pass **4/4**
+(**4m36.846s**, including fresh native fixture publications). Native/COFF checks,
+including non-tail-call header bodies and initialized backend references, pass
+**75/75** (**4.995s**). The final production Release build has **zero warnings or
+errors, 3m42.58s**. API freshness passes (**234 pages, 2,683 members**); the site
+builds **282 pages in 10.12s**, and its check reports zero errors, warnings or
+hints. The local Windows launcher also lacked Git's `diff`; both executables
+are now verified on its PATH for the required corrected complete run.
+
+The first complete local Windows run finishes **10,035 total, 10,002 passed,
+eight failed and 25 platform skips, 22m20.033s**. All three failures from the
+reported CI job pass in this run. Seven new failures are the local launcher's
+missing Git/`diff`; the eighth is the status-file sharing race fixed above.
+The complete run must pass with the corrected launcher and final source before
+this repair is considered verified.
+
+A stronger non-leaf header-function case exposed Clang's independent unwind
+tables. The standalone object now identifies only header-owned `.pdata` and
+exclusively referenced `.xdata` sections before removal. Mixed tables and shared
+live records remain intact. The native tests execute real Windows structured
+exception dispatch with both MSVC and Clang, and retain the negative reachable
+backend dependency and incompatible bitfield cases. The corrected focused
+Windows run passes **82 tests, zero failures and one Linux-only skip, 5.012s**.
+Ordinary and big-COFF fixtures verify header-only, mixed and shared unwind
+metadata byte-for-byte. The final complete Windows rerun is underway.
+
+The final native/COFF scope also passes on Linux x64: **81 passed, zero failed,
+two Windows-only skips, 3.933s**. The final Release build after the unwind
+correction succeeds with **zero warnings/errors, 3m01.42s**. The first Linux
+invocation lacked the installed LLVM directory on its local PATH; adding the
+existing toolchain resolved that launch error without repository changes.
+
+The final complete plain Windows x64/PostgreSQL **17.11** suite passes all six
+modules: **10,043 total, 10,018 passed, zero failed and 25 platform skips**,
+**30m16.299s** with three package slots. This includes all three original CI
+failures, the deterministic concurrent-status-writer regression, both Windows
+native compilers, and real Native AOT extensions running in PostgreSQL. Final
+API freshness again verifies **234 pages / 2,683 members**. The prior site build
+and check covered the unchanged final documentation files. No runtime patch,
+analyzer policy, workflow timeout or test-suite selection changed for this repair.
+
+Before commit, CI was checked again: **36762725364** retains its recorded Windows
+failure, with quality/Linux/macOS success, and Docs **36762725346** succeeded.
+Previous provenance **36748783637** and aggregate **36742158434**, including their
+Docs runs, remain successful. No previous runs are still active. The new local
+full-suite evidence resolves the reported failures; fresh dedicated CI is pending.

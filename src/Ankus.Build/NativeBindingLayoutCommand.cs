@@ -96,7 +96,9 @@ internal static class NativeBindingLayoutCommand
         if (OperatingSystem.IsWindows())
         {
             string libraries = arguments.Length >= 5 ? arguments[4] : string.Empty;
-            options.AddRange(["/nologo", "/O2", "/MD", "/WX", "/Fo" + Path.ChangeExtension(executable, ".obj"), "/Fe" + executable]);
+            // PostgreSQL must configure the CRT before the standalone probe's own
+            // I/O definitions are compiled outside backend implementation sections.
+            options.AddRange(["/nologo", "/O2", "/MD", "/WX", "/FIpostgres.h", "/Fo" + Path.ChangeExtension(executable, ".obj"), "/Fe" + executable]);
             options.AddRange(["/I" + installation.ServerIncludeDirectory, "/I" + installation.IncludeDirectory,
                 "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32"),
                 "/I" + Path.Combine(installation.ServerIncludeDirectory, "port", "win32_msvc")]);
@@ -121,12 +123,54 @@ internal static class NativeBindingLayoutCommand
         }
 
         AddProbeLinkOptions(options);
-        await RunProcessAsync(compiler, options, output, cancellationToken);
+        await CompileAndLinkProbeAsync(compiler, options, executable, output, cancellationToken);
         return await RunProcessAsync(executable, [], output, cancellationToken);
     }
 
     /// <summary>
-    /// Links only probe-reachable definitions from headers that also contain backend implementations.
+    /// Compiles with the selected C compiler and links the standalone probe implementation.
+    /// </summary>
+    /// <param name="compiler">The selected native C compiler.</param>
+    /// <param name="options">Compiler-driver arguments including the object and executable output paths.</param>
+    /// <param name="executable">The probe executable path.</param>
+    /// <param name="directory">The probe working directory.</param>
+    /// <param name="cancellationToken">Cancels compilation or linking.</param>
+    internal static async Task CompileAndLinkProbeAsync(string compiler, List<string> options, string executable,
+        string directory, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            await RunProcessAsync(compiler, options, directory, cancellationToken);
+            return;
+        }
+
+        // COFF linkers resolve imports before discarding unused COMDATs. Compile
+        // every header declaration, then separate backend implementations from the
+        // standalone program. Any probe relocation into removed code still fails.
+        int linker = options.FindIndex(static option => option.Equals("/link", StringComparison.OrdinalIgnoreCase));
+        await RunProcessAsync(compiler, [.. options.Take(linker).Where(static option => !option.StartsWith("/Fe", StringComparison.OrdinalIgnoreCase)),
+            "/c", "/DANKUS_STANDALONE_PROBE"], directory, cancellationToken);
+        string compiled = Path.ChangeExtension(executable, ".obj");
+        string standalone = Path.ChangeExtension(executable, ".standalone.obj");
+        byte[] image = await File.ReadAllBytesAsync(compiled, cancellationToken);
+        NativeObjectSymbols.IdentifyCoffProbeUnwindSections(image);
+        await File.WriteAllBytesAsync(compiled, image, cancellationToken);
+        await RunProcessAsync("llvm-objcopy.exe", ["--remove-section=ankus_header_code", "--remove-section=ankus_header_data",
+            "--remove-section=ankus_header_const", "--remove-section=ankus_header_bss", "--remove-section=ankus_eh", compiled, standalone], directory, cancellationToken);
+        image = await File.ReadAllBytesAsync(standalone, cancellationToken);
+        NativeObjectImports unused = NativeObjectSymbols.ReadUnreferencedCoffImports(image);
+        if (unused.Symbols.Count != 0)
+        {
+            await RunProcessAsync("llvm-objcopy.exe", [.. unused.Symbols.Select(static name => "--strip-symbol=" + name), standalone],
+                directory, cancellationToken);
+        }
+
+        await RunProcessAsync("link.exe", ["/nologo", "/WX", "/OUT:" + executable,
+            standalone, .. options.Skip(linker + 1)], directory, cancellationToken);
+    }
+
+    /// <summary>
+    /// Enables separate function/data sections and linker elimination for standalone probes.
     /// </summary>
     /// <param name="options">The compiler-driver arguments, including any Windows linker arguments.</param>
     internal static void AddProbeLinkOptions(List<string> options)

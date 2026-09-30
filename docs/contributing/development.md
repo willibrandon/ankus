@@ -26,8 +26,12 @@ Clang may be older. Make both `cc` and a supported `clang` on Linux/macOS or
 Visual Studio 2022 17.9 or later for the selected PostgreSQL header probe. Its
 [`__typeof__` support](https://learn.microsoft.com/cpp/c-language/typeof-c)
 lets the probe measure anonymous native values with a type operand to MSVC's
-alignment operator. A Visual Studio Developer Command Prompt supplies headers
-and libraries. Install the Visual Studio Clang tools or LLVM for the independent
+alignment operator. Standalone probes use LLVM's `llvm-objcopy.exe`
+after compilation to separate backend header implementations
+from probe code. References from probe code to removed definitions or missing
+dependencies still fail. Put LLVM's `bin` directory on
+`PATH`. A Visual Studio Developer Command Prompt supplies headers and libraries.
+Install the Visual Studio Clang tools or LLVM for the independent
 standard C fixture and the header-type collector.
 
 Hosted CI selects LLVM 20 on Linux/macOS. Dedicated Linux/macOS CI uses its installed

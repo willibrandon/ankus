@@ -29,7 +29,7 @@ public sealed partial class ToolCommandTests
         {
             Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
             List<string> names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ", ".", "..", "%2F?a#b",
-                new string('a', 63), new string('é', 31) + "a"];
+                "control\u001aend", "supplementary\U0001F986", new string('a', 63), new string('é', 31) + "a"];
             foreach (string name in new[] { "line\n\\! echo forbidden", "line\r\\! echo forbidden", "line\r\n\\! echo forbidden" })
             {
                 if (s_installation.Version.Major < 19)

@@ -21,7 +21,7 @@ internal static class NativeBindingSignatureProbe
         IReadOnlyList<string> names, string headers)
     {
         ReadOnlyDictionary<string, NativeBindingFunction> functions = Select(catalog, raw, names);
-        var source = new StringBuilder(headers);
+        var source = new StringBuilder(NativeProbeHeaders.Wrap(headers));
         source.AppendLine();
         source.AppendLine("#include <stdint.h>");
         source.AppendLine("#include <limits.h>");

@@ -79,10 +79,11 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
         {
             Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
             await using NpgsqlConnection administration = await OpenAsync(port, "postgres", token);
-            await using var retained = new NpgsqlCommand("CREATE TABLE retained(value integer); INSERT INTO retained VALUES (42); SELECT pg_backend_pid()", administration);
+            await using var retained = new NpgsqlCommand("ALTER DATABASE postgres SET standard_conforming_strings = off; " +
+                "CREATE TABLE retained(value integer); INSERT INTO retained VALUES (42); SELECT pg_backend_pid()", administration);
             object? backend = await retained.ExecuteScalarAsync(token);
             List<string> names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ",
-                new string('a', 63), new string('é', 31) + "a"];
+                "control\u001aend", "supplementary\U0001F986", new string('a', 63), new string('é', 31) + "a"];
             foreach (string name in new[] { "line\n\\! echo forbidden", "line\r\\! echo forbidden", "line\r\n\\! echo forbidden" })
             {
                 if (installation.Version.Major < 19)
@@ -154,6 +155,8 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
         try
         {
             await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token);
+            using var statusWriter = new FileStream(Path.Combine(cluster.DataDirectory, "postmaster.pid"), FileMode.Open,
+                FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
             Assert.IsTrue(await cluster.CreateDatabaseAsync("busy", token));
             await using NpgsqlConnection busy = await OpenAsync(port, "busy", token);
             await using var witness = new NpgsqlCommand("SELECT 42", busy);

@@ -6,18 +6,22 @@ public sealed partial class NativeBindingNativeTests
     /// Header implementation bodies may depend on the backend without becoming executable layout checks.
     /// </summary>
     [TestMethod]
-    public async Task NativeRecordChecksDoNotLinkUnusedBackendImplementations()
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task NativeRecordChecksDoNotLinkUnusedBackendImplementations(bool nativeCompiler)
     {
         const string Headers = """
             extern int backend_only(int value);
             typedef struct Entry { unsigned int value : 5; } Entry;
             extern Entry current;
-            int header_body(int value) { return backend_only(value); }
+            int header_body(int value) { return backend_only(value) + 1; }
+            int (*header_callback)(int) = backend_only;
+            int (*const header_constant)(int) = backend_only;
             """;
         NativeHeaderRequest[] requests = [new("current", "current", false), new("header_body", "header_body", true)];
-        await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true);
+        await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true, nativeCompiler: nativeCompiler);
         string changed = Headers.Replace("value : 5", "value : 4", StringComparison.Ordinal);
-        string diagnostics = await VerifyRecordChecksAsync(Headers, changed, requests, compile: true, execute: false);
+        string diagnostics = await VerifyRecordChecksAsync(Headers, changed, requests, compile: true, execute: false, nativeCompiler: nativeCompiler);
         Assert.Contains("Entry.value", diagnostics);
     }
 
@@ -25,18 +29,61 @@ public sealed partial class NativeBindingNativeTests
     /// Discarding unused header bodies must not hide missing dependencies in executable probe code.
     /// </summary>
     [TestMethod]
-    public async Task NativeRecordChecksRejectReachableBackendDependencies()
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task NativeRecordChecksRejectReachableBackendDependencies(bool nativeCompiler)
     {
         const string Headers = """
             extern int backend_only(int value);
             typedef struct Entry { unsigned int value : 5; } Entry;
             extern Entry current;
-            int header_body(int value) { return backend_only(value); }
+            int header_body(int value) { return backend_only(value) + 1; }
             """;
         const string Reachable = "#define ankus_native_record_check() (header_body(7) ? \"backend\" : 0)\n";
         string diagnostics = await VerifyRecordChecksAsync(Headers, Headers, [new("current", "current", false)],
-            compile: false, execute: false, beforeEntryPoint: Reachable);
+            compile: false, execute: false, nativeCompiler: nativeCompiler, beforeEntryPoint: Reachable);
         Assert.Contains("backend_only", diagnostics);
+    }
+
+    /// <summary>
+    /// Removing backend unwind metadata preserves real exception dispatch through the standalone probe.
+    /// </summary>
+    [TestMethod]
+    [OSCondition(OperatingSystems.Windows)]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task NativeRecordChecksPreserveWindowsExceptionDispatch(bool nativeCompiler)
+    {
+        const string Headers = """
+            extern int backend_only(int value);
+            typedef struct Entry { unsigned int value : 5; } Entry;
+            extern Entry current;
+            int header_body(int value) { return backend_only(value) + 1; }
+            """;
+        const string Check = """
+            #include <windows.h>
+            __declspec(noinline) static void raise_probe_error(void)
+            {
+                RaiseException(0xe0000042, 0, 0, NULL);
+            }
+            __declspec(noinline) static const char *check_probe_unwind(void)
+            {
+                int handled = 0;
+                __try
+                {
+                    raise_probe_error();
+                }
+                __except (GetExceptionCode() == 0xe0000042 ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+                {
+                    handled = 1;
+                }
+                return handled ? ankus_native_record_check() : "Probe exception was not handled.";
+            }
+            #define ankus_native_record_check check_probe_unwind
+
+            """;
+        await VerifyRecordChecksAsync(Headers, Headers, [new("current", "current", false)],
+            compile: true, execute: true, nativeCompiler: nativeCompiler, beforeEntryPoint: Check);
     }
 
     /// <summary>
@@ -455,13 +502,15 @@ public sealed partial class NativeBindingNativeTests
                 ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
                 : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, "-o", executable];
             NativeBindingLayoutCommand.AddProbeLinkOptions(arguments);
-            string diagnostics = await RunAsync(compiler, [.. arguments], directory, expectSuccess: compile);
-            if (compile)
+            if (!compile)
             {
-                diagnostics = await RunAsync(executable, [], directory, expectSuccess: execute);
+                InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                    NativeBindingLayoutCommand.CompileAndLinkProbeAsync(compiler, arguments, executable, directory, context.CancellationToken));
+                return error.Message;
             }
 
-            return diagnostics;
+            await NativeBindingLayoutCommand.CompileAndLinkProbeAsync(compiler, arguments, executable, directory, context.CancellationToken);
+            return await RunAsync(executable, [], directory, expectSuccess: execute);
         }
         finally
         {
