@@ -112,7 +112,9 @@ try
     string? authored = args.Length >= 12 && args[11].Length != 0 ? File.ReadAllText(args[11]) : null;
     var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7],
         manifest.Sql, manifest.Relocatable, authored, major));
-    bool relocatable = ExtensionControlFile.Parse(package[args[5] + ".control"])["relocatable"] == "true";
+    IReadOnlyDictionary<string, string> primaryControl = ExtensionControlFile.Parse(package[args[5] + ".control"]);
+    bool relocatable = primaryControl["relocatable"] == "true";
+    primaryControl.TryGetValue("schema", out string? defaultSchema);
 
     string[] controls = args.Length == 13 ? File.ReadAllLines(args[12]) : [];
     ExtensionControlFile.Parse(package[args[5] + ".control"]).TryGetValue("directory", out string? scriptDirectory);
@@ -128,6 +130,10 @@ try
         if (currentVersion)
         {
             relocatable = effectiveRelocatable;
+            if (ExtensionControlFile.Parse(control).TryGetValue("schema", out string? versionSchema))
+            {
+                defaultSchema = versionSchema;
+            }
         }
     }
 
@@ -148,7 +154,7 @@ try
     string source = Path.Combine(output, "bridge.c");
     string nativeObject = Path.Combine(output, OperatingSystem.IsWindows() ? "bridge.obj" : "bridge.o");
     WriteIfDifferent(source, manifest.NativeSource + NativeSchemaEmitter.Emit(args[5], args[6], args[7], major,
-        args[8], relocatable, manifest.Sql));
+        args[8], relocatable, manifest.Sql, manifest.SqlGraph, defaultSchema));
     WriteIfDifferent(Path.Combine(output, "schema.sql"), manifest.Sql);
     WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol + "\n");
 

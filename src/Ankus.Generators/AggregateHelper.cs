@@ -58,8 +58,8 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     /// <summary>
     /// Gets named SQL parameter declarations, retaining variadic input and adding the native deserializer dummy.
     /// </summary>
-    internal string Arguments => string.Join(", ", Parameters.Select((parameter, index) =>
-        (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(ParameterName(parameter)) + " " + Types[index].Sql)
+    internal string Arguments(SqlTypeProviders providers) => string.Join(", ", Parameters.Select((parameter, index) =>
+        (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(ParameterName(parameter)) + " " + (Types[index].Datum is { } datum ? SqlSchemaTemplate.Type(datum, providers) : "internal"))
         .Concat(Deserialize ? ["internal"] : []));
 
     /// <summary>

@@ -7,6 +7,8 @@ namespace Ankus.Generators;
 /// </summary>
 internal sealed class SqlEntity
 {
+    private string _sql = string.Empty;
+    private string _sqlTemplate = string.Empty;
     /// <summary>
     /// Creates an installation node with a stable internal key and diagnostic location.
     /// </summary>
@@ -30,9 +32,18 @@ internal sealed class SqlEntity
     /// </summary>
     internal string Sql
     {
-        get;
-        set;
+        get => _sql;
+        set
+        {
+            _sqlTemplate = value;
+            _sql = value.Replace("\0", string.Empty);
+        }
     }
+
+    /// <summary>
+    /// Gets typed schema markers separately from ordinary installation SQL.
+    /// </summary>
+    internal string SqlTemplate => _sqlTemplate;
 
     /// <summary>
     /// Gets the source location used for graph diagnostics.
@@ -53,6 +64,34 @@ internal sealed class SqlEntity
     /// Gets explicit identifiers that must follow this node.
     /// </summary>
     internal HashSet<string> Before { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets additional SQL and managed names for selecting this declaration without declaring dependency aliases.
+    /// </summary>
+    internal HashSet<string> SelectionNames { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets generated object identities for PostgreSQL extension attachment.
+    /// </summary>
+    internal HashSet<string> Attachments { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets or sets the declaration kind carried into native schema metadata.
+    /// </summary>
+    internal string Kind
+    {
+        get;
+        set;
+    } = "sql";
+
+    /// <summary>
+    /// Gets or sets the declaration family whose members must be selected together.
+    /// </summary>
+    internal SqlEntity? Owner
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets resolved prerequisite nodes, including generated schema dependencies.

@@ -7,17 +7,19 @@ namespace Ankus.PgConfig;
 /// <summary>
 /// Describes installation SQL embedded in a published Native AOT extension library.
 /// </summary>
-public sealed class ExtensionSchema
+public sealed partial class ExtensionSchema
 {
     private static readonly UTF8Encoding s_utf8 = new(false, true);
 
-    private ExtensionSchema(string name, string version, PublishedExtension artifacts, bool relocatable, string sql)
+    private ExtensionSchema(string name, string version, PublishedExtension artifacts, bool relocatable, string sql, ExtensionSchemaGraph? graph, string? defaultSchema)
     {
         Name = name;
         Version = version;
         Artifacts = artifacts;
         Relocatable = relocatable;
         Sql = sql;
+        Graph = graph;
+        DefaultSchema = defaultSchema;
     }
 
     /// <summary>
@@ -44,6 +46,16 @@ public sealed class ExtensionSchema
     /// Gets the exact installation SQL, retaining MODULE_PATHNAME substitution for PostgreSQL installation.
     /// </summary>
     public string Sql { get; }
+
+    /// <summary>
+    /// Gets the compiler dependency graph, or null for a legacy library containing only installation SQL.
+    /// </summary>
+    public ExtensionSchemaGraph? Graph { get; }
+
+    /// <summary>
+    /// Gets the effective fixed control schema, or null when installation selects the schema.
+    /// </summary>
+    public string? DefaultSchema { get; }
 
     /// <summary>
     /// Reads embedded installation metadata without loading or executing the native library or reading sidecar files.
@@ -97,7 +109,8 @@ public sealed class ExtensionSchema
                 }
             }
 
-            if (root.GetProperty("formatVersion").GetInt32() != 1)
+            int format = root.GetProperty("formatVersion").GetInt32();
+            if (format is not (1 or 2))
             {
                 throw new FormatException("Unsupported embedded Ankus schema version.");
             }
@@ -106,7 +119,7 @@ public sealed class ExtensionSchema
             string version = Text("version");
             string rid = Text("runtimeIdentifier");
             string library = Text("library");
-            string sql = Text("sql");
+            string sql = Text("sql", allowWhitespace: true);
             int major = root.GetProperty("postgresMajor").GetInt32();
             bool relocatable = root.GetProperty("relocatable").GetBoolean();
             if (rid != runtimeIdentifier || major is < 13 or > 19 || name.Length > 63 ||
@@ -118,12 +131,24 @@ public sealed class ExtensionSchema
             }
 
             var artifacts = new PublishedExtension(major, rid, library, name + ".control", name + "--" + version + ".sql");
-            return new ExtensionSchema(name, version, artifacts, relocatable, sql);
+            ExtensionSchemaGraph? graph = format == 2 ? ExtensionSchemaGraph.Parse(Text("graph")) : null;
+            if (graph is not null && graph.Sql != sql)
+            {
+                throw new FormatException("The embedded SQL and dependency graph disagree.");
+            }
 
-            string Text(string key)
+            string? defaultSchema = format == 2 && root.TryGetProperty("schema", out _) ? Text("schema", allowWhitespace: true) : null;
+            if (defaultSchema is not null && (relocatable || s_utf8.GetByteCount(defaultSchema) > 63))
+            {
+                throw new FormatException("Invalid fixed schema in embedded Ankus metadata.");
+            }
+
+            return new ExtensionSchema(name, version, artifacts, relocatable, sql, graph, defaultSchema);
+
+            string Text(string key, bool allowWhitespace = false)
             {
                 string? value = root.GetProperty(key).GetString();
-                if (string.IsNullOrWhiteSpace(value) || value.Contains('\0'))
+                if (string.IsNullOrEmpty(value) || !allowWhitespace && string.IsNullOrWhiteSpace(value) || value.Contains('\0'))
                 {
                     throw new FormatException("Invalid embedded Ankus schema text.");
                 }

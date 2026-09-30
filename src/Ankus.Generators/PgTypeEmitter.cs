@@ -14,7 +14,8 @@ internal static class PgTypeEmitter
     {
         FunctionType custom = FunctionType.Create(type.Type)!;
         FunctionType text = FunctionType.CreateIoBuffer("cstring", "cstring");
-        var sql = new StringBuilder("CREATE TYPE " + type.Sql + ";\n");
+        string prefix = type.Schema is null ? "\0" : string.Empty;
+        var sql = new StringBuilder("CREATE TYPE " + prefix + type.Sql + ";\n");
         EmitFunction("in", "Input", FunctionType.CreateIoBuffer("cstring", "cstring", type.NullInputErrorMessage is not null), custom);
         EmitFunction("out", "Output", custom, text);
         if (type.BinaryProtocol)
@@ -23,11 +24,11 @@ internal static class PgTypeEmitter
             EmitFunction("send", "Binary", custom, FunctionType.CreateIoBuffer("bytea", "bytea"));
         }
 
-        sql.AppendLine("CREATE TYPE " + type.Sql + " (");
-        sql.AppendLine("    INTERNALLENGTH = variable, INPUT = " + type.Function("in") + ", OUTPUT = " + type.Function("out") + ",");
+        sql.AppendLine("CREATE TYPE " + prefix + type.Sql + " (");
+        sql.AppendLine("    INTERNALLENGTH = variable, INPUT = " + prefix + type.Function("in") + ", OUTPUT = " + prefix + type.Function("out") + ",");
         if (type.BinaryProtocol)
         {
-            sql.AppendLine("    RECEIVE = " + type.Function("recv") + ", SEND = " + type.Function("send") + ",");
+            sql.AppendLine("    RECEIVE = " + prefix + type.Function("recv") + ", SEND = " + prefix + type.Function("send") + ",");
         }
 
         sql.AppendLine("    ALIGNMENT = int4, STORAGE = extended);");
@@ -39,7 +40,7 @@ internal static class PgTypeEmitter
             string symbol = type.NativeFunction(role);
             EmitManaged(callback, operation, type, managed);
             PgFunctionEmitter.EmitNative(symbol, callback, [input], result, ensureInitialized, native);
-            sql.AppendLine("CREATE FUNCTION " + type.Function(role) + "(" + input.Sql + ") RETURNS " + result.Sql +
+            sql.AppendLine("CREATE FUNCTION " + prefix + type.Function(role) + "(" + SqlSchemaTemplate.Type(input) + ") RETURNS " + SqlSchemaTemplate.Type(result) +
                 " AS 'MODULE_PATHNAME', '" + symbol + "' LANGUAGE c IMMUTABLE " +
                 (role == "in" && type.NullInputErrorMessage is not null ? "CALLED ON NULL INPUT" : "STRICT") + " PARALLEL SAFE;");
             exports.AppendLine(symbol);

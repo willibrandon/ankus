@@ -486,6 +486,10 @@ The native library also embeds its installation SQL and publication identity.
 `ankus schema --from publish/MyExtension.so` extracts the full installation script
 without loading the library or reading sidecar files. `ankus schema` builds the
 selected project first; `--output schema.sql` writes the script to a file.
+
+Pass declaration names to emit their SQL and dependencies. Add `--dot dependencies.dot`
+to export the full graph. Selected scripts attach objects to an existing extension;
+`--no-alter-extension` emits only their creation SQL.
 `Ankus.PgConfig.ExtensionSchema.Read` exposes the metadata to .NET applications;
 see [schema extraction](docs/src/content/docs/getting-started/publishing.md#inspect-installation-sql).
 

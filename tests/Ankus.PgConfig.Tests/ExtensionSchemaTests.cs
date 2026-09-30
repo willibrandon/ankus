@@ -35,6 +35,29 @@ public sealed class ExtensionSchemaTests
         Assert.AreEqual("probe--0.1.0-beta.1.sql", schema.Artifacts.Sql);
         Assert.IsTrue(schema.Relocatable);
         Assert.AreEqual("SELECT 'café 🐘', 'MODULE_PATHNAME';\n", schema.Sql);
+        Assert.IsNull(schema.Graph);
+        Assert.ThrowsExactly<InvalidOperationException>(() => schema.Select(["anything"]));
+    }
+
+    /// <summary>
+    /// Current native metadata must contain a valid graph agreeing exactly with its standalone SQL.
+    /// </summary>
+    /// <param name="corruption">The inconsistent graph partition.</param>
+    [TestMethod]
+    [DataRow("missing")]
+    [DataRow("malformed")]
+    [DataRow("different SQL")]
+    [DataRow("relocatable schema")]
+    public void RejectsInconsistentGraphMetadata(string corruption)
+    {
+        const string Graph = "QU5LVVNHMQABAAAABAAAAG5vZGUDAAAAc3FsCwAAAFNFTEVDVCA0MjsKAAAAAAEAAAAFAAAAcHJvYmUAAAAAAAAAAA==";
+        string graph = corruption == "malformed" ? "not base64" : Graph;
+        string document = "{\"formatVersion\":2,\"name\":\"probe\",\"version\":\"0.1.0\",\"postgresMajor\":18," +
+            "\"runtimeIdentifier\":\"linux-x64\",\"library\":\"Probe.so\",\"relocatable\":true,\"sql\":\"SELECT " +
+            (corruption == "different SQL" ? "43" : "42") + ";\\n\"" +
+            (corruption == "missing" ? "" : ",\"graph\":\"" + graph + "\"") +
+            (corruption == "relocatable schema" ? ",\"schema\":\"fixed\"" : "") + "}";
+        Assert.ThrowsExactly<FormatException>(() => ExtensionSchema.Decode(Payload(document), "linux-x64"));
     }
 
     /// <summary>
@@ -95,7 +118,7 @@ public sealed class ExtensionSchemaTests
     /// <param name="original">The original independently encoded field.</param>
     /// <param name="replacement">The invalid JSON fragment.</param>
     [TestMethod]
-    [DataRow("\"formatVersion\":1", "\"formatVersion\":2")]
+    [DataRow("\"formatVersion\":1", "\"formatVersion\":3")]
     [DataRow("\"formatVersion\":1", "\"formatVersion\":1,\"formatVersion\":1")]
     [DataRow("\"formatVersion\":1", "\"formatVersion\":2147483648")]
     [DataRow("\"name\":\"probe\"", "\"name\":null")]

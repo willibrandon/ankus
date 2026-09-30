@@ -377,6 +377,23 @@ Use `--project` to select a project elsewhere. `--pg` selects a registered
 PostgreSQL major and defaults to `18`. To use a different installation for one
 invocation, pass `--pg-config /path/to/pg_config` as well.
 
+## Inspect or select SQL
+
+Extract the complete installation script or select declarations and their dependencies:
+
+```console
+ankus schema --output schema.sql
+ankus schema --from publish/Hello.so add --output selected.sql
+ankus schema --from publish/Hello.so add --dot dependencies.dot --no-alter-extension
+```
+
+Without item names, extraction retains `MODULE_PATHNAME` for installation.
+Named selection uses the installed library under `$libdir` and normally wraps
+creation and extension attachments in one transaction. `--no-alter-extension`
+omits that wrapper and the attachment statements. `--dot` exports the full graph.
+See [schema extraction and selection](/getting-started/publishing/#inspect-installation-sql)
+for naming, fixed schemas, custom SQL and standalone libraries.
+
 ## Query extension properties
 
 Print a primary control property or a derived project value:

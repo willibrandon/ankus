@@ -18,9 +18,10 @@ internal static class PgAggregateEmitter
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
     /// <param name="exports">The native linker export list.</param>
+    /// <param name="providers">The extension type providers used to qualify selected SQL.</param>
     /// <returns>The helper's installation SQL.</returns>
     internal static string EmitHelper(AggregateHelper helper, string callback, bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder exports)
+        StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
@@ -139,18 +140,18 @@ internal static class PgAggregateEmitter
         native.AppendLine();
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
-        return $"CREATE {(helper.Declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {helper.Declaration.QualifiedName}({helper.Arguments})\n" +
-            $"RETURNS {helper.Result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {helper.Declaration.Options};\n";
+        return $"CREATE {(helper.Declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {helper.Declaration.TemplateName}({helper.Arguments(providers)})\n" +
+            $"RETURNS {Type(helper.Result, providers)} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {helper.Declaration.Options};\n";
     }
 
     /// <summary>
     /// Formats the complete aggregate SQL after its support functions have been registered in the graph.
     /// </summary>
-    internal static string EmitAggregate(AggregateDeclaration aggregate)
+    internal static string EmitAggregate(AggregateDeclaration aggregate, SqlTypeProviders providers)
     {
         AggregateHelper transition = aggregate.Helpers["Transition"];
         string inputs = string.Join(", ", transition.Parameters.Skip(1).Select((parameter, index) =>
-            (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + aggregate.Inputs[index].Sql));
+            (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + Type(aggregate.Inputs[index], providers)));
         string signature;
         if (aggregate.Kind == 0)
         {
@@ -160,14 +161,14 @@ internal static class PgAggregateEmitter
         {
             AggregateHelper? final = aggregate.Helpers.TryGetValue("Final", out AggregateHelper? value) ? value : null;
             string direct = final is null ? string.Empty : string.Join(", ", final.Parameters.Skip(1).Take(aggregate.Direct.Length).Select((parameter, index) =>
-                SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + aggregate.Direct[index].Sql));
+                SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + Type(aggregate.Direct[index], providers)));
             signature = (direct.Length == 0 ? string.Empty : direct + " ") + "ORDER BY " + inputs;
         }
 
         var options = new List<string>
         {
-            "SFUNC = " + transition.Declaration.QualifiedName,
-            "STYPE = " + transition.Result.Sql,
+            "SFUNC = " + transition.Declaration.TemplateName,
+            "STYPE = " + Type(transition.Result, providers),
         };
         AddHelper("Final", "FINALFUNC");
         if (aggregate.FinalExtra)
@@ -194,7 +195,7 @@ internal static class PgAggregateEmitter
         {
             AddHelper("MovingTransition", "MSFUNC");
             AddHelper("MovingInverse", "MINVFUNC");
-            options.Add("MSTYPE = " + moving.Result.Sql);
+            options.Add("MSTYPE = " + Type(moving.Result, providers));
             AddHelper("MovingFinal", "MFINALFUNC");
             if (aggregate.MovingFinalExtra)
             {
@@ -242,16 +243,50 @@ internal static class PgAggregateEmitter
             options.Add("HYPOTHETICAL");
         }
 
-        return $"CREATE AGGREGATE {aggregate.QualifiedName}({signature}) (\n    " + string.Join(",\n    ", options) + "\n);\n";
+        return $"CREATE AGGREGATE {SqlSchemaTemplate.Prefix(aggregate.Schema)}{SqlText.Identifier(aggregate.Name)}({signature}) (\n    " + string.Join(",\n    ", options) + "\n);\n";
 
         void AddHelper(string role, string option)
         {
             if (aggregate.Helpers.TryGetValue(role, out AggregateHelper? helper))
             {
-                options.Add(option + " = " + helper.Declaration.QualifiedName);
+                options.Add(option + " = " + helper.Declaration.TemplateName);
             }
         }
     }
+
+    /// <summary>
+    /// Formats the aggregate identity accepted by ALTER EXTENSION, including ordered and variadic inputs.
+    /// </summary>
+    /// <param name="aggregate">The validated aggregate declaration.</param>
+    /// <param name="providers">The extension type providers used to qualify selected SQL.</param>
+    /// <returns>The qualified aggregate name and unnamed SQL argument types.</returns>
+    internal static string Identity(AggregateDeclaration aggregate, SqlTypeProviders providers)
+    {
+        AggregateHelper transition = aggregate.Helpers["Transition"];
+        string inputs = string.Join(", ", transition.Parameters.Skip(1).Select((parameter, index) =>
+            (parameter.IsParams ? "VARIADIC " : string.Empty) + Type(aggregate.Inputs[index], providers)));
+        string arguments = aggregate.Kind == 0 ? (inputs.Length == 0 ? "*" : inputs) :
+            (aggregate.Direct.Length == 0 ? string.Empty : string.Join(", ", aggregate.Direct.Select(type => Type(type, providers))) + " ") +
+            "ORDER BY " + inputs;
+        return SqlSchemaTemplate.Prefix(aggregate.Schema) + SqlText.Identifier(aggregate.Name) + "(" + arguments + ")";
+    }
+
+    /// <summary>
+    /// Formats the helper identity, including the synthetic internal deserializer argument.
+    /// </summary>
+    /// <param name="helper">The validated aggregate helper.</param>
+    /// <param name="providers">The extension type providers.</param>
+    /// <returns>The schema-aware function identity.</returns>
+    internal static string HelperIdentity(AggregateHelper helper, SqlTypeProviders providers) => helper.Declaration.TemplateName + "(" +
+        string.Join(",", helper.Types.Select(type => Type(type, providers)).Concat(helper.Deserialize ? ["internal"] : [])) + ")";
+
+    /// <summary>
+    /// Formats either an ordinary datum contract or the aggregate's internal state.
+    /// </summary>
+    /// <param name="type">The aggregate datum contract.</param>
+    /// <param name="providers">The extension type providers.</param>
+    /// <returns>The schema-aware datum SQL.</returns>
+    private static string Type(AggregateType type, SqlTypeProviders providers) => type.Datum is { } datum ? SqlSchemaTemplate.Type(datum, providers) : "internal";
 
     private static string Modify(int value) => value switch { 2 => "SHAREABLE", 3 => "READ_WRITE", _ => "READ_ONLY" };
 }

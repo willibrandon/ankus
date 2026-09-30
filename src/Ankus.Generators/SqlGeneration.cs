@@ -19,6 +19,11 @@ internal static class SqlGeneration
     internal static bool Apply(AttributeData? attribute, SqlEntity entity, IReadOnlyList<SqlEntity> related,
         IReadOnlyList<(string Token, string? Value)> substitutions, SqlGraph graph)
     {
+        foreach (SqlEntity member in related)
+        {
+            member.Owner = entity;
+        }
+
         if (attribute is null)
         {
             return true;

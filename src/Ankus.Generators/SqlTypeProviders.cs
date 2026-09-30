@@ -13,6 +13,13 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     private readonly Dictionary<INamedTypeSymbol, SqlEntity> _managed = new(SymbolEqualityComparer.Default);
 
     /// <summary>
+    /// Checks whether a named type is supplied by this extension's SQL graph.
+    /// </summary>
+    /// <param name="reference">The declared type identity.</param>
+    /// <returns>Whether selection must qualify the type with the extension's schema.</returns>
+    internal bool Contains(SqlTypeReference reference) => _providers.ContainsKey((reference.Schema, reference.Name));
+
+    /// <summary>
     /// Reserves a generated type identity, including declarations whose SQL is disabled or replaced.
     /// </summary>
     /// <param name="name">The exact unquoted type name.</param>
@@ -107,6 +114,9 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 continue;
             }
 
+            string qualified = new SqlTypeReference(name!, schema).Sql;
+            block.SelectionNames.UnionWith([name!, qualified]);
+            block.Attachments.Add("TYPE " + (schema is null ? "\0" : string.Empty) + qualified);
             _providers[(schema, name!)] = (block, true);
             if (mapping is not null)
             {

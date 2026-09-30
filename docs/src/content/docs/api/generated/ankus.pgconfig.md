@@ -11,6 +11,9 @@ Assembly: `Ankus.PgConfig.dll`
 
 - [ExtensionControlFile](/api/ankus.pgconfig.extensioncontrolfile/)
 - [ExtensionSchema](/api/ankus.pgconfig.extensionschema/)
+- [ExtensionSchemaGraph](/api/ankus.pgconfig.extensionschemagraph/)
+- [ExtensionSchemaItem](/api/ankus.pgconfig.extensionschemaitem/)
+- [ExtensionSchemaSelection](/api/ankus.pgconfig.extensionschemaselection/)
 - [PostgresDevelopmentCluster](/api/ankus.pgconfig.postgresdevelopmentcluster/)
 - [PostgresDevelopmentOptions](/api/ankus.pgconfig.postgresdevelopmentoptions/)
 - [PostgresInstallation](/api/ankus.pgconfig.postgresinstallation/)

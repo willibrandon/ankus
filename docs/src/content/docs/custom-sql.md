@@ -79,6 +79,30 @@ managed conversion, or verify the type's native storage layout. PostgreSQL
 validates the objects when the extension installs. Keep explicit dependencies
 for SQL routines, default expressions and other objects used by custom SQL.
 
+## Declare supplied functions
+
+Use `PgSqlFunctionProvider` to identify a function created by a custom block:
+
+```csharp
+[assembly: PgSql("calculate", """
+    CREATE FUNCTION reporting.calculate(value integer) RETURNS integer
+    LANGUAGE sql AS $$SELECT value + 1$$;
+    """, Requires = ["report-schema"])]
+[assembly: PgSqlFunctionProvider("calculate", "reporting.calculate(integer)")]
+```
+
+The second argument is an authored SQL function signature, including argument
+**types**, without a `FUNCTION` keyword. PostgreSQL validates it when executing
+the script. Repeat the attribute for multiple functions. Declare schema and
+function dependencies with `Requires`; provider metadata does not parse SQL.
+
+[`ankus schema` item selection](/getting-started/publishing/#select-declarations)
+accepts the block identifier or the exact signature. Its default output adds the
+created function to the existing extension. Type providers also supply attachment
+identities. Custom blocks without a declared inventory produce a warning when
+selected with automatic attachments; tables and other undeclared objects still
+need explicit attachment SQL.
+
 ### Shell types and completion
 
 A manual base type often needs a shell declaration, native input/output

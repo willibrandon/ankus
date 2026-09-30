@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Ankus.PgConfig;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -25,15 +26,28 @@ internal static class NativeSchemaEmitter
     /// <param name="runtimeIdentifier">The native target RID.</param>
     /// <param name="relocatable">Whether the extension permits relocation.</param>
     /// <param name="sql">The exact installation SQL.</param>
+    /// <param name="graph">The optional encoded installation graph from the compiler.</param>
+    /// <param name="defaultSchema">The effective fixed control schema, when declared.</param>
     /// <returns>A platform-specific retained section declaration with byte-exact metadata.</returns>
-    internal static string Emit(string name, string version, string library, int major, string runtimeIdentifier, bool relocatable, string sql)
+    internal static string Emit(string name, string version, string library, int major, string runtimeIdentifier, bool relocatable, string sql, string? graph = null, string? defaultSchema = null)
     {
+        if (graph is not null && ExtensionSchemaGraph.Parse(graph).Sql != sql)
+        {
+            throw new FormatException("The installation SQL disagrees with its embedded graph.");
+        }
+
+        if (graph is not null && defaultSchema is not null && (relocatable || defaultSchema.Length == 0 ||
+            defaultSchema.Contains('\0') || new UTF8Encoding(false, true).GetByteCount(defaultSchema) > 63))
+        {
+            throw new FormatException("The fixed schema must be a nonempty PostgreSQL identifier of at most 63 UTF-8 bytes and cannot be relocatable.");
+        }
+
         using var stream = new MemoryStream();
         stream.Write("ANKUSSC\0\0\0\0\0"u8);
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("formatVersion", 1);
+            writer.WriteNumber("formatVersion", graph is null ? 1 : 2);
             writer.WriteString("name", name);
             writer.WriteString("version", version);
             writer.WriteNumber("postgresMajor", major);
@@ -41,7 +55,21 @@ internal static class NativeSchemaEmitter
             writer.WriteString("library", library);
             writer.WriteBoolean("relocatable", relocatable);
             writer.WriteString("sql", sql);
+            if (graph is not null)
+            {
+                writer.WriteString("graph", graph);
+                if (defaultSchema is not null)
+                {
+                    writer.WriteString("schema", defaultSchema);
+                }
+            }
+
             writer.WriteEndObject();
+        }
+
+        if (stream.Length > 64 * 1024 * 1024)
+        {
+            throw new FormatException("An embedded native schema cannot exceed 64 MiB.");
         }
 
         byte[] data = stream.ToArray();

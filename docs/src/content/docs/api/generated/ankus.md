@@ -111,6 +111,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSpinLock&lt;T&gt;](/api/ankus.pgspinlock-1/)
 - [PgSqlAttribute](/api/ankus.pgsqlattribute/)
 - [PgSqlFileAttribute](/api/ankus.pgsqlfileattribute/)
+- [PgSqlFunctionProviderAttribute](/api/ankus.pgsqlfunctionproviderattribute/)
 - [PgSqlStates](/api/ankus.pgsqlstates/)
 - [PgSqlTypeAttribute](/api/ankus.pgsqltypeattribute/)
 - [PgSqlTypeProviderAttribute](/api/ankus.pgsqltypeproviderattribute/)

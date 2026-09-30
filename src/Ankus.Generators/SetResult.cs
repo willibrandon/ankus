@@ -62,6 +62,14 @@ internal sealed class SetResult
         string.Join(", ", Columns.Select((column, index) => SqlText.Identifier(Names[index]) + " " + column.Sql)) + ")";
 
     /// <summary>
+    /// Formats typed return identifiers with extension-default schema markers.
+    /// </summary>
+    /// <param name="providers">The extension's declared type providers.</param>
+    /// <returns>The schema-aware SQL return clause.</returns>
+    internal string TemplateSql(SqlTypeProviders providers) => Names is null ? "SETOF " + SqlSchemaTemplate.Type(Columns[0], providers) : "TABLE (" +
+        string.Join(", ", Columns.Select((column, index) => SqlText.Identifier(Names[index]) + " " + SqlSchemaTemplate.Type(column, providers))) + ")";
+
+    /// <summary>
     /// Identifies the explicit generic enumerable return contract without treating scalar collections as sets.
     /// </summary>
     internal static bool IsSequence(ITypeSymbol type)

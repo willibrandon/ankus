@@ -64,9 +64,9 @@ internal static class DerivedOperatorDeclaration
         string name = value.CustomType?.Name ?? value.Enumeration?.Name ?? value.DatumType!.Name;
         string? schema = value.CustomType?.Schema ?? value.Enumeration?.Schema ?? value.DatumType?.Schema;
         relocatable = schema is null;
-        string sqlType = value.Sql;
+        string sqlType = SqlSchemaTemplate.Type(value, providers);
         string binaryArguments = sqlType + "," + sqlType;
-        string equalitySignature = Operator("=") + "(" + binaryArguments + ")";
+        string equalitySignature = (Operator("=") + "(" + binaryArguments + ")").Replace("\0", string.Empty);
         if (equality is null && !operators.ContainsKey(equalitySignature))
         {
             return Invalid("PgOrdering and PgHashing require PgEquality or a boolean same-schema PgOperator(\"=\") for the exact SQL type.");
@@ -113,6 +113,8 @@ internal static class DerivedOperatorDeclaration
 
             group.Dependencies.Add(comparison);
             string family = Name("btree_ops");
+            group.SelectionNames.UnionWith([Identifier("btree_ops"), family.Replace("\0", string.Empty)]);
+            group.Attachments.UnionWith(["OPERATOR FAMILY " + family + " USING btree", "OPERATOR CLASS " + family + " USING btree"]);
             group.Sql = "CREATE OPERATOR FAMILY " + family + " USING btree;\n" +
                 "CREATE OPERATOR CLASS " + family + " DEFAULT FOR TYPE " + sqlType + " USING btree FAMILY " + family + " AS\n" +
                 "    OPERATOR 1 " + Operator("<") + " (" + binaryArguments + "),\n" +
@@ -133,6 +135,8 @@ internal static class DerivedOperatorDeclaration
                 : "((global::Ankus.IPgHashable)left).GetPostgresHashCode()";
             group.Dependencies.Add(Function("hash", expression, comparison: false, unary: true, group));
             string family = Name("hash_ops");
+            group.SelectionNames.UnionWith([Identifier("hash_ops"), family.Replace("\0", string.Empty)]);
+            group.Attachments.UnionWith(["OPERATOR FAMILY " + family + " USING hash", "OPERATOR CLASS " + family + " USING hash"]);
             group.Sql = "CREATE OPERATOR FAMILY " + family + " USING hash;\n" +
                 "CREATE OPERATOR CLASS " + family + " DEFAULT FOR TYPE " + sqlType + " USING hash FAMILY " + family + " AS\n" +
                 "    OPERATOR 1 " + Operator("=") + " (" + binaryArguments + "),\n" +
@@ -154,16 +158,19 @@ internal static class DerivedOperatorDeclaration
             return false;
         }
 
-        string Qualify(string identifier) => (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + SqlText.Identifier(identifier);
+        string Qualify(string identifier) => SqlSchemaTemplate.Prefix(schema) + SqlText.Identifier(identifier);
 
-        string Name(string role) => Qualify(Encoding.UTF8.GetByteCount(name) + role.Length + 1 <= 63
-            ? name + "_" + role : "ankus_" + symbol + "_" + role);
+        string Name(string role) => Qualify(Identifier(role));
 
-        string Operator(string token) => (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + token;
+        string Identifier(string role) => Encoding.UTF8.GetByteCount(name) + role.Length + 1 <= 63
+            ? name + "_" + role : "ankus_" + symbol + "_" + role;
+
+        string Operator(string token) => SqlSchemaTemplate.Prefix(schema) + token;
 
         SqlEntity Group(string role, AttributeData attribute)
         {
-            var entity = new SqlEntity("3:derived-" + role + ":" + managedType, string.Empty, type.Locations.FirstOrDefault());
+            var entity = new SqlEntity("3:derived-" + role + ":" + managedType, string.Empty, type.Locations.FirstOrDefault()) { Kind = role };
+            entity.SelectionNames.Add(type.ToDisplayString() + "." + role);
             RequireType(entity);
             graph.Configure(entity, attribute);
             graph.Add(entity);
@@ -187,14 +194,21 @@ internal static class DerivedOperatorDeclaration
             exports.AppendLine(nativeName);
             exports.AppendLine("pg_finfo_" + nativeName);
             string signature = Name(role) + "(" + (unary ? sqlType : binaryArguments) + ")";
-            if (!functions.Add(signature))
+            if (!functions.Add(signature.Replace("\0", string.Empty)))
             {
                 graph.Error(type.Locations.FirstOrDefault(), "Duplicate PostgreSQL function signature " + signature + ".");
             }
 
             string sql = "CREATE FUNCTION " + signature + " RETURNS " + result.Sql + " AS 'MODULE_PATHNAME', '" + nativeName +
                 "' LANGUAGE c IMMUTABLE PARALLEL SAFE STRICT;\n";
-            var entity = new SqlEntity("1:derived-function:" + managedType + ":" + role, sql, type.Locations.FirstOrDefault());
+            var entity = new SqlEntity("1:derived-function:" + managedType + ":" + role, sql, type.Locations.FirstOrDefault()) { Kind = "function", Owner = group };
+            entity.SelectionNames.UnionWith([Identifier(role), Name(role).Replace("\0", string.Empty), signature.Replace("\0", string.Empty)]);
+            entity.Attachments.Add("FUNCTION " + signature);
+            if (schema is not null)
+            {
+                entity.SelectionNames.Add(schema + "." + Identifier(role));
+            }
+
             RequireType(entity);
             entity.Requires.UnionWith(group.Requires);
             graph.Add(entity);
@@ -218,7 +232,7 @@ internal static class DerivedOperatorDeclaration
         SqlEntity Comparison(string token, string role, string commutator, string negator, string restrict, string join, bool equal, SqlEntity function)
         {
             string signature = Operator(token) + "(" + binaryArguments + ")";
-            if (!relatedNames.Add("operator:" + signature))
+            if (!relatedNames.Add("operator:" + signature.Replace("\0", string.Empty)))
             {
                 graph.Error(type.Locations.FirstOrDefault(), "Duplicate PostgreSQL operator signature " + signature + ".");
             }
@@ -226,9 +240,11 @@ internal static class DerivedOperatorDeclaration
             string sql = "CREATE OPERATOR " + Operator(token) + " (FUNCTION = " + Name(role) + ", LEFTARG = " + sqlType +
                 ", RIGHTARG = " + sqlType + ", COMMUTATOR = OPERATOR(" + Operator(commutator) + "), NEGATOR = OPERATOR(" +
                 Operator(negator) + "), RESTRICT = pg_catalog." + restrict + ", JOIN = pg_catalog." + join + (equal ? ", HASHES, MERGES" : string.Empty) + ");\n";
-            var entity = new SqlEntity("2:derived-operator:" + managedType + ":" + role, sql, type.Locations.FirstOrDefault());
+            var entity = new SqlEntity("2:derived-operator:" + managedType + ":" + role, sql, type.Locations.FirstOrDefault()) { Kind = "operator", Owner = function.Owner };
+            entity.SelectionNames.UnionWith([token, signature.Replace("\0", string.Empty)]);
+            entity.Attachments.Add("OPERATOR " + signature);
             entity.Dependencies.Add(function);
-            operators[signature] = entity;
+            operators[signature.Replace("\0", string.Empty)] = entity;
             graph.Add(entity);
             return entity;
         }

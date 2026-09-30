@@ -3274,7 +3274,7 @@ The target architecture consists of:
 | `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal, raw and custom-codec signatures implemented; heterogeneous variadic ANY remains required; verification recorded below |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
-| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation, catalog-name providers and owned managed scalar identity providers implemented; broader mapping forms and standalone extraction remain required |
+| `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation, catalog-type/function providers, owned managed scalar identities and standalone full/selected extraction implemented; broader mapping forms and complete platform/version validation remain required |
 | `#[derive(PostgresType)]` (custom base types) | generated CBOR storage, JSON text I/O, custom storage/I/O, binary send/receive | Manual raw callbacks, explicit codecs, generated CBOR/JSON contracts including tagged variants, custom text with generated storage, and packed native borrowing/copy-on-write implemented; additional shapes and broader native layouts remain required |
 | `composite_type!`, `PgHeapTuple` | `PgHeapTuple`, `PgTupleDescriptor`, and `[PgCompositeType]` | Owned dynamic tuples, arrays, sets and SPI implemented; validation below |
 | `#[derive(PostgresEnum)]` | `[PgEnum]`/`[PgEnumLabel]`, generated DDL/mappings, scalar/array SPI and `PgEnums` catalog helpers | Implemented; PostgreSQL 18.6/Linux x64 evidence above |
@@ -3292,7 +3292,7 @@ The target architecture consists of:
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | Selected-header records, enums, functions, globals, indirect calls, static callbacks and selected helpers implemented; variadics, remaining conveniences/protocols and the complete platform/version matrix remain required |
 | `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | Checked native node views and a real custom-scan provider with parallel execution, parameter remapping, registry/lifetime/error handling and older-version adaptation implemented; remaining contracts and the complete platform/version matrix remain required |
 | `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
-| `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time metadata plus embedded native full-script extraction through `ankus schema`; named selection, retained graph and Graphviz remain required |
+| `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time metadata, retained native graph, complete/selected standalone extraction, dependency/family closure, extension attachments and Graphviz implemented; complete platform/version validation remains required |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
 
 ## Repository-derived parity inventory
@@ -3322,7 +3322,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared Valgrind startup is implemented and preserves native memory diagnostics. Remaining shared-option mappings and the complete version/platform matrix remain required; see the regression-suite and Valgrind milestones below |
-| `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds or reads an existing publication, or extracts a standalone library, and emits exact full SQL to stdout/a file without loading native code. Named-item dependency closure, attachments and Graphviz remain required |
+| `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds, reads an existing publication or extracts a standalone library without loading native code. Full/selected SQL, exact-name resolution, dependency/family closure, fixed-schema qualification, attachments, detached replay and Graphviz are implemented. Affected native PostgreSQL checks pass on Linux x64/macOS ARM64 18.6 and Windows x64 17.11; the complete version/platform matrix remains required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
 | `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
 | `get` | Query extension control properties and derived extension metadata | Implemented: managed generated metadata and author settings share primary publication composition; evaluated extension names, selected-project Git revisions and publication-only queries preserve exact output and failures. Installed-tool/catalog evidence on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform matrix remains required |
@@ -3364,7 +3364,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_extern` / `pgrx` | Names, schemas, overloads, strictness, defaults, named arguments, variadics, polymorphic/raw inputs and results | Synchronous supported types, SETOF/TABLE, names, fixed schemas, overloads, strictness, named/defaulted arguments, variadics, polymorphic signatures, explicit raw/internal bindings and reusable mapped scalar/array callback slots implemented, including finite fully constructed generic mapped roots. Nested SQL array containers are rejected, matching pgrx; multidimensional values use one shaped array. Broader generic mapping forms and the full platform/version matrix remain required. |
 | Function options (`extern_args.rs`) | Create-or-replace, immutable/stable/volatile, security invoker/definer, parallel modes, cost, support functions, dependencies, search path | Implemented declaration options, existing planner support references and explicit named SQL/schema/function dependencies; future entity families pending |
 | `pg_schema`, `search_path` | Schema declarations, qualification, nested declarations, lookup/search-path semantics | Implemented for functions and standalone schemas, including owned/existing schemas, named graph dependencies, per-call search paths and non-relocatable metadata; future type-family integration pending |
-| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar/array signatures and support explicitly ordered shell/I/O/completion sequences. Standalone declared-entity extraction remains required. |
+| `extension_sql!`, `extension_sql_file!` | Inline/file SQL, entity requirements, bootstrap/finalize positioning, declared created entities | Inline/file SQL, named requirements/before constraints, bootstrap/final, file-change invalidation, SQL-only packages, declared catalog-type/function providers and reusable owned managed-identity providers implemented. Providers order raw/composite/mapped scalar/array signatures and support explicitly ordered shell/I/O/completion sequences. Retained graphs support standalone declared-object selection and extension attachment; complete platform/version validation remains required. |
 | `pgrx(sql = ...)` | Literal/disabled SQL generation with retained wrappers and entity dependencies | Implemented for PgFunction (including attached operator/cast SQL), PgType/PgEnum, PgAggregate and PgOrdering/PgHashing with their distinct ownership boundaries. Generator and real Native AOT installation/execution/relocation/rollback evidence includes Linux x64/PostgreSQL 18.6 in UTF8 and LATIN1; full hosted suites pass on Linux x64/PG18.6, macOS ARM64/PG18.6 and Windows x64/PG17.11. The pinned pgrx source rejects callback paths despite stale macro documentation advertising them; its equality derive does not consume parent SQL controls. |
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
@@ -3375,7 +3375,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
 | `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, guarded static native callbacks, module magic, immediate `[PgModuleLoad]` registration and backend/shared-preload `[PgInitialize]` with retry/recursion handling; callback workers verified on Linux x64/PG18.6 and Windows x64/PG17.7, remaining platform/version matrix required |
-| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic SQL/schema/enum/function/operator/cast graph with aliases, dependency diagnostics, bootstrap/final edges and managed assembly metadata; future type-family graph edges, translation hooks and standalone extraction pending |
+| SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic typed declaration graph, aliases, dependency diagnostics, bootstrap/final edges and replacement ownership survive managed metadata and retained ELF/PE/Mach-O sections. Standalone selection closes prerequisites and declaration families, qualifies fixed schemas and exports DOT; broader translation contracts and the complete platform/version matrix remain required |
 
 The operator option attributes are `opname`, `commutator`, `negator`, `restrict`, `join`, `hashes`, and
 `merges`. GUC-specific derives/hooks are tracked with GUCs below. PostgreSQL event callbacks and owned
@@ -15472,3 +15472,128 @@ remote branch still matches the local base. The new milestone's CI remains
 pending until push. Arbitrary package-name property functions, the complete
 PostgreSQL/platform matrix and all other unresolved full-port requirements
 remain visible; this milestone does not claim full port completion.
+
+### 2026-09-29 — Schema item selection and graph export started
+
+The preceding goal turn completed and pushed framework-upgrade milestone
+`9e26425`, with the full local suite and affected three-platform evidence
+recorded above. Its CI **36642212368** and Docs **36642212346** are confirmed
+in progress; no result is inferred while development continues.
+
+The next tooling work follows pgrx's named schema selection, dependency closure,
+extension attachment and Graphviz output. Current Ankus generation retains
+dependency nodes while compiling but embeds only the final SQL string, so the
+required graph must survive publication. The planned boundary is versioned
+generated metadata, a bounded native graph payload, and deliberate public
+read/select APIs in PgConfig. Production tools will not gain access to another
+assembly's internals.
+
+Acceptance includes actual selected-object SQL replay and catalog ownership,
+unknown/ambiguous names, custom replacement families and providers, fixed control
+schemas, malformed graph input, legacy full-script extraction and deterministic
+Graphviz output. The implementation and complete platform validation remain
+open; reading the reference and pairing existing tests is not completion proof.
+
+The preceding milestone is now green: CI **36642212368** succeeds on all three
+platforms, with complete jobs **Linux/PG18 32m33s**, **macOS ARM64/PG18 13m31s**,
+and **Windows x64/PG17 20m23s**. Docs **36642212346** also succeeds. No timeout or
+new failure remains from that run. These results belong to `9e26425`, not the
+uncommitted schema candidate.
+
+The schema candidate now carries a bounded compiler graph through native
+metadata format 2, while retaining format-1 full-script reads. Typed declaration
+identities and compiler-only schema insertion points preserve fixed control
+schemas without rewriting authored identifiers or literals. The CLI implements
+named dependency selection, transactional extension attachments, detached SQL,
+and deterministic DOT output. SQL and DOT outputs are staged together and prior
+files are restored after an observed replacement failure. Custom function
+providers complement existing type providers. None of this is a completion
+claim until real selected-script execution and the remaining gates pass.
+
+Development checks so far: **2,154 generator cases pass** on Linux, including
+**four** new graph metadata cases; the earlier schema-reader selection passed
+**62 cases** before a further fixed-schema case was added. Real retained native
+metadata passes **two cases** on Linux x64 (legacy SQL and current graph). The
+new package-consumer tests are building/running against PostgreSQL **18.6/Linux
+x64**. Full-suite, final analyzer/build, API/site and current-candidate macOS/
+Windows evidence remain open.
+
+The first real selected-script probe found a test-staging omission: the isolated
+PostgreSQL installation had the control and SQL files but no native library in
+`$libdir`. The fixture now copies that library into its owned server directory.
+The corrected **eight-case** package selection passes on PostgreSQL **18.6/Linux
+x64** in **3m20.848s**, including exact fixed-schema execution, catalog extension
+ownership, transaction rollback, same-session recovery, `DROP EXTENSION` cleanup,
+detached replay and failed-output preservation. The generated equality family
+also now retains its inequality partner when selected through ordering/hash
+dependencies, with a direct graph regression.
+
+Graphviz **16.1.0** parses and renders both actual published DOT graphs. Reader
+validation now passes **78 cases**, including byte/count boundaries; **10**
+focused generator graph cases pass. API generation completes **217 pages /
+2,585 members**. Additional real PostgreSQL checks now include star, variadic
+and ordered-set aggregate identities. Their outcome and the full-suite/final
+build/site/platform gates remain pending.
+
+The expanded PostgreSQL selection passes all **eight cases** in **3m18.398s**
+on PostgreSQL **18.6/Linux x64**, including ordinary, star, variadic and
+ordered-set aggregates. Final focused graph checks pass **15 generator cases**
+and **79 reader cases**, including bare helper aliases and valid whitespace-only
+schema/SQL values. The final Release solution build reports **zero warnings and
+errors, 1m16.64s**. Native AOT CLI publication succeeds, followed by five direct
+checks of selected files/DOT, transaction/library substitution, detached stdout,
+failed-selection preservation and complete extraction.
+
+API freshness passes for **217 pages / 2,585 members**. Ordinary `pnpm build`
+builds **264 pages**, and `pnpm check` reports **zero errors, warnings and hints**.
+The plain complete Linux suite and the eight-case affected macOS/Windows
+selections are running. Both platform copies match all **1,279** source, project,
+automation and configuration hashes. Prior CI **36642212368** and Docs
+**36642212346** are rechecked as successful; no final result is inferred for
+the uncommitted candidate.
+
+The matching macOS ARM64/PostgreSQL **18.6** candidate passes all **eight**
+affected cases with **zero failures/skips, 3m09.638s**. Its owned validation
+copy and transfer archives are removed. Windows and the complete local Linux
+suite are still running.
+
+Windows x64/PostgreSQL **17.11** also passes all **eight** affected cases with
+**zero failures/skips, 7m06.621s**. The final candidate therefore has actual
+selected-script execution and native-library extraction evidence on all three
+platforms. These filtered checks do not replace each platform's required full
+suite. The complete local Linux run remains in progress.
+
+### 2026-09-29 — Schema selection and graph export verified milestone
+
+Final plain `dotnet test` succeeds against PostgreSQL **18.6/Linux x64**:
+**9,517 total, 9,508 passed, zero failed, nine Windows-only skips**, in
+**15m52.172s**. All six modules complete, including the Valgrind regression
+that previously failed CI. The final source still matches the candidate
+checked on all three platforms.
+
+| Schema selection acceptance | Evidence |
+|---|---|
+| Retained native graph and compatibility | Bounded independent codec fixtures; graph/full-SQL agreement; actual retained linked sections; legacy full-script reads and explicit rebuild diagnostics |
+| Names, dependencies and families | Exact selected scripts and node order; missing/ambiguous names; suppressed/replaced families; complete derived comparison partners; typed aggregate signatures |
+| PostgreSQL execution and ownership | Fixed/default schemas; scalar/custom/enum values; ordinary/star/variadic/ordered-set aggregates; nine exact catalog attachment targets; transactional failure, same-session recovery, plain `DROP EXTENSION` cleanup and detached replay |
+| Output and graph boundaries | Exact existing SQL/DOT/native bytes after invalid selection and failed second replacement; independent DOT expectations; Graphviz **16.1.0** parses/renders two actual published graphs |
+| Affected platform scope | Eight cases each: Linux x64/PG18.6 **8/0/0 skips, 3m18.398s**; macOS ARM64/PG18.6 **8/0/0 skips, 3m09.638s**; Windows x64/PG17.11 **8/0/0 skips, 7m06.621s** |
+| Complete local suite | PostgreSQL **18.6/Linux x64**, **9,508/0/9 skips**, **15m52.172s** |
+| Release and native CLI | Release solution **zero warnings/errors, 1m16.64s**; Native AOT tool publication and five direct native CLI boundary checks |
+| API/site | API freshness **217 pages / 2,585 members**; ordinary site build **264 pages**; site check **zero errors/warnings/hints** |
+
+README and public guides now describe selected-object scripts, extension
+attachment, detached replay, custom function providers and DOT output. The
+binary metadata contract is documented for contributors. All analyzer modes
+and enforced severities remain intact; no suppression or production friend
+assembly is introduced. Owned platform validation copies and transfer archives
+are removed. Inactive generated temporary build directories are also cleaned,
+reclaiming about **2.9 GiB** while retaining compact verification logs.
+
+Before committing, CI **36642212368** and Docs **36642212346** for `9e26425`
+are rechecked as successful. No newer run is active, and the remote branch
+matches the local base. Earlier failed CI **36617656321** remains resolved by
+`b0e60c2`. The new milestone's full platform CI remains pending until push.
+The complete PostgreSQL/version/platform matrix, broader translation contracts,
+remaining command/runtime work and every other unresolved full-port requirement
+remain open. This milestone does not claim full port completion.

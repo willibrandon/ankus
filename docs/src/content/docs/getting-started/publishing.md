@@ -125,8 +125,55 @@ Do not combine `--from` with project, configuration, PostgreSQL, or build option
 The output is the complete installation script, including custom SQL and
 declarations in dependency order. It retains PostgreSQL's `MODULE_PATHNAME`
 marker, which `CREATE EXTENSION` resolves through the control file. Extracting
-SQL does not install the extension or replace those installation files. Named-item
-selection, extension-attachment SQL, and Graphviz output are not yet available.
+SQL does not install the extension or replace those installation files.
+
+### Select declarations
+
+Pass one or more SQL names, managed declaration names, signatures, or explicit
+`Id` values to emit just those declarations and their prerequisites:
+
+```console
+ankus schema --from publish/Hello.so add --output selected.sql
+ankus schema --from publish/Hello.so Hello.Functions.Add --no-alter-extension
+```
+
+Names are case-sensitive. Ambiguous names require a qualified name, exact SQL
+signature, or unique `Id`. Selecting a function also includes its declared
+operators and casts. Shared prerequisites appear once, in installation order.
+
+Selected scripts replace `MODULE_PATHNAME` with the published library under
+PostgreSQL's `$libdir`. Install that library before running the script. By default,
+the script wraps creation and `ALTER EXTENSION ... ADD` statements in one
+transaction. The extension must already exist; use this to add new objects to it.
+Prerequisites are emitted too, so check the selected script before applying it
+to a database containing those objects.
+
+`--no-alter-extension` emits creation SQL without a transaction or extension
+attachments. A fixed control schema qualifies generated object names and owned
+type references even when the session uses another search path. Authored SQL
+retains its own identifiers and qualification.
+
+Custom SQL types declared with `PgSqlTypeProvider` and functions declared with
+`PgSqlFunctionProvider` receive attachments. A custom block without a declared
+object inventory produces a warning; attach its objects yourself. Replacement
+SQL must create the declared object identities to use automatic attachment.
+See [custom SQL](/custom-sql/#declare-supplied-functions).
+
+### Export dependencies
+
+Use `--dot` to write the complete dependency graph, including when selecting SQL:
+
+```console
+ankus schema --from publish/Hello.so add --dot dependencies.dot --output selected.sql
+```
+
+The Graphviz DOT file labels declarations and draws edges from prerequisites to
+the objects that depend on them. SQL and graph destinations must differ from
+each other and from the input library. Invalid selections preserve existing
+output files.
+
+Older libraries containing only flat SQL still support full extraction. Rebuild
+them with a current Ankus SDK before requesting item selection or a graph.
 
 ## Load into PostgreSQL
 

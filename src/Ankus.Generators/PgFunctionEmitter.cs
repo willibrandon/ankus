@@ -21,17 +21,18 @@ internal static class PgFunctionEmitter
     /// <param name="native">The generated native source.</param>
     /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
+    /// <param name="providers">Extension-owned types used to qualify selected SQL.</param>
     internal static void Emit(IMethodSymbol method, FunctionParameter[] parameterModels, FunctionDeclaration declaration, string callback,
         bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
+        StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports, SqlTypeProviders providers)
     {
         FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)];
         FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         EmitManaged(method, callback, parameterModels, result, managed);
         EmitNative(nativeName, callback, parameters, result, ensureInitialized, native);
-        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}({declaration.Arguments})");
-        sql.AppendLine($"RETURNS {result.Sql} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
+        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.TemplateName}({declaration.Arguments})");
+        sql.AppendLine($"RETURNS {SqlSchemaTemplate.Type(result, providers)} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
     }

@@ -15,7 +15,7 @@ internal static class OperatorCastDeclaration
     /// </summary>
     /// <returns>The attached nodes, including their identifiers and prerequisites.</returns>
     internal static List<SqlEntity> Add(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function, SqlEntity dependency,
-        SqlGraph graph, HashSet<string> names, SourceProductionContext context, Dictionary<string, SqlEntity> operators)
+        SqlGraph graph, HashSet<string> names, SourceProductionContext context, Dictionary<string, SqlEntity> operators, SqlTypeProviders providers)
     {
         var result = new List<SqlEntity>();
         FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsInjected)];
@@ -39,9 +39,9 @@ internal static class OperatorCastDeclaration
                 continue;
             }
 
-            (string Sql, string Signature)? declaration = kind == "operator"
-                ? CreateOperator(method, sqlParameters, function, attribute, context)
-                : CreateCast(method, sqlParameters, function, attribute, context);
+            (string Sql, string Signature, string Identity)? declaration = kind == "operator"
+                ? CreateOperator(method, sqlParameters, function, attribute, context, providers)
+                : CreateCast(method, sqlParameters, function, attribute, context, providers);
             if (declaration is not { } declared)
             {
                 continue;
@@ -52,7 +52,19 @@ internal static class OperatorCastDeclaration
                 graph.Error(method.Locations.FirstOrDefault(), "Duplicate PostgreSQL " + kind + " signature " + declared.Signature + ".");
             }
 
-            var entity = new SqlEntity("2:" + kind + ":" + method.ToDisplayString(), declared.Sql, method.Locations.FirstOrDefault());
+            var entity = new SqlEntity("2:" + kind + ":" + method.ToDisplayString(), declared.Sql, method.Locations.FirstOrDefault()) { Kind = kind };
+            entity.SelectionNames.Add(declared.Signature);
+            if (kind == "operator")
+            {
+                string name = (string)attribute.ConstructorArguments[0].Value!;
+                entity.SelectionNames.Add(name);
+                if (function.Schema is not null)
+                {
+                    entity.SelectionNames.Add(function.Schema + "." + name);
+                }
+            }
+
+            entity.Attachments.Add(declared.Identity);
             entity.Dependencies.Add(dependency);
             graph.Configure(entity, attribute);
             graph.Add(entity);
@@ -66,8 +78,8 @@ internal static class OperatorCastDeclaration
         return result;
     }
 
-    private static (string Sql, string Signature)? CreateOperator(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
-        AttributeData attribute, SourceProductionContext context)
+    private static (string Sql, string Signature, string Identity)? CreateOperator(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
+        AttributeData attribute, SourceProductionContext context, SqlTypeProviders providers)
     {
         string? name = attribute.ConstructorArguments.FirstOrDefault().Value as string;
         string? qualified = OperatorReference(name, function.Schema);
@@ -104,13 +116,13 @@ internal static class OperatorCastDeclaration
 
         string right = parameters[parameters.Length - 1].Type!.Sql;
         string? left = parameters.Length == 2 ? parameters[0].Type!.Sql : null;
-        var options = new List<string> { "FUNCTION = " + function.QualifiedName };
+        var options = new List<string> { "FUNCTION = " + function.TemplateName };
         if (left is not null)
         {
-            options.Add("LEFTARG = " + left);
+            options.Add("LEFTARG = " + SqlSchemaTemplate.Type(parameters[0].Type!, providers));
         }
 
-        options.Add("RIGHTARG = " + right);
+        options.Add("RIGHTARG = " + SqlSchemaTemplate.Type(parameters[parameters.Length - 1].Type!, providers));
         if (!AddReference("COMMUTATOR", commutator, true) || !AddReference("NEGATOR", negator, true) ||
             !AddReference("RESTRICT", restrict, false) || !AddReference("JOIN", join, false))
         {
@@ -127,8 +139,11 @@ internal static class OperatorCastDeclaration
             options.Add("MERGES");
         }
 
-        return ("CREATE OPERATOR " + qualified + " (" + string.Join(", ", options) + ");\n",
-            qualified + "(" + (left ?? "NONE") + "," + right + ")");
+        string templateName = (function.Schema is null ? "\0" : string.Empty) + qualified;
+        return ("CREATE OPERATOR " + templateName + " (" + string.Join(", ", options) + ");\n",
+            qualified + "(" + (left ?? "NONE") + "," + right + ")",
+            "OPERATOR " + templateName + "(" + (left is null ? "NONE" : SqlSchemaTemplate.Type(parameters[0].Type!, providers)) + "," +
+                SqlSchemaTemplate.Type(parameters[parameters.Length - 1].Type!, providers) + ")");
 
         bool AddReference(string option, string? reference, bool isOperator)
         {
@@ -143,19 +158,20 @@ internal static class OperatorCastDeclaration
                 return false;
             }
 
-            options.Add(option + " = " + (isOperator ? "OPERATOR(" + sql + ")" : sql));
+            options.Add(option + " = " + (isOperator ? "OPERATOR(" +
+                (function.Schema is null && !reference.Contains('.') ? "\0" : string.Empty) + sql + ")" : sql));
             return true;
         }
 
-        (string, string)? Invalid(string reason)
+        (string, string, string)? Invalid(string reason)
         {
             context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason));
             return null;
         }
     }
 
-    private static (string Sql, string Signature)? CreateCast(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
-        AttributeData attribute, SourceProductionContext context)
+    private static (string Sql, string Signature, string Identity)? CreateCast(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration function,
+        AttributeData attribute, SourceProductionContext context, SqlTypeProviders providers)
     {
         int castContext = attribute.ConstructorArguments.FirstOrDefault().Value is int value ? value : 0;
         if (castContext is < 0 or > 2)
@@ -187,16 +203,17 @@ internal static class OperatorCastDeclaration
         }
 
         string signature = source + " AS " + target;
-        string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type!.Sql));
+        string arguments = string.Join(", ", parameters.Select(parameter => SqlSchemaTemplate.Type(parameter.Type!, providers)));
         string suffix = castContext switch
         {
             1 => " AS ASSIGNMENT",
             2 => " AS IMPLICIT",
             _ => string.Empty
         };
-        return ("CREATE CAST (" + signature + ") WITH FUNCTION " + function.QualifiedName + "(" + arguments + ")" + suffix + ";\n", signature);
+        string identity = SqlSchemaTemplate.Type(parameters[0].Type!, providers) + " AS " + SqlSchemaTemplate.Type(FunctionType.CreateResult(method)!, providers);
+        return ("CREATE CAST (" + identity + ") WITH FUNCTION " + function.TemplateName + "(" + arguments + ")" + suffix + ";\n", signature, "CAST (" + identity + ")");
 
-        (string, string)? Invalid(string reason)
+        (string, string, string)? Invalid(string reason)
         {
             context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason));
             return null;

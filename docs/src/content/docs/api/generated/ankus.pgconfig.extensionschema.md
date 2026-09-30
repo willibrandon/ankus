@@ -31,6 +31,30 @@ public PublishedExtension Artifacts { get; }
 
 Value: [PublishedExtension](/api/ankus.pgconfig.publishedextension/)
 
+<a id="member-bc3659edde959574"></a>
+
+### DefaultSchema
+
+Gets the effective fixed control schema, or null when installation selects the schema.
+
+```csharp
+public string? DefaultSchema { get; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-8abaeb3872d294a7"></a>
+
+### Graph
+
+Gets the compiler dependency graph, or null for a legacy library containing only installation SQL.
+
+```csharp
+public ExtensionSchemaGraph? Graph { get; }
+```
+
+Value: [ExtensionSchemaGraph](/api/ankus.pgconfig.extensionschemagraph/)
+
 <a id="member-940fff75150faba0"></a>
 
 ### Name
@@ -112,3 +136,35 @@ Exceptions:
 
 Supports Linux x64 ELF, Windows x64 PE and macOS x64/ARM64 Mach-O libraries.
 Schema sections are limited to 64 MiB; native library contents are read through bounded file ranges.
+
+<a id="member-0b9c2f11202103c8"></a>
+
+### Select(IEnumerable&lt;string&gt;, bool)
+
+Selects declarations by exact SQL name, managed name, signature or explicit dependency identifier.
+
+```csharp
+public ExtensionSchemaSelection Select(IEnumerable<string> names, bool alterExtension = true)
+```
+
+Parameters:
+
+`names` — [IEnumerable&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1)
+
+One or more names; ambiguous names require a qualified name or signature.
+
+`alterExtension` — [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
+Whether to wrap creation and extension attachment in one transaction.
+
+Returns: [ExtensionSchemaSelection](/api/ankus.pgconfig.extensionschemaselection/)
+
+The selected SQL, ordered dependency closure and attachment diagnostics.
+
+Exceptions:
+
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): The library predates embedded dependency graphs.
+- [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception): A selection is empty, unknown or ambiguous.
+
+The extension must already exist when attaching objects. The concrete library must be installed in PostgreSQL's library directory.
+Custom SQL without declared created objects remains in the script and produces a warning when attachment is requested.

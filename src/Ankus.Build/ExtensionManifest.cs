@@ -21,6 +21,11 @@ internal sealed class ExtensionManifest
     internal string Sql => _values["Ankus.Sql"];
 
     /// <summary>
+    /// Gets the resolved installation graph, or null for a legacy generator.
+    /// </summary>
+    internal string? SqlGraph => _values.GetValueOrDefault("Ankus.SqlGraph");
+
+    /// <summary>
     /// Gets the additional native symbols that the Native AOT linker must export.
     /// </summary>
     internal string Exports => _values["Ankus.Exports"];

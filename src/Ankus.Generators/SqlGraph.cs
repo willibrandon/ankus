@@ -6,14 +6,16 @@ namespace Ankus.Generators;
 /// <summary>
 /// Validates and topologically orders installation SQL with stable output and explicit cycle diagnostics.
 /// </summary>
-internal sealed class SqlGraph
+internal sealed partial class SqlGraph
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
     private readonly List<SqlEntity> _entities = [];
+    private readonly List<SqlEntity> _ordered = [];
     private readonly List<(SqlEntity Entry, HashSet<SqlEntity> Members)> _replacements = [];
     private readonly SourceProductionContext _context;
     private bool _invalid;
+    private bool _emitted;
 
     /// <summary>
     /// Creates a graph whose validation errors are reported to the current generator run.
@@ -103,6 +105,8 @@ internal sealed class SqlGraph
     /// <returns>The complete script or null when the graph is invalid.</returns>
     internal string? Emit()
     {
+        _emitted = false;
+        _ordered.Clear();
         var names = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         foreach (SqlEntity entity in _entities)
         {
@@ -209,6 +213,7 @@ internal sealed class SqlGraph
             _context.CancellationToken.ThrowIfCancellationRequested();
             SqlEntity entity = ready.Min!;
             ready.Remove(entity);
+            _ordered.Add(entity);
             result.Append(entity.Sql);
             if (entity.Sql.Length != 0 && entity.Sql[entity.Sql.Length - 1] != '\n')
             {
@@ -232,6 +237,7 @@ internal sealed class SqlGraph
             return null;
         }
 
+        _emitted = true;
         return result.ToString();
 
         bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)

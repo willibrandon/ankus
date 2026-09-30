@@ -159,7 +159,7 @@ internal sealed class EnumDeclaration
     /// <summary>
     /// Emits CREATE TYPE with label order preserved exactly.
     /// </summary>
-    internal string CreateSql() => "CREATE TYPE " + Sql + " AS ENUM (" + string.Join(", ", Labels.Select(static item => SqlText.Literal(item.Label))) + ");\n";
+    internal string CreateSql() => "CREATE TYPE " + (Schema is null ? "\0" : string.Empty) + Sql + " AS ENUM (" + string.Join(", ", Labels.Select(static item => SqlText.Literal(item.Label))) + ");\n";
 
     /// <summary>
     /// Emits a native catalog identity check so unsupported SPI enums fail before a query's subtransaction commits.

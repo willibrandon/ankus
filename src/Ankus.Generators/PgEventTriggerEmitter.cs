@@ -76,7 +76,7 @@ internal static class PgEventTriggerEmitter
         native.AppendLine($"    return ankus_event_trigger_call(fcinfo, {callback});");
         native.AppendLine("}");
         native.AppendLine();
-        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.QualifiedName}()");
+        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.TemplateName}()");
         sql.AppendLine($"RETURNS event_trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);

@@ -21,6 +21,15 @@ internal sealed class FunctionDeclaration
     }
 
     /// <summary>
+    /// Gets the validated unquoted SQL function name for item selection.
+    /// </summary>
+    internal string Name
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    /// <summary>
     /// Gets the quoted function name, qualified when a fixed schema is declared.
     /// </summary>
     internal string QualifiedName
@@ -28,6 +37,11 @@ internal sealed class FunctionDeclaration
         get;
         private set;
     } = string.Empty;
+
+    /// <summary>
+    /// Gets the function name with a compiler marker for an extension-controlled default schema.
+    /// </summary>
+    internal string TemplateName => (Schema is null ? "\0" : string.Empty) + QualifiedName;
 
     /// <summary>
     /// Gets the named SQL argument declarations, including variadic and default clauses.
@@ -76,9 +90,11 @@ internal sealed class FunctionDeclaration
     /// <param name="sqlNullability">Explicit SQL parameter nullability for a specialized callback, excluding synthetic arguments that cannot be null.</param>
     /// <param name="schemaFallback">The specialized declaration's schema when the callback does not override it.</param>
     /// <param name="parameterModels">The ordered SQL and injected parameters, or null to resolve them from the method.</param>
+    /// <param name="providers">The extension type providers used for default-schema qualification.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
     internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null,
-        bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null)
+        bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null,
+        SqlTypeProviders? providers = null)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
@@ -140,6 +156,7 @@ internal sealed class FunctionDeclaration
         }
 
         declaration.Schema = schema;
+        declaration.Name = name;
         declaration.QualifiedName = (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + SqlText.Identifier(name);
         declaration.Replace = Value(attribute, "CreateOrReplace", false);
         declaration.Strict = nullInput == 1 || (nullInput == 0 && allRequired);
@@ -259,7 +276,7 @@ internal sealed class FunctionDeclaration
             }
 
             defaultSeen |= expression is not null;
-            parameters.Add((parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameterName) + " " + type.Sql +
+            parameters.Add((parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameterName) + " " + SqlSchemaTemplate.Type(type, providers) +
                 (expression is null ? string.Empty : " DEFAULT (" + expression + ")"));
         }
 
