@@ -7,6 +7,9 @@ internal sealed partial class SqlGraph
     private static readonly DiagnosticDescriptor s_invalidReference = new(
         "ANKUS026", "Invalid managed SQL dependency reference", "{0}", "Ankus", DiagnosticSeverity.Error,
         isEnabledByDefault: true, helpLinkUri: "https://willibrandon.github.io/ankus/custom-sql/#reference-managed-declarations");
+    private static readonly DiagnosticDescriptor s_invalidSupport = new(
+        "ANKUS027", "Invalid planner support function", "{0}", "Ankus", DiagnosticSeverity.Error,
+        isEnabledByDefault: true, helpLinkUri: "https://willibrandon.github.io/ankus/function-declarations/#planner-support-functions");
     private readonly Dictionary<ISymbol, List<SqlEntity>> _declarations = new(SymbolEqualityComparer.Default);
     private readonly List<(SqlEntity Source, SqlEntity Target)> _inheritedRequirements = [];
 
@@ -36,7 +39,7 @@ internal sealed partial class SqlGraph
     /// Identifies explicit dependencies whose destination is a C# declaration rather than a string ID.
     /// </summary>
     internal static bool IsReference(AttributeData attribute)
-        => attribute.AttributeClass?.ToDisplayString() is "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute";
+        => attribute.AttributeClass?.ToDisplayString() is "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute" or "Ankus.PgSupportFunctionAttribute";
 
     /// <summary>
     /// Resolves typed edges after all declarations exist and before ordering or encoding the graph.
@@ -49,6 +52,13 @@ internal sealed partial class SqlGraph
             foreach (AttributeData attribute in declaration.GetAttributes().Where(IsReference))
             {
                 _context.CancellationToken.ThrowIfCancellationRequested();
+                bool plannerSupport = attribute.AttributeClass!.Name == "PgSupportFunctionAttribute";
+                if (plannerSupport && (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not string))
+                {
+                    ReferenceError(attribute, "A planner support reference requires a non-null method name.");
+                    continue;
+                }
+
                 SqlEntity? source = Source(declaration, attribute);
                 if (source is null)
                 {
@@ -61,7 +71,11 @@ internal sealed partial class SqlGraph
                     continue;
                 }
 
-                if (attribute.AttributeClass!.Name == "PgBeforeAttribute")
+                if (plannerSupport)
+                {
+                    BindPlannerSupport(declaration, attribute, source, target);
+                }
+                else if (attribute.AttributeClass!.Name == "PgBeforeAttribute")
                 {
                     target.DeclaredDependencies.Add(source);
                 }
@@ -77,6 +91,38 @@ internal sealed partial class SqlGraph
             target.Requires.UnionWith(source.Requires.Where(required => !target.Names.Contains(required)));
             target.RequiredDeclarations.UnionWith(source.RequiredDeclarations.Where(required => required != target));
         }
+    }
+
+    private void BindPlannerSupport(ISymbol declaration, AttributeData attribute, SqlEntity source, SqlEntity target)
+    {
+        if (source.Function is null)
+        {
+            ReferenceError(attribute, "PgSupportFunction must annotate a generated PostgreSQL function.");
+            return;
+        }
+
+        AttributeData? function = declaration.GetAttributes().FirstOrDefault(static candidate =>
+            candidate.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
+        if (function is not null && AttributeValues.Get<string?>(function, "SupportFunction", null) is not null)
+        {
+            ReferenceError(attribute, "Choose either PgSupportFunction or the external PgFunction.SupportFunction SQL name, not both.");
+            return;
+        }
+
+        if (target.Function is not { IsPlannerSupport: true } support)
+        {
+            ReferenceError(attribute, "A planner support function must take exactly one nonvariadic SQL internal argument and return scalar SQL internal.");
+            return;
+        }
+
+        if (support.RequiresAggregateContext)
+        {
+            ReferenceError(attribute, "An aggregate helper requires an aggregate invocation and cannot serve as planner support; select an ordinary PgFunction method.");
+            return;
+        }
+
+        source.RequiredDeclarations.Add(target);
+        source.Function.Declaration.SetPlannerSupport(support.Declaration.TemplateName);
     }
 
     private SqlEntity? Source(ISymbol declaration, AttributeData attribute)
@@ -170,7 +216,7 @@ internal sealed partial class SqlGraph
     private SqlEntity? ReferenceError(AttributeData attribute, string message)
     {
         _invalid = true;
-        _context.ReportDiagnostic(Diagnostic.Create(s_invalidReference,
+        _context.ReportDiagnostic(Diagnostic.Create(attribute.AttributeClass?.Name == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
             attribute.ApplicationSyntaxReference?.GetSyntax(_context.CancellationToken).GetLocation(), message));
         return null;
     }

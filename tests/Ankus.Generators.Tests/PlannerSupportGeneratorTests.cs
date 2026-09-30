@@ -1,0 +1,283 @@
+using System.Collections.Immutable;
+using Ankus.PgConfig;
+using Microsoft.CodeAnalysis;
+
+namespace Ankus.Generators.Tests;
+
+public sealed partial class PgFunctionGeneratorTests
+{
+    /// <summary>
+    /// Managed references use the target's SQL identity and preserve its prerequisite in the encoded graph.
+    /// </summary>
+    /// <param name="schema">The support function's optional fixed schema.</param>
+    [TestMethod]
+    [DataRow((string?)null)]
+    [DataRow("planner")]
+    public void PlannerSupportUsesDeclaredIdentity(string? schema)
+    {
+        string schemaOption = schema is null ? string.Empty : ", Schema = \"" + schema + "\"";
+        Compilation compilation = GenerateSqlControl($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof(ZSupport))]
+                public static int A(int value) => value;
+                [Ankus.PgFunction(Name = "renamed_support"{{schemaOption}})]
+                public static Ankus.PgInternal? ZSupport(Ankus.PgInternal request) => null;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.HasCount(2, graph.Items);
+        string identity = (schema is null ? string.Empty : "\"planner\".") + "\"renamed_support\"";
+        Assert.StartsWith("CREATE FUNCTION " + identity, graph.Items[0].Sql);
+        Assert.Contains("SUPPORT " + identity, graph.Items[1].Sql);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+
+    /// <summary>
+    /// All generated function families receive the resolved support clause and graph edge.
+    /// </summary>
+    /// <param name="consumer">The function declaration under test.</param>
+    [TestMethod]
+    [DataRow("[Ankus.PgFunction] public static int A(int value) => value;")]
+    [DataRow("[Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<int> A() => [1];")]
+    [DataRow("[Ankus.PgTrigger] public static Ankus.PgHeapTuple? A(Ankus.PgTriggerContext context) => null;")]
+    [DataRow("[Ankus.PgEventTrigger] public static void A(Ankus.PgEventTriggerContext context) { }")]
+    public void PlannerSupportCoversFunctionFamilies(string consumer)
+    {
+        Compilation compilation = GenerateSqlControl($$"""
+            public static class Functions
+            {
+                [Ankus.PgSupportFunction(typeof(Functions), nameof(ZSupport))]
+                {{consumer}}
+                [Ankus.PgFunction]
+                public static Ankus.PgInternal? ZSupport(Ankus.PgInternal request) => null;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.HasCount(2, graph.Items);
+        Assert.Contains("SUPPORT \"z_support\"", graph.Items[1].Sql);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+
+    /// <summary>
+    /// Exact managed overload selection permits injected contexts without counting them as SQL arguments.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportResolvesInheritedOverloadsAndInjectedContext()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            public static class Functions
+            {
+                [Ankus.PgFunction]
+                [Ankus.PgSupportFunction(typeof(Derived), nameof(Derived.Support),
+                    ParameterTypes = new[] { typeof(Ankus.PgFunctionContext), typeof(Ankus.PgInternal) })]
+                public static int A() => 1;
+            }
+            public class Base
+            {
+                [Ankus.PgFunction(Name = "selected_support")]
+                public static Ankus.PgInternal? Support(Ankus.PgFunctionContext context, Ankus.PgInternal request) => null;
+                [Ankus.PgFunction(Name = "unrelated")]
+                public static int Support(int value) => value;
+            }
+            public class Derived : Base;
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem consumer = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"a\"", StringComparison.Ordinal)));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"selected_support\"", StringComparison.Ordinal)));
+        Assert.Contains("SUPPORT \"selected_support\"", consumer.Sql);
+        Assert.AreSequenceEqual<string>([support.Id], consumer.Dependencies);
+    }
+
+    /// <summary>
+    /// A valid ordinary SQL function with an incompatible planner signature cannot become a support routine.
+    /// </summary>
+    /// <param name="support">The otherwise valid exported method.</param>
+    [TestMethod]
+    [DataRow("public static int Support(int value) => value;")]
+    [DataRow("public static int Support(Ankus.PgInternal request) => 1;")]
+    [DataRow("public static Ankus.PgInternal Support(Ankus.PgInternal request, int extra) => request;")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgInternal> Support(Ankus.PgInternal request) => [request];")]
+    public void PlannerSupportRejectsWrongSqlSignatures(string support)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof(Support))]
+                public static int A() => 1;
+                [Ankus.PgFunction] {{support}}
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.Contains("one nonvariadic SQL internal argument", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsNotNull(diagnostic.Location.SourceTree);
+        Assert.Contains("PgSupportFunction", diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Invalid references and conflicting selectors report their own attribute without emitting partial SQL.
+    /// </summary>
+    /// <param name="reference">The invalid support reference.</param>
+    /// <param name="options">Additional ordinary function options.</param>
+    /// <param name="reason">The required diagnostic detail.</param>
+    [TestMethod]
+    [DataRow("typeof(Functions), null!", "", "non-null method name")]
+    [DataRow("null!, \"Support\"", "", "non-null declared type")]
+    [DataRow("typeof(Functions), \"Missing\"", "", "was not found")]
+    [DataRow("typeof(Functions), nameof(Ordinary)", "", "does not declare a generated SQL object")]
+    [DataRow("typeof(Functions), nameof(Support)", "", "is ambiguous")]
+    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new System.Type[] { }", "", "was not found")]
+    [DataRow("typeof(Functions), nameof(Support), ParameterTypes = new[] { typeof(Ankus.PgInternal) }", "SupportFunction = \"pg_catalog.textlike_support\"", "not both")]
+    public void PlannerSupportRejectsInvalidReferences(string reference, string options, string reason)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction({{options}}), Ankus.PgSupportFunction({{reference}})]
+                public static int A() => 1;
+                [Ankus.PgFunction] public static Ankus.PgInternal? Support(Ankus.PgInternal request) => null;
+                [Ankus.PgFunction] public static int Support(int value) => value;
+                public static Ankus.PgInternal? Ordinary(Ankus.PgInternal request) => null;
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.Contains(reason, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.EndsWith("#planner-support-functions", diagnostic.Descriptor.HelpLinkUri);
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Planner support participates in the existing cycle checks rather than recursive declaration reconstruction.
+    /// </summary>
+    /// <param name="self">Whether the dependency points directly to the same function.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PlannerSupportRejectsCycles(bool self)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof({{(self ? "A" : "Z")}}))]
+                public static Ankus.PgInternal A(Ankus.PgInternal request) => request;
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof(A))]
+                public static Ankus.PgInternal Z(Ankus.PgInternal request) => request;
+            }
+            """);
+        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+    }
+
+    /// <summary>
+    /// Supplying custom SQL preserves support prerequisites and does not rewrite the authored fragment.
+    /// </summary>
+    /// <param name="policy">The disabled or replaced SQL policy.</param>
+    /// <param name="expectedSql">The retained source SQL fragment.</param>
+    [TestMethod]
+    [DataRow("GenerateSql = false", "")]
+    [DataRow("Sql = \"SELECT 'authored';\"", "SELECT 'authored';")]
+    public void PlannerSupportRetainsReplacedAndDisabledContracts(string policy, string expectedSql)
+    {
+        Compilation compilation = GenerateSqlControl($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction({{policy}}), Ankus.PgSupportFunction(typeof(Functions), nameof(Z))]
+                public static int A() => 1;
+                [Ankus.PgFunction] public static Ankus.PgInternal Z(Ankus.PgInternal request) => request;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.HasCount(2, graph.Items);
+        Assert.AreEqual(expectedSql, graph.Items[1].Sql);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+
+    /// <summary>
+    /// Aggregate transition helpers receive planner options without losing aggregate-specific parameter handling.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportConfiguresAggregateHelpers()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            [Ankus.PgAggregate(InitialCondition = "0")]
+            public static class Total
+            {
+                [Ankus.PgSupportFunction(typeof(SupportFunctions), nameof(SupportFunctions.Z))]
+                public static int Transition(int state, int value) => state + value;
+            }
+            public static class SupportFunctions
+            {
+                [Ankus.PgFunction] public static Ankus.PgInternal? Z(Ankus.PgInternal request) => null;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"z\"", StringComparison.Ordinal)));
+        ExtensionSchemaItem helper = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("SUPPORT \"z\"", StringComparison.Ordinal)));
+        Assert.AreEqual("function", helper.Kind);
+        Assert.AreSequenceEqual<string>([support.Id], helper.Dependencies);
+    }
+
+    /// <summary>
+    /// Aggregate helpers with compatible SQL signatures still require an aggregate invocation and cannot service planning requests.
+    /// </summary>
+    /// <param name="state">The aggregate's internal state representation.</param>
+    [TestMethod]
+    [DataRow("Ankus.PgInternal")]
+    [DataRow("Ankus.PgAggregateState<int>")]
+    public void PlannerSupportRejectsAggregateInvocationRequirements(string state)
+    {
+        const string reference = "[Ankus.PgSupportFunction(typeof(Counter), nameof(Counter.Transition))]";
+        string source = $$"""
+            [Ankus.PgAggregate]
+            public static class Counter
+            {
+                public static {{state}}? Transition({{state}}? state) => state;
+                public static int Final({{state}}? state) => 0;
+            }
+            public static class Functions
+            {
+                [Ankus.PgFunction]
+                {{reference}}
+                public static int A() => 1;
+            }
+            """;
+        Compilation valid = GenerateSqlControl(source.Replace(reference, string.Empty, StringComparison.Ordinal));
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(valid, "Ankus.SqlGraph"));
+        ExtensionSchemaItem transition = Assert.ContainsSingle(graph.Items.Where(static item =>
+            item.Sql.StartsWith("CREATE FUNCTION \"counter_transition\"", StringComparison.Ordinal)));
+        Assert.Contains("(\"state\" internal)\nRETURNS internal", transition.Sql);
+
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS027", diagnostic.Id);
+        Assert.Contains("aggregate invocation", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Explicit raw internal mappings participate in semantic support validation without requiring one CLR wrapper type.
+    /// </summary>
+    [TestMethod]
+    public void PlannerSupportAcceptsRawInternalContracts()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgSupportFunction(typeof(Functions), nameof(Z))]
+                public static int A() => 1;
+                [Ankus.PgFunction]
+                [return: Ankus.PgSqlType("internal")]
+                public static Ankus.PgDatum Z([Ankus.PgSqlType("internal")] Ankus.PgDatum request) => request;
+            }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.Contains("RETURNS \"internal\"", graph.Items[0].Sql);
+        Assert.Contains("SUPPORT \"z\"", graph.Items[1].Sql);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+}

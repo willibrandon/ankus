@@ -20,12 +20,12 @@ internal static class PgSetEmitter
     /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
-    /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
     /// <param name="providers">Extension-owned types used to qualify selected SQL.</param>
-    internal static void Emit(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
+    /// <returns>The SQL function contract to render after dependency resolution.</returns>
+    internal static SqlFunction Emit(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
         bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports, SqlTypeProviders providers)
+        StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
@@ -176,9 +176,8 @@ internal static class PgSetEmitter
             $"{(set.Columns.Length == 1 && set.Columns[0].UsesRawTransport ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();
-        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.TemplateName}({declaration.Arguments})");
-        sql.AppendLine($"RETURNS {set.TemplateSql(providers)} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
+        return new(declaration, declaration.Arguments, set.TemplateSql(providers), nativeName, false);
     }
 }

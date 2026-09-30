@@ -17,10 +17,10 @@ internal static class PgTriggerEmitter
     /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
     /// <param name="managed">The generated managed source.</param>
     /// <param name="native">The generated native source.</param>
-    /// <param name="sql">The installation SQL.</param>
     /// <param name="exports">The native linker export list.</param>
-    internal static void Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback, bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder sql, StringBuilder exports)
+    /// <returns>The SQL function contract to render after dependency resolution.</returns>
+    internal static SqlFunction Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback, bool ensureInitialized,
+        StringBuilder managed, StringBuilder native, StringBuilder exports)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
@@ -100,9 +100,8 @@ internal static class PgTriggerEmitter
         native.AppendLine($"    return ankus_trigger_call(fcinfo, {callback});");
         native.AppendLine("}");
         native.AppendLine();
-        sql.AppendLine($"CREATE {(declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {declaration.TemplateName}()");
-        sql.AppendLine($"RETURNS trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {declaration.Options};");
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
+        return new(declaration, string.Empty, "trigger", nativeName, false);
     }
 }

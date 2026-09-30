@@ -28,3 +28,4 @@ ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalo
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
+ANKUS027 | Ankus | Error | Invalid generated planner support function

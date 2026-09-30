@@ -122,6 +122,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgSqlTypeProviderAttribute](/api/ankus.pgsqltypeproviderattribute/)
 - [PgStringInfoStream](/api/ankus.pgstringinfostream/)
 - [PgSubtransactionCallback](/api/ankus.pgsubtransactioncallback/)
+- [PgSupportFunctionAttribute](/api/ankus.pgsupportfunctionattribute/)
 - [PgTableRewrite](/api/ankus.pgtablerewrite/)
 - [PgTestAttribute](/api/ankus.pgtestattribute/)
 - [PgTestCase](/api/ankus.pgtestcase/)

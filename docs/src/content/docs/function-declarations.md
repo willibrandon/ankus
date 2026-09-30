@@ -265,3 +265,72 @@ alongside them to select the options described here. See [operators and casts](/
 `IEnumerable<T>` returns a set; named tuple elements declare TABLE output columns.
 See [sets and tables](/sets-and-tables/) for column names, NULL rows, execution modes,
 iterator disposal and cancellation.
+
+## Planner support functions
+
+Use `PgSupportFunction` to select another generated method as the planner support
+routine. Ankus resolves its configured SQL name and schema, validates its
+`internal → internal` SQL signature, and creates it before the consuming function.
+The following example supplies a row estimate for a set-returning function:
+
+```csharp
+using Ankus;
+using Ankus.Postgres;
+
+public static class Numbers
+{
+    [PgFunction(Rows = 1000)]
+    [PgSupportFunction(typeof(Numbers), nameof(Estimate))]
+    public static IEnumerable<int> Values() => [1, 2, 3];
+
+    [PgFunction]
+    public static unsafe PgInternal Estimate(PgInternal request)
+    {
+        PgMemoryContext owner = PgMemoryContext.Current;
+        void* address = (void*)request.Datum.DangerousGetBits();
+        PgNodeReference<Node> node = PgNodes.Borrow(owner.DangerousBorrow<Node>(address)!);
+        if (node.Tag != (uint)NodeTag.T_SupportRequestRows)
+        {
+            return new PgInternal(PgDatum.DangerousCreate(0, (uint)PgBuiltInOid.InternalOid, owner));
+        }
+
+        PgNodeReference<SupportRequestRows> rows =
+            PgNodes.Borrow(owner.DangerousBorrow<SupportRequestRows>(address)!);
+        SupportRequestRows changed = rows.Value;
+        changed.rows = 37;
+        rows.Value = changed;
+        return request;
+    }
+}
+```
+
+PostgreSQL owns the request. Inspect its tag before reading the corresponding
+generated structure, and keep these borrows within the callback. Return the
+request after handling it. For an unsupported request, return a **present zero
+pointer**, as above. A null `PgInternal` represents SQL NULL and is not PostgreSQL's
+“request unsupported” response. New PostgreSQL versions can add request kinds.
+
+The estimate changes planning, not the function's returned values. Other request
+kinds have their own PostgreSQL contracts. Installation with a support routine
+requires a superuser. The usual managed/native error boundary also applies when
+PostgreSQL invokes the method during planning.
+
+`ParameterTypes` selects an overloaded method using exact managed types, as with
+[typed SQL dependencies](/custom-sql/#reference-managed-declarations). Injected
+contexts do not count as SQL arguments. The selected function must accept one
+nonvariadic SQL `internal` argument and return scalar SQL `internal`; `PgInternal`
+and explicit raw internal mappings can express this contract. Trigger functions
+and aggregate helpers can also declare a support routine.
+
+The support routine itself must be an ordinary generated function. An aggregate
+helper requires an aggregate invocation, which PostgreSQL does not provide during
+planning, even when its SQL argument and result types are both `internal`.
+
+`ANKUS027` reports missing, ambiguous, incompatible or conflicting support
+references. Dependency cycles remain graph errors. Disabled and replaced SQL
+retain their support prerequisites; authored replacement SQL must include the
+desired `SUPPORT` clause itself.
+
+Keep `PgFunction.SupportFunction = "pg_catalog.textlike_support"` for an existing
+external SQL routine. PostgreSQL validates its signature at installation. Choose
+either the external SQL name or `PgSupportFunction` for a declaration.

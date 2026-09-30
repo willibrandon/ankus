@@ -8,7 +8,7 @@ namespace Ankus.Generators;
 internal sealed class SqlEntity
 {
     private string _sql = string.Empty;
-    private string _sqlTemplate = string.Empty;
+    private string? _sqlTemplate = string.Empty;
     /// <summary>
     /// Creates an installation node with a stable internal key and diagnostic location.
     /// </summary>
@@ -23,6 +23,23 @@ internal sealed class SqlEntity
     }
 
     /// <summary>
+    /// Creates a function node whose SQL is rendered after planner support references are resolved.
+    /// </summary>
+    /// <param name="key">The unique internal sort key.</param>
+    /// <param name="function">The validated function definition.</param>
+    /// <param name="location">The source declaration location.</param>
+    internal SqlEntity(string key, SqlFunction function, Location? location) : this(key, string.Empty, location)
+    {
+        Function = function;
+        _sqlTemplate = null;
+    }
+
+    /// <summary>
+    /// Gets the original generated function contract, including when its SQL is disabled or replaced.
+    /// </summary>
+    internal SqlFunction? Function { get; }
+
+    /// <summary>
     /// Gets the stable key used for deterministic ordering of independent nodes.
     /// </summary>
     internal string Key { get; }
@@ -32,7 +49,7 @@ internal sealed class SqlEntity
     /// </summary>
     internal string Sql
     {
-        get => _sql;
+        get => _sqlTemplate is null ? Function!.Emit().Replace("\0", string.Empty) : _sql;
         set
         {
             _sqlTemplate = value;
@@ -43,7 +60,7 @@ internal sealed class SqlEntity
     /// <summary>
     /// Gets typed schema markers separately from ordinary installation SQL.
     /// </summary>
-    internal string SqlTemplate => _sqlTemplate;
+    internal string SqlTemplate => _sqlTemplate ?? Function!.Emit();
 
     /// <summary>
     /// Gets the source location used for graph diagnostics.

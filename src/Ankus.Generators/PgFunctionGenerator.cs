@@ -115,8 +115,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgRequiresAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
         IncrementalValuesProvider<ISymbol> before = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgBeforeAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
-        IncrementalValueProvider<ImmutableArray<ISymbol>> references = requires.Collect().Combine(before.Collect())
-            .Select(static (input, _) => input.Left.AddRange(input.Right));
+        IncrementalValuesProvider<ISymbol> plannerSupport = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgSupportFunctionAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
+        IncrementalValueProvider<ImmutableArray<ISymbol>> references = requires.Collect().Combine(before.Collect()).Combine(plannerSupport.Collect())
+            .Select(static (input, _) => input.Left.Left.AddRange(input.Left.Right).AddRange(input.Right));
         IncrementalValuesProvider<IPropertySymbol> properties = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is PropertyDeclarationSyntax { AttributeLists.Count: > 0 } or IndexerDeclarationSyntax { AttributeLists.Count: > 0 },
             static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BasePropertyDeclarationSyntax)syntaxContext.Node, token) as IPropertySymbol)
@@ -728,14 +730,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
 
             string callback = GetCallbackName(method, name);
-            var sql = new StringBuilder();
+            SqlFunction sql;
             if (eventTrigger)
             {
-                PgEventTriggerEmitter.Emit(method, declaration, callback, ensureManagedReady, managed, native, sql, exports);
+                sql = PgEventTriggerEmitter.Emit(method, declaration, callback, ensureManagedReady, managed, native, exports);
             }
             else if (trigger)
             {
-                PgTriggerEmitter.Emit(method, declaration, callback, ensureManagedReady, managed, native, sql, exports);
+                sql = PgTriggerEmitter.Emit(method, declaration, callback, ensureManagedReady, managed, native, exports);
             }
             else if (set is null)
             {
@@ -745,14 +747,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     hasVarlenaReader = true;
                 }
 
-                PgFunctionEmitter.Emit(method, parameters, declaration, callback, ensureManagedReady, managed, native, sql, exports, typeProviders);
+                sql = PgFunctionEmitter.Emit(method, parameters, declaration, callback, ensureManagedReady, managed, native, exports, typeProviders);
             }
             else
             {
-                PgSetEmitter.Emit(method, parameters, declaration, set, callback, ensureManagedReady, managed, native, sql, exports, typeProviders);
+                sql = PgSetEmitter.Emit(method, parameters, declaration, set, callback, ensureManagedReady, managed, native, exports, typeProviders);
             }
 
-            var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql.ToString(), method.Locations.FirstOrDefault()) { Kind = "function" };
+            var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql, method.Locations.FirstOrDefault()) { Kind = "function" };
             entity.SelectionNames.UnionWith([name, declaration.QualifiedName, signature, method.Name, method.ToDisplayString(),
                 method.ContainingType.ToDisplayString() + "." + method.Name]);
             if (declaration.Schema is not null)
@@ -865,7 +867,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
 
                 string callback = GetCallbackName(helper.Method, "aggregate_" + SqlText.SnakeCase(helper.Role));
-                string helperSql = PgAggregateEmitter.EmitHelper(helper, callback, ensureManagedReady, managed, native, exports, typeProviders);
+                SqlFunction helperSql = PgAggregateEmitter.EmitHelper(helper, callback, ensureManagedReady, managed, native, exports, typeProviders);
                 var support = new SqlEntity("1:aggregate-helper:" + type.ToDisplayString() + ":" + helper.Role, helperSql, helper.Method.Locations.FirstOrDefault()) { Kind = "function" };
                 support.SelectionNames.UnionWith([helper.Declaration.Name, helper.Declaration.QualifiedName, helper.Signature, helper.Method.Name, helper.Method.ToDisplayString(),
                     helper.Method.ContainingType.ToDisplayString() + "." + helper.Method.Name]);

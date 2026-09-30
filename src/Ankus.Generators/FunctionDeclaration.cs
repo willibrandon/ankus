@@ -62,6 +62,12 @@ internal sealed class FunctionDeclaration
     } = string.Empty;
 
     /// <summary>
+    /// Adds the resolved generated support identity after all function declarations have been registered.
+    /// </summary>
+    /// <param name="name">The quoted SQL function name with its schema selection marker.</param>
+    internal void SetPlannerSupport(string name) => Options += " SUPPORT " + name;
+
+    /// <summary>
     /// Gets whether the declaration replaces an existing compatible function.
     /// </summary>
     internal bool Replace

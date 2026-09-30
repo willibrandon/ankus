@@ -82,7 +82,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references now resolve exact types/methods and preserve graph ordering, replacement and selection contracts; the complete PostgreSQL 18.6/Linux x64 suite passes. Typed aggregate contracts, planner support references and generated SQL provenance remain open. Preserve deterministic ordering. |
+| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references resolve exact types/methods and preserve graph ordering, replacement and selection contracts. `PgSupportFunction` adds checked planner references and installation prerequisites, with actual row estimates and same-backend error recovery. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of these references is pending. Typed aggregate contracts and generated SQL provenance remain open. Preserve deterministic ordering. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; dedicated-platform evidence remains pending. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
@@ -91,6 +91,19 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+`PgSupportFunction` resolves generated planner callbacks through exact C#
+declarations, validates their SQL signatures and invocation requirements, and
+orders installation through the dependency graph. Actual PostgreSQL planning
+uses a managed row estimate; callback errors recover on the same backend.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,887 total,
+9,877 passed, zero failed and ten platform skips**, in **16m21.560s**.
+Release, generated API freshness and documentation checks pass. Dedicated CI
+and the full platform/version matrix remain required. Hosted Intel macOS timing,
+typed aggregate contracts, incremental generation and other review gaps remain open.
+
+## Previous verified milestone — managed SQL dependencies
 
 `PgRequires` and `PgBefore` reference generated SQL through exact managed types
 and methods, with overload selection and located diagnostics. Typed edges retain
@@ -16948,3 +16961,68 @@ and reporting **36717791830** remain queued, with their Docs runs passing.
 Module-identity CI **36707043259** previously passed all platforms. Both Intel
 comparison runs timed out as recorded above; no successful full Intel result is
 claimed. No automatic cancellation was introduced.
+
+### 2026-09-30 — Generated planner support references
+
+Confirmed that the external `SupportFunction` SQL-name option did not resolve
+managed methods or create their installation prerequisites. `PgSupportFunction`
+now binds an exact generated method, including configured names, schemas and
+overload selection. It validates the actual nonvariadic scalar
+`internal → internal` SQL contract, excluding injected contexts from argument
+counts, and reports `ANKUS027` for invalid or conflicting references.
+
+Generated functions now retain a SQL declaration model until graph resolution.
+The support clause uses the resolved target identity and its schema marker;
+native/managed boundary emission is unchanged. The graph orders the target
+first and retains support edges through disabled and replaced SQL. Ordinary,
+set, trigger, event-trigger and aggregate support functions share this path.
+External SQL routines remain configurable through the existing option.
+
+The complete generator project passes **2,320/2,320**, zero failures/skips,
+**24.191s**, including **24** new support cases. The isolated candidate was
+copied into the main checkout, archived and removed. Release passes with **zero
+warnings/errors, 1m28.87s**; the site builds **275 pages in 3.81s** and reports
+zero check findings. Native tests now inspect `pg_proc.prosupport`, the actual
+planner row estimate, returned values and same-backend recovery after a support
+callback error. Their result and the complete plain suite are pending.
+
+The dependency-reference milestone is pushed as `c75b7fd`; Docs **36724466626**
+succeeds and CI **36724466429** is queued. No planner-support completion or
+additional platform proof is claimed at this point.
+
+Native declaration checks now pass **28/28** on PostgreSQL **18.6/Linux x64**,
+zero failures/skips, **2m09.730s**. They include the new managed row-estimate and
+callback-error recovery cases alongside existing external support and function
+declaration behavior. API freshness verifies **228 pages / 2,636 members**.
+The complete plain suite is running on the combined main checkout; its result
+and dedicated-platform evidence remain pending.
+
+The aggregate boundary audit found that a helper with an `internal → internal`
+signature still requires an aggregate/window invocation. Such a helper cannot
+serve as a planner callback. The function model now retains that requirement,
+and `ANKUS027` rejects the reference without weakening the native guard.
+Two regressions establish valid aggregates using raw and managed internal state,
+then prove this rejection. Both reproduced the missing diagnostic before the fix.
+
+The earlier full candidate completed **9,885 total, 9,875 passed, zero failed and
+ten platform skips**, **14m01.900s**, despite a local cancellation request.
+That run predates the aggregate-context correction. The corrected generator
+project passes **2,322/2,322**, zero failures/skips, **46.000s**; Release passes
+with **zero warnings/errors, 1m20.69s**. API freshness verifies **228 pages /
+2,636 members**; the site builds **275 pages in 5.84s** with zero check findings.
+The final complete PostgreSQL **18.6/Linux x64** suite is running. No CI runs
+were canceled.
+
+The corrected complete plain suite now passes **9,887 total, 9,877 passed,
+zero failed and ten platform skips**, **16m21.560s**, with six package slots.
+This includes actual planner registration/estimation/error recovery and the
+aggregate-target diagnostic regressions. The generator validation covers **26**
+new cases. Public guides, README and generated API documentation are updated.
+
+Previous CI outcomes were checked and recorded before committing. Measurement
+run **36710308935** passes all platforms: Linux x64/PostgreSQL 18 **44m00s**,
+macOS ARM64/PostgreSQL 18 **18m00s**, and Windows x64/PostgreSQL 17 **26m44s**.
+Polling **36713330603** is active; reporting **36717791830** and dependency
+references **36724466429** remain queued. Their Docs runs pass. Both hosted
+Intel comparison runs remain timed out; this milestone does not resolve that
+separate performance requirement. No automatic cancellation was introduced.

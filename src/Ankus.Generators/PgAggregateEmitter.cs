@@ -19,8 +19,8 @@ internal static class PgAggregateEmitter
     /// <param name="native">The generated native source.</param>
     /// <param name="exports">The native linker export list.</param>
     /// <param name="providers">The extension type providers used to qualify selected SQL.</param>
-    /// <returns>The helper's installation SQL.</returns>
-    internal static string EmitHelper(AggregateHelper helper, string callback, bool ensureInitialized,
+    /// <returns>The SQL helper contract to render after dependency resolution.</returns>
+    internal static SqlFunction EmitHelper(AggregateHelper helper, string callback, bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
@@ -140,8 +140,9 @@ internal static class PgAggregateEmitter
         native.AppendLine();
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
-        return $"CREATE {(helper.Declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {helper.Declaration.TemplateName}({helper.Arguments(providers)})\n" +
-            $"RETURNS {Type(helper.Result, providers)} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {helper.Declaration.Options};\n";
+        return new(helper.Declaration, helper.Arguments(providers), Type(helper.Result, providers), nativeName,
+            !helper.Deserialize && helper.Types.Length == 1 && helper.Types[0].IsInternal && helper.Result.IsInternal &&
+            !helper.Parameters.Any(static parameter => parameter.IsParams), requiresAggregateContext: true);
     }
 
     /// <summary>

@@ -258,6 +258,10 @@ result type OIDs, and raw SQL arguments. It adds no SQL parameter.
 Its `GetOrCreateState` method caches managed state for each PostgreSQL call site
 and disposes it when PostgreSQL releases the owner.
 
+Use `PgSupportFunction` to connect a generated planner support method by its C#
+declaration. Ankus validates its SQL signature and installation dependency; see
+[planner support functions](docs/src/content/docs/function-declarations.md#planner-support-functions).
+
 Set `PgFunction.Sql` to replace a function's installation SQL, or
 `GenerateSql = false` to retain its native entry points without installing it.
 The same controls cover attached operators/casts and apply to trigger functions
