@@ -57,6 +57,11 @@ internal static class NativeTransactionBridge
             uint32 shared_held_before = ankus_shared_held_count;
             uint32 cancel_holdoff = QueryCancelHoldoffCount;
             volatile int status = 0;
+            if (operation == 1 && level >= 0 && level < 10)
+            {
+                HOLD_INTERRUPTS();
+            }
+
             PG_TRY();
             {
                 PG_TRY();

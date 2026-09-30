@@ -813,7 +813,15 @@ internal static class NativeGucBridge
 
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 shared_held_before = ankus_shared_held_count;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
             volatile int status = 0;
+            if (operation == 1 && level >= 0 && level < 10)
+            {
+                HOLD_INTERRUPTS();
+            }
+
             PG_TRY();
             {
                 PG_TRY();
@@ -852,6 +860,8 @@ internal static class NativeGucBridge
             MemoryContextSwitchTo(caller);
             if (work != NULL)
                 MemoryContextDelete(work);
+            InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
+            QueryCancelHoldoffCount = cancel_holdoff;
             return status;
         }
 

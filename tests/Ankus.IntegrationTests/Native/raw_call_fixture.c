@@ -3,6 +3,7 @@
 #include "miscadmin.h"
 #include "storage/lwlock.h"
 #include "utils/memutils.h"
+#include "utils/builtins.h"
 
 PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_address);
@@ -10,6 +11,8 @@ PG_FUNCTION_INFO_V1(ankus_test_raw_call_holdoffs);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_error);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_control);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_lock_held);
+PG_FUNCTION_INFO_V1(ankus_test_log_arm);
+PG_FUNCTION_INFO_V1(ankus_test_log_holdoff);
 
 static bool raw_holdoffs_saved = false;
 static uint32 raw_interrupt_holdoff;
@@ -17,6 +20,61 @@ static uint32 raw_cancel_holdoff;
 static MemoryContext raw_memory_context;
 static LWLock raw_error_lock;
 static bool raw_error_lock_initialized;
+static emit_log_hook_type log_previous_hook;
+static char log_marker[128];
+static int log_mode;
+static uint32 log_observed_holdoff;
+
+/* A backend-local, one-report probe exercises the actual PostgreSQL reporter. */
+static void
+log_probe(ErrorData *data)
+{
+    if (log_previous_hook != NULL)
+    {
+        log_previous_hook(data);
+    }
+
+    if (data->message != NULL && strcmp(data->message, log_marker) == 0)
+    {
+        emit_log_hook = log_previous_hook;
+        log_observed_holdoff = InterruptHoldoffCount;
+        if (log_mode == 1)
+        {
+            QueryCancelPending = true;
+            InterruptPending = true;
+        }
+        else if (log_mode == 2)
+        {
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("native report hook failure")));
+        }
+    }
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_arm(PG_FUNCTION_ARGS)
+{
+    char *marker = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    if (strlen(marker) >= sizeof(log_marker) || emit_log_hook == log_probe)
+    {
+        ereport(ERROR, (errmsg("invalid or already armed report probe")));
+    }
+
+    strlcpy(log_marker, marker, sizeof(log_marker));
+    pfree(marker);
+    log_mode = PG_GETARG_INT32(1);
+    log_observed_holdoff = 0;
+    log_previous_hook = emit_log_hook;
+    emit_log_hook = log_probe;
+    PG_RETURN_VOID();
+}
+
+PGDLLEXPORT Datum
+ankus_test_log_holdoff(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    PG_RETURN_INT64(log_observed_holdoff);
+}
 
 PGDLLEXPORT Datum
 ankus_test_raw_call_address(PG_FUNCTION_ARGS)

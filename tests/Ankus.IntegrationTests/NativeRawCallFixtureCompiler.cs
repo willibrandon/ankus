@@ -23,6 +23,10 @@ internal static class NativeRawCallFixtureCompiler
         AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_lock_held' LANGUAGE c STRICT;
         CREATE FUNCTION tests.raw_call_control(integer) RETURNS bigint
         AS 'Ankus.RawCallFixture', 'ankus_test_raw_call_control' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_arm(text, integer) RETURNS void
+        AS 'Ankus.RawCallFixture', 'ankus_test_log_arm' LANGUAGE c STRICT;
+        CREATE FUNCTION tests.log_holdoff() RETURNS bigint
+        AS 'Ankus.RawCallFixture', 'ankus_test_log_holdoff' LANGUAGE c STRICT;
         """;
 
     /// <summary>

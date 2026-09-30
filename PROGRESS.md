@@ -83,7 +83,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Custom types now support PostgreSQL's four/eight-byte datum alignments, with catalog/heap/TOAST/array checks and the complete PostgreSQL 18.6/Linux x64 suite passing. Dedicated-platform CI remains required for these milestones. Typed aggregate/dependency/support references and generated SQL provenance remain open. Preserve deterministic ordering. |
-| Runtime APIs and performance | Guarded `PgInterrupts.Check()` now supports managed loops, retained cancellation and Windows queued signals. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; actual Windows delivery still requires CI. Interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
+| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; dedicated-platform evidence remains pending. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
@@ -91,6 +91,20 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+Nonterminal logging defers PostgreSQL interrupts through the complete native
+reporting operation. All four reporting capabilities restore the caller's
+holdoffs, including GUC error recovery. Native regression tests verify pending
+cancellation, inherited scopes, reporting failures and same-session recovery.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,820 total,
+9,810 passed, zero failed and ten platform skips**, in **16m39.063s**.
+Release, generated API freshness and documentation checks pass. Dedicated CI
+and the complete version/platform matrix remain required. Both same-commit
+Intel macOS concurrency comparisons reached the one-hour limit; that issue
+remains open.
+
+## Previous verified milestone — managed interrupt polling
 
 `PgInterrupts.Check()` provides explicit PostgreSQL cancellation and shutdown
 polling for managed loops. Idle checks read callback-scoped native flags; pending
@@ -16834,3 +16848,44 @@ and measurement **36710308935** have successful quality/runtime jobs and queued
 full tests. Module/alignment Docs runs **36707043118** and **36709673766** pass.
 Both same-commit Intel comparisons are running complete tests; their outcomes
 and the hosted timeout remain open. No runs were automatically canceled.
+
+### 2026-09-30 — Interrupt-safe nonterminal reporting
+
+Confirmed PostgreSQL checks interrupts after emitting nonterminal messages.
+Logging now holds interrupts throughout its native operation, including the
+recovery subtransaction: PostgreSQL's own DEBUG messages during transaction
+cleanup can also check interrupts. SPI, initializer, transaction-callback and
+GUC logging paths restore the incoming state afterward. GUC logging now also
+preserves the caller's query-cancel holdoff during native error recovery.
+Terminal reporting and the existing rollback/failure-retention contracts remain.
+
+Native regression probes arm one exact report through PostgreSQL's emission
+hook. They independently observe holdoff counts and trigger cancellation or a
+reporting error. Tests require managed continuation before an explicit interrupt
+poll, exact cancellation/error diagnostics, GUC-only reporting, initializer and
+pre-commit logging, inherited holdoffs and successful work on the same backend.
+The initial emitter-only prototype failed these cancellation checks because
+transaction cleanup was outside its scope; the complete-operation fix passes.
+
+The combined PostgreSQL **18.6/Linux x64** logging scope passes **49/49**, zero
+failures/skips, **3m05.116s**. Existing severity, routing, ownership, conversion,
+terminal reporting and recovery tests are included. Release passes with **zero
+warnings/errors, 2m00.98s**. Generated API freshness verifies **225 pages /
+2,622 members**; the site builds **272 pages in 4.98s**, with zero check findings.
+The public guide explains deferred interrupts and polling in logging-only loops.
+The contributor guide also corrects its description of hosted timing extraction;
+raw binary logs remain local. The complete plain PostgreSQL **18.6/Linux x64**
+suite passes **9,820 total, 9,810 passed, zero failed and ten platform skips**,
+**16m39.063s**, with six package slots. Dedicated-platform evidence remains pending.
+
+Prior CI was checked and recorded before committing. Module-identity run
+**36707043259** passes macOS ARM64/PostgreSQL 18 in **17m58s** and Windows
+x64/PostgreSQL 17 in **31m47s**; Linux x64/PostgreSQL 18 remains active.
+Alignment **36709673695**, measurement **36710308935** and interrupt polling
+**36713330603** remain queued. Polling Docs **36713330666** succeeds.
+Same-commit Intel macOS comparisons **36710358154** (one package slot) and
+**36710362781** (three slots) both reach the **60-minute job limit**. Their full
+test steps ran **45m06s** and **49m48s**, respectively, before timeout. Neither
+completed integration testing. Lower package concurrency alone does not resolve
+the issue; retained target timings are being analyzed. No runs were automatically
+canceled by repository concurrency settings.

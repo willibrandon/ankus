@@ -6,6 +6,39 @@ namespace Ankus.TestExtension;
 public static class PgLogFunctions
 {
     /// <summary>
+    /// Observes inherited holdoffs after the native reporter fails and its subtransaction rolls back.
+    /// </summary>
+    /// <returns>The original diagnostic and native holdoff counts before managed callback exit.</returns>
+    [PgFunction]
+    public static string LogCatchNativeReportError()
+    {
+        try
+        {
+            PgLog.Write(PgLogLevel.Notice, "native hook report");
+        }
+        catch (PgException error)
+        {
+            return $"{error.SqlState}|{error.Message}|{Spi.ExecuteScalar<long>("SELECT tests.raw_call_holdoffs()")}";
+        }
+
+        throw new InvalidOperationException("The armed native reporter did not fail.");
+    }
+
+    /// <summary>
+    /// Reaches a second report before explicitly processing cancellation raised during the first report.
+    /// </summary>
+    /// <param name="level">The first report's nonterminal severity.</param>
+    /// <returns>A value only if PostgreSQL did not cancel the statement.</returns>
+    [PgFunction]
+    public static int LogDeferredCancellation(int level)
+    {
+        PgLog.Write((PgLogLevel)level, "pending report cancellation");
+        PgLog.Write(PgLogLevel.Notice, "continued after report");
+        PgInterrupts.Check();
+        return 42;
+    }
+
+    /// <summary>
     /// Reports literal text and returns normally for nonterminal levels.
     /// </summary>
     /// <param name="level">The managed severity.</param>

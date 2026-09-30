@@ -60,6 +60,10 @@ The reporting severity.
 
 The message and optional diagnostic fields.
 
+Messages below ERROR defer PostgreSQL interrupts while the native reporter emits the message.
+Call [Check()](/api/ankus.pginterrupts/#member-7f3f063d086acd2d) periodically in loops that otherwise only report messages.
+Reporting failures still follow the ordinary native error recovery contract.
+
 <a id="member-65010fad7dc347e4"></a>
 
 ### Write(PgLogLevel, string)

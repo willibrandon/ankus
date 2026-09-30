@@ -102,7 +102,9 @@ removing its development cluster, including when a native query fails.
 Each fixture extension publish also writes a uniquely named MSBuild binary log
 under `artifacts/test-logs/publish`, including when Native AOT compilation fails
 before cluster startup. Raw binary logs remain local. CI uploads redacted text
-server logs and test reports; its report preparation does not process binary logs.
+server logs and test reports. On GitHub-hosted runners, report preparation also
+exports target/task names and durations from retained binary logs; it does not
+upload their properties, environment values or command payloads.
 Generated-solution test builds retain their binary logs in
 `artifacts/test-logs/generated-solution`, outside the disposable test projects.
 

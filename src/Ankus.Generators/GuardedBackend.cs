@@ -129,6 +129,14 @@ internal static class GuardedBackend
                 caller_internal_subtransaction_depth = ankus_session->caller_internal_subtransaction_depth;
             }
 
+            if (reporting && request->log_level >= 0 && request->log_level < 10)
+            {
+                /* PostgreSQL's reporter and subtransaction DEBUG messages check
+                 * interrupts. Hold them through the complete logging operation,
+                 * including transaction cleanup, then restore the caller below. */
+                HOLD_INTERRUPTS();
+            }
+
             /* Error recovery itself is guarded: it must not jump over the managed caller. */
             MemoryContext recovery_context = ankus_memory_contains(ErrorContext, caller_context) ? ErrorContext : caller_context;
             PG_TRY();

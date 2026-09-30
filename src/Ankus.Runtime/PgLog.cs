@@ -27,6 +27,11 @@ public static class PgLog
     /// Reports structured diagnostics using PostgreSQL's filtering and routing rules.
     /// Terminal reports remain pending until the native boundary even if extension code catches their managed exception.
     /// </summary>
+    /// <remarks>
+    /// Messages below ERROR defer PostgreSQL interrupts while the native reporter emits the message.
+    /// Call <see cref="PgInterrupts.Check"/> periodically in loops that otherwise only report messages.
+    /// Reporting failures still follow the ordinary native error recovery contract.
+    /// </remarks>
     /// <param name="level">The reporting severity.</param>
     /// <param name="diagnostic">The message and optional diagnostic fields.</param>
     public static void Write(PgLogLevel level, PgDiagnostic diagnostic)

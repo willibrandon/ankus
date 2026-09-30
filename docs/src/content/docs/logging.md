@@ -23,6 +23,11 @@ phase restrictions and the failure policy for an unhandled `Error`.
 messages, and `ServerOnly` keeps them out of the client connection. `Info` always
 reaches clients. `Notice` and `Warning` report events without stopping execution.
 
+Nonterminal message emission temporarily holds PostgreSQL interrupts. Pending
+cancellation is processed at a later interrupt check, after the report finishes.
+Call `PgInterrupts.Check()` periodically in loops that only log messages. Native
+reporting errors, such as an encoding failure, still follow normal error recovery.
+
 PostgreSQL applies `client_min_messages` and `log_min_messages` separately. In the
 server log, `Log` ranks above `Error`; it is not an ordinary numeric threshold.
 
