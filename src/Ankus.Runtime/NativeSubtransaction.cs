@@ -30,7 +30,7 @@ internal static unsafe class NativeSubtransaction
             NativeBackend.RunSubtransaction((nint)(delegate* unmanaged[Cdecl]<nint, int>)&Dispatch,
                 GCHandle.ToIntPtr(handle));
         }
-        catch (PgException) when (invocation.Failure is not null)
+        catch (Exception exception) when (invocation.Failure is not null && exception is not PgQueryCanceledException)
         {
             ExceptionDispatchInfo.Capture(invocation.Failure).Throw();
             throw;
@@ -52,7 +52,7 @@ internal static unsafe class NativeSubtransaction
     /// Marks the innermost scope for rollback after a raw native call fails.
     /// </summary>
     /// <param name="exception">The owned native diagnostic.</param>
-    internal static void RecordFailure(PgException exception)
+    internal static void RecordFailure(Exception exception)
     {
         if (s_current is { } current)
         {

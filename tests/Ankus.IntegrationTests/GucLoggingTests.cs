@@ -148,6 +148,7 @@ public sealed class GucLoggingTests(TestContext context)
     [TestMethod]
     [DataRow(667)]
     [DataRow(668)]
+    [DataRow(670)]
     public async Task AssignmentReportsTerminateTheAffectedBackend(int value)
     {
         await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(context.CancellationToken);

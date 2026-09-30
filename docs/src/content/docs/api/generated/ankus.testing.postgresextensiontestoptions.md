@@ -116,6 +116,20 @@ public required string ProjectPath { get; init; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-0e3150ea441e30d5"></a>
+
+### ReuseSchema
+
+Gets whether to reuse the last successful schema for this build while recompiling native code.
+The default follows ankus test --no-schema, or false for ordinary fixture invocation.
+Reuse requires unchanged native declarations and a previous successful publication for the same target and test mode.
+
+```csharp
+public bool ReuseSchema { get; init; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)
+
 <a id="member-ac230eae72818fd8"></a>
 
 ### SharedPreload

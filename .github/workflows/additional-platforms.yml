@@ -1,0 +1,137 @@
+name: Additional platforms
+
+on:
+  schedule:
+    - cron: '17 5 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    runs-on: macos-26-intel
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read runtime identity
+        id: runtime
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- metadata
+
+      - name: Restore native runtime
+        uses: actions/cache/restore@v5
+        id: runtime-cache
+        with:
+          path: artifacts/nativeaot/osx-x64
+          key: nativeaot-v2-osx-x64-hosted-macos26-${{ steps.runtime.outputs.commit }}
+
+      - uses: actions/checkout@v5
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        with:
+          repository: ${{ steps.runtime.outputs.repository }}
+          ref: ${{ steps.runtime.outputs.commit }}
+          path: runtime
+
+      - name: Build native runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-build osx x64 osx-x64
+
+      - name: Save native runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: artifacts/nativeaot/osx-x64
+          key: ${{ steps.runtime-cache.outputs.cache-primary-key }}
+
+      - name: Pack runtime
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-pack osx-x64
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nativeaot-osx-x64
+          path: artifacts/nativeaot/osx-x64
+          if-no-files-found: error
+          retention-days: 3
+
+  macos-x64:
+    needs: runtime
+    runs-on: macos-26-intel
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore NuGet package cache
+        uses: actions/cache/restore@v5
+        id: nuget-cache
+        with:
+          path: ~/.nuget/packages
+          key: nuget-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ hashFiles('global.json', 'Directory.*', 'src/**/*.csproj', 'src/**/*.props', 'src/**/*.targets', 'tests/**/*.csproj', 'samples/**/*.csproj') }}
+          restore-keys: nuget-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: nativeaot-osx-x64
+          path: artifacts/nativeaot/osx-x64
+
+      - name: Restore NuGet packages
+        run: dotnet restore Ankus.slnx -p:Platform="Any CPU"
+
+      - name: Save NuGet package cache
+        if: steps.nuget-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
+
+      - name: Restore native binding cache
+        uses: actions/cache/restore@v5
+        id: binding-cache
+        with:
+          path: artifacts/binding-cache
+          key: bindings-v1-${{ runner.os }}-${{ runner.arch }}-pg18-${{ github.sha }}
+          restore-keys: bindings-v1-${{ runner.os }}-${{ runner.arch }}-pg18-
+
+      - name: Build PostgreSQL tests
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-build osx-x64 18
+
+      - name: Save native binding cache
+        if: steps.binding-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: artifacts/binding-cache
+          key: ${{ steps.binding-cache.outputs.cache-primary-key }}
+
+      - name: Run full PostgreSQL tests
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
+
+      - name: Prepare test reports
+        if: always()
+        id: reports
+        run: dotnet run --file ./eng/Ankus.Ci.cs -- prepare-reports
+
+      - name: Save test results and timings
+        if: always() && steps.reports.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-osx-x64
+          path: artifacts/ci-reports/test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Save failure logs
+        if: failure() && steps.reports.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs-osx-x64
+          path: artifacts/ci-reports/test-logs/**
+          if-no-files-found: ignore
+          retention-days: 7

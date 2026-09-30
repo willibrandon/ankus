@@ -100,6 +100,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgPath](/api/ankus.pgpath/)
 - [PgPolygon](/api/ankus.pgpolygon/)
 - [PgQualifiedNameBuilder](/api/ankus.pgqualifiednamebuilder/)
+- [PgQueryCanceledException](/api/ankus.pgquerycanceledexception/)
 - [PgRange](/api/ankus.pgrange/)
 - [PgRangeTypeAttribute](/api/ankus.pgrangetypeattribute/)
 - [PgRange&lt;T&gt;](/api/ankus.pgrange-1/)

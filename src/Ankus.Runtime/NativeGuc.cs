@@ -254,7 +254,7 @@ public static unsafe class NativeGuc
                 var read = (delegate* unmanaged[Cdecl]<byte*, int, NativeValue*, NativeCallError*, int>)s_read;
                 if (read(text, kind, &value, &error) != 0)
                 {
-                    throw error.ToException();
+                    throw error.ToManagedException();
                 }
             }
 

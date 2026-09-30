@@ -40,10 +40,11 @@ internal static class AllocatorFaultFixtureCompiler
         string emitted = (await File.ReadAllTextAsync(emittedPath, cancellationToken)).ReplaceLineEndings("\n");
         int preambleEnd = FindBoundary(emitted, "static inline void\nankus_read_buffer(");
         int diagnosticsStart = FindBoundary(emitted, "#include \"utils/memutils.h\"\n#include \"miscadmin.h\"\n#include \"tcop/dest.h\"");
+        int terminalStart = FindBoundary(emitted, "static int\nankus_recovery_terminal(");
         int memoryStart = FindBoundary(emitted, "#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"utils/memutils.h\"");
         int memoryEnd = FindBoundary(emitted, "#include \"access/xact.h\"\n#include \"utils/snapmgr.h\"\n\n" +
             "typedef int (*AnkusTransactionManaged)");
-        if (preambleEnd >= diagnosticsStart || diagnosticsStart >= memoryStart || memoryStart >= memoryEnd)
+        if (preambleEnd >= diagnosticsStart || diagnosticsStart >= terminalStart || terminalStart >= memoryStart || memoryStart >= memoryEnd)
         {
             throw new InvalidOperationException("The emitted native bridge section order changed.");
         }
@@ -53,7 +54,8 @@ internal static class AllocatorFaultFixtureCompiler
         string probe = await File.ReadAllTextAsync(Path.Combine(fixtures, "allocator_fault_probe.c"), cancellationToken);
         string workerPrefix = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_prefix.c"), cancellationToken);
         string workerProbe = await File.ReadAllTextAsync(Path.Combine(fixtures, "worker_fault_probe.c"), cancellationToken);
-        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..memoryStart] + prefix + workerPrefix +
+        // The memory-only probe has no managed logger; retain recovery frames but exclude its terminal logging entry point.
+        string source = emitted[..preambleEnd] + emitted[diagnosticsStart..terminalStart] + prefix + workerPrefix +
             emitted[memoryStart..memoryEnd] + probe + workerProbe;
         string output = IntegrationEnvironment.NativeOutputDirectory;
         string sourcePath = Path.Combine(output, "allocator_fault_fixture.c");

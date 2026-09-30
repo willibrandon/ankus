@@ -50,6 +50,18 @@ concurrent test runs. Cleanup removes only that child after stopping its servers
 the parent and unrelated contents remain. Unix sockets stay in a separate short
 temporary path, so a long data-directory path does not exceed the socket limit.
 
+After an ordinary run has published the extension, add `--no-schema` to retain
+that installation SQL while rebuilding native code. This also retains the
+matching embedded schema graph; changes to SQL blocks wait until the next run
+without the option. Managed function bodies can change, but changed native
+declarations fail explicitly and require regenerating the schema.
+
+Saved schemas are separate for each PostgreSQL major and for test and ordinary
+publications, within the build's configuration, target framework and runtime
+directory. A missing, corrupt or incompatible saved schema fails the command.
+Failed publications preserve the last successful snapshot. `dotnet clean`
+removes saved schemas with the other intermediate build artifacts.
+
 Put ordinary test-runner arguments after `--`, including `--project`, `--solution`,
 filters and reporting options. Use the syntax supported by your project's test
 platform. Ankus passes individual arguments without shell interpretation.

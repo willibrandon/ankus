@@ -81,7 +81,7 @@ public static unsafe class NativeRawCall
             {
                 NativeMemoryContext.Invoke(ref request, out response);
             }
-            catch (PgException exception)
+            catch (Exception exception) when (exception is PgException or PgQueryCanceledException)
             {
                 NativeSubtransaction.RecordFailure(exception);
                 throw;

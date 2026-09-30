@@ -88,6 +88,16 @@ public unsafe struct NativeCallError
     }
 
     /// <summary>
+    /// Converts query cancellation to the managed cancellation contract while retaining its PostgreSQL diagnostics.
+    /// </summary>
+    /// <returns>The exception to throw after the guarded native call returns.</returns>
+    internal Exception ToManagedException()
+    {
+        PgException diagnostic = ToException();
+        return diagnostic.SqlState == PgSqlStates.QueryCanceled ? new PgQueryCanceledException(diagnostic) : diagnostic;
+    }
+
+    /// <summary>
     /// Releases every owned diagnostic with its originating allocator, including partially populated errors.
     /// </summary>
     internal void Release()

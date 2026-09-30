@@ -166,6 +166,57 @@ public sealed class UpgradeSqlCommandTests(TestContext context)
     }
 
     /// <summary>
+    /// Only a successful publication replaces the saved schema, and reuse can leave the existing snapshot unchanged.
+    /// </summary>
+    [TestMethod]
+    public async Task SuccessfulPublicationCommitsSchemaAndFailuresPreserveIt()
+    {
+        string[] original = Prepare();
+        string saved = Path.Combine(original[0], "schema-pg18-tests.json");
+        string prepared = Path.Combine(original[0], "schema.generated.json");
+        string[] arguments = [.. original, saved];
+        File.WriteAllText(prepared, "first schema");
+        await UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken);
+        Assert.AreEqual("first schema", File.ReadAllText(saved));
+        Assert.AreEqual("probe.control", PublishedExtension.Read(original[1]).Control);
+
+        File.WriteAllText(prepared, "second schema");
+        string missing = Path.Combine(_root, "probe--base--release.sql");
+        File.WriteAllLines(original[2], [missing]);
+        await Assert.ThrowsExactlyAsync<FileNotFoundException>(() => UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken));
+        Assert.AreEqual("first schema", File.ReadAllText(saved));
+        Assert.IsFalse(File.Exists(Path.Combine(original[1], PublishedExtension.FileName)));
+        File.WriteAllText(original[2], "");
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => UpgradeSqlCommand.RunAsync(arguments, cancelled.Token));
+        Assert.AreEqual("first schema", File.ReadAllText(saved));
+
+        await UpgradeSqlCommand.RunAsync([.. original, ""], context.CancellationToken);
+        Assert.AreEqual("first schema", File.ReadAllText(saved));
+        Assert.AreEqual("probe.control", PublishedExtension.Read(original[1]).Control);
+        await UpgradeSqlCommand.RunAsync(arguments, context.CancellationToken);
+        Assert.AreEqual("second schema", File.ReadAllText(saved));
+        Assert.IsEmpty(Directory.GetFiles(original[0], "*.tmp"));
+    }
+
+    /// <summary>
+    /// Failure to commit a schema cannot leave an apparently successful installable publication.
+    /// </summary>
+    [TestMethod]
+    public async Task SchemaCommitFailureInvalidatesPublication()
+    {
+        string[] original = Prepare();
+        string saved = Path.Combine(original[0], "schema-pg18-tests.json");
+        File.WriteAllText(saved, "preserved schema");
+        await Assert.ThrowsExactlyAsync<FileNotFoundException>(() =>
+            UpgradeSqlCommand.RunAsync([.. original, saved], context.CancellationToken));
+        Assert.AreEqual("preserved schema", File.ReadAllText(saved));
+        Assert.IsFalse(File.Exists(Path.Combine(original[1], PublishedExtension.FileName)));
+        Assert.IsEmpty(Directory.GetFiles(original[0], "*.tmp"));
+    }
+
+    /// <summary>
     /// Version controls are read from the native build snapshot and prevalidated before replacing published payloads.
     /// </summary>
     [TestMethod]

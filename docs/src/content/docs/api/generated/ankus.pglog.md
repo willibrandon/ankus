@@ -44,7 +44,7 @@ Whether PostgreSQL would process this level for either destination.
 ### Write(PgLogLevel, PgDiagnostic)
 
 Reports structured diagnostics using PostgreSQL's filtering and routing rules.
-Terminal reports must be allowed to propagate out of the extension method.
+Terminal reports remain pending until the native boundary even if extension code catches their managed exception.
 
 ```csharp
 public static void Write(PgLogLevel level, PgDiagnostic diagnostic)

@@ -705,6 +705,18 @@ public static unsafe partial class NativeBackend
         }
     }
 
+    /// <summary>
+    /// Retains a validated terminal report without running PostgreSQL error reporting across managed frames.
+    /// </summary>
+    /// <param name="level">FATAL or PANIC.</param>
+    /// <param name="report">The borrowed, fully initialized transport.</param>
+    internal static void RecordTerminal(PgLogLevel level, NativeCallError* report)
+    {
+        var request = new NativeSpiRequest { _operation = SpiOperation.Report, _logLevel = level, _diagnostic = report };
+        NativeSpiResult result = default;
+        Invoke(&request, &result);
+    }
+
     private static SpiCursor CreateCursor(NativeSpiRequest request, ReadOnlySpan<SpiParameter> parameters)
     {
         CheckAccess();
@@ -788,7 +800,14 @@ public static unsafe partial class NativeBackend
 
     private static void Invoke(NativeSpiRequest* request, NativeSpiResult* result)
     {
-        NativeBorrowScope.CheckBackendAccess();
+        // Terminal transport only copies owned diagnostics into the native frame.
+        // It must remain available so held locks can unwind before PostgreSQL reports the failure.
+        bool terminal = request->_operation == SpiOperation.Report && request->_logLevel >= PgLogLevel.Fatal;
+        if (!terminal)
+        {
+            NativeBorrowScope.CheckBackendAccess();
+        }
+
         if (s_abortCleanupDepth != 0)
         {
             bool relationRelease = request->_operation == SpiOperation.Relation && request->_scalarOperation == 0;
@@ -806,7 +825,7 @@ public static unsafe partial class NativeBackend
         {
             if (execute(request, result, &error) != 0)
             {
-                throw error.ToException();
+                throw error.ToManagedException();
             }
         }
         finally

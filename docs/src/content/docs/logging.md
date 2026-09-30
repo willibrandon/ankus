@@ -88,7 +88,16 @@ version: for example, `TransactionTimeout` was added in PostgreSQL 17, while
 differences. Custom codes remain ordinary strings and retain their exact value;
 they do not need registration or a catalog entry.
 
+PostgreSQL query cancellation throws `PgQueryCanceledException`, which derives
+from `OperationCanceledException`. Its `Diagnostic` property retains SQLSTATE
+`57014` and the original PostgreSQL error fields. Catching it allows managed
+cleanup, but the query still fails at the native boundary. Further server work
+is rejected until that boundary returns. This also applies inside
+`PgTransaction.RunInSubtransaction` and recursive SQL calls.
+
 `Fatal` and `Panic` also unwind managed code before reporting at the native
-boundary. Let these exceptions propagate. `Fatal` ends the backend connection.
+boundary. Their severity and diagnostics remain pending even if a
+`catch (Exception)` block swallows the managed exception or a subtransaction
+rolls back. `Fatal` ends the backend connection.
 `Panic` aborts the backend and causes PostgreSQL to terminate peer backends and
 perform crash recovery.

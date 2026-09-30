@@ -114,6 +114,14 @@ your parent directory and other contents remain. With `ankus test`, use
 `--pgdata ./test-data` to choose the base for every fixture in the command.
 Server logs remain in the extension project's `bin/ankus-test-logs/` directory.
 
+Set `ReuseSchema = true` to reuse the last successfully published installation
+SQL and its embedded metadata while recompiling function bodies. With
+`ankus test --no-schema`, this is the default; an explicit fixture option takes
+precedence. Run normally first to generate the schema for the selected
+configuration, PostgreSQL major and test-publication mode. Changes to native
+declarations require another normal run. SQL-only changes take effect when
+schema generation is enabled again.
+
 Each case runs in its own transaction, which rolls back after success, failure
 or cancellation. `ExpectedError` matches the server's primary message exactly;
 a different error or unexpected success fails the test. Failure diagnostics

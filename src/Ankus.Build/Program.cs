@@ -90,11 +90,11 @@ try
         return 0;
     }
 
-    if (args.Length is not (11 or 12 or 13))
+    if (args.Length is not (11 or 12 or 13 or 14))
     {
         throw new ArgumentException(
             "Expected assembly, artifact directory, PostgreSQL major, linker, toolchain libraries, " +
-            "extension name, version, library, runtime identifier, optional pg_config path, target triple, optional control file, and optional secondary control list.");
+            "extension name, version, library, runtime identifier, optional pg_config path, target triple, optional control file, optional secondary control list, and optional saved schema.");
     }
 
     string assembly = Path.GetFullPath(args[0]);
@@ -109,14 +109,16 @@ try
     }
 
     ExtensionManifest manifest = ExtensionManifest.Read(assembly);
+    SchemaSnapshot schema = SchemaSnapshot.Select(args.Length == 14 && args[13].Length != 0 ? args[13] : null,
+        manifest, args[5], args[6], args[7], major, args[8]);
     string? authored = args.Length >= 12 && args[11].Length != 0 ? File.ReadAllText(args[11]) : null;
     var package = new Dictionary<string, string>(ExtensionPackage.Create(args[5], args[6], args[7],
-        manifest.Sql, manifest.Relocatable, authored, major));
+        schema.Sql, schema.Relocatable, authored, major));
     IReadOnlyDictionary<string, string> primaryControl = ExtensionControlFile.Parse(package[args[5] + ".control"]);
     bool relocatable = primaryControl["relocatable"] == "true";
     primaryControl.TryGetValue("schema", out string? defaultSchema);
 
-    string[] controls = args.Length == 13 ? File.ReadAllLines(args[12]) : [];
+    string[] controls = args.Length >= 13 ? File.ReadAllLines(args[12]) : [];
     ExtensionControlFile.Parse(package[args[5] + ".control"]).TryGetValue("directory", out string? scriptDirectory);
     var publication = new PublishedExtension(major, args[8], args[7], args[5] + ".control",
         args[5] + "--" + args[6] + ".sql", [], [.. controls.Select(static path => Path.GetFileName(path))], scriptDirectory);
@@ -125,7 +127,7 @@ try
         string name = Path.GetFileName(path);
         bool currentVersion = name == args[5] + "--" + args[6] + ".control";
         (string control, bool effectiveRelocatable) = ExtensionControlSettings.MergeVersion(package[publication.Control],
-            File.ReadAllText(path), major, currentVersion, manifest.Relocatable);
+            File.ReadAllText(path), major, currentVersion, schema.Relocatable);
         package.Add(name, control);
         if (currentVersion)
         {
@@ -154,8 +156,9 @@ try
     string source = Path.Combine(output, "bridge.c");
     string nativeObject = Path.Combine(output, OperatingSystem.IsWindows() ? "bridge.obj" : "bridge.o");
     WriteIfDifferent(source, manifest.NativeSource + NativeSchemaEmitter.Emit(args[5], args[6], args[7], major,
-        args[8], relocatable, manifest.Sql, manifest.SqlGraph, defaultSchema));
-    WriteIfDifferent(Path.Combine(output, "schema.sql"), manifest.Sql);
+        args[8], relocatable, schema.Sql, schema.Graph, defaultSchema));
+    WriteIfDifferent(Path.Combine(output, "schema.sql"), schema.Sql);
+    schema.Write(Path.Combine(output, "schema.generated.json"));
     WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol + "\n");
 
     var libraries = new List<string> { nativeObject };

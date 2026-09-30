@@ -12,6 +12,7 @@ internal static partial class ToolCommand
         AddSelectionOptions(command);
         AddConfigurationOption(command, "Debug");
         var all = new Option<bool>("--all") { Description = "Run sequentially against every registered PostgreSQL version." };
+        var noSchema = new Option<bool>("--no-schema") { Description = "Reuse the last successful test schema while rebuilding compatible native code." };
         var reports = new Option<string?>("--results-directory") { Description = "Test report root; each PostgreSQL major gets its own subdirectory." };
         var dataDirectory = new Option<string?>("--pgdata") { Description = "Base directory for isolated, per-invocation PostgreSQL cluster data." };
         var forwarded = new Argument<string[]>("test-arguments")
@@ -20,6 +21,7 @@ internal static partial class ToolCommand
             Arity = ArgumentArity.ZeroOrMore,
         };
         command.Options.Add(all);
+        command.Options.Add(noSchema);
         command.Options.Add(reports);
         command.Options.Add(dataDirectory);
         command.Arguments.Add(forwarded);
@@ -84,6 +86,7 @@ internal static partial class ToolCommand
                     ["ANKUS_TEST_PG_CONFIG"] = installation.PgConfigPath,
                     ["ANKUS_TEST_POSTGRES_MAJOR"] = major,
                     ["ANKUS_TEST_CONFIGURATION"] = configuration,
+                    ["ANKUS_TEST_REUSE_SCHEMA"] = result.GetValue(noSchema) ? "true" : "false",
                     ["ANKUS_TEST_SESSION_DIRECTORY"] = session.DirectoryPath,
                     ["ANKUS_TEST_DATA_DIRECTORY"] = session.DataDirectoryPath,
                 });

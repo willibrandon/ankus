@@ -69,6 +69,31 @@ public static unsafe class NativeLog
     }
 
     /// <summary>
+    /// Retains a terminal report in the native entry frame before managed code starts unwinding.
+    /// </summary>
+    /// <param name="exception">The validated terminal severity and diagnostics.</param>
+    internal static void RecordTerminal(PgTerminalException exception)
+    {
+        NativeCallError report = default;
+        try
+        {
+            NativeError.Write(exception, &report);
+            if (s_scopeDepth == 0)
+            {
+                NativeBackend.RecordTerminal(exception.Level, &report);
+            }
+            else
+            {
+                Invoke(2, exception.Level, &report);
+            }
+        }
+        finally
+        {
+            report.Release();
+        }
+    }
+
+    /// <summary>
     /// Reports an enabled nonterminal diagnostic while retaining ownership of its native transport buffers.
     /// </summary>
     /// <param name="level">The validated nonterminal reporting severity.</param>
@@ -102,7 +127,7 @@ public static unsafe class NativeLog
     /// <summary>
     /// Invokes the guarded logging ABI and copies any owned native failure before releasing its buffers.
     /// </summary>
-    /// <param name="operation">Zero to test filtering, or one to report a borrowed diagnostic.</param>
+    /// <param name="operation">Zero to test filtering, one to report a borrowed diagnostic, or two to retain a terminal report.</param>
     /// <param name="level">The validated reporting severity.</param>
     /// <param name="message">The borrowed report, or null when only testing filtering.</param>
     /// <returns>The native threshold result; reporting callers ignore this value.</returns>
@@ -115,7 +140,7 @@ public static unsafe class NativeLog
         {
             if (log(operation, (int)level, message, &error, &enabled) != 0)
             {
-                throw error.ToException();
+                throw error.ToManagedException();
             }
 
             return enabled != 0;

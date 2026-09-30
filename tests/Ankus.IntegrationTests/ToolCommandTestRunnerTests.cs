@@ -240,6 +240,21 @@ public sealed partial class ToolCommandTests
                         Environment.SetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY", session);
                     }
 
+                    string? reuse = Environment.GetEnvironmentVariable("ANKUS_TEST_REUSE_SCHEMA");
+                    try
+                    {
+                        foreach (string invalid in new[] { "", "1", "invalid" })
+                        {
+                            Environment.SetEnvironmentVariable("ANKUS_TEST_REUSE_SCHEMA", invalid);
+                            InvalidOperationException error = Assert.ThrowsExactly<InvalidOperationException>(() => new PostgresExtensionTestOptions { ProjectPath = project });
+                            Assert.Contains("ANKUS_TEST_REUSE_SCHEMA must be true or false", error.Message);
+                        }
+                    }
+                    finally
+                    {
+                        Environment.SetEnvironmentVariable("ANKUS_TEST_REUSE_SCHEMA", reuse);
+                    }
+
                     Assert.IsFalse(Directory.Exists(Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus-test-logs")));
                 }
 

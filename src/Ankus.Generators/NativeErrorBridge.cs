@@ -161,6 +161,9 @@ internal static class NativeErrorBridge
         static int
         ankus_initialization_log(int operation, int level, AnkusError *report, AnkusError *error, int *enabled)
         {
+            if (operation == 2)
+                return ankus_recovery_terminal(level, report, error);
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext recovery = ankus_error_recovery_context(caller);
             uint32 interrupt_holdoff = InterruptHoldoffCount;
@@ -201,6 +204,7 @@ internal static class NativeErrorBridge
                     data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
+                    ankus_recovery_record(data);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(recovery);
                     MemoryContextDelete(diagnostic);

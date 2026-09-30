@@ -33,6 +33,7 @@ public sealed class SdkPublishInvalidationTests(TestContext context)
             string project = Path.Combine(directory, "Publish.proj");
             new XDocument(new XElement("Project",
                 new XElement("PropertyGroup",
+                    new XElement("AnkusReuseSchema", "false"),
                     new XElement("_IsPublishing", publishing ? "true" : "false"),
                     new XElement("PublishDir", output + (trailingSeparator ? Path.DirectorySeparatorChar.ToString() : ""))),
                 new XElement("Import", new XAttribute("Project", Path.Combine(AppContext.BaseDirectory, "Sdk", "Ankus.Native.targets"))),

@@ -94,10 +94,18 @@ The installed-tool Valgrind test also retains its final server log there before
 removing its development cluster, including when a native query fails.
 
 Each fixture extension publish also writes a uniquely named MSBuild binary log
-under `artifacts/test-logs/publish`. CI includes these files in its failed-job
-artifact, including when Native AOT compilation fails before cluster startup.
+under `artifacts/test-logs/publish`, including when Native AOT compilation fails
+before cluster startup. Raw binary logs remain local. CI uploads redacted text
+server logs and test reports; its report preparation does not process binary logs.
 Generated-solution test builds retain their binary logs in
 `artifacts/test-logs/generated-solution`, outside the disposable test projects.
+
+The public test fixture gives native publications their own SDK artifacts tree
+under the extension's `obj/ankus-test-build`. This keeps ordinary test-host
+assemblies, symbols and incremental-clean records separate from native publishing.
+Referenced projects receive independent subdirectories through the SDK's standard
+artifacts layout. Repeated fixture publications retain their native build cache
+and schema snapshots there.
 
 Packaged backend tests share a NuGet directory owned by their test run. Each
 consumer still builds outside the repository and publishes its own native

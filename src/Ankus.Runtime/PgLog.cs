@@ -25,7 +25,7 @@ public static class PgLog
 
     /// <summary>
     /// Reports structured diagnostics using PostgreSQL's filtering and routing rules.
-    /// Terminal reports must be allowed to propagate out of the extension method.
+    /// Terminal reports remain pending until the native boundary even if extension code catches their managed exception.
     /// </summary>
     /// <param name="level">The reporting severity.</param>
     /// <param name="diagnostic">The message and optional diagnostic fields.</param>
@@ -49,7 +49,9 @@ public static class PgLog
 
         if (level >= PgLogLevel.Fatal)
         {
-            throw new PgTerminalException(level, diagnostic);
+            var terminal = new PgTerminalException(level, diagnostic);
+            NativeLog.RecordTerminal(terminal);
+            throw terminal;
         }
 
         NativeLog.Report(level, diagnostic);

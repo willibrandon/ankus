@@ -81,16 +81,30 @@ public static class PgLogFunctions
     /// </summary>
     /// <param name="level">ERROR, FATAL, or PANIC.</param>
     /// <param name="marker">The unique primary message.</param>
+    /// <param name="mode">Zero to propagate, one to swallow, or two to swallow across an explicit recovery scope.</param>
     [PgFunction]
-    public static void LogTerminal(int level, string marker)
+    public static void LogTerminal(int level, string marker, int mode = 0)
     {
         try
         {
-            Spi.Connect(session =>
+            void Report() => Spi.Connect(session =>
             {
                 session.Execute("INSERT INTO log_rollback VALUES (99)");
                 PgLog.Write((PgLogLevel)level, new PgDiagnostic(marker) { SqlState = PgSqlStates.RaiseException, Detail = "terminal detail" });
             });
+
+            if (mode == 2)
+            {
+                PgTransaction.RunInSubtransaction(Report);
+            }
+            else
+            {
+                Report();
+            }
+        }
+        catch (Exception) when (mode != 0)
+        {
+            // Deliberately swallow the managed exception; the native frame must retain the terminal report.
         }
         finally
         {

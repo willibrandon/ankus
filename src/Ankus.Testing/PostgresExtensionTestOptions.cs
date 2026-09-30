@@ -45,6 +45,17 @@ public sealed class PostgresExtensionTestOptions
     }
 
     /// <summary>
+    /// Gets whether to reuse the last successful schema for this build while recompiling native code.
+    /// The default follows ankus test --no-schema, or false for ordinary fixture invocation.
+    /// Reuse requires unchanged native declarations and a previous successful publication for the same target and test mode.
+    /// </summary>
+    public bool ReuseSchema
+    {
+        get;
+        init;
+    } = TestCommandContext.ReuseSchema;
+
+    /// <summary>
     /// Gets whether to load the extension during shared preload before any test backends start.
     /// </summary>
     public bool SharedPreload

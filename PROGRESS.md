@@ -9,7 +9,9 @@
 ## Goal
 
 Full pgrx parity in idiomatic .NET Native AOT: runtime APIs, macro equivalents,
-extension features, custom scans and nodes, tooling, examples, and testing.
+extension features, nodes, tooling, examples, and testing. Higher-level custom
+scan providers are additional Ankus scope beyond pgrx's raw bindings and remain
+part of the completion requirements.
 Completion includes validation across PostgreSQL 13–18 plus 19 beta on Windows,
 Linux, and macOS.
 
@@ -66,7 +68,42 @@ runtime version/rebuild guidance in release notes. Keep a shared codebase where
 possible; introduce servicing branches only when needed. Do not add legacy TFMs,
 relax analyzers or count smoke checks as completed platform validation.
 
+## Review remediation in progress
+
+The second comparative review is being checked against the current source and
+the read-only PostgreSQL/pgrx references. Its recommendations are acceptance
+questions, not evidence that every described issue is present. The full port
+remains incomplete; the following work is additional to the open parity gates.
+
+| Review area | Current disposition |
+|---|---|
+| Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
+| Raw/memory errors without rollback | Confirmed outside explicit recovery. Entry failure, cleanup and explicit-subtransaction recovery still need implementation and backend evidence. A lighter guard must preserve this rule. |
+| Worker signal globals | Confirmed against pgrx signal handlers. PostgreSQL reload/shutdown globals must accompany Ankus flags; native signal evidence remains required. |
+| Nullable declarations and aggregate roles | Oblivious reference nullability is currently treated as required. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
+| PostgreSQL selection | Direct discovery and CLI selection still default to 18. Project-property selection must reach the ordinary test fixture and CLI defaults without overriding explicit selections. |
+| Declarative parity | Verify and complete typed aggregate/dependency/support references, extended module magic, custom alignment and generated SQL provenance. Preserve deterministic ordering. |
+| Runtime APIs and performance | Verify interrupt polling, interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs with measurements before changing the recovery contract. |
+| Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
+| .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
+| Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
+| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. A weekly/manual GitHub-hosted Intel macOS full-suite workflow is prepared with runtime/package/binding caches; actionlint passes, but execution evidence is pending. Existing focused version probes are not full-suite coverage. |
+| Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
+
 ## Current verified milestone
+
+Native entry frames preserve query cancellation and terminal reports even when
+managed code catches or replaces their exceptions. Nested SPI session cleanup
+restores transaction depth before the error returns to PostgreSQL. Test schema
+reuse preserves installation SQL while recompiling native function bodies, and
+fixture publications have their own build outputs.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,677 total,
+9,668 passed, zero failed and nine Windows-only skips**, in **15m07.127s**.
+Release, API freshness, documentation and workflow validation pass. The detailed
+review-remediation evidence and outstanding requirements are recorded below.
+
+## Previous verified milestone — test data directories
 
 `ankus test --pgdata` and `PostgresExtensionTestOptions.DataDirectoryBase`
 select a parent for isolated test data. Each invocation owns its child directory;
@@ -1100,6 +1137,12 @@ Homebrew dependency paths. Twelve direct compiler-argument tests pass. Plain
 checks and API freshness pass (114 API pages, 1212 members). Site build still reports
 the existing duplicate-404 and missing-site-URL warnings.
 
+**Superseded prototype evidence:** the following macOS checkpoint-server entries
+describe an earlier runtime design. The current `10.0.12-ankus.2` runtime works
+with stock PostgreSQL; the full PostgreSQL 18.6/macOS ARM64 suite, including
+preload and worker cases, passed in CI **36668534239**. Consumers do not need
+the experimental PostgreSQL patch described below.
+
 On macOS 26.5.2/arm64 (build 25F84), the owned native runtime and CoreLib build,
 active-background-GC probe, retained-timer probe and retained-queue probe all pass.
 The first real PostgreSQL 18.1 preload still fails at its startup thread guard.
@@ -1158,9 +1201,10 @@ The owned PostgreSQL 18.1 tree at `artifacts/preload/postgres-18.1-fork` has loc
 commit `217b767`, including the host registration/inventory checks, OAuth dependency
 fix and native rejection fixtures. The reference clones remain clean. No installed
 server, Apple thread flag, warning severity or consumer style setting was changed.
-macOS requires both the runtime and PostgreSQL patches for this implementation;
-stock PostgreSQL's historical thread guard remains incompatible with managed preload.
-The prototype does not yet supply a normal consumer installation of that server.
+That prototype required both runtime and PostgreSQL patches on macOS;
+stock PostgreSQL's historical thread guard was incompatible with that design.
+The prototype did not supply a normal consumer installation of that server and
+has since been superseded by the current stock-PostgreSQL implementation.
 
 Exact sources, binaries, the macOS AOT SDK, compiler/linker inputs, success/failure
 logs and six guard results are frozen in `.git/testagent/preload/macos-proof/`.
@@ -3345,7 +3389,7 @@ The target architecture consists of:
 | `pg_catalog`, `PgOid`, built-in OIDs | catalog and type/function lookup APIs | Versioned built-in constants, tagged OID conversion, type/operator lookup, owned PgProc metadata/default trees and checked relation access implemented; complete platform/version evidence remains required |
 | `pg_sys::elog` and logging macros | PostgreSQL logging and full diagnostics | `PgLog` levels, filtering, diagnostics, managed unwind and native terminal reporting; PG18 Linux verified |
 | `pgrx::pg_sys` (raw FFI) | versioned native bindings and guarded entry points | Selected-header records, enums, functions, globals, indirect calls, static callbacks and selected helpers implemented; variadics, remaining conveniences/protocols and the complete platform/version matrix remain required |
-| `nodes`, `pg_sys` custom scan bindings | Custom scan providers, node types, callbacks, and supporting APIs | Checked native node views and a real custom-scan provider with parallel execution, parameter remapping, registry/lifetime/error handling and older-version adaptation implemented; remaining contracts and the complete platform/version matrix remain required |
+| `nodes`, `pg_sys` custom scan bindings | Node types and raw bindings; higher-level custom scan providers are additional Ankus scope | Checked native node views and a real custom-scan provider with parallel execution, parameter remapping, registry/lifetime/error handling and older-version adaptation implemented; remaining contracts and the complete platform/version matrix remain required |
 | `cargo pgrx` CLI | .NET tool and standard SDK commands; full command inventory below | ☐ |
 | `cargo pgrx schema` (one-compile, `.pgrxsc`) | metadata-only schema generation and standalone extraction | Partial: build-time metadata, retained native graph, complete/selected standalone extraction, dependency/family closure, extension attachments and Graphviz implemented; complete platform/version validation remains required |
 | pgrx-examples | `samples/` mirroring the example set | ☐ |
@@ -16060,3 +16104,72 @@ successful, as are CI **36658860112** and Docs **36658860101**. The older
 **36649700631** failure is the Windows expectation issue already fixed in the
 current base. No run is still active, and the remote branch matches the local
 base. The new milestone still requires replacement full platform CI after push.
+
+### 2026-09-29 — Cancellation, terminal reports and isolated test publication
+
+Native invocation frames retain owned cancellation diagnostics and FATAL/PANIC
+severity independently of managed exceptions. `PgQueryCanceledException`
+derives from `OperationCanceledException` and carries the original PostgreSQL
+fields. Swallowing or replacing it cannot turn the query into success. Nested
+callbacks, explicit recovery, managed cleanup and one/two nested SPI sessions
+preserve the error and permit same-session recovery after it reaches PostgreSQL.
+Closing SPI sessions must remain possible while cancellation is pending; blocking
+that cleanup had left native transaction depth unbalanced. Raw cancellation also
+marks the managed recovery scope before rollback.
+
+`AnkusReuseSchema`, `ankus test --no-schema` and the fixture's `ReuseSchema`
+option retain exact SQL and its matching graph after successful publication.
+Managed bodies recompile; incompatible native declarations fail explicitly.
+Snapshots remain separated by target and test mode. Native consumer checks
+observe retained SQL **11** with the newly compiled result **142**, followed by
+ordinary regeneration to SQL **22**. Clean removes the selected snapshot and
+preserves unrelated files.
+
+Repeated macOS builds exposed a shared-output defect: native fixture publication
+and its running host used the same incremental-clean inventory. `/var` and
+`/private/var` aliases caused MSBuild to delete live assemblies and symbols.
+Fixture publishing now uses the SDK's separate artifacts layout under
+`obj/ankus-test-build`. Regression checks verify the host assemblies, symbols
+and clean inventory remain byte-for-byte unchanged. Clean uses the publication's
+explicit runtime target because the SDK artifacts path includes that target.
+
+Validation:
+
+- Complete PostgreSQL **18.6/Linux x64** suite: **9,677 total, 9,668 passed,
+  zero failed, nine Windows-only skips**, **15m07.127s**, six package slots.
+- Focused managed error tests: **67/67** on Linux x64 (**1.547s**) and Windows
+  x64 (**901ms**). Updated generator ownership fixtures: **135/135**; schema
+  and build helpers: **42/42**.
+- macOS ARM64/PostgreSQL **18.6**: **77** cancellation/logging/session/selection
+  cases pass. The final four schema cases pass in **4m10.725s**, with source
+  hashes verified against this candidate.
+- Windows x64/PostgreSQL **17.11**: the same **77** native cases pass; the
+  corrected four schema cases are still running. This is focused evidence,
+  not a complete current Windows or macOS suite.
+- Release: zero warnings/errors, **1m24.39s**. API freshness: **221 pages,
+  2,611 members**. Site build: **268 pages**, **9.44s**; site checks and all
+  workflow checks pass.
+
+The first complete run found stale GUC/SDK fixture expectations and the real
+session-close defect; both are corrected in the successful complete run. An
+earlier isolated ILCompiler portable-PDB error has not recurred, but its original
+files were removed before diagnosis. Failure archives and binary logs now retain
+future evidence. Output isolation removes a proven ownership defect; it does not
+establish the cause of that earlier PDB error.
+
+Added the MIT license with copyright **Brandon Williams** and common package
+metadata. All seven actual packed packages, including the Linux runtime, contain
+the expected author, license, project and repository URLs. Nothing is published.
+The old macOS checkpoint-server notes are marked superseded by stock-server
+validation; higher-level custom scan providers remain additional Ankus scope.
+
+The new weekly/manual Intel macOS workflow runs the full PostgreSQL 18 suite
+on GitHub runners, with separate runtime/test jobs and caches saved before tests.
+Both jobs retain the **60-minute** limit. Static workflow validation passes;
+execution and cold/warm durations remain pending. Other PostgreSQL majors and
+all remaining review/port requirements remain open.
+
+Before this commit, previous CI **36668534239** and Docs **36668534219** are
+successful. Platform durations were Linux **37m14s**, macOS ARM64 **15m24s** and
+Windows **24m02s**, with no timeout. Full platform CI for this candidate will run
+after push; completed earlier runs are not evidence for newly added tests.

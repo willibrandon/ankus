@@ -360,7 +360,7 @@ public sealed class NativeLogTests
     }
 
     /// <summary>
-    /// Terminal reports unwind managed code without querying filters or invoking the native nonterminal logger.
+    /// Terminal reports retain their native boundary request before unwinding without querying filters.
     /// </summary>
     /// <param name="level">The terminal reporting severity.</param>
     [TestMethod]
@@ -401,8 +401,63 @@ public sealed class NativeLogTests
             transport.Release();
         }
 
-        Assert.IsEmpty(fixture.Calls);
-        Assert.AreEqual(0, fixture.ReportReleases);
+        if (level == PgLogLevel.Error)
+        {
+            Assert.IsEmpty(fixture.Calls);
+            Assert.AreEqual(0, fixture.ReportReleases);
+        }
+        else
+        {
+            Assert.AreEqual((1, 2, (int)level), Assert.ContainsSingle(fixture.Calls));
+            Assert.AreEqual("terminal café", fixture.Fields[(int)NativeDiagnosticField.Message]);
+            Assert.AreEqual(3, fixture.ReportReleases);
+        }
+    }
+
+    /// <summary>
+    /// Terminal recording remains available while a spinlock is held so managed unwinding can release it.
+    /// </summary>
+    /// <param name="scoped">Whether the callback uses the restricted logger instead of the ordinary backend route.</param>
+    /// <param name="level">The terminal severity retained for the native boundary.</param>
+    [TestMethod]
+    [DataRow(false, PgLogLevel.Fatal)]
+    [DataRow(false, PgLogLevel.Panic)]
+    [DataRow(true, PgLogLevel.Fatal)]
+    [DataRow(true, PgLogLevel.Panic)]
+    public void TerminalReportsReleaseHeldLocks(bool scoped, PgLogLevel level)
+    {
+        using var locks = new NativeSpinLockTestFixture();
+        using var fixture = new LogFixture { Enabled = false };
+        using var backend = new BackendScope(BackendPointer);
+        using LogScope? logger = scoped ? new(LogPointer) : null;
+        var storage = new PgSpinLock<int>(19);
+        PgTerminalException failure = Assert.ThrowsExactly<PgTerminalException>(() => ReportWhileLocked(storage, level));
+        Assert.AreEqual(level, failure.Level);
+        Assert.AreEqual("locked terminal", failure.Message);
+        Assert.AreEqual("locked terminal", fixture.Fields[(int)NativeDiagnosticField.Message]);
+        Assert.AreEqual(1, fixture.ReportReleases);
+        Assert.IsEmpty(locks.Held);
+        Assert.HasCount(1, locks.Released);
+        if (scoped)
+        {
+            Assert.AreEqual((1, 2, (int)level), Assert.ContainsSingle(fixture.Calls));
+            Assert.IsEmpty(fixture.BackendOperations);
+        }
+        else
+        {
+            Assert.AreEqual(SpiOperation.Report, Assert.ContainsSingle(fixture.BackendOperations));
+            Assert.IsEmpty(fixture.Calls);
+        }
+
+        using PgSpinLockGuard<int> recovered = storage.Lock();
+        Assert.AreEqual(37, recovered.Value);
+
+        static void ReportWhileLocked(PgSpinLock<int> target, PgLogLevel severity)
+        {
+            using PgSpinLockGuard<int> held = target.Lock();
+            held.Value = 37;
+            PgLog.Write(severity, "locked terminal");
+        }
     }
 
     /// <summary>
@@ -522,7 +577,7 @@ public sealed class NativeLogTests
             {
                 *enabled = route == 1 && fixture.Enabled ? 1 : 0;
             }
-            else if (operation == 1 && report != null)
+            else if (operation is 1 or 2 && report != null)
             {
                 CaptureReport(report);
             }

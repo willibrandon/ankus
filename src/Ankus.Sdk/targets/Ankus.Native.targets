@@ -1,4 +1,15 @@
 <Project>
+  <Target Name="_CleanAnkusSchemaSnapshots" BeforeTargets="CoreClean" Condition="'$(NativeIntermediateOutputPath)' != ''">
+    <ItemGroup>
+      <Clean Include="$(NativeIntermediateOutputPath)ankus/schema-pg*-*.json" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_ValidateAnkusSchemaOptions" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(AnkusReuseSchema)' != 'true' and '$(AnkusReuseSchema)' != 'false'"
+           Text="AnkusReuseSchema must be true or false." />
+  </Target>
+
   <Target Name="_InvalidateAnkusPublication" BeforeTargets="PrepareForBuild" Condition="'$(_IsPublishing)' == 'true'"
           DependsOnTargets="_InvalidateAnkusPublishManifest" />
 
@@ -20,6 +31,13 @@
   <Target Name="_PrepareAnkusNativeArtifacts" BeforeTargets="WriteIlcRspFileForCompilation" DependsOnTargets="Compile;SetupOSSpecificProps;_ResolveAnkusExtensionIdentity">
     <PropertyGroup>
       <_AnkusArtifacts>$(NativeIntermediateOutputPath)ankus/</_AnkusArtifacts>
+      <_AnkusSchemaMode>normal</_AnkusSchemaMode>
+      <_AnkusSchemaMode Condition="'$(AnkusIncludeTests)' == 'true'">tests</_AnkusSchemaMode>
+      <_AnkusSchemaSnapshot>$(_AnkusArtifacts)schema-pg$(AnkusPostgresMajor)-$(_AnkusSchemaMode).json</_AnkusSchemaSnapshot>
+      <_AnkusSchemaInput Condition="'$(AnkusReuseSchema)' == 'true'">$(_AnkusSchemaSnapshot)</_AnkusSchemaInput>
+      <_AnkusSchemaInput Condition="'$(AnkusReuseSchema)' != 'true'"></_AnkusSchemaInput>
+      <_AnkusSchemaOutput Condition="'$(AnkusReuseSchema)' != 'true'">$(_AnkusSchemaSnapshot)</_AnkusSchemaOutput>
+      <_AnkusSchemaOutput Condition="'$(AnkusReuseSchema)' == 'true'"></_AnkusSchemaOutput>
       <_AnkusCommand>dotnet &quot;$(_AnkusBuildTool)&quot; &quot;@(IntermediateAssembly)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(_AnkusArtifacts)&quot; $(AnkusPostgresMajor)</_AnkusCommand>
       <_AnkusLibraries>@(AdditionalNativeLibraryDirectories, ';')</_AnkusLibraries>
@@ -30,6 +48,7 @@
       <_AnkusCommand>$(_AnkusCommand) &quot;$(TargetTriple)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(AnkusExtensionControlFile)&quot;</_AnkusCommand>
       <_AnkusCommand>$(_AnkusCommand) &quot;$(_AnkusArtifacts)version-controls.txt&quot;</_AnkusCommand>
+      <_AnkusCommand>$(_AnkusCommand) &quot;$(_AnkusSchemaInput)&quot;</_AnkusCommand>
     </PropertyGroup>
     <MakeDir Directories="$(_AnkusArtifacts)" />
     <WriteLinesToFile File="$(_AnkusArtifacts)version-controls.txt" Lines="@(AnkusVersionControlFile->'%(FullPath)')"
@@ -89,7 +108,7 @@
     <Copy SourceFiles="$(_AnkusArtifacts)schema.sql" DestinationFiles="$(PublishDir)$(TargetName).sql" />
     <WriteLinesToFile File="$(_AnkusArtifacts)upgrade-scripts.txt" Lines="@(AnkusUpgradeScript->'%(FullPath)')"
                       Overwrite="true" Encoding="UTF-8" />
-    <Exec Command="dotnet &quot;$(_AnkusBuildTool)&quot; publish-sql &quot;$(_AnkusArtifacts.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(PublishDir.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(_AnkusArtifacts)upgrade-scripts.txt&quot; &quot;$(MSBuildProjectDirectory)&quot; &quot;$(AnkusExtensionVersion)&quot;" />
+    <Exec Command="dotnet &quot;$(_AnkusBuildTool)&quot; publish-sql &quot;$(_AnkusArtifacts.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(PublishDir.TrimEnd('/').TrimEnd('\'))&quot; &quot;$(_AnkusArtifacts)upgrade-scripts.txt&quot; &quot;$(MSBuildProjectDirectory)&quot; &quot;$(AnkusExtensionVersion)&quot; &quot;$(_AnkusSchemaOutput)&quot;" />
     <ItemGroup>
       <_AnkusPackageFile Include="$(_AnkusArtifacts)extension/$(AnkusExtensionName).control" />
       <_AnkusPackageFile Include="$(_AnkusArtifacts)extension/$(AnkusExtensionName)--$(AnkusExtensionVersion).sql" />
@@ -99,6 +118,7 @@
     <ItemGroup>
       <FileWrites Include="$(PublishDir)$(TargetName).sql" />
       <FileWrites Include="$(_AnkusArtifacts)upgrade-scripts.txt" />
+      <FileWrites Include="$(_AnkusSchemaSnapshot)" />
       <FileWrites Include="$(PublishDir.TrimEnd('/').TrimEnd('\'))/ankus.extension.json" />
       <FileWrites Include="@(_AnkusPackageFile->'$(PublishDir)extension/%(Filename)%(Extension)')" />
     </ItemGroup>

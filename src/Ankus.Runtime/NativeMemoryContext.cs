@@ -110,10 +110,10 @@ public static unsafe class NativeMemoryContext
             return;
         }
 
-        PgException exception;
+        Exception exception;
         try
         {
-            exception = error.ToException();
+            exception = error.ToManagedException();
         }
         finally
         {

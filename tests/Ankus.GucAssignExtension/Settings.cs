@@ -38,7 +38,7 @@ public static partial class Settings
             throw new InvalidOperationException("Assign-only callback entered.");
         }
 
-        if (accepted is 667 or 668 or 669)
+        if (accepted is 667 or 668 or 669 or 670)
         {
             try
             {
@@ -48,6 +48,11 @@ public static partial class Settings
                         SqlState = "P0001",
                         Detail = "Managed frames unwind first.",
                     });
+            }
+            catch (Exception) when (accepted == 670)
+            {
+                // Returning from a caught FATAL must still terminate at the native hook boundary.
+                return;
             }
             finally
             {

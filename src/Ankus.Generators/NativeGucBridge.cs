@@ -667,6 +667,7 @@ internal static class NativeGucBridge
                     FlushErrorState();
                     ankus_guc_release_value(value);
                     ankus_guc_capture_error(data, error);
+                    ankus_recovery_record(data);
                     ankus_free_error_data(data);
                     status = 1;
                 }
@@ -797,6 +798,9 @@ internal static class NativeGucBridge
         static int
         ankus_guc_log(int operation, int level, AnkusError *report, AnkusError *error, int *enabled)
         {
+            if (operation == 2)
+                return ankus_recovery_terminal(level, report, error);
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             volatile int status = 0;
@@ -822,6 +826,7 @@ internal static class NativeGucBridge
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_guc_capture_error(data, error);
+                    ankus_recovery_record(data);
                     ankus_free_error_data(data);
                     status = 1;
                 }

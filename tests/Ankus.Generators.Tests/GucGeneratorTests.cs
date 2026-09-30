@@ -209,7 +209,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.Contains($"extern int {callback.Name}(int, AnkusValue *, AnkusValue *, int, AnkusError *, AnkusGucRead, AnkusExecute, AnkusGucLog, AnkusMemoryApi *);", native);
         AssertGucNativeDiagnosticOwnership(native);
-        Assert.Contains("ankus_capture_error(data, error);\n            ankus_free_error_data(data);", native.ReplaceLineEndings("\n"));
+        Assert.Contains("ankus_capture_error(data, error);\n            ankus_recovery_record(data);\n            ankus_free_error_data(data);", native.ReplaceLineEndings("\n"));
         Assert.Contains(".has_check = true, .has_assign = true, .has_show = true", native);
         Assert.DoesNotContain("ankus_raise_error(", native);
     }
@@ -588,7 +588,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("data->filename, data->funcname, data->domain, data->context_domain, data->message_id", native[free..]);
         Assert.Contains("pfree((void *) fields[index]);", native[free..]);
         Assert.Contains("FreeErrorData(data);", native[free..]);
-        Assert.Contains("ErrorData *data = ankus_copy_error_data();\n            FlushErrorState();\n            ankus_guc_capture_error(data, error);\n            ankus_free_error_data(data);", native);
+        Assert.Contains("ErrorData *data = ankus_copy_error_data();\n            FlushErrorState();\n            ankus_guc_capture_error(data, error);\n            ankus_recovery_record(data);\n            ankus_free_error_data(data);", native);
     }
 
     /// <summary>

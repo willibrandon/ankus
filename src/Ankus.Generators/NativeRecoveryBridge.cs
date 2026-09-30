@@ -1,12 +1,12 @@
 namespace Ankus.Generators;
 
 /// <summary>
-/// Contains failures until managed callbacks return when PostgreSQL cannot open a recovery savepoint.
+/// Retains failures that must propagate after managed callbacks return to PostgreSQL.
 /// </summary>
 internal static class NativeRecoveryBridge
 {
     /// <summary>
-    /// Gets synchronous callback frames and first-error transport for older parallel transactions.
+    /// Gets callback frames for cancellation, terminal reports and unrecoverable parallel errors.
     /// </summary>
     internal const string Source = """
         #include "access/xact.h"
@@ -19,6 +19,41 @@ internal static class NativeRecoveryBridge
         } AnkusRecoveryFrame;
 
         static AnkusRecoveryFrame *ankus_recovery_frame;
+
+        /* Copy transport without entering PostgreSQL, including under a pending
+         * terminal report. Each frame owns its buffers independently of rollback. */
+        static void
+        ankus_recovery_store(AnkusRecoveryFrame *frame, const AnkusError *error)
+        {
+            if (frame == NULL || (frame->failed && frame->failure.report_level >= error->report_level))
+                return;
+
+            ankus_release_error(&frame->failure);
+            frame->failure = *error;
+            for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
+            {
+                AnkusValue *value = &frame->failure.fields[index];
+                const AnkusValue *source = &error->fields[index];
+                value->data = NULL;
+                value->release = NULL;
+                if (source->data == NULL)
+                    continue;
+
+                value->data = malloc((size_t) source->length + 1);
+                if (value->data == NULL)
+                {
+                    value->length = 0;
+                    frame->failure.flags |= ANKUS_ERROR_INCOMPLETE;
+                    continue;
+                }
+
+                memcpy(value->data, source->data, source->length);
+                value->data[source->length] = 0;
+                value->release = ankus_free_error_buffer;
+            }
+
+            frame->failed = true;
+        }
 
         static bool
         ankus_parallel_without_subtransactions(void)
@@ -52,7 +87,7 @@ internal static class NativeRecoveryBridge
         static void
         ankus_recovery_record(ErrorData *data)
         {
-            if (ankus_parallel_without_subtransactions() && ankus_recovery_frame != NULL &&
+            if ((data->sqlerrcode == ERRCODE_QUERY_CANCELED || ankus_parallel_without_subtransactions()) && ankus_recovery_frame != NULL &&
                 !ankus_recovery_frame->failed)
             {
                 ankus_capture_error(data, &ankus_recovery_frame->failure);
@@ -66,6 +101,11 @@ internal static class NativeRecoveryBridge
             ankus_recovery_frame = frame->previous;
             if (frame->failed)
             {
+                /* An explicit subtransaction may roll back ERROR, but must not
+                 * turn a terminal report into a catchable ordinary error. */
+                if (frame->failure.report_level >= 12)
+                    ankus_recovery_store(frame->previous, &frame->failure);
+
                 ankus_release_error(error);
                 *error = frame->failure;
                 memset(&frame->failure, 0, sizeof(frame->failure));
@@ -86,6 +126,28 @@ internal static class NativeRecoveryBridge
                 (status) = (expression); \
                 (status) = ankus_recovery_finish(&ankus_invocation, (error), (status)); \
             } while (0)
+
+        """;
+
+    /// <summary>
+    /// Gets the terminal-report entry point for bridges exposing a managed logging capability.
+    /// </summary>
+    internal const string Terminal = """
+        static int
+        ankus_recovery_terminal(int level, AnkusError *report, AnkusError *error)
+        {
+            if (ankus_recovery_frame == NULL || report == NULL || level < 11 || level > 12)
+            {
+                memset(error, 0, sizeof(*error));
+                error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE;
+                strlcpy(error->message, "Terminal reports require an active managed callback", sizeof(error->message));
+                return 1;
+            }
+
+            report->report_level = level + 1;
+            ankus_recovery_store(ankus_recovery_frame, report);
+            return 0;
+        }
 
         """;
 }

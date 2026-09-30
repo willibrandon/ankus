@@ -43,6 +43,9 @@ report options after `--`. See [test command options](docs/src/content/docs/refe
 Add `--pgdata ./test-data` to choose the parent for isolated test-cluster data.
 Each invocation cleans up its own child directory and preserves the parent.
 
+After a successful test run, `--no-schema` retains its installation SQL while
+recompiling function bodies. Native declaration changes require a normal run.
+
 Declare `[PgTest]` methods to run C# checks inside PostgreSQL. The generated
 catalog exposes individual cases to ordinary test discovery, including exact
 expected errors and explicit ignore reasons. Test publications opt in; normal

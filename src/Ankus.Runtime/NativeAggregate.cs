@@ -344,7 +344,7 @@ public static unsafe class NativeAggregate
         {
             if (api(operation, (void*)handle, (void*)release, &output, values, sortKey, &error) != 0)
             {
-                throw error.ToException();
+                throw error.ToManagedException();
             }
 
             return (nint)output;

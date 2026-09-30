@@ -17,6 +17,11 @@ public static class NativeError
     /// <param name="error">The native caller-owned diagnostic buffer.</param>
     public static unsafe void Write(Exception exception, NativeCallError* error)
     {
+        if (exception is PgQueryCanceledException canceled)
+        {
+            exception = canceled.Diagnostic;
+        }
+
         *error = default;
         error->SqlState = PackSqlState("38000");
         Write(exception, error->Message, 2048);

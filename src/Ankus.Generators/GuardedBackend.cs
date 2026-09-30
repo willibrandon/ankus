@@ -17,17 +17,25 @@ internal static class GuardedBackend
         static int
         ankus_spi_execute(AnkusRequest *request, AnkusResult *result, AnkusError *error)
         {
+            if (request->operation == ANKUS_SPI_REPORT && request->log_level >= 11)
+                return ankus_recovery_terminal(request->log_level, request->diagnostic, error);
+
             if (ankus_recovery_failed(error))
             {
                 /* Saved plans outlive transaction abort. Their explicit disposal must
                  * remain possible, without connecting SPI or running new SQL. */
                 bool release = request->operation == ANKUS_SPI_FREE_PLAN || request->operation == ANKUS_SPI_CLOSE_CURSOR ||
                     (request->operation == ANKUS_SPI_RELATION && request->scalar_operation == 0);
-                if (!release || request->session_id != 0)
+                /* A session owns an enclosing recovery subtransaction. Closing it
+                 * must restore the caller's transaction depth before rethrow. */
+                bool close_session = request->operation == ANKUS_SPI_CLOSE_SESSION;
+                bool terminal_cleanup = error->report_level >= 12 &&
+                    (request->operation == ANKUS_SPI_REPORT || request->operation == ANKUS_SPI_IS_LOG_ENABLED);
+                if (!close_session && !terminal_cleanup && (!release || request->session_id != 0))
                     return 1;
 
                 memset(error, 0, sizeof(*error));
-                request->cleanup_only = true;
+                request->cleanup_only = !close_session && !terminal_cleanup;
             }
 
             AnkusTransactionFrame *transaction_frame = ankus_transaction_frame;

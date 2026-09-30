@@ -226,10 +226,15 @@ public sealed class PgLogTests(TestContext context)
     /// </summary>
     /// <param name="level">The terminal severity.</param>
     /// <param name="severity">The expected wire severity.</param>
+    /// <param name="mode">The managed propagation or swallowing path.</param>
     [TestMethod]
-    [DataRow(11, "FATAL")]
-    [DataRow(12, "PANIC")]
-    public async Task TerminalLevelsUnwindBeforeNativeTermination(int level, string severity)
+    [DataRow(11, "FATAL", 0)]
+    [DataRow(12, "PANIC", 0)]
+    [DataRow(11, "FATAL", 1)]
+    [DataRow(12, "PANIC", 1)]
+    [DataRow(11, "FATAL", 2)]
+    [DataRow(12, "PANIC", 2)]
+    public async Task TerminalLevelsUnwindBeforeNativeTermination(int level, string severity, int mode)
     {
         CancellationToken token = context.CancellationToken;
         PostgresTestClusterOptions options = await IntegrationEnvironment.CreateOptionsAsync(token);
@@ -249,9 +254,10 @@ public sealed class PgLogTests(TestContext context)
             await identify.ExecuteNonQueryAsync(token);
         }
 
-        await using var command = new NpgsqlCommand("SELECT log_terminal($1, $2)", connection);
+        await using var command = new NpgsqlCommand("SELECT log_terminal($1, $2, $3)", connection);
         command.Parameters.AddWithValue(level);
         command.Parameters.AddWithValue(marker);
+        command.Parameters.AddWithValue(mode);
         NpgsqlException terminalFailure = await Assert.ThrowsAsync<NpgsqlException>(() => command.ExecuteScalarAsync(token));
         if (terminalFailure is PostgresException error)
         {

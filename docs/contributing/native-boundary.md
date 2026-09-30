@@ -357,14 +357,20 @@ access and mutation use owned managed data and require no PostgreSQL calls.
 
 Nonterminal `PgLog` reports use the same native guard and disposable operation
 context. `ThrowErrorData` applies PostgreSQL's routing and context callbacks;
-encoding failures or interrupts return to managed code as `PgException`.
+encoding failures return to managed code as `PgException`; query cancellation
+uses `PgQueryCanceledException` with the complete owned PostgreSQL diagnostic.
 `IsEnabled` uses `message_level_is_interesting` on PostgreSQL 14 and newer, with
 the corresponding routing checks for PostgreSQL 13. Managed severity values map
 to header constants rather than relying on version-specific numbers.
 
 ERROR is a managed `PgException`. FATAL and PANIC use an internal exception that
-carries severity and diagnostics to the generated dispatcher. After managed
-unwinding, the native wrapper reports the requested terminal level. Tests use
+carries severity and diagnostics to the generated dispatcher. Before throwing,
+the managed logger records an independently owned copy in the native callback
+frame without invoking PostgreSQL error reporting. After managed unwinding,
+the native wrapper reports that level even if the exception was caught. Nested
+recovery frames propagate terminal reports to their parent before rollback.
+Managed cleanup may still emit nonterminal reports and close its SPI session.
+Tests use
 dedicated clusters to verify connection termination and crash recovery.
 
 Cursor operations share the native guard and result-copy path. Opening uses
@@ -390,6 +396,16 @@ owned UTF-8 diagnostics to managed code, which throws `PgException`. Managed
 `catch` and `finally` blocks therefore execute normally. An extension can catch the
 exception and issue another SPI call, or let its generated dispatcher return the
 error to PostgreSQL.
+
+SQLSTATE `57014` is an exception to ordinary catch-and-continue behavior.
+PostgreSQL has already cleared its pending cancellation when it raises the
+error. Every guarded capture therefore retains cancellation on the active
+native entry frame, independently of the managed exception. Subsequent server
+calls return the retained diagnostic, and callback completion returns failure
+even when managed code swallows or replaces the exception. An explicit
+subtransaction still rolls back before returning the cancellation; its caller's
+frame retains it until the outer callback returns. This preserves managed
+`finally` execution without allowing canceled queries to report success.
 
 Recovery itself has a native guard. An unrecoverable error during recovery
 terminates the backend with FATAL rather than jumping across managed frames.

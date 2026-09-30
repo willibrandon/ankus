@@ -12,14 +12,14 @@ internal static class UpgradeSqlCommand
     /// <summary>
     /// Publishes the installation SQL and selected upgrades, then commits the complete manifest.
     /// </summary>
-    /// <param name="arguments">Artifact directory, publish directory, script list, project directory, and extension version.</param>
+    /// <param name="arguments">Artifact directory, publish directory, script list, project directory, extension version, and optional schema snapshot destination.</param>
     /// <param name="cancellationToken">Cancels script reads and Git inspection.</param>
     /// <returns>A task that completes after the publication is installable.</returns>
     internal static async Task RunAsync(string[] arguments, CancellationToken cancellationToken = default)
     {
-        if (arguments.Length != 5)
+        if (arguments.Length is not (5 or 6))
         {
-            throw new ArgumentException("Expected artifact directory, publish directory, upgrade list, project directory, and extension version.", nameof(arguments));
+            throw new ArgumentException("Expected artifact directory, publish directory, upgrade list, project directory, extension version, and optional schema snapshot destination.", nameof(arguments));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -61,6 +61,18 @@ internal static class UpgradeSqlCommand
         }
 
         manifest.CompletePublish(output);
+        if (arguments.Length == 6 && arguments[5].Length != 0)
+        {
+            try
+            {
+                SchemaSnapshot.Commit(Path.Combine(artifacts, "schema.generated.json"), arguments[5]);
+            }
+            catch
+            {
+                PublishedExtension.Invalidate(output);
+                throw;
+            }
+        }
     }
 
     private static async Task<string> ReadGitHashAsync(string projectDirectory, CancellationToken cancellationToken)

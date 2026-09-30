@@ -14,6 +14,19 @@ internal static class TestCommandContext
     internal static string Configuration => Environment.GetEnvironmentVariable("ANKUS_TEST_CONFIGURATION") ?? "Release";
 
     /// <summary>
+    /// Gets the command's schema-reuse default, rejecting malformed context before publication.
+    /// </summary>
+    internal static bool ReuseSchema
+    {
+        get
+        {
+            string? value = Environment.GetEnvironmentVariable("ANKUS_TEST_REUSE_SCHEMA");
+            return value is null ? false : bool.TryParse(value, out bool reuse) ? reuse :
+                throw new InvalidOperationException("ANKUS_TEST_REUSE_SCHEMA must be true or false.");
+        }
+    }
+
+    /// <summary>
     /// Gets the command-owned temporary root, or null outside ankus test.
     /// </summary>
     internal static string? SessionDirectory

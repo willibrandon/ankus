@@ -22,6 +22,7 @@ Set extension properties in your project file:
 | `AnkusPostgresMajor` | `18` | Selects the server headers used to compile the native wrapper |
 | `AnkusPgConfigPath` | Registered or discovered installation | Selects an exact `pg_config`; the tool sets this automatically |
 | `AnkusIncludeTests` | Disabled | Includes `[PgTest]` native exports and installation SQL; the testing fixture enables it for declared backend tests |
+| `AnkusReuseSchema` | `false` | Reuses the last successful installation SQL and matching metadata for this target and publication mode while recompiling native code; missing or incompatible saved declarations fail explicitly |
 | `AnkusClangPath` | `clang` on Linux/macOS; `clang-cl.exe` on Windows | Selects LLVM Clang 20 or later for native declaration discovery |
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 | `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |

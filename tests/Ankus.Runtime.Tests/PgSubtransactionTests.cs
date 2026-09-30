@@ -108,6 +108,40 @@ public sealed unsafe class PgSubtransactionTests
     }
 
     /// <summary>
+    /// Raw cancellation marks its managed recovery scope so caught failures cannot resume native work before rollback.
+    /// </summary>
+    [TestMethod]
+    public void RawCancellationRemainsPendingUntilRollback()
+    {
+        using var memory = new MemoryContextTestFixture
+        {
+            Handler = static _ => throw new PgException(PgSqlStates.QueryCanceled, "raw cancellation", "owned cancellation detail"),
+        };
+        using MemoryContextTestFixture.Scope memoryScope = MemoryContextTestFixture.Enter();
+        nint previous = Enter();
+        try
+        {
+            PgQueryCanceledException? original = null;
+            PgQueryCanceledException failure = Assert.ThrowsExactly<PgQueryCanceledException>(() => PgTransaction.RunInSubtransaction(() =>
+            {
+                original = Assert.ThrowsExactly<PgQueryCanceledException>(() => NativeRawCall.Invoke(1, [], 0, 0));
+                Assert.IsTrue(NativeSubtransaction.HasFailure);
+                Assert.AreSame(original, Assert.ThrowsExactly<PgQueryCanceledException>(() => NativeRawCall.Invoke(2, [], 0, 0)));
+                Assert.AreSame(original, Assert.ThrowsExactly<PgQueryCanceledException>(() => Spi.Execute("SELECT 1")));
+            }));
+            Assert.AreSame(original, failure);
+            Assert.AreEqual("owned cancellation detail", failure.Diagnostic.Detail);
+            Assert.ContainsSingle(memory.Requests);
+            Assert.AreSequenceEqual([1], s_statuses!);
+            Assert.IsFalse(NativeSubtransaction.HasFailure);
+        }
+        finally
+        {
+            Exit(previous);
+        }
+    }
+
+    /// <summary>
     /// Native failures before callback entry or after success retain their own diagnostics and permit another scope.
     /// </summary>
     /// <param name="stage">One fails before entry; two fails after observing callback success.</param>
@@ -147,6 +181,29 @@ public sealed unsafe class PgSubtransactionTests
     }
 
     /// <summary>
+    /// Native cancellation during recovery takes precedence over the callback's earlier managed exception.
+    /// </summary>
+    [TestMethod]
+    public void RecoveryCancellationCannotBeReplacedByManagedFailure()
+    {
+        nint previous = Enter();
+        try
+        {
+            s_failStage = 3;
+            PgQueryCanceledException failure = Assert.ThrowsExactly<PgQueryCanceledException>(() =>
+                PgTransaction.RunInSubtransaction(static () => throw new InvalidOperationException("earlier managed failure")));
+            Assert.AreEqual("native cancellation", failure.Message);
+            Assert.AreEqual(PgSqlStates.QueryCanceled, failure.Diagnostic.SqlState);
+            Assert.AreEqual("recovery detail", failure.Diagnostic.Detail);
+            Assert.AreSequenceEqual([1], s_statuses!);
+        }
+        finally
+        {
+            Exit(previous);
+        }
+    }
+
+    /// <summary>
     /// Restores the enclosing backend capability and releases recorded fixture state.
     /// </summary>
     /// <param name="previous">The capability captured on entry.</param>
@@ -179,6 +236,12 @@ public sealed unsafe class PgSubtransactionTests
             var callback = (delegate* unmanaged[Cdecl]<nint, int>)request->_callback;
             int status = callback(request->_callbackState);
             s_statuses!.Add(status);
+            if (s_failStage == 3)
+            {
+                NativeError.Write(new PgException(PgSqlStates.QueryCanceled, "native cancellation", "recovery detail"), error);
+                return 1;
+            }
+
             if (s_failStage == 2)
             {
                 NativeError.Write(new PgException("55000", "native scope failure", "native boundary detail"), error);

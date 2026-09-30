@@ -189,6 +189,10 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         string? session = TestCommandContext.SessionDirectory;
         string? commandData = TestCommandContext.DataDirectory;
         string root = Path.GetDirectoryName(projectPath)!;
+        // The test host may have loaded this project's ordinary build. Publishing
+        // must not replace its assemblies, symbols or incremental-clean inventory.
+        // The SDK artifacts layout also separates every referenced project's outputs.
+        string buildArtifacts = Path.Combine(root, "obj", "ankus-test-build");
         string invocation = Guid.NewGuid().ToString("N");
         string output = session is null
             ? Path.Combine(root, "bin", "ankus-test-publish", invocation)
@@ -205,8 +209,10 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         {
             Directory.CreateDirectory(dataDirectoryBase);
             await ProcessRunner.RunCheckedAsync("dotnet",
-                ["publish", projectPath, "-p:Configuration=" + EscapeProperty(options.Configuration), "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
+                ["publish", projectPath, "--artifacts-path", buildArtifacts,
+                    "-p:Configuration=" + EscapeProperty(options.Configuration), "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
                     "-p:AnkusIncludeTests=" + (options.IncludeTests ? "true" : "false"),
+                    "-p:AnkusReuseSchema=" + (options.ReuseSchema ? "true" : "false"),
                     "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
                     "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
                     "-bl:" + Path.Combine(logs, invocation + ".binlog")],

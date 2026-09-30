@@ -73,6 +73,13 @@ approving an external run because approval also permits its changed workflow.
 Keep the runner services online before dispatching dedicated jobs.
 CI selects the latest stable .NET 10 SDK allowed by `global.json`.
 
+The `Additional platforms` workflow runs the complete PostgreSQL 18 suite on a
+GitHub-hosted Intel macOS runner weekly and on manual dispatch. This covers the
+release architecture unavailable on the dedicated machines. Runtime, NuGet and
+binding caches are saved before tests so later runs reuse successful preparation.
+Each run retains test results and timings; the job limit remains 60 minutes.
+Successful execution is required before counting Intel macOS as validated.
+
 The Linux service runs under its own unprivileged account. Provision PostgreSQL
 18 with server headers, Clang 20 or later with matching libclang, and the .NET
 runtime build prerequisites, Valgrind and matching libc debug symbols once

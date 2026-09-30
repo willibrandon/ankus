@@ -278,6 +278,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeSqlHelpers.Source);
             native.AppendLine(NativeErrorBridge.Source);
             native.AppendLine(NativeRecoveryBridge.Source);
+            native.AppendLine(NativeRecoveryBridge.Terminal);
             if (hasMemoryFunctionCallbacks)
             {
                 native.AppendLine(NativeMemoryBridge.Source);
@@ -332,6 +333,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             {
                 native.AppendLine(NativeErrorBridge.Source);
                 native.AppendLine(NativeRecoveryBridge.Source);
+                native.AppendLine(NativeRecoveryBridge.Terminal);
                 native.AppendLine("struct AnkusRequest;");
                 native.AppendLine("struct AnkusResult;");
                 native.AppendLine("typedef int (*AnkusExecute)(struct AnkusRequest *, struct AnkusResult *, AnkusError *);");
