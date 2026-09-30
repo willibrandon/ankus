@@ -86,6 +86,25 @@ public static unsafe class NativeMemoryContext
     }
 
     /// <summary>
+    /// Polls callback-scoped flags before entering PostgreSQL's guarded interrupt handler.
+    /// </summary>
+    internal static void CheckInterrupts()
+    {
+        NativeBorrowScope.CheckBackendAccess();
+        _ = Provider;
+        NativeMemoryApi* api = (NativeMemoryApi*)s_api;
+        if (api->_interruptPending != null && api->_failedFrames != null &&
+            Volatile.Read(ref *api->_interruptPending) == 0 && Volatile.Read(ref *api->_failedFrames) == 0 &&
+            (api->_signalQueue == null || (Volatile.Read(ref *api->_signalQueue) & ~Volatile.Read(ref *api->_signalMask)) == 0))
+        {
+            return;
+        }
+
+        NativeMemoryRequest request = new() { _operation = NativeMemoryOperation.CheckInterrupts };
+        Invoke(ref request, out _);
+    }
+
+    /// <summary>
     /// Invokes one checked native memory operation.
     /// </summary>
     /// <param name="request">The operation request.</param>
@@ -289,6 +308,10 @@ internal enum NativeMemoryOperation
     /// Registers or controls native background workers and their guarded worker operations.
     /// </summary>
     BackgroundWorker = 37,
+    /// <summary>
+    /// Processes PostgreSQL interrupts, including queued Windows signals, beneath the native error guard.
+    /// </summary>
+    CheckInterrupts = 38,
 }
 
 /// <summary>
@@ -405,4 +428,20 @@ internal unsafe struct NativeMemoryApi
     /// Selects the native result owner, which spans all advances for a set iterator.
     /// </summary>
     internal nint _resultContext;
+    /// <summary>
+    /// Borrows PostgreSQL's header-verified 32-bit interrupt indicator for this callback.
+    /// </summary>
+    internal int* _interruptPending;
+    /// <summary>
+    /// Borrows the number of active native callback frames retaining a mandatory failure.
+    /// </summary>
+    internal int* _failedFrames;
+    /// <summary>
+    /// Borrows the Windows pending signal bits, or remains null on Unix.
+    /// </summary>
+    internal int* _signalQueue;
+    /// <summary>
+    /// Borrows the Windows blocked signal bits when a signal queue is present.
+    /// </summary>
+    internal int* _signalMask;
 }

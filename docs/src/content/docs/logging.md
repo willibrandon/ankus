@@ -95,6 +95,25 @@ cleanup, but the query still fails at the native boundary. Further server work
 is rejected until that boundary returns. This also applies inside
 `PgTransaction.RunInSubtransaction` and recursive SQL calls.
 
+For long loops that stay in managed code, call `PgInterrupts.Check()` periodically:
+
+```csharp
+for (int index = 0; index < values.Length; index++)
+{
+    PgInterrupts.Check();
+    Process(values[index]);
+}
+```
+
+The check processes query cancellation, statement timeouts and backend shutdown
+through PostgreSQL's native interrupt handler. It also dispatches queued signals
+on Windows. With no pending work it reads native flags without a native call.
+PostgreSQL interrupt holdoffs still apply. A retained cancellation remains pending
+on subsequent checks even after a managed catch.
+
+Call it on the active backend thread. A task or thread-pool continuation has no
+backend capability. Release spinlock and shared-memory guards before polling.
+
 `Fatal` and `Panic` also unwind managed code before reporting at the native
 boundary. Their severity and diagnostics remain pending even if a
 `catch (Exception)` block swallows the managed exception or a subtransaction

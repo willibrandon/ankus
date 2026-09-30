@@ -83,7 +83,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Custom types now support PostgreSQL's four/eight-byte datum alignments, with catalog/heap/TOAST/array checks and the complete PostgreSQL 18.6/Linux x64 suite passing. Dedicated-platform CI remains required for these milestones. Typed aggregate/dependency/support references and generated SQL provenance remain open. Preserve deterministic ordering. |
-| Runtime APIs and performance | Verify interrupt polling, interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs with measurements before changing the recovery contract. |
+| Runtime APIs and performance | Guarded `PgInterrupts.Check()` now supports managed loops, retained cancellation and Windows queued signals. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; actual Windows delivery still requires CI. Interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
@@ -91,6 +91,19 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+`PgInterrupts.Check()` provides explicit PostgreSQL cancellation and shutdown
+polling for managed loops. Idle checks read callback-scoped native flags; pending
+work enters the native guard. Retained failures still propagate after managed
+catches, and Windows queued signals participate in the pending-work check.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,810 total,
+9,800 passed, zero failed and ten platform skips**, in **14m55.558s**.
+Release, generated API freshness and documentation checks pass. This is Linux
+evidence; dedicated CI and the complete version/platform matrix remain required.
+Hosted Intel macOS complete-suite timing remains unresolved.
+
+## Previous verified milestone — custom type alignment
 
 Custom types support explicit four-byte or eight-byte PostgreSQL datum alignment.
 The default remains four bytes. Undefined values fail generation; alignment does
@@ -16768,3 +16781,56 @@ CI **36709673695** is queued. Module CI **36707043259** is queued and its Docs
 run succeeds. Reporting CI **36702143685** is active. Selection CI
 **36701969924** and Docs succeed on all dedicated platforms. Intel
 **36702158595** timed out; no complete hosted Intel result is claimed.
+
+### 2026-09-30 — Explicit managed interrupt polling
+
+Confirmed the absence of a guarded interrupt check for long managed loops.
+`PgInterrupts.Check()` now reads callback-scoped PostgreSQL interrupt state and
+enters the existing native error guard only when work is pending. Windows also
+checks its unblocked signal queue, matching `CHECK_FOR_INTERRUPTS()` rather than
+assuming `InterruptPending` alone is sufficient. Native header assertions verify
+the flag widths. No native flag pointer is retained outside the active callback
+or exposed to another managed thread.
+
+Mandatory failures retained by native entry frames also force dispatch, so a
+catch cannot make polling ignore a cancellation whose PostgreSQL flag was
+cleared. The native frame count balances when frames unwind and propagates
+terminal failures through the existing recovery contract. Native processing
+continues to honor PostgreSQL interrupt holdoffs. Held spinlock/shared-memory
+guards still prohibit backend access before even the idle fast path.
+
+The **14** direct runtime cases pass, zero failures/skips, **1.920s**. They verify
+exact native dispatch counts for idle/pending/cleared/failure/Windows-mask
+partitions, diagnostic ownership, callback nesting/masking/exit, foreign-thread
+rejection and lock restrictions. Real PostgreSQL **18.6/Linux x64** cancellation
+tests pass **15/15**, zero failures/skips, **2m28.024s**, including pure managed
+polling, repeated checks after catches, attempted exception replacement, nested
+subtransactions, explicit rollback and same-backend recovery. An initial run
+failed during fixture setup because its exact emitted-header boundary needed
+the added header; that fixture was corrected and the scope rerun successfully.
+
+The candidate was merged from an isolated checkout, which was archived and removed
+after focused validation. The public error guide documents loop polling and its
+backend thread/lock restrictions. No Windows signal-delivery proof or benchmark
+throughput is claimed from the Linux focused result.
+
+Hosted measurement change `f8e064e` is pushed. Complete Intel comparison runs
+**36710358154** (one package slot) and **36710362781** (three slots) use that
+same commit. Their outcomes remain pending. No timeout fix is claimed yet.
+
+The combined Release build passes with **zero warnings/errors, 1m37.61s**.
+API generation/freshness verifies **225 pages / 2,622 members**. The site builds
+**272 pages in 3.40s** and reports zero check errors/warnings/hints. The complete
+plain PostgreSQL **18.6/Linux x64** suite passes **9,810 total, 9,800 passed,
+zero failed and ten platform skips**, **14m55.558s**, with six package slots.
+It includes the existing nested/terminal/raw-error cases. Independent isolated
+reporting work overlapped the run, so this is not an isolated timing comparison.
+
+Prior CI was checked and recorded before committing. **36702143685** passes
+all jobs: Linux x64/PostgreSQL 18 **42m55s**, macOS ARM64/PostgreSQL 18
+**17m33s**, Windows x64/PostgreSQL 17 **32m06s**. Module-identity CI
+**36707043259** is running its full platform tests. Alignment **36709673695**
+and measurement **36710308935** have successful quality/runtime jobs and queued
+full tests. Module/alignment Docs runs **36707043118** and **36709673766** pass.
+Both same-commit Intel comparisons are running complete tests; their outcomes
+and the hosted timeout remain open. No runs were automatically canceled.

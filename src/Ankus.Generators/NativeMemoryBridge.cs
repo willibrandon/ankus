@@ -20,6 +20,7 @@ internal static class NativeMemoryBridge
         #include <stdint.h>
         #include <stdlib.h>
         #include <string.h>
+        #include "miscadmin.h"
         #include "utils/memutils.h"
         #include "utils/palloc.h"
         #include "nodes/memnodes.h"
@@ -66,7 +67,8 @@ internal static class NativeMemoryBridge
             ANKUS_MEMORY_NATIVE_CALL = 34,
             ANKUS_MEMORY_SHARED = 35,
             ANKUS_MEMORY_SPIN = 36,
-            ANKUS_MEMORY_WORKER = 37
+            ANKUS_MEMORY_WORKER = 37,
+            ANKUS_MEMORY_CHECK_INTERRUPTS = 38
         } AnkusMemoryOperation;
 
         typedef struct AnkusMemoryRequest
@@ -107,7 +109,14 @@ internal static class NativeMemoryBridge
             MemoryContext current;
             AnkusMemoryInvoke invoke;
             MemoryContext result_context;
+            volatile sig_atomic_t *interrupt_pending;
+            int32 *failed_frames;
+            volatile int *signal_queue;
+            int *signal_mask;
         };
+
+        StaticAssertDecl(sizeof(sig_atomic_t) == sizeof(int32), "managed interrupt flag width");
+        StaticAssertDecl(sizeof(int) == sizeof(int32), "managed signal flag width");
 
         static int ankus_memory_invoke(AnkusMemoryApi *, AnkusMemoryRequest *, AnkusMemoryResult *, AnkusError *);
         static char ankus_memory_provider;
@@ -122,6 +131,12 @@ internal static class NativeMemoryBridge
             memory->current = CurrentMemoryContext;
             memory->invoke = ankus_memory_invoke;
             memory->result_context = CurrentMemoryContext;
+            memory->interrupt_pending = &InterruptPending;
+            memory->failed_frames = &ankus_recovery_failed_frames;
+        #ifdef WIN32
+            memory->signal_queue = &pg_signal_queue;
+            memory->signal_mask = &pg_signal_mask;
+        #endif
         }
 
         typedef struct AnkusMemoryAllocation AnkusMemoryAllocation;
@@ -901,6 +916,9 @@ internal static class NativeMemoryBridge
             memset(result, 0, sizeof(*result));
             switch ((AnkusMemoryOperation) request->operation)
             {
+                case ANKUS_MEMORY_CHECK_INTERRUPTS:
+                    CHECK_FOR_INTERRUPTS();
+                    break;
                 case ANKUS_MEMORY_CURRENT:
                 {
                     AnkusMemoryContext *entry = ankus_memory_register_context(CurrentMemoryContext);

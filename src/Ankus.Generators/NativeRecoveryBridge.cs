@@ -19,6 +19,7 @@ internal static class NativeRecoveryBridge
         } AnkusRecoveryFrame;
 
         static AnkusRecoveryFrame *ankus_recovery_frame;
+        static int32 ankus_recovery_failed_frames;
 
         /* Copy transport without entering PostgreSQL, including under a pending
          * terminal report. Each frame owns its buffers independently of rollback. */
@@ -60,6 +61,8 @@ internal static class NativeRecoveryBridge
                 value->release = ankus_free_error_buffer;
             }
 
+            if (!frame->failed)
+                ankus_recovery_failed_frames++;
             frame->failed = true;
         }
 
@@ -108,6 +111,7 @@ internal static class NativeRecoveryBridge
             ankus_recovery_frame = frame->previous;
             if (frame->failed)
             {
+                ankus_recovery_failed_frames--;
                 /* An explicit subtransaction may roll back ERROR, but must not
                  * turn a terminal report into a catchable ordinary error. */
                 if (frame->failure.report_level >= 12)
