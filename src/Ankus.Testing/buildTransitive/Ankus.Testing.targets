@@ -1,0 +1,18 @@
+<Project>
+  <!-- Populate before the SDK hashes runtime options so property changes also
+       invalidate an existing test host's runtimeconfig.json. -->
+  <Target Name="_ConfigureAnkusTestPostgresSelection"
+          BeforeTargets="_GenerateRuntimeConfigurationFilesInputCache">
+    <PropertyGroup>
+      <_AnkusTestPgConfigPath>$(AnkusPgConfigPath)</_AnkusTestPgConfigPath>
+      <_AnkusTestPgConfigDirectory>$([System.IO.Path]::GetDirectoryName('$(AnkusPgConfigPath)'))</_AnkusTestPgConfigDirectory>
+      <_AnkusTestPgConfigPath Condition="'$(_AnkusTestPgConfigDirectory)' != ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(AnkusPgConfigPath)'))</_AnkusTestPgConfigPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <RuntimeHostConfigurationOption Include="Ankus.Testing.PostgresMajor" Value="$(AnkusPostgresMajor)"
+                                      Condition="'$(AnkusPostgresMajor)' != ''" />
+      <RuntimeHostConfigurationOption Include="Ankus.Testing.PgConfigPath" Value="$(_AnkusTestPgConfigPath)"
+                                      Condition="'$(AnkusPgConfigPath)' != ''" />
+    </ItemGroup>
+  </Target>
+</Project>

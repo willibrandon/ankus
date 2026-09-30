@@ -78,10 +78,10 @@ remains incomplete; the following work is additional to the open parity gates.
 | Review area | Current disposition |
 |---|---|
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
-| Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full macOS ARM64/PostgreSQL 18 CI also passes; Windows evidence for this change remains pending. A lighter guard must preserve this rule. |
+| Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full CI also passes on Linux x64/macOS ARM64 with PostgreSQL 18 and Windows x64 with PostgreSQL 17. A lighter guard must preserve this rule. |
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Nullable declarations and aggregate roles | Oblivious reference nullability is currently treated as required. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
-| PostgreSQL selection | Direct discovery and CLI selection still default to 18. Project-property selection must reach the ordinary test fixture and CLI defaults without overriding explicit selections. |
+| Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
+| PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. Dedicated-platform CI remains required for this milestone. |
 | Declarative parity | Verify and complete typed aggregate/dependency/support references, extended module magic, custom alignment and generated SQL provenance. Preserve deterministic ordering. |
 | Runtime APIs and performance | Verify interrupt polling, interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs with measurements before changing the recovery contract. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
@@ -92,20 +92,18 @@ remains incomplete; the following work is additional to the open parity gates.
 
 ## Current verified milestone
 
-Unrecovered PostgreSQL errors survive ordinary managed catches and cleanup.
-Further backend work is blocked until explicit transaction recovery or return
-to PostgreSQL. Pure lifetime validation avoids raising a backend error when no
-backend state was changed. Native tests verify original diagnostics, lock release,
-cleanup ownership and same-session recovery.
+Plain `dotnet test` and CLI project commands honor evaluated PostgreSQL selection,
+including imports, configuration, referenced extensions and explicit overrides.
+Build properties reach the test host through standard runtime configuration;
+incremental changes and removal refresh that configuration.
 
-The complete PostgreSQL **18.6/Linux x64** suite passes **9,706 total,
-9,696 passed, zero failed and ten platform skips**, in **12m47.952s**.
-Release, API freshness and documentation validation pass. Full macOS ARM64 CI
-also passes; Windows evidence for this change remains pending. Previous SDK-fix CI passes on all three
-dedicated platforms; hosted Intel macOS now compiles successfully but hit its
-60-minute limit and exposed a temporary-path alias assertion. Its full evidence
-and timing investigation remain open. Detailed results and all other outstanding
-review/port requirements are recorded below.
+The complete PostgreSQL **17.11/Linux x64** suite passes **9,765 total,
+9,755 passed, zero failed and ten platform skips**, in **17m14.930s**.
+Release, API freshness and documentation validation pass. Its dedicated-platform
+CI is pending. The preceding raw-error and path-fix milestones pass full CI
+on Linux x64/PostgreSQL 18, macOS ARM64/PostgreSQL 18 and Windows x64/PostgreSQL 17.
+Hosted Intel macOS compiles successfully; complete-suite timing remains open.
+Detailed results and all other outstanding review/port requirements follow below.
 
 ## Previous verified milestone — test data directories
 
@@ -16493,3 +16491,93 @@ active. Quality, runtime jobs and Docs **36690992891** succeed. Path-fix CI
 **36693516529** is queued. Hosted Intel **36693552190** has restored its runtime
 and is building tests; its complete result is still pending. The prior Intel
 timeout remains unresolved. Other confirmed review and full-port gaps remain open.
+
+### 2026-09-30 — Project-selected PostgreSQL: validation in progress
+
+Confirmed that plain `dotnet test` could build for one PostgreSQL major while
+the fixture discovered 18, and that the CLI imposed 18 before consulting the
+project. Selection now evaluates the project's MSBuild properties and imports.
+Test projects without their own selection inherit an unambiguous referenced
+project selection. Conditions and explicit reference property overrides/removals
+participate; conflicting installations and reference cycles fail explicitly.
+
+The testing package carries build-selected major/path properties through the
+standard runtime configuration, including incremental changes and removal.
+Explicit fixture and command installation choices retain precedence. CLI project
+commands share the evaluated defaults; explicit `--pg` or `--pg-config` overrides
+them, and existing publications supply their major for install/package `--from`.
+Metadata-only project commands retain offline evaluation.
+
+Direct project-selection tests pass **22/22**, **3.874s**. The first packed-consumer
+run found an invalid nested condition in the new MSBuild target: **seven failed**,
+before backend execution. The condition now uses an intermediate directory
+property. A fresh actual MTP host importing the corrected target passes **1/1**,
+**1.023s**, proving the global major and normalized relative configuration path.
+This probe does not replace full consumer/native validation.
+
+Release passes with **zero warnings/errors, 1m39.40s**. Generated API reference
+contains **222 pages / 2,615 members**; the site builds **269 pages in 5.32s**,
+and site checks report zero errors, warnings and hints. The complete plain suite
+is now running against PostgreSQL **17.11/Linux x64**, including project-only
+selection and real backend calls. No passing complete result or commit is claimed
+for this candidate yet.
+
+The preceding raw-error CI **36690992874** has now passed every platform: Linux
+PG18 **40m31s**, macOS ARM64 PG18 **17m10s**, Windows PG17 **31m22s**. Nullability
+milestone `d4a859e` is pushed; Docs **36695388036** succeeds and CI **36695387927**
+is queued behind the path-fix run. Intel **36693552190** passed its native build
+in **17m28s** and is running the full suite. Its timeout outcome remains open.
+
+The PostgreSQL 17 run exposed **ten generator-test fixture failures** before
+integration completion: evaluation-only test projects inherited the runner's
+MSBuild PostgreSQL environment settings. Their project files now explicitly
+start with empty selection properties, preserving command-line global overrides.
+The existing offline regression fixture received the same isolation. Direct
+selection validation now passes **23/23**, **2.911s**, with those PostgreSQL 17
+environment settings present, including reference-level `Properties` overrides.
+The active complete run built the earlier test assemblies and cannot validate
+these subsequent corrections; a new complete run is required. Its backend
+results are still being collected.
+
+That run finished with **9,764 total, 9,741 passed, thirteen failed, ten skipped**,
+**17m43.690s**. The additional three failures were the isolated offline fixture
+described above and two diagnostic assertions: explicit invalid CLI majors named
+the internal local variable instead of the public option. Range validation now
+retains the meaningful major parameter name. No native backend case failed.
+The corrected Release build passes with **zero warnings/errors, 42.56s**; a new
+complete plain PostgreSQL **17.11/Linux x64** run is active. Documentation checks
+again report zero errors, warnings and hints.
+
+Path-fix CI **36693516529** now passes every job, including full Linux PG18
+**40m30s**, macOS ARM64 PG18 **16m23s**, and Windows PG17 **29m42s**. Intel
+**36693552190** passed compilation but remains active at the latest observation;
+its full-suite outcome is still required.
+
+Hosted Intel **36693552190** subsequently exceeded the **60-minute** job limit.
+Compilation passed; the full test step ran **41m04s** before cancellation.
+Five unit modules passed and no failed test was reported, but the integration
+module did not complete. This is incomplete platform evidence. Downloaded
+reports show Build.Tests **12m54.789s**, Generators **4m31.016s**, and repeated
+compiler-cache contract tests among the slowest cases. The restored binding
+cache still rebuilt its source entry and one managed companion for the changed
+commit. Inclusive MSBuild target totals cannot identify exclusive CPU cost.
+
+A controlled SDK-file hashing comparison on Linux x64 and macOS ARM64 took
+less than one second per sweep with unchanged digests. It does not explain the
+hosted Intel timeout or justify changing cache validation. The incomplete
+integration run needs per-case progress evidence before choosing a performance
+fix. Job limits, complete suites and validation requirements remain unchanged.
+
+The corrected complete plain PostgreSQL **17.11/Linux x64** run now passes:
+**9,765 total, 9,755 passed, zero failed, ten platform skips**, **17m14.930s**,
+six package-consumer slots. This includes all eleven new packed-consumer cases,
+real server-version queries and native execution. All 23 direct project-selection
+cases also pass in the full run. Release is clean as recorded above; final API
+freshness verifies **222 pages / 2,615 members**, and the site builds **269 pages
+in 5.88s** with zero check errors, warnings or hints.
+
+Before this milestone's commit, CI **36695387927** has successful quality,
+runtime and macOS ARM64/PG18 jobs; Linux PG18 and Windows PG17 remain active.
+Docs **36695388036** succeeds. The preceding complete dedicated-platform run
+**36693516529** succeeds. Intel **36693552190** remains timed out as documented
+above; successful full Intel evidence and its performance fix are still required.

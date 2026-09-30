@@ -55,7 +55,7 @@ internal static partial class ToolCommand
             }
             else
             {
-                installations.Add(await SelectAsync(result, home, token));
+                installations.Add(await SelectAsync(result, home, token, TestProject(arguments), configuration));
             }
 
             string root = Path.GetFullPath(result.GetValue(reports) ?? Path.Combine("TestResults", "ankus", Guid.NewGuid().ToString("N")));
@@ -100,6 +100,32 @@ internal static partial class ToolCommand
             return firstFailure;
         });
         return command;
+    }
+
+    /// <summary>
+    /// Uses a forwarded project or solution as the source of the default PostgreSQL selection.
+    /// </summary>
+    /// <param name="arguments">The forwarded dotnet test arguments.</param>
+    /// <returns>The selected project, solution directory, or null for the current directory.</returns>
+    private static string? TestProject(string[] arguments)
+    {
+        for (int index = 0; index < arguments.Length && arguments[index] != "--"; index++)
+        {
+            string argument = arguments[index];
+            foreach (string option in new[] { "--project", "--solution" })
+            {
+                string? value = argument == option
+                    ? index + 1 < arguments.Length ? arguments[index + 1] : throw new ArgumentException($"{option} requires a path.")
+                    : argument.StartsWith(option + "=", StringComparison.Ordinal) || argument.StartsWith(option + ":", StringComparison.Ordinal)
+                        ? argument[(option.Length + 1)..] : null;
+                if (value is not null)
+                {
+                    return option == "--solution" ? Path.GetDirectoryName(Path.GetFullPath(value)) : value;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static (string Configuration, string[] Arguments) TestConfiguration(string configuration, bool explicitlySelected, string[] arguments)

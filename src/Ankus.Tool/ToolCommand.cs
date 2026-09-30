@@ -263,10 +263,9 @@ internal static partial class ToolCommand
 
     private static void AddSelectionOptions(Command command)
     {
-        command.Options.Add(new Option<int>("--pg")
+        command.Options.Add(new Option<int?>("--pg")
         {
-            Description = "PostgreSQL major version (13–19).",
-            DefaultValueFactory = _ => 18,
+            Description = "PostgreSQL major version (13–19; default: project selection, otherwise 18).",
         });
         command.Options.Add(new Option<string?>("--pg-config")
         {
@@ -307,25 +306,6 @@ internal static partial class ToolCommand
             value.Any(char.IsControl) || value.EndsWith(' ') || value.EndsWith('.')
             ? "Configuration must be a nonempty directory name without path separators, invalid filename characters, or a trailing dot or space."
             : null;
-
-    private static async Task<PostgresInstallation> SelectAsync(ParseResult result, Option<string?> home, CancellationToken token)
-    {
-        int major = result.GetValue<int>("--pg");
-        ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
-        if (result.GetValue<string?>("--pg-config") is not string path)
-        {
-            return await new PostgresRegistry(result.GetValue(home)).GetAsync(major, token);
-        }
-
-        PostgresInstallation installation = await PostgresInstallation.CreateAsync(path, token);
-        if (installation.Version.Major != major)
-        {
-            throw new ArgumentException($"Expected PostgreSQL {major}, but '{path}' is {installation.Label}.");
-        }
-
-        return installation;
-    }
 
     private static string GetOutputDirectory(ParseResult result, PostgresInstallation installation)
     {

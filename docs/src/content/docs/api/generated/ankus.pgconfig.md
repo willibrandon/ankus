@@ -18,6 +18,7 @@ Assembly: `Ankus.PgConfig.dll`
 - [PostgresDevelopmentOptions](/api/ankus.pgconfig.postgresdevelopmentoptions/)
 - [PostgresInstallation](/api/ankus.pgconfig.postgresinstallation/)
 - [PostgresPortOptions](/api/ankus.pgconfig.postgresportoptions/)
+- [PostgresProjectSettings](/api/ankus.pgconfig.postgresprojectsettings/)
 - [PostgresProvisionOptions](/api/ankus.pgconfig.postgresprovisionoptions/)
 - [PostgresProvisioner](/api/ankus.pgconfig.postgresprovisioner/)
 - [PostgresRegistry](/api/ankus.pgconfig.postgresregistry/)

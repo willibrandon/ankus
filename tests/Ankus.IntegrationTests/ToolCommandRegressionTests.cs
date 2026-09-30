@@ -229,7 +229,16 @@ public sealed partial class ToolCommandTests
         string root = CreateDirectory();
         string home = Path.Combine(root, "unregistered");
         string project = Path.Combine(root, "Dry.csproj");
-        await File.WriteAllTextAsync(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><AnkusExtensionName>dry_probe</AnkusExtensionName></PropertyGroup></Project>", token);
+        await File.WriteAllTextAsync(project, """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <AnkusExtensionName>dry_probe</AnkusExtensionName>
+                <AnkusPostgresMajor />
+                <AnkusPgConfigPath />
+              </PropertyGroup>
+            </Project>
+            """, token);
         await File.WriteAllTextAsync(Path.Combine(root, "Invalid.cs"), "invalid C# source", token);
         string[] options = ["regress", "--project", project, "--home", home, "--dry-run"];
         ProcessResult empty = await InvokeAsync(options, token);

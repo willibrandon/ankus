@@ -58,9 +58,7 @@ internal static partial class ToolCommand
                     return code;
                 }
 
-                int major = result.GetValue<int>("--pg");
-                ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
-                ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
+                int major = await SelectMajorAsync(result, token);
                 string configuration = GetConfiguration(result);
                 if (name == "extname")
                 {

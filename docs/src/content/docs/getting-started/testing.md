@@ -17,9 +17,18 @@ Backend testing requires PostgreSQL with server headers and the
 [Native AOT toolchain](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 Extension builds also require LLVM Clang 20 or later with matching `libclang`;
 see [publishing prerequisites](/getting-started/publishing/#prerequisites).
-The fixture discovers PostgreSQL 18 by default. Register a nonstandard
+The fixture uses the extension project's evaluated `AnkusPostgresMajor` and
+`AnkusPgConfigPath`, including imported and configuration-specific properties.
+Without a version setting, it discovers PostgreSQL 18. Register a nonstandard
 installation with `ankus init --pg18 /path/to/pg_config`. Missing prerequisites
 fail initialization; tests are never silently skipped.
+
+Plain `dotnet test -p:AnkusPostgresMajor=17` selects matching headers and a
+PostgreSQL 17 server. Use `-p:AnkusPgConfigPath=/path/to/pg_config` for a specific
+installation. The testing package carries these build settings into the test
+host; `--no-build` retains the settings from its previous build. An explicit
+fixture `Installation` or `ANKUS_TEST_PG_CONFIG` takes
+precedence. A selected path that reports a different requested major is rejected.
 
 Use `ankus test --pg 17` to build and test against another registered version,
 or `ankus test --all` to run against every registered major. Pass normal runner

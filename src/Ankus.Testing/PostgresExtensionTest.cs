@@ -49,7 +49,8 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// </summary>
     /// <param name="projectPath">The extension project file.</param>
     /// <param name="installation">
-    /// The PostgreSQL installation, or null to use <c>ANKUS_TEST_PG_CONFIG</c> when set and otherwise discover PostgreSQL 18.
+    /// The PostgreSQL installation, or null to use <c>ANKUS_TEST_PG_CONFIG</c> when set and otherwise the build or project selection.
+    /// Projects without a selection default to PostgreSQL 18.
     /// </param>
     /// <param name="cancellationToken">Cancels discovery, publication, or startup.</param>
     /// <returns>The fixture to dispose after all tests finish.</returns>
@@ -176,15 +177,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             throw new FileNotFoundException("The extension project was not found.", projectPath);
         }
 
-        PostgresInstallation? installation = options.Installation;
-        if (installation is null)
-        {
-            string? testPgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
-            installation = string.IsNullOrWhiteSpace(testPgConfig)
-                ? await PostgresInstallation.DiscoverAsync(cancellationToken).ConfigureAwait(false)
-                : await PostgresInstallation.CreateAsync(testPgConfig, cancellationToken).ConfigureAwait(false);
-        }
-
+        PostgresInstallation installation = await PostgresTestSelection.ResolveAsync(options, cancellationToken).ConfigureAwait(false);
         TestCommandContext.ValidateInstallation(installation);
         string? session = TestCommandContext.SessionDirectory;
         string? commandData = TestCommandContext.DataDirectory;

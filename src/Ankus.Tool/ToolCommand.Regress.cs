@@ -68,9 +68,7 @@ internal static partial class ToolCommand
                 suite.RequireExpected(selected);
             }
 
-            int major = result.GetValue<int>("--pg");
-            ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
+            int major = await SelectMajorAsync(result, token);
             string name = await ExtensionBuilder.GetExtensionNameAsync(project, GetConfiguration(result), major,
                 result.GetValue<string?>("--pg-config"), token);
             string targetDatabase = result.GetValue(database) ?? name + "_regress";

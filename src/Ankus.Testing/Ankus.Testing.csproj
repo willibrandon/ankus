@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Update="buildTransitive/Ankus.Testing.targets" Pack="true" PackagePath="buildTransitive/Ankus.Testing.targets" />
     <PackageReference Include="Npgsql" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
     <ProjectReference Include="../Ankus.Runtime/Ankus.Runtime.csproj" />

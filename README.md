@@ -34,7 +34,10 @@ dotnet test
 ```
 
 This creates an extension and MSTest project. Tests call managed methods directly
-and load the published Native AOT library into an isolated PostgreSQL 18 cluster.
+and load the published Native AOT library into an isolated PostgreSQL cluster.
+The version follows `AnkusPostgresMajor`, defaulting to 18. Plain
+`dotnet test -p:AnkusPostgresMajor=17` selects matching headers and a PostgreSQL 17
+server.
 
 Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and

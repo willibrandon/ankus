@@ -71,9 +71,12 @@ internal static partial class ToolCommand
                     throw new ArgumentException("Project schema builds use the host runtime identifier; use --from for another target.");
                 }
 
-                int major = result.GetValue<int>("--pg");
-                ArgumentOutOfRangeException.ThrowIfLessThan(major, 13);
-                ArgumentOutOfRangeException.ThrowIfGreaterThan(major, 19);
+                if (result.GetValue(skipBuild) && result.GetValue<string?>("--pg-config") is not null)
+                {
+                    throw new ArgumentException("--pg-config requires a build; use --pg to select an existing publication.");
+                }
+
+                int major = await SelectMajorAsync(result, token);
                 string project = ExtensionBuilder.ResolveProject(result.GetValue<string?>("--project"));
                 string configuration = GetConfiguration(result);
                 string directory = Path.Combine(Path.GetDirectoryName(project)!, "bin", "ankus",
@@ -88,10 +91,6 @@ internal static partial class ToolCommand
                     {
                         return code;
                     }
-                }
-                else if (result.GetValue<string?>("--pg-config") is not null)
-                {
-                    throw new ArgumentException("--pg-config requires a build; use --pg to select an existing publication.");
                 }
 
                 PublishedExtension publication = PublishedExtension.Read(directory);

@@ -286,7 +286,7 @@ public sealed class PostgresInstallation
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"'{pgConfigPath} {string.Join(' ', arguments)}' exited with code {process.ExitCode}: {error}");
+                $"'{pgConfigPath} {string.Join(' ', arguments)}' exited with code {process.ExitCode}: {error}{Environment.NewLine}{output}");
         }
 
         if (output.Length == 0 && !preprocessorFlags)

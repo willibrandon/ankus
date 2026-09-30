@@ -22,7 +22,9 @@ default to snake case (`acme_search`); use `--extension-name` to choose one expl
 
 Creation needs no PostgreSQL installation. Running the generated backend tests
 requires PostgreSQL with development headers and the Native AOT toolchain.
-The default selection is PostgreSQL 18; use `ankus test` to select another major.
+The default selection follows `AnkusPostgresMajor` in the project, falling back
+to PostgreSQL 18. Plain `dotnet test -p:AnkusPostgresMajor=17` and `ankus test --pg 17`
+both select matching PostgreSQL 17 headers and a test server.
 See [testing an extension](/getting-started/testing/).
 
 ## Run extension tests
@@ -35,9 +37,18 @@ ankus test --all --configuration Release -- --report-trx
 
 `test` runs ordinary `dotnet test` from the current directory. It selects the
 same PostgreSQL major for the managed build and the backend fixture's native
-publication. Use `--pg` for a registered version from 13 through 19, or combine
-it with `--pg-config /path/to/pg_config` for an explicit installation. The default
-is the registered PostgreSQL 18 installation.
+publication. Use `--pg` for a registered version from 13 through 19, or
+`--pg-config /path/to/pg_config` for an explicit installation. When supplied
+together, the path must match the requested major. These options override
+project defaults.
+
+Without an explicit selection, project commands evaluate `AnkusPostgresMajor`
+and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
+the project selected by forwarded runner arguments. A test project without its
+own selection inherits one from its referenced extension projects; conflicting
+selections require an explicit `--pg`. Unspecified versions fall
+back to 18; standalone cluster commands retain that default. Installing or
+packaging with `--from` uses the existing publication's major by default.
 
 `--all` runs each registered version in order. Every registration is checked
 before tests start. A missing or broken installation fails the command. Test
