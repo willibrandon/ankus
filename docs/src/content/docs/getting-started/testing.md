@@ -108,6 +108,12 @@ Dispose it during test-class cleanup. The options also select `Installation`,
 selected by `ankus test`), `SharedPreload` and `Port`.
 The fixture uses the selected installation's headers and server together.
 
+For ordinary `dotnet test`, set `DataDirectoryBase` to put cluster data beneath
+a chosen directory. The fixture creates and removes its own unique child;
+your parent directory and other contents remain. With `ankus test`, use
+`--pgdata ./test-data` to choose the base for every fixture in the command.
+Server logs remain in the extension project's `bin/ankus-test-logs/` directory.
+
 Each case runs in its own transaction, which rolls back after success, failure
 or cancellation. `ExpectedError` matches the server's primary message exactly;
 a different error or unexpected success fails the test. Failure diagnostics

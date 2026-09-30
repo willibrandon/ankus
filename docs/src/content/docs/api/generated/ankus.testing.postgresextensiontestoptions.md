@@ -43,6 +43,19 @@ public string Configuration { get; init; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-7f41ee27897a51e5"></a>
+
+### DataDirectoryBase
+
+Gets the parent for isolated cluster data, or null for the system temporary directory.
+Only the fixture's unique child directory is removed. The ankus test command controls this location with --pgdata.
+
+```csharp
+public string? DataDirectoryBase { get; init; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-d5f10a507e0fe81f"></a>
 
 ### IncludeTests

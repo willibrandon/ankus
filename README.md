@@ -40,6 +40,9 @@ Use `ankus test --pg 17` for another registered PostgreSQL major, or
 `ankus test --all` for every registered version. Pass ordinary test filters and
 report options after `--`. See [test command options](docs/src/content/docs/reference/cli.md#run-extension-tests).
 
+Add `--pgdata ./test-data` to choose the parent for isolated test-cluster data.
+Each invocation cleans up its own child directory and preserves the parent.
+
 Declare `[PgTest]` methods to run C# checks inside PostgreSQL. The generated
 catalog exposes individual cases to ordinary test discovery, including exact
 expected errors and explicit ignore reasons. Test publications opt in; normal

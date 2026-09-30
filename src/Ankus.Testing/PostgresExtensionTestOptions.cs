@@ -63,6 +63,16 @@ public sealed class PostgresExtensionTestOptions
     }
 
     /// <summary>
+    /// Gets the parent for isolated cluster data, or null for the system temporary directory.
+    /// Only the fixture's unique child directory is removed. The ankus test command controls this location with --pgdata.
+    /// </summary>
+    public string? DataDirectoryBase
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
     /// Gets additional postgresql.conf lines for the isolated cluster.
     /// </summary>
     public IReadOnlyList<string> PostgreSqlConfiguration

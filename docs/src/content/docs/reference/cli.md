@@ -44,6 +44,12 @@ before tests start. A missing or broken installation fails the command. Test
 failures do not prevent later versions from running; the command returns the
 first nonzero runner exit code. Do not combine `--all` with `--pg` or `--pg-config`.
 
+Use `--pgdata ./test-data` to choose where test clusters store their data.
+Each invocation creates its own child directory, including with `--all` or
+concurrent test runs. Cleanup removes only that child after stopping its servers;
+the parent and unrelated contents remain. Unix sockets stay in a separate short
+temporary path, so a long data-directory path does not exceed the socket limit.
+
 Put ordinary test-runner arguments after `--`, including `--project`, `--solution`,
 filters and reporting options. Use the syntax supported by your project's test
 platform. Ankus passes individual arguments without shell interpretation.

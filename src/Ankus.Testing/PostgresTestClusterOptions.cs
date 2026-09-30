@@ -28,7 +28,8 @@ public sealed class PostgresTestClusterOptions
 
     /// <summary>
     /// Gets or sets the base directory under which per-invocation PGDATA directories
-    /// are created. The ankus test command uses its own temporary root so it can clean up aborted hosts.
+    /// are created. The ankus test command uses its own invocation directory beneath --pgdata when supplied,
+    /// or temporary storage otherwise, so it can clean up aborted hosts.
     /// </summary>
     public string DataDirectoryBase
     {

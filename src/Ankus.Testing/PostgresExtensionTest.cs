@@ -187,6 +187,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
 
         TestCommandContext.ValidateInstallation(installation);
         string? session = TestCommandContext.SessionDirectory;
+        string? commandData = TestCommandContext.DataDirectory;
         string root = Path.GetDirectoryName(projectPath)!;
         string invocation = Guid.NewGuid().ToString("N");
         string output = session is null
@@ -194,14 +195,15 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             : Path.Combine(session, "publish", invocation);
         string logs = Path.Combine(root, "bin", "ankus-test-logs");
         string dataDirectoryBase = session is null
-            ? Path.Combine(Path.GetTempPath(), "ankus-test-pgdata-" + invocation)
-            : Path.Combine(session, "pgdata", invocation);
+            ? Path.Combine(Path.GetFullPath(options.DataDirectoryBase ?? Path.GetTempPath()), "ankus-test-pgdata-" + invocation)
+            : Path.Combine(commandData!, invocation);
         Directory.CreateDirectory(output);
         Directory.CreateDirectory(logs);
         PostgresTestCluster? cluster = null;
         PostgresTestInstallation? stagedInstallation = null;
         try
         {
+            Directory.CreateDirectory(dataDirectoryBase);
             await ProcessRunner.RunCheckedAsync("dotnet",
                 ["publish", projectPath, "-p:Configuration=" + EscapeProperty(options.Configuration), "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
                     "-p:AnkusIncludeTests=" + (options.IncludeTests ? "true" : "false"),

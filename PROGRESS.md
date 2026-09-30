@@ -68,6 +68,35 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`ankus test --pgdata` and `PostgresExtensionTestOptions.DataDirectoryBase`
+select a parent for isolated test data. Each invocation owns its child directory;
+cleanup preserves the chosen parent, unrelated files and other live clusters.
+Unix sockets retain a separate short path. Invalid command context is rejected
+before extension publication.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,625 total,
+9,616 passed, zero failed and nine Windows-only skips**, in **13m36.322s**
+with six package-consumer slots. The focused selection passes **35/35** on
+Linux x64 and macOS ARM64/PostgreSQL **18.6**. Windows x64/PostgreSQL **17.11**
+passes **33**, with two POSIX signal cases skipped and zero failures. Release,
+API freshness and documentation checks pass.
+
+The preceding milestone's CI **36665437945** passes on every platform: Linux
+**35m47s**, macOS **14m54s**, Windows **26m39s**; quality, runtime jobs and
+Docs **36665437946** also pass. No job timed out.
+
+The preceding command milestone adds registered/explicit/default/all-version
+selection, ordinary runner arguments, configuration propagation, reports and
+cleanup after an aborted host. Its independent native command matrix passes
+**21 named cases** across PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11, 18.6
+and 19beta4** on Linux x64. Native binding selection now follows actual node
+tags and embedded enum declarations for the selected headers. This evidence
+covers those contracts; schema reuse, execution as another OS account,
+additional framework templates, benchmarks and all other unresolved port
+requirements remain open.
+
+Earlier verified milestones follow in reverse chronological order.
+
 `[PgTest]` declares methods that execute inside PostgreSQL. Generated immutable
 catalogs feed ordinary MSTest discovery, including source-generated discovery,
 exact expected errors and explicit ignore reasons. Native test functions require
@@ -3345,7 +3374,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`. Shared Valgrind startup now has actual PostgreSQL 13–19/Linux startup evidence and PostgreSQL 18.6 instrumentation, diagnostic and cancellation tests; complete version/platform validation remains required |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`. Both commands run Native AOT queries under Valgrind through the shared lifecycle; cross-target tooling and complete version/platform validation remain required |
-| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, generated `[PgTest]` catalogs, exact expected errors, explicit ignore reasons and configurable framework-neutral publish/load fixtures are implemented. Affected native checks pass on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Additional framework templates, CLI forwarding and the complete major/platform matrix remain required |
+| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, generated `[PgTest]` catalogs, exact expected errors, explicit ignore reasons and framework-neutral publish/load fixtures are implemented. `ankus test` selects registered/explicit/all versions, forwards runner arguments and configuration, preserves failures/reports, and owns cleanup with optional `--pgdata`. Direct fixtures expose `DataDirectoryBase`. The native command matrix passes PostgreSQL 13–19 on Linux; affected storage checks pass on Linux/macOS PostgreSQL 18.6 and Windows PostgreSQL 17.11. Schema reuse, OS-account execution, additional framework templates and the complete major/platform matrix remain required |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared Valgrind startup is implemented and preserves native memory diagnostics. Remaining shared-option mappings and the complete version/platform matrix remain required; see the regression-suite and Valgrind milestones below |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds, reads an existing publication or extracts a standalone library without loading native code. Full/selected SQL, exact-name resolution, dependency/family closure, fixed-schema qualification, attachments, detached replay and Graphviz are implemented. Affected native PostgreSQL checks pass on Linux x64/macOS ARM64 18.6 and Windows x64 17.11; the complete version/platform matrix remains required |
@@ -15964,3 +15993,70 @@ These seven-version cases prove this command and binding milestone, not the
 entire version/platform port. PostgreSQL 19's full platform matrix, test-command
 no-schema/runas/custom data-directory behavior, additional framework templates,
 backend benchmarks and every other unresolved full-port requirement remain open.
+
+### 2026-09-29 — Custom test data directories
+
+Added `ankus test --pgdata` and ordinary fixture
+`PostgresExtensionTestOptions.DataDirectoryBase`. Both select a parent for owned
+invocation directories. CLI storage keeps Unix sockets and publication paths
+separate from potentially long data paths, and shutdown still precedes deletion.
+The selected parent and unrelated contents are preserved. Command context
+validates its data root before fixture publication.
+
+Installed-consumer tests now observe PostgreSQL's actual `data_directory`,
+exercise registered/`--all` selection and direct fixture options, retain parent
+sentinels, and check custom-path cleanup after forced host exit and cancellation.
+The abrupt-host case also keeps another live cluster under the same parent and
+proves it can still write and read afterward. All **35 focused cases** pass on
+Linux x64/PostgreSQL **18.6**, in **8m36.778s**. Review additionally found that
+an ambient data root without an owning command session reached extension
+publication before rejection. Both fixture entry points now reject it before
+publication; the final complete suite and platform checks include this correction.
+
+The Release solution build passes with **zero warnings/errors, 2m07.28s**.
+API generation and freshness pass for **220 pages / 2,606 members**; the site
+builds **267 pages**, and its check reports zero errors, warnings and hints.
+The final-source focused selection passes **35/35** on macOS ARM64/PostgreSQL
+**18.6**, with zero failures/skips, in **5m22.058s**. Its validation copy matches
+all production/test source hashes and is removed afterward, preserving shared
+runtime artifacts.
+
+The final plain `dotnet test` run passes **9,625 total, 9,616 passed,
+zero failed and nine Windows-only skips** on PostgreSQL **18.6/Linux x64**,
+in **13m36.322s**, with six package-consumer slots. This includes the early
+context-validation correction.
+
+Windows x64/PostgreSQL **17.11** passes
+**33 cases, zero failures and two POSIX-only skips**, in **9m00.206s**. Abrupt
+test-host termination and real server cleanup execute on Windows; the two skips
+cover POSIX SIGTERM delivery. Its production/test source hashes match the final
+candidate. Both owned platform copies are removed after validation, preserving
+the shared runtime payloads.
+
+CI **36665437945** for the preceding milestone passes every job: Linux
+**35m47s**, macOS **14m54s**, Windows **26m39s**, quality and all runtime jobs.
+Docs **36665437946** also passes; no job timed out. Test-command schema reuse
+and execution as another OS account remain required, along with every other
+unresolved full-port requirement. pgrx's `--runas` selects an OS account through
+sudo, rather than a database role; it needs corresponding filesystem ownership
+and cleanup behavior.
+
+| Storage boundary | Verified evidence |
+|---|---|
+| Command selection and actual location | `TestCommandRunsSelectedBackendTests` includes registered and `--all` custom roots; SQL observes actual data/socket locations, configuration, server major and three named native/discovery outcomes |
+| Direct fixture options | `PackagedExtensionFixtureUsesCustomDataDirectory` exercises absolute/relative paths, actual server settings, native SQL, retained logs and complete owned-directory/server removal |
+| Invalid storage/context | `TestCommandRejectsInvalidDataDirectory` and `TestCommandRejectsConflictingFixtureInstallation` reject empty/file-valued CLI parents, relative/missing/file-valued ambient roots and missing sessions before running or publishing; existing files remain |
+| Aborted hosts and shared parents | `TestCommandPreservesRunnerExitAndCleansAbandonedCluster` retains the runner exit, removes the real server and owned data, preserves sentinels and another live cluster, and proves that cluster can still write/read |
+| Command cancellation | `TestCommandCancellationStopsCluster` covers default/custom storage on Linux/macOS; actual server PID and all owned roots disappear while logs and parent contents remain |
+
+Static assertion and behavior-gap review covers ignored selections, unsafe
+parent deletion, leaked servers/data, socket-path coupling and delayed context
+validation. No executed-mutation or coverage-percentage claim is made. All
+analyzer requirements remain enabled. Durations above are individual
+observations; concurrent platform work is not a controlled performance comparison.
+
+Before committing, CI **36665437945** and Docs **36665437946** are rechecked as
+successful, as are CI **36658860112** and Docs **36658860101**. The older
+**36649700631** failure is the Windows expectation issue already fixed in the
+current base. No run is still active, and the remote branch matches the local
+base. The new milestone still requires replacement full platform CI after push.

@@ -13,6 +13,7 @@ internal static partial class ToolCommand
         AddConfigurationOption(command, "Debug");
         var all = new Option<bool>("--all") { Description = "Run sequentially against every registered PostgreSQL version." };
         var reports = new Option<string?>("--results-directory") { Description = "Test report root; each PostgreSQL major gets its own subdirectory." };
+        var dataDirectory = new Option<string?>("--pgdata") { Description = "Base directory for isolated, per-invocation PostgreSQL cluster data." };
         var forwarded = new Argument<string[]>("test-arguments")
         {
             Description = "Ordinary dotnet test arguments after --, including project selection, filters and report options.",
@@ -20,6 +21,7 @@ internal static partial class ToolCommand
         };
         command.Options.Add(all);
         command.Options.Add(reports);
+        command.Options.Add(dataDirectory);
         command.Arguments.Add(forwarded);
         command.SetAction(async (result, token) =>
         {
@@ -66,7 +68,7 @@ internal static partial class ToolCommand
             {
                 token.ThrowIfCancellationRequested();
                 string major = installation.Version.Major.ToString(CultureInfo.InvariantCulture);
-                await using var session = new ExtensionTestCommandSession(installation);
+                await using var session = new ExtensionTestCommandSession(installation, result.GetValue(dataDirectory));
                 string resultsDirectory = Path.Combine(root, installation.Label);
                 Console.WriteLine($"Testing PostgreSQL {installation.Version} ({configuration}). Results: {resultsDirectory}");
                 int code = await ToolProcess.RunAsync("dotnet",
@@ -83,6 +85,7 @@ internal static partial class ToolCommand
                     ["ANKUS_TEST_POSTGRES_MAJOR"] = major,
                     ["ANKUS_TEST_CONFIGURATION"] = configuration,
                     ["ANKUS_TEST_SESSION_DIRECTORY"] = session.DirectoryPath,
+                    ["ANKUS_TEST_DATA_DIRECTORY"] = session.DataDirectoryPath,
                 });
                 Console.WriteLine($"{installation.Label}: dotnet test exited {code}.");
                 if (firstFailure == 0)

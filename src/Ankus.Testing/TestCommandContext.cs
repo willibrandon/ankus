@@ -17,17 +17,35 @@ internal static class TestCommandContext
     /// Gets the command-owned temporary root, or null outside ankus test.
     /// </summary>
     internal static string? SessionDirectory
+        => ReadDirectory("ANKUS_TEST_SESSION_DIRECTORY");
+
+    /// <summary>
+    /// Gets the command-owned data root while retaining the separate temporary socket and publication root.
+    /// </summary>
+    internal static string? DataDirectory
     {
         get
         {
-            string? directory = Environment.GetEnvironmentVariable("ANKUS_TEST_SESSION_DIRECTORY");
-            if (directory is not null && (!Path.IsPathFullyQualified(directory) || !Directory.Exists(directory)))
+            string? session = SessionDirectory;
+            string? data = ReadDirectory("ANKUS_TEST_DATA_DIRECTORY");
+            if (data is not null && session is null)
             {
-                throw new InvalidOperationException("The ankus test session directory must be an existing absolute directory.");
+                throw new InvalidOperationException("The ankus test data directory requires an existing command session.");
             }
 
-            return directory;
+            return data ?? (session is null ? null : Path.Combine(session, "pgdata"));
         }
+    }
+
+    private static string? ReadDirectory(string variable)
+    {
+        string? directory = Environment.GetEnvironmentVariable(variable);
+        if (directory is not null && (!Path.IsPathFullyQualified(directory) || !Directory.Exists(directory)))
+        {
+            throw new InvalidOperationException($"{variable} must be an existing absolute directory.");
+        }
+
+        return directory;
     }
 
     /// <summary>

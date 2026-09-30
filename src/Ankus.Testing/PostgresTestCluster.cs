@@ -24,7 +24,7 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         Port = port;
         string invocation = $"{options.Installation.Version.Major}-{Environment.ProcessId}-{Guid.NewGuid():N}";
         string? session = TestCommandContext.SessionDirectory;
-        DataDirectory = Path.GetFullPath(Path.Combine(session is null ? options.DataDirectoryBase : Path.Combine(session, "pgdata"), invocation));
+        DataDirectory = Path.GetFullPath(Path.Combine(TestCommandContext.DataDirectory ?? options.DataDirectoryBase, invocation));
         LogFilePath = Path.GetFullPath(Path.Combine(options.LogDirectory, $"{invocation}.log"));
         SocketDirectory = OperatingSystem.IsWindows()
             ? null
