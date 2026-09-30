@@ -219,10 +219,12 @@ public sealed partial class ToolCommandTests
         XDocument report = XDocument.Load(trx);
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("5", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("7", counters.Attribute("passed")!.Value);
         Assert.AreEqual("0", counters.Attribute("failed")!.Value);
         Assert.Contains("FunctionsExecuteInPostgres", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         Assert.Contains("ManagedErrorsLeaveBackendUsable", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        Assert.Contains("DirectoryFixture.BackendChecks.AdditionInsidePostgres()", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        Assert.Contains("DirectoryFixture.BackendChecks.ExpectedFailure()", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         Assert.AreEqual(control, await File.ReadAllTextAsync(controlFile, token));
         Assert.AreEqual(marker, Assert.ContainsSingle(Directory.GetFiles(authorDirectory, "*", SearchOption.AllDirectories)));
         Assert.AreEqual("untouched", await File.ReadAllTextAsync(marker, token));

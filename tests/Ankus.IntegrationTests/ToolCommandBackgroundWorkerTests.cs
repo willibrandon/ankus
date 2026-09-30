@@ -28,8 +28,8 @@ public sealed partial class ToolCommandTests
         XDocument report = XDocument.Load(trx);
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("6", counters.Attribute("total")!.Value);
-        Assert.AreEqual("6", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("8", counters.Attribute("total")!.Value);
+        Assert.AreEqual("8", counters.Attribute("passed")!.Value);
         Assert.AreEqual("0", counters.Attribute("failed")!.Value);
         Assert.Contains("WorkerRunsInAnotherPostgresProcess",
             report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));

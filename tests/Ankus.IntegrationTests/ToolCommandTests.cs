@@ -867,11 +867,13 @@ public sealed partial class ToolCommandTests(TestContext context)
         XDocument report = XDocument.Load(trx);
         XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
         XElement counters = report.Descendants(ns + "Counters").Single();
-        Assert.AreEqual("5", counters.Attribute("total")!.Value);
-        Assert.AreEqual("5", counters.Attribute("passed")!.Value);
+        Assert.AreEqual("7", counters.Attribute("total")!.Value);
+        Assert.AreEqual("7", counters.Attribute("passed")!.Value);
         Assert.AreEqual("0", counters.Attribute("failed")!.Value);
         Assert.Contains("FunctionsExecuteInPostgres", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         Assert.Contains("ManagedErrorsLeaveBackendUsable", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        Assert.Contains("Acme.HTTPProbe.BackendChecks.AdditionInsidePostgres()", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
+        Assert.Contains("Acme.HTTPProbe.BackendChecks.ExpectedFailure()", report.Descendants(ns + "UnitTestResult").Select(element => element.Attribute("testName")!.Value));
         string projectDirectory = Path.GetDirectoryName(project)!;
         Assert.IsFalse(Directory.Exists(Path.Combine(projectDirectory, "bin", "ankus-test-pgdata")));
         Assert.IsEmpty(Directory.GetDirectories(Path.Combine(projectDirectory, "bin", "ankus-test-publish")));
@@ -887,6 +889,12 @@ public sealed partial class ToolCommandTests(TestContext context)
         await using NpgsqlConnection connection = await cluster.OpenConnectionAsync(token);
         await using var command = new NpgsqlCommand("CREATE EXTENSION acme_http_probe; SELECT add(17, 25)", connection);
         Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+
+        PublishedExtension normal = PublishedExtension.Read(published);
+        ExtensionSchema normalSchema = ExtensionSchema.Read(Path.Combine(published, normal.Library));
+        Assert.DoesNotContain("ankus_test_", normalSchema.Sql);
+        command.CommandText = "SELECT count(*) FROM pg_proc WHERE proname LIKE 'ankus_test_%'";
+        Assert.AreEqual(0L, await command.ExecuteScalarAsync(token));
 
         string functions = Path.Combine(projectDirectory, "Functions.cs");
         string text = await File.ReadAllTextAsync(functions, token);

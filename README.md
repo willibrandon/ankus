@@ -36,6 +36,11 @@ dotnet test
 This creates an extension and MSTest project. Tests call managed methods directly
 and load the published Native AOT library into an isolated PostgreSQL 18 cluster.
 
+Declare `[PgTest]` methods to run C# checks inside PostgreSQL. The generated
+catalog exposes individual cases to ordinary test discovery, including exact
+expected errors and explicit ignore reasons. Test publications opt in; normal
+publications exclude these SQL functions. See [backend tests](docs/src/content/docs/getting-started/testing.md#declare-tests-inside-the-extension).
+
 Extension projects use the `Ankus.Sdk` NuGet project SDK:
 
 ```xml

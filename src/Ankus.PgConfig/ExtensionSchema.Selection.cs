@@ -30,7 +30,7 @@ public sealed partial class ExtensionSchema
         var pending = new Queue<ExtensionSchemaItem>();
         foreach (string name in names)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            ArgumentException.ThrowIfNullOrEmpty(name);
             ExtensionSchemaItem[] candidates = [.. matches[name].Select(item => item.Owner.Length == 0 ? item : items[item.Owner])
                 .DistinctBy(static item => item.Id)];
             if (candidates.Length != 1)

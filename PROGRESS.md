@@ -68,6 +68,33 @@ relax analyzers or count smoke checks as completed platform validation.
 
 ## Current verified milestone
 
+`[PgTest]` declares methods that execute inside PostgreSQL. Generated immutable
+catalogs feed ordinary MSTest discovery, including source-generated discovery,
+exact expected errors and explicit ignore reasons. Native test functions require
+opt-in publication; normal publication excludes them. Fixtures preserve managed
+test names, rollback, server diagnostics and installed/explicit schema identity.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,569 total,
+9,560 passed, zero failed and nine Windows-only skips**, in **11m24.276s**
+with six package-consumer slots. All **14 affected cases** pass independently
+on Linux x64/macOS ARM64 PostgreSQL **18.6** and Windows x64 PostgreSQL **17.11**.
+Release, API freshness and documentation checks pass. The Windows CRLF
+expectations from CI **36649700631** are corrected and all **50** graph cases
+pass against an actual Windows CRLF source copy. The previous Linux/macOS jobs
+and Docs pass; this milestone still requires its own complete platform CI.
+CLI forwarding, additional framework templates, benchmarks, remaining native/type
+contracts, runtime servicing and the complete PostgreSQL/platform matrix remain
+required. This is not full port completion.
+
+Earlier verified milestones follow in reverse chronological order.
+
+Schema selection and graph export retain dependency/family closure, exact
+aliases, fixed-schema qualification and extension attachments in standalone
+native libraries. The complete PostgreSQL **18.6/Linux x64** suite for that
+milestone passed **9,517 total, 9,508 passed, zero failed and nine Windows-only
+skips**, in **15m52.172s**; all eight affected native cases passed on Linux,
+macOS and Windows. Its Windows graph expectation failure is corrected above.
+
 `ankus upgrade` updates framework package and project SDK references with NuGet
 version rules, configured sources and mappings, shared-file discovery, dry runs,
 exact source edits and rollback. Imported/shared properties and mixed package
@@ -85,8 +112,6 @@ documentation checks pass. Previous CI **36627469418** and Docs **36627469441**
 are rechecked as successful before committing; this candidate still needs its
 own complete CI platform results. Remaining CLI/native/type/example contracts,
 runtime servicing and the complete PostgreSQL/platform matrix remain required.
-
-Earlier verified milestones follow in reverse chronological order.
 
 Valgrind startup now supplies a **32 GiB** GC virtual region range when the
 caller has not selected one, fixing the native runtime initialization failure
@@ -3319,7 +3344,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`. Shared Valgrind startup now has actual PostgreSQL 13–19/Linux startup evidence and PostgreSQL 18.6 instrumentation, diagnostic and cancellation tests; complete version/platform validation remains required |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`. Both commands run Native AOT queries under Valgrind through the shared lifecycle; cross-target tooling and complete version/platform validation remain required |
-| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, reusable framework-neutral publish/load fixture; multi-framework templates, attribute-generated backend tests, CLI forwarding and matrix pending |
+| `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, generated `[PgTest]` catalogs, exact expected errors, explicit ignore reasons and configurable framework-neutral publish/load fixtures are implemented. Affected native checks pass on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Additional framework templates, CLI forwarding and the complete major/platform matrix remain required |
 | `bench` | Attribute-driven benchmarks running inside PostgreSQL and result reporting (`pgrx-bench`) | Pending |
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared Valgrind startup is implemented and preserves native memory diagnostics. Remaining shared-option mappings and the complete version/platform matrix remain required; see the regression-suite and Valgrind milestones below |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds, reads an existing publication or extracts a standalone library without loading native code. Full/selected SQL, exact-name resolution, dependency/family closure, fixed-schema qualification, attachments, detached replay and Graphviz are implemented. Affected native PostgreSQL checks pass on Linux x64/macOS ARM64 18.6 and Windows x64 17.11; the complete version/platform matrix remains required |
@@ -3373,7 +3398,8 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum and readable manual PgDatumType scalar mappings, including finite closed generic roots, with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Owned mapping providers order helpers after type completion; external SQL types retain their ownership. The complete platform/version matrix remains required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
-| `pg_test`, `pg_bench` | Generated in-backend tests/benchmarks, discovery and expected-error metadata | Pending |
+| `pg_test` | Generated in-backend tests, discovery and expected-error metadata | Partial: `[PgTest]`, immutable `PostgresTests.Cases`, original managed report names, exact expected errors, explicit skips and opt-in native publication are implemented. Ordinary and source-generated MSTest discovery, rollback, diagnostics, fixed/explicit schemas and production exclusion pass in real PostgreSQL on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. The complete version/platform matrix remains required |
+| `pg_bench` | Generated in-backend benchmarks, discovery, timing and result reporting | Pending |
 | `pg_guard`, `initialize`, module magic | Guarded callbacks, bootstrap, panic/exception boundaries, module name/version and ABI checks | Partial: function exports, guarded static native callbacks, module magic, immediate `[PgModuleLoad]` registration and backend/shared-preload `[PgInitialize]` with retry/recursion handling; callback workers verified on Linux x64/PG18.6 and Windows x64/PG17.7, remaining platform/version matrix required |
 | SQL entity graph and metadata | Type/function/schema dependencies, cycle diagnostics, SQL translation hooks, section encoding/decoding, ELF/PE/Mach-O extraction | Partial: deterministic typed declaration graph, aliases, dependency diagnostics, bootstrap/final edges and replacement ownership survive managed metadata and retained ELF/PE/Mach-O sections. Standalone selection closes prerequisites and declaration families, qualifies fixed schemas and exports DOT; broader translation contracts and the complete platform/version matrix remain required |
 
@@ -15597,3 +15623,206 @@ matches the local base. Earlier failed CI **36617656321** remains resolved by
 The complete PostgreSQL/version/platform matrix, broader translation contracts,
 remaining command/runtime work and every other unresolved full-port requirement
 remain open. This milestone does not claim full port completion.
+
+### 2026-09-29 — Backend test declarations in progress; Windows CI expectation fix
+
+CI **36649700631**, Windows job **109681012602**, reports two failures in
+`ExtensionSchemaGraphTests`: `GraphRetainsOrderedDeclarationsAndEdges` and
+`SelectionClosesDependenciesAndDeclarationFamilies`. Windows checkout converted
+the raw-string expected values to CRLF; the production SQL and DOT correctly
+retain deterministic LF. Both expected strings now explicitly normalize to LF.
+The assertions still compare exact complete outputs; production behavior and
+analyzer standards are unchanged. All **44** graph cases pass on Linux through
+the built MSTest executable (**936 ms**). Windows revalidation remains pending.
+
+At the last successful CI inspection, the Windows job finished in **21m14s**
+with those two failures; its complete integration module passed. macOS ARM64
+passed in **13m49s**, quality and all runtime jobs passed, and Linux was still
+running. Docs **36649700679** passed. A later status request could not connect
+to GitHub; no terminal Linux outcome is inferred.
+
+The next implementation adds framework-neutral `[PgTest]` declarations and
+immutable generated `PostgresTests.Cases` catalogs. Native exports and SQL
+require explicit `AnkusIncludeTests=true`; ordinary publication omits them.
+The catalog retains managed names, exact expected errors and explicit ignore
+reasons without running author static constructors in the host process.
+`ANKUS023` diagnoses unsupported declarations and reserved-name collisions.
+
+`PostgresExtensionTestOptions` selects test inclusion, configuration, installation,
+preload, port and server settings. The fixture resolves the installed schema,
+checks published function identity, and reuses the existing transaction/expected
+error runner. Failure reports preserve managed test names and server diagnostics.
+The ordinary scaffold now includes backend declarations and MSTest data rows.
+README and public testing/build-setting guides describe this author workflow.
+
+Focused runtime metadata checks pass **18/18** (**151 ms**). The final generator
+selection passes **33/33** (**1.884 s**), including the added reserved-type-name
+case. Those checks include real emitted-assembly catalog reads, immutable
+collections, backend-only static constructor isolation, nested records, escaped
+names, Unicode boundaries and ordinary-publication exclusion. The integration
+test project compiles with zero warnings/errors (**8.87 s**, existing project
+reference outputs); this is compilation evidence only.
+
+Packaged PostgreSQL cases have been added for ordinary and generated MSTest
+discovery, individual success/error/skip reports, exact error matching, rollback,
+recovery, cancellation, fixed/explicit schemas, configuration and exclusion
+after test-enabled publication. They have **not yet executed**. The session's
+permission profile changed during verification: `dotnet test` now fails while
+binding its local IPC socket, and GitHub access is denied. The built graph test
+executable runs directly, but real PostgreSQL validation requires sockets.
+The Git metadata directory is now read-only, so this work is uncommitted.
+
+Static assertion and behavior-gap review caught a reserved declaring-type name
+collision, incomplete schema checking in stale catalog validation, and rejection
+of valid whitespace-only quoted identifiers by the existing cluster test runner.
+The candidate fixes these and adds corresponding declaration/consumer checks.
+No mutation execution or passing backend evidence is claimed.
+
+| Acceptance area | Current evidence |
+|---|---|
+| Exact metadata, Unicode and identifier limits | `PreservesBackendTestIdentity`, `PreservesExpectedErrorAndIgnoreReason`, `BackendTestIdentifiersRespectUtf8Boundary`, `RejectsInvalidBackendTestIdentity`, `RejectsNullBackendTestIdentity`, `RejectsMalformedBackendTestUnicode`: focused runtime selection passes |
+| Catalog isolation and native inclusion | `PreservesBackendCaseMetadataAndStableNames`, `GeneratesBackendCatalogWithoutProductionExports`, `IncludesBackendExportsOnlyWhenRequested`, `RejectsInvalidBackendTestDeclarations`: focused generator selection passes |
+| Discovery, errors, rollback, schema and configuration | `GeneratedBackendTestsDiscoverExecuteAndRollback` has explicit outcome/state assertions for both MSTest modes; execution pending |
+| Production exclusion and scaffold compatibility | `NewSolutionRunsManagedAndBackendTests`, `NewBackgroundWorkerSolutionRunsManagedAndBackendTests`, `PackagedExtensionFixtureUsesSavedTestPortAndCleansUp`: expanded assertions; execution pending |
+| Invalid fixture options | `BackendTestFixtureRejectsInvalidOptions`: compilation succeeds; execution pending |
+| Windows CI regression | `GraphRetainsOrderedDeclarationsAndEdges`, `SelectionClosesDependenciesAndDeclarationFamilies`: all 44 graph cases pass on Linux; Windows run pending |
+
+API generation and freshness succeed for **220 pages / 2,605 members**. A direct
+Astro build succeeds for **267 pages** and `pnpm check` reports **zero errors,
+warnings and hints**. Ordinary `pnpm build` stopped in its implicit .NET build;
+the explicit single-process Release documentation build and separate API/site
+checks passed. This does not count the ordinary command as passed. The final
+Release documentation-project build, including the corrected testing library,
+passes with **zero warnings/errors, 1.93 s**; API freshness passes again.
+
+Before this milestone can be committed: finish the final generator and fixture
+checks, run actual backend cases on all three platforms, run the ordinary site
+build and the complete Release and plain `dotnet test` gates,
+and recheck all preceding CI outcomes. Test-quality review and remaining
+boundary cases remain open until that evidence exists. CLI forwarding,
+multi-framework templates, backend benchmarks and the full PostgreSQL/platform
+matrix remain required; this work does not claim full port parity.
+
+The complete built generator and runtime test modules now pass directly:
+**2,190 generator cases, zero failures/skips, 21.249 s**, and **1,858 runtime
+cases, zero failures/skips, 1.411 s**. These executions avoid the command host's
+denied IPC socket; they do not replace the required plain complete `dotnet test`
+or PostgreSQL/platform validation.
+
+An isolated consumer compiles the unchanged scaffold source against locally
+built assemblies and cached MSTest **4.4.1** dependencies with zero warnings or
+errors. Both ordinary and generated MSTest discovery list all **seven** cases,
+including the two original managed names from `PostgresTests.Cases`. Host
+execution of its three managed cases passes in both modes. This validates source/API
+compatibility and discovery only: it does not prove the NuGet package boundary,
+native publication, or execution inside PostgreSQL. GitHub access remains
+unavailable at the subsequent check, and the previously recorded CI failure
+still requires a pushed correction.
+
+The access blocker is confirmed again after three consecutive work turns:
+GitHub requests fail, local TCP socket creation returns permission denied, and
+the active session keeps Git metadata read-only. No validation process remains
+running. The available compilation, unit, discovery and separate documentation
+checks above are complete; PostgreSQL/platform verification and committing the
+CI correction require restored session access. Work is blocked, not complete.
+
+Session access is restored and validation has resumed. The terminal outcome of
+CI **36649700631** is now confirmed: Linux passes in **32m44s**, macOS passes
+in **13m49s**, and Windows fails only the two CRLF expectations described above.
+Docs, quality and all runtime jobs pass. The new backend-test integration
+selection is running locally, and the corrected graph tests are being checked
+against an actual Windows CRLF source copy. No result is inferred in advance.
+
+Actual Windows x64 validation of the CRLF source copy now passes all **44**
+graph cases with **zero failures/skips, 1.151 s**. The complete local Release
+solution build passes with **zero warnings/errors, 42.19 s**. Native backend
+selections are running independently on Linux x64/PostgreSQL **18.6**,
+macOS ARM64/PostgreSQL **18.6**, and Windows x64/PostgreSQL **17.11**.
+
+The first backend selection found the same two new discovery cases failing on
+all three platforms. Publication rejected a valid whitespace-only quoted schema
+alias in the embedded SQL graph, before the backend tests could run. Graph alias
+validation now accepts nonempty whitespace identifiers while preserving strict
+internal IDs, framing, UTF-8, duplicate and NUL checks. Exact schema selection
+also preserves these identifiers. Four independent whitespace regression cases
+fail against the old reader and pass after the correction; empty/NUL alias cases
+remain rejected. All **50** graph cases pass on Linux (**1.488 s**) and an actual
+Windows CRLF source copy (**2.071 s**). The corrected backend selections are
+running again on all three platforms. Initial failures are retained as evidence,
+not counted as passing backend validation.
+
+Ordinary `pnpm build` now succeeds for **267 pages**; `pnpm check` reports
+zero errors, warnings and hints. The previous CI status is rechecked:
+**36649700631** has only the Windows expectation failures, Docs **36649700679**
+passes, and earlier CI **36642212368** and Docs **36642212346** pass.
+
+The corrected **14-case** backend selection passes with zero failures/skips on
+PostgreSQL **18.6/Linux x64** (**5m10.788s**) and PostgreSQL **18.6/macOS ARM64**
+(**4m03.026s**). This includes both discovery modes, exact native failure/skip
+reports, rollback, fixed/explicit schema execution, cancellation, stale-catalog
+guards and production exclusion after a test-enabled publication. Windows is
+still running. The final Release solution build passes with **zero
+warnings/errors, 34.01 s**; API freshness, ordinary site build and site checks
+pass again. The complete plain `dotnet test` gate has started.
+
+Windows x64/PostgreSQL **17.11** also passes the corrected **14-case** backend
+selection with **zero failures/skips, 8m42.804s**. All three affected platform
+selections are now green. These are focused platform results; they do not stand
+in for the required complete platform CI jobs after push.
+
+The complete local run exposed one additional scaffold expectation in
+`GeneratedTestsIsolateAuthoredScriptDirectory`: its inner consumer successfully
+ran seven tests, but the outer assertion still expected the old five-case
+scaffold. That assertion now expects seven and checks both new backend case
+names. All scaffold result-count assertions were searched for the same issue;
+no other stale count was found. The source change is confined to this test;
+the completed native platform checks remain applicable. A clean complete rerun
+is still required before committing.
+
+That complete run finishes with **9,569 total, 9,559 passed, one failed and
+nine Windows-only skips, 15m35.790s**. The stale five-versus-seven expectation
+is its only failure. All other cases, including Valgrind and the new backend
+declarations, pass. The corrected complete rerun will use the existing
+six-package-slot setting, previously validated on this platform; this is a
+validation setting, not a workflow/default change or a controlled timing
+comparison.
+
+### 2026-09-29 — Backend test declarations verified milestone
+
+The corrected complete plain `dotnet test` run succeeds against PostgreSQL
+**18.6/Linux x64**: **9,569 total, 9,560 passed, zero failed, nine Windows-only
+skips**, in **11m24.276s**, using six package-consumer slots. All six modules
+complete, including the corrected authored-directory scaffold case and Valgrind
+checks. The final Release solution build passes with **zero warnings/errors,
+31.77 s**. Production source matches the candidate validated on all three
+platforms; the only later test edit corrects the scaffold count and checks the
+two added case names.
+
+| Backend test acceptance | Verified evidence |
+|---|---|
+| Metadata, Unicode and identifier boundaries | `PreservesBackendTestIdentity`, `PreservesExpectedErrorAndIgnoreReason`, `BackendTestIdentifiersRespectUtf8Boundary`, `RejectsInvalidBackendTestIdentity`, `RejectsNullBackendTestIdentity`, `RejectsMalformedBackendTestUnicode` |
+| Immutable discovery without author initialization | `PreservesBackendCaseMetadataAndStableNames` compiles and loads emitted catalogs, checks metadata and failed mutation, and preserves backend-only author static constructors |
+| Native opt-in and declaration diagnostics | `GeneratesBackendCatalogWithoutProductionExports`, `IncludesBackendExportsOnlyWhenRequested`, `RejectsInvalidBackendTestDeclarations` |
+| Native execution, exact errors, individual outcomes and lifecycle | Both modes of `GeneratedBackendTestsDiscoverExecuteAndRollback`: named TRX outcomes, explicit skip, database rollback after success/matching/wrong/missing errors, original diagnostics, fixed/explicit schemas, cancellation, stale identities and later recovery |
+| Scaffold compatibility and ordinary publication | `NewSolutionRunsManagedAndBackendTests`, `NewBackgroundWorkerSolutionRunsManagedAndBackendTests`, `PackagedExtensionFixtureUsesSavedTestPortAndCleansUp`, `GeneratedTestsIsolateAuthoredScriptDirectory`; actual production catalogs omit test functions after test-enabled publication |
+| Early option validation | `BackendTestFixtureRejectsInvalidOptions` rejects invalid inputs before filesystem mutation |
+| Graph and Windows regressions | `PreservesWhitespaceOnlyQuotedNames` fails before the reader fix and passes afterward; `RejectsMalformedGraphs` retains empty/NUL rejection. `GraphRetainsOrderedDeclarationsAndEdges` and `SelectionClosesDependenciesAndDeclarationFamilies` preserve exact LF expectations; all 50 graph cases pass on Linux and Windows |
+| Affected native platform scope | 14 passed / zero failed / zero skipped each: Linux x64/PG18.6 **5m10.788s**, macOS ARM64/PG18.6 **4m03.026s**, Windows x64/PG17.11 **8m42.804s** |
+| API and public guides | API freshness **220 pages / 2,605 members**; ordinary site build **267 pages**; site check **zero errors/warnings/hints** |
+
+Assertion-quality and static behavior-gap review verify observable metadata,
+native outcomes, transaction state and ownership rather than relying on counts
+or generated-source substrings alone. The review and actual backend execution
+caught the reserved catalog-name collision, incomplete stale-schema checking,
+quoted-whitespace identifier rejection and stale scaffold expectation. No
+coverage percentage or broad mutation-execution claim is made. Owned Windows
+and macOS validation copies and transfer archives have been removed; compact
+result logs remain private.
+
+Before committing, the preceding CI outcomes are rechecked: **36649700631**
+fails only the two corrected Windows expectations; Linux **32m44s**, macOS
+**13m49s**, quality and all runtime jobs pass. Docs **36649700679** passes.
+Earlier CI **36642212368** and Docs **36642212346** pass. No newer run is
+active, and the remote branch matches the local base. Full replacement platform
+CI remains pending until push. CLI forwarding, additional framework templates,
+backend benchmarks and every other unresolved full-port requirement remain open.

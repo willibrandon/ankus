@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" />
     <ProjectReference Include="../Ankus.PgConfig/Ankus.PgConfig.csproj" />
+    <ProjectReference Include="../Ankus.Runtime/Ankus.Runtime.csproj" />
   </ItemGroup>
 
 </Project>

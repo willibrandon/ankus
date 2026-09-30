@@ -46,6 +46,21 @@ public sealed partial class ToolCommandTests
             {
                 data = fixture.Cluster.DataDirectory;
                 sockets = fixture.Cluster.SocketDirectory;
+                bool testsRejected = false;
+                try
+                {
+                    await fixture.RunTestAsync(new Ankus.PgTestCase("Checks.Test()", null, "test"));
+                }
+                catch (InvalidOperationException error) when (error.Message.Contains("IncludeTests", StringComparison.Ordinal))
+                {
+                    testsRejected = true;
+                }
+
+                if (!testsRejected)
+                {
+                    throw new InvalidOperationException("A normal publication accepted a backend test.");
+                }
+
                 await using var connection = await fixture.Cluster.OpenConnectionAsync();
                 await using var command = new NpgsqlCommand(
                     "SELECT current_setting('port') || '|' || public.add(19, 23)", connection);

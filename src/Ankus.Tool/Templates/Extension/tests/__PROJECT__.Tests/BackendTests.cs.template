@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Ankus;
 using Ankus.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Npgsql;
@@ -12,7 +13,24 @@ public sealed partial class BackendTests(TestContext context)
 
     [ClassInitialize]
     public static async Task InitializeAsync(TestContext context)
-        => s_extension = await PostgresExtensionTest.StartAsync(ProjectPath(), sharedPreload: __PRELOAD__, cancellationToken: context.CancellationToken);
+        => s_extension = await PostgresExtensionTest.StartAsync(new PostgresExtensionTestOptions
+        {
+            ProjectPath = ProjectPath(),
+            SharedPreload = __PRELOAD__,
+            IncludeTests = true,
+        }, context.CancellationToken);
+
+    public static IEnumerable<TestDataRow<PgTestCase>> NativeCases
+        => BackendChecks.PostgresTests.Cases.Select(test => new TestDataRow<PgTestCase>(test)
+        {
+            DisplayName = test.Name,
+            IgnoreMessage = test.IgnoreReason,
+        });
+
+    [TestMethod]
+    [DynamicData(nameof(NativeCases))]
+    public Task DeclaredTestsExecuteInPostgres(PgTestCase test)
+        => s_extension!.RunTestAsync(test, context.CancellationToken);
 
     [ClassCleanup]
     public static async Task CleanupAsync()

@@ -34,6 +34,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgFunctionAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<IMethodSymbol> tests = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgTestAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (attributeContext, _) => (IMethodSymbol)attributeContext.TargetSymbol);
         IncrementalValuesProvider<IMethodSymbol> operators = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgOperatorAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
@@ -74,6 +78,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Combine(moduleLoads.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(workers.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
+            .Combine(tests.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
         IncrementalValuesProvider<INamedTypeSymbol> enums = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgEnumAttribute",
@@ -118,8 +124,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 "Ankus.PgGucPrefixAttribute").ToImmutableArray());
         IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
-        IncrementalValueProvider<string> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
-            options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty);
+        IncrementalValueProvider<(string Directory, bool IncludeTests)> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+            (options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty,
+                options.GlobalOptions.TryGetValue("build_property.AnkusIncludeTests", out string? enabled) &&
+                string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)));
         context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
@@ -128,7 +136,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     }
 
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
-        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, string projectDirectory,
+        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, (string Directory, bool IncludeTests) settings,
         ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation)
@@ -142,6 +150,27 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         if (!referencedCallbacks && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
+        }
+
+        var tests = new Dictionary<IMethodSymbol, PgTestDeclaration>(SymbolEqualityComparer.Default);
+        foreach (IMethodSymbol method in methods.Where(PgTestDeclaration.IsTest).OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
+        {
+            PgTestDeclaration? test = PgTestDeclaration.Create(method, context);
+            if (test is null)
+            {
+                return;
+            }
+
+            tests.Add(method, test);
+        }
+
+        if (tests.Count != 0)
+        {
+            context.AddSource("PostgresTests.g.cs", PgTestDeclaration.EmitCatalogs(tests.Values));
+            if (!settings.IncludeTests)
+            {
+                methods = [.. methods.Where(method => !tests.ContainsKey(method))];
+            }
         }
 
         List<DatumTypeDeclaration>? mappings = DatumTypeDeclaration.Discover(compilation, datumTypes, rangeTypes, methods, aggregateTypes, customSql, context);
@@ -347,7 +376,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        fixedSchema |= !CustomSql.Add(customSql, files, projectDirectory, graph, out Dictionary<string, SqlEntity> sqlBlocks);
+        fixedSchema |= !CustomSql.Add(customSql, files, settings.Directory, graph, out Dictionary<string, SqlEntity> sqlBlocks);
         SqlFunctionProviders.Add(customSql, sqlBlocks, graph);
         var typeProviders = new SqlTypeProviders(graph);
         var exports = new StringBuilder("Pg_magic_func\n");
@@ -641,7 +670,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 }
             }
 
-            string name = GetSqlName(method);
+            string name = tests.TryGetValue(method, out PgTestDeclaration? test) ? test.FunctionName : GetSqlName(method);
             if (!contextParameter && !NumericConstraint.Validate(method, context, set))
             {
                 continue;

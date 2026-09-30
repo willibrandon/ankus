@@ -118,6 +118,8 @@ Assembly: `Ankus.Runtime.dll`
 - [PgStringInfoStream](/api/ankus.pgstringinfostream/)
 - [PgSubtransactionCallback](/api/ankus.pgsubtransactioncallback/)
 - [PgTableRewrite](/api/ankus.pgtablerewrite/)
+- [PgTestAttribute](/api/ankus.pgtestattribute/)
+- [PgTestCase](/api/ankus.pgtestcase/)
 - [PgTextView](/api/ankus.pgtextview/)
 - [PgTimeZone](/api/ankus.pgtimezone/)
 - [PgTransaction](/api/ankus.pgtransaction/)

@@ -51,6 +51,56 @@ Returns: [ValueTask](https://learn.microsoft.com/dotnet/api/system.threading.tas
 
 A task completing after shutdown and file cleanup.
 
+<a id="member-eab894ee53aefe6c"></a>
+
+### RunTestAsync(PgTestCase, CancellationToken)
+
+Executes a discovered native test in its own rollback-only transaction, preserving exact expected-error matching.
+
+```csharp
+public Task RunTestAsync(PgTestCase test, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`test` — [PgTestCase](/api/ankus.pgtestcase/)
+
+A case from the extension's generated PostgresTests catalog.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels connection and test execution.
+
+Returns: [Task](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task)
+
+A task completing after the test and rollback.
+
+Report ignored cases through the host framework. Invoking an ignored case directly fails instead of reporting false success.
+
+<a id="member-7653a9a4654625e8"></a>
+
+### StartAsync(PostgresExtensionTestOptions, CancellationToken)
+
+Publishes and starts an isolated extension with explicit test inclusion, build configuration and server settings.
+
+```csharp
+public static Task<PostgresExtensionTest> StartAsync(PostgresExtensionTestOptions options, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`options` — [PostgresExtensionTestOptions](/api/ankus.testing.postgresextensiontestoptions/)
+
+The publication and cluster options. Native tests are excluded unless explicitly enabled.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels discovery, publication or startup.
+
+Returns: [Task&lt;PostgresExtensionTest&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The fixture that owns the published extension and isolated server.
+
 <a id="member-af83ca4cdceb2e38"></a>
 
 ### StartAsync(string, PostgresInstallation?, CancellationToken)

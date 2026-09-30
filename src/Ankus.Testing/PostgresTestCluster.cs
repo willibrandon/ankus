@@ -167,8 +167,8 @@ public sealed class PostgresTestCluster : IAsyncDisposable
         string? expectedError = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(schema);
-        ArgumentException.ThrowIfNullOrWhiteSpace(functionName);
+        ArgumentException.ThrowIfNullOrEmpty(schema);
+        ArgumentException.ThrowIfNullOrEmpty(functionName);
         return RunInTransactionAsync($"{schema}.{functionName}", async (connection, transaction, token) =>
         {
             string sql = $"SELECT {QuoteIdentifier(schema)}.{QuoteIdentifier(functionName)}()";

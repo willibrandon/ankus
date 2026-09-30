@@ -14,6 +14,9 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     private readonly string _publishDirectory;
     private readonly string _dataDirectoryBase;
     private readonly PostgresTestInstallation? _stagedInstallation;
+    private readonly ExtensionSchema _schema;
+    private readonly string _installedSchema;
+    private readonly bool _includeTests;
     private readonly Lock _disposeLock = new();
     private Task? _disposeTask;
 
@@ -21,12 +24,18 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         PostgresTestCluster cluster,
         string publishDirectory,
         string dataDirectoryBase,
-        PostgresTestInstallation? stagedInstallation)
+        PostgresTestInstallation? stagedInstallation,
+        ExtensionSchema schema,
+        string installedSchema,
+        bool includeTests)
     {
         Cluster = cluster;
         _publishDirectory = publishDirectory;
         _dataDirectoryBase = dataDirectoryBase;
         _stagedInstallation = stagedInstallation;
+        _schema = schema;
+        _installedSchema = installedSchema;
+        _includeTests = includeTests;
     }
 
     /// <summary>
@@ -64,7 +73,7 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     /// <returns>The fixture that owns the cluster and temporary published library.</returns>
     public static Task<PostgresExtensionTest> StartAsync(string projectPath, bool sharedPreload,
         PostgresInstallation? installation = null, CancellationToken cancellationToken = default)
-        => StartCoreAsync(projectPath, sharedPreload, null, installation, cancellationToken);
+        => StartAsync(new PostgresExtensionTestOptions { ProjectPath = projectPath, SharedPreload = sharedPreload, Installation = installation }, cancellationToken);
 
     /// <summary>
     /// Publishes and installs an extension in an isolated cluster on an exact requested TCP port.
@@ -81,19 +90,93 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
-        return StartCoreAsync(projectPath, sharedPreload, port, installation, cancellationToken);
+        return StartAsync(new PostgresExtensionTestOptions
+        {
+            ProjectPath = projectPath,
+            SharedPreload = sharedPreload,
+            Port = port,
+            Installation = installation,
+        }, cancellationToken);
     }
 
-    private static async Task<PostgresExtensionTest> StartCoreAsync(string projectPath, bool sharedPreload, int? port,
-        PostgresInstallation? installation, CancellationToken cancellationToken)
+    /// <summary>
+    /// Publishes and starts an isolated extension with explicit test inclusion, build configuration and server settings.
+    /// </summary>
+    /// <param name="options">The publication and cluster options. Native tests are excluded unless explicitly enabled.</param>
+    /// <param name="cancellationToken">Cancels discovery, publication or startup.</param>
+    /// <returns>The fixture that owns the published extension and isolated server.</returns>
+    public static Task<PostgresExtensionTest> StartAsync(PostgresExtensionTestOptions options, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
-        projectPath = Path.GetFullPath(projectPath);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ProjectPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Configuration);
+        ArgumentNullException.ThrowIfNull(options.PostgreSqlConfiguration);
+        if (options.Port is int port)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+        }
+
+        return StartCoreAsync(options, [.. options.PostgreSqlConfiguration], cancellationToken);
+    }
+
+    /// <summary>
+    /// Executes a discovered native test in its own rollback-only transaction, preserving exact expected-error matching.
+    /// </summary>
+    /// <param name="test">A case from the extension's generated PostgresTests catalog.</param>
+    /// <param name="cancellationToken">Cancels connection and test execution.</param>
+    /// <returns>A task completing after the test and rollback.</returns>
+    /// <remarks>
+    /// Report ignored cases through the host framework. Invoking an ignored case directly fails instead of reporting false success.
+    /// </remarks>
+    public Task RunTestAsync(PgTestCase test, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+        if (!_includeTests)
+        {
+            throw new InvalidOperationException("Enable IncludeTests when starting the extension fixture to run generated backend tests.");
+        }
+
+        if (test.IgnoreReason is not null)
+        {
+            throw new InvalidOperationException($"Report ignored backend test '{test.Name}' through the host framework: {test.IgnoreReason}");
+        }
+
+        string identity = "FUNCTION " + (test.Schema is null ? string.Empty : QuoteIdentifier(test.Schema) + ".") +
+            QuoteIdentifier(test.FunctionName) + "()";
+        if (_schema.Graph?.Items.Any(item => item.Kind == "function" && item.Names.Contains(test.Name) &&
+            item.Names.Contains(test.FunctionName) && item.Attachments.Contains(identity)) != true)
+        {
+            throw new InvalidOperationException($"The published extension does not contain backend test '{test.Name}'. Rebuild the test project and extension together.");
+        }
+
+        return RunTestCoreAsync(test, cancellationToken);
+    }
+
+    private static string QuoteIdentifier(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
+    private async Task RunTestCoreAsync(PgTestCase test, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Cluster.RunTestAsync(test.Schema ?? _installedSchema, test.FunctionName, test.ExpectedError, cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgresTestException error)
+        {
+            throw new PostgresTestException(test.Name, error.ServerLog, error.InnerException ?? error);
+        }
+    }
+
+    private static async Task<PostgresExtensionTest> StartCoreAsync(PostgresExtensionTestOptions options, string[] serverConfiguration,
+        CancellationToken cancellationToken)
+    {
+        string projectPath = Path.GetFullPath(options.ProjectPath);
         if (!File.Exists(projectPath) || !projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
         {
             throw new FileNotFoundException("The extension project was not found.", projectPath);
         }
 
+        PostgresInstallation? installation = options.Installation;
         if (installation is null)
         {
             string? testPgConfig = Environment.GetEnvironmentVariable("ANKUS_TEST_PG_CONFIG");
@@ -114,12 +197,14 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
         try
         {
             await ProcessRunner.RunCheckedAsync("dotnet",
-                ["publish", projectPath, "-c", "Release", "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
+                ["publish", projectPath, "-p:Configuration=" + EscapeProperty(options.Configuration), "-r", RuntimeInformation.RuntimeIdentifier, "-o", output,
+                    "-p:AnkusIncludeTests=" + (options.IncludeTests ? "true" : "false"),
                     "-p:AnkusPostgresMajor=" + installation.Version.Major.ToString(CultureInfo.InvariantCulture),
                     "-p:AnkusPgConfigPath=" + EscapeProperty(installation.PgConfigPath),
                     "-bl:" + Path.Combine(logs, invocation + ".binlog")],
                 new Dictionary<string, string?>(), cancellationToken, workingDirectory: root).ConfigureAwait(false);
             PublishedExtension manifest = PublishedExtension.Read(output);
+            ExtensionSchema schema = ExtensionSchema.Read(Path.Combine(output, manifest.Library));
             if (manifest.PostgresMajor != installation.Version.Major || manifest.RuntimeIdentifier != RuntimeInformation.RuntimeIdentifier)
             {
                 throw new InvalidOperationException("The published extension does not match the selected PostgreSQL target.");
@@ -145,16 +230,17 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
                 clusterInstallation = stagedInstallation.Installation;
             }
 
-            if (sharedPreload)
+            if (options.SharedPreload)
             {
                 string library = Path.GetFileNameWithoutExtension(manifest.Library).Replace("'", "''", StringComparison.Ordinal);
                 configuration.Add($"shared_preload_libraries = '{library}'");
             }
 
+            configuration.AddRange(serverConfiguration);
             cluster = await PostgresTestCluster.StartAsync(new PostgresTestClusterOptions
             {
                 Installation = clusterInstallation,
-                Port = port,
+                Port = options.Port,
                 DataDirectoryBase = dataDirectoryBase,
                 LogDirectory = logs,
                 PostgreSqlConfiguration = configuration,
@@ -163,7 +249,11 @@ public sealed class PostgresExtensionTest : IAsyncDisposable
             string name = Path.GetFileNameWithoutExtension(manifest.Control);
             await using var command = new NpgsqlCommand("CREATE EXTENSION \"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"", connection);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            return new PostgresExtensionTest(cluster, output, dataDirectoryBase, stagedInstallation);
+            command.CommandText = "SELECT namespace.nspname FROM pg_extension extension JOIN pg_namespace namespace ON namespace.oid=extension.extnamespace WHERE extension.extname=$1";
+            command.Parameters.AddWithValue(name);
+            string installedSchema = (string)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("The test extension was not installed."));
+            return new PostgresExtensionTest(cluster, output, dataDirectoryBase, stagedInstallation, schema, installedSchema, options.IncludeTests);
         }
         catch
         {

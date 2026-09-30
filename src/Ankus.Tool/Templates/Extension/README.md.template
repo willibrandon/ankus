@@ -21,6 +21,12 @@ PostgreSQL cluster. Missing prerequisites fail the test run. Server logs remain
 under `src/__PROJECT__/bin/ankus-test-logs/`; the cluster and temporary published
 files are removed when the fixture is disposed.
 
+Declare backend-only tests with `[PgTest]` in `BackendChecks.cs`. The host test
+project discovers the generated catalog with ordinary MSTest data-driven tests.
+Its fixture explicitly enables test exports. Ordinary publishing excludes those
+native functions and their SQL. Each backend test runs in a transaction that is
+rolled back, including when an expected error occurs.
+
 Install and call the extension:
 
 ```sh

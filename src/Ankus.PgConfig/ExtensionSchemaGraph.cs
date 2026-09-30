@@ -83,7 +83,7 @@ public sealed class ExtensionSchemaGraph
                 string kind = ReadText(reader, allowEmpty: false);
                 string sql = ReadText(reader, allowEmpty: true, template: true);
                 string owner = ReadText(reader, allowEmpty: true);
-                string[] names = ReadTexts(reader);
+                string[] names = ReadTexts(reader, allowWhitespace: true);
                 string[] dependencies = ReadTexts(reader);
                 string[] attachments = ReadTexts(reader, template: true);
                 if (!s_kinds.Contains(kind) || dependencies.Any(dependency => !known.ContainsKey(dependency)))
@@ -160,7 +160,7 @@ public sealed class ExtensionSchemaGraph
         return count;
     }
 
-    private static string ReadText(BinaryReader reader, bool allowEmpty, bool template = false)
+    private static string ReadText(BinaryReader reader, bool allowEmpty, bool template = false, bool allowWhitespace = false)
     {
         int length = reader.ReadInt32();
         if (length < 0 || length > reader.BaseStream.Length - reader.BaseStream.Position)
@@ -169,7 +169,7 @@ public sealed class ExtensionSchemaGraph
         }
 
         string text = s_utf8.GetString(reader.ReadBytes(length));
-        if ((!allowEmpty && string.IsNullOrWhiteSpace(text)) || !template && text.Contains('\0'))
+        if ((!allowEmpty && (allowWhitespace ? text.Length == 0 : string.IsNullOrWhiteSpace(text))) || !template && text.Contains('\0'))
         {
             throw new FormatException("Invalid embedded SQL graph text.");
         }
@@ -177,14 +177,14 @@ public sealed class ExtensionSchemaGraph
         return text;
     }
 
-    private static string[] ReadTexts(BinaryReader reader, bool template = false)
+    private static string[] ReadTexts(BinaryReader reader, bool template = false, bool allowWhitespace = false)
     {
         int count = ReadCount(reader, MaximumItems);
         string[] values = new string[count];
         var known = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < count; index++)
         {
-            string value = ReadText(reader, allowEmpty: false, template);
+            string value = ReadText(reader, allowEmpty: false, template, allowWhitespace);
             if (!known.Add(value))
             {
                 throw new FormatException("Duplicate embedded SQL graph value.");

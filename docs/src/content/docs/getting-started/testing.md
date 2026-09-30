@@ -28,6 +28,92 @@ On supported Unix systems, `ankus regress --pg 18 --valgrind` runs the server
 under Memcheck. See [native memory diagnostics](/reference/cli/#inspect-native-memory-with-valgrind)
 for prerequisites and reading the server log.
 
+## Declare tests inside the extension
+
+Use `[PgTest]` on a synchronous static `void` method in a public or internal
+partial class:
+
+```csharp
+using Ankus;
+
+public static partial class BackendChecks
+{
+    [PgTest]
+    public static void AdditionInsidePostgres()
+    {
+        if (Spi.ExecuteScalar<int>("SELECT 19 + 23") != 42)
+        {
+            throw new InvalidOperationException("Unexpected addition result.");
+        }
+    }
+
+    [PgTest(ExpectedError = "expected failure")]
+    public static void ExpectedFailure()
+        => throw new InvalidOperationException("expected failure");
+}
+```
+
+The method body executes inside the PostgreSQL backend. You can use SPI,
+memory contexts and other backend APIs there. Methods accept no SQL arguments;
+injected `PgFunctionContext` and `PgMemoryContext` parameters remain available.
+Methods and containing classes must be accessible to generated code and cannot
+be generic. Every containing class must be partial. Invalid declarations produce
+`ANKUS023` rather than silently disappearing from discovery.
+
+`BackendChecks.PostgresTests.Cases` contains immutable `PgTestCase` values.
+Reading this catalog does not run the enclosing class's static constructor or
+its test methods. Reserve the nested name `PostgresTests` for generated code.
+
+The scaffold connects these cases to MSTest's ordinary data-driven tests:
+
+```csharp
+public static IEnumerable<TestDataRow<PgTestCase>> NativeCases
+    => BackendChecks.PostgresTests.Cases.Select(test => new TestDataRow<PgTestCase>(test)
+    {
+        DisplayName = test.Name,
+        IgnoreMessage = test.IgnoreReason,
+    });
+
+[TestMethod]
+[DynamicData(nameof(NativeCases))]
+public Task DeclaredTestsExecuteInPostgres(PgTestCase test)
+    => extension.RunTestAsync(test, context.CancellationToken);
+```
+
+Start `extension` once during test-class initialization with test publication
+enabled:
+
+```csharp
+extension = await PostgresExtensionTest.StartAsync(new PostgresExtensionTestOptions
+{
+    ProjectPath = projectPath,
+    IncludeTests = true,
+    PostgreSqlConfiguration = ["my_extension.mode = 'test'"],
+}, context.CancellationToken);
+```
+
+Dispose it during test-class cleanup. The options also select `Installation`,
+`Configuration` (default `Release`), `SharedPreload` and `Port`.
+The fixture uses the selected installation's headers and server together.
+
+Each case runs in its own transaction, which rolls back after success, failure
+or cancellation. `ExpectedError` matches the server's primary message exactly;
+a different error or unexpected success fails the test. Failure diagnostics
+include the original managed name, database exception and backend session log.
+`[PgTest(IgnoreReason = "reason")]` supplies an explicit framework skip reason.
+Directly invoking an ignored case fails; the host must report the skip.
+
+Names in reports retain their C# identity. Generated SQL names fit PostgreSQL's
+identifier limit, even for long C# method names. An explicit `[PgSchema]` selects
+the function schema; otherwise the fixture uses the installed extension schema,
+including a schema supplied by its control file.
+
+Normal `dotnet publish` excludes test functions. The fixture explicitly sets
+`AnkusIncludeTests=true` only when `IncludeTests` is enabled. Other test hosts
+can consume the same framework-neutral catalog and fixture. Backend benchmarks,
+additional framework templates and automatic multi-version test runs remain
+unimplemented.
+
 ## Use the fixture
 
 [`PostgresExtensionTest`](/api/ankus.testing.postgresextensiontest/) is included

@@ -24,3 +24,4 @@ ANKUS019 | Ankus | Error | Invalid reusable PostgreSQL datum mapping
 ANKUS020 | Ankus | Error | Invalid mapped PostgreSQL range declaration
 ANKUS021 | Ankus | Error | Invalid static native callback declaration or handler
 ANKUS022 | Ankus | Error | Invalid PostgreSQL background-worker entry
+ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalog

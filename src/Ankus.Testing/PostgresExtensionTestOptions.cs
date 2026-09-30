@@ -1,0 +1,72 @@
+using Ankus.PgConfig;
+
+namespace Ankus.Testing;
+
+/// <summary>
+/// Selects the extension publication and isolated PostgreSQL environment owned by a test fixture.
+/// </summary>
+public sealed class PostgresExtensionTestOptions
+{
+    /// <summary>
+    /// Gets the extension project to publish.
+    /// </summary>
+    public required string ProjectPath
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
+    /// Gets the selected PostgreSQL installation, or null for ordinary fixture discovery.
+    /// </summary>
+    public PostgresInstallation? Installation
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
+    /// Gets the MSBuild configuration used to publish the extension. The default is Release.
+    /// </summary>
+    public string Configuration
+    {
+        get;
+        init;
+    } = "Release";
+
+    /// <summary>
+    /// Gets whether the publication includes PgTest native entry points and SQL. The default is false.
+    /// </summary>
+    public bool IncludeTests
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
+    /// Gets whether to load the extension during shared preload before any test backends start.
+    /// </summary>
+    public bool SharedPreload
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
+    /// Gets an exact requested TCP port, or null for automatic reservation.
+    /// </summary>
+    public int? Port
+    {
+        get;
+        init;
+    }
+
+    /// <summary>
+    /// Gets additional postgresql.conf lines for the isolated cluster.
+    /// </summary>
+    public IReadOnlyList<string> PostgreSqlConfiguration
+    {
+        get;
+        init;
+    } = [];
+}

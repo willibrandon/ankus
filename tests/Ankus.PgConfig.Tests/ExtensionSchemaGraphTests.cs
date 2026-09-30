@@ -43,7 +43,7 @@ public sealed class ExtensionSchemaGraphTests
               n2 -> n4;
             }
 
-            """, graph.ToGraphviz());
+            """.ReplaceLineEndings("\n"), graph.ToGraphviz());
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public sealed class ExtensionSchemaGraphTests
 
             COMMIT;
 
-            """, selected.Sql);
+            """.ReplaceLineEndings("\n"), selected.Sql);
     }
 
     /// <summary>
@@ -206,6 +206,28 @@ public sealed class ExtensionSchemaGraphTests
     }
 
     /// <summary>
+    /// Quoted SQL identifiers retain whitespace-only names through graph parsing and exact selection.
+    /// </summary>
+    /// <param name="name">The nonempty quoted schema identifier.</param>
+    [TestMethod]
+    [DataRow(" ")]
+    [DataRow("\t")]
+    [DataRow("\n")]
+    [DataRow("\u00a0")]
+    public void PreservesWhitespaceOnlyQuotedNames(string name)
+    {
+        string sql = "CREATE SCHEMA \"" + name + "\";\n";
+        ExtensionSchema schema = Schema(Encode(new Entry("schema", "schema", sql,
+            Names: [name], Attachments: ["SCHEMA \"" + name + "\""])));
+        Assert.IsNotNull(schema.Graph);
+        Assert.AreEqual(name, Assert.ContainsSingle(Assert.ContainsSingle(schema.Graph.Items).Names));
+        ExtensionSchemaSelection selected = schema.Select([name]);
+        Assert.AreEqual("schema", Assert.ContainsSingle(selected.Items).Id);
+        Assert.AreEqual("BEGIN;\n\n" + sql + "ALTER EXTENSION \"probe\" ADD SCHEMA \"" + name + "\";\n\nCOMMIT;\n", selected.Sql);
+        Assert.IsEmpty(selected.Warnings);
+    }
+
+    /// <summary>
     /// Quoted names, backslashes, line breaks and Unicode cannot escape DOT labels.
     /// </summary>
     [TestMethod]
@@ -230,6 +252,8 @@ public sealed class ExtensionSchemaGraphTests
     [DataRow("id")]
     [DataRow("duplicate id")]
     [DataRow("duplicate alias")]
+    [DataRow("empty alias")]
+    [DataRow("nul alias")]
     [DataRow("dependency")]
     [DataRow("self dependency")]
     [DataRow("forward dependency")]
@@ -254,6 +278,12 @@ public sealed class ExtensionSchemaGraphTests
                 break;
             case "duplicate alias":
                 first = first with { Names = ["one", "one"] };
+                break;
+            case "empty alias":
+                first = first with { Names = [""] };
+                break;
+            case "nul alias":
+                first = first with { Names = ["bad\0name"] };
                 break;
             case "dependency":
                 second = second with { Dependencies = ["missing"] };
