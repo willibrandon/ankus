@@ -86,6 +86,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgMemoryCallback](/api/ankus.pgmemorycallback/)
 - [PgMemoryContext](/api/ankus.pgmemorycontext/)
 - [PgMemoryContextOptions](/api/ankus.pgmemorycontextoptions/)
+- [PgModuleAttribute](/api/ankus.pgmoduleattribute/)
 - [PgModuleLoadAttribute](/api/ankus.pgmoduleloadattribute/)
 - [PgNativeBox&lt;T&gt;](/api/ankus.pgnativebox-1/)
 - [PgNativeCallbackAttribute](/api/ankus.pgnativecallbackattribute/)

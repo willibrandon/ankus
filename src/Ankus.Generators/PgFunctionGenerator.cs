@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Ankus.Generators;
 
@@ -124,10 +125,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 "Ankus.PgGucPrefixAttribute").ToImmutableArray());
         IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
-        IncrementalValueProvider<(string Directory, bool IncludeTests)> projectDirectory = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
-            (options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out string? path) ? path : string.Empty,
-                options.GlobalOptions.TryGetValue("build_property.AnkusIncludeTests", out string? enabled) &&
-                string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)));
+        IncrementalValueProvider<(string Directory, bool IncludeTests, string? Version)> projectDirectory =
+            context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+                (BuildProperty(options.GlobalOptions, "MSBuildProjectDirectory") ?? string.Empty,
+                    string.Equals(BuildProperty(options.GlobalOptions, "AnkusIncludeTests"), "true", StringComparison.OrdinalIgnoreCase),
+                    BuildProperty(options.GlobalOptions, "Version")));
         context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
@@ -135,8 +137,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 input.Right.Left.Left, input.Right.Left.Right, input.Right.Right));
     }
 
+    /// <summary>
+    /// Reads a compiler-visible project setting while retaining defaults for unset properties.
+    /// </summary>
+    /// <param name="options">The evaluated global compiler options.</param>
+    /// <param name="name">The MSBuild property name.</param>
+    /// <returns>The authored value, or null when unset.</returns>
+    private static string? BuildProperty(AnalyzerConfigOptions options, string name)
+        => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
+
     private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> schemaTypes,
-        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files, (string Directory, bool IncludeTests) settings,
+        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files,
+        (string Directory, bool IncludeTests, string? Version) settings,
         ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation)
@@ -147,7 +159,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 attribute.ConstructorArguments.Length == 2 &&
                 attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
                 attribute.ConstructorArguments[1].Value is "1"));
-        if (!referencedCallbacks && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
+        bool declaredModule = compilation.Assembly.GetAttributes().Any(static attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "Ankus.PgModuleAttribute");
+        if (!referencedCallbacks && !declaredModule && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
         }
@@ -188,7 +202,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         var names = new HashSet<string>(StringComparer.Ordinal);
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
         var managed = new StringBuilder();
-        var native = new StringBuilder(NativeBridge.Source);
+        string? magic = NativeModuleMagic.Emit(compilation, settings.Version, context);
+        if (magic is null)
+        {
+            return;
+        }
+
+        StringBuilder native = new StringBuilder(NativeBridge.Source).Append(magic);
         ImmutableArray<string> prefixes = GucPrefixDeclaration.Read(prefixAttributes, context);
         var gucs = new List<GucDeclaration>();
         var callbacks = new List<NativeCallbackDeclaration>();

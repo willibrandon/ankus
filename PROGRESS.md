@@ -82,7 +82,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. Dedicated-platform CI remains required for this milestone. |
-| Declarative parity | Verify and complete typed aggregate/dependency/support references, extended module magic, custom alignment and generated SQL provenance. Preserve deterministic ordering. |
+| Declarative parity | Extended module magic now preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Dedicated-platform CI remains required. Typed aggregate/dependency/support references, custom alignment and generated SQL provenance remain open. Preserve deterministic ordering. |
 | Runtime APIs and performance | Verify interrupt polling, interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs with measurements before changing the recovery contract. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
@@ -91,6 +91,21 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+Native modules use PostgreSQL 18's extended name/version metadata, defaulting to
+the managed assembly name and evaluated project version. `[PgModule]` provides
+independent overrides and permits a module with no SQL objects. Exact UTF-8
+identity is preserved; invalid C-string values receive an actionable diagnostic.
+PostgreSQL 13–17 retain their earlier module compatibility block.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,782 total,
+9,772 passed, zero failed and ten platform skips**, in **19m47.771s**.
+Focused native identity/republication tests also pass on PostgreSQL **17.11/Linux
+x64**. Release, API freshness and documentation validation pass. These results
+do not replace the outstanding complete platform/version matrix or the hosted
+Intel macOS timeout investigation.
+
+## Previous verified milestone — PostgreSQL selection
 
 Plain `dotnet test` and CLI project commands honor evaluated PostgreSQL selection,
 including imports, configuration, referenced extensions and explicit overrides.
@@ -16601,3 +16616,59 @@ Before commit, selection milestone `cb9beec` is pushed: CI **36701969924** is
 queued and Docs **36701969956** is active. Nullability CI **36695387927** remains
 active with successful quality/runtime/macOS ARM64 jobs; its Docs run succeeds.
 The last Intel run **36693552190** timed out, and that issue remains open.
+
+### 2026-09-30 — Native module identity
+
+Confirmed that the native preamble omitted PostgreSQL 18's module name/version
+fields. Generation now selects `PG_MODULE_MAGIC_EXT` for headers from PostgreSQL
+18 or later and retains `PG_MODULE_MAGIC` for 13–17. Defaults follow the managed
+assembly name and evaluated project `Version`, including prerelease text.
+Assembly-level `[PgModule]` supports independent overrides and a module without
+SQL objects. SQL extension/control identity remains separate.
+
+Identity values are emitted as exact UTF-8 C literals. `ANKUS025` rejects zero
+characters and malformed Unicode at the authored attribute expression. The SDK
+exposes its version through compiler options; arbitrary identity strings remain
+C# attribute values, avoiding command quoting and editorconfig line boundaries.
+The affected generator cases pass **14/14, 2.413s**, covering defaults, separate
+overrides, empty/null values, Unicode/escaping, module-only emission and precise
+invalid-value diagnostics. Real packaged-library tests are now running on
+PostgreSQL **18.6/Linux x64**, including incremental republication and actual
+`pg_get_loaded_modules()` results. This candidate is not yet a verified milestone.
+
+Previous goal turn was progress: project-selected PostgreSQL was verified and
+pushed as `cb9beec`, and hosted test reporting was pushed as `8dda3a5`. Intel
+**36702158595** is live on that reporting change and has passed runtime
+preparation; its test build is active. The earlier Intel timeout remains open.
+
+The focused PostgreSQL **18.6/Linux x64** module-identity tests pass **three of
+three**, zero failures/skips, **4m27.960s**. Each case republishes the same project
+twice and queries the loaded native metadata or loads an attribute-only module.
+PostgreSQL 17 compatibility and the complete suite remain in progress.
+
+Nullability CI **36695387927** now succeeds on every platform: Linux PG18
+**40m06s**, macOS ARM64 PG18 **16m27s**, Windows PG17 **30m55s**. Docs succeeds.
+Hosted Intel **36702158595** passed compilation and started its complete test
+suite; no final result is available yet. Selection CI **36701969924** is active
+and reporting CI **36702143685** is queued.
+
+Focused compatibility also passes on PostgreSQL **17.11/Linux x64**: **three
+passed, zero failed/skipped, 5m50.684s**. This proves the same publications load
+against the earlier module ABI; PostgreSQL 17 does not expose the extended
+metadata query. Release passes with **zero warnings/errors, 43.70s**. Generated
+API freshness verifies **223 pages / 2,618 members**; the site builds **270 pages
+in 3.89s**, with zero check errors/warnings/hints. The complete plain PostgreSQL
+18.6/Linux x64 suite is now running. No complete-suite result is claimed yet.
+
+The complete plain PostgreSQL **18.6/Linux x64** suite now passes **9,782 total,
+9,772 passed, zero failed and ten platform skips**, **19m47.771s**, with six
+package-consumer slots. This includes all fourteen new generator cases and
+three native identity cases. Independent alignment work in a separate checkout
+ran concurrently, so this duration is not an isolated performance baseline.
+
+Before commit, selection CI **36701969924** has successful quality/runtime and
+macOS ARM64/PG18 jobs; the latter completed in **17m33s**. Linux PG18 and Windows
+PG17 remain active; Docs **36701969956** succeeds. Reporting CI **36702143685**
+is queued. Hosted Intel **36702158595** has passed compilation and is still
+running its full suite. Its earlier timeout remains unresolved. The preceding
+complete dedicated-platform CI **36695387927** succeeds as recorded above.

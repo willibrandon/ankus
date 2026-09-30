@@ -20,8 +20,6 @@ internal static class NativeBridge
         #include "utils/date.h"
         #include "utils/timestamp.h"
         #include "mb/pg_wchar.h"
-        PG_MODULE_MAGIC;
-
         typedef struct AnkusValue
         {
             int64 integral;

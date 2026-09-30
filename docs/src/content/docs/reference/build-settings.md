@@ -27,6 +27,34 @@ Set extension properties in your project file:
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 | `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |
 
+## Native module identity
+
+On PostgreSQL 18 and later, Ankus includes the project's `AssemblyName` and
+`Version` in its native module compatibility block. This preserves prerelease
+version text. After the library is loaded, inspect it with:
+
+```sql
+SELECT module_name, version, file_name FROM pg_get_loaded_modules();
+```
+
+Use an assembly attribute to supply a different name or version:
+
+```csharp
+using Ankus;
+
+[assembly: PgModule(Name = "Acme.Search", Version = "0.1.0-preview.1")]
+```
+
+Each omitted or `null` value retains its project default. Values preserve exact
+UTF-8 text; embedded zero characters and malformed Unicode produce `ANKUS025`
+at the invalid attribute argument. Empty strings are preserved when explicitly
+declared. `[assembly: PgModule]` also permits a loadable module with no SQL objects.
+
+This metadata describes the native library. SQL installation names and versions
+still come from `AnkusExtensionName` and `AnkusExtensionVersion`. PostgreSQL
+13–17 use their ordinary compatibility block and do not expose this metadata.
+Every publication uses the ABI from its selected PostgreSQL headers.
+
 ## Extension control settings
 
 Select a control file relative to your project, or use an absolute path:
