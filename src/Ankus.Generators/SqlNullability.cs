@@ -52,6 +52,20 @@ internal static class SqlNullability
     }
 
     /// <summary>
+    /// Checks one SQL slot of a grouped aggregate argument or interface result.
+    /// </summary>
+    internal static bool ValidateValue(ITypeSymbol type, ISymbol source, string name, SourceProductionContext context)
+    {
+        if (FindOblivious(type) is not { } ambiguous)
+        {
+            return true;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(s_oblivious, source.Locations.FirstOrDefault(), name, ambiguous.ToDisplayString()));
+        return false;
+    }
+
+    /// <summary>
     /// Finds ambiguity in a SQL value or its array element, retaining custom payloads as single SQL values.
     /// </summary>
     /// <param name="type">The SQL value's managed type.</param>

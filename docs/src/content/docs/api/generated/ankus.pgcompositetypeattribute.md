@@ -54,6 +54,19 @@ public string? Column { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-3a9f92c8420a3ce4"></a>
+
+### Element
+
+Gets or sets the exact C# tuple element to bind within a typed aggregate argument group.
+Omit for a scalar parameter or return value.
+
+```csharp
+public string? Element { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-bceece7bb42ab29a"></a>
 
 ### Name

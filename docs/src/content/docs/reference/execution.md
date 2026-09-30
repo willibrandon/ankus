@@ -1,11 +1,41 @@
 ---
-title: Execution and lifetime
-description: Understand backend-thread access, owned values, and error recovery.
+title: Running .NET inside PostgreSQL
+description: Understand backend threads, tasks, signals, managed memory, and PostgreSQL resource lifetimes.
 ---
 
-Your function runs synchronously inside the PostgreSQL backend that called it.
-SPI, quoting, and logging APIs must run on that thread. Calling them from
+Your extension is a native library loaded into a PostgreSQL process. Its managed
+code runs in that process with the server's operating-system permissions.
+Ankus's native boundary protects PostgreSQL error unwinding; it does not isolate
+extension code from the host process.
+
+## Backend threads and tasks
+
+Your function runs synchronously on the PostgreSQL backend thread that called
+it. SPI, native bindings, logging and PostgreSQL-owned resource APIs require
+that active thread and the appropriate invocation phase. Calling them from
 `Task.Run` throws `InvalidOperationException`.
+
+Generated SQL functions are synchronous. An `async` method, `Task` result or
+`IAsyncEnumerable<T>` does not become an asynchronous PostgreSQL function.
+Await continuations, thread-pool work and timer callbacks do not inherit backend
+access. `ConfigureAwait(false)` does not change that rule, and synchronously
+waiting for a task does not grant its worker thread access either.
+
+Managed worker threads can compute over detached managed values using operations
+that do not call PostgreSQL. Some owned-value APIs, such as `PgNumeric`
+arithmetic, still need backend access. Keep borrowed native values and transaction
+resources on their owning thread. Complete work
+that belongs to a SQL call before returning from it, and bound concurrency:
+multiple PostgreSQL backends can each create their own managed work. For
+long-running database work with its own transaction and shutdown lifecycle, use
+a [PostgreSQL background worker](/background-workers/).
+
+Call `PgInterrupts.Check()` periodically in long managed loops on the backend
+thread. A managed loop does not otherwise guarantee a PostgreSQL interrupt check;
+an unrelated .NET `CancellationToken` is not automatically connected to query
+cancellation. See [cancellation and logging](/logging/#errors).
+
+## Initialization and process lifetime
 
 `[PgInitialize]` runs when the library first loads in a backend, before its SQL
 functions. Successful initialization and managed static state belong to that
@@ -13,11 +43,78 @@ backend process. Failed initialization can be retried; PostgreSQL rolls back SQL
 work with its transaction, while managed mutations remain. See
 [extension initialization](/initialization/) for preload and transaction rules.
 
+Shared preload uses Ankus's packaged runtime support for PostgreSQL startup and
+fork behavior. On Unix, the postmaster retires runtime service threads between
+managed callbacks. Finish explicitly created threads before returning from a
+preload callback. Timers and queued work resume when managed code reenters or a
+backend starts; use PostgreSQL workers for continuous server work.
+
+Each backend has its own managed static state. Independently published extension
+libraries also carry their own runtime and state; a static field is not shared
+storage between extensions or backend processes. Use PostgreSQL tables or
+[registered shared memory](/shared-memory/) when values must be shared.
+
+Dropping SQL objects does not unload the native library or reset managed statics.
+End sessions that loaded a library before replacing it, then reconnect.
+Shared-preload changes require a server restart. Native AOT libraries cannot be unloaded with
+`dlclose` or `FreeLibrary`, as described in Microsoft's
+[native library guidance](https://github.com/dotnet/samples/blob/main/core/nativeaot/NativeLibrary/README.md).
+
+## Process signals
+
+PostgreSQL uses signals for cancellation, shutdown and child-process handling.
+Ordinary .NET application APIs can also participate in process-wide signal
+handling:
+
+| API | Process-level effect |
+|---|---|
+| `PosixSignalRegistration.Create` | Registers a handler for a selected signal; its callback can cancel default handling. |
+| `Console.CancelKeyPress` | Registers .NET handlers for `SIGINT` and `SIGQUIT` on Unix. |
+| `Process.Start` | Initializes .NET's Unix terminal/signal support and registers child-exit handling for `SIGCHLD`. |
+
+These effects are documented by the
+[signal registration API](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.posixsignalregistration.create?view=net-10.0)
+and the .NET 10 implementations of
+[Console](https://github.com/dotnet/runtime/blob/v10.0.12/src/libraries/System.Console/src/System/Console.cs)
+and [Process](https://github.com/dotnet/runtime/blob/v10.0.12/src/libraries/System.Diagnostics.Process/src/System/Diagnostics/Process.Unix.cs).
+
+Keep PostgreSQL's signal ownership intact. Ankus's runtime support does not grant
+arbitrary application signal handlers PostgreSQL semantics. Use `PgInterrupts`
+for query interrupts and the background-worker APIs for worker signals. Run
+application hosting or child-process orchestration outside the backend when it
+needs to own that process lifecycle. Use `PgLog` for server messages;
+`Console.WriteLine` does not produce a PostgreSQL notice.
+
+## Managed memory and database memory
+
+The .NET garbage collector owns managed objects such as strings, arrays, lists
+and dictionaries. PostgreSQL memory contexts own separate native allocations.
+Resetting a memory context does not collect the managed heap. Ankus lifetime
+adapters release their managed roots when the corresponding native owner ends;
+the collector reclaims eligible objects later.
+
+PostgreSQL's [`work_mem`](https://www.postgresql.org/docs/18/runtime-config-resource.html#GUC-WORK-MEM)
+controls query-operation memory such as sorts and hash tables. It does not cap
+your managed collections or static caches. Managed allocations are also absent
+from PostgreSQL memory-context accounting. Measure total process memory as well
+as managed allocations, especially with large result sets or retained values.
+
+Budget for the number of backend and parallel-worker processes and for the
+extension runtimes loaded in each process. Keep caches bounded and release
+references when they are no longer needed. A GC setting on one runtime is not
+a server-wide memory budget. Prefer streaming where the API permits it, and
+dispose PostgreSQL resources on the owning backend thread rather than relying
+on a managed finalizer.
+
 ## Values
 
 Strings, byte arrays, JSON values, and SPI result rows are managed copies. You
 can keep them after the function returns. Editing a `SpiRow` changes that copy;
 use SQL to update the database.
+
+Borrowed views and raw native values retain their owner's lifetime. Use the
+documented copy operation when data must survive it. Garbage collection does
+not extend a native buffer's validity or make a pointer safe to retain.
 
 ## Server resources
 
@@ -58,3 +155,15 @@ and `using` scopes finish.
 SPI calls use internal subtransactions. A failed call rolls back its work before
 throwing `PgException`, allowing your function to catch it and continue. Successful
 calls remain part of the caller's transaction.
+
+Raw and memory calls preserve PostgreSQL's resource rules. A native error
+outside a recoverable subtransaction remains pending even if managed code
+catches its exception. Ankus blocks further backend work and raises the original
+error when managed cleanup has unwound. Use
+[`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
+for operations that need rollback and recovery.
+
+Query cancellation, `Fatal` and `Panic` remain pending across managed catches
+and subtransaction rollback. Handle them for cleanup, without treating the
+current call as successful. Managed static mutations and external side effects
+are not undone by a PostgreSQL rollback.

@@ -3,23 +3,24 @@ title: Aggregates
 description: Define PostgreSQL aggregates with typed transitions, owned managed state, moving windows, and parallel transport.
 ---
 
-Mark a class or struct with `[PgAggregate]` and provide a static `Transition`
-method. Its first SQL parameter and return value are the state; the remaining
-parameters are the aggregate's inputs. PostgreSQL manages grouping, filtering,
-NULL handling, and invocation order.
+Mark a class or struct with `[PgAggregate]` and implement
+`IPgAggregate<TState, TArgs>`. The compiler checks its static `Transition`
+method. PostgreSQL manages grouping, filtering, NULL handling, and invocation
+order.
 
 ```csharp
 [PgAggregate(Name = "integer_total", InitialCondition = "0")]
-public static class IntegerTotal
+public sealed class IntegerTotal : IPgAggregate<long, int>
 {
-    public static long Transition(long state, int value) => checked(state + value);
+    public static long Transition(PgAggregateContext context, long state, int value)
+        => checked(state + value);
 }
 ```
 
 This defines `integer_total(integer)` with a `bigint` state. Without a final
-method, the state is also the result. A state-only transition defines a
-zero-argument aggregate invoked as `count_rows(*)`. Ordinary variadic aggregates
-use a final `params T[]` input.
+method, the state is also the result. Use `ValueTuple` for `TArgs` to define a
+zero-argument aggregate invoked as `count_rows(*)`. Tuple elements become
+separate SQL inputs; arrays remain single SQL values.
 
 Use SQL normally:
 
@@ -29,10 +30,82 @@ FROM entries
 GROUP BY category;
 ```
 
+## Compiler-checked aggregate contracts
+
+Implement `IPgAggregate<TState, TArgs>` on an attributed class or struct to have
+the C# compiler check its transition contract. `TArgs` is a scalar input, a tuple
+whose elements become separate SQL inputs, or `ValueTuple` for no inputs.
+Arrays remain single SQL values. Include SQL nullability in the interface's type
+arguments; it determines the generated SQL boundary even when an implementation
+always returns a present value.
+
+```csharp
+[PgAggregate(Name = "weighted_total", InitialCondition = "0")]
+public sealed class WeightedTotal : IPgAggregate<long, (int? Amount, int? Weight)>
+{
+    public static long Transition(
+        PgAggregateContext context, long state, (int? Amount, int? Weight) arguments)
+        => checked(state + (arguments.Amount ?? 0) * (arguments.Weight ?? 1));
+}
+```
+
+Call this as `weighted_total(amount, weight)`. Every capability receives
+`PgAggregateContext` first; it is never an SQL input. Explicit static interface
+implementations, inherited implementations and default interface implementations
+are supported. Containers can also be structs or `ref struct` types; no instance
+is created. Ankus calls the selected interface member directly, without reflection.
+
+Add the capabilities the aggregate needs:
+
+| Interface | Supplied callbacks |
+|---|---|
+| `IPgFinalizingAggregate<TState, TDirect, TResult>` | `Final` |
+| `IPgCombinableAggregate<TState>` | `Combine` |
+| `IPgSerializableAggregate<TState>` | `Serialize` and `Deserialize` |
+| `IPgMovingAggregate<TState, TArgs>` | `MovingTransition` and `MovingInverse` |
+| `IPgMovingFinalizingAggregate<TState, TDirect, TResult>` | `MovingFinal` |
+
+Use `ValueTuple` for `TDirect` when there are no direct arguments. Ordered-set
+aggregates can use a scalar or tuple of direct arguments. Direct and aggregated
+SQL input names must be distinct; choose different tuple element names or set
+`PgParameter.Name`. `FinalExtra` and
+`MovingFinalExtra` still provide PostgreSQL's dummy input slots for type
+resolution; those slots are generated automatically and are not passed to the
+typed final method. State ownership, parallel transport, inverse restart and
+final modification rules are the same as for the methods described below.
+
+A typed aggregate has exactly one transition contract and at most one of each
+optional capability. Implement the corresponding interface when adding a
+callback. Callback-name overrides such as `Combine = nameof(...)` belong to the
+conventional method model and cannot be combined with these interfaces.
+
+Apply parameter metadata to a tuple group with `Element` selecting its exact
+C# element name. Each SQL input retains its own name, numeric constraint or
+explicit raw/composite binding:
+
+```csharp
+public static decimal Transition(
+    PgAggregateContext context, decimal state,
+    [PgParameter(Element = "Price", Name = "unit_price")]
+    [PgNumericPrecision(5, 2, Element = "Price")]
+    [PgNumericPrecision(6, 3, Element = "Fee")]
+    (decimal Price, decimal Fee) arguments)
+    => state + arguments.Price + arguments.Fee;
+```
+
+`PgSqlType` and `PgCompositeType` also accept `Element`. Set
+`PgParameter(Element = "Values", Variadic = true)` on a trailing array element
+to collect variadic inputs. Omit `Element` for a scalar argument group. Aggregate
+inputs do not accept SQL defaults.
+
 ## Support methods and declaration options
 
-The generator discovers these conventional method names. The matching attribute
-property accepts a `nameof(...)` override when a different name is useful.
+Declarations without capability interfaces can use conventional static support
+methods. The first SQL parameter and return value of `Transition` are the state;
+its remaining parameters are aggregated inputs. A state-only transition defines
+a zero-argument aggregate, and a final `params T[]` parameter is variadic.
+The generator discovers the method names below. The matching attribute property
+accepts a `nameof(...)` override when a different name is useful.
 
 | Method | Managed parameters after an optional leading context | Result |
 |---|---|---|
@@ -142,7 +215,8 @@ because PostgreSQL applies it to partial and combined states.
 
 The `Ankus.Examples.Aggregates` sample's `IntegerAverage` implements checked sum
 and count, a versioned binary transport, and a combine method that copies values
-into its destination. It returns NULL for empty and all-null input.
+into its destination. It uses the typed capability interfaces and returns NULL
+for empty and all-null input.
 
 ## Moving windows and final state modification
 

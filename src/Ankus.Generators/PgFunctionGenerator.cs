@@ -866,7 +866,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                string callback = GetCallbackName(helper.Method, "aggregate_" + SqlText.SnakeCase(helper.Role));
+                string callback = helper.Invocation is { } invocation
+                    ? GetCallbackName(type.ContainingAssembly.Identity + ":" + invocation.Identity, "aggregate_" + SqlText.SnakeCase(helper.Role))
+                    : GetCallbackName(helper.Method, "aggregate_" + SqlText.SnakeCase(helper.Role));
                 SqlFunction helperSql = PgAggregateEmitter.EmitHelper(helper, callback, ensureManagedReady, managed, native, exports, typeProviders);
                 var support = new SqlEntity("1:aggregate-helper:" + type.ToDisplayString() + ":" + helper.Role, helperSql, helper.Method.Locations.FirstOrDefault()) { Kind = "function" };
                 support.SelectionNames.UnionWith([helper.Declaration.Name, helper.Declaration.QualifiedName, helper.Signature, helper.Method.Name, helper.Method.ToDisplayString(),

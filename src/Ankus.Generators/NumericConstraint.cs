@@ -23,11 +23,11 @@ internal static class NumericConstraint
     /// <returns>Whether every declared numeric constraint is valid.</returns>
     internal static bool Validate(IMethodSymbol method, SourceProductionContext context, SetResult? set = null)
     {
-        bool valid = Validate(set is { Columns.Length: 1, Names: null } ? set.Types[0] : method.ReturnType,
+        bool valid = ValidateValue(set is { Columns.Length: 1, Names: null } ? set.Types[0] : method.ReturnType,
             method.GetReturnTypeAttributes(), context);
         foreach (IParameterSymbol parameter in method.Parameters)
         {
-            valid &= Validate(parameter.Type, parameter.GetAttributes(), context);
+            valid &= ValidateValue(parameter.Type, parameter.GetAttributes(), context);
         }
 
         return valid;
@@ -46,15 +46,20 @@ internal static class NumericConstraint
             ((int)attribute.ConstructorArguments[1].Value!).ToString(CultureInfo.InvariantCulture) + ")";
     }
 
-    private static bool Validate(ITypeSymbol type, ImmutableArray<AttributeData> attributes, SourceProductionContext context)
+    /// <summary>
+    /// Validates the numeric constraint selected for one scalar SQL value.
+    /// </summary>
+    internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, SourceProductionContext context, bool grouped = false)
     {
-        AttributeData? attribute = Find(attributes);
+        AttributeData[] constraints = [.. attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgNumericPrecisionAttribute")];
+        AttributeData? attribute = constraints.FirstOrDefault();
         if (attribute is null)
         {
             return true;
         }
 
-        if (FunctionType.Create(type)?.Reader == "numeric" && attribute.ConstructorArguments.Length == 2 &&
+        if (constraints.Length == 1 && (grouped || AttributeValues.Get<string?>(attribute, "Element", null) is null) &&
+            FunctionType.Create(type)?.Reader == "numeric" && attribute.ConstructorArguments.Length == 2 &&
             attribute.ConstructorArguments[0].Value is int and >= 1 and <= 1000 &&
             attribute.ConstructorArguments[1].Value is int and >= -1000 and <= 1000)
         {

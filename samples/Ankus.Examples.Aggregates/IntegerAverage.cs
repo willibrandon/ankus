@@ -6,16 +6,22 @@ namespace Ankus.Examples.Aggregates;
 /// Computes an integer average with an owned state, parallel aggregation, and inverse window transitions.
 /// </summary>
 [PgAggregate(Name = "integer_average", ParallelSafety = PgParallelSafety.Safe)]
-public static class IntegerAverage
+public sealed class IntegerAverage : IPgAggregate<PgAggregateState<AverageState>?, int?>,
+    IPgFinalizingAggregate<PgAggregateState<AverageState>?, ValueTuple, double?>,
+    IPgCombinableAggregate<PgAggregateState<AverageState>?>,
+    IPgSerializableAggregate<PgAggregateState<AverageState>>,
+    IPgMovingAggregate<PgAggregateState<AverageState>?, int?>,
+    IPgMovingFinalizingAggregate<PgAggregateState<AverageState>?, ValueTuple, double?>
 {
     /// <summary>
     /// Adds one nonnull integer, creating the state when needed.
     /// </summary>
+    /// <param name="context">The current aggregate invocation and state owner.</param>
     /// <param name="state">The current state, or null before the first transition.</param>
     /// <param name="value">The input integer, or null to leave the sum and count unchanged.</param>
     /// <returns>The owned state, including an empty state when the input is null.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static PgAggregateState<AverageState> Transition(PgAggregateState<AverageState>? state, int? value)
+    public static PgAggregateState<AverageState> Transition(PgAggregateContext context, PgAggregateState<AverageState>? state, int? value)
     {
         state ??= new(new AverageState());
         if (value is { } number)
@@ -30,20 +36,23 @@ public static class IntegerAverage
     /// <summary>
     /// Returns the average, or SQL NULL for an empty or all-null input.
     /// </summary>
+    /// <param name="context">The current aggregate invocation.</param>
     /// <param name="state">The current state, which remains valid for later window transitions.</param>
+    /// <param name="arguments">The empty direct argument group.</param>
     /// <returns>The average as a double, or null when no integer was accumulated.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static double? Final(PgAggregateState<AverageState>? state)
+    public static double? Final(PgAggregateContext context, PgAggregateState<AverageState>? state, ValueTuple arguments)
         => state is null || state.Value.Count == 0 ? null : (double)state.Value.Sum / state.Value.Count;
 
     /// <summary>
     /// Merges partial values into the destination aggregate's state.
     /// </summary>
+    /// <param name="context">The destination aggregate invocation and state owner.</param>
     /// <param name="state">The destination state, or null before its first partial value.</param>
     /// <param name="other">A partial state which can belong to a temporary deserialization context.</param>
     /// <returns>The destination state; borrowed partial state ownership is never returned.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static PgAggregateState<AverageState> Combine(PgAggregateState<AverageState>? state, PgAggregateState<AverageState>? other)
+    public static PgAggregateState<AverageState> Combine(PgAggregateContext context, PgAggregateState<AverageState>? state, PgAggregateState<AverageState>? other)
     {
         state ??= new(new AverageState());
         if (other is not null)
@@ -58,10 +67,11 @@ public static class IntegerAverage
     /// <summary>
     /// Encodes a versioned, process-independent partial state for a parallel worker.
     /// </summary>
+    /// <param name="context">The current worker's aggregate invocation.</param>
     /// <param name="state">The present partial state.</param>
     /// <returns>A format version followed by the little-endian sum and count.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static byte[] Serialize(PgAggregateState<AverageState> state)
+    public static byte[] Serialize(PgAggregateContext context, PgAggregateState<AverageState> state)
     {
         byte[] bytes = new byte[17];
         bytes[0] = 1;
@@ -73,10 +83,11 @@ public static class IntegerAverage
     /// <summary>
     /// Creates a temporary partial state from a worker's versioned bytes.
     /// </summary>
+    /// <param name="context">The receiving aggregate invocation.</param>
     /// <param name="bytes">The serialized partial state.</param>
     /// <returns>A new state whose values can be copied into a combine destination.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static PgAggregateState<AverageState> Deserialize(byte[] bytes)
+    public static PgAggregateState<AverageState> Deserialize(PgAggregateContext context, byte[] bytes)
     {
         if (bytes.Length != 17 || bytes[0] != 1)
         {
@@ -95,21 +106,23 @@ public static class IntegerAverage
     /// <summary>
     /// Adds an input to a moving frame using the same exact state representation.
     /// </summary>
+    /// <param name="context">The current moving invocation and state owner.</param>
     /// <param name="state">The current moving state.</param>
     /// <param name="value">The newly included integer.</param>
     /// <returns>The present moving state.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static PgAggregateState<AverageState> MovingTransition(PgAggregateState<AverageState>? state, int? value)
-        => Transition(state, value);
+    public static PgAggregateState<AverageState> MovingTransition(PgAggregateContext context, PgAggregateState<AverageState>? state, int? value)
+        => Transition(context, state, value);
 
     /// <summary>
     /// Removes the integer leaving the moving frame.
     /// </summary>
+    /// <param name="context">The current moving invocation and state owner.</param>
     /// <param name="state">The current moving state.</param>
     /// <param name="value">The departing integer, or null for an unchanged state.</param>
     /// <returns>The remaining moving state.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static PgAggregateState<AverageState> MovingInverse(PgAggregateState<AverageState>? state, int? value)
+    public static PgAggregateState<AverageState> MovingInverse(PgAggregateContext context, PgAggregateState<AverageState>? state, int? value)
     {
         if (state is null)
         {
@@ -128,8 +141,11 @@ public static class IntegerAverage
     /// <summary>
     /// Reads a moving frame without consuming or modifying its state.
     /// </summary>
+    /// <param name="context">The current moving invocation.</param>
     /// <param name="state">The current moving state.</param>
+    /// <param name="arguments">The empty direct argument group.</param>
     /// <returns>The frame average, or null for an empty or all-null frame.</returns>
     [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe)]
-    public static double? MovingFinal(PgAggregateState<AverageState>? state) => Final(state);
+    public static double? MovingFinal(PgAggregateContext context, PgAggregateState<AverageState>? state, ValueTuple arguments)
+        => Final(context, state, arguments);
 }

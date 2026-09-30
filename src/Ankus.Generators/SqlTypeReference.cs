@@ -73,20 +73,26 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
         bool valid = true;
         foreach (IParameterSymbol parameter in method.Parameters)
         {
-            ValidateScalar(parameter.Type, parameter.GetAttributes(), parameter.Name);
+            valid &= ValidateValue(parameter.Type, parameter.GetAttributes(), method, parameter.Name, context);
         }
 
         if (set is null)
         {
-            ValidateScalar(method.ReturnType, method.GetReturnTypeAttributes(), "return");
+            valid &= ValidateValue(method.ReturnType, method.GetReturnTypeAttributes(), method, "return", context);
         }
         else
         {
             var bound = new HashSet<int>();
             foreach (AttributeData attribute in Bindings(method.GetReturnTypeAttributes()))
             {
-                if (!ValidateName(attribute))
+                if (!ValidateName(attribute, Error))
                 {
+                    continue;
+                }
+
+                if (AttributeValues.Get<string?>(attribute, "Element", null) is not null)
+                {
+                    Error(attribute, "Element selects a typed aggregate tuple input; use Column for SQL TABLE outputs.");
                     continue;
                 }
 
@@ -139,59 +145,85 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
 
         return valid;
 
-        void ValidateScalar(ITypeSymbol type, ImmutableArray<AttributeData> attributes, string target)
+        void Error(AttributeData? attribute, string message)
         {
-            AttributeData[] bindings = [.. Bindings(attributes)];
-            if (bindings.Length > 1)
+            valid = false;
+            Report(attribute, method, message, context);
+        }
+    }
+
+    /// <summary>
+    /// Validates one SQL value after any aggregate tuple-element selection.
+    /// </summary>
+    internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, IMethodSymbol method,
+        string target, SourceProductionContext context, bool grouped = false)
+    {
+        bool valid = true;
+        AttributeData[] bindings = [.. Bindings(attributes)];
+        if (bindings.Length > 1)
+        {
+            Error(bindings[1], $"'{target}' may have only one SQL type binding.");
+            return false;
+        }
+
+        if (bindings.Length == 0 && FunctionType.Create(type)?.IsRaw == true)
+        {
+            Error(null, $"'{target}' requires a PgSqlType binding for its PgDatum value.");
+        }
+
+        foreach (AttributeData attribute in bindings)
+        {
+            if (!ValidateName(attribute, Error))
             {
-                Error(bindings[1], $"'{target}' may have only one SQL type binding.");
-                return;
+                continue;
             }
 
-            if (bindings.Length == 0 && FunctionType.Create(type)?.IsRaw == true)
+            if (AttributeValues.Get<string?>(attribute, "Column", null) is not null)
             {
-                Error(null, $"'{target}' requires a PgSqlType binding for its PgDatum value.");
+                Error(attribute, "Column may be used only to select a SQL TABLE output.");
             }
-
-            foreach (AttributeData attribute in bindings)
+            else if (!grouped && AttributeValues.Get<string?>(attribute, "Element", null) is not null)
             {
-                if (!ValidateName(attribute))
-                {
-                    continue;
-                }
-
-                if (AttributeValues.Get<string?>(attribute, "Column", null) is not null)
-                {
-                    Error(attribute, "Column may be used only to select a SQL TABLE output.");
-                }
-                else if (!Matches(FunctionType.Create(type), attribute))
-                {
-                    Error(attribute, Requirement(attribute));
-                }
+                Error(attribute, "Element may be used only to select a typed aggregate tuple input.");
+            }
+            else if (!Matches(FunctionType.Create(type), attribute))
+            {
+                Error(attribute, Requirement(attribute));
             }
         }
 
-        bool ValidateName(AttributeData attribute)
-        {
-            string? typeName = attribute.ConstructorArguments.FirstOrDefault().Value as string;
-            string? schemaName = AttributeValues.Get<string?>(attribute, "Schema", null);
-            if (!SqlText.IsIdentifier(typeName) || schemaName is not null && !SqlText.IsIdentifier(schemaName))
-            {
-                Error(attribute, "Type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
-                return false;
-            }
-
-            return true;
-        }
+        return valid;
 
         void Error(AttributeData? attribute, string message)
         {
             valid = false;
-            context.ReportDiagnostic(Diagnostic.Create(attribute is null || IsRawBinding(attribute) ? s_invalidRaw : s_invalid,
-                attribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? method.Locations.FirstOrDefault(),
-                method.Name, message));
+            Report(attribute, method, message, context);
         }
     }
+
+    /// <summary>
+    /// Checks identifiers shared by scalar, TABLE and aggregate element bindings.
+    /// </summary>
+    private static bool ValidateName(AttributeData attribute, Action<AttributeData?, string> error)
+    {
+        string? typeName = attribute.ConstructorArguments.FirstOrDefault().Value as string;
+        string? schemaName = AttributeValues.Get<string?>(attribute, "Schema", null);
+        if (!SqlText.IsIdentifier(typeName) || schemaName is not null && !SqlText.IsIdentifier(schemaName))
+        {
+            error(attribute, "Type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes, without zero characters or invalid Unicode.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Reports a binding diagnostic at its attribute or declaring method.
+    /// </summary>
+    private static void Report(AttributeData? attribute, IMethodSymbol method, string message, SourceProductionContext context)
+        => context.ReportDiagnostic(Diagnostic.Create(attribute is null || IsRawBinding(attribute) ? s_invalidRaw : s_invalid,
+            attribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? method.Locations.FirstOrDefault(),
+            method.Name, message));
 
     /// <summary>
     /// Checks the managed representation selected by a binding attribute.

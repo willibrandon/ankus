@@ -10,7 +10,7 @@ namespace Ankus;
 /// above precision require PostgreSQL 15 or later. PostgreSQL function signatures themselves
 /// do not retain numeric type modifiers, so the generated dispatcher enforces this contract.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue, Inherited = false)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue, AllowMultiple = true, Inherited = false)]
 public sealed class PgNumericPrecisionAttribute : Attribute
 {
     /// <summary>
@@ -37,4 +37,14 @@ public sealed class PgNumericPrecisionAttribute : Attribute
     /// Gets the declared scale.
     /// </summary>
     public int Scale { get; }
+
+    /// <summary>
+    /// Gets or sets the exact C# tuple element to constrain within a typed aggregate argument group.
+    /// Omit for a scalar parameter or return value.
+    /// </summary>
+    public string? Element
+    {
+        get;
+        set;
+    }
 }

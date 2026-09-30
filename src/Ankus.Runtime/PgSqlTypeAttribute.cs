@@ -42,4 +42,14 @@ public sealed class PgSqlTypeAttribute(string name) : Attribute
         get;
         set;
     }
+
+    /// <summary>
+    /// Gets or sets the exact C# tuple element to bind within a typed aggregate argument group.
+    /// Omit for a scalar parameter or return value; Column selects TABLE outputs separately.
+    /// </summary>
+    public string? Element
+    {
+        get;
+        set;
+    }
 }

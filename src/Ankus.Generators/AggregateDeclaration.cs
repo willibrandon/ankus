@@ -12,6 +12,17 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     private static readonly string[] s_roles = ["Transition", "Final", "Combine", "Serialize", "Deserialize", "MovingTransition", "MovingInverse", "MovingFinal"];
 
     /// <summary>
+    /// Gets support roles in transition-before-final order.
+    /// </summary>
+    internal static IEnumerable<string> Roles => s_roles;
+
+    /// <summary>
+    /// Reports the common aggregate diagnostic at the offending declaration.
+    /// </summary>
+    internal static void ReportInvalid(ISymbol source, string name, string message, SourceProductionContext context)
+        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, source.Locations.FirstOrDefault(), name, message));
+
+    /// <summary>
     /// Gets the aggregate's managed declaration container.
     /// </summary>
     internal INamedTypeSymbol Type { get; } = type;
@@ -155,7 +166,8 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     internal static IEnumerable<IMethodSymbol> SelectedMethods(INamedTypeSymbol type)
     {
         AttributeData attribute = type.GetAttributes().First(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgAggregateAttribute");
-        return s_roles.SelectMany(role => type.GetMembers(AttributeValues.Get(attribute, role, role)).OfType<IMethodSymbol>());
+        return s_roles.SelectMany(role => type.GetMembers(AttributeValues.Get(attribute, role, role)).OfType<IMethodSymbol>())
+            .Concat(AggregateContract.SelectedMethods(type));
     }
 
     /// <summary>
@@ -211,7 +223,13 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return Invalid("Initial conditions must contain valid Unicode without zero characters.");
         }
 
-        foreach (string role in s_roles)
+        bool typed = AggregateContract.Interfaces(type).Length != 0;
+        if (typed && !AggregateContract.Create(aggregate, context))
+        {
+            return null;
+        }
+
+        foreach (string role in typed ? [] : s_roles)
         {
             bool explicitName = attribute.NamedArguments.Any(argument => argument.Key == role);
             string name = AttributeValues.Get(attribute, role, role);
@@ -275,9 +293,10 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
             foreach (IParameterSymbol parameter in parameters)
             {
-                string parameterName = AggregateHelper.ParameterName(parameter);
+                string parameterName = AggregateParameter.ReadName(parameter);
+                AttributeData[] naming = [.. parameter.GetAttributes().Where(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
                 if (!SqlText.IsIdentifier(parameterName) || !names.Add(parameterName) ||
-                    parameter.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute" &&
+                    naming.Length > 1 || naming.Any(static item => AttributeValues.Get<string?>(item, "Element", null) is not null ||
                         item.NamedArguments.Any(static argument => argument.Key == "Default")))
                 {
                     return Invalid("Aggregate support argument names must be distinct identifiers, and support arguments cannot declare SQL defaults.");
@@ -303,7 +322,9 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
                 return null;
             }
 
-            aggregate.Helpers.Add(role, new(method, role, hasContext, [.. parameters], [.. types.Select(static value => value!)], result, declaration));
+            aggregate.Helpers.Add(role, new(method, role, hasContext,
+                [.. parameters.Select((parameter, index) => new AggregateParameter(types[index]!, AggregateParameter.ReadName(parameter),
+                    parameter.IsParams || AggregateParameter.ReadVariadic(parameter.GetAttributes()), parameter.GetAttributes()))], result, declaration));
         }
 
         AggregateHelper transition = aggregate.Helpers["Transition"];
@@ -333,7 +354,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
         }
 
         string[] argumentNames = [.. (final?.Parameters.Skip(1).Take(aggregate.Direct.Length) ?? []).Concat(transition.Parameters.Skip(1))
-            .Select(AggregateHelper.ParameterName)];
+            .Select(static parameter => parameter.Name)];
         if (argumentNames.Distinct(StringComparer.Ordinal).Count() != argumentNames.Length)
         {
             return Invalid("Direct and aggregated SQL argument names must be distinct across the aggregate signature.");
@@ -415,9 +436,9 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
         foreach (AggregateHelper helper in aggregate.Helpers.Values)
         {
-            if (helper.Parameters.Any(static parameter => parameter.IsParams) &&
+            if (helper.Parameters.Any(static parameter => parameter.IsVariadic) &&
                 (aggregate.Kind != 0 || helper.Role is not ("Transition" or "MovingTransition" or "MovingInverse" or "Final" or "MovingFinal") ||
-                    helper.Types.Length < 2 || helper.Types[helper.Types.Length - 1].Datum?.IsVector != true || helper.Parameters.Take(helper.Parameters.Length - 1).Any(static parameter => parameter.IsParams)))
+                    helper.Types.Length < 2 || helper.Types[helper.Types.Length - 1].Datum?.IsVector != true || helper.Parameters.Take(helper.Parameters.Length - 1).Any(static parameter => parameter.IsVariadic)))
             {
                 return Invalid("Variadic aggregate inputs require one trailing params vector on a normal aggregate; ordered-set VARIADIC ANY is not a concrete array.");
             }

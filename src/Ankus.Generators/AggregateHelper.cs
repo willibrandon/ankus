@@ -7,7 +7,7 @@ namespace Ankus.Generators;
 /// Represents one aggregate support method and its context-free SQL signature.
 /// </summary>
 internal sealed class AggregateHelper(IMethodSymbol method, string role, bool contextParameter,
-    ImmutableArray<IParameterSymbol> parameters, AggregateType[] types, AggregateType result, FunctionDeclaration declaration)
+    ImmutableArray<AggregateParameter> parameters, AggregateType result, FunctionDeclaration declaration, AggregateInvocation? invocation = null)
 {
     /// <summary>
     /// Gets the attributed or conventionally selected managed method.
@@ -25,14 +25,14 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     internal bool ContextParameter { get; } = contextParameter;
 
     /// <summary>
-    /// Gets managed SQL parameters after removing the optional context.
+    /// Gets validated SQL argument slots, excluding the managed context and native deserializer dummy.
     /// </summary>
-    internal ImmutableArray<IParameterSymbol> Parameters { get; } = parameters;
+    internal ImmutableArray<AggregateParameter> Parameters { get; } = parameters;
 
     /// <summary>
     /// Gets SQL/native type contracts, excluding a deserializer's synthetic dummy argument.
     /// </summary>
-    internal AggregateType[] Types { get; } = types;
+    internal AggregateType[] Types { get; } = [.. parameters.Select(static parameter => parameter.Type)];
 
     /// <summary>
     /// Gets the support function's result contract.
@@ -43,6 +43,11 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     /// Gets the common planner, name and privilege options.
     /// </summary>
     internal FunctionDeclaration Declaration { get; } = declaration;
+
+    /// <summary>
+    /// Gets the typed capability dispatch, or null for a conventional method declaration.
+    /// </summary>
+    internal AggregateInvocation? Invocation { get; } = invocation;
 
     /// <summary>
     /// Gets whether PostgreSQL supplies an extra SQL-nonnull internal dummy argument.
@@ -58,16 +63,7 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     /// <summary>
     /// Gets named SQL parameter declarations, retaining variadic input and adding the native deserializer dummy.
     /// </summary>
-    internal string Arguments(SqlTypeProviders providers) => string.Join(", ", Parameters.Select((parameter, index) =>
-        (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(ParameterName(parameter)) + " " + (Types[index].Datum is { } datum ? SqlSchemaTemplate.Type(datum, providers) : "internal"))
+    internal string Arguments(SqlTypeProviders providers) => string.Join(", ", Parameters.Select(parameter =>
+        (parameter.IsVariadic ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameter.Name) + " " + (parameter.Type.Datum is { } datum ? SqlSchemaTemplate.Type(datum, providers) : "internal"))
         .Concat(Deserialize ? ["internal"] : []));
-
-    /// <summary>
-    /// Resolves an optional SQL parameter name without copying CLR context into SQL.
-    /// </summary>
-    internal static string ParameterName(IParameterSymbol parameter)
-    {
-        AttributeData? attribute = parameter.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute");
-        return attribute is null ? SqlText.SnakeCase(parameter.Name) : AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(parameter.Name));
-    }
 }

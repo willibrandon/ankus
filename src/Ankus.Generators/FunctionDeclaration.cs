@@ -248,8 +248,15 @@ internal sealed class FunctionDeclaration
             }
 
             FunctionType type = model.Type!;
-            AttributeData? parameterAttribute = parameter.GetAttributes().FirstOrDefault(static value =>
-                value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute");
+            AttributeData[] parameterAttributes = [.. parameter.GetAttributes().Where(static value =>
+                value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
+            if (parameterAttributes.Length > 1 || parameterAttributes.Any(static value =>
+                AttributeValues.Get<string?>(value, "Element", null) is not null || AttributeValues.Get(value, "Variadic", false)))
+            {
+                return Invalid("Ordinary SQL parameters allow one PgParameter attribute without aggregate element or variadic options; declare variadic functions with params.");
+            }
+
+            AttributeData? parameterAttribute = parameterAttributes.FirstOrDefault();
             string parameterName = Value<string?>(parameterAttribute, "Name", null) ?? SqlText.SnakeCase(parameter.Name);
             if (!SqlText.IsIdentifier(parameterName) || !parameterNames.Add(parameterName))
             {

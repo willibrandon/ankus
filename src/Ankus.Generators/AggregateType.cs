@@ -72,6 +72,11 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     internal bool Matches(AggregateType other) => Sql == other.Sql && Payload == other.Payload;
 
     /// <summary>
+    /// Retains SQL identity while permitting a synthetic final-function NULL placeholder.
+    /// </summary>
+    internal AggregateType AsNullable() => new(Datum, Payload, true);
+
+    /// <summary>
     /// Determines whether PostgreSQL can seed this state directly from an input datum without a conversion call.
     /// </summary>
     internal bool AcceptsSeed(AggregateType input)

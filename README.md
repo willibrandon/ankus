@@ -11,6 +11,10 @@ native extension.
 
 [Read the documentation](https://willibrandon.github.io/ankus/).
 
+See [Ankus for pgrx users](docs/src/content/docs/getting-started/from-pgrx.md)
+for API translations, and [Running .NET inside PostgreSQL](docs/src/content/docs/reference/execution.md)
+for threads, signals, memory and backend lifetimes.
+
 ```csharp
 [PgFunction]
 public static int Add(int left, int right) => checked(left + right);
@@ -309,6 +313,11 @@ state through PostgreSQL's group and query lifetimes. `PgAnyElement` and
 `PgAnyArray` support aggregates whose input, state, or result types vary by call. See
 [aggregates](docs/src/content/docs/aggregates.md) and the
 [average sample](samples/Ankus.Examples.Aggregates/IntegerAverage.cs).
+
+Implement `IPgAggregate<TState, TArgs>` for compiler-checked aggregate callbacks.
+Optional interfaces supply finalization, parallel transport and moving windows.
+Tuple argument groups become separate SQL inputs with independent nullability
+and conversion metadata.
 
 Use `Spi` inside an extension function to execute SQL in the calling backend:
 

@@ -80,17 +80,32 @@ remains incomplete; the following work is additional to the open parity gates.
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
 | Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full CI also passes on Linux x64/macOS ARM64 with PostgreSQL 18 and Windows x64 with PostgreSQL 17. A lighter guard must preserve this rule. |
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
+| Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of the typed contracts is pending. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references resolve exact types/methods and preserve graph ordering, replacement and selection contracts. `PgSupportFunction` adds checked planner references and installation prerequisites, with actual row estimates and same-backend error recovery. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of these references is pending. Typed aggregate contracts and generated SQL provenance remain open. Preserve deterministic ordering. |
-| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; dedicated-platform evidence remains pending. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
+| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references resolve exact types/methods and preserve graph ordering, replacement and selection contracts. `PgSupportFunction` adds checked planner references and installation prerequisites, with actual row estimates and same-backend error recovery. Typed aggregate capabilities preserve owned state, real parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of these references and contracts is pending. Generated SQL provenance remains open. Preserve deterministic ordering. |
+| Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
-| Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
+| Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+`IPgAggregate<TState, TArgs>` and five optional capability interfaces give
+aggregate callbacks compiler-checked contracts. Scalar, tuple and empty argument
+groups preserve SQL nullability and per-input conversion metadata. Native tests
+verify actual parallel workers, state cleanup, moving restarts, ordered and
+hypothetical results, and resolved polymorphic values. The average sample uses
+the same contracts. Migration and .NET hosting guides explain the public model.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,961 total,
+9,951 passed, zero failed and ten platform skips**, in **14m43.375s**.
+Release, generated API freshness and documentation checks pass. Dedicated CI and the full
+platform/version matrix remain required. Hosted Intel macOS timing, incremental
+generation, SQL provenance and other review gaps remain open.
+
+## Previous verified milestone — planner support references
 
 `PgSupportFunction` resolves generated planner callbacks through exact C#
 declarations, validates their SQL signatures and invocation requirements, and
@@ -3453,7 +3468,7 @@ The target architecture consists of:
 | SETOF / TABLE (`SetOfIterator`, `TableIterator`) | `IEnumerable<T>`, named tuples, column overrides, streaming and materialized results | Implemented for supported value families; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_trigger]` | `[PgTrigger]` | ☑ — supported tuple types; see trigger evidence |
 | Raw `EventTriggerData` and event-trigger helpers in `pgrx-pg-sys` | `[PgEventTrigger]` and owned context metadata | Implemented for descriptive DDL/drop/rewrite metadata and login; PostgreSQL 18.6/Linux x64 evidence above; raw bindings remain in the full inventory |
-| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, typed static callbacks, `PgAggregateState<T>` and `PgAggregateContext` | Concrete, polymorphic, internal, raw and custom-codec signatures implemented; heterogeneous variadic ANY remains required; verification recorded below |
+| `#[pg_aggregate]` + `Aggregate` trait | `[PgAggregate]`, `IPgAggregate<TState, TArgs>` and optional static abstract capabilities, `PgAggregateState<T>` and `PgAggregateContext` | Compiler-checked scalar/tuple/empty contracts and per-input metadata implemented alongside conventional callbacks. Concrete, polymorphic, internal, raw and custom-codec signatures are supported; heterogeneous variadic ANY and full matrix validation remain required. |
 | `#[pg_operator]` | `[PgOperator]`, backing function, planner options and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `#[pg_cast]` | `[PgCast]`, three contexts, typmod/explicitness arguments and SQL dependencies | Implemented for supported types; PostgreSQL 18.6/Linux x64 evidence above |
 | `extension_sql!` | `[assembly: PgSql]`, `[assembly: PgSqlFile]`, named dependencies and `PgSqlTypeProvider` | Inline/file SQL, ordering, bootstrap/final, relocation, catalog-type/function providers, owned managed scalar identities and standalone full/selected extraction implemented; broader mapping forms and complete platform/version validation remain required |
@@ -3551,7 +3566,7 @@ Primary sources: `pgrx-macros/src/lib.rs`, `pgrx-sql-entity-graph/src/`, `pgrx/s
 | `default!`, `name!`, `composite_type!` | SQL default arguments, named table/aggregate fields, named composite type resolution | SQL argument names/defaults, TABLE fields and concrete aggregate inputs/direct arguments implemented; named composite resolution implemented |
 | `SetOfIterator`, `TableIterator` | SETOF and TABLE results, nullability, tuple metadata, iteration cleanup on early exit/error | Implemented for supported scalar/array/enum columns, named tuples and explicit column overrides; streaming/materialized execution, interruption and owned resource cleanup validated on PG18/Linux |
 | `pg_trigger` | Row/statement and before/after/instead-of triggers; event/argument metadata; OLD/NEW tuple access and modification | Implemented for supported tuple types, with guarded transition-table SPI; PostgreSQL 18.6/Linux x64 verified |
-| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Concrete, polymorphic, internal, raw and custom-codec bindings implemented, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery; heterogeneous ANY and full matrix remain required |
+| `pg_aggregate`, `AggregateName` | Transition/final/combine/serialize/deserialize; moving/inverse states; ordered-set/hypothetical; initial states, sort and parallel options | Static abstract capabilities and conventional callbacks support concrete, polymorphic, internal, raw and custom-codec bindings, including native ownership, worker transport, ICU/custom ordering and lifecycle recovery. Tuple metadata, default/explicit/inherited implementations and ref-struct containers pass the complete PostgreSQL 18.6/Linux x64 suite; heterogeneous ANY and full matrix remain required. |
 | `pg_operator` and option attributes | Operator name, commutator, negator, selectivity/join support, hashes/merges, and schema dependencies | Implemented for supported types, including custom base-type operands, binary/prefix operators, separate graph IDs, exact references and declaration diagnostics; full matrix validation remains required |
 | `PostgresEq`, `PostgresOrd`, `PostgresHash` | Equality, order and hash functions, operator classes/families and index use | Implemented for PgType/PgEnum and readable manual PgDatumType scalar mappings, including finite closed generic roots, with explicit value contracts, stable hashes, default B-tree/hash classes, real indexes/joins, fresh-backend reuse and independently controlled ordering/hash family SQL. Owned mapping providers order helpers after type completion; external SQL types retain their ownership. The complete platform/version matrix remains required. |
 | `pg_cast` | Explicit/assignment/implicit casts and generated SQL | Implemented for supported source/target types, including custom codecs, nullable values, arrays and optional typmod/explicit arguments; full matrix validation remains required |
@@ -17080,3 +17095,141 @@ has passing Windows x64/PostgreSQL 17 (**32m27s**) and macOS ARM64/PostgreSQL 18
 planner-support **36730262684** remain queued; their Docs runs pass. The reported
 Windows allocation failure and separate hosted Intel timeouts remain recorded
 above. No runs were canceled.
+
+### 2026-09-30 — Typed aggregate contract preparation
+
+Planner support is committed and pushed as `bc48723`; CI **36730262684** is
+queued and Docs **36730262558** has started. The next confirmed declarative gap
+is compiler-checked aggregate capabilities. A name-only adapter would leave the
+argument-grouping and explicit-interface dispatch problems unresolved.
+
+The first structural change separates validated SQL argument slots from Roslyn
+method parameters. Each slot retains its exact SQL/native type, name, variadic
+flag and conversion attributes. Existing declaration validation, SQL ordering,
+managed argument order and native context guards stay in place. Binding-based
+reference inspection covered helper, identity and graph uses. The first build
+identified one remaining use of the old variadic property; it was corrected.
+
+The unchanged complete generator project passes **2,322/2,322**, zero failures
+or skips, **44.335s**. The generator's Release build passes with **zero warnings
+and errors, 4.11s**. Native aggregate validation and comparison against the saved
+SQL/native/export baseline are running. This is preparation for typed contracts;
+the public capability interfaces and their complete validation remain open.
+
+The selected real-backend aggregate and shared-helper tests pass **144/144**,
+zero failures or skips, on PostgreSQL **18.6/Linux x64**, **5m47.055s**.
+The regenerated main extension's C bridge, SQL and native exports are byte-for-byte
+identical to the saved baseline. This verifies the structural change; it does
+not yet prove a typed aggregate API. Planner-support Docs **36730262558** succeeds;
+its CI and the two preceding declaration/reporting runs remain queued, while
+interrupt-polling CI **36713330603** is active.
+
+The first typed capability implementation uses static abstract interfaces and
+Roslyn interface-member resolution, including explicit and inherited methods.
+Generated constrained calls reconstruct scalar, empty and tuple argument groups;
+optional interfaces cover final, combine, serialization and moving callbacks.
+The complete generator project passes **2,336/2,336**, zero failures/skips,
+**31.795s**. Four new real-backend tests pass on PostgreSQL **18.6/Linux x64**,
+**3m52.861s**, including actual parallel workers, transported state, inverse
+restart, state disposal and same-backend error recovery. These are intermediate
+results. Per-element metadata, additional boundary tests, documentation and the
+complete milestone gate remain required before the typed API is complete.
+
+Interrupt-polling CI **36713330603**, Windows job **109932482344**, subsequently
+failed one packaged-consumer test while reserving a random fixed test port.
+Windows reported `AccessDenied`; the candidate allocator only recognized
+`AddressAlreadyInUse`. Actual Windows excluded TCP ranges overlap its candidate
+range. The isolated repair handles both unavailable-candidate errors within the
+existing bound, preserving explicit user-port behavior and unrelated failures.
+A real Windows excluded-port reproduction confirms the first candidate fails
+and the replacement listener accepts a TCP connection. Regression and complete
+repair validation are underway; no completed CI repair is claimed yet.
+
+Typed aggregate argument groups now select per-element names, raw/composite
+bindings, numeric constraints and variadic arrays through explicit metadata.
+Invalid selectors, duplicate declarations, SQL defaults and accidental use on
+ordinary scalar functions produce diagnostics. Synthetic final-extra slots use
+bounded, collision-free names. The complete generator suite passes
+**2,364/2,364**, zero failures/skips, **51.416s**. Real PostgreSQL checks for
+numeric rounding/overflow recovery, variadic shape and bound tuple values are
+running. The aggregate guide describes the compiler-checked contracts; complete
+feature validation and API generation remain pending.
+
+The expanded typed aggregate native scope passes **8/8**, zero failures/skips,
+on PostgreSQL **18.6/Linux x64**, **4m04.951s**. Numeric metadata is verified
+through independently rounded tuple values and overflow recovery on the same
+backend. Variadic calls preserve scalar position, NULL arrays, empty arrays and
+NULL elements; explicit raw/composite bindings read exact Unicode values.
+Ordered/hypothetical and polymorphic final-extra coverage remains pending.
+
+The isolated Windows test-port repair is committed and pushed as `f9984ac`.
+Its complete validation appears above. Prior CI was checked and recorded again
+before pushing, with no additional failures. Repair CI **36737755545** is queued
+and Docs **36737755920** is active. The temporary repair checkout was removed
+after its verified files were committed; aggregate development remains separate.
+
+Typed ordered/hypothetical and polymorphic ordinary/moving final-extra checks
+now pass with the converted public average sample: **33/33**, zero failures or
+skips, PostgreSQL **18.6/Linux x64**, **3m07.635s**. These compare native rank,
+ordering and average results, exact resolved type OIDs and large owned values;
+they also verify real parallel workers, transport bytes and extension lifecycle.
+An initial local candidate was canceled after review found duplicate SQL names
+in the new hypothetical probe. Distinct direct-argument names corrected that
+declaration before the successful run. Further compiler-container checks and
+the complete milestone gates remain pending.
+
+Compiler-container tests exposed two draft implementation defects: a valid
+default interface implementation was rejected, and a `ref struct` implementation
+needed the generated dispatcher's `allows ref struct` constraint. Both defects
+reproduced before correction; all **46** typed generator cases now pass,
+**4.155s**, including readonly structs and inherited closed generic bases.
+The native probes now use default-interface and ref-struct dispatch as well;
+the final complete suite must validate those paths. Release validation is running.
+
+Release passes with **zero warnings/errors, 1m27.36s**. The generated API
+reference contains **234 pages / 2,649 members** and passes freshness checking.
+The documentation site builds **281 pages in 4.46s**, with zero check errors,
+warnings or hints. The complete plain PostgreSQL **18.6/Linux x64** suite is
+running with six package slots. No completed typed-contract milestone is claimed
+until that run and final review finish.
+
+The documentation review confirmed missing guidance for pgrx migration and
+hosting .NET in PostgreSQL. A new migration guide maps declarations, types,
+ownership, recovery and tooling. The existing execution guide now explains
+backend/thread-pool access, synchronous calls, preload lifetimes, process signal
+ownership, independent managed/native memory accounting and library replacement.
+Signal details were checked against .NET **10.0.12** source and Microsoft API
+documentation; PostgreSQL memory settings were checked against its version 18
+documentation. These guide changes still need their final site validation.
+
+Reporting CI **36717791830** now succeeds completely: Linux x64/PostgreSQL 18
+**43m45s**, macOS ARM64/PostgreSQL 18 **17m59s**, Windows x64/PostgreSQL 17
+**32m27s**. Runtime and quality jobs pass. Repair Docs **36737755920** passes;
+its CI and the dependency/planner milestones still need their own outcomes.
+
+### Typed aggregate contract milestone completed locally
+
+The final plain `dotnet test` run passes **9,961 total, 9,951 passed, zero
+failed and ten platform skips**, PostgreSQL **18.6/Linux x64**, **14m43.375s**
+with six package-test slots. This includes the final default-interface,
+readonly-struct and ref-struct native probes, all **46** typed generator cases,
+the **23** new native cases and the converted public sample's existing lifecycle
+checks. Managed assertions, generated compilation and actual PostgreSQL values
+are separate evidence; test counts alone do not establish aggregate parity.
+
+Release passes with zero warnings/errors. API generation and freshness pass
+with **234 pages / 2,649 members**. The final documentation build includes
+both new/expanded public guides: **282 pages, 3.15s**, and `pnpm check` reports
+zero errors, warnings or hints. No analyzer standards were relaxed. The full
+platform/version matrix, heterogeneous variadic ANY, incremental generation,
+SQL provenance and other listed review requirements remain open.
+
+Before committing, prior CI was checked and recorded. Reporting CI
+**36717791830** is successful. Dependency CI **36724466429** has successful
+macOS ARM64/PostgreSQL 18 (**17m57s**) and Windows x64/PostgreSQL 17
+(**30m55s**) jobs; Linux x64/PostgreSQL 18 is still active. Planner CI
+**36730262684** and port-repair CI **36737755545** remain queued; their Docs
+runs pass. The reported Windows port failure in **36713330603** is addressed
+by pushed commit `f9984ac`, with dedicated CI pending. Both earlier hosted Intel
+macOS comparisons still have one-hour timeout outcomes; no successful full
+Intel validation is claimed and no runs were automatically canceled.

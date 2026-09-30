@@ -13,7 +13,7 @@ Applies PostgreSQL numeric precision and scale to a generated function parameter
 Values are rounded with PostgreSQL's typmod rules, then checked for overflow.
 
 ```csharp
-[AttributeUsage(AttributeTargets.Parameter|AttributeTargets.ReturnValue, Inherited = false)]
+[AttributeUsage(AttributeTargets.Parameter|AttributeTargets.ReturnValue, AllowMultiple = true, Inherited = false)]
 public sealed class PgNumericPrecisionAttribute : Attribute
 ```
 
@@ -48,6 +48,19 @@ The scale, -1000 through 1000. The default is zero.
 
 
 ## Properties
+
+<a id="member-737a8930856ca348"></a>
+
+### Element
+
+Gets or sets the exact C# tuple element to constrain within a typed aggregate argument group.
+Omit for a scalar parameter or return value.
+
+```csharp
+public string? Element { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 <a id="member-77b961c51df1bcaa"></a>
 

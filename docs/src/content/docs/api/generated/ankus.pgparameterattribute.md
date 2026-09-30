@@ -13,7 +13,7 @@ Overrides a generated SQL parameter's name or supplies a SQL default expression.
 Defaults apply to SQL calls; direct C# calls retain the method's ordinary optional-argument behavior.
 
 ```csharp
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false)]
+[AttributeUsage(AttributeTargets.Parameter, AllowMultiple = true, Inherited = false)]
 public sealed class PgParameterAttribute : Attribute
 ```
 
@@ -45,6 +45,19 @@ public string? Default { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-51bb1c817c377a32"></a>
+
+### Element
+
+Gets or sets the C# tuple element selected within a typed aggregate argument group.
+Omit for an ordinary scalar parameter; each tuple element is selected by its exact managed name.
+
+```csharp
+public string? Element { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-c94bd9b6054bd4a4"></a>
 
 ### Name
@@ -56,3 +69,16 @@ public string? Name { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+<a id="member-bc9c234cda406520"></a>
+
+### Variadic
+
+Gets or sets whether an aggregate's trailing array input collects variadic SQL arguments.
+Ordinary functions declare variadic inputs with the C# params modifier.
+
+```csharp
+public bool Variadic { get; set; }
+```
+
+Value: [bool](https://learn.microsoft.com/dotnet/api/system.boolean)

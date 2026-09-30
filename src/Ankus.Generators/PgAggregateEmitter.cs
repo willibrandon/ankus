@@ -24,6 +24,7 @@ internal static class PgAggregateEmitter
         StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
+        helper.Invocation?.Emit(managed, callback);
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
@@ -49,19 +50,20 @@ internal static class PgAggregateEmitter
         }
 
         var arguments = new List<string>();
-        if (helper.ContextParameter)
+        if (helper.ContextParameter && helper.Invocation is null)
         {
             arguments.Add("context");
         }
 
         for (int index = 0; index < helper.Types.Length; index++)
         {
-            string argument = helper.Types[index].Read("arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]", helper.Parameters[index].GetAttributes());
+            string argument = helper.Types[index].Read("arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]", helper.Parameters[index].Attributes);
             arguments.Add(helper.Types[index].Datum?.HasRelations == true ? "relationScope.Add(" + argument + ")" : argument);
         }
 
-        string invocation = helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
-            "(" + string.Join(", ", arguments) + ")";
+        string invocation = helper.Invocation?.Read(callback, arguments) ??
+            helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
+                "(" + string.Join(", ", arguments) + ")";
         if (helper.Result.Datum?.HasRelations == true)
         {
             invocation = "relationScope.Add(" + invocation + ")";
@@ -142,7 +144,7 @@ internal static class PgAggregateEmitter
         exports.AppendLine("pg_finfo_" + nativeName);
         return new(helper.Declaration, helper.Arguments(providers), Type(helper.Result, providers), nativeName,
             !helper.Deserialize && helper.Types.Length == 1 && helper.Types[0].IsInternal && helper.Result.IsInternal &&
-            !helper.Parameters.Any(static parameter => parameter.IsParams), requiresAggregateContext: true);
+            !helper.Parameters.Any(static parameter => parameter.IsVariadic), requiresAggregateContext: true);
     }
 
     /// <summary>
@@ -152,7 +154,7 @@ internal static class PgAggregateEmitter
     {
         AggregateHelper transition = aggregate.Helpers["Transition"];
         string inputs = string.Join(", ", transition.Parameters.Skip(1).Select((parameter, index) =>
-            (parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + Type(aggregate.Inputs[index], providers)));
+            (parameter.IsVariadic ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameter.Name) + " " + Type(aggregate.Inputs[index], providers)));
         string signature;
         if (aggregate.Kind == 0)
         {
@@ -162,7 +164,7 @@ internal static class PgAggregateEmitter
         {
             AggregateHelper? final = aggregate.Helpers.TryGetValue("Final", out AggregateHelper? value) ? value : null;
             string direct = final is null ? string.Empty : string.Join(", ", final.Parameters.Skip(1).Take(aggregate.Direct.Length).Select((parameter, index) =>
-                SqlText.Identifier(AggregateHelper.ParameterName(parameter)) + " " + Type(aggregate.Direct[index], providers)));
+                SqlText.Identifier(parameter.Name) + " " + Type(aggregate.Direct[index], providers)));
             signature = (direct.Length == 0 ? string.Empty : direct + " ") + "ORDER BY " + inputs;
         }
 
@@ -265,7 +267,7 @@ internal static class PgAggregateEmitter
     {
         AggregateHelper transition = aggregate.Helpers["Transition"];
         string inputs = string.Join(", ", transition.Parameters.Skip(1).Select((parameter, index) =>
-            (parameter.IsParams ? "VARIADIC " : string.Empty) + Type(aggregate.Inputs[index], providers)));
+            (parameter.IsVariadic ? "VARIADIC " : string.Empty) + Type(aggregate.Inputs[index], providers)));
         string arguments = aggregate.Kind == 0 ? (inputs.Length == 0 ? "*" : inputs) :
             (aggregate.Direct.Length == 0 ? string.Empty : string.Join(", ", aggregate.Direct.Select(type => Type(type, providers))) + " ") +
             "ORDER BY " + inputs;

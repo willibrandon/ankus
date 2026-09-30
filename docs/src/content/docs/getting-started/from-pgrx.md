@@ -1,0 +1,160 @@
+---
+title: Ankus for pgrx users
+description: Translate pgrx declarations, values, ownership, and extension workflows into C#.
+---
+
+Ankus keeps PostgreSQL's extension model and expresses it through C# attributes,
+compiler-checked interfaces and source generation. Publish an extension as a
+Native AOT library with its SQL and control files. The server does not need a
+separate .NET installation.
+
+## Declarations
+
+| pgrx | Ankus | Guide |
+|---|---|---|
+| `#[pg_extern]` | `[PgFunction]` on a synchronous static method | [Functions](/function-declarations/) |
+| `#[pg_schema]` | `[PgSchema]` on a declaration container | [Custom SQL](/custom-sql/) |
+| `default!`, `variadic!`, `name!` | C# optional parameters, `params T[]`, and `[PgParameter]` | [Function signatures](/function-declarations/) |
+| `TableIterator` and named tuple columns | `IEnumerable<(int Id, string Name)>` | [Sets and tables](/sets-and-tables/) |
+| `#[pg_trigger]` | `[PgTrigger]` with `PgTriggerContext` | [Triggers](/triggers/) |
+| `#[pg_aggregate]` and `Aggregate` | `[PgAggregate]`, `IPgAggregate<TState, TArgs>` and optional capability interfaces | [Aggregates](/aggregates/) |
+| `PostgresEnum` | `[PgEnum]` and optional `[PgEnumLabel]` | [Enums](/enums/) |
+| `PostgresType` | `[PgType]` with generated storage or an explicit codec | [Custom types](/custom-types/) |
+| `PostgresEq`, `PostgresOrd`, `PostgresHash` | `[PgEquality]`, `[PgOrdering]`, `[PgHashing]` with .NET comparison/hash contracts | [Operators](/operators-and-casts/) |
+| `#[pg_operator]`, `#[pg_cast]` | `[PgOperator]`, `[PgCast]` | [Operators and casts](/operators-and-casts/) |
+| `extension_sql!`, `extension_sql_file!` | Assembly-level `[PgSql]`, `[PgSqlFile]` | [Custom SQL](/custom-sql/) |
+| SQL positioning references | `[PgRequires]` and `[PgBefore]` with managed declarations, or explicit IDs | [SQL dependencies](/custom-sql/) |
+| `_PG_init` | `[PgModuleLoad]` for early registration; `[PgInitialize]` for backend initialization | [Initialization](/initialization/) |
+| `pg_module_magic!` | Generated module magic; `[PgModule]` or project settings for identity | [Build settings](/reference/build-settings/#native-module-identity) |
+| `#[pg_test]` | `[PgTest]` with generated backend test cases | [Testing](/getting-started/testing/) |
+
+Execution options such as volatility, parallel safety and NULL policy are enum
+properties on the attributes. SQL names can differ from C# names. Ankus generates
+and orders support functions, types and dependent SQL during the build.
+
+## SQL NULL and values
+
+Rust's `Option<T>` becomes nullable C# value types or nullable reference
+annotations. Enable nullable reference types in the extension project; oblivious
+reference parameters are rejected rather than silently made strict.
+
+```csharp
+[PgFunction]
+public static string Greet(string? name) => $"Hello, {name ?? "world"}!";
+```
+
+The nullable parameter allows SQL NULL to reach this method. With inferred NULL
+policy, an entirely required signature is `STRICT`. For mixed signatures, a NULL
+required argument returns SQL NULL without invoking C#; nullable arguments are
+passed through. A nullable result can return SQL NULL.
+
+| pgrx value or concept | Ankus representation |
+|---|---|
+| `&str`, `String` | `string`; checked native borrowing through `PgTextView` |
+| `Vec<u8>` / `bytea` | `byte[]`; `PgByteaView` for borrowed bytes |
+| SQL arrays | `T[]` for vectors, `PgArray<T>` for explicit shape, `PgArrayView<T>` for checked borrowing |
+| `Json`, `JsonB` | `PgJson`, `PgJsonb` |
+| `AnyNumeric` | `PgNumeric` |
+| PostgreSQL date/time values | `PgDate`, `PgTime`, `PgTimestamp`, `PgTimestampTz`, `PgTimeTz`, `PgInterval` |
+| `AnyElement`, `AnyArray` | `PgAnyElement`, `PgAnyArray` |
+| Native `Datum` | `PgDatum` with explicit `[PgSqlType]` where required |
+| Composite tuples | `PgHeapTuple`, optionally bound with `[PgCompositeType]` |
+| Managed aggregate payload | `PgAggregateState<T>` |
+| Backend-owned opaque state | `PgInternal` |
+
+Use the full-range PostgreSQL temporal types when .NET's built-in range cannot
+represent a value. Use shaped arrays when dimensions or lower bounds matter.
+Conversions reject unsupported or lossy representations; see the individual
+value guides for exact rules.
+
+## Ownership and backend access
+
+Rust lifetimes become explicit ownership and checked lifetimes in Ankus's
+wrappers. `PgMemoryContext`, owned allocations and borrowed views distinguish
+who frees native storage and when access ends. A managed reference does not keep
+a PostgreSQL buffer alive. Copy values into an appropriate owner before retaining
+them beyond the current callback.
+
+`using` and `Dispose` release owned resources deterministically. Dispose native
+database resources on the backend thread. Managed GC, tasks and finalizers have
+different rules from PostgreSQL memory contexts; read
+[Running .NET inside PostgreSQL](/reference/execution/) before introducing
+background work or large caches.
+
+`pg_sys` calls correspond to generated `NativeMethods` and `NativeGlobals`, with
+the native names preserved. Ankus guards PostgreSQL errors in native code before
+they reach managed frames. The caller still owns native argument, layout,
+allocator and lifetime correctness, including calls whose C# signature does not
+require `unsafe`. See [native bindings](/raw-values/).
+
+## SPI, errors and cancellation
+
+Use `Spi.ExecuteScalar<T>`, `Spi.Execute` and `Spi.Connect` for backend SQL.
+Parameters are explicit `SpiParameter` values. A connected session stays inside
+its callback. Result rows are managed copies; kept plans and cursors have their
+own lifetime rules. See [SPI queries](/spi/).
+
+The convenience query APIs currently use writable SPI execution. Use the
+`readOnly` overload when you need PostgreSQL's read-only snapshot and write
+restrictions; do not infer snapshot behavior from a query beginning with `SELECT`.
+
+Throw `PgException` to report a PostgreSQL SQLSTATE and owned diagnostic fields.
+`PgLog` supplies PostgreSQL message levels. Native errors unwind managed cleanup
+before PostgreSQL reports them at the outer boundary.
+
+For deliberate error recovery comparable to a `PgTryBuilder` recovery scope,
+use `PgTransaction.RunInSubtransaction` around work that must roll back. A plain
+`catch (Exception)` cannot make an unrecovered raw native failure successful.
+Cancellation, `Fatal` and `Panic` remain pending even after a catch or rollback.
+See [recoverable work](/transaction-callbacks/#recoverable-work).
+
+Use `PgInterrupts.Check()` where Rust code would use `check_for_interrupts!` in
+a long loop. Call it on the PostgreSQL thread; thread-pool continuations do not
+have backend access.
+
+## Workers and configuration
+
+`BackgroundWorkerBuilder` workflows use `PgBackgroundWorker` registration and a
+`[PgBackgroundWorker]` entry point. Worker transactions, signals and latches
+remain PostgreSQL operations. `PgLwLock<T>`, `PgAtomic<T>` and
+`PgSharedMemory.Initialize` provide shared state with explicit native ownership.
+See [background workers](/background-workers/) and [shared memory](/shared-memory/).
+
+GUC declarations use attributes on static partial properties:
+
+```csharp
+public static partial class Settings
+{
+    [PgGucInt("my_extension.limit", 100, "Maximum items", Minimum = 1)]
+    public static partial int Limit { get; }
+}
+```
+
+Check, assign and show hooks are ordinary named methods selected by the
+attribute. Their phase and SQL-access restrictions still apply. See
+[configuration settings](/configuration/).
+
+## Extension workflow
+
+| cargo-pgrx workflow | Ankus workflow |
+|---|---|
+| Create an extension | `ankus new Hello` |
+| Register or install PostgreSQL | `ankus init --pg18 download`, or supply `pg_config` |
+| Run tests | `dotnet test`, or `ankus test --pg 18` |
+| Build and enter the development database | `ankus run --pg 18` |
+| Connect without rebuilding | `ankus connect --pg 18` |
+| Install or package the extension | `ankus install`, `ankus package` |
+| Run SQL regression files | `ankus regress --pg 18` |
+
+The project SDK selects the matching headers, generated bindings and packaged
+Native AOT runtime. `AnkusPostgresMajor` selects the project's PostgreSQL major;
+an explicit `--pg` selects a command invocation. See the [CLI guide](/reference/cli/)
+for each command's supported options and version selection.
+
+When migrating an existing extension, preserve SQL identity and review its
+on-disk representation separately. Generated C# storage is not a promise of
+binary compatibility with a Rust serializer. Use an explicit codec or SQL
+upgrade path when existing data must remain readable. Shared-preload libraries
+and runtime servicing also require the deployment steps in the
+[publishing](/getting-started/publishing/) and [.NET support](/reference/dotnet-support/)
+guides.

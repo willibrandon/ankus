@@ -9,11 +9,17 @@ Assembly: `Ankus.Runtime.dll`
 
 ## Interfaces
 
+- [IPgAggregate&lt;TState, TArgs&gt;](/api/ankus.ipgaggregate-2/)
+- [IPgCombinableAggregate&lt;TState&gt;](/api/ankus.ipgcombinableaggregate-1/)
 - [IPgDatumReader&lt;T&gt;](/api/ankus.ipgdatumreader-1/)
 - [IPgDatumWriter&lt;T&gt;](/api/ankus.ipgdatumwriter-1/)
+- [IPgFinalizingAggregate&lt;TState, TDirect, TResult&gt;](/api/ankus.ipgfinalizingaggregate-3/)
 - [IPgHashable](/api/ankus.ipghashable/)
+- [IPgMovingAggregate&lt;TState, TArgs&gt;](/api/ankus.ipgmovingaggregate-2/)
+- [IPgMovingFinalizingAggregate&lt;TState, TDirect, TResult&gt;](/api/ankus.ipgmovingfinalizingaggregate-3/)
 - [IPgNativeNode](/api/ankus.ipgnativenode/)
 - [IPgNativeType](/api/ankus.ipgnativetype/)
+- [IPgSerializableAggregate&lt;TState&gt;](/api/ankus.ipgserializableaggregate-1/)
 
 ## Classes
 

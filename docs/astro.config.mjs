@@ -81,6 +81,7 @@ export default defineConfig({
             { label: 'Write a function', slug: 'getting-started/functions' },
             { label: 'Test an extension', slug: 'getting-started/testing' },
             { label: 'Publish and install', slug: 'getting-started/publishing' },
+            { label: 'Coming from pgrx', slug: 'getting-started/from-pgrx' },
           ],
         },
         {
@@ -131,7 +132,7 @@ export default defineConfig({
             { label: 'Command-line tool', slug: 'reference/cli' },
             { label: 'Build settings', slug: 'reference/build-settings' },
             { label: '.NET support', slug: 'reference/dotnet-support' },
-            { label: 'Execution and lifetime', slug: 'reference/execution' },
+            { label: 'Running .NET in PostgreSQL', slug: 'reference/execution' },
           ],
         },
         {

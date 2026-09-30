@@ -57,6 +57,19 @@ public string? Column { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
+<a id="member-da0d810f09bf53f1"></a>
+
+### Element
+
+Gets or sets the exact C# tuple element to bind within a typed aggregate argument group.
+Omit for a scalar parameter or return value; Column selects TABLE outputs separately.
+
+```csharp
+public string? Element { get; set; }
+```
+
+Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
+
 <a id="member-9e233e40af4c73a3"></a>
 
 ### IsArray
