@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -14,6 +13,7 @@ internal static class PgFunctionEmitter
     /// </summary>
     /// <param name="method">The attributed managed method.</param>
     /// <param name="parameterModels">The validated managed parameters and their SQL slots.</param>
+    /// <param name="result">The validated scalar result conversion contract.</param>
     /// <param name="declaration">The validated SQL declaration.</param>
     /// <param name="callback">The assembly-specific managed callback symbol.</param>
     /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
@@ -22,30 +22,41 @@ internal static class PgFunctionEmitter
     /// <param name="exports">The native linker export list.</param>
     /// <param name="providers">Extension-owned types used to qualify selected SQL.</param>
     /// <returns>The SQL function contract to render after dependency resolution.</returns>
-    internal static SqlFunction Emit(IMethodSymbol method, FunctionParameter[] parameterModels, FunctionDeclaration declaration, string callback,
+    internal static SqlFunction Emit(MethodInvocation method, FunctionParameter[] parameterModels, FunctionType result, FunctionDeclaration declaration, string callback,
         bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
+        FunctionEmission emission = EmitBoundary(method, parameterModels, result, callback);
+        emission.AppendTo(managed, native, exports, ensureInitialized);
+        return new(declaration, declaration.Arguments, SqlSchemaTemplate.Type(result, providers), emission.NativeName, emission.IsPlannerSupport);
+    }
+
+    /// <summary>
+    /// Renders one scalar dispatcher independently of SQL graph resolution and extension initialization.
+    /// </summary>
+    /// <param name="method">The detached managed invocation and return policies.</param>
+    /// <param name="parameterModels">The ordered managed and SQL parameter contracts.</param>
+    /// <param name="result">The validated scalar result contract.</param>
+    /// <param name="callback">The assembly-specific callback identity.</param>
+    /// <returns>The immutable managed, native and export artifacts.</returns>
+    internal static FunctionEmission EmitBoundary(MethodInvocation method, FunctionParameter[] parameterModels, FunctionType result, string callback)
+    {
         FunctionType[] parameters = [.. parameterModels.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)];
-        FunctionType result = FunctionType.CreateResult(method)!;
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
+        var managed = new StringBuilder();
         EmitManaged(method, callback, parameterModels, result, managed);
-        EmitNative(nativeName, callback, parameters, result, ensureInitialized, native);
-        exports.AppendLine(nativeName);
-        exports.AppendLine("pg_finfo_" + nativeName);
-        return new(declaration, declaration.Arguments, SqlSchemaTemplate.Type(result, providers), nativeName,
+        return new(managed.ToString(), CreateNative(nativeName, callback, parameters, result), new StringBuilder().AppendLine(nativeName).AppendLine("pg_finfo_" + nativeName).ToString(), nativeName,
             parameters.Length == 1 && parameters[0].IsSqlInternal && result.IsSqlInternal &&
-            !method.Parameters.Any(static parameter => parameter.IsParams));
+            !parameterModels.Any(static parameter => parameter.IsParams));
     }
 
     private static void EmitManaged(
-        IMethodSymbol method, string callback, FunctionParameter[] parameters, FunctionType result, StringBuilder source)
+        MethodInvocation method, string callback, FunctionParameter[] parameters, FunctionType result, StringBuilder source)
     {
         IEnumerable<string> arguments = parameters.Select(static parameter => parameter.Type?.HasRelations == true
             ? "relationScope.Add(" + parameter.ReadExpression(borrowVarlena: true) + ")" : parameter.ReadExpression(borrowVarlena: true));
-        string typeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        string invocation = $"{typeName}.@{method.Name}({string.Join(", ", arguments)})";
-        EmitManaged(callback, result, invocation, NumericConstraint.Rescale(method.GetReturnTypeAttributes()),
+        string invocation = $"{method.Target}({string.Join(", ", arguments)})";
+        EmitManaged(callback, result, invocation, method.NumericPrecision?.Suffix ?? string.Empty,
             parameters.Any(static parameter => parameter.IsFunctionContext), source,
             parameters.Any(static parameter => parameter.Type?.HasRelations == true));
     }
@@ -127,16 +138,24 @@ internal static class PgFunctionEmitter
     /// </summary>
     internal static void EmitNative(
         string name, string callback, FunctionType[] parameters, FunctionType result, bool ensureInitialized, StringBuilder source)
-    {
-        source.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
-        source.AppendLine($"PG_FUNCTION_INFO_V1({name});");
-        source.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
-        source.AppendLine("{");
-        if (ensureInitialized)
-        {
-            source.AppendLine("    ankus_ensure_initialized();");
-        }
+        => CreateNative(name, callback, parameters, result).AppendTo(source, ensureInitialized);
 
+    /// <summary>
+    /// Renders native conversion and cleanup while keeping initialization selection outside the cached body.
+    /// </summary>
+    /// <param name="name">The native entry identity.</param>
+    /// <param name="callback">The managed callback identity.</param>
+    /// <param name="parameters">The ordered SQL argument conversions.</param>
+    /// <param name="result">The scalar result conversion.</param>
+    /// <returns>The independently rendered header and body.</returns>
+    private static NativeFunctionEmission CreateNative(string name, string callback, FunctionType[] parameters, FunctionType result)
+    {
+        var header = new StringBuilder();
+        header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
+        header.AppendLine($"PG_FUNCTION_INFO_V1({name});");
+        header.AppendLine($"PGDLLEXPORT Datum {name}(PG_FUNCTION_ARGS)");
+        header.AppendLine("{");
+        var source = new StringBuilder();
         string count = parameters.Length.ToString(CultureInfo.InvariantCulture);
         string capacity = Math.Max(1, parameters.Length).ToString(CultureInfo.InvariantCulture);
         bool hasBuffers = parameters.Any(static parameter => parameter.IsBuffer);
@@ -404,5 +423,6 @@ internal static class PgFunctionEmitter
         source.AppendLine("    return datum;");
         source.AppendLine("}");
         source.AppendLine();
+        return new(header.ToString(), source.ToString());
     }
 }

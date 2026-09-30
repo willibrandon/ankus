@@ -6,17 +6,16 @@ namespace Ankus.Generators;
 /// <summary>
 /// Resolves named SQL bindings on parameters, scalar returns and individual TABLE columns.
 /// </summary>
-internal sealed class SqlTypeReference(string name, string? schema, bool raw = false, bool array = false)
+/// <param name="Name">The exact unquoted catalog name.</param>
+/// <param name="Schema">The fixed catalog schema, or null for an unqualified binding.</param>
+/// <param name="IsRaw">Whether the value carries a raw PostgreSQL datum.</param>
+/// <param name="IsArray">Whether the binding identifies an array type.</param>
+internal sealed record SqlTypeReference(string Name, string? Schema, bool IsRaw = false, bool IsArray = false)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS009", "Invalid PostgreSQL composite binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
     private static readonly DiagnosticDescriptor s_invalidRaw = new(
         "ANKUS016", "Invalid PostgreSQL raw type binding", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
-
-    /// <summary>
-    /// Gets whether the binding declares a raw datum rather than a managed heap tuple.
-    /// </summary>
-    internal bool IsRaw { get; } = raw;
 
     /// <summary>
     /// Gets whether the binding names PostgreSQL's internal callback type.
@@ -33,7 +32,7 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     /// <summary>
     /// Gets whether this scalar binding identifies a built-in type.
     /// </summary>
-    private bool IsBuiltin => IsRaw && !array && Schema is null or "pg_catalog";
+    private bool IsBuiltin => IsRaw && !IsArray && Schema is null or "pg_catalog";
 
     /// <summary>
     /// Gets a schema dependency when installation must preserve a user-selected type schema.
@@ -41,20 +40,10 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     internal string? DependencySchema => IsRaw && Schema == "pg_catalog" ? null : Schema;
 
     /// <summary>
-    /// Gets the explicitly selected schema, or null for an unqualified type reference.
-    /// </summary>
-    internal string? Schema { get; } = schema;
-
-    /// <summary>
-    /// Gets the unquoted catalog name independently of array shape.
-    /// </summary>
-    internal string Name { get; } = name;
-
-    /// <summary>
     /// Gets the quoted SQL type identifier with its optional schema.
     /// </summary>
     internal string Sql => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(Name) +
-        (array ? "[]" : string.Empty);
+        (IsArray ? "[]" : string.Empty);
 
     /// <summary>
     /// Reads the single binding on an already validated parameter or scalar return.
@@ -66,9 +55,21 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     }
 
     /// <summary>
-    /// Validates context-specific bindings and applies them to already resolved set output columns.
+    /// Validates scalar bindings without retaining a set result.
     /// </summary>
-    internal static bool Validate(IMethodSymbol method, SetResult? set, SourceProductionContext context)
+    /// <param name="method">The attributed scalar method.</param>
+    /// <param name="context">The generator diagnostic destination.</param>
+    /// <returns>Whether every parameter and result binding is valid.</returns>
+    internal static bool Validate(IMethodSymbol method, GeneratorDiagnostics context)
+    {
+        SetResult? set = null;
+        return Validate(method, ref set, context);
+    }
+
+    /// <summary>
+    /// Validates context-specific bindings and replaces the immutable set model with bound output columns.
+    /// </summary>
+    internal static bool Validate(IMethodSymbol method, ref SetResult? set, GeneratorDiagnostics context)
     {
         bool valid = true;
         foreach (IParameterSymbol parameter in method.Parameters)
@@ -83,6 +84,8 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
         else
         {
             var bound = new HashSet<int>();
+            FunctionType[] columns = [.. set.Columns];
+            ITypeSymbol[] outputTypes = SetResult.OutputTypes(method);
             foreach (AttributeData attribute in Bindings(method.GetReturnTypeAttributes()))
             {
                 if (!ValidateName(attribute, Error))
@@ -100,7 +103,7 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
                 int index;
                 if (column is not null)
                 {
-                    index = set.Names is null ? -1 : Array.IndexOf(set.Names, column);
+                    index = set.Names is null ? -1 : Array.IndexOf<string>([.. set.Names], column);
                     if (index < 0)
                     {
                         Error(attribute, "Column must name an existing SQL TABLE output; scalar and SETOF returns cannot select a column.");
@@ -109,7 +112,7 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
                 }
                 else
                 {
-                    int[] candidates = [.. Enumerable.Range(0, set.Columns.Length).Where(candidate => Matches(set.Columns[candidate], attribute))];
+                    int[] candidates = [.. Enumerable.Range(0, columns.Length).Where(candidate => Matches(columns[candidate], attribute))];
                     if (candidates.Length != 1)
                     {
                         Error(attribute, "A return binding without Column requires exactly one matching output; select each TABLE column explicitly when ambiguous.");
@@ -119,7 +122,7 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
                     index = candidates[0];
                 }
 
-                if (!Matches(set.Columns[index], attribute))
+                if (!Matches(columns[index], attribute))
                 {
                     Error(attribute, Requirement(attribute));
                     continue;
@@ -131,12 +134,14 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
                     continue;
                 }
 
-                set.Columns[index] = FunctionType.Create(set.Types[index], Read(attribute))!;
+                columns[index] = FunctionType.Create(outputTypes[index], Read(attribute))!;
             }
 
-            for (int index = 0; index < set.Columns.Length; index++)
+            set = set with { Columns = new(columns) };
+
+            for (int index = 0; index < columns.Length; index++)
             {
-                if (set.Columns[index].IsRaw && set.Columns[index].Binding is null)
+                if (columns[index].IsRaw && columns[index].Binding is null)
                 {
                     Error(null, "Each PgDatum output requires a PgSqlType binding.");
                 }
@@ -156,7 +161,7 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     /// Validates one SQL value after any aggregate tuple-element selection.
     /// </summary>
     internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, IMethodSymbol method,
-        string target, SourceProductionContext context, bool grouped = false)
+        string target, GeneratorDiagnostics context, bool grouped = false)
     {
         bool valid = true;
         AttributeData[] bindings = [.. Bindings(attributes)];
@@ -220,10 +225,10 @@ internal sealed class SqlTypeReference(string name, string? schema, bool raw = f
     /// <summary>
     /// Reports a binding diagnostic at its attribute or declaring method.
     /// </summary>
-    private static void Report(AttributeData? attribute, IMethodSymbol method, string message, SourceProductionContext context)
-        => context.ReportDiagnostic(Diagnostic.Create(attribute is null || IsRawBinding(attribute) ? s_invalidRaw : s_invalid,
+    private static void Report(AttributeData? attribute, IMethodSymbol method, string message, GeneratorDiagnostics context)
+        => context.Report(attribute is null || IsRawBinding(attribute) ? s_invalidRaw : s_invalid,
             attribute?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? method.Locations.FirstOrDefault(),
-            method.Name, message));
+            method.Name, message);
 
     /// <summary>
     /// Checks the managed representation selected by a binding attribute.

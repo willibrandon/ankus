@@ -6,7 +6,7 @@ namespace Ankus.Generators;
 /// <summary>
 /// Resolves and validates SQL declaration options without evaluating extension code.
 /// </summary>
-internal sealed class FunctionDeclaration
+internal sealed record FunctionDeclaration
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS004", "Invalid PostgreSQL declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -17,7 +17,7 @@ internal sealed class FunctionDeclaration
     internal string? Schema
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -26,7 +26,7 @@ internal sealed class FunctionDeclaration
     internal string Name
     {
         get;
-        private set;
+        private init;
     } = string.Empty;
 
     /// <summary>
@@ -35,7 +35,7 @@ internal sealed class FunctionDeclaration
     internal string QualifiedName
     {
         get;
-        private set;
+        private init;
     } = string.Empty;
 
     /// <summary>
@@ -49,7 +49,7 @@ internal sealed class FunctionDeclaration
     internal string Arguments
     {
         get;
-        private set;
+        private init;
     } = string.Empty;
 
     /// <summary>
@@ -58,14 +58,8 @@ internal sealed class FunctionDeclaration
     internal string Options
     {
         get;
-        private set;
+        private init;
     } = string.Empty;
-
-    /// <summary>
-    /// Adds the resolved generated support identity after all function declarations have been registered.
-    /// </summary>
-    /// <param name="name">The quoted SQL function name with its schema selection marker.</param>
-    internal void SetPlannerSupport(string name) => Options += " SUPPORT " + name;
 
     /// <summary>
     /// Gets whether the declaration replaces an existing compatible function.
@@ -73,7 +67,7 @@ internal sealed class FunctionDeclaration
     internal bool Replace
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -82,7 +76,7 @@ internal sealed class FunctionDeclaration
     internal bool Strict
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -98,7 +92,7 @@ internal sealed class FunctionDeclaration
     /// <param name="parameterModels">The ordered SQL and injected parameters, or null to resolve them from the method.</param>
     /// <param name="providers">The extension type providers used for default-schema qualification.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
-    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, SourceProductionContext context, SetResult? set = null,
+    internal static FunctionDeclaration? Create(IMethodSymbol method, string name, GeneratorDiagnostics context, SetResult? set = null,
         bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null,
         SqlTypeProviders? providers = null)
     {
@@ -161,11 +155,15 @@ internal sealed class FunctionDeclaration
             return Invalid("A fixed schema must be a nonempty identifier of at most 63 UTF-8 bytes.");
         }
 
-        declaration.Schema = schema;
-        declaration.Name = name;
-        declaration.QualifiedName = (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + SqlText.Identifier(name);
-        declaration.Replace = Value(attribute, "CreateOrReplace", false);
-        declaration.Strict = nullInput == 1 || (nullInput == 0 && allRequired);
+        declaration = declaration with
+        {
+            Schema = schema,
+            Name = name,
+            QualifiedName = (schema is null ? string.Empty : SqlText.Identifier(schema) + ".") + SqlText.Identifier(name),
+            Replace = Value(attribute, "CreateOrReplace", false),
+            Strict = nullInput == 1 || (nullInput == 0 && allRequired),
+        };
+
         var options = new List<string>
         {
             volatility switch { 1 => "STABLE", 2 => "IMMUTABLE", _ => "VOLATILE" },
@@ -225,7 +223,7 @@ internal sealed class FunctionDeclaration
             options.Add("SET search_path TO " + (path.Length == 0 ? "''" : string.Join(", ", path.Select(static entry => SqlText.Identifier(entry!)))));
         }
 
-        declaration.Options = string.Join(" ", options);
+        declaration = declaration with { Options = string.Join(" ", options) };
         if (contextParameter)
         {
             return declaration;
@@ -236,28 +234,24 @@ internal sealed class FunctionDeclaration
         bool defaultSeen = false;
         foreach (FunctionParameter model in parameterModels ?? FunctionParameter.Create(method))
         {
-            IParameterSymbol parameter = model.Symbol;
             if (model.IsInjected)
             {
-                if (parameter.GetAttributes().Any(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute"))
+                if (!model.SqlOptions.IsEmpty)
                 {
-                    return Invalid($"An injected {parameter.Type.Name} has no SQL parameter name or default; remove PgParameter from it.");
+                    return Invalid($"An injected {model.DeclaredTypeName} has no SQL parameter name or default; remove PgParameter from it.");
                 }
 
                 continue;
             }
 
             FunctionType type = model.Type!;
-            AttributeData[] parameterAttributes = [.. parameter.GetAttributes().Where(static value =>
-                value.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
-            if (parameterAttributes.Length > 1 || parameterAttributes.Any(static value =>
-                AttributeValues.Get<string?>(value, "Element", null) is not null || AttributeValues.Get(value, "Variadic", false)))
+            if (model.SqlOptions.Count > 1 || model.SqlOptions.Any(static value => value.Element is not null || value.Variadic))
             {
                 return Invalid("Ordinary SQL parameters allow one PgParameter attribute without aggregate element or variadic options; declare variadic functions with params.");
             }
 
-            AttributeData? parameterAttribute = parameterAttributes.FirstOrDefault();
-            string parameterName = Value<string?>(parameterAttribute, "Name", null) ?? SqlText.SnakeCase(parameter.Name);
+            SqlParameterOptions? parameterOptions = model.SqlOptions.IsEmpty ? null : model.SqlOptions[0];
+            string parameterName = parameterOptions?.Name ?? SqlText.SnakeCase(model.Name);
             if (!SqlText.IsIdentifier(parameterName) || !parameterNames.Add(parameterName))
             {
                 return Invalid("SQL parameter names must be distinct identifiers of at most 63 UTF-8 bytes.");
@@ -268,18 +262,18 @@ internal sealed class FunctionDeclaration
                 return Invalid("Input and TABLE output parameters must have distinct SQL names.");
             }
 
-            string? expression = Value<string?>(parameterAttribute, "Default", null);
+            string? expression = parameterOptions?.Default;
             if (expression is not null && (string.IsNullOrWhiteSpace(expression) || !SqlText.IsText(expression)))
             {
                 return Invalid("A SQL default must be a nonempty expression with valid Unicode and no zero characters.");
             }
 
-            if (expression is null && parameter.HasExplicitDefaultValue)
+            if (expression is null && model.HasExplicitDefaultValue)
             {
-                expression = ParameterDefault.Create(parameter, type);
+                expression = model.OptionalDefaultSql;
                 if (expression is null)
                 {
-                    return Invalid($"The optional default for '{parameter.Name}' needs an explicit PgParameter.Default SQL expression.");
+                    return Invalid($"The optional default for '{model.Name}' needs an explicit PgParameter.Default SQL expression.");
                 }
             }
 
@@ -289,11 +283,11 @@ internal sealed class FunctionDeclaration
             }
 
             defaultSeen |= expression is not null;
-            parameters.Add((parameter.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameterName) + " " + SqlSchemaTemplate.Type(type, providers) +
+            parameters.Add((model.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameterName) + " " + SqlSchemaTemplate.Type(type, providers) +
                 (expression is null ? string.Empty : " DEFAULT (" + expression + ")"));
         }
 
-        declaration.Arguments = string.Join(", ", parameters);
+        declaration = declaration with { Arguments = string.Join(", ", parameters) };
         return declaration;
 
         FunctionDeclaration? Invalid(string reason)
@@ -310,8 +304,8 @@ internal sealed class FunctionDeclaration
     /// <param name="location">The current declaration location.</param>
     /// <param name="name">The authored managed name.</param>
     /// <param name="reason">The exact validation failure.</param>
-    internal static void ReportInvalid(SourceProductionContext context, Location? location, string name, string reason)
-        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, location, name, reason));
+    internal static void ReportInvalid(GeneratorDiagnostics context, Location? location, string name, string reason)
+        => context.Report(s_invalid, location, name, reason);
 
     private static T Value<T>(AttributeData? attribute, string name, T fallback)
     {

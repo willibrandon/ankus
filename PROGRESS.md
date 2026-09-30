@@ -84,8 +84,8 @@ remains incomplete; the following work is additional to the open parity gates.
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
-| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Dedicated-platform CI for the refresh and the remaining full version/platform matrix remain required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
-| .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
+| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI now passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
+| .NET author experience | Immutable module, enum and schema stages pass complete dedicated-platform CI. Ordinary function conversion and boundary rendering pass tracked-driver tests, complete PostgreSQL 18.6/Linux x64 acceptance, Release and documentation gates; fresh platform CI is pending. Function SQL rendering is separately implemented and awaiting backend acceptance. Remaining declaration families and final graph/output caching are open. Actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain required. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
@@ -211,7 +211,118 @@ project passes **2,436/2,436**, zero failures or skips, **32.543s**. Per-method
 analysis/emission, other declaration families and graph/output caching are still
 in progress. This foundation is not full function incrementality.
 
-## Current verified milestone
+Ordinary `[PgFunction]` conversion validation now also runs in a per-method
+semantic pipeline. Its production compositor consumes the detached parameter,
+scalar/set result and invocation models. Shared validators retain the original
+diagnostic descriptors, arguments, cancellation tokens and current-tree locations;
+duplicate invalid C# signatures do not crash model lookup. Tracked driver tests
+verify unchanged contracts across body edits and source movement, plus ordinary
+diagnostics for duplicate signatures. The isolated function-analysis snapshot
+passes the complete generator project **2,439/2,439**, zero failures or skips,
+**32.496s**. Initial new test expectations omitted the existing integer default
+cast; correcting those literals required no production change. Function boundary
+rendering and SQL declaration/graph composition still require conversion and
+their full backend/platform acceptance. This phase's generator test project also
+builds in Release with **zero warnings/errors, 3.73s**. It remains uncommitted.
+
+Ordinary function dispatcher C#, native entry bodies and exports now render in an
+independent tracked stage. Initialization is selected during final composition
+using immutable header/body fragments. Actual driver tests retain cached scalar
+and TABLE boundaries across implementation edits, source movement, SQL-option
+changes and added initialization. Dependent numeric constants and nullability
+invalidate the affected boundary; unrelated functions remain cached. Diagnostics
+attach to current trees and disappear after repair. Removal drops the deleted
+function's SQL and exports and preserves the survivor's exact artifacts. Roslyn's
+positional input shift can rerender a survivor when an earlier tree is removed;
+removing the last tree preserves its cache entry.
+
+The final isolated generator project passes **2,452/2,452**, zero failures or
+skips, **30.635s**. The focused tracked-driver scope passes **16/16**, **2.237s**.
+An initial removal test incorrectly required a positional cache hit after removing
+the first tree; the corrected test covers both removal positions and exact
+surviving contracts. Full Release, PostgreSQL and documentation acceptance for
+this uncommitted phase remain pending. Function SQL declarations, other declaration
+families and final graph/output caching remain open; these results do not prove
+full incrementality or an overall performance improvement.
+
+The function-rendering snapshot's complete Release build succeeds with **zero
+warnings/errors, 3m12.70s**. API freshness verifies **234 pages / 2,683 members**;
+the updated contributing guide builds with **282 site pages, 8.91s**, and the
+site check reports zero errors, warnings or hints. All 30 function-phase source
+and test files match the remote acceptance snapshot by SHA256, based on committed
+**da3da9e**. Complete plain `dotnet test` against **PostgreSQL 18.6/Linux x64**
+is now running with three package slots. Backend acceptance is pending.
+
+The next isolated function-SQL phase removes ordinary declaration validation from
+the extension-wide compositor. Immutable named argument contracts defer type
+qualification to the current provider graph; shared scalar/set renderers use the
+same contract. Per-method analysis also detaches authored SQL generation and
+dependency policy. Actual tracked tests cover body/source edits, dependent planner
+constants, inherited schemas and explicit overrides, current-tree diagnostics and
+repair, a provider added after a declaration cache hit, and changed replacement,
+suppression and prerequisite policies. Its complete generator project passes
+**2,462/2,462**, zero failures or skips, **24.660s**, on Linux x64 with SDK
+**10.0.400**. The focused declaration selection passes **12/12**, **2.525s**.
+This newer checkout is separate from the still-running PostgreSQL acceptance
+snapshot. Full SQL rendering, other declaration families and final graph/output
+caching remain open; final Release, docs and backend acceptance of this phase
+are pending.
+
+The newer function-SQL phase's affected generator test project builds in Release
+with **zero warnings/errors, 6.85s**. Its updated contributing guide passes API
+freshness (**234 pages / 2,683 members**), builds **282 site pages in 8.41s**, and
+reports zero check errors, warnings or hints. Full solution Release and actual
+PostgreSQL/platform acceptance remain required; the older complete backend run
+is still active and its checkout has not been modified.
+
+Ordinary function SQL now renders through an independent tracked stage. Its
+immutable inputs contain only catalog identities, execution options and native
+entry names; managed conversion policies do not invalidate identical SQL.
+Cached fragments retain escaped names/defaults and typed input/output catalog
+slots. Composition qualifies those slots against current providers and resolves
+current planner-support references afterward. Scalar, SETOF and TABLE shapes
+share their grammar with the specialized callback formatter. No authored SQL
+is searched or replaced to update type ownership.
+
+The final focused SQL-rendering scope passes **17/17**, zero failures or skips,
+**3.051s**. Actual tracked driver tests cover implementation/source edits, dependent
+options, provider additions for scalar/array/TABLE inputs and outputs, changed
+typed planner targets, initialization/removal, and return-nullability changes
+that retain SQL while invalidating the managed boundary. The first full generator
+run passed **2,474/2,474**, **26.497s**; the final narrower SQL model and additional
+case are undergoing complete generator and Release verification. Full backend
+acceptance of this newer phase and conversion of the remaining declaration
+families and final graph/output caching remain required. These results make no
+overall build-performance claim.
+
+## Current verified milestone — ordinary function boundaries
+
+Ordinary scalar and iterator functions now validate into immutable per-method
+contracts before rendering dispatcher C#, native entry bodies and exports in a
+separate cached stage. Current initialization and graph configuration compose
+outside those artifacts. Actual tracked driver tests cover implementation/source
+edits, dependent constants/nullability, current diagnostics and recovery, changed
+SQL options, initialization and removal. Compiler objects do not enter these
+cached boundary values; other declaration families and final graph/output
+conversion remain required.
+
+The exact 30-file source/test snapshot passes plain `dotnet test` on
+**Linux x64/PostgreSQL 18.6**: **10,107 total, 10,095 passed, zero failed and
+12 platform skips**, **40m45.381s**. All six modules pass; integration takes
+**40m44.715s**, generators **53.131s** and Build **2m31.143s**. Its source hashes
+match the committed-base snapshot, including the final function cache tests.
+The previously recorded complete Release, API freshness and site gates pass
+for this same source and contributing guide. The duration is observed evidence,
+not a controlled performance comparison.
+
+Before commit and push, CI **36786103805** and Docs **36786103797** remain successful
+for **da3da9e**, with all three full platform jobs passing. Windows repair CI
+**36776683824** and Docs **36776683807** also succeed. The reported older
+**36762725364** failure is resolved by those replacement runs. No previous CI
+is active. Fresh platform validation for this milestone remains pending; newer
+function-SQL work is isolated and requires its own full backend acceptance.
+
+## Previous verified milestone — module, enum and schema models
 
 Module identity, enums and schemas now cross immutable semantic-model boundaries
 before rendering. Actual tracked generator-driver tests verify reuse, dependent
@@ -237,6 +348,15 @@ its Docs run succeeded. Previous provenance and aggregate runs remain successful
 No previous CI run is still active. New dedicated-platform CI for this milestone
 remains pending. The full generator conversion, wider version/platform matrix and
 remaining review requirements stay open.
+
+The milestone is committed and pushed as **da3da9e**. CI
+[36786103805](https://github.com/willibrandon/ankus/actions/runs/36786103805)
+and Docs **36786103797** both succeed for that exact commit. Quality and all
+three runtime jobs pass. Complete platform jobs pass on Windows x64/PostgreSQL
+17 (**20m38s**), Linux x64/PostgreSQL 18 (**22m45s**) and macOS ARM64/PostgreSQL
+18 (**18m25s**), with no timeouts. The user-reported Windows failure in
+**36762725364** predates the verified repair and these successful replacement
+runs. The ongoing isolated function-model work is not part of this commit.
 
 ## Previous verified milestone — Windows native probes and database names
 

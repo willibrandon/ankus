@@ -19,8 +19,21 @@ Their cached values contain no compiler symbols or syntax trees. Diagnostic sour
 coordinates are resolved against the current compilation, including mapped lines.
 Enum and schema SQL fragments are cached separately from their graph policies, so
 dependency-only edits still reorder installation SQL without rerendering unchanged
-declarations. Other declaration families and final graph composition still consume
-compiler symbols; the full incremental conversion remains in progress.
+declarations.
+
+Ordinary `PgFunction` scalar and iterator conversion contracts also cross an
+immutable per-method boundary. Dispatcher C#, native entry bodies and export
+declarations render in a separate tracked stage, which remains cached across
+implementation edits and source movement. SQL-only execution options update the
+current graph without invalidating these boundaries. The final compositor selects
+initialization before native backend work, using the cached entry header and body.
+Validation diagnostics resolve against the current source tree, even when a
+failed conversion model remains unchanged. Removing declarations preserves the
+surviving contracts; Roslyn can rerender a survivor when its positional input
+entry changes.
+
+Other declaration families, function SQL declarations and final graph composition
+still consume compiler symbols; the full incremental conversion remains in progress.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and

@@ -88,7 +88,7 @@ internal static class OperatorCastDeclaration
             return Invalid("The operator name must contain 1-63 valid PostgreSQL operator characters, without comment starts or ambiguous trailing + or -.");
         }
 
-        if (parameters.Length is < 1 or > 2 || method.ReturnsVoid || parameters.Any(static parameter => parameter.Symbol.IsParams))
+        if (parameters.Length is < 1 or > 2 || method.ReturnsVoid || parameters.Any(static parameter => parameter.IsParams))
         {
             return Invalid("An operator requires one prefix operand or two binary operands, no variadic parameters, and a non-void result.");
         }
@@ -179,13 +179,13 @@ internal static class OperatorCastDeclaration
             return Invalid("The cast context must be Explicit, Assignment, or Implicit.");
         }
 
-        if (parameters.Length is < 1 or > 3 || method.ReturnsVoid || parameters.Any(static parameter => parameter.Symbol.IsParams))
+        if (parameters.Length is < 1 or > 3 || method.ReturnsVoid || parameters.Any(static parameter => parameter.IsParams))
         {
             return Invalid("A cast requires one to three non-variadic parameters and a non-void result.");
         }
 
-        if (parameters.Length > 1 && parameters[1].Symbol.Type.SpecialType != SpecialType.System_Int32 ||
-            parameters.Length > 2 && parameters[2].Symbol.Type.SpecialType != SpecialType.System_Boolean)
+        if (parameters.Length > 1 && parameters[1].DeclaredSpecialType != SpecialType.System_Int32 ||
+            parameters.Length > 2 && parameters[2].DeclaredSpecialType != SpecialType.System_Boolean)
         {
             return Invalid("A cast's optional second parameter must be non-nullable int (type modifier), and its third must be non-nullable bool (explicit conversion).");
         }

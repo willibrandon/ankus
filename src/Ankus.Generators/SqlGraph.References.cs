@@ -132,7 +132,7 @@ internal sealed partial class SqlGraph
         }
 
         source.RequiredDeclarations.Add(target);
-        source.Function.Declaration.SetPlannerSupport(support.Declaration.TemplateName);
+        source.Function.SetPlannerSupport(support.Declaration.TemplateName);
     }
 
     private SqlEntity? Source(ISymbol declaration, AttributeData attribute)

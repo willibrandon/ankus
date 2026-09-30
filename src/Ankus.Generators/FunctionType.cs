@@ -5,7 +5,7 @@ namespace Ankus.Generators;
 /// <summary>
 /// Describes the SQL type and native conversion contract for a generated method parameter or result.
 /// </summary>
-internal sealed class FunctionType
+internal sealed record FunctionType
 {
     /// <summary>
     /// Creates the non-null boolean result of a generated comparison.
@@ -69,7 +69,7 @@ internal sealed class FunctionType
     internal FunctionType? Element
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ internal sealed class FunctionType
     internal FunctionType? RangeSubtype
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -87,25 +87,25 @@ internal sealed class FunctionType
     internal EnumDeclaration? Enumeration
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
     /// Gets the generated binary storage contract for a custom base type.
     /// </summary>
-    internal CustomTypeDeclaration? CustomType
+    internal CustomTypeReference? CustomType
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
     /// Gets the reusable raw datum conversion contract for this managed scalar.
     /// </summary>
-    internal DatumTypeDeclaration? DatumType
+    internal DatumTypeReference? DatumType
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ internal sealed class FunctionType
     internal SqlTypeReference? Binding
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -193,7 +193,7 @@ internal sealed class FunctionType
     internal bool IsVector
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
@@ -308,7 +308,7 @@ internal sealed class FunctionType
 
             return new("global::Ankus.PgVarlena<" + layout.Managed + ">", layout.Sql, "varlena", "custom", string.Empty, nullable, reference: true)
             {
-                CustomType = layout,
+                CustomType = CustomTypeReference.Create(layout),
             };
         }
 
@@ -316,7 +316,7 @@ internal sealed class FunctionType
         {
             return new(datum.Managed, datum.Sql, "mapped", "mapped", string.Empty, nullable, type.IsReferenceType)
             {
-                DatumType = datum,
+                DatumType = DatumTypeReference.Create(datum),
             };
         }
 
@@ -324,7 +324,7 @@ internal sealed class FunctionType
         {
             return new(custom.Managed, custom.Sql, "custom", "custom", string.Empty, nullable, type.IsReferenceType)
             {
-                CustomType = custom,
+                CustomType = CustomTypeReference.Create(custom),
             };
         }
 

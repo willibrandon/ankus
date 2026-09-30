@@ -23,7 +23,7 @@ internal static class SqlNullability
     /// <param name="context">The diagnostic output context.</param>
     /// <returns>Whether every SQL reference has an explicit nullable contract.</returns>
     internal static bool Validate(IMethodSymbol method, IEnumerable<IParameterSymbol> parameters,
-        IEnumerable<ITypeSymbol> results, SourceProductionContext context)
+        IEnumerable<ITypeSymbol> results, GeneratorDiagnostics context)
     {
         bool valid = true;
         foreach (IParameterSymbol parameter in parameters)
@@ -32,7 +32,7 @@ internal static class SqlNullability
             {
                 Location? location = (parameter.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken)
                     as ParameterSyntax)?.Type?.GetLocation() ?? parameter.Locations.FirstOrDefault();
-                context.ReportDiagnostic(Diagnostic.Create(s_oblivious, location, parameter.Name, ambiguous.ToDisplayString()));
+                context.Report(s_oblivious, location, parameter.Name, ambiguous.ToDisplayString());
                 valid = false;
             }
         }
@@ -43,7 +43,7 @@ internal static class SqlNullability
             {
                 Location? location = (method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken)
                     as MethodDeclarationSyntax)?.ReturnType.GetLocation() ?? method.Locations.FirstOrDefault();
-                context.ReportDiagnostic(Diagnostic.Create(s_oblivious, location, method.Name + " result", ambiguous.ToDisplayString()));
+                context.Report(s_oblivious, location, method.Name + " result", ambiguous.ToDisplayString());
                 valid = false;
             }
         }
@@ -54,14 +54,14 @@ internal static class SqlNullability
     /// <summary>
     /// Checks one SQL slot of a grouped aggregate argument or interface result.
     /// </summary>
-    internal static bool ValidateValue(ITypeSymbol type, ISymbol source, string name, SourceProductionContext context)
+    internal static bool ValidateValue(ITypeSymbol type, ISymbol source, string name, GeneratorDiagnostics context)
     {
         if (FindOblivious(type) is not { } ambiguous)
         {
             return true;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(s_oblivious, source.Locations.FirstOrDefault(), name, ambiguous.ToDisplayString()));
+        context.Report(s_oblivious, source.Locations.FirstOrDefault(), name, ambiguous.ToDisplayString());
         return false;
     }
 

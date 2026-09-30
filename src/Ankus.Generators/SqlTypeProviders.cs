@@ -10,7 +10,7 @@ namespace Ankus.Generators;
 internal sealed class SqlTypeProviders(SqlGraph graph)
 {
     private readonly Dictionary<(string? Schema, string Name), (SqlEntity Entity, bool Custom)> _providers = [];
-    private readonly Dictionary<INamedTypeSymbol, SqlEntity> _managed = new(SymbolEqualityComparer.Default);
+    private readonly Dictionary<ManagedTypeIdentity, SqlEntity> _managed = [];
 
     /// <summary>
     /// Checks whether a named type is supplied by this extension's SQL graph.
@@ -99,7 +99,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 continue;
             }
 
-            if (mapping is not null && _managed.ContainsKey(mapping.Type))
+            if (mapping is not null && _managed.ContainsKey(ManagedTypeIdentity.Create(mapping.Type)))
             {
                 graph.Error(location, "Managed datum type '" + mapping.Managed + "' has more than one provider.");
                 continue;
@@ -120,7 +120,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             _providers[(schema, name!)] = (block, true);
             if (mapping is not null)
             {
-                _managed.Add(mapping.Type, block);
+                _managed.Add(ManagedTypeIdentity.Create(mapping.Type), block);
             }
 
             if (schema is not null)
@@ -135,14 +135,14 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
 
         foreach (DatumTypeDeclaration mapping in mappings)
         {
-            if (!mapping.External && !_managed.ContainsKey(mapping.Type))
+            if (!mapping.External && !_managed.ContainsKey(ManagedTypeIdentity.Create(mapping.Type)))
             {
                 graph.Error(mapping.Type.Locations.FirstOrDefault(), "Managed datum type '" + mapping.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
             }
 
             if (!mapping.External && mapping.RangeBound is { External: false } bound &&
-                _managed.TryGetValue(mapping.Type, out SqlEntity? rangeProvider) &&
-                _managed.TryGetValue(bound.Type, out SqlEntity? boundProvider) && rangeProvider != boundProvider)
+                _managed.TryGetValue(ManagedTypeIdentity.Create(mapping.Type), out SqlEntity? rangeProvider) &&
+                _managed.TryGetValue(ManagedTypeIdentity.Create(bound.Type), out SqlEntity? boundProvider) && rangeProvider != boundProvider)
             {
                 rangeProvider.Dependencies.Add(boundProvider);
             }
@@ -159,7 +159,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <param name="requireComplete">Whether the complete type must precede this consumer even along an explicit reverse dependency.</param>
     internal void Require(SqlEntity consumer, FunctionType? contract, bool requireComplete = false)
     {
-        DatumTypeDeclaration? mapping = (contract?.Element ?? contract)?.DatumType;
+        DatumTypeReference? mapping = (contract?.Element ?? contract)?.DatumType;
         if (mapping is not null)
         {
             if (!mapping.External && _managed.TryGetValue(mapping.Type, out SqlEntity? managed))

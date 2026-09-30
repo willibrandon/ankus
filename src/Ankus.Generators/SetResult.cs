@@ -5,7 +5,7 @@ namespace Ankus.Generators;
 /// <summary>
 /// Resolves an enumerable return into scalar SETOF or named TABLE columns.
 /// </summary>
-internal sealed class SetResult
+internal sealed record SetResult
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS008", "Invalid PostgreSQL set result", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
@@ -16,44 +16,35 @@ internal sealed class SetResult
     internal string Managed
     {
         get;
-        private set;
+        private init;
     } = string.Empty;
 
     /// <summary>
     /// Gets the ordered output conversion contracts.
     /// </summary>
-    internal FunctionType[] Columns
+    internal EquatableArray<FunctionType> Columns
     {
         get;
-        private set;
-    } = [];
-
-    /// <summary>
-    /// Gets the managed source types corresponding to output columns.
-    /// </summary>
-    internal ITypeSymbol[] Types
-    {
-        get;
-        private set;
-    } = [];
+        init;
+    } = new([]);
 
     /// <summary>
     /// Gets the column names for TABLE, or null for scalar SETOF.
     /// </summary>
-    internal string[]? Names
+    internal EquatableArray<string>? Names
     {
         get;
-        private set;
+        private init;
     }
 
     /// <summary>
     /// Gets expressions that read each output column from the iterator's current value.
     /// </summary>
-    internal string[] Values
+    internal EquatableArray<string> Values
     {
         get;
-        private set;
-    } = [];
+        private init;
+    } = new([]);
 
     /// <summary>
     /// Gets the complete SQL return clause following RETURNS.
@@ -76,9 +67,25 @@ internal sealed class SetResult
         => type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Collections_Generic_IEnumerable_T };
 
     /// <summary>
+    /// Resolves source output types only during semantic validation, without retaining compiler symbols in the set model.
+    /// </summary>
+    /// <param name="method">The attributed method returning an explicit generic enumerable.</param>
+    /// <returns>The ordered scalar or tuple-element source types.</returns>
+    internal static ITypeSymbol[] OutputTypes(IMethodSymbol method)
+    {
+        ITypeSymbol row = ((INamedTypeSymbol)method.ReturnType).TypeArguments[0];
+        return row switch
+        {
+            INamedTypeSymbol { IsTupleType: true } tuple => [.. tuple.TupleElements.Select(static field => field.Type)],
+            INamedTypeSymbol { Name: "ValueTuple", Arity: 1 } single when single.ContainingNamespace.ToDisplayString() == "System" => [single.TypeArguments[0]],
+            _ => [row],
+        };
+    }
+
+    /// <summary>
     /// Validates a method's set shape and optional column names, reporting invalid result declarations.
     /// </summary>
-    internal static SetResult? Create(IMethodSymbol method, SourceProductionContext context, out bool valid)
+    internal static SetResult? Create(IMethodSymbol method, GeneratorDiagnostics context, out bool valid)
     {
         valid = true;
         AttributeData? namesAttribute = method.GetReturnTypeAttributes().FirstOrDefault(static attribute =>
@@ -95,40 +102,35 @@ internal sealed class SetResult
         }
 
         ITypeSymbol row = ((INamedTypeSymbol)method.ReturnType).TypeArguments[0];
-        var result = new SetResult
-        {
-            Managed = row.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
-                SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier)),
-        };
+        string managed = row.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+            SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier));
+        ITypeSymbol[] types = OutputTypes(method);
+        string[] values;
+        string[]? names = null;
         if (row is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            result.Types = [.. tuple.TupleElements.Select(static field => field.Type)];
-            result.Values = [.. tuple.TupleElements.Select(static field => "value.@" + field.Name)];
+            values = [.. tuple.TupleElements.Select(static field => "value.@" + field.Name)];
             if (tuple.TupleElements.All(static field => !field.IsImplicitlyDeclared))
             {
-                result.Names = [.. tuple.TupleElements.Select(static field => SqlText.SnakeCase(field.Name))];
+                names = [.. tuple.TupleElements.Select(static field => SqlText.SnakeCase(field.Name))];
             }
         }
         else if (row is INamedTypeSymbol { Name: "ValueTuple", Arity: 1 } single && single.ContainingNamespace.ToDisplayString() == "System")
         {
-            result.Types = [single.TypeArguments[0]];
-            result.Values = ["value.Item1"];
+            values = ["value.Item1"];
         }
         else
         {
-            result.Types = [row];
-            result.Values = ["value"];
+            values = ["value"];
         }
 
-        FunctionType?[] columns = [.. result.Types.Select(static type => FunctionType.Create(type))];
+        FunctionType?[] columns = [.. types.Select(static type => FunctionType.Create(type))];
         if (columns.Length > 1664 || columns.Any(static column => column is null || column.Managed == "void"))
         {
             valid = false;
             Error("Set elements must be supported scalar or array values, or flat tuples of supported values with at most 1664 columns.");
             return null;
         }
-
-        result.Columns = [.. columns.Select(static column => column!)];
 
         if (namesAttribute is not null)
         {
@@ -139,28 +141,34 @@ internal sealed class SetResult
                 return null;
             }
 
-            result.Names = [.. namesAttribute.ConstructorArguments[0].Values.Select(static value => value.Value as string ?? string.Empty)];
+            names = [.. namesAttribute.ConstructorArguments[0].Values.Select(static value => value.Value as string ?? string.Empty)];
         }
 
-        if (result.Values[0] != "value" && result.Names is null)
+        if (values[0] != "value" && names is null)
         {
             valid = false;
             Error("TABLE tuple elements must be named, or use PgColumnNames to name every column.");
             return null;
         }
 
-        if (result.Names is not null && (result.Names.Length != result.Columns.Length ||
-            result.Names.Any(static name => !SqlText.IsIdentifier(name)) ||
-            result.Names.Distinct(StringComparer.Ordinal).Count() != result.Names.Length))
+        if (names is not null && (names.Length != columns.Length ||
+            names.Any(static name => !SqlText.IsIdentifier(name)) ||
+            names.Distinct(StringComparer.Ordinal).Count() != names.Length))
         {
             valid = false;
             Error("TABLE requires one distinct SQL identifier per column, each at most 63 UTF-8 bytes.");
             return null;
         }
 
-        return result;
+        return new()
+        {
+            Managed = managed,
+            Columns = new(columns.Select(static column => column!)),
+            Names = names is null ? null : new(names),
+            Values = new(values),
+        };
 
         void Error(string message)
-            => context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, message));
+            => context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, message);
     }
 }

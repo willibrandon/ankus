@@ -82,6 +82,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(tests.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
+        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = methods.Combine(FunctionPipeline.Register(context))
+            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
         IncrementalValuesProvider<INamedTypeSymbol> customTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgTypeAttribute",
@@ -135,7 +137,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     BuildProperty(options.GlobalOptions, "Version")));
         IncrementalValueProvider<NativeModuleMagic.ModuleOutput> module = NativeModuleMagic.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Version));
-        context.RegisterSourceOutput(methods.Combine(schemas).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
@@ -151,7 +153,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static string? BuildProperty(AnalyzerConfigOptions options, string name)
         => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
 
-    private static void Generate(SourceProductionContext context, ImmutableArray<IMethodSymbol> methods, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
+    private static void Generate(SourceProductionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
         ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
@@ -159,6 +161,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation,
         ImmutableArray<ISymbol> references, NativeModuleMagic.ModuleOutput module)
     {
+        ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
+        ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         bool referencedCallbacks = compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly =>
             assembly.GetAttributes().Any(static attribute =>
                 attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
@@ -674,8 +678,24 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             bool trigger = TriggerDeclaration.IsTrigger(method);
             bool eventTrigger = EventTriggerDeclaration.IsEventTrigger(method);
             bool contextParameter = trigger || eventTrigger;
-            FunctionParameter[] parameters = contextParameter ? [] : FunctionParameter.Create(method);
-            SetResult? set = null;
+            GeneratorLocation? methodLocation = GeneratorLocation.Create(method.Locations.FirstOrDefault(), compilation);
+            FunctionPipeline.FunctionOutput? functionOutput = functionModels[DeclarationIdentity.Create(method)]
+                .FirstOrDefault(value => value.Analysis.Location == methodLocation);
+            FunctionPipeline.FunctionAnalysis? analysis = functionOutput?.Analysis;
+            if (analysis is { Model: null })
+            {
+                foreach (GeneratorProblem problem in analysis.Problems)
+                {
+                    problem.Report(compilation, context);
+                }
+
+                continue;
+            }
+
+            FunctionPipeline.FunctionModel? model = analysis?.Model;
+            FunctionParameter[] parameters = contextParameter ? [] : model is null ? FunctionParameter.Create(method) : [.. model.Parameters];
+            SetResult? set = model?.Set;
+            FunctionType? scalarResult = model?.Result;
             if (eventTrigger)
             {
                 if (!EventTriggerDeclaration.Validate(method, context))
@@ -690,29 +710,30 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     continue;
                 }
             }
-            else
+            else if (model is null)
             {
                 set = SetResult.Create(method, context, out bool validSet);
-                if (!validSet || !SqlTypeReference.Validate(method, set, context))
+                if (!validSet || !SqlTypeReference.Validate(method, ref set, context))
                 {
                     continue;
                 }
 
-                if (!IsSupported(method, parameters, set))
+                scalarResult = set is null ? FunctionType.CreateResult(method) : null;
+                if (!IsSupported(method, parameters, set, scalarResult))
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
+                    ReportUnsupported(method, context);
                     continue;
                 }
 
-                if (!SqlNullability.Validate(method, parameters.Where(static parameter => !parameter.IsInjected)
-                    .Select(static parameter => parameter.Symbol), set?.Types ?? [method.ReturnType], context))
+                if (!SqlNullability.Validate(method, method.Parameters.Where((_, index) => !parameters[index].IsInjected),
+                    set is null ? [method.ReturnType] : SetResult.OutputTypes(method), context))
                 {
                     continue;
                 }
             }
 
             string name = tests.TryGetValue(method, out PgTestDeclaration? test) ? test.FunctionName : GetSqlName(method);
-            if (!contextParameter && !NumericConstraint.Validate(method, context, set))
+            if (!contextParameter && model is null && !NumericConstraint.Validate(method, context, set))
             {
                 continue;
             }
@@ -749,11 +770,27 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     hasVarlenaReader = true;
                 }
 
-                sql = PgFunctionEmitter.Emit(method, parameters, declaration, callback, ensureManagedReady, managed, native, exports, typeProviders);
+                if (functionOutput?.Emission is { } emission)
+                {
+                    emission.AppendTo(managed, native, exports, ensureManagedReady);
+                    sql = new(declaration, declaration.Arguments, SqlSchemaTemplate.Type(scalarResult!, typeProviders), emission.NativeName, emission.IsPlannerSupport);
+                }
+                else
+                {
+                    sql = PgFunctionEmitter.Emit(MethodInvocation.Create(method), parameters, scalarResult!, declaration, callback, ensureManagedReady, managed, native, exports, typeProviders);
+                }
             }
             else
             {
-                sql = PgSetEmitter.Emit(method, parameters, declaration, set, callback, ensureManagedReady, managed, native, exports, typeProviders);
+                if (functionOutput?.Emission is { } emission)
+                {
+                    emission.AppendTo(managed, native, exports, ensureManagedReady);
+                    sql = new(declaration, declaration.Arguments, set.TemplateSql(typeProviders), emission.NativeName, false);
+                }
+                else
+                {
+                    sql = PgSetEmitter.Emit(MethodInvocation.Create(method), parameters, declaration, set, callback, ensureManagedReady, managed, native, exports, typeProviders);
+                }
             }
 
             var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql, method.Locations.FirstOrDefault()) { Kind = "function" };
@@ -779,7 +816,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
 
             IEnumerable<FunctionType> contracts = contextParameter ? [] : parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!)
-                .Concat(set?.Columns ?? [FunctionType.CreateResult(method)!]);
+                .Concat(set is null ? [scalarResult!] : set.Columns);
             foreach (FunctionType contract in contracts)
             {
                 typeProviders.Require(entity, contract);
@@ -986,15 +1023,31 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         return result.ToString();
     }
 
-    private static bool IsSupported(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set)
+    /// <summary>
+    /// Reports the established unsupported-function diagnostic through shared semantic validation.
+    /// </summary>
+    /// <param name="method">The invalid managed declaration.</param>
+    /// <param name="context">The current diagnostic destination.</param>
+    internal static void ReportUnsupported(IMethodSymbol method, GeneratorDiagnostics context)
+        => context.Report(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name);
+
+    /// <summary>
+    /// Checks managed calling and accessibility constraints before rendering a function model.
+    /// </summary>
+    /// <param name="method">The attributed method being validated.</param>
+    /// <param name="parameters">The detached managed argument contracts.</param>
+    /// <param name="set">The optional validated iterator shape.</param>
+    /// <param name="result">The scalar return contract, or null for an unsupported scalar or a set.</param>
+    /// <returns>Whether the method can use a generated native dispatcher.</returns>
+    internal static bool IsSupported(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set, FunctionType? result)
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            (set is null && FunctionType.CreateResult(method) is null) || parameters.Count(static parameter => !parameter.IsInjected) > 100 ||
+            (set is null && result is null) || parameters.Count(static parameter => !parameter.IsInjected) > 100 ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-            parameters.Any(static parameter => parameter.Symbol.RefKind != RefKind.None ||
+            parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
                 (!parameter.IsInjected && parameter.Type is null) ||
-                (parameter.Symbol.IsParams && parameter.Type?.IsVector != true)))
+                (parameter.IsParams && parameter.Type?.IsVector != true)))
         {
             return false;
         }
@@ -1011,7 +1064,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static string GetSqlName(IMethodSymbol method)
+    /// <summary>
+    /// Resolves the authored SQL name or its conventional managed-name default.
+    /// </summary>
+    /// <param name="method">The attributed method.</param>
+    /// <returns>The unquoted SQL name to validate before graph composition.</returns>
+    internal static string GetSqlName(IMethodSymbol method)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(
             static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
@@ -1030,7 +1088,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         => name.Length is > 0 and <= 63 && name[0] is >= 'a' and <= 'z' or '_' &&
             name.All(static character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '_');
 
-    private static string GetCallbackName(IMethodSymbol method, string sqlName)
+    /// <summary>
+    /// Derives a native callback identity from the exact assembly and managed overload.
+    /// </summary>
+    /// <param name="method">The attributed method.</param>
+    /// <param name="sqlName">The selected unquoted SQL name.</param>
+    /// <returns>The assembly-specific managed callback symbol.</returns>
+    internal static string GetCallbackName(IMethodSymbol method, string sqlName)
         => GetCallbackName(method.ContainingAssembly.Identity + ":" + method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), sqlName);
 
     /// <summary>

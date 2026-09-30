@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -23,10 +22,28 @@ internal static class PgSetEmitter
     /// <param name="exports">The native linker export list.</param>
     /// <param name="providers">Extension-owned types used to qualify selected SQL.</param>
     /// <returns>The SQL function contract to render after dependency resolution.</returns>
-    internal static SqlFunction Emit(IMethodSymbol method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
+    internal static SqlFunction Emit(MethodInvocation method, FunctionParameter[] parameters, FunctionDeclaration declaration, SetResult set, string callback,
         bool ensureInitialized,
         StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
+        FunctionEmission emission = EmitBoundary(method, parameters, set, callback);
+        emission.AppendTo(managed, native, exports, ensureInitialized);
+        return new(declaration, declaration.Arguments, set.TemplateSql(providers), emission.NativeName, false);
+    }
+
+    /// <summary>
+    /// Renders the iterator callback and native entry independently of graph resolution and initialization selection.
+    /// </summary>
+    /// <param name="method">The detached managed invocation and return policies.</param>
+    /// <param name="parameters">The ordered managed and SQL parameter contracts.</param>
+    /// <param name="set">The validated iterator output contract.</param>
+    /// <param name="callback">The assembly-specific callback identity.</param>
+    /// <returns>The immutable managed, native and export artifacts.</returns>
+    internal static FunctionEmission EmitBoundary(MethodInvocation method, FunctionParameter[] parameters, SetResult set, string callback)
+    {
+        var managed = new StringBuilder();
+        var native = new StringBuilder();
+        var header = new StringBuilder();
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
@@ -63,7 +80,7 @@ internal static class PgSetEmitter
         string arguments = string.Join(", ", parameters.Select(static parameter => parameter.Type?.HasRelations == true
             ? "relationScope.Add(" + parameter.ReadExpression() + ")" : parameter.ReadExpression()));
         managed.AppendLine($"                *iterator = global::Ankus.NativeSet.Create<{set.Managed}>(" +
-            method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(" + arguments + ")" +
+            method.Target + "(" + arguments + ")" +
             (hasRelations ? ", relationScope.Detach()" : string.Empty) + ");");
         managed.AppendLine("                return 0;");
         managed.AppendLine("            }");
@@ -83,7 +100,7 @@ internal static class PgSetEmitter
         {
             managed.AppendLine("            try");
             managed.AppendLine("            {");
-            for (int index = 0; index < set.Columns.Length; index++)
+            for (int index = 0; index < set.Columns.Count; index++)
             {
                 if (set.Columns[index].HasRelations)
                 {
@@ -94,7 +111,7 @@ internal static class PgSetEmitter
             managed.AppendLine("            }");
             managed.AppendLine("            catch (global::System.Exception captureFailure)");
             managed.AppendLine("            {");
-            for (int index = 0; index < set.Columns.Length; index++)
+            for (int index = 0; index < set.Columns.Count; index++)
             {
                 if (set.Columns[index].HasRelations)
                 {
@@ -107,7 +124,7 @@ internal static class PgSetEmitter
             managed.AppendLine();
         }
 
-        for (int index = 0; index < set.Columns.Length; index++)
+        for (int index = 0; index < set.Columns.Count; index++)
         {
             FunctionType column = set.Columns[index];
             string ordinal = index.ToString(CultureInfo.InvariantCulture);
@@ -126,7 +143,7 @@ internal static class PgSetEmitter
 
             string present = column.Nullable && !column.Reference ? value + ".Value" : value;
             managed.AppendLine((optional ? "                " : "            ") + ManagedConversion.Write(column, present,
-                "(columns + " + ordinal + ")", NumericConstraint.Rescale(method.GetReturnTypeAttributes())));
+                "(columns + " + ordinal + ")", method.NumericPrecision?.Suffix ?? string.Empty));
             if (optional)
             {
                 managed.AppendLine("            }");
@@ -152,32 +169,24 @@ internal static class PgSetEmitter
         managed.AppendLine("    }");
         managed.AppendLine();
 
-        AttributeData? attribute = method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-        int mode = attribute is null ? 0 : AttributeValues.Get(attribute, "SetMode", 0);
+        int mode = method.SetMode;
         FunctionParameter[] sqlParameters = [.. parameters.Where(static parameter => !parameter.IsInjected)];
         string required = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
             parameter.Type!.Nullable ? "false" : "true"));
         string polymorphic = sqlParameters.Length == 0 ? "false" : string.Join(", ", sqlParameters.Select(static parameter =>
             parameter.Type!.UsesRawTransport ? "true" : "false"));
-        native.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
-        native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
-        native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
-        native.AppendLine("{");
-        if (ensureInitialized)
-        {
-            native.AppendLine("    ankus_ensure_initialized();");
-        }
-
+        header.AppendLine($"extern int {callback}(int, void **, const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");
+        header.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
+        header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
+        header.AppendLine("{");
         native.AppendLine($"    const bool required[] = {{ {required} }};");
         native.AppendLine($"    const bool polymorphic[] = {{ {polymorphic} }};");
-        native.AppendLine($"    return ankus_set_execute(fcinfo, {callback}, {set.Columns.Length.ToString(CultureInfo.InvariantCulture)}, " +
+        native.AppendLine($"    return ankus_set_execute(fcinfo, {callback}, {set.Columns.Count.ToString(CultureInfo.InvariantCulture)}, " +
             $"{sqlParameters.Length.ToString(CultureInfo.InvariantCulture)}, required, {mode.ToString(CultureInfo.InvariantCulture)}, " +
-            $"{(set.Columns.Length == 1 && set.Columns[0].IsComposite ? "true" : "false")}, polymorphic, " +
-            $"{(set.Columns.Length == 1 && set.Columns[0].UsesRawTransport ? "true" : "false")});");
+            $"{(set.Columns.Count == 1 && set.Columns[0].IsComposite ? "true" : "false")}, polymorphic, " +
+            $"{(set.Columns.Count == 1 && set.Columns[0].UsesRawTransport ? "true" : "false")});");
         native.AppendLine("}");
         native.AppendLine();
-        exports.AppendLine(nativeName);
-        exports.AppendLine("pg_finfo_" + nativeName);
-        return new(declaration, declaration.Arguments, set.TemplateSql(providers), nativeName, false);
+        return new(managed.ToString(), new(header.ToString(), native.ToString()), new StringBuilder().AppendLine(nativeName).AppendLine("pg_finfo_" + nativeName).ToString(), nativeName, false);
     }
 }

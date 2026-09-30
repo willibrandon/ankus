@@ -267,7 +267,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
                 return Invalid($"The {role} callback cannot also declare a trigger, operator, cast, or set result.");
             }
 
-            if (!SqlTypeReference.Validate(method, null, context) || !NumericConstraint.Validate(method, context))
+            if (!SqlTypeReference.Validate(method, context) || !NumericConstraint.Validate(method, context))
             {
                 return null;
             }

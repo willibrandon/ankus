@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Globalization;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -21,9 +20,9 @@ internal static class NumericConstraint
     /// <param name="context">The generator context receiving diagnostics.</param>
     /// <param name="set">The optional set result whose scalar element may be constrained.</param>
     /// <returns>Whether every declared numeric constraint is valid.</returns>
-    internal static bool Validate(IMethodSymbol method, SourceProductionContext context, SetResult? set = null)
+    internal static bool Validate(IMethodSymbol method, GeneratorDiagnostics context, SetResult? set = null)
     {
-        bool valid = ValidateValue(set is { Columns.Length: 1, Names: null } ? set.Types[0] : method.ReturnType,
+        bool valid = ValidateValue(set is { Columns.Count: 1, Names: null } ? SetResult.OutputTypes(method)[0] : method.ReturnType,
             method.GetReturnTypeAttributes(), context);
         foreach (IParameterSymbol parameter in method.Parameters)
         {
@@ -39,17 +38,22 @@ internal static class NumericConstraint
     /// <param name="attributes">The parameter or return-value attributes.</param>
     /// <returns>A Rescale invocation suffix, or an empty string when no constraint is declared.</returns>
     internal static string Rescale(ImmutableArray<AttributeData> attributes)
-    {
-        AttributeData? attribute = Find(attributes);
-        return attribute is null ? string.Empty : ".Rescale(" +
-            ((int)attribute.ConstructorArguments[0].Value!).ToString(CultureInfo.InvariantCulture) + ", " +
-            ((int)attribute.ConstructorArguments[1].Value!).ToString(CultureInfo.InvariantCulture) + ")";
-    }
+        => Read(attributes)?.Suffix ?? string.Empty;
+
+    /// <summary>
+    /// Detaches numeric values without indexing unfinished constructor arguments before validation.
+    /// </summary>
+    /// <param name="attributes">The parameter or return-value attributes.</param>
+    /// <returns>The authored values, or null when absent or incomplete; validation reports malformed declarations.</returns>
+    internal static NumericPrecision? Read(ImmutableArray<AttributeData> attributes)
+        => Find(attributes) is { ConstructorArguments.Length: 2 } attribute &&
+            attribute.ConstructorArguments[0].Value is int precision && attribute.ConstructorArguments[1].Value is int scale
+            ? new(precision, scale) : null;
 
     /// <summary>
     /// Validates the numeric constraint selected for one scalar SQL value.
     /// </summary>
-    internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, SourceProductionContext context, bool grouped = false)
+    internal static bool ValidateValue(ITypeSymbol type, ImmutableArray<AttributeData> attributes, GeneratorDiagnostics context, bool grouped = false)
     {
         AttributeData[] constraints = [.. attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgNumericPrecisionAttribute")];
         AttributeData? attribute = constraints.FirstOrDefault();
@@ -66,8 +70,8 @@ internal static class NumericConstraint
             return true;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(s_invalidConstraint,
-            attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()));
+        context.Report(s_invalidConstraint,
+            attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation());
         return false;
     }
 

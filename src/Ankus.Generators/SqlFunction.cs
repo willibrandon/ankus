@@ -12,6 +12,8 @@ namespace Ankus.Generators;
 internal sealed class SqlFunction(FunctionDeclaration declaration, string arguments, string result, string nativeName,
     bool isPlannerSupport, bool requiresAggregateContext = false)
 {
+    private string? _plannerSupport;
+
     /// <summary>
     /// Gets the validated function identity and execution options.
     /// </summary>
@@ -28,10 +30,16 @@ internal sealed class SqlFunction(FunctionDeclaration declaration, string argume
     internal bool RequiresAggregateContext { get; } = requiresAggregateContext;
 
     /// <summary>
+    /// Adds graph-resolved planner support without mutating the immutable declaration shared with emission.
+    /// </summary>
+    /// <param name="name">The quoted SQL function name with its schema selection marker.</param>
+    internal void SetPlannerSupport(string name) => _plannerSupport = name;
+
+    /// <summary>
     /// Renders SQL only after the graph has resolved cross-function configuration.
     /// </summary>
     /// <returns>The complete SQL definition with schema selection markers retained.</returns>
     internal string Emit()
         => $"CREATE {(Declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {Declaration.TemplateName}({arguments})\n" +
-            $"RETURNS {result} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {Declaration.Options};\n";
+            $"RETURNS {result} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {Declaration.Options}{(_plannerSupport is null ? string.Empty : " SUPPORT " + _plannerSupport)};\n";
 }

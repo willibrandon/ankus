@@ -38,7 +38,7 @@ internal sealed class PgTestDeclaration(IMethodSymbol method, string name, strin
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract || !method.ReturnsVoid ||
             method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-            FunctionParameter.Create(method).Any(static parameter => !parameter.IsInjected || parameter.Symbol.RefKind != RefKind.None))
+            FunctionParameter.Create(method).Any(static parameter => !parameter.IsInjected || parameter.RefKind != RefKind.None))
         {
             return Invalid("PgTest requires an accessible synchronous static void method with no SQL arguments.");
         }
