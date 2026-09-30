@@ -412,6 +412,8 @@ ankus connect --pg 18 --database playground
 `connect` starts a stopped development server and creates or reuses the database.
 Without `--database`, it evaluates the selected project's extension name, including
 imported MSBuild properties. An explicit database name works outside a project.
+Database names retain their exact spelling and must satisfy the selected server's
+rules. PostgreSQL 19 rejects names containing newline or carriage-return characters.
 Both commands leave the server running when the client exits; use `ankus stop`
 to shut it down. An already running server retains its actual port and settings.
 

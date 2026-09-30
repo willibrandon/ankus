@@ -81,8 +81,22 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
             await using NpgsqlConnection administration = await OpenAsync(port, "postgres", token);
             await using var retained = new NpgsqlCommand("CREATE TABLE retained(value integer); INSERT INTO retained VALUES (42); SELECT pg_backend_pid()", administration);
             object? backend = await retained.ExecuteScalarAsync(token);
-            string[] names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ",
-                "line\n\\! echo forbidden", new string('a', 63), new string('é', 31) + "a"];
+            List<string> names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ",
+                new string('a', 63), new string('é', 31) + "a"];
+            foreach (string name in new[] { "line\n\\! echo forbidden", "line\r\\! echo forbidden", "line\r\n\\! echo forbidden" })
+            {
+                if (installation.Version.Major < 19)
+                {
+                    names.Add(name);
+                }
+                else
+                {
+                    InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => cluster.CreateDatabaseAsync(name, token));
+                    Assert.Contains("contains a newline or carriage return character", error.Message);
+                    Assert.IsFalse(await cluster.DropDatabaseAsync(name, cancellationToken: token));
+                }
+            }
+
             foreach (string name in names)
             {
                 Assert.IsFalse(await cluster.DropDatabaseAsync(name, cancellationToken: token));
@@ -96,18 +110,18 @@ public sealed class PostgresRegressionPrerequisiteTests(TestContext context)
             }
 
             await using var count = new NpgsqlCommand("SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres'", administration);
-            Assert.AreEqual((long)names.Length, await count.ExecuteScalarAsync(token));
+            Assert.AreEqual((long)names.Count, await count.ExecuteScalarAsync(token));
             await using (NpgsqlConnection old = await OpenAsync(port, "ordinary", token))
             {
                 await using var setup = new NpgsqlCommand("CREATE TABLE discarded(value integer); INSERT INTO discarded VALUES (99)", old);
                 await setup.ExecuteNonQueryAsync(token);
             }
 
-            for (int index = 0; index < names.Length; index++)
+            for (int index = 0; index < names.Count; index++)
             {
                 Assert.IsTrue(await cluster.DropDatabaseAsync(names[index], cancellationToken: token));
                 Assert.IsFalse(await cluster.DropDatabaseAsync(names[index], cancellationToken: token));
-                Assert.AreEqual((long)(names.Length - index - 1), await count.ExecuteScalarAsync(token));
+                Assert.AreEqual((long)(names.Count - index - 1), await count.ExecuteScalarAsync(token));
             }
 
             Assert.IsTrue(await cluster.CreateDatabaseAsync("ordinary", token));

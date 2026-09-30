@@ -175,7 +175,7 @@ public sealed class CatalogLookupTests
         Assert.AreEqual(23U, script.ResultOid);
         Assert.IsEmpty(script.Types);
         Assert.IsEmpty(script.Values);
-        Assert.HasCount(263, PgBuiltInOids.GetValues());
+        Assert.HasCount(295, PgBuiltInOids.GetValues());
         Assert.AreEqual(PgOidKind.Custom, PgOid.FromValue(4451).Kind);
         script.Result = 14;
         Assert.IsTrue(PgBuiltInOids.TryFromValue(4451, out PgBuiltInOid member, out PgOidLookupError error));

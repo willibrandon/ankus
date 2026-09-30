@@ -19,7 +19,7 @@ internal static class NativeBindingCatalogCommand
             throw new ArgumentException("Expected binding-catalogs <pgrx-checkout> <output-directory> [--check].", nameof(arguments));
         }
 
-        const string Revision = "70383e884582d1bcc7cd681d10886b995a2830cb";
+        const string Revision = "fc91c63ebad11784647b50ee7e265c1fd9c9924f";
         var options = new JsonSerializerOptions { WriteIndented = true };
         for (int major = 13; major <= 19; major++)
         {

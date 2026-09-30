@@ -80,17 +80,34 @@ remains incomplete; the following work is additional to the open parity gates.
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
 | Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full CI also passes on Linux x64/macOS ARM64 with PostgreSQL 18 and Windows x64 with PostgreSQL 17. A lighter guard must preserve this rule. |
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of the typed contracts is pending. |
+| Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite and all three dedicated-platform CI jobs pass. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform planner, aggregate and provenance validation remains pending. |
+| Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
-| Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
+| Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Dedicated-platform CI for the refresh and the remaining full version/platform matrix remain required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+Native inventories, headers and OIDs now follow pgrx **0.19.3**. PostgreSQL 19
+inputs use **beta 4** consistently. Standalone probes discard unreachable header
+implementation bodies while retaining real signature/layout checks and unresolved
+dependency failures. PostgreSQL 19 tuple descriptors receive the required final
+initialization before use. Database-name tests follow each server's actual rules.
+
+Complete plain suites pass on **Linux x64** against PostgreSQL **18.6** and
+**19 beta 4**: each reports **10,029 total, 10,019 passed, zero failed and ten
+platform skips**, in **24m07.984s** and **24m09.743s**, respectively. The runs
+used identical source in isolated output trees and overlapped; their times are
+not controlled performance comparisons. Release, API freshness, input
+regeneration and documentation checks pass. Dedicated-platform refresh CI and
+the full version/platform matrix remain required. The full port and remaining
+review requirements are still incomplete.
+
+## Previous verified milestone — generated SQL provenance
 
 Generated installation SQL identifies its source files, lines, managed
 declarations and prerequisites. These comments survive standalone library
@@ -3509,8 +3526,11 @@ The target architecture consists of:
 
 ## Repository-derived parity inventory
 
-Reference: [pgrx](https://github.com/pgcentralfoundation/pgrx), commit `70383e884582d1bcc7cd681d10886b995a2830cb`,
-workspace version `0.19.2`. Paths in this section are relative to that read-only repository.
+Reference: [pgrx](https://github.com/pgcentralfoundation/pgrx), commit `fc91c63ebad11784647b50ee7e265c1fd9c9924f`,
+workspace version `0.19.3`. Paths in this section are relative to that read-only repository.
+The inventory originated with 0.19.2; the 0.19.3 changes add build-option forwarding
+and package-prefix requirements below. Updating native inputs does not implement
+those command options or establish full API-by-API parity.
 This inventory covers feature families discovered in the workspace, including features absent from its
 README. Each family's public APIs, options, error behavior, ownership rules, examples, and regression
 cases require implementation and evidence. Family coverage is not API-by-API completion evidence.
@@ -3528,7 +3548,7 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 |---|---|---|
 | `new` | Generate an ordinary extension project, control/configuration defaults, functions, and discoverable backend tests | Ordinary solution scaffold implemented with package-based SDK, CPM, managed/native MSTest cases, explicit names/output, and existing-file preservation. `--background-worker` adds a preloaded worker, shared results and a real backend test |
 | `init` | Install/build supported PostgreSQL versions or register existing installs; persist configuration and toolchain options | Partial: locked/atomic registration plus checked source builds on Unix and Windows x64 binary downloads for independently selected majors. Development/testing port bases persist atomically with registrations; omitted values remain unchanged. Automatic Windows source builds and persisted toolchain configuration remain required |
-| `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration` |
+| `info` | Installation path, `pg_config` path, and exact PostgreSQL version queries | Structured installation details are implemented for registered/explicit installations; `ToolCommandTests.InitPreservesSettingsAndInfoUsesRegistration`. The scriptable `path`, `pg-config` and `version` subcommands remain required. |
 | `start`, `stop`, `status` | Manage version-specific persistent development clusters, ports, logs, and lifecycle | Partial: persistent development CLI/API with lazy initialization, per-major ports/data/logs, saved port bases, explicit/all selections, configuration, fast shutdown, cancellation and restart preservation. `ClusterCommandsPreserveDataAcrossRestarts`, `DevelopmentClusterRecoversAfterStartupFailure`, `DevelopmentPortsHonorSavedBasesRunningStateAndOverrides`. Shared Valgrind startup now has actual PostgreSQL 13–19/Linux startup evidence and PostgreSQL 18.6 instrumentation, diagnostic and cancellation tests; complete version/platform validation remains required |
 | `run`, `connect` | Build/install/load an extension and connect through `psql` or configured client, including `pgcli` | Partial: installed run/connect commands compose persistent clusters, exact database creation/reuse, evaluated project defaults, native publication/installation, psql/pgcli, client arguments and exit status. `RunBuildsInstallsAndLoadsNativeExtension`, `ConnectPreservesDatabaseAndUsesRunningPort`, `ConnectEvaluatesDefaultDatabaseName`. Both commands run Native AOT queries under Valgrind through the shared lifecycle; cross-target tooling and complete version/platform validation remain required |
 | `test` | Backend test discovery, filters, expected errors, configuration, rollback, and supported-major matrix | Partial: canonical `dotnet test`, scaffolded managed/backend MSTest tests, generated `[PgTest]` catalogs, exact expected errors, explicit ignore reasons and framework-neutral publish/load fixtures are implemented. `ankus test` selects registered/explicit/all versions, forwards runner arguments and configuration, preserves failures/reports, and owns cleanup with optional `--pgdata`. Direct fixtures expose `DataDirectoryBase`. The native command matrix passes PostgreSQL 13–19 on Linux; affected storage checks pass on Linux/macOS PostgreSQL 18.6 and Windows PostgreSQL 17.11. Schema reuse, OS-account execution, additional framework templates and the complete major/platform matrix remain required |
@@ -3536,13 +3556,17 @@ commands can supply the equivalent operation, with the Ankus tool providing Post
 | `regress` | PostgreSQL regression SQL/expected-output suites and diagnostics | Partial: native `pg_regress` command composition, setup/reset, filters, bootstrapping, repeated diffs, expected-output promotion and dry runs are implemented with actual PostgreSQL evidence on Linux x64/macOS ARM64 18.6 and Windows x64 17.11. Shared Valgrind startup is implemented and preserves native memory diagnostics. Remaining shared-option mappings and the complete version/platform matrix remain required; see the regression-suite and Valgrind milestones below |
 | `schema` | Schema generation from one compilation, standalone extraction, ordering/dependencies, custom SQL, output options | Partial: `ankus schema` builds, reads an existing publication or extracts a standalone library without loading native code. Full/selected SQL, exact-name resolution, dependency/family closure, fixed-schema qualification, attachments, detached replay and Graphviz are implemented. Affected native PostgreSQL checks pass on Linux x64/macOS ARM64 18.6 and Windows x64 17.11; the complete version/platform matrix remains required |
 | `install` | Install libraries, control files, schema and upgrade scripts into selected PostgreSQL paths | Installed CLI validates the entire declared payload before copying/staging native libraries, control, installation SQL and upgrade scripts. Exact-byte and missing-upgrade checks cover install and package; full version/platform validation remains required |
-| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. Cross-target packaging remains required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
+| `package` | Produce a relocatable installation tree for a selected version/target with custom library naming and an explicit installation prefix | Partial: installed command composes publishing and validated installation staging, with default Release, explicit Debug/custom configurations, project or existing publication, default/explicit output, and custom native library names. SQL upgrade distribution and transactional backend updates are implemented. `--prefix-dir` and cross-target packaging remain required; verification is recorded in the package, SQL-upgrade and custom-configuration milestones below |
 | `get` | Query extension control properties and derived extension metadata | Implemented: managed generated metadata and author settings share primary publication composition; evaluated extension names, selected-project Git revisions and publication-only queries preserve exact output and failures. Installed-tool/catalog evidence on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11; full version/platform matrix remains required |
 | `cross` / `pgrx-target` | Export target configuration/binding information and support target-aware build workflows | Pending |
 | `upgrade` | Upgrade framework package references, including workspace/central versions and dry-run selection | Partial: installed command updates SDK/global/central/package declarations with NuGet version rules, configured sources/mappings, exact manifest edits, imported-property isolation, mixed-item identity guards, dry runs and rollback. The 56-case selection passes on Linux x64/macOS ARM64 PostgreSQL 18.6 and Windows x64 PostgreSQL 17.11. Arbitrary package-name property functions and the full version/platform matrix remain required; distinct from PostgreSQL extension SQL upgrades |
 
 Additional tooling sources: `cargo-pgrx/src/{manifest,metadata}.rs`, command options in each command file,
 `pgrx-pg-config/src/`, `pgrx-bindgen/src/`, and installation/upgrade fixtures in `cargo-pgrx/tests/`.
+General build-property forwarding must reach both project evaluation and every
+related build/test invocation, matching the upstream cargo-option contract.
+That support, environment-based installation selection, execution-account options
+and privileged installation remain open; the review matrix tracks them explicitly.
 The framework also requires versioned extension SQL upgrades, custom/versioned shared-library names,
 control-file settings, dependency handling, and deterministic packaging.
 Primary author settings and native dependency/privilege behavior are implemented
@@ -17319,3 +17343,239 @@ and their Docs runs pass. The reported Windows failure in **36713330603** is
 addressed by `f9984ac`, with Windows regression evidence already recorded and
 its dedicated CI still pending. Hosted Intel macOS's one-hour timeout and the
 remaining review/platform requirements stay open. No runs were canceled.
+
+## Upstream header and PostgreSQL 19 input refresh
+
+The stale input pins are confirmed. Catalogs, header manifests and OIDs now come
+from pgrx **0.19.3**, commit `fc91c63ebad11784647b50ee7e265c1fd9c9924f`.
+PostgreSQL 19 declarations, SQLSTATE input and the installed validation server
+use **19 beta 4**. Generation preserves the upstream inventory and selected
+installation measurements. Independent source counts and native-name/value
+hashes update the existing catalog expectations; the new declaration tests
+first failed against the older inventory.
+
+The expanded headers exposed a real standalone-probe linker defect. PostgreSQL's
+checksum implementation header defines a function that references backend
+assertion support. Probes previously linked this body even though they never
+executed it. Function/data sections and native linker reachability now retain
+only executable probe dependencies. Headers, compile-time assertions and
+bitfield execution checks remain intact. Regressions prove an unused backend
+body can coexist with successful checks, changed physical bitfields still fail,
+and a reachable unresolved backend call still fails linking. The focused Build
+scope passes **86/86**, zero failures/skips, **4.523s**.
+
+Actual independent binding collection and C verification pass on Linux x64 for
+PostgreSQL **13.23, 14.24, 15.19, 16.15, 17.11, 18.6 and 19 beta 4**.
+All selected inventory entries are available for these installations. An initial
+parallel attempt exhausted the temporary RAM filesystem; the failed workers
+cleaned their staging, and rerunning with disk-backed temporary storage passed.
+This is binding evidence, not complete backend or platform coverage.
+
+Release passes with **zero warnings/errors, 1m47.03s**. New backend tests compare
+native hash calls with PostgreSQL's SQL functions and exercise inline addition
+at signed overflow boundaries, including subsequent successful calls.
+Their execution, complete suites, regeneration checks and API/site validation
+remain pending; this input refresh is not yet a completed milestone.
+
+The focused native inventory run now passes **14/14**, zero failures/skips,
+PostgreSQL **18.6/Linux x64**, **3m06.338s**. Exported 32/64-bit hashes match
+PostgreSQL's independent SQL entry points, and inline addition preserves exact
+sums, signed overflow boundaries and subsequent successful calls. API generation
+passes with **234 pages / 2,683 members**. Complete-suite and remaining gates
+still precede a completed input-refresh milestone.
+
+The complete Build suite passes **1,175 total, 1,168 passed, zero failed and
+seven Windows-only skips**, **29.940s**. The complete runtime suite passes
+**1,883/1,883**, **2.682s**, after refreshing one additional active-catalog
+count expectation from the independently audited upstream manifest. Native OID
+tests use those same independent per-major manifests and now compare the newly
+included aggregate/constraint relation constants with the real server catalogs.
+All three input regeneration checks pass. API freshness passes, the site builds
+**282 pages in 8.61s**, and documentation checking reports zero errors, warnings
+or hints. Final complete backend runs remain pending.
+
+The first complete PostgreSQL 19 beta 4 attempt exposed an assembly-fixture
+compilation failure: a deliberate raw-error test borrowed the removed
+`LWTRANCHE_BUFFER_CONTENT` constant for its own lock. The fixture now allocates
+and registers its own named tranche through each major's supported API. This
+preserves the actual lock-acquisition/rollback test without depending on an
+unrelated PostgreSQL internal lock class. The failed run reported **4,148**
+integration cases blocked by the same setup error; its managed modules passed.
+Focused PostgreSQL 19 execution and a complete rerun remain required.
+
+The refreshed binding command also passes actual native collection and layout
+verification on **macOS ARM64/PostgreSQL 18.6**. Windows validation is using an
+isolated tool snapshot; an initial local setup attempt omitted the Windows SDK
+headers because its inherited command path lacked Windows system tools. That
+validation launcher is corrected without changing the runner or weakening checks.
+
+The earlier Windows port repair's own CI job now succeeds: run **36737755545**,
+Windows x64/PostgreSQL 17, **29m10s**. Its macOS ARM64/PostgreSQL 18 job also
+succeeds (**17m43s**); Linux x64/PostgreSQL 18 remains active. Planner-support
+CI **36730262684** is fully successful, including Linux **44m16s**, macOS
+**17m52s** and Windows **30m54s**. No automatic cancellation was introduced.
+
+After allocating the fixture's own tranche, focused PostgreSQL **19 beta 4/Linux
+x64** execution passes **43/43**, zero failures/skips, **2m09.133s**. This includes
+the actual raw-error lock cleanup/recovery cases, full active OID enumeration,
+live catalog identities, and all newly added hash/overflow cases. The complete
+PostgreSQL 19 suite is running again. The final Release build before this native
+fixture correction passed with zero warnings/errors in **36.22s**.
+
+Windows x64/PostgreSQL **17.11** also passes actual refreshed binding collection
+and native layout verification. This completes the focused three-platform
+binding check, not full backend-suite acceptance.
+
+The complete PostgreSQL 19 attempt then exposed a real backend assertion in
+anonymous record construction. PostgreSQL 19 requires `TupleDescFinalize()`
+after populating a descriptor; both Ankus-created descriptor paths need that
+step before registration or execution. Other failures cascaded from the backend
+restart. Separately, PostgreSQL 19 now rejects database names containing newline
+or carriage-return characters. The API correctly preserves the server error,
+but its regression test incorrectly expected those names to be accepted on
+all majors. Both findings remain under correction; no successful full PostgreSQL
+19 result is claimed. The failed local run was asked to stop through normal
+cancellation before rebuilding. Hosted CI runs remain untouched.
+
+The failed local attempt stopped cleanly with exit code 3 after **7m01.406s**;
+its partial results are not complete-suite evidence. PostgreSQL 19 descriptor
+construction now calls the server's required finalizer after attribute setup,
+including scalar set descriptors. Existing real composite/SETOF regressions
+exercise both paths. Database-name tests retain successful round trips on older
+majors and explicitly verify PostgreSQL 19 rejection for newline, carriage return
+and CRLF, with no database created and unrelated data preserved. A separately
+compiled packaged-call test also needed reachability flags for the expanded
+implementation headers, matching its standalone executable purpose. Focused
+PostgreSQL 19 validation is running before another complete attempt.
+
+The PostgreSQL **19 beta 4/Linux x64** compatibility selection passes **143/143**,
+zero failures/skips, **5m02.808s**. It executes real composite records, scalar
+and table sets, both exact database-name workflows and the installed native-call
+command. Complete PostgreSQL 19 validation is running again with these fixes.
+
+## Replacement dedicated Linux runner
+
+At the user's request, a replacement Debian **13.7/Linux x64** host was prepared
+for Linux CI with **16 physical cores, 32 hardware threads and 32 GiB RAM**. The runner
+uses its own unprivileged service account and starts automatically. Installed
+prerequisites include **.NET SDK 10.0.401**, **LLVM/Clang 23.1.2** with matching
+libclang, **PostgreSQL 18.6** server/development packages, and **Valgrind 3.24.0**
+with matching libc symbols. Official SDK/runner downloads passed their published
+SHA512/SHA256 checks. Header-frontend support and an actual Valgrind invocation
+pass. Temporary build storage uses disk.
+
+The existing Linux platform label was transferred to the new online runner.
+The previous runner retained its active job but lost the routing label, allowing
+that job to finish without automatic cancellation. Workflows continue to permit
+only owner-triggered main-branch push/manual jobs on dedicated runners; external
+contributors require approval and normal pull requests use hosted machines.
+Existing privacy replacements were retained and extended before activation.
+Machine names, connection details and personal paths remain private.
+
+The new machine's complete CI execution and measured runtime remain pending.
+The package-test setting remains **three** for the initial hardware baseline;
+this migration does not claim a measured concurrency improvement or replace any
+complete-suite requirement. Full-port and review requirements remain open.
+
+Activation is **not complete**. Shortly after registration and service startup,
+the replacement host became unreachable over both SSH and ICMP from two local
+clients, and GitHub marked it offline before it accepted a job. The user suspects
+a machine crash. The original Linux routing label was restored and the candidate
+returned to its validation-only label, preserving ongoing CI. A restart and
+previous-boot inspection are required before transferring production routing
+again. The earlier label-transfer paragraph records the attempted transition,
+not a completed migration or successful new-machine test result.
+
+The prior port-repair CI run **36737755545** is now fully successful. Linux x64/
+PostgreSQL 18 completed in **44m54s**, alongside Windows x64/PostgreSQL 17
+(**29m10s**) and macOS ARM64/PostgreSQL 18 (**17m43s**). These results came from
+the existing runners and do not validate the replacement machine.
+
+The next complete PostgreSQL 19 run found one additional instance of the same
+API requirement in a packed-consumer test's deliberately raw native calls. That
+consumer constructed a tuple descriptor directly and passed it to
+`heap_form_tuple` without finalization. Its PostgreSQL 19 source now invokes
+`NativeMethods.TupleDescFinalize`; older-major source remains compatible. The
+failure occurred in that test's isolated cluster, with no observed cascade into
+other cases. The complete run is finishing before focused revalidation.
+
+After the user's restart and hardware investigation, the replacement runner
+reconnected automatically through its enabled service. Previous-boot error logs
+did not establish a software crash cause. Production Linux routing was moved
+back to the replacement, while the existing runner finishes its already assigned
+job. The first actual CI job and sustained load are still being monitored;
+stability and faster full-suite timings remain unproven.
+
+The replacement's first runtime CI job now succeeds in **2m31s** (run
+**36748783637**, job **110001713364**). Its complete PostgreSQL 18 test job has
+started. The host remains reachable and its runner service is active; complete
+suite duration and sustained stability are still pending.
+
+The local PostgreSQL **19 beta 4/Linux x64** run completed with **10,029 total,
+10,018 passed, one failed and ten platform-specific skips**, **16m59.952s**.
+The sole failure was the raw packed-consumer descriptor described above. All
+other modules and native tests passed. Focused validation of that test's
+finalization correction and another complete run remain required.
+
+The corrected raw packed-consumer case now passes on PostgreSQL **19 beta 4/
+Linux x64**, **1/1**, zero failures/skips, **5m56.207s**. It executes the native
+descriptor helper and then verifies subsequent backend calls, error recovery,
+workers, preload and independent consumer rebuilds. Another complete PostgreSQL
+19 run has started. This focused result does not replace the complete gate.
+
+The replacement Linux runner's first complete PostgreSQL **18.6/Linux x64** CI
+job succeeds: run **36748783637**, job **110031141017**, **21m08s** overall.
+Its test build took **1m22s**; the full test step took **19m17s**. All six reports
+are present: **9,992 total, 9,982 passed, zero failed and ten platform skips**.
+The cold runtime job also passed, including **1m42s** building the runtime and
+**2m31s** overall. The machine remained reachable throughout monitored execution
+and used no swap in the sampled memory observations.
+
+Production Linux routing remains on the replacement. The prior runner continues
+its already assigned aggregate job; no job was canceled. Package-test concurrency
+remains three. These are the initial replacement-machine results, not a controlled
+concurrency comparison or a guarantee against later hardware failure. Provenance
+macOS ARM64/PostgreSQL 18 also succeeds (**17m59s**); Windows remains active.
+
+The replacement's retained TRX confirms **three package-consumer slots / 32
+logical processors**. The longest recorded case is a configured package publish
+at **3m25.906s**. Several small CLI checks report roughly **2m45s** because their
+durations include waiting for a package slot in test initialization; those values
+are not isolated command execution costs. No concurrency or cache behavior was
+changed based on this initial timing report.
+
+Final complete PostgreSQL **19 beta 4/Linux x64** validation now passes:
+**10,029 total, 10,019 passed, zero failed and ten platform skips**,
+**24m09.743s**. All six modules completed. The descriptor finalization fixes,
+expanded native calls and version-specific database-name rules therefore pass
+the complete suite, including real Native AOT consumers and backend recovery.
+PostgreSQL 18 validation is running against an identical source snapshot in
+an isolated build tree. Its overlap with this run makes these durations unsuitable
+for a controlled speed comparison. Final Release/API/site gates remain pending.
+
+Final Release rebuild succeeds with **zero warnings/errors, 56.06s**. API
+generation and freshness verify **234 pages / 2,683 members**. The site builds
+**282 pages in 6.23s** and reports zero check errors, warnings or hints.
+The isolated PostgreSQL 18 source snapshot still matches the primary source
+diff exactly; its complete run remains active.
+
+Aggregate CI **36742158434** is now fully successful. Its final old-runner
+Linux x64/PostgreSQL 18 job passed in **44m13s**, alongside the previously
+recorded Windows **31m18s** and macOS **17m55s** results. The old Linux runner
+has finished its assigned work and no longer has the production routing label.
+No jobs were canceled during migration.
+
+Final complete PostgreSQL **18.6/Linux x64** validation also succeeds:
+**10,029 total, 10,019 passed, zero failed and ten platform skips**,
+**24m07.984s**. Its tracked source diff and all three new test source files
+match the primary checkout by SHA256. This completes both local full-suite
+gates for the upstream refresh. The independent seven-major native probes and
+macOS/Windows binding probes remain focused evidence, as recorded above.
+
+Before commit, prior CI was checked again. Provenance **36748783637** is fully
+successful: Linux **21m08s**, macOS **17m59s**, Windows **37m44s**. Aggregate
+**36742158434**, port repair **36737755545**, planner **36730262684**, and their
+Docs runs also succeed. Windows used **six package slots / 32 logical processors**;
+its full-test step took **35m30s**. These durations are observed CI outcomes,
+not controlled performance comparisons. Hosted Intel macOS timeouts and the
+full-port/review gaps remain open.

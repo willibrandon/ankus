@@ -13,7 +13,7 @@ try
         throw new InvalidOperationException("Run from the repository root: dotnet run --file eng/Ankus.Oids.cs -- <pgrx-checkout> [--check]");
     }
 
-    const string Revision = "70383e884582d1bcc7cd681d10886b995a2830cb";
+    const string Revision = "fc91c63ebad11784647b50ee7e265c1fd9c9924f";
     var definitions = new Dictionary<string, (uint Value, List<int> Versions)>(StringComparer.Ordinal);
     for (int major = 13; major <= 19; major++)
     {

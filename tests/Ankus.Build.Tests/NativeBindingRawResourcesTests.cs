@@ -16,18 +16,18 @@ public sealed class NativeBindingRawResourcesTests
     /// <param name="shims">Independently counted renamed pgrx C shims.</param>
     /// <param name="variadics">Independently counted variadic signatures.</param>
     [TestMethod]
-    [DataRow(13, 7349, 475, 4968, 250, 14)]
-    [DataRow(14, 7701, 508, 5592, 268, 15)]
-    [DataRow(15, 7890, 515, 5683, 279, 15)]
-    [DataRow(16, 8193, 529, 5765, 472, 15)]
-    [DataRow(17, 8339, 546, 5882, 499, 15)]
-    [DataRow(18, 8645, 579, 6112, 571, 16)]
-    [DataRow(19, 8799, 591, 6159, 632, 16)]
+    [DataRow(13, 8666, 552, 5664, 283, 15)]
+    [DataRow(14, 9058, 580, 6353, 305, 16)]
+    [DataRow(15, 9294, 595, 6473, 316, 16)]
+    [DataRow(16, 9622, 615, 6564, 510, 16)]
+    [DataRow(17, 9814, 636, 6691, 567, 16)]
+    [DataRow(18, 10204, 686, 6861, 650, 17)]
+    [DataRow(19, 10424, 750, 6939, 731, 17)]
     public void PackagedRawDeclarationsRetainVersionedContracts(int major, int functions, int globals, int constants, int shims, int variadics)
     {
         NativeBindingRawCatalog catalog = NativeBindingResources.ReadRawCatalog(major);
         Assert.AreEqual(major, catalog.PostgresMajor);
-        Assert.AreEqual("70383e884582d1bcc7cd681d10886b995a2830cb", catalog.SourceRevision);
+        Assert.AreEqual("fc91c63ebad11784647b50ee7e265c1fd9c9924f", catalog.SourceRevision);
         Assert.HasCount(functions, catalog.Functions);
         Assert.HasCount(globals, catalog.Globals);
         Assert.HasCount(constants, catalog.ReferenceConstants);

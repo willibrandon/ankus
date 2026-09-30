@@ -233,9 +233,13 @@ A sixth argument selects the expected runtime identifier and a seventh passes
 the compiler target triple. The actual compiler target must match the requested
 runtime identifier.
 
-Promoted anonymous containers without an addressable C type still fail independent
-verification. PostgreSQL 19 beta 3 reaches this limitation; its full binding and
-backend validation remains incomplete.
+Promoted anonymous members are checked through their enclosing declarations.
+Independent probes compile complete headers, including implementation headers,
+and link only definitions reached by the probe. Unused backend functions need
+no standalone implementation; missing dependencies in executed checks still fail
+linking. Compile-time assertions and executable bitfield checks remain enabled.
+The pinned pgrx 0.19.3 inventory, OIDs and PostgreSQL 19 SQLSTATE inputs all use
+19 beta 4. Complete platform/version validation remains required.
 
 To emit managed declarations and their companion project, use `binding-sources`
 with the same arguments, followed by optional Clang executable and libclang paths.

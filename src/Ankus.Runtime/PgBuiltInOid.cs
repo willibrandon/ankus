@@ -521,6 +521,14 @@ public enum PgBuiltInOid : uint
     MoneyArrayOid = 791,
 
     /// <summary>
+    /// The <c>DefaultAclRelationId</c> constant (<c>826</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>DefaultAclRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    DefaultAclRelationId = 826,
+
+    /// <summary>
     /// The <c>MACADDROID</c> constant (<c>829</c>).
     /// </summary>
     /// <remarks>
@@ -879,6 +887,14 @@ public enum PgBuiltInOid : uint
     /// <c>TableSpaceRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     TableSpaceRelationId = 1213,
+
+    /// <summary>
+    /// The <c>SharedDependRelationId</c> constant (<c>1214</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SharedDependRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SharedDependRelationId = 1214,
 
     /// <summary>
     /// The <c>NUMERICARRAYOID</c> constant (<c>1231</c>).
@@ -1354,6 +1370,14 @@ public enum PgBuiltInOid : uint
     BoolHashFamOid = 2222,
 
     /// <summary>
+    /// The <c>SequenceRelationId</c> constant (<c>2224</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SequenceRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SequenceRelationId = 2224,
+
+    /// <summary>
     /// The <c>RECORDOID</c> constant (<c>2249</c>).
     /// </summary>
     /// <remarks>
@@ -1458,6 +1482,22 @@ public enum PgBuiltInOid : uint
     ForeignDataWrapperRelationId = 2328,
 
     /// <summary>
+    /// The <c>SharedDescriptionRelationId</c> constant (<c>2396</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SharedDescriptionRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SharedDescriptionRelationId = 2396,
+
+    /// <summary>
+    /// The <c>AggregateRelationId</c> constant (<c>2600</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>AggregateRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    AggregateRelationId = 2600,
+
+    /// <summary>
     /// The <c>AccessMethodRelationId</c> constant (<c>2601</c>).
     /// </summary>
     /// <remarks>
@@ -1482,12 +1522,84 @@ public enum PgBuiltInOid : uint
     AccessMethodProcedureRelationId = 2603,
 
     /// <summary>
+    /// The <c>AttrDefaultRelationId</c> constant (<c>2604</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>AttrDefaultRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    AttrDefaultRelationId = 2604,
+
+    /// <summary>
+    /// The <c>CastRelationId</c> constant (<c>2605</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>CastRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    CastRelationId = 2605,
+
+    /// <summary>
+    /// The <c>ConstraintRelationId</c> constant (<c>2606</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>ConstraintRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    ConstraintRelationId = 2606,
+
+    /// <summary>
+    /// The <c>ConversionRelationId</c> constant (<c>2607</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>ConversionRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    ConversionRelationId = 2607,
+
+    /// <summary>
+    /// The <c>DependRelationId</c> constant (<c>2608</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>DependRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    DependRelationId = 2608,
+
+    /// <summary>
+    /// The <c>DescriptionRelationId</c> constant (<c>2609</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>DescriptionRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    DescriptionRelationId = 2609,
+
+    /// <summary>
     /// The <c>IndexRelationId</c> constant (<c>2610</c>).
     /// </summary>
     /// <remarks>
     /// <c>IndexRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     IndexRelationId = 2610,
+
+    /// <summary>
+    /// The <c>InheritsRelationId</c> constant (<c>2611</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>InheritsRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    InheritsRelationId = 2611,
+
+    /// <summary>
+    /// The <c>LanguageRelationId</c> constant (<c>2612</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>LanguageRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    LanguageRelationId = 2612,
+
+    /// <summary>
+    /// The <c>LargeObjectRelationId</c> constant (<c>2613</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>LargeObjectRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    LargeObjectRelationId = 2613,
 
     /// <summary>
     /// The <c>NamespaceRelationId</c> constant (<c>2615</c>).
@@ -1512,6 +1624,14 @@ public enum PgBuiltInOid : uint
     /// <c>OperatorRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     OperatorRelationId = 2617,
+
+    /// <summary>
+    /// The <c>RewriteRelationId</c> constant (<c>2618</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>RewriteRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    RewriteRelationId = 2618,
 
     /// <summary>
     /// The <c>StatisticRelationId</c> constant (<c>2619</c>).
@@ -1578,12 +1698,28 @@ public enum PgBuiltInOid : uint
     UuidArrayOid = 2951,
 
     /// <summary>
+    /// The <c>DbRoleSettingRelationId</c> constant (<c>2964</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>DbRoleSettingRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    DbRoleSettingRelationId = 2964,
+
+    /// <summary>
     /// The <c>TXID_SNAPSHOTOID</c> constant (<c>2970</c>).
     /// </summary>
     /// <remarks>
     /// <c>TXID_SNAPSHOTOID</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     TxidSnapshotOid = 2970,
+
+    /// <summary>
+    /// The <c>LargeObjectMetadataRelationId</c> constant (<c>2995</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>LargeObjectMetadataRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    LargeObjectMetadataRelationId = 2995,
 
     /// <summary>
     /// The <c>ExtensionRelationId</c> constant (<c>3079</c>).
@@ -1683,6 +1819,14 @@ public enum PgBuiltInOid : uint
     PgLsnArrayOid = 3221,
 
     /// <summary>
+    /// The <c>PolicyRelationId</c> constant (<c>3256</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>PolicyRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    PolicyRelationId = 3256,
+
+    /// <summary>
     /// The <c>F_ROW_SECURITY_ACTIVE_OID</c> constant (<c>3298</c>).
     /// </summary>
     /// <remarks>
@@ -1697,6 +1841,14 @@ public enum PgBuiltInOid : uint
     /// <c>TSM_HANDLEROID</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     TsmHandlerOid = 3310,
+
+    /// <summary>
+    /// The <c>PartitionedRelationId</c> constant (<c>3350</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>PartitionedRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    PartitionedRelationId = 3350,
 
     /// <summary>
     /// The <c>PG_NDISTINCTOID</c> constant (<c>3361</c>).
@@ -1716,6 +1868,14 @@ public enum PgBuiltInOid : uint
     StatisticExtRelationId = 3381,
 
     /// <summary>
+    /// The <c>InitPrivsRelationId</c> constant (<c>3394</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>InitPrivsRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    InitPrivsRelationId = 3394,
+
+    /// <summary>
     /// The <c>PG_DEPENDENCIESOID</c> constant (<c>3402</c>).
     /// </summary>
     /// <remarks>
@@ -1723,6 +1883,14 @@ public enum PgBuiltInOid : uint
     /// <c>PG_DEPENDENCIESOID</c> in PostgreSQL 14, 15, 16, 17, 18, 19.
     /// </remarks>
     PgDependenciesOid = 3402,
+
+    /// <summary>
+    /// The <c>StatisticExtDataRelationId</c> constant (<c>3429</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>StatisticExtDataRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    StatisticExtDataRelationId = 3429,
 
     /// <summary>
     /// The <c>CollationRelationId</c> constant (<c>3456</c>).
@@ -1763,6 +1931,22 @@ public enum PgBuiltInOid : uint
     /// <c>EnumRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     EnumRelationId = 3501,
+
+    /// <summary>
+    /// The <c>RangeRelationId</c> constant (<c>3541</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>RangeRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    RangeRelationId = 3541,
+
+    /// <summary>
+    /// The <c>TransformRelationId</c> constant (<c>3576</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TransformRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TransformRelationId = 3576,
 
     /// <summary>
     /// The <c>BRIN_AM_OID</c> constant (<c>3580</c>).
@@ -1837,12 +2021,52 @@ public enum PgBuiltInOid : uint
     FunctionBinaryUpgradeSetNextPgAuthIdOid = 3590,
 
     /// <summary>
+    /// The <c>SharedSecLabelRelationId</c> constant (<c>3592</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SharedSecLabelRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SharedSecLabelRelationId = 3592,
+
+    /// <summary>
     /// The <c>SecLabelRelationId</c> constant (<c>3596</c>).
     /// </summary>
     /// <remarks>
     /// <c>SecLabelRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     SecLabelRelationId = 3596,
+
+    /// <summary>
+    /// The <c>TSDictionaryRelationId</c> constant (<c>3600</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TSDictionaryRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TSDictionaryRelationId = 3600,
+
+    /// <summary>
+    /// The <c>TSParserRelationId</c> constant (<c>3601</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TSParserRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TSParserRelationId = 3601,
+
+    /// <summary>
+    /// The <c>TSConfigRelationId</c> constant (<c>3602</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TSConfigRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TSConfigRelationId = 3602,
+
+    /// <summary>
+    /// The <c>TSConfigMapRelationId</c> constant (<c>3603</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TSConfigMapRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TSConfigMapRelationId = 3603,
 
     /// <summary>
     /// The <c>TSVECTOROID</c> constant (<c>3614</c>).
@@ -1915,6 +2139,14 @@ public enum PgBuiltInOid : uint
     /// <c>REGCONFIGARRAYOID</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     RegConfigArrayOid = 3735,
+
+    /// <summary>
+    /// The <c>TSTemplateRelationId</c> constant (<c>3764</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>TSTemplateRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    TSTemplateRelationId = 3764,
 
     /// <summary>
     /// The <c>REGDICTIONARYOID</c> constant (<c>3769</c>).
@@ -2367,12 +2599,36 @@ public enum PgBuiltInOid : uint
     FunctionPgReplicationOriginOid = 6005,
 
     /// <summary>
+    /// The <c>SubscriptionRelationId</c> constant (<c>6100</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SubscriptionRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SubscriptionRelationId = 6100,
+
+    /// <summary>
+    /// The <c>SubscriptionRelRelationId</c> constant (<c>6102</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SubscriptionRelRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    SubscriptionRelRelationId = 6102,
+
+    /// <summary>
     /// The <c>PublicationRelationId</c> constant (<c>6104</c>).
     /// </summary>
     /// <remarks>
     /// <c>PublicationRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
     /// </remarks>
     PublicationRelationId = 6104,
+
+    /// <summary>
+    /// The <c>PublicationRelRelationId</c> constant (<c>6106</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>PublicationRelRelationId</c> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+    /// </remarks>
+    PublicationRelRelationId = 6106,
 
     /// <summary>
     /// The <c>INT4MULTIRANGEARRAYOID</c> constant (<c>6150</c>).
@@ -2421,6 +2677,22 @@ public enum PgBuiltInOid : uint
     /// <c>INT8MULTIRANGEARRAYOID</c> in PostgreSQL 14, 15, 16, 17, 18, 19.
     /// </remarks>
     Int8MultirangeArrayOid = 6157,
+
+    /// <summary>
+    /// The <c>PublicationNamespaceRelationId</c> constant (<c>6237</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>PublicationNamespaceRelationId</c> in PostgreSQL 15, 16, 17, 18, 19.
+    /// </remarks>
+    PublicationNamespaceRelationId = 6237,
+
+    /// <summary>
+    /// The <c>ParameterAclRelationId</c> constant (<c>6243</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>ParameterAclRelationId</c> in PostgreSQL 15, 16, 17, 18, 19.
+    /// </remarks>
+    ParameterAclRelationId = 6243,
 
     /// <summary>
     /// The <c>F_PG_GET_PUBLICATION_TABLES__TEXT_OID</c> constant (<c>6435</c>).

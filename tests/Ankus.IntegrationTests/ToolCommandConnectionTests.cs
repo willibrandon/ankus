@@ -28,8 +28,22 @@ public sealed partial class ToolCommandTests
         try
         {
             Assert.IsTrue(await cluster.StartAsync(new PostgresDevelopmentOptions { Port = port }, token));
-            string[] names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ", "line\n\\! echo forbidden", ".", "..", "%2F?a#b",
+            List<string> names = ["ordinary", " café'\\\"; # ", "--help", "host=elsewhere dbname=other", "postgresql://elsewhere/db", " ", ".", "..", "%2F?a#b",
                 new string('a', 63), new string('é', 31) + "a"];
+            foreach (string name in new[] { "line\n\\! echo forbidden", "line\r\\! echo forbidden", "line\r\n\\! echo forbidden" })
+            {
+                if (s_installation.Version.Major < 19)
+                {
+                    names.Add(name);
+                }
+                else
+                {
+                    InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => cluster.CreateDatabaseAsync(name, token));
+                    Assert.Contains("contains a newline or carriage return character", error.Message);
+                    Assert.IsFalse(await cluster.DropDatabaseAsync(name, cancellationToken: token));
+                }
+            }
+
             foreach (string name in names)
             {
                 Assert.IsTrue(await cluster.CreateDatabaseAsync(name, token));
@@ -50,7 +64,7 @@ public sealed partial class ToolCommandTests
 
             await using NpgsqlConnection connectionToServer = await OpenDevelopmentConnectionAsync(port, token);
             await using var count = new NpgsqlCommand("SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres'", connectionToServer);
-            Assert.AreEqual((long)names.Length, await count.ExecuteScalarAsync(token));
+            Assert.AreEqual((long)names.Count, await count.ExecuteScalarAsync(token));
         }
         finally
         {

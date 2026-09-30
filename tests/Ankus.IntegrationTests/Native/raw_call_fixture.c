@@ -108,7 +108,14 @@ ankus_test_raw_call_error(PG_FUNCTION_ARGS)
     {
         if (!raw_error_lock_initialized)
         {
-            LWLockInitialize(&raw_error_lock, LWTRANCHE_BUFFER_CONTENT);
+            int tranche;
+#if PG_VERSION_NUM >= 190000
+            tranche = LWLockNewTrancheId("ankus raw error fixture");
+#else
+            tranche = LWLockNewTrancheId();
+            LWLockRegisterTranche(tranche, "ankus raw error fixture");
+#endif
+            LWLockInitialize(&raw_error_lock, tranche);
             raw_error_lock_initialized = true;
         }
 

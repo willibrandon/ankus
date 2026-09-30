@@ -120,8 +120,32 @@ internal static class NativeBindingLayoutCommand
                 "-isystem", installation.IncludeDirectory, source, "-o", executable]);
         }
 
+        AddProbeLinkOptions(options);
         await RunProcessAsync(compiler, options, output, cancellationToken);
         return await RunProcessAsync(executable, [], output, cancellationToken);
+    }
+
+    /// <summary>
+    /// Links only probe-reachable definitions from headers that also contain backend implementations.
+    /// </summary>
+    /// <param name="options">The compiler-driver arguments, including any Windows linker arguments.</param>
+    internal static void AddProbeLinkOptions(List<string> options)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            options.InsertRange(0, ["/Gy", "/Gw"]);
+            if (!options.Contains("/link", StringComparer.OrdinalIgnoreCase))
+            {
+                options.Add("/link");
+            }
+
+            options.Add("/OPT:REF");
+        }
+        else
+        {
+            options.AddRange(["-ffunction-sections", "-fdata-sections",
+                OperatingSystem.IsMacOS() ? "-Wl,-dead_strip" : "-Wl,--gc-sections"]);
+        }
     }
 
     /// <summary>

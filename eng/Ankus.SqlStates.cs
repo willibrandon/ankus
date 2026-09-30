@@ -16,7 +16,7 @@ try
     (int Major, string Tag)[] sources =
     [
         (13, "REL_13_23"), (14, "REL_14_24"), (15, "REL_15_19"), (16, "REL_16_15"),
-        (17, "REL_17_11"), (18, "REL_18_6"), (19, "REL_19_BETA3"),
+        (17, "REL_17_11"), (18, "REL_18_6"), (19, "REL_19_BETA4"),
     ];
     var definitions = new Dictionary<string, (string Code, string? Condition, List<int> Versions)>(StringComparer.Ordinal);
     foreach ((int major, string tag) in sources)

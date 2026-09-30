@@ -43,12 +43,13 @@ public sealed partial class ToolCommandTests
         string compiler = OperatingSystem.IsWindows() ? "cl.exe" : "clang";
         string executable = Path.Combine(output, OperatingSystem.IsWindows() ? "execute.exe" : "execute");
         string[] options = OperatingSystem.IsWindows()
-            ? ["/nologo", "/std:c11", "/WX", "/O2", "/I" + s_installation.ServerIncludeDirectory, "/I" + s_installation.IncludeDirectory,
+            ? ["/nologo", "/std:c11", "/WX", "/O2", "/Gy", "/Gw", "/I" + s_installation.ServerIncludeDirectory, "/I" + s_installation.IncludeDirectory,
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32"),
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32_msvc"),
-                "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
+                "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file, "/link", "/OPT:REF"]
             : [.. await s_installation.GetPreprocessorArgumentsAsync(token), "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2",
-                "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", executable];
+                "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", executable,
+                "-ffunction-sections", "-fdata-sections", OperatingSystem.IsMacOS() ? "-Wl,-dead_strip" : "-Wl,--gc-sections"];
         await ProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: output);
         ProcessResult execution = await ProcessRunner.RunCheckedAsync(executable, [], s_environment, token, workingDirectory: output);
         Assert.AreEqual("PostgreSQL full transaction ID values retained\n", execution.StandardOutput.ReplaceLineEndings("\n"));

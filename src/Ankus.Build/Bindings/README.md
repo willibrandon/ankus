@@ -2,7 +2,7 @@
 
 The generated `pg13.json` through `pg19.json` files retain native node tags,
 structs/unions, fields, typedefs, enums and node cast sets from pgrx commit
-`70383e884582d1bcc7cd681d10886b995a2830cb`. They preserve complete bindgen type
+`fc91c63ebad11784647b50ee7e265c1fd9c9924f` (pgrx 0.19.3). They preserve complete bindgen type
 expressions and do not assert physical sizes or offsets. Physical layouts must
 come from the selected PostgreSQL headers and target toolchain.
 
@@ -23,13 +23,18 @@ node layout graph.
 
 | PostgreSQL input | Foreign functions | Foreign globals | Reference constants |
 |---|---:|---:|---:|
-| 13 | 7,349 | 475 | 4,968 |
-| 14 | 7,701 | 508 | 5,592 |
-| 15 | 7,890 | 515 | 5,683 |
-| 16 | 8,193 | 529 | 5,765 |
-| 17 | 8,339 | 546 | 5,882 |
-| 18 | 8,645 | 579 | 6,112 |
-| 19 | 8,799 | 591 | 6,159 |
+| 13 | 8,666 | 552 | 5,664 |
+| 14 | 9,058 | 580 | 6,353 |
+| 15 | 9,294 | 595 | 6,473 |
+| 16 | 9,622 | 615 | 6,564 |
+| 17 | 9,814 | 636 | 6,691 |
+| 18 | 10,204 | 686 | 6,861 |
+| 19 | 10,424 | 750 | 6,939 |
+
+The reference server versions are 13.23, 14.24, 15.19, 16.15, 17.11,
+18.6 and 19 beta 4. The OID catalog uses the same pgrx revision; SQLSTATE
+generation reads PostgreSQL's `REL_19_BETA4` tag. Selected-header measurements
+remain authoritative for each consumer's installation.
 
 Regenerate with `eng/Ankus.Bindings.cs`; do not edit generated catalogs by hand.
 These declarations are input to native binding generation. They are not evidence

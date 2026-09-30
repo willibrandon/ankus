@@ -23,11 +23,11 @@ public sealed class OidTests(TestContext context)
             int major = (int)(await command.ExecuteScalarAsync(token))!;
             (int count, string hash) = major switch
             {
-                13 => (263, "8FFE0D0326CDC3915617F774EF9250DECE3B082E1BF2A6D93617E89672A903D7"),
-                14 => (292, "2A31F4C8749C75CC6F2DFF4B072D48B7ECD6AC2A92600A0B4D83C594ACB33B99"),
-                15 or 16 or 17 => (292, "1898211C84F3F04CED37F80ED7DC6A49A17C1532FAA8BD21415E7E93DE24D156"),
-                18 => (291, "F93EC9CDE08558E0505BEF6EF7E251BC3E6874758637B22856A862D66A6DB3A6"),
-                19 => (296, "3C7FCF0265D299EC10DD85E60AA0242645C0A30830E87D390A1F6D471F40CB77"),
+                13 => (295, "D57324B651DF04A876C8F95E354C8F18520C35D2425C447EEB0CCCA3AFAE5FE9"),
+                14 => (324, "025280FF026DFDAB3208E38B0311CA5C702BAB20E1E96870B315D213BC030338"),
+                15 or 16 or 17 => (326, "6205E9C21E8958AB9EC981AB31B239302EF431F201505DB13B114254DE172EAF"),
+                18 => (325, "A7653DB2C89301BBA873DBCF7D959893D17E7122E59102A891EB85A60A6A66F0"),
+                19 => (330, "99A7DE2D198455BFE89576401F9B28E7AD24430FE7C3AA49935FD8A6AF0CC632"),
                 _ => throw new InvalidOperationException($"Unexpected test server major {major}."),
             };
             command.CommandText = "SELECT value,name FROM oid_catalog.entries() ORDER BY name COLLATE \"C\"";
@@ -57,7 +57,8 @@ public sealed class OidTests(TestContext context)
               (SELECT oid FROM pg_am WHERE amname='btree'),
               (SELECT oid FROM pg_collation WHERE collname='C' AND collnamespace='pg_catalog'::regnamespace),
               (SELECT oid FROM pg_opclass WHERE opcname='text_ops' AND opcmethod=(SELECT oid FROM pg_am WHERE amname='btree')),
-              (SELECT oid FROM pg_opfamily WHERE opfname='integer_ops' AND opfmethod=(SELECT oid FROM pg_am WHERE amname='btree'))]::oid[]
+              (SELECT oid FROM pg_opfamily WHERE opfname='integer_ops' AND opfmethod=(SELECT oid FROM pg_am WHERE amname='btree')),
+              'pg_aggregate'::regclass::oid, 'pg_constraint'::regclass::oid]::oid[]
             """, true);
 
     /// <summary>

@@ -3,6 +3,43 @@ namespace Ankus.Build.Tests;
 public sealed partial class NativeBindingNativeTests
 {
     /// <summary>
+    /// Header implementation bodies may depend on the backend without becoming executable layout checks.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeRecordChecksDoNotLinkUnusedBackendImplementations()
+    {
+        const string Headers = """
+            extern int backend_only(int value);
+            typedef struct Entry { unsigned int value : 5; } Entry;
+            extern Entry current;
+            int header_body(int value) { return backend_only(value); }
+            """;
+        NativeHeaderRequest[] requests = [new("current", "current", false), new("header_body", "header_body", true)];
+        await VerifyRecordChecksAsync(Headers, Headers, requests, compile: true, execute: true);
+        string changed = Headers.Replace("value : 5", "value : 4", StringComparison.Ordinal);
+        string diagnostics = await VerifyRecordChecksAsync(Headers, changed, requests, compile: true, execute: false);
+        Assert.Contains("Entry.value", diagnostics);
+    }
+
+    /// <summary>
+    /// Discarding unused header bodies must not hide missing dependencies in executable probe code.
+    /// </summary>
+    [TestMethod]
+    public async Task NativeRecordChecksRejectReachableBackendDependencies()
+    {
+        const string Headers = """
+            extern int backend_only(int value);
+            typedef struct Entry { unsigned int value : 5; } Entry;
+            extern Entry current;
+            int header_body(int value) { return backend_only(value); }
+            """;
+        const string Reachable = "#define ankus_native_record_check() (header_body(7) ? \"backend\" : 0)\n";
+        string diagnostics = await VerifyRecordChecksAsync(Headers, Headers, [new("current", "current", false)],
+            compile: false, execute: false, beforeEntryPoint: Reachable);
+        Assert.Contains("backend_only", diagnostics);
+    }
+
+    /// <summary>
     /// Anonymous declaration anchors remove expression qualifiers while retaining the actual root and member contracts.
     /// </summary>
     [TestMethod]
@@ -397,7 +434,7 @@ public sealed partial class NativeBindingNativeTests
     /// Compiles and executes generated checks against independently supplied declarations in the production C compiler.
     /// </summary>
     private async Task<string> VerifyRecordChecksAsync(string measured, string actual, NativeHeaderRequest[] requests, bool compile, bool execute, bool nativeCompiler = true,
-        Func<NativeHeaderRecords, NativeHeaderRecords>? mutate = null, string? compilerOverride = null)
+        Func<NativeHeaderRecords, NativeHeaderRecords>? mutate = null, string? compilerOverride = null, string beforeEntryPoint = "")
     {
         string directory = Path.Combine(Path.GetTempPath(), $"ankus-record-checks-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
@@ -411,13 +448,14 @@ public sealed partial class NativeBindingNativeTests
 
             string source = NativeBindingRecordChecks.Generate(records, "#define PG_VERSION_NUM 180006\n" + actual);
             string file = Path.Combine(directory, "checks.c");
-            await File.WriteAllTextAsync(file, source + NativeBindingRecordChecks.ExecutableEntryPoint, context.CancellationToken);
+            await File.WriteAllTextAsync(file, source + beforeEntryPoint + NativeBindingRecordChecks.ExecutableEntryPoint, context.CancellationToken);
             string executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "checks.exe" : "checks");
             string compiler = compilerOverride ?? (OperatingSystem.IsWindows() ? nativeCompiler ? "cl.exe" : "clang-cl.exe" : "clang");
-            string[] arguments = OperatingSystem.IsWindows()
+            List<string> arguments = OperatingSystem.IsWindows()
                 ? ["/nologo", "/std:c11", "/W4", "/WX", "/O2", "/Fe" + executable, "/Fo" + Path.ChangeExtension(executable, ".obj"), file]
                 : ["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", file, "-o", executable];
-            string diagnostics = await RunAsync(compiler, arguments, directory, expectSuccess: compile);
+            NativeBindingLayoutCommand.AddProbeLinkOptions(arguments);
+            string diagnostics = await RunAsync(compiler, [.. arguments], directory, expectSuccess: compile);
             if (compile)
             {
                 diagnostics = await RunAsync(executable, [], directory, expectSuccess: execute);

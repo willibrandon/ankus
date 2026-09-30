@@ -232,6 +232,9 @@ internal static class NativeTupleBridge
                 pfree(terminated);
             }
 
+        #if PG_VERSION_NUM >= 190000
+            TupleDescFinalize(descriptor);
+        #endif
             return BlessTupleDesc(descriptor);
         }
 

@@ -43,6 +43,7 @@ public static class OidFunctions
         (uint)PgBuiltInOid.MoneyOid, (uint)PgBuiltInOid.PgNodeTreeOid, (uint)PgBuiltInOid.RelationRelationId,
         (uint)PgBuiltInOid.ProcedureRelationId, (uint)PgBuiltInOid.FunctionHashOid, (uint)PgBuiltInOid.BTreeAmOid,
         (uint)PgBuiltInOid.CCollationOid, (uint)PgBuiltInOid.TextBTreeOpsOid, (uint)PgBuiltInOid.IntegerBTreeFamOid,
+        (uint)PgBuiltInOid.AggregateRelationId, (uint)PgBuiltInOid.ConstraintRelationId,
     ];
 
     /// <summary>

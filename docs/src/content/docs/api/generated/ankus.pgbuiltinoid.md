@@ -82,6 +82,18 @@ AclItemOid = 1033
 
 <code>ACLITEMOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-6f7f26af73296239"></a>
+
+### AggregateRelationId
+
+The <code>AggregateRelationId</code> constant (<code>2600</code>).
+
+```csharp
+AggregateRelationId = 2600
+```
+
+<code>AggregateRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-ba022d74850cbf10"></a>
 
 ### AnyArrayOid
@@ -225,6 +237,18 @@ AnyRangeOid = 3831
 ```
 
 <code>ANYRANGEOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-2cbf0ea977bb0746"></a>
+
+### AttrDefaultRelationId
+
+The <code>AttrDefaultRelationId</code> constant (<code>2604</code>).
+
+```csharp
+AttrDefaultRelationId = 2604
+```
+
+<code>AttrDefaultRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-0490656c918744fc"></a>
 
@@ -514,6 +538,18 @@ CStringOid = 2275
 
 <code>CSTRINGOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-a97048df7b7f4c61"></a>
+
+### CastRelationId
+
+The <code>CastRelationId</code> constant (<code>2605</code>).
+
+```csharp
+CastRelationId = 2605
+```
+
+<code>CastRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-0d1d7804a67cadea"></a>
 
 ### CharArrayOid
@@ -622,6 +658,30 @@ CollationRelationId = 3456
 
 <code>CollationRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-c6dd2d3e29f4c901"></a>
+
+### ConstraintRelationId
+
+The <code>ConstraintRelationId</code> constant (<code>2606</code>).
+
+```csharp
+ConstraintRelationId = 2606
+```
+
+<code>ConstraintRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-e0d27cf1c489978a"></a>
+
+### ConversionRelationId
+
+The <code>ConversionRelationId</code> constant (<code>2607</code>).
+
+```csharp
+ConversionRelationId = 2607
+```
+
+<code>ConversionRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-7a164af865bec8ae"></a>
 
 ### DatabaseRelationId
@@ -718,6 +778,30 @@ DateRangeOid = 3912
 
 <code>DATERANGEOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-7da73e1ce95bcd14"></a>
+
+### DbRoleSettingRelationId
+
+The <code>DbRoleSettingRelationId</code> constant (<code>2964</code>).
+
+```csharp
+DbRoleSettingRelationId = 2964
+```
+
+<code>DbRoleSettingRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-866d77273dd66273"></a>
+
+### DefaultAclRelationId
+
+The <code>DefaultAclRelationId</code> constant (<code>826</code>).
+
+```csharp
+DefaultAclRelationId = 826
+```
+
+<code>DefaultAclRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-0d134b1c5a9c215d"></a>
 
 ### DefaultCollationOid
@@ -741,6 +825,30 @@ DefaultTablespaceOid = 1663
 ```
 
 <code>DEFAULTTABLESPACE_OID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-c94867885cb2754a"></a>
+
+### DependRelationId
+
+The <code>DependRelationId</code> constant (<code>2608</code>).
+
+```csharp
+DependRelationId = 2608
+```
+
+<code>DependRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-4713d49e72012ebc"></a>
+
+### DescriptionRelationId
+
+The <code>DescriptionRelationId</code> constant (<code>2609</code>).
+
+```csharp
+DescriptionRelationId = 2609
+```
+
+<code>DescriptionRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-60fed65988470ef4"></a>
 
@@ -1525,6 +1633,30 @@ InetOid = 869
 
 <code>INETOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-d5a4c9806461a103"></a>
+
+### InheritsRelationId
+
+The <code>InheritsRelationId</code> constant (<code>2611</code>).
+
+```csharp
+InheritsRelationId = 2611
+```
+
+<code>InheritsRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-f1fe115724373889"></a>
+
+### InitPrivsRelationId
+
+The <code>InitPrivsRelationId</code> constant (<code>3394</code>).
+
+```csharp
+InitPrivsRelationId = 3394
+```
+
+<code>InitPrivsRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-f119b96a802ebefa"></a>
 
 ### Int2ArrayOid
@@ -1896,6 +2028,42 @@ LanguageHandlerOid = 2280
 ```
 
 <code>LANGUAGE_HANDLEROID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-c68fea5c63669539"></a>
+
+### LanguageRelationId
+
+The <code>LanguageRelationId</code> constant (<code>2612</code>).
+
+```csharp
+LanguageRelationId = 2612
+```
+
+<code>LanguageRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-fbe9ebc671501e53"></a>
+
+### LargeObjectMetadataRelationId
+
+The <code>LargeObjectMetadataRelationId</code> constant (<code>2995</code>).
+
+```csharp
+LargeObjectMetadataRelationId = 2995
+```
+
+<code>LargeObjectMetadataRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-755e4b37b36d4dc7"></a>
+
+### LargeObjectRelationId
+
+The <code>LargeObjectRelationId</code> constant (<code>2613</code>).
+
+```csharp
+LargeObjectRelationId = 2613
+```
+
+<code>LargeObjectRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-1980416a67565929"></a>
 
@@ -2282,6 +2450,30 @@ OperatorRelationId = 2617
 
 <code>OperatorRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-0c139fe28e4321bb"></a>
+
+### ParameterAclRelationId
+
+The <code>ParameterAclRelationId</code> constant (<code>6243</code>).
+
+```csharp
+ParameterAclRelationId = 6243
+```
+
+<code>ParameterAclRelationId</code> in PostgreSQL 15, 16, 17, 18, 19.
+
+<a id="member-4bb30fcdc71fff82"></a>
+
+### PartitionedRelationId
+
+The <code>PartitionedRelationId</code> constant (<code>3350</code>).
+
+```csharp
+PartitionedRelationId = 3350
+```
+
+<code>PartitionedRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-590d7d73f7d31e6f"></a>
 
 ### PathArrayOid
@@ -2516,6 +2708,18 @@ PointOid = 600
 
 <code>POINTOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-7236e3158f9ab935"></a>
+
+### PolicyRelationId
+
+The <code>PolicyRelationId</code> constant (<code>3256</code>).
+
+```csharp
+PolicyRelationId = 3256
+```
+
+<code>PolicyRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-9066b0b0f1791104"></a>
 
 ### PolygonArrayOid
@@ -2588,6 +2792,30 @@ ProgressCreateidxIndexOid = 6
 
 <code>PROGRESS_CREATEIDX_INDEX_OID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-3d7f82b6fc0d0923"></a>
+
+### PublicationNamespaceRelationId
+
+The <code>PublicationNamespaceRelationId</code> constant (<code>6237</code>).
+
+```csharp
+PublicationNamespaceRelationId = 6237
+```
+
+<code>PublicationNamespaceRelationId</code> in PostgreSQL 15, 16, 17, 18, 19.
+
+<a id="member-3d2725e79013c9fd"></a>
+
+### PublicationRelRelationId
+
+The <code>PublicationRelRelationId</code> constant (<code>6106</code>).
+
+```csharp
+PublicationRelRelationId = 6106
+```
+
+<code>PublicationRelRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-89c4d9e0ac330530"></a>
 
 ### PublicationRelationId
@@ -2599,6 +2827,18 @@ PublicationRelationId = 6104
 ```
 
 <code>PublicationRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-ae0661ce5dff935a"></a>
+
+### RangeRelationId
+
+The <code>RangeRelationId</code> constant (<code>3541</code>).
+
+```csharp
+RangeRelationId = 3541
+```
+
+<code>RangeRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-0e1fe1d7c86f6339"></a>
 
@@ -2960,6 +3200,18 @@ ReplicationOriginRelationId = 6000
 
 <code>ReplicationOriginRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-e3e5ed5e696f64e0"></a>
+
+### RewriteRelationId
+
+The <code>RewriteRelationId</code> constant (<code>2618</code>).
+
+```csharp
+RewriteRelationId = 2618
+```
+
+<code>RewriteRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-518b5848362a6bd8"></a>
 
 ### SecLabelRelationId
@@ -2972,6 +3224,54 @@ SecLabelRelationId = 3596
 
 <code>SecLabelRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
+<a id="member-555621eb6e5283e4"></a>
+
+### SequenceRelationId
+
+The <code>SequenceRelationId</code> constant (<code>2224</code>).
+
+```csharp
+SequenceRelationId = 2224
+```
+
+<code>SequenceRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-014f4bf0b1e5b4bf"></a>
+
+### SharedDependRelationId
+
+The <code>SharedDependRelationId</code> constant (<code>1214</code>).
+
+```csharp
+SharedDependRelationId = 1214
+```
+
+<code>SharedDependRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-3fb2489a63a3306a"></a>
+
+### SharedDescriptionRelationId
+
+The <code>SharedDescriptionRelationId</code> constant (<code>2396</code>).
+
+```csharp
+SharedDescriptionRelationId = 2396
+```
+
+<code>SharedDescriptionRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-4b075a8f32005407"></a>
+
+### SharedSecLabelRelationId
+
+The <code>SharedSecLabelRelationId</code> constant (<code>3592</code>).
+
+```csharp
+SharedSecLabelRelationId = 3592
+```
+
+<code>SharedSecLabelRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
 <a id="member-bba2e69fa2d2d523"></a>
 
 ### SpGistAmOid
@@ -2983,6 +3283,18 @@ SpGistAmOid = 4000
 ```
 
 <code>SPGIST_AM_OID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-8197df8b39253f34"></a>
+
+### StatisticExtDataRelationId
+
+The <code>StatisticExtDataRelationId</code> constant (<code>3429</code>).
+
+```csharp
+StatisticExtDataRelationId = 3429
+```
+
+<code>StatisticExtDataRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-b693dd1455cdc951"></a>
 
@@ -3007,6 +3319,90 @@ StatisticRelationId = 2619
 ```
 
 <code>StatisticRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-8cfb648c013e9c93"></a>
+
+### SubscriptionRelRelationId
+
+The <code>SubscriptionRelRelationId</code> constant (<code>6102</code>).
+
+```csharp
+SubscriptionRelRelationId = 6102
+```
+
+<code>SubscriptionRelRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-7594c4695d4e805b"></a>
+
+### SubscriptionRelationId
+
+The <code>SubscriptionRelationId</code> constant (<code>6100</code>).
+
+```csharp
+SubscriptionRelationId = 6100
+```
+
+<code>SubscriptionRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-90ad5817ecaac7d6"></a>
+
+### TSConfigMapRelationId
+
+The <code>TSConfigMapRelationId</code> constant (<code>3603</code>).
+
+```csharp
+TSConfigMapRelationId = 3603
+```
+
+<code>TSConfigMapRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-2822d6a3bcd2a7d6"></a>
+
+### TSConfigRelationId
+
+The <code>TSConfigRelationId</code> constant (<code>3602</code>).
+
+```csharp
+TSConfigRelationId = 3602
+```
+
+<code>TSConfigRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-63d9a70abb1cc8de"></a>
+
+### TSDictionaryRelationId
+
+The <code>TSDictionaryRelationId</code> constant (<code>3600</code>).
+
+```csharp
+TSDictionaryRelationId = 3600
+```
+
+<code>TSDictionaryRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-976c73333698ff41"></a>
+
+### TSParserRelationId
+
+The <code>TSParserRelationId</code> constant (<code>3601</code>).
+
+```csharp
+TSParserRelationId = 3601
+```
+
+<code>TSParserRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-9a34d911712b5032"></a>
+
+### TSTemplateRelationId
+
+The <code>TSTemplateRelationId</code> constant (<code>3764</code>).
+
+```csharp
+TSTemplateRelationId = 3764
+```
+
+<code>TSTemplateRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-b9a249648dee09f8"></a>
 
@@ -3271,6 +3667,18 @@ TimetzOid = 1266
 ```
 
 <code>TIMETZOID</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
+
+<a id="member-7ceac5f1bb087b25"></a>
+
+### TransformRelationId
+
+The <code>TransformRelationId</code> constant (<code>3576</code>).
+
+```csharp
+TransformRelationId = 3576
+```
+
+<code>TransformRelationId</code> in PostgreSQL 13, 14, 15, 16, 17, 18, 19.
 
 <a id="member-2205bdc5e7c536d7"></a>
 

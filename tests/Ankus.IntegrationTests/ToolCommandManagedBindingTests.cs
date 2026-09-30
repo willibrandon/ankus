@@ -313,6 +313,9 @@ public sealed partial class ToolCommandTests
                     try
                     {
                         NativeMethods.TupleDescInitEntry(descriptor, 1, (nint)name.DangerousGetPointer(), 23, -1, 0);
+            #if ANKUS_PG19
+                        NativeMethods.TupleDescFinalize(descriptor);
+            #endif
                         ulong datum = unchecked((ulong)-42L);
                         bool isNull = false;
                         nint tuple = NativeMethods.heap_form_tuple(descriptor, (nint)(&datum), (nint)(&isNull));
