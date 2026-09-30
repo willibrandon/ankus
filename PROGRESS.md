@@ -78,7 +78,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Review area | Current disposition |
 |---|---|
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
-| Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass; macOS/Windows evidence for this change remains pending. A lighter guard must preserve this rule. |
+| Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full macOS ARM64/PostgreSQL 18 CI also passes; Windows evidence for this change remains pending. A lighter guard must preserve this rule. |
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Oblivious reference nullability is currently treated as required. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Direct discovery and CLI selection still default to 18. Project-property selection must reach the ordinary test fixture and CLI defaults without overriding explicit selections. |
@@ -100,8 +100,8 @@ cleanup ownership and same-session recovery.
 
 The complete PostgreSQL **18.6/Linux x64** suite passes **9,706 total,
 9,696 passed, zero failed and ten platform skips**, in **12m47.952s**.
-Release, API freshness and documentation validation pass. Full macOS/Windows
-evidence for this change remains pending. Previous SDK-fix CI passes on all three
+Release, API freshness and documentation validation pass. Full macOS ARM64 CI
+also passes; Windows evidence for this change remains pending. Previous SDK-fix CI passes on all three
 dedicated platforms; hosted Intel macOS now compiles successfully but hit its
 60-minute limit and exposed a temporary-path alias assertion. Its full evidence
 and timing investigation remain open. Detailed results and all other outstanding
@@ -16406,3 +16406,54 @@ assertion and incomplete integration result recorded above. That follow-up
 is being addressed separately; it is not counted as a passing platform.
 New native changes still require macOS and Windows CI evidence. All remaining
 review and full-port gaps remain open.
+
+### 2026-09-30 — Intel macOS path assertion and timeout investigation
+
+Hosted Intel run **36683495828** passed native SDK selection and compilation,
+then exceeded its **60-minute** job limit. Its recorded integration failure
+compared `/var` and `/private/var` temporary-directory aliases as different
+ownership roots. The staging assertion now resolves ancestor symlinks on both
+sides. Unix validation explicitly stages through a directory alias and retains
+the exact script-content, source-file preservation and cleanup assertions.
+
+The hosted workflow now uploads available redacted logs after timeout as well
+as failure. Test builds print MSBuild target/task timings and retain unique
+binary logs locally. Raw binary logs are not included in uploaded artifacts.
+No tests, analyzer checks or native verification were removed; the full suite
+and **60-minute** limit remain unchanged.
+
+Initial local focused validation stopped before test execution because a
+concurrent Release build changed a binding-tool input during fixture publishing.
+The cache correctly rejected the changed input. Release has now completed with
+**zero warnings/errors, 1m37.37s**, and a complete suite is running without that
+concurrent build. The separate macOS validation checkout also needed an
+independent runtime payload: its old link into the live CI workspace disappeared
+during checkout/cache preparation. It now owns its runtime copy; focused
+validation is running again. Neither setup failure is counted as test evidence.
+
+Automation metadata and workflow validation pass. Before this follow-up,
+raw-error milestone `a769eb0` was pushed: CI **36690992874** and Docs
+**36690992891** are active. The preceding SDK CI/Docs are successful; Intel's
+timeout remains unresolved until a complete run succeeds. The first Intel
+binding cache was cold; a later warm-cache result must be measured rather than
+assumed to fit.
+
+The final macOS ARM64/PostgreSQL **18.6** staging selection passes **2/2**,
+**2m30.732s**, including the explicit ancestor alias and real relocated server.
+The complete Linux rerun remains active. The unrelated nullable-declaration
+candidate was integrated only after this run completed its package snapshot;
+it will receive its own complete consumer/native validation.
+
+Raw-error CI **36690992874** subsequently passed the complete macOS
+ARM64/PostgreSQL 18 job in **17m10s**. Quality, all runtime jobs and Docs
+**36690992891** also succeed. Linux and Windows full suites remain active.
+These results validate `a769eb0`, not the uncommitted follow-ups.
+
+The complete plain Linux rerun passes on PostgreSQL **18.6**: **9,706 total,
+9,696 passed, zero failed, ten platform skips**, **18m36.106s**, six package
+slots. This includes the corrected staging assertion. Release, API freshness,
+site validation, automation metadata and workflow checks pass as recorded above.
+Before commit, raw-error CI **36690992874** still has successful macOS, quality
+and runtime jobs, with Linux/Windows active; Docs **36690992891** succeeds.
+Intel **36683495828** remains timed out. A fresh full Intel run is required;
+the local pass does not resolve its timing outcome.

@@ -803,7 +803,10 @@ static void PrepareReports(string repositoryRoot)
 
 static void BuildTests(string repositoryRoot)
 {
-    Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m"], repositoryRoot);
+    string logs = Path.Combine(repositoryRoot, "artifacts", "test-logs");
+    Directory.CreateDirectory(logs);
+    Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m",
+        "-clp:PerformanceSummary", "-bl:" + Path.Combine(logs, "build-tests-{}.binlog")], repositoryRoot);
 }
 
 static void RunUnitTestModules(string repositoryRoot)

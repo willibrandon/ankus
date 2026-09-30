@@ -26,8 +26,18 @@ public sealed class PostgresTestInstallationTests(TestContext context)
             Directory.CreateDirectory(outside);
             string marker = Path.Combine(outside, "retain.txt");
             await File.WriteAllTextAsync(marker, "author-owned", token);
-            await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(source, Path.Combine(root, "server"), token);
-            Assert.StartsWith(owner.RootDirectory + Path.DirectorySeparatorChar, owner.Installation.SharedDirectory);
+            string stagingParent = root;
+            if (!OperatingSystem.IsWindows())
+            {
+                string physical = Path.Combine(root, "physical staging parent");
+                Directory.CreateDirectory(physical);
+                stagingParent = Path.Combine(root, "staging alias");
+                Directory.CreateSymbolicLink(stagingParent, physical);
+            }
+
+            await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(source, Path.Combine(stagingParent, "server"), token);
+            string ownedRoot = PhysicalDirectory(new DirectoryInfo(owner.RootDirectory)) + Path.DirectorySeparatorChar;
+            Assert.StartsWith(ownedRoot, PhysicalDirectory(new DirectoryInfo(owner.Installation.SharedDirectory)));
             string?[] directories = [null, "", "../../escape", outside];
             for (int index = 0; index < directories.Length; index++)
             {
@@ -60,7 +70,7 @@ public sealed class PostgresTestInstallationTests(TestContext context)
                 {
                     Assert.AreNotEqual(directory, staged["directory"]);
                     target = Path.GetFullPath(Path.Combine(owner.Installation.SharedDirectory, staged["directory"]));
-                    Assert.StartsWith(owner.RootDirectory + Path.DirectorySeparatorChar, target);
+                    Assert.StartsWith(ownedRoot, PhysicalDirectory(new DirectoryInfo(target)));
                 }
                 else
                 {
@@ -145,5 +155,23 @@ public sealed class PostgresTestInstallationTests(TestContext context)
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Resolves ancestor aliases before comparing ownership, including macOS's temporary-directory aliases.
+    /// </summary>
+    /// <param name="directory">The existing directory to resolve.</param>
+    /// <returns>The absolute directory path with symbolic-link ancestors resolved.</returns>
+    private static string PhysicalDirectory(DirectoryInfo directory)
+    {
+        if (directory.Parent is null)
+        {
+            return directory.FullName;
+        }
+
+        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
+        return resolved.Parent is DirectoryInfo parent
+            ? Path.Combine(PhysicalDirectory(parent), resolved.Name)
+            : resolved.FullName;
     }
 }

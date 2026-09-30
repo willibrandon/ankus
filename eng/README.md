@@ -79,6 +79,10 @@ release architecture unavailable on the dedicated machines. Runtime, NuGet and
 binding caches are saved before tests so later runs reuse successful preparation.
 Each run retains test results and timings; the job limit remains 60 minutes.
 Successful execution is required before counting Intel macOS as validated.
+Timed-out runs also upload available redacted failure logs. Test builds print
+an MSBuild performance summary and retain a unique binary log in
+`artifacts/test-logs` for local investigation. Binary logs can contain machine
+paths and environment values; they remain local and are not uploaded.
 
 The Linux service runs under its own unprivileged account. Provision PostgreSQL
 18 with server headers, Clang 20 or later with matching libclang, and the .NET

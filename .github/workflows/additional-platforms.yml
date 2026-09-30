@@ -128,7 +128,7 @@ jobs:
           retention-days: 7
 
       - name: Save failure logs
-        if: failure() && steps.reports.outcome == 'success'
+        if: (failure() || cancelled()) && steps.reports.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: test-logs-osx-x64
