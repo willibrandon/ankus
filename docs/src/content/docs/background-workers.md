@@ -155,6 +155,11 @@ a missing database or role, a role without login permission, or denied database
 access. Observe the stopped worker and server diagnostic, then start another
 worker to retry.
 
+Ankus checks worker phase and connection state before calling PostgreSQL.
+Rejected attempts such as connecting twice do not change native error state.
+An actual PostgreSQL failure still follows the worker's transaction or terminal
+error behavior.
+
 Use `RunTransaction` for synchronous database work after connecting. The callback
 can use `Spi` and return an owned managed result. Commit completes before the
 method returns. A managed exception aborts the transaction and is rethrown with

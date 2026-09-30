@@ -382,6 +382,11 @@ public static class AggregateFunctions
             s_live--;
             Cursor?.Dispose();
             Plan?.Dispose();
+            if (_mode is "cleanup_native" or "cleanup_native_transition")
+            {
+                ProbeNativeCleanupFailure();
+            }
+
             if (_mode is "cleanup_sql" or "dispose_error" or "dispose_error_transition")
             {
                 try
@@ -402,6 +407,21 @@ public static class AggregateFunctions
         }
     }
 
+    private static unsafe void ProbeNativeCleanupFailure()
+    {
+        try
+        {
+            fixed (byte* name = "ankus_missing_aggregate_cleanup\0"u8)
+            {
+                _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
+            }
+        }
+        catch (Exception exception)
+        {
+            s_trace.Add(exception is PgException native ? native.SqlState : exception.Message);
+        }
+    }
+
     private static PgAggregateState<TrackedState> Advance(PgAggregateContext context, PgAggregateState<TrackedState>? state, int? value)
     {
         s_context = context;
@@ -419,7 +439,7 @@ public static class AggregateFunctions
         }
 
         s_retained = state;
-        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error")
+        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error" or "cleanup_native_transition")
         {
             throw new PgException("P7801", "aggregate transition failed", "owned aggregate detail", "retry valid inputs");
         }

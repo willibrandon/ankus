@@ -440,7 +440,10 @@ public static class MemoryCallbackFunctions
         {
             string state = CaptureState(() =>
             {
-                using PgAllocation invalid = owner.Allocate(0x40000000);
+                PgTransaction.RunInSubtransaction(() =>
+                {
+                    using PgAllocation invalid = owner.Allocate(0x40000000);
+                });
             });
             return $"{state}|{PgMemoryContext.Current.Name}";
         });
@@ -469,7 +472,9 @@ public static class MemoryCallbackFunctions
             events.Add("B");
             throw new PgException("22023", unrepresentable ? "callback 🐘" : "callback café", "detail naïve", "hint déjà");
         });
-        string diagnostics = unrepresentable ? CaptureState(owner.Reset) : CaptureDiagnostic(owner.Reset);
+        string diagnostics = unrepresentable
+            ? CaptureState(() => PgTransaction.RunInSubtransaction(owner.Reset))
+            : CaptureDiagnostic(owner.Reset);
         string partial = $"{string.Concat(events)}|{first.IsPending},{second.IsPending}";
         owner.Reset();
         owner.Reset();
@@ -495,7 +500,7 @@ public static class MemoryCallbackFunctions
     {
         try
         {
-            action();
+            PgTransaction.RunInSubtransaction(action);
             return "no error";
         }
         catch (PgException error)
@@ -570,7 +575,7 @@ public static class MemoryCallbackFunctions
         {
             try
             {
-                owner.Reset();
+                PgTransaction.RunInSubtransaction(owner.Reset);
             }
             catch (PgException error) when (operation == 2 && error.SqlState == "22023")
             {

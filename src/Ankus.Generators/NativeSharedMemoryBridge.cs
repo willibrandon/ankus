@@ -470,7 +470,7 @@ internal static class NativeSharedMemoryBridge
         }
 
         static int
-        ankus_shared_value_address(AnkusMemoryRequest *request, AnkusMemoryResult *result, AnkusError *error)
+        ankus_shared_value(AnkusMemoryRequest *request, AnkusMemoryResult *result, AnkusError *error)
         {
             /* This validation must not allocate, ereport, process interrupts or enter
              * callbacks: another original shared reference can already be borrowed. */
@@ -483,14 +483,15 @@ internal static class NativeSharedMemoryBridge
                 return 1;
             }
 
-            if (request->length != entry->size)
+            if (request->length != entry->size ||
+                ((request->flags == 3 || request->flags == 4) && request->data == 0))
             {
                 error->sqlstate = ERRCODE_DATATYPE_MISMATCH;
                 strlcpy(error->message, "the Ankus shared-memory value size does not match its registration", sizeof(error->message));
                 return 1;
             }
 
-            if (request->flags == 7 && !entry->exclusive)
+            if ((request->flags == 4 || request->flags == 7) && !entry->exclusive)
             {
                 error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE;
                 strlcpy(error->message, "the Ankus shared-memory operation requires an exclusive lock guard", sizeof(error->message));
@@ -499,6 +500,15 @@ internal static class NativeSharedMemoryBridge
 
             result->data = (intptr_t) ankus_shared_data(entry->header);
             result->length = entry->size;
+            if (request->flags == 3)
+            {
+                memcpy((void *) request->data, (void *) result->data, entry->size);
+            }
+            else if (request->flags == 4)
+            {
+                memcpy((void *) result->data, (void *) request->data, entry->size);
+            }
+
             return 0;
         }
 
@@ -554,29 +564,7 @@ internal static class NativeSharedMemoryBridge
                 return;
             }
 
-            if (entry->lease == 0 || entry->lease != (uint64) request->other || !LWLockHeldByMe(entry->lock))
-            {
-                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                    errmsg("the Ankus shared-memory lock guard is no longer held")));
-            }
-
-            if (request->data == 0 || request->length != entry->size)
-            {
-                ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("the Ankus shared-memory value size does not match its registration")));
-            }
-
-            if (request->flags == 3)
-            {
-                memcpy((void *) request->data, ankus_shared_data(entry->header), entry->size);
-            }
-            else if (request->flags == 4 && entry->exclusive)
-            {
-                memcpy(ankus_shared_data(entry->header), (void *) request->data, entry->size);
-            }
-            else
-            {
-                ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE), errmsg("the Ankus shared-memory operation requires an exclusive lock guard")));
-            }
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("unknown Ankus shared-memory lock operation")));
         }
 
         """;

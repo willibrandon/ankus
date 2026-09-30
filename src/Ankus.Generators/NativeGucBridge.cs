@@ -627,6 +627,9 @@ internal static class NativeGucBridge
         static int
         ankus_guc_read(const char *name, int kind, AnkusValue *value, AnkusError *error)
         {
+            if (ankus_recovery_failed(error))
+                return 1;
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             volatile int status = 0;
@@ -667,7 +670,7 @@ internal static class NativeGucBridge
                     FlushErrorState();
                     ankus_guc_release_value(value);
                     ankus_guc_capture_error(data, error);
-                    ankus_recovery_record(data);
+                    ankus_recovery_record(error, false);
                     ankus_free_error_data(data);
                     status = 1;
                 }
@@ -801,6 +804,13 @@ internal static class NativeGucBridge
             if (operation == 2)
                 return ankus_recovery_terminal(level, report, error);
 
+            if (ankus_recovery_failed(error))
+            {
+                if (error->report_level < 12 || (error->flags & ANKUS_ERROR_UNRECOVERED) != 0)
+                    return 1;
+                memset(error, 0, sizeof(*error));
+            }
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             volatile int status = 0;
@@ -826,7 +836,7 @@ internal static class NativeGucBridge
                     ErrorData *data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_guc_capture_error(data, error);
-                    ankus_recovery_record(data);
+                    ankus_recovery_record(error, false);
                     ankus_free_error_data(data);
                     status = 1;
                 }
@@ -1063,7 +1073,8 @@ internal static class NativeGucBridge
                     }
                     else if (frame->error.report_level != 0)
                         ankus_guc_report(&frame->error, ankus_log_level(frame->error.report_level - 1));
-                    else if (!raise)
+                    else if (!raise && (frame->error.flags & ANKUS_ERROR_UNRECOVERED) == 0 &&
+                        frame->error.sqlstate != ERRCODE_QUERY_CANCELED)
                         ankus_guc_reject(&frame->error);
                     else
                     {
@@ -1080,27 +1091,18 @@ internal static class NativeGucBridge
                         PopActiveSnapshot();
                     }
 
-                    ErrorData *data = ankus_copy_error_data();
-                    FlushErrorState();
+                    /* Returning false is reserved for managed validation rejection.
+                     * A native conversion, snapshot or callback ERROR has not been
+                     * rolled back and must propagate to PostgreSQL's error handler. */
                     if (frame->error.report_level != 0)
                     {
+                        ErrorData *data = ankus_copy_error_data();
+                        FlushErrorState();
                         data->elevel = ankus_log_level(frame->error.report_level - 1);
                         ThrowErrorData(data);
                     }
 
-                    if (raise)
-                    {
-                        data->elevel = ERROR;
-                        ThrowErrorData(data);
-                    }
-                    else
-                    {
-                        ankus_release_error(&frame->error);
-                        ankus_guc_capture_error(data, &frame->error);
-                        ankus_free_error_data(data);
-                        ankus_guc_reject(&frame->error);
-                        accepted = false;
-                    }
+                    PG_RE_THROW();
                 }
                 PG_END_TRY();
             }

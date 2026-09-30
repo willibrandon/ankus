@@ -388,7 +388,10 @@ public static unsafe class MemoryAllocationFunctions
 
             if (mode == 2)
             {
-                using PgAllocation invalid = transient.Allocate(0x40000000);
+                PgTransaction.RunInSubtransaction(() =>
+                {
+                    using PgAllocation invalid = transient.Allocate(0x40000000);
+                });
             }
 
             return value.Read<int>() + 1;
@@ -397,17 +400,20 @@ public static unsafe class MemoryAllocationFunctions
         string outcome;
         try
         {
-            if (mode == 5)
+            PgTransaction.RunInSubtransaction(() =>
             {
-                PgMemoryContext.RunTransient("allocation transient", transient =>
+                if (mode == 5)
                 {
-                    result = Work(transient);
-                }, parent, PgMemoryContextOptions.Small);
-            }
-            else
-            {
-                result = PgMemoryContext.RunTransient("allocation transient", Work, parent, PgMemoryContextOptions.Small);
-            }
+                    PgMemoryContext.RunTransient("allocation transient", transient =>
+                    {
+                        result = Work(transient);
+                    }, parent, PgMemoryContextOptions.Small);
+                }
+                else
+                {
+                    result = PgMemoryContext.RunTransient("allocation transient", Work, parent, PgMemoryContextOptions.Small);
+                }
+            });
 
             outcome = $"result:{result}";
         }
@@ -647,7 +653,7 @@ public static unsafe class MemoryAllocationFunctions
     {
         try
         {
-            action();
+            PgTransaction.RunInSubtransaction(action);
             return "no error";
         }
         catch (PgException error)

@@ -169,6 +169,8 @@ error recovery can release PostgreSQL locks before managed cleanup runs. Such a
 guard no longer permits access, and disposing it cannot release a later
 acquisition of the same lock. After recovery, acquire a new guard before accessing
 the value. Shared-memory writes made before an error remain visible.
+Checking an expired guard does not raise another PostgreSQL error. The check
+rejects access before copying or borrowing shared storage.
 
 ## Atomic scalars
 

@@ -94,7 +94,13 @@ public unsafe struct NativeCallError
     internal Exception ToManagedException()
     {
         PgException diagnostic = ToException();
-        return diagnostic.SqlState == PgSqlStates.QueryCanceled ? new PgQueryCanceledException(diagnostic) : diagnostic;
+        Exception exception = diagnostic.SqlState == PgSqlStates.QueryCanceled ? new PgQueryCanceledException(diagnostic) : diagnostic;
+        if ((_flags & NativeErrorFlags.Unrecovered) != 0)
+        {
+            NativeSubtransaction.RecordFailure(exception);
+        }
+
+        return exception;
     }
 
     /// <summary>

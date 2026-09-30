@@ -40,4 +40,9 @@ internal enum NativeErrorFlags
     /// Preserves PostgreSQL 13's function-name display flag.
     /// </summary>
     ShowFunction = 64,
+
+    /// <summary>
+    /// Indicates that PostgreSQL still requires transaction rollback before further backend work.
+    /// </summary>
+    Unrecovered = 128,
 }

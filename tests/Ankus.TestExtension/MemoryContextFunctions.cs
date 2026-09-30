@@ -149,27 +149,30 @@ public static class MemoryContextFunctions
             string state = "no error";
             try
             {
-                const nuint invalidSize = 0x40000000;
-                switch (operation)
+                PgTransaction.RunInSubtransaction(() =>
                 {
-                    case 0:
-                        using (selected.Allocate(invalidSize))
-                        {
-                        }
+                    const nuint invalidSize = 0x40000000;
+                    switch (operation)
+                    {
+                        case 0:
+                            using (selected.Allocate(invalidSize))
+                            {
+                            }
 
-                        break;
-                    case 1:
-                        using (selected.TryAllocate(invalidSize))
-                        {
-                        }
+                            break;
+                        case 1:
+                            using (selected.TryAllocate(invalidSize))
+                            {
+                            }
 
-                        break;
-                    case 2:
-                        allocation.Reallocate(invalidSize);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(operation));
-                }
+                            break;
+                        case 2:
+                            allocation.Reallocate(invalidSize);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(operation));
+                    }
+                });
             }
             catch (PgException error)
             {
@@ -350,7 +353,10 @@ public static class MemoryContextFunctions
         string state = "representable";
         try
         {
-            using PgMemoryContext other = PgMemoryContext.Create("memory 🐘");
+            PgTransaction.RunInSubtransaction(static () =>
+            {
+                using PgMemoryContext other = PgMemoryContext.Create("memory 🐘");
+            });
         }
         catch (PgException error)
         {

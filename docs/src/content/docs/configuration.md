@@ -191,6 +191,8 @@ Validation does not guarantee assignment. A rejected result preserves native
 severity selection: an interactive change can raise ERROR while placeholder
 adoption can warn. A null diagnostic message keeps PostgreSQL's default message.
 Thrown managed exceptions are contained and converted to native check diagnostics.
+Actual PostgreSQL errors during native conversion or unrecovered backend calls
+propagate for rollback; they cannot become a recoverable check rejection.
 
 Assign runs before PostgreSQL changes the backing value. Reading the property in
 assign returns the old value. Restoration calls assign with previously accepted

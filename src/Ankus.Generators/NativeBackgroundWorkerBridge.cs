@@ -63,6 +63,46 @@ internal static class NativeBackgroundWorkerBridge
         static volatile sig_atomic_t ankus_worker_int;
         static volatile sig_atomic_t ankus_worker_child;
 
+        static const char *
+        ankus_worker_check_phase(AnkusMemoryRequest *request)
+        {
+            if (request->flags == 0 && request->pointer != 0 && request->length == sizeof(AnkusWorkerDefinition))
+            {
+                const AnkusWorkerDefinition *definition = (const AnkusWorkerDefinition *) request->pointer;
+                if (!process_shared_preload_libraries_in_progress || definition->notify_pid != 0)
+                {
+                    return "static Ankus workers require shared preload and no notification PID";
+                }
+            }
+
+            if (request->flags == 1 && (!IsUnderPostmaster || process_shared_preload_libraries_in_progress || MyProc == NULL))
+            {
+                return "dynamic Ankus workers require an initialized backend after shared preload";
+            }
+
+            if (request->flags >= 7)
+            {
+                if (!ankus_worker_active || MyBgworkerEntry == NULL)
+                {
+                    return "the operation requires an active Ankus background-worker entry";
+                }
+
+                if ((request->flags == 11 || request->flags == 12) &&
+                    (ankus_worker_connected || !(MyBgworkerEntry->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION)))
+                {
+                    return "the worker must request database access and connect only once";
+                }
+
+                if (request->flags == 13 && (!ankus_worker_connected || ankus_worker_execute == NULL ||
+                    request->pointer == 0 || IsTransactionState()))
+                {
+                    return "a worker transaction requires a connected worker outside an existing transaction";
+                }
+            }
+
+            return NULL;
+        }
+
         static void
         ankus_worker_require(void)
         {
@@ -352,7 +392,7 @@ internal static class NativeBackgroundWorkerBridge
         }
 
         static void
-        ankus_worker_transaction(AnkusMemoryRequest *request)
+        ankus_worker_transaction(AnkusMemoryRequest *request, volatile bool *recovered)
         {
             typedef int (*AnkusWorkerTransaction)(AnkusWorkerExecute, AnkusMemoryApi *);
             ankus_worker_require();
@@ -382,6 +422,7 @@ internal static class NativeBackgroundWorkerBridge
                 else
                 {
                     AbortCurrentTransaction();
+                    *recovered = true;
                 }
 
                 if (error->sqlstate != 0)
@@ -391,6 +432,7 @@ internal static class NativeBackgroundWorkerBridge
             {
                 MemoryContextSwitchTo(caller);
                 AbortCurrentTransaction();
+                *recovered = true;
                 ankus_release_error(error);
                 pfree(error);
                 PG_RE_THROW();
@@ -402,7 +444,7 @@ internal static class NativeBackgroundWorkerBridge
         }
 
         static void
-        ankus_memory_worker(AnkusMemoryRequest *request, AnkusMemoryResult *result)
+        ankus_memory_worker(AnkusMemoryRequest *request, AnkusMemoryResult *result, volatile bool *recovered)
         {
             if (request->flags == 0 || request->flags == 1)
             {
@@ -480,7 +522,7 @@ internal static class NativeBackgroundWorkerBridge
                     ankus_worker_connected = true;
                     break;
                 case 13:
-                    ankus_worker_transaction(request);
+                    ankus_worker_transaction(request, recovered);
                     break;
                 case 14:
                     result->value = (!ShutdownRequestPending && !ankus_worker_term && PostmasterIsAlive()) ? 1 : 0;

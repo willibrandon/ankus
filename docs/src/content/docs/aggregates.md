@@ -108,9 +108,11 @@ public static class CollectCount
 Returned state is rooted until its owning PostgreSQL memory context resets.
 That includes group completion, rescans, moving-window restarts, cancellation,
 and errors. If the payload implements `IDisposable`, cleanup invalidates the
-wrapper and releases its root before calling `Dispose` once. Cleanup failures
-produce a PostgreSQL warning; other states still receive cleanup. During cleanup,
-backend access is limited to releasing owned plans and cursors.
+wrapper and releases its root before calling `Dispose` once. Ordinary managed
+cleanup failures produce a PostgreSQL warning; other states still receive cleanup.
+Unrecovered native errors, query cancellation and terminal reports propagate
+after managed cleanup returns, even when `Dispose` catches their exceptions.
+During cleanup, SPI access is limited to releasing owned plans and cursors.
 
 Finalization does not dispose state: PostgreSQL can call a final method repeatedly
 or share state across several final methods. Retained wrappers reject payload

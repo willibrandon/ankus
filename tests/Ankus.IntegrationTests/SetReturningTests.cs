@@ -242,6 +242,72 @@ public sealed class SetReturningTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
+    /// Native cleanup failures cannot become successful results, and rollback permits another iterator in the same backend.
+    /// </summary>
+    /// <param name="mode">Normal disposal, executor abort, or disposal after a managed row failure.</param>
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    public Task CaughtNativeCleanupErrorsRequireRollback(int mode)
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(CaughtNativeCleanupErrorsRequireRollback), async (connection, transaction, token) =>
+        {
+            int backend = connection.ProcessID;
+            await using var command = new NpgsqlCommand("SELECT set_values.set_reset()", connection, transaction);
+            await command.ExecuteNonQueryAsync(token);
+            await transaction.SaveAsync("set_native_cleanup", token);
+            command.CommandText = mode switch
+            {
+                0 => "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,9,false) AS v",
+                1 => "SELECT 1/(v-1) FROM (SELECT set_values.set_probe_streaming(3,9,false) AS v) s",
+                _ => "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,10,false) AS v",
+            };
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+            Assert.AreEqual(mode == 2 ? "P7105" : "42704", error.SqlState);
+            Assert.AreEqual(mode == 2 ? "set MoveNext failure" :
+                "ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
+            await transaction.RollbackAsync("set_native_cleanup", token);
+            int[] status = await ReadStatusAsync(command, token);
+            Assert.AreEqual(1, status[6]);
+            Assert.AreEqual(1, status[7]);
+            Assert.AreEqual(0, status[10]);
+            Assert.AreEqual(0, status[11]);
+            command.CommandText = "SELECT set_values.set_native_cleanup_caught()";
+            Assert.AreEqual(1, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,0,false) AS v";
+            Assert.AreSequenceEqual([1, 2, 3], Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
+            Assert.AreEqual(backend, connection.ProcessID);
+        }, context.CancellationToken);
+
+    /// <summary>
+    /// A native row error blocks ordinary disposer SQL until its enclosing operation has rolled back.
+    /// </summary>
+    [TestMethod]
+    public Task NativeRowFailureBlocksCleanupSql()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(NativeRowFailureBlocksCleanupSql), async (connection, transaction, token) =>
+        {
+            int backend = connection.ProcessID;
+            await using var command = new NpgsqlCommand("CREATE TEMP TABLE set_cleanup(value int); SELECT set_values.set_reset()", connection, transaction);
+            await command.ExecuteNonQueryAsync(token);
+            await transaction.SaveAsync("set_native_row", token);
+            command.CommandText = "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,11,true) AS v";
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+            Assert.AreEqual("42704", error.SqlState);
+            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
+            await transaction.RollbackAsync("set_native_row", token);
+            int[] status = await ReadStatusAsync(command, token);
+            Assert.AreEqual(1, status[6]);
+            Assert.AreEqual(1, status[7]);
+            Assert.AreEqual(0, status[8]);
+            Assert.AreEqual(1, status[9]);
+            Assert.AreEqual(0, status[10]);
+            Assert.AreEqual(0, status[11]);
+            command.CommandText = "SELECT 42";
+            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(backend, connection.ProcessID);
+        }, context.CancellationToken);
+
+    /// <summary>
     /// A native executor failure aborts enumeration, denies backend access during reset cleanup and retains its original error.
     /// </summary>
     [TestMethod]

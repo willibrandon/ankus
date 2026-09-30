@@ -242,10 +242,14 @@ public static unsafe class ItemPointerFunctions
     [PgFunction]
     public static int ItemPointerAllocator()
     {
+        PgMemoryContext owner = PgMemoryContext.Current;
         int result = 0;
         try
         {
-            using PgNativeItemPointer value = PgNativeItemPointer.Create(default);
+            PgTransaction.RunInSubtransaction(() =>
+            {
+                using PgNativeItemPointer value = PgNativeItemPointer.Create(default, owner);
+            });
         }
         catch (PgException error) when (error.SqlState == "XX000")
         {

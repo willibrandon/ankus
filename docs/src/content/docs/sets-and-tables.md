@@ -168,8 +168,13 @@ the failed savepoint.
 
 Factory, iteration, conversion, and normal disposal exceptions become PostgreSQL
 errors after managed frames unwind. If disposal also fails while another error
-is being handled, Ankus preserves the original error and reports a cleanup
-warning. PostgreSQL interrupt checks run between rows; they cannot preempt a
+is being handled, an ordinary managed disposal failure produces a warning while
+preserving the original error. Native failures cannot be swallowed to finish the
+query successfully. After an unrecovered native row error, disposal can release
+owned resources but cannot begin new backend work. Cancellation and terminal
+reports retain their effect through cleanup.
+
+PostgreSQL interrupt checks run between rows; they cannot preempt a
 managed `MoveNext` that never returns or calls a guarded backend API.
 
 `[return: PgNumericPrecision(...)]` constrains each numeric element of a scalar

@@ -78,8 +78,8 @@ remains incomplete; the following work is additional to the open parity gates.
 | Review area | Current disposition |
 |---|---|
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
-| Raw/memory errors without rollback | Confirmed outside explicit recovery. Entry failure, cleanup and explicit-subtransaction recovery still need implementation and backend evidence. A lighter guard must preserve this rule. |
-| Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; current full platform CI remains required. |
+| Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass; macOS/Windows evidence for this change remains pending. A lighter guard must preserve this rule. |
+| Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Oblivious reference nullability is currently treated as required. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Direct discovery and CLI selection still default to 18. Project-property selection must reach the ordinary test fixture and CLI defaults without overriding explicit selections. |
 | Declarative parity | Verify and complete typed aggregate/dependency/support references, extended module magic, custom alignment and generated SQL provenance. Preserve deterministic ordering. |
@@ -92,17 +92,20 @@ remains incomplete; the following work is additional to the open parity gates.
 
 ## Current verified milestone
 
-Native compilation selects the installed macOS development SDK instead of
-replaying the SDK path from PostgreSQL's package build machine. The actual
-native compiler regression and complete build-tool suite pass on macOS ARM64;
-the hosted Intel full-suite rerun remains required.
+Unrecovered PostgreSQL errors survive ordinary managed catches and cleanup.
+Further backend work is blocked until explicit transaction recovery or return
+to PostgreSQL. Pure lifetime validation avoids raising a backend error when no
+backend state was changed. Native tests verify original diagnostics, lock release,
+cleanup ownership and same-session recovery.
 
-The complete PostgreSQL **18.6/Linux x64** suite passes **9,687 total,
-9,677 passed, zero failed and ten platform skips**, in **16m36.014s**.
-Release, API freshness and documentation validation pass. Previous milestones
-preserve cancellation/terminal reports, repair nested session cleanup and worker
-signal state, and isolate fixture publication outputs. Detailed evidence and
-outstanding review/port requirements are recorded below.
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,706 total,
+9,696 passed, zero failed and ten platform skips**, in **12m47.952s**.
+Release, API freshness and documentation validation pass. Full macOS/Windows
+evidence for this change remains pending. Previous SDK-fix CI passes on all three
+dedicated platforms; hosted Intel macOS now compiles successfully but hit its
+60-minute limit and exposed a temporary-path alias assertion. Its full evidence
+and timing investigation remain open. Detailed results and all other outstanding
+review/port requirements are recorded below.
 
 ## Previous verified milestone — test data directories
 
@@ -16261,3 +16264,145 @@ ARM64/PostgreSQL 18 (**16m51s**) and Windows/PostgreSQL 17 (**32m57s**);
 Linux/PostgreSQL 18 is still running. Docs **36679348588** succeeds. Intel **36676499264** remains
 failed as diagnosed above; a new run must validate this SDK fix. All other open
 review and parity requirements remain open.
+
+After push `2035ebd`, CI **36683482879**, Docs **36683482807** and the replacement
+hosted Intel macOS run **36683495828** are queued or active. Full Intel execution
+is still pending; development continues while those runs execute.
+
+Worker-fix CI **36679348597** subsequently completed successfully on all three
+platforms: Linux x64/PostgreSQL 18 **40m33s**, Windows x64/PostgreSQL 17
+**32m57s**, and macOS ARM64/PostgreSQL 18 **16m51s**. SDK-fix Docs
+**36683482807** succeeds. SDK-fix CI and Intel macOS execution remain active.
+The replacement Intel run **36683495828** has now passed extension compilation
+and started the full PostgreSQL suite; its final outcome is still pending.
+
+SDK-fix CI **36683482879** subsequently succeeded on every dedicated platform:
+Linux x64/PostgreSQL 18 **40m27s**, Windows x64/PostgreSQL 17 **29m18s**, and
+macOS ARM64/PostgreSQL 18 **16m35s**. Quality and all runtime jobs also succeed;
+no timeout occurred. Hosted Intel execution remains active.
+
+Hosted Intel **36683495828** subsequently exceeded the test job's **60-minute**
+limit (GitHub reports the job as cancelled). The build step passed in **17m50s**;
+native binding caches were initially absent and were saved before testing. The
+complete suite ran for **40m59s** before cancellation. Five modules completed
+successfully: build tools, generator, runtime, PostgreSQL configuration and the
+managed example. The integration module did not finish or produce its final TRX.
+Its log exposed a test ownership assertion comparing macOS's logical temporary
+path with PostgreSQL's resolved physical path. That test is being corrected to
+resolve ancestor aliases on both sides and exercise an explicit staging-parent
+alias on Unix. Full Intel evidence and the timeout investigation remain open.
+
+### 2026-09-30 — Preserve unrecovered backend errors through managed catches
+
+Native entry frames now retain errors from raw and memory calls unless an actual
+transaction rollback recovered their resources. Ordinary managed catches cannot
+allow later backend work or replace the original native diagnostic. Explicit
+`RunInSubtransaction` remains the recovery boundary. Nested SPI session cleanup
+must unwind the failed native session before reuse.
+
+Focused PostgreSQL **18.6/Linux x64** validation passed **22/22** in
+**1m44.839s**: swallowed/replaced raw errors, nested sessions, explicit rollback,
+memory errors and cancellation. The raw fixture holds a real LWLock when raising
+ERROR; recovery checks verify the lock is released and the same backend remains
+usable. Allocator XX000 recovery uses psql to retain the connection because
+Npgsql intentionally disconnects for that error class. Managed subtransaction
+transport tests passed **9/9** in **1.311s**.
+
+Broader validation exposed existing code that used PostgreSQL ERROR for ordinary
+expired-handle and protected-owner validation. Its first run was **376 total,
+221 passed, 155 failed**, **8m06.512s**. Registry and protection checks are being
+separated from backend error handling: pure validation returns owned diagnostics
+without raising or flushing PostgreSQL errors. Genuine native failures still
+require rollback. Expected-error fixtures must use explicit recovery before
+asserting continued allocation/session use.
+
+The cleanup audit remains open. An isolated aggregate cleanup experiment passed
+**4/5** cases in **3m26.847s**; normal owner cleanup did not report its failure at
+the expected statement boundary. That experiment is not a completed fix. Full
+regression validation, native cleanup propagation and cross-platform evidence
+remain required before this milestone can be committed. No passing subset is
+claimed as full parity.
+
+The first validation of the separated memory checks stopped during native
+fixture compilation: GCC diagnosed PostgreSQL's `PG_FINALLY` rethrow variable
+as potentially clobbered in the changed reset helper. No test bodies executed.
+Reset cleanup now uses explicit success and catch paths sharing the same cleanup
+helper, with rethrow after cleanup. Analyzer/compiler standards remain unchanged.
+The broader rerun includes buffer, list, item-pointer and node lifetime coverage,
+plus explicit rollback in allocation and callback-error fixtures; it is active.
+
+That rerun completed **504 total, 489 passed, 15 failed**, **7m16.944s**.
+The ordinary context, allocation and borrowed-value lifetime failures are fixed.
+Remaining failures identified missing explicit rollback in buffer/list/allocator
+probes, expired shared-lock and worker-phase checks raising native errors, and
+parallel raw-call expectations that incorrectly assumed per-call rollback.
+Those paths now use explicit recovery or side-effect-free validation as
+appropriate. The tests retain their exact payload, lifetime and recovery checks.
+
+Managed recovery now retains an action/cleanup `AggregateException` when it
+contains the original native failure. An unrelated replacement still cannot
+hide that failure. The focused managed suite passes **10/10**, **1.451s**.
+Aggregate cleanup tests now trigger an actual raw native ERROR; normal cleanup
+uses explicit cursor closure so the test controls the owner-release boundary.
+The GUC check catch path no longer flushes actual PostgreSQL errors into a
+validation rejection without rollback.
+
+Iterator cleanup received the same audit. Abort disposal must propagate native
+failures, and disposal after an unrecovered row error must retain the pending
+failure while allowing resource release. New cases cover normal disposal,
+executor abort, managed row failure followed by native cleanup failure, and
+blocked disposer SQL after a native row error.
+
+The next broad run completed **647 total, 645 passed, two failed**,
+**6m33.936s**. One internal cleanup fixture needed explicit rollback before
+retrying. The other exposed a GUC diagnostic-conversion error losing its FATAL
+severity; the catch now retains the terminal severity while propagating the
+native conversion error. Focused validation of both corrections, aggregate
+cleanup and the iterator cleanup cases passes **28/28**, **2m56.809s**, on
+PostgreSQL **18.6/Linux x64**. This includes exact original diagnostics,
+single disposal, balanced ownership and recovery on the same backend.
+
+The complete plain `dotnet test` run is active. An intermediate Release build
+passed with **zero warnings/errors, 1m50.60s**; it preceded the final two
+corrections, so final Release validation remains required. Generated API
+freshness passes (**221 pages / 2,612 members**), and site checks report zero
+errors, warnings and hints. New native changes have not yet run on macOS or
+Windows; previous platform runs validate the earlier SDK milestone.
+
+The first full run found eleven generator expectations referencing helper
+signatures replaced by this change. Updated ownership/admission expectations pass
+**11/11**, **3.122s**. It also found special-allocator and raw-generation reset
+fixtures catching actual native errors without rollback. Those fixtures now
+enter explicit recovery scopes around the failing operation, leaving their
+storage owners outside the scope and preserving all exact diagnostic, pointer,
+length, byte-content and lifetime assertions. Validation remains in progress.
+
+That first full run completed **9,706 total, 9,663 passed, 33 failed, ten
+platform skips**, **13m23.018s**. All failures belong to the eleven generator
+expectations and twenty-two allocator/reset cases described above. Focused
+allocator validation is active before the final complete rerun. The final
+Release build passes with **zero warnings/errors, 39.08s**; the site builds
+**268 pages in 6.18s**.
+
+The corrected allocator/native-box scope passes **92/92**, **2m13.196s**,
+on PostgreSQL **18.6/Linux x64**. The final complete plain `dotnet test` run
+is now active; no complete passing result is claimed yet.
+
+That final run completed successfully: **9,706 total, 9,696 passed, zero
+failed, ten platform skips**, **12m47.952s**, PostgreSQL **18.6/Linux x64**,
+six package-consumer slots. It supersedes the failed intermediate validation
+above and includes every raw-error, allocator and cleanup correction. Final
+Release reports **zero warnings/errors, 39.08s**; API freshness passes
+**221 pages / 2,612 members**; site checks report zero errors, warnings and hints,
+and the site builds **268 pages in 6.18s**. The separate Intel path assertion
+correction was made after this full run built its test assembly and is not
+covered by this result.
+
+Before commit, preceding SDK-fix CI **36683482879** and Docs **36683482807**
+are successful. Its full platform durations are Linux/PostgreSQL 18 **40m27s**,
+macOS ARM64/PostgreSQL 18 **16m35s**, Windows/PostgreSQL 17 **29m18s**.
+Hosted Intel **36683495828** timed out at **60 minutes**, with the path
+assertion and incomplete integration result recorded above. That follow-up
+is being addressed separately; it is not counted as a passing platform.
+New native changes still require macOS and Windows CI evidence. All remaining
+review and full-port gaps remain open.

@@ -75,6 +75,12 @@ internal static class NativeAggregateBridge
                 pfree(state);
             }
             PG_END_TRY();
+            if (status != 0 && ((error.flags & ANKUS_ERROR_UNRECOVERED) != 0 ||
+                error.sqlstate == ERRCODE_QUERY_CANCELED || error.report_level != 0))
+            {
+                ankus_raise_error(&error);
+            }
+
             ankus_release_error(&error);
             if (status != 0)
                 ereport(WARNING, (errmsg("Ankus aggregate state cleanup failed")));
@@ -198,12 +204,17 @@ internal static class NativeAggregateBridge
                     MemoryContextSwitchTo(diagnostics);
                     data = ankus_copy_error_data();
                     FlushErrorState();
+                    bool recovered = false;
                     while (GetCurrentTransactionNestLevel() > nesting)
+                    {
                         RollbackAndReleaseCurrentSubTransaction();
+                        recovered = true;
+                    }
+
                     MemoryContextSwitchTo(diagnostics);
                     CurrentResourceOwner = resource_owner;
                     ankus_capture_error(data, error);
-                    ankus_recovery_record(data);
+                    ankus_recovery_record(error, recovered);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(caller);
                     MemoryContextDelete(diagnostics);

@@ -446,6 +446,9 @@ release and memory-context restoration remain available while ordinary backend
 work is blocked. After PostgreSQL aborts the failed query, the leader can recover
 through its surrounding transaction or savepoint and launch new workers.
 PostgreSQL 17 and later retain per-call SPI recovery in parallel workers.
+Raw native and memory operations require an explicit recovery scope on every
+PostgreSQL version. A caught raw error still ends the callback unless that scope
+has rolled back; see [recoverable work](/transaction-callbacks/#recoverable-work).
 
 ### Error diagnostics
 

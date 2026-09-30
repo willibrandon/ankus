@@ -145,6 +145,56 @@ public sealed partial class AggregateTests
         });
 
     /// <summary>
+    /// Native cleanup errors require rollback even when a destructor catches their managed exceptions.
+    /// </summary>
+    /// <param name="mode">Normal owner cleanup or cleanup after an earlier transition failure.</param>
+    [TestMethod]
+    [DataRow("cleanup_native")]
+    [DataRow("cleanup_native_transition")]
+    public Task NativeDisposeFailureCannotBeSwallowed(string mode)
+        => Run(nameof(NativeDisposeFailureCannotBeSwallowed), async (connection, transaction, token) =>
+        {
+            int backend = connection.ProcessID;
+            await Reset(connection, transaction, mode, token);
+            await transaction.SaveAsync("native_cleanup", token);
+            string operation;
+            if (mode == "cleanup_native")
+            {
+                await Execute(connection, transaction, """
+                    SET LOCAL enable_hashagg=off;
+                    DECLARE aggregate_native_cleanup CURSOR FOR
+                    SELECT aggregate_values.managed_sum(value) FROM generate_series(1,100) AS value GROUP BY value ORDER BY value
+                    """, token);
+                Assert.AreEqual(1L, await Scalar<long>(connection, transaction, "FETCH 1 FROM aggregate_native_cleanup", token));
+                Assert.IsGreaterThan(0, (await Status(connection, transaction, token))[2]);
+                operation = "CLOSE aggregate_native_cleanup";
+            }
+            else
+            {
+                operation = "SELECT aggregate_values.managed_sum(v ORDER BY v) FROM (VALUES(1),(2),(3)) AS input(v)";
+            }
+
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => Execute(connection, transaction,
+                operation, token));
+            Assert.AreEqual("42704", error.SqlState);
+            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_aggregate_cleanup\" was not registered", error.MessageText);
+            await transaction.RollbackAsync("native_cleanup", token);
+            await AssertBalancedRelease(connection, transaction, token);
+            string[] trace = await Trace(connection, transaction, token);
+            Assert.HasCount((await Status(connection, transaction, token))[1], trace);
+            foreach (string state in trace)
+            {
+                Assert.AreEqual("42704", state);
+            }
+
+            await Reset(connection, transaction, "normal", token);
+            Assert.AreEqual(42L, await Scalar<long>(connection, transaction,
+                "SELECT aggregate_values.managed_sum(v) FROM (VALUES(42)) AS input(v)", token));
+            await AssertReleased(connection, transaction, 1, token);
+            Assert.AreEqual(backend, connection.ProcessID);
+        });
+
+    /// <summary>
     /// Abort cleanup preserves the original callback error despite a failing Dispose and closes owned SPI resources safely.
     /// </summary>
     /// <param name="mode">The state resource or disposal failure probe.</param>

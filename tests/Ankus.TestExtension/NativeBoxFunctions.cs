@@ -490,7 +490,7 @@ public static unsafe class NativeBoxFunctions
     }
 
     /// <summary>
-    /// Leaves raw generations live after a cleanup error and invalidates them only when the remaining reset succeeds.
+    /// Leaves raw generations live after a cleanup error rolls back and invalidates them when the remaining reset succeeds.
     /// </summary>
     /// <returns>The exact cleanup diagnostic, live partial value, pending callback order, and final stale references.</returns>
     [PgFunction]
@@ -511,7 +511,7 @@ public static unsafe class NativeBoxFunctions
         string diagnostic = "no error";
         try
         {
-            owner.Reset();
+            PgTransaction.RunInSubtransaction(owner.Reset);
         }
         catch (PgException error)
         {

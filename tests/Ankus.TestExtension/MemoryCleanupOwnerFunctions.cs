@@ -115,7 +115,10 @@ public static class MemoryCleanupOwnerFunctions
                 }
                 else
                 {
-                    using PgAllocation allocation = child.Allocate(nuint.MaxValue);
+                    PgTransaction.RunInSubtransaction(() =>
+                    {
+                        using PgAllocation allocation = child.Allocate(nuint.MaxValue);
+                    });
                 }
 
                 return "unexpected success";
@@ -237,7 +240,10 @@ public static class MemoryCleanupOwnerFunctions
             {
                 try
                 {
-                    using PgAllocation invalid = independent.Allocate(nuint.MaxValue);
+                    PgTransaction.RunInSubtransaction(() =>
+                    {
+                        using PgAllocation invalid = independent.Allocate(nuint.MaxValue);
+                    });
                     trigger = "unexpected allocation";
                 }
                 catch (PgException exception)

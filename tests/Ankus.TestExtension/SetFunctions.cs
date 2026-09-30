@@ -24,6 +24,7 @@ public static class SetFunctions
     private static int s_iteratorFinally;
     private static int s_floodRows;
     private static long s_maxRowBytes;
+    private static int s_nativeCleanupCaught;
 
     /// <summary>
     /// Resets backend-local lifecycle counters between independent calls.
@@ -46,7 +47,15 @@ public static class SetFunctions
         s_iteratorFinally = 0;
         s_floodRows = 0;
         s_maxRowBytes = 0;
+        s_nativeCleanupCaught = 0;
     }
+
+    /// <summary>
+    /// Reports caught native errors from the iterator cleanup probe.
+    /// </summary>
+    /// <returns>The number of deliberately swallowed native cleanup errors.</returns>
+    [PgFunction]
+    public static int SetNativeCleanupCaught() => s_nativeCleanupCaught;
 
     /// <summary>
     /// Reports factory, sequence construction, GetEnumerator, enumerator construction, MoveNext, Current,
@@ -444,7 +453,12 @@ public static class SetFunctions
         public bool MoveNext()
         {
             s_moveNext++;
-            if (failure is 5 or 8 && _current == 1)
+            if (failure == 11 && _current == 1)
+            {
+                RaiseNativeError();
+            }
+
+            if (failure is 5 or 8 or 10 && _current == 1)
             {
                 throw new PgException("P7105", "set MoveNext failure");
             }
@@ -485,17 +499,49 @@ public static class SetFunctions
                     {
                         s_cleanupDenied++;
                     }
+                    catch (PgException exception) when (failure == 11 && exception.SqlState == "42704")
+                    {
+                        s_cleanupDenied++;
+                    }
                 }
 
                 if (failure is 7 or 8)
                 {
                     throw new PgException("P7107", "set Dispose failure");
                 }
+
+                if (failure is 9 or 10)
+                {
+                    ProbeNativeCleanupFailure();
+                }
             }
             finally
             {
                 s_finally++;
                 s_live--;
+            }
+        }
+
+        private static void ProbeNativeCleanupFailure()
+        {
+            try
+            {
+                RaiseNativeError();
+            }
+            catch (Exception exception)
+            {
+                if (exception is PgException { SqlState: "42704" })
+                {
+                    s_nativeCleanupCaught++;
+                }
+            }
+        }
+
+        private static unsafe void RaiseNativeError()
+        {
+            fixed (byte* name = "ankus_missing_iterator_cleanup\0"u8)
+            {
+                _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
             }
         }
 

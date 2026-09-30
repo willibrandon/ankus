@@ -124,7 +124,10 @@ public static unsafe class StringInfoFunctions
         {
             try
             {
-                buffer.DangerousDetachCString();
+                PgTransaction.RunInSubtransaction(() =>
+                {
+                    buffer.DangerousDetachCString();
+                });
                 result = "transferred";
             }
             catch (PgException error)
@@ -185,7 +188,10 @@ public static unsafe class StringInfoFunctions
         {
             try
             {
-                buffer.DangerousDetachCString();
+                PgTransaction.RunInSubtransaction(() =>
+                {
+                    buffer.DangerousDetachCString();
+                });
             }
             catch (PgException error)
             {
@@ -225,7 +231,7 @@ public static unsafe class StringInfoFunctions
         {
             try
             {
-                operation();
+                PgTransaction.RunInSubtransaction(operation);
             }
             catch (PgException error)
             {

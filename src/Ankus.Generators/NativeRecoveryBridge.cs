@@ -6,7 +6,7 @@ namespace Ankus.Generators;
 internal static class NativeRecoveryBridge
 {
     /// <summary>
-    /// Gets callback frames for cancellation, terminal reports and unrecoverable parallel errors.
+    /// Gets callback frames for cancellation, terminal reports and errors requiring transaction rollback.
     /// </summary>
     internal const string Source = """
         #include "access/xact.h"
@@ -25,11 +25,19 @@ internal static class NativeRecoveryBridge
         static void
         ankus_recovery_store(AnkusRecoveryFrame *frame, const AnkusError *error)
         {
-            if (frame == NULL || (frame->failed && frame->failure.report_level >= error->report_level))
+            if (frame == NULL)
                 return;
+
+            int unrecovered = (frame->failure.flags | error->flags) & ANKUS_ERROR_UNRECOVERED;
+            if (frame->failed && frame->failure.report_level >= error->report_level)
+            {
+                frame->failure.flags |= unrecovered;
+                return;
+            }
 
             ankus_release_error(&frame->failure);
             frame->failure = *error;
+            frame->failure.flags |= unrecovered;
             for (int index = 0; index < ANKUS_ERROR_FIELD_COUNT; index++)
             {
                 AnkusValue *value = &frame->failure.fields[index];
@@ -85,14 +93,13 @@ internal static class NativeRecoveryBridge
         }
 
         static void
-        ankus_recovery_record(ErrorData *data)
+        ankus_recovery_record(AnkusError *error, bool recovered)
         {
-            if ((data->sqlerrcode == ERRCODE_QUERY_CANCELED || ankus_parallel_without_subtransactions()) && ankus_recovery_frame != NULL &&
-                !ankus_recovery_frame->failed)
-            {
-                ankus_capture_error(data, &ankus_recovery_frame->failure);
-                ankus_recovery_frame->failed = true;
-            }
+            if (!recovered)
+                error->flags |= ANKUS_ERROR_UNRECOVERED;
+
+            if (!recovered || error->sqlstate == ERRCODE_QUERY_CANCELED || ankus_parallel_without_subtransactions())
+                ankus_recovery_store(ankus_recovery_frame, error);
         }
 
         static int

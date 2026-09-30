@@ -66,6 +66,44 @@ public sealed unsafe class PgSubtransactionTests
     }
 
     /// <summary>
+    /// Cleanup aggregates retain the original native failure and other causes after rollback.
+    /// </summary>
+    [TestMethod]
+    public void RecoveryPreservesCombinedCleanupFailures()
+    {
+        using var memory = new MemoryContextTestFixture
+        {
+            Handler = static _ => throw new PgException("22023", "native cleanup failure")
+            {
+                NativeFlags = NativeErrorFlags.Unrecovered,
+            },
+        };
+        using MemoryContextTestFixture.Scope memoryScope = MemoryContextTestFixture.Enter();
+        nint previous = Enter();
+        try
+        {
+            var primary = new InvalidOperationException("action failure");
+            AggregateException? combined = null;
+            PgException? cleanup = null;
+            AggregateException actual = Assert.ThrowsExactly<AggregateException>(() => PgTransaction.RunInSubtransaction(() =>
+            {
+                cleanup = Assert.ThrowsExactly<PgException>(() => _ = PgMemoryContext.Current);
+                combined = new AggregateException(primary, cleanup);
+                throw combined;
+            }));
+            Assert.AreSame(combined, actual);
+            Assert.AreSequenceEqual<Exception>([primary, cleanup!], actual.InnerExceptions);
+            Assert.IsFalse(NativeSubtransaction.HasFailure);
+            Assert.AreEqual(42, PgTransaction.RunInSubtransaction(static () => 42));
+            Assert.AreSequenceEqual([1, 0], s_statuses!);
+        }
+        finally
+        {
+            Exit(previous);
+        }
+    }
+
+    /// <summary>
     /// A swallowed raw error blocks additional native work and rolls back only the inner recovery scope.
     /// </summary>
     [TestMethod]
@@ -98,6 +136,70 @@ public sealed unsafe class PgSubtransactionTests
             });
             Assert.AreEqual(73, result);
             Assert.AreSequenceEqual([1, 0, 0], s_statuses!);
+            Assert.HasCount(2, memory.Requests);
+            Assert.AreEqual(3, memory.ErrorReleases);
+        }
+        finally
+        {
+            Exit(previous);
+        }
+    }
+
+    /// <summary>
+    /// Native memory transport marks a recovery scope only when the native diagnostic still requires rollback.
+    /// </summary>
+    /// <param name="unrecovered">Whether PostgreSQL has not yet rolled back the failed operation.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void MemoryFailureTransportPreservesRecoveryRequirement(bool unrecovered)
+    {
+        using var memory = new MemoryContextTestFixture
+        {
+            Handler = _ => throw new PgException("22023", "memory failure", "owned detail", "retry outside")
+            {
+                NativeFlags = unrecovered ? NativeErrorFlags.Unrecovered : 0,
+            },
+        };
+        using MemoryContextTestFixture.Scope memoryScope = MemoryContextTestFixture.Enter();
+        nint previous = Enter();
+        try
+        {
+            int result = PgTransaction.RunInSubtransaction(() =>
+            {
+                PgException? original = null;
+                int Inner()
+                {
+                    original = Assert.ThrowsExactly<PgException>(() => _ = PgMemoryContext.Current);
+                    Assert.AreEqual(unrecovered, NativeSubtransaction.HasFailure);
+                    if (unrecovered)
+                    {
+                        Assert.AreSame(original, Assert.ThrowsExactly<PgException>(() => Spi.Execute("SELECT 1")));
+                    }
+
+                    return 73;
+                }
+
+                if (unrecovered)
+                {
+                    PgException failure = Assert.ThrowsExactly<PgException>(() => PgTransaction.RunInSubtransaction(Inner));
+                    Assert.AreSame(original, failure);
+                    Assert.AreEqual("owned detail", failure.Detail);
+                    Assert.AreEqual("retry outside", failure.Hint);
+                }
+                else
+                {
+                    Assert.AreEqual(73, PgTransaction.RunInSubtransaction(Inner));
+                }
+
+                Assert.IsFalse(NativeSubtransaction.HasFailure);
+                memory.Handler = null;
+                Assert.AreEqual(101, PgMemoryContext.Current.Id);
+                return 42;
+            });
+
+            Assert.AreEqual(42, result);
+            Assert.AreSequenceEqual(unrecovered ? [1, 0] : [0, 0], s_statuses!);
             Assert.HasCount(2, memory.Requests);
             Assert.AreEqual(3, memory.ErrorReleases);
         }

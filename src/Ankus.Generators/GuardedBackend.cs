@@ -20,6 +20,7 @@ internal static class GuardedBackend
             if (request->operation == ANKUS_SPI_REPORT && request->log_level >= 11)
                 return ankus_recovery_terminal(request->log_level, request->diagnostic, error);
 
+            bool abort_session = false;
             if (ankus_recovery_failed(error))
             {
                 /* Saved plans outlive transaction abort. Their explicit disposal must
@@ -29,10 +30,20 @@ internal static class GuardedBackend
                 /* A session owns an enclosing recovery subtransaction. Closing it
                  * must restore the caller's transaction depth before rethrow. */
                 bool close_session = request->operation == ANKUS_SPI_CLOSE_SESSION;
-                bool terminal_cleanup = error->report_level >= 12 &&
+                bool terminal_cleanup = error->report_level >= 12 && (error->flags & ANKUS_ERROR_UNRECOVERED) == 0 &&
                     (request->operation == ANKUS_SPI_REPORT || request->operation == ANKUS_SPI_IS_LOG_ENABLED);
                 if (!close_session && !terminal_cleanup && (!release || request->session_id != 0))
                     return 1;
+
+                if (close_session && (error->flags & ANKUS_ERROR_UNRECOVERED) != 0)
+                {
+                    /* Raw ERROR may leave additional SPI frames above our connection.
+                     * Roll back our enclosing transaction instead of closing that frame.
+                     * Direct callback SPI belongs to the outer PostgreSQL abort. */
+                    if (ankus_session == NULL || ankus_session->identity != request->session_id || !ankus_session->subtransaction_owned)
+                        return 1;
+                    abort_session = true;
+                }
 
                 memset(error, 0, sizeof(*error));
                 request->cleanup_only = !close_session && !terminal_cleanup;
@@ -138,7 +149,18 @@ internal static class GuardedBackend
                         ereport(ERROR, (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                             errmsg("cannot start subtransactions during a parallel operation")));
 
-                    if (request->cleanup_only)
+                    if (abort_session)
+                    {
+                        MemoryContextSwitchTo(recovery_context);
+                        while (GetCurrentTransactionNestLevel() > caller_nest_level)
+                        {
+                            RollbackAndReleaseCurrentSubTransaction();
+                        }
+
+                        ankus_internal_subtransaction_depth = caller_internal_subtransaction_depth;
+                        request->session_id = 0;
+                    }
+                    else if (request->cleanup_only)
                     {
                         /* Abort cleanup releases owned resources without SQL or a new subtransaction.
                          * The outer recovery guard also protects diagnostic capture on this path. */
@@ -408,9 +430,11 @@ internal static class GuardedBackend
                     MemoryContextSwitchTo(diagnostic_context);
                     data = ankus_copy_error_data();
                     FlushErrorState();
+                    bool recovered = false;
                     while (GetCurrentTransactionNestLevel() > caller_nest_level)
                     {
                         RollbackAndReleaseCurrentSubTransaction();
+                        recovered = true;
                     }
 
                     ankus_internal_subtransaction_depth = caller_internal_subtransaction_depth;
@@ -435,7 +459,7 @@ internal static class GuardedBackend
                     }
 
                     ankus_capture_error(data, error);
-                    ankus_recovery_record(data);
+                    ankus_recovery_record(error, recovered);
                     if (transaction_direct_spi)
                     {
                         ankus_release_error(&transaction_frame->failure);

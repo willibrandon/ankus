@@ -137,6 +137,8 @@ public sealed class NativeRawCallTests(TestContext context)
             int backend = connection.ProcessID;
             await using var command = new NpgsqlCommand(sql, connection, transaction);
             Assert.AreEqual(expected, await command.ExecuteScalarAsync(token));
+            command.CommandText = "SELECT tests.raw_call_lock_held()";
+            Assert.IsFalse(Assert.IsInstanceOfType<bool>(await command.ExecuteScalarAsync(token)));
             command.CommandText = "SELECT 42";
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
             Assert.AreEqual(backend, connection.ProcessID);

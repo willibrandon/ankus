@@ -244,7 +244,7 @@ public static unsafe class ListFunctions
         int finalizers = 0;
         try
         {
-            list.TryReserve(int.MaxValue);
+            PgTransaction.RunInSubtransaction(() => list.TryReserve(int.MaxValue));
         }
         catch (PgException exception)
         {
@@ -311,7 +311,10 @@ public static unsafe class ListFunctions
         string state = "none";
         try
         {
-            using PgList<int> rejected = PgList.DangerousBorrow<int>(list.DangerousGetPointer(), wrong);
+            PgTransaction.RunInSubtransaction(() =>
+            {
+                using PgList<int> rejected = PgList.DangerousBorrow<int>(list.DangerousGetPointer(), wrong);
+            });
         }
         catch (PgException error)
         {

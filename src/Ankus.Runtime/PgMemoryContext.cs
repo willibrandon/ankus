@@ -110,6 +110,8 @@ public sealed unsafe partial class PgMemoryContext : IDisposable
     /// Return copied managed values rather than native pointers. Escaped checked handles become stale
     /// after successful deletion. Callback, restoration, and deletion failures are preserved together.
     /// If native cleanup fails, the context remains owned by its parent until cleanup is retried.
+    /// Recover actual PostgreSQL errors with <see cref="PgTransaction.RunInSubtransaction(Action)"/>
+    /// before retrying cleanup or performing further backend work.
     /// </remarks>
     public static TResult RunTransient<TResult>(
         string name, Func<PgMemoryContext, TResult> func, PgMemoryContext? parent = null, PgMemoryContextOptions? options = null)

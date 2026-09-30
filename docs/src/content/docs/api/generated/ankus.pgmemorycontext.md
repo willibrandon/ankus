@@ -716,6 +716,8 @@ The callback's result.
 Return copied managed values rather than native pointers. Escaped checked handles become stale
 after successful deletion. Callback, restoration, and deletion failures are preserved together.
 If native cleanup fails, the context remains owned by its parent until cleanup is retried.
+Recover actual PostgreSQL errors with [RunInSubtransaction(Action)](/api/ankus.pgtransaction/#member-341f2ab35f47ed4e)
+before retrying cleanup or performing further backend work.
 
 <a id="member-df4e51886665ac13"></a>
 

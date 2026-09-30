@@ -33,11 +33,19 @@ The generic overload returns the callback's result after successful release.
 Nested scopes recover independently: catch an inner scope's exception outside
 its callback to continue the outer scope. A managed exception also rolls back
 the scope and retains its original exception type and instance.
+An `AggregateException` from action and cleanup failures retains its original
+causes, including the native failure, after rollback.
 
-Catch raw native errors outside the scope. Catching one inside the callback
-does not make the scope successful: additional SQL and raw calls are rejected,
-and the scope rolls back with the original error. Raw calls outside an explicit
-recovery scope retain PostgreSQL's native transaction and cleanup requirements.
+Catch raw native and memory-operation errors outside the scope. Catching one
+inside the callback does not make the scope successful: additional backend work
+is rejected, and the scope rolls back with the original error. Outside an
+explicit recovery scope, Ankus retains the error until the managed callback
+returns and reports it to PostgreSQL even if user code catches it or throws a
+replacement exception. PostgreSQL then aborts the enclosing operation.
+
+Managed `finally` blocks still run. Dispose owned resources and restore selected
+memory contexts there; begin new backend work only after rollback has finished.
+Put storage that must survive recovery in an owner created outside the scope.
 
 The callback must stay synchronous on the backend thread and must not perform
 transaction control. Recovery scopes are unavailable during transaction

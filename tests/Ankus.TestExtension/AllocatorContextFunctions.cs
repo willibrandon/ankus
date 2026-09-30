@@ -217,7 +217,7 @@ public static unsafe class AllocatorContextFunctions
     }
 
     /// <summary>
-    /// Preserves a live control allocation after native size, resize, or unsupported free failures.
+    /// Preserves a live control allocation after rolling back native size, resize, or unsupported free failures.
     /// </summary>
     /// <param name="operation">Allocate, resize, or individual free.</param>
     /// <param name="size">The attempted byte count.</param>
@@ -236,22 +236,25 @@ public static unsafe class AllocatorContextFunctions
         string diagnostic = "returned";
         try
         {
-            if (operation == 0)
+            PgTransaction.RunInSubtransaction(() =>
             {
-                _ = tryOperation ? owner.TryAllocate((nuint)size) : owner.Allocate((nuint)size);
-            }
-            else if (operation == 1)
-            {
-                _ = Resize(control, (nuint)size, tryOperation);
-            }
-            else if (operation == 2)
-            {
-                control.Dispose();
-            }
-            else
-            {
-                _ = owner.Allocate(64, alignment: 4096);
-            }
+                if (operation == 0)
+                {
+                    _ = tryOperation ? owner.TryAllocate((nuint)size) : owner.Allocate((nuint)size);
+                }
+                else if (operation == 1)
+                {
+                    _ = Resize(control, (nuint)size, tryOperation);
+                }
+                else if (operation == 2)
+                {
+                    control.Dispose();
+                }
+                else
+                {
+                    _ = owner.Allocate(64, alignment: 4096);
+                }
+            });
         }
         catch (PgException error)
         {
@@ -281,7 +284,7 @@ public static unsafe class AllocatorContextFunctions
         bool newOwner = false;
         try
         {
-            PgAllocation adopted = owner.DangerousAdopt(pointer, 64);
+            PgAllocation adopted = PgTransaction.RunInSubtransaction(() => owner.DangerousAdopt(pointer, 64));
             newOwner = adopted.Context.Id == owner.Id && adopted.Read<int>() == 731;
             adopted.Write(9123);
         }
@@ -320,7 +323,7 @@ public static unsafe class AllocatorContextFunctions
         {
             try
             {
-                box.Dispose();
+                PgTransaction.RunInSubtransaction(box.Dispose);
             }
             catch (PgException error)
             {

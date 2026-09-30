@@ -98,6 +98,12 @@ internal static class NativeSetBridge
             /* The executor skips expression callbacks on abort. Managed cleanup still runs;
              * SPI queries are unavailable while the backend dismantles its transaction. */
             status = ankus_set_call(state, 3, NULL, &error, true, NULL);
+            if (status != 0 && ((error.flags & ANKUS_ERROR_UNRECOVERED) != 0 ||
+                error.sqlstate == ERRCODE_QUERY_CANCELED || error.report_level != 0))
+            {
+                ankus_raise_error(&error);
+            }
+
             ankus_release_error(&error);
             if (status != 0)
                 ereport(WARNING, (errmsg("Ankus iterator disposal failed during query abort")));
@@ -294,9 +300,34 @@ internal static class NativeSetBridge
             if (status == 1)
             {
                 AnkusError cleanup = {0};
-                int cleanup_status = ankus_set_call(state, 2, NULL, &cleanup, true, NULL);
+                int cleanup_status;
+                AnkusRecoveryFrame recovery = {0};
+                recovery.previous = ankus_recovery_frame;
+                if ((error.flags & ANKUS_ERROR_UNRECOVERED) != 0 ||
+                    error.sqlstate == ERRCODE_QUERY_CANCELED || error.report_level != 0)
+                {
+                    ankus_recovery_store(&recovery, &error);
+                }
+
+                ankus_recovery_frame = &recovery;
+                PG_TRY();
+                {
+                    cleanup_status = ankus_set_call(state, 2, NULL, &cleanup, true, NULL);
+                }
+                PG_FINALLY();
+                {
+                    ankus_recovery_frame = recovery.previous;
+                    ankus_release_error(&recovery.failure);
+                }
+                PG_END_TRY();
                 if (cleanup_status != 0)
                 {
+                    if (cleanup.sqlstate == ERRCODE_QUERY_CANCELED || cleanup.report_level != 0)
+                    {
+                        ankus_release_error(&error);
+                        ankus_raise_error(&cleanup);
+                    }
+
                     ankus_release_error(&cleanup);
                     ereport(WARNING, (errmsg("Ankus iterator disposal also failed after a row error")));
                 }

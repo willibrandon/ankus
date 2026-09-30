@@ -6,7 +6,7 @@ namespace Ankus.TestExtension;
 /// <summary>
 /// Executes actual generated native bodies through a published Native AOT callback and its native error guard.
 /// </summary>
-public static unsafe class NativeRawCallFunctions
+public static unsafe partial class NativeRawCallFunctions
 {
     [ThreadStatic]
     private static nint s_parseBody;
@@ -115,7 +115,7 @@ public static unsafe class NativeRawCallFunctions
             PgException? failure = null;
             try
             {
-                InvokeFunction((nint)body, functionOid, 0, ref result);
+                PgTransaction.RunInSubtransaction(() => InvokeFunction((nint)body, functionOid, 0, ref result));
             }
             catch (PgException exception)
             {

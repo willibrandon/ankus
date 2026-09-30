@@ -49,7 +49,7 @@ public sealed partial class GucParallelTests
                 await PrepareInputAsync(connection, transaction, token);
                 await AssertWorkerPlanAsync(connection, transaction, "datatype.guc_parallel_snapshot(value % 2)", token);
                 int backend = connection.ProcessID;
-                bool unrecoverable = connection.PostgreSqlVersion.Major < 17;
+                bool unrecoverable = mode == 1 || connection.PostgreSqlVersion.Major < 17;
                 string identity = Guid.NewGuid().ToString("N");
                 string directory = PostgresFixture.Cluster.DataDirectory;
                 string originalState = mode switch

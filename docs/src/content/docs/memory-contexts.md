@@ -106,6 +106,11 @@ expires when its subtransaction is rolled back. `IsAlive` checks native context
 identity; transaction cleanup and reuse of a native address cannot revive an old
 handle. Borrowed contexts reset implicitly by PostgreSQL must be resolved again.
 
+Expired-handle checks and rejection of protected context operations validate
+Ankus's registry before invoking PostgreSQL. They do not raise a backend error
+or require transaction rollback. Actual PostgreSQL errors, including allocator
+and encoding failures, follow the recovery rules below.
+
 `RunTransient` combines creation, selection, restoration, and deletion:
 
 ```csharp
@@ -143,6 +148,14 @@ errors still throw `PgException`. Allocation, resize, and free use PostgreSQL's
 matching allocator, and errors are caught in native code before managed execution
 resumes.
 
+A caught native error still requires PostgreSQL rollback. To recover and continue
+within the same managed callback, put the operation inside
+[`PgTransaction.RunInSubtransaction`](/transaction-callbacks/#recoverable-work)
+and catch its exception outside the scope. Without that scope, Ankus blocks
+further backend work and reports the original error when the callback returns,
+even if a C# `catch` swallowed it. Owned disposal and context restoration remain
+available while managed `finally` blocks unwind.
+
 `Allocate<T>(count)`, `AllocateZeroed<T>(count)`, and `TryAllocate<T>(count)`
 check multiplication by `sizeof(T)` before native access. `CopyFrom` copies a byte
 span or an unmanaged value span into independent native storage. These APIs copy
@@ -168,7 +181,8 @@ LATIN1 database; it does not convert to the database encoding.
 
 `Read` and `Write` copy spans or unmanaged values after checking the live chunk
 and its bounds. `Reallocate` preserves the existing prefix when it succeeds;
-an allocation error leaves the old chunk usable. `Clear` clears a selected range;
+an allocation error preserves the old chunk. It can be used after rollback if its
+owner was created outside the recovery scope. `Clear` clears a selected range;
 omitting its length clears through the end. Zero-length allocations and empty
 copies are supported when the native allocator accepts their size. `Context`
 returns the owner established when the allocation was created or adopted.
@@ -337,7 +351,8 @@ An exception consumes that callback and stops the native drain. Older callbacks
 remain pending; retrying reset or deletion invokes them. Already deleted child
 contexts stay deleted. The diagnostic becomes a PostgreSQL error only after the
 managed callback returns. An explicit managed `Reset()` or owned `Dispose()`
-receives a `PgException`; implicit PostgreSQL cleanup can report the error to the
+receives a `PgException`; recovering from it requires the surrounding
+subtransaction to roll back before retrying. Implicit PostgreSQL cleanup can report the error to the
 SQL caller, including during statement or transaction completion. Write cleanup
 actions so they can release their own resources without throwing. If cleanup
 throws while PostgreSQL is already handling a SQL error, the server reports the

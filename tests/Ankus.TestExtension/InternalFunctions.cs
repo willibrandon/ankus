@@ -140,7 +140,7 @@ public static class InternalFunctions
         string sqlState;
         try
         {
-            owner.Reset();
+            PgTransaction.RunInSubtransaction(owner.Reset);
             return "cleanup did not throw";
         }
         catch (PgException error)

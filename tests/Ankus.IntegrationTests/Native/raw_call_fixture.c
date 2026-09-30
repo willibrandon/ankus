@@ -1,6 +1,7 @@
 /* Appended to actual selected-header call bodies by NativeRawCallFixtureCompiler. */
 #include "fmgr.h"
 #include "miscadmin.h"
+#include "storage/lwlock.h"
 #include "utils/memutils.h"
 
 PG_MODULE_MAGIC;
@@ -8,11 +9,14 @@ PG_FUNCTION_INFO_V1(ankus_test_raw_call_address);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_holdoffs);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_error);
 PG_FUNCTION_INFO_V1(ankus_test_raw_call_control);
+PG_FUNCTION_INFO_V1(ankus_test_raw_call_lock_held);
 
 static bool raw_holdoffs_saved = false;
 static uint32 raw_interrupt_holdoff;
 static uint32 raw_cancel_holdoff;
 static MemoryContext raw_memory_context;
+static LWLock raw_error_lock;
+static bool raw_error_lock_initialized;
 
 PGDLLEXPORT Datum
 ankus_test_raw_call_address(PG_FUNCTION_ARGS)
@@ -44,6 +48,13 @@ ankus_test_raw_call_error(PG_FUNCTION_ARGS)
     int value = PG_GETARG_INT32(0);
     if (value == 0)
     {
+        if (!raw_error_lock_initialized)
+        {
+            LWLockInitialize(&raw_error_lock, LWTRANCHE_BUFFER_CONTENT);
+            raw_error_lock_initialized = true;
+        }
+
+        LWLockAcquire(&raw_error_lock, LW_EXCLUSIVE);
         MemoryContextSwitchTo(TopMemoryContext);
         HOLD_INTERRUPTS();
         HOLD_CANCEL_INTERRUPTS();
@@ -83,4 +94,11 @@ ankus_test_raw_call_control(PG_FUNCTION_ARGS)
     }
 
     PG_RETURN_INT64((int64) (((uint64) InterruptHoldoffCount << 32) | (uint32) QueryCancelHoldoffCount));
+}
+
+PGDLLEXPORT Datum
+ankus_test_raw_call_lock_held(PG_FUNCTION_ARGS)
+{
+    (void) fcinfo;
+    PG_RETURN_BOOL(raw_error_lock_initialized && LWLockHeldByMe(&raw_error_lock));
 }

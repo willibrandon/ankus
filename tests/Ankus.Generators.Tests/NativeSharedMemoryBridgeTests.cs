@@ -51,16 +51,16 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string admission = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        string admission = native[native.IndexOf("static int\nankus_shared_value", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
         AssertOrdered(admission, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
-            "request->length != entry->size", "request->flags == 7 && !entry->exclusive",
+            "request->length != entry->size", "(request->flags == 4 || request->flags == 7) && !entry->exclusive",
             "error->sqlstate = ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE", "return 1;",
             "result->data = (intptr_t) ankus_shared_data(entry->header)"]);
         Assert.DoesNotContain("ereport(", admission);
         Assert.DoesNotContain("palloc(", admission);
         string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
         AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6 || request->flags == 7",
-            "ankus_shared_value_address(request, result, error)", "PG_TRY();"]);
+            "ankus_shared_value(request, result, error)", "PG_TRY();"]);
     }
 
     /// <summary>
@@ -126,14 +126,14 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
-        string read = native[native.IndexOf("static int\nankus_shared_value_address", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
+        string read = native[native.IndexOf("static int\nankus_shared_value", StringComparison.Ordinal)..native.IndexOf("static void\nankus_memory_shared", StringComparison.Ordinal)];
         Assert.DoesNotContain("ereport(", read);
         Assert.DoesNotContain("palloc(", read);
         Assert.DoesNotContain("ankus_shared_attach(", read);
         AssertOrdered(read, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
             "request->length != entry->size", "result->data = (intptr_t) ankus_shared_data(entry->header)", "result->length = entry->size"]);
         string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
-        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_value_address(request, result, error)", "PG_TRY();"]);
+        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_value(request, result, error)", "PG_TRY();"]);
     }
 
     /// <summary>

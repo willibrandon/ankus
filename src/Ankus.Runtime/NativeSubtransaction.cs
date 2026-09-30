@@ -49,7 +49,7 @@ internal static unsafe class NativeSubtransaction
     }
 
     /// <summary>
-    /// Marks the innermost scope for rollback after a raw native call fails.
+    /// Marks the innermost scope for rollback after an unrecovered native operation fails.
     /// </summary>
     /// <param name="exception">The owned native diagnostic.</param>
     internal static void RecordFailure(Exception exception)
@@ -97,7 +97,13 @@ internal static unsafe class NativeSubtransaction
         {
             if (invocation is not null)
             {
-                invocation.Failure ??= exception;
+                if (invocation.Failure is null || exception is AggregateException aggregate &&
+                    aggregate.Flatten().InnerExceptions.Any(failure => ReferenceEquals(failure, invocation.Failure)))
+                {
+                    // Preserve a cleanup aggregate that still contains the original
+                    // native failure. An unrelated replacement cannot hide that failure.
+                    invocation.Failure = exception;
+                }
             }
 
             return 1;

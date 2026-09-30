@@ -30,7 +30,7 @@ internal static class NativeErrorBridge
         {
             ANKUS_ERROR_RETHROW = 1, ANKUS_ERROR_SERVER = 2, ANKUS_ERROR_CLIENT = 4,
             ANKUS_ERROR_HIDE_STATEMENT = 8, ANKUS_ERROR_HIDE_CONTEXT = 16,
-            ANKUS_ERROR_INCOMPLETE = 32, ANKUS_ERROR_SHOW_FUNCTION = 64
+            ANKUS_ERROR_INCOMPLETE = 32, ANKUS_ERROR_SHOW_FUNCTION = 64, ANKUS_ERROR_UNRECOVERED = 128
         };
 
         typedef struct AnkusError
@@ -164,6 +164,13 @@ internal static class NativeErrorBridge
             if (operation == 2)
                 return ankus_recovery_terminal(level, report, error);
 
+            if (ankus_recovery_failed(error))
+            {
+                if (error->report_level < 12 || (error->flags & ANKUS_ERROR_UNRECOVERED) != 0)
+                    return 1;
+                memset(error, 0, sizeof(*error));
+            }
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext recovery = ankus_error_recovery_context(caller);
             uint32 interrupt_holdoff = InterruptHoldoffCount;
@@ -204,7 +211,7 @@ internal static class NativeErrorBridge
                     data = ankus_copy_error_data();
                     FlushErrorState();
                     ankus_capture_error(data, error);
-                    ankus_recovery_record(data);
+                    ankus_recovery_record(error, false);
                     ankus_free_error_data(data);
                     MemoryContextSwitchTo(recovery);
                     MemoryContextDelete(diagnostic);

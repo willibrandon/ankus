@@ -24,6 +24,7 @@ internal static class NativeSessionBridge
             ResourceOwner caller_owner;
             int caller_nest_level;
             int caller_internal_subtransaction_depth;
+            bool subtransaction_owned;
             MemoryContext context;
             AnkusSessionPlan *plans;
             MemoryContextCallback cleanup;
@@ -78,6 +79,7 @@ internal static class NativeSessionBridge
             session->caller_owner = caller_owner;
             session->caller_nest_level = caller_nest_level;
             session->caller_internal_subtransaction_depth = caller_internal_subtransaction_depth;
+            session->subtransaction_owned = GetCurrentTransactionNestLevel() > caller_nest_level;
             session->context = CurrentMemoryContext;
             session->previous = ankus_session;
             session->cleanup.func = ankus_forget_session;

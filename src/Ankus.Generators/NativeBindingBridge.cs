@@ -25,25 +25,32 @@ internal static class NativeBindingBridge
     }
 
     /// <summary>
-    /// Validates the complete native declaration identity and server major beneath the shared native error guard.
+    /// Validates the complete native declaration identity and server major without invoking PostgreSQL.
     /// </summary>
     internal const string Source = """
-        static void
-        ankus_memory_native_binding(AnkusMemoryRequest *request)
+        static int
+        ankus_memory_native_binding(AnkusMemoryRequest *request, AnkusError *error)
         {
+            const char *message = NULL;
             if (sizeof(ankus_binding_identity) == 1)
             {
-                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                    errmsg("this extension has no unique generated PostgreSQL binding contract")));
+                message = "this extension has no unique generated PostgreSQL binding contract";
             }
-
-            if (request->value != PG_VERSION_NUM / 10000 ||
+            else if (request->value != PG_VERSION_NUM / 10000 ||
                 request->length != sizeof(ankus_binding_identity) - 1 || request->data == 0 ||
                 memcmp((const void *) request->data, ankus_binding_identity, sizeof(ankus_binding_identity) - 1) != 0)
             {
-                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                    errmsg("the generated binding does not match the active extension's PostgreSQL ABI")));
+                message = "the generated binding does not match the active extension's PostgreSQL ABI";
             }
+
+            if (message == NULL)
+            {
+                return 0;
+            }
+
+            error->sqlstate = ERRCODE_FEATURE_NOT_SUPPORTED;
+            strlcpy(error->message, message, sizeof(error->message));
+            return 1;
         }
 
         """;
