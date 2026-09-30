@@ -99,6 +99,16 @@ internal sealed class SqlEntity
     internal HashSet<SqlEntity> Dependencies { get; } = [];
 
     /// <summary>
+    /// Gets compiler-resolved explicit prerequisites, which retain explicit shell-type ordering semantics.
+    /// </summary>
+    internal HashSet<SqlEntity> DeclaredDependencies { get; } = [];
+
+    /// <summary>
+    /// Gets typed Requires edges inherited by aggregate support functions independently of incoming Before edges.
+    /// </summary>
+    internal HashSet<SqlEntity> RequiredDeclarations { get; } = [];
+
+    /// <summary>
     /// Gets inferred custom SQL type prerequisites that may follow an explicitly ordered shell-type consumer.
     /// </summary>
     internal HashSet<SqlEntity> TypeDependencies { get; } = [];

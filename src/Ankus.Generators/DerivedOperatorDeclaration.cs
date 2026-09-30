@@ -173,7 +173,7 @@ internal static class DerivedOperatorDeclaration
             entity.SelectionNames.Add(type.ToDisplayString() + "." + role);
             RequireType(entity);
             graph.Configure(entity, attribute);
-            graph.Add(entity);
+            graph.Add(entity, type);
             return entity;
         }
 

@@ -10,6 +10,26 @@ namespace Ankus.IntegrationTests;
 public sealed class CustomSqlTests(TestContext context)
 {
     /// <summary>
+    /// Typed schema, method and Before edges execute a managed function during CREATE EXTENSION in the required order.
+    /// </summary>
+    [TestMethod]
+    public Task TypedDependenciesExecuteDuringInstallation()
+        => PostgresFixture.Cluster.RunInTransactionAsync(nameof(TypedDependenciesExecuteDuringInstallation),
+            async (connection, transaction, token) =>
+            {
+                await using var command = new NpgsqlCommand("""
+                    SELECT i.value, c.value, ankus_typed.read_value()
+                    FROM ankus_typed.input i CROSS JOIN ankus_typed.captured c
+                    """, connection, transaction);
+                await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(token);
+                Assert.IsTrue(await reader.ReadAsync(token));
+                Assert.AreEqual(42, reader.GetInt32(0));
+                Assert.AreEqual(42, reader.GetInt32(1));
+                Assert.AreEqual(42, reader.GetInt32(2));
+                Assert.IsFalse(await reader.ReadAsync(token));
+            }, context.CancellationToken);
+
+    /// <summary>
     /// A real installation records the bootstrap, prerequisite, file, dependent-view, and final block order.
     /// </summary>
     [TestMethod]

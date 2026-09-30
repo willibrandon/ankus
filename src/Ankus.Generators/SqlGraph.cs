@@ -27,7 +27,15 @@ internal sealed partial class SqlGraph
     /// Registers an installation node.
     /// </summary>
     /// <param name="entity">The declaration node.</param>
-    internal void Add(SqlEntity entity) => _entities.Add(entity);
+    /// <param name="declaration">The managed declaration represented by this SQL node, when present.</param>
+    internal void Add(SqlEntity entity, ISymbol? declaration = null)
+    {
+        _entities.Add(entity);
+        if (declaration is not null)
+        {
+            Register(declaration, entity);
+        }
+    }
 
     /// <summary>
     /// Replaces a declaration and its attached SQL with one fragment ordered after every external prerequisite.
@@ -124,10 +132,12 @@ internal sealed partial class SqlGraph
         }
 
         Dictionary<SqlEntity, HashSet<SqlEntity>> explicitDependencies = _entities.ToDictionary(
-            static entity => entity, static _ => new HashSet<SqlEntity>());
+            static entity => entity, static entity => new HashSet<SqlEntity>(entity.DeclaredDependencies.Concat(entity.RequiredDeclarations)));
         foreach (SqlEntity entity in _entities)
         {
             _context.CancellationToken.ThrowIfCancellationRequested();
+            entity.Dependencies.UnionWith(entity.DeclaredDependencies);
+            entity.Dependencies.UnionWith(entity.RequiredDeclarations);
             Resolve(entity.Requires, before: false);
             Resolve(entity.Before, before: true);
 

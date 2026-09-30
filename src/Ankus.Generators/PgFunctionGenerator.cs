@@ -111,6 +111,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgAggregateAttribute",
             static (node, _) => node is TypeDeclarationSyntax,
             static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValuesProvider<ISymbol> requires = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgRequiresAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
+        IncrementalValuesProvider<ISymbol> before = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Ankus.PgBeforeAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
+        IncrementalValueProvider<ImmutableArray<ISymbol>> references = requires.Collect().Combine(before.Collect())
+            .Select(static (input, _) => input.Left.AddRange(input.Right));
         IncrementalValuesProvider<IPropertySymbol> properties = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is PropertyDeclarationSyntax { AttributeLists.Count: > 0 } or IndexerDeclarationSyntax { AttributeLists.Count: > 0 },
             static (syntaxContext, token) => syntaxContext.SemanticModel.GetDeclaredSymbol((BasePropertyDeclarationSyntax)syntaxContext.Node, token) as IPropertySymbol)
@@ -119,7 +125,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (property, _) => property!);
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute" or "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute").ToImmutableArray());
+                "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute" or "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute" or
+                "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute").ToImmutableArray());
         IncrementalValueProvider<ImmutableArray<AttributeData>> prefixes = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() ==
                 "Ankus.PgGucPrefixAttribute").ToImmutableArray());
@@ -130,11 +137,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 (BuildProperty(options.GlobalOptions, "MSBuildProjectDirectory") ?? string.Empty,
                     string.Equals(BuildProperty(options.GlobalOptions, "AnkusIncludeTests"), "true", StringComparison.OrdinalIgnoreCase),
                     BuildProperty(options.GlobalOptions, "Version")));
-        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider)),
+        context.RegisterSourceOutput(methods.Combine(schemas.Collect()).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums.Collect()).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references))),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
-                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right));
+                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right.Left, input.Right.Right.Right));
     }
 
     /// <summary>
@@ -151,7 +158,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         (string Directory, bool IncludeTests, string? Version) settings,
         ImmutableArray<INamedTypeSymbol> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
-        ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation)
+        ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation,
+        ImmutableArray<ISymbol> references)
     {
         bool referencedCallbacks = compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly =>
             assembly.GetAttributes().Any(static attribute =>
@@ -161,7 +169,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 attribute.ConstructorArguments[1].Value is "1"));
         bool declaredModule = compilation.Assembly.GetAttributes().Any(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "Ankus.PgModuleAttribute");
-        if (!referencedCallbacks && !declaredModule && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
+        if (!referencedCallbacks && !declaredModule && references.IsEmpty && methods.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
         }
@@ -395,6 +403,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
                 entity.SelectionNames.UnionWith([declared.Name, SqlText.Identifier(declared.Name), type.ToDisplayString()]);
                 graph.Configure(entity, type.GetAttributes().First(static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute"));
+                graph.Register(type, entity);
             }
         }
 
@@ -442,7 +451,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             entity.Attachments.Add("TYPE " + (enumeration.Schema is null ? "\0" : string.Empty) + enumeration.Sql);
             graph.Configure(entity, enumeration.Attribute);
             fixedSchema |= !SqlGeneration.Apply(enumeration.Attribute, entity, [], [], graph);
-            graph.Add(entity);
+            graph.Add(entity, type);
             if (!enumNames.Add(enumeration.Sql))
             {
                 graph.Error(entity.Location, "Duplicate PostgreSQL enum type name " + enumeration.Sql + ".");
@@ -562,7 +571,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     ("@RECEIVE_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("recv") : null),
                     ("@SEND_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("send") : null),
                 ], graph);
-            graph.Add(entity);
+            graph.Add(entity, custom.Type);
             if (!enumNames.Add(custom.Sql))
             {
                 graph.Error(entity.Location, "Duplicate PostgreSQL type name " + custom.Sql + ".");
@@ -759,7 +768,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 graph.Configure(entity, functionAttribute);
             }
 
-            graph.Add(entity);
+            graph.Add(entity, method);
             List<SqlEntity> related = contextParameter ? [] :
                 OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context, operatorEntities, typeProviders);
             fixedSchema |= !SqlGeneration.Apply(functionAttribute, entity, related,
@@ -837,7 +846,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             entity.Attachments.Add("AGGREGATE " + PgAggregateEmitter.Identity(aggregate, typeProviders));
             graph.Configure(entity, aggregate.Attribute);
             fixedSchema |= !SqlGeneration.Apply(aggregate.Attribute, entity, [], [], graph);
-            graph.Add(entity);
+            graph.Add(entity, type);
             AddSchemaDependency(entity, aggregate.Schema);
             foreach (AggregateHelper helper in aggregate.Helpers.Values)
             {
@@ -845,6 +854,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     SymbolEqualityComparer.Default.Equals(existing.Method, helper.Method))
                 {
                     entity.Dependencies.Add(existing.Entity);
+                    graph.InheritRequirements(entity, existing.Entity);
                     continue;
                 }
 
@@ -871,10 +881,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     graph.Configure(support, function);
                 }
 
-                support.Requires.UnionWith(entity.Requires.Where(required => !support.Names.Contains(required)));
                 fixedSchema |= !SqlGeneration.Apply(function, support, [],
                     [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
-                graph.Add(support);
+                graph.Add(support, helper.Method);
+                graph.InheritRequirements(entity, support);
                 supportFunctions.Add(helper.Signature, (helper.Method, support));
                 entity.Dependencies.Add(support);
                 AddSchemaDependency(support, helper.Declaration.Schema);
@@ -896,6 +906,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         managed.AppendLine("}");
+        graph.ResolveReferences(references.Add(compilation.Assembly));
         string? installation = graph.Emit();
         if (installation is null)
         {

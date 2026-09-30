@@ -1,0 +1,381 @@
+using System.Collections.Immutable;
+using Ankus.PgConfig;
+using Microsoft.CodeAnalysis;
+
+namespace Ankus.Generators.Tests;
+
+public sealed partial class PgFunctionGeneratorTests
+{
+    /// <summary>
+    /// Managed method identity orders declarations independently of names, IDs and source order.
+    /// </summary>
+    /// <param name="direction">The edge expressed from the consumer or prerequisite.</param>
+    [TestMethod]
+    [DataRow("requires")]
+    [DataRow("before")]
+    public void TypedDependenciesOrderExactMethods(string direction)
+    {
+        string requires = direction == "requires" ? "[Ankus.PgRequires(typeof(Z), nameof(Z.F))]" : string.Empty;
+        string before = direction == "before" ? "[Ankus.PgBefore(typeof(A), nameof(A.F))]" : string.Empty;
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            [assembly: Ankus.PgSql("after", "SELECT 'after';")]
+            [assembly: Ankus.PgRequires(typeof(A), nameof(A.F), DeclarationId = "after")]
+            public static class A
+            {
+                {{requires}}
+                [Ankus.PgFunction(Name = "a", Sql = "SELECT 'consumer';")] public static int F() => 1;
+            }
+            public static class Z
+            {
+                {{before}}
+                [Ankus.PgFunction(Name = "z", Sql = "SELECT 'prerequisite';")] public static int F() => 2;
+            }
+            """);
+        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
+        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'consumer';\nSELECT 'after';\n", ManifestValue(compilation, "Ankus.Sql"));
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+        Assert.AreSequenceEqual<string>([graph.Items[1].Id], graph.Items[2].Dependencies);
+    }
+
+    /// <summary>
+    /// Exact managed parameter types disambiguate an overload without relying on SQL names.
+    /// </summary>
+    /// <param name="parameters">The explicit overload selection, including the empty signature.</param>
+    /// <param name="expected">The declaration that must precede the SQL block.</param>
+    [TestMethod]
+    [DataRow("new System.Type[] { }", "empty")]
+    [DataRow("new[] { typeof(int) }", "number")]
+    [DataRow("new[] { typeof(int?) }", "nullable")]
+    [DataRow("new[] { typeof(string) }", "text")]
+    public void TypedDependenciesSelectOverloads(string parameters, string expected)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            [assembly: Ankus.PgSql("before", "SELECT 'before';")]
+            [assembly: Ankus.PgBefore(typeof(Functions), nameof(Functions.F), ParameterTypes = {{parameters}}, DeclarationId = "before")]
+            public static class Functions
+            {
+                [Ankus.PgFunction(Sql = "SELECT 'empty';")] public static int F() => 1;
+                [Ankus.PgFunction(Sql = "SELECT 'number';")] public static int F(int value) => value;
+                [Ankus.PgFunction(Name = "f_optional", Sql = "SELECT 'nullable';")] public static int? F(int? value) => value;
+                [Ankus.PgFunction(Sql = "SELECT 'text';")] public static string F(string value) => value;
+            }
+            """);
+        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
+        string sql = ManifestValue(compilation, "Ankus.Sql");
+        AssertSqlControlBefore(sql, "SELECT 'before';", $"SELECT '{expected}';");
+        foreach (string other in new[] { "empty", "number", "nullable", "text" })
+        {
+            if (other != expected)
+            {
+                AssertSqlControlBefore(sql, $"SELECT '{other}';", "SELECT 'before';");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Type identity selects generated schemas, enums, types and aggregates without explicit IDs.
+    /// </summary>
+    /// <param name="declaration">The generated declaration under test.</param>
+    /// <param name="sql">The principal object's installation statement.</param>
+    [TestMethod]
+    [DataRow("[Ankus.PgSchema(\"declared\")] public static class Value;", "CREATE SCHEMA IF NOT EXISTS \"declared\";")]
+    [DataRow("[Ankus.PgEnum] public enum Value { First }", "CREATE TYPE \"value\" AS ENUM")]
+    [DataRow("[Ankus.PgType] public readonly record struct Value(int Number);", "CREATE TYPE \"value\" (")]
+    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public static class Value { public static int Transition(int state, int value) => state + value; }", "CREATE AGGREGATE \"value\"")]
+    public void TypedDependenciesSelectTypeDeclarations(string declaration, string sql)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [assembly: Ankus.PgSql("before", "SELECT 'before';")]
+            [assembly: Ankus.PgBefore(typeof(Value), DeclarationId = "before")]
+            """ + declaration);
+        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
+        AssertSqlControlBefore(ManifestValue(compilation, "Ankus.Sql"), "SELECT 'before';", sql);
+    }
+
+    /// <summary>
+    /// Inherited method lookup and shared schema aliases retain the actual registered declaration identity.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesResolveInheritedMethodsAndSharedSchemas()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [assembly: Ankus.PgSql("before", "SELECT 'before';")]
+            [assembly: Ankus.PgBefore(typeof(Derived), nameof(Derived.F), DeclarationId = "before")]
+            [assembly: Ankus.PgRequires(typeof(First), DeclarationId = "before")]
+            [assembly: Ankus.PgRequires(typeof(Second), DeclarationId = "before")]
+            [Ankus.PgSchema("shared")] public static class First;
+            [Ankus.PgSchema("shared", Create = false)] public static class Second;
+            public class Base
+            {
+                [Ankus.PgFunction(Sql = "SELECT 'inherited';")] public static int F() => 1;
+            }
+            public class Derived : Base;
+            """);
+        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
+        Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"shared\";\nSELECT 'before';\nSELECT 'inherited';\n", ManifestValue(compilation, "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Invalid source and destination references report the attribute and emit no installation manifest.
+    /// </summary>
+    /// <param name="attribute">The invalid dependency.</param>
+    /// <param name="reason">The independent diagnostic reason.</param>
+    [TestMethod]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions))]", "requires DeclarationId")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"missing\")]", "identify exactly one")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \" \" )]", "DeclarationId must be nonempty")]
+    [DataRow("[assembly: Ankus.PgRequires(null!, DeclarationId = \"sql\")]", "non-null declared type")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(int[]), DeclarationId = \"sql\")]", "non-null declared type")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(System.Collections.Generic.List<>), DeclarationId = \"sql\")]", "non-null declared type")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), DeclarationId = \"sql\")]", "does not declare a generated SQL object")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"missing\", DeclarationId = \"sql\")]", "was not found")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), \"\", DeclarationId = \"sql\")]", "method name must be nonempty")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), DeclarationId = \"sql\")]", "is ambiguous")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new[] { typeof(string) }, DeclarationId = \"sql\")]", "was not found")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.F), ParameterTypes = new System.Type[] { null! }, DeclarationId = \"sql\")]", "must contain non-null")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), ParameterTypes = new System.Type[] { }, DeclarationId = \"sql\")]", "requires a method name")]
+    [DataRow("[assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.Ordinary), DeclarationId = \"sql\")]", "does not declare a generated SQL object")]
+    public void TypedDependenciesRejectInvalidReferences(string attribute, string reason)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(attribute + """
+            [assembly: Ankus.PgSql("sql", "SELECT 1;")]
+            public static class Functions
+            {
+                [Ankus.PgFunction] public static int F() => 1;
+                [Ankus.PgFunction] public static int F(int value) => value;
+                public static int Ordinary() => 2;
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.Contains(reason, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsNotNull(diagnostic.Location.SourceTree);
+        Assert.Contains("PgRequires", diagnostic.Location.SourceTree.GetText(context.CancellationToken).ToString(diagnostic.Location.SourceSpan));
+        Assert.EndsWith("#reference-managed-declarations", diagnostic.Descriptor.HelpLinkUri);
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// Typed edges participate in the same complete cycle validation as explicit string identifiers.
+    /// </summary>
+    /// <param name="self">Whether the edge directly references its own declaration.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void TypedDependenciesRejectCycles(bool self)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgRequires(typeof(Functions), nameof({{(self ? "A" : "Z")}}))]
+                public static int A() => 1;
+                [Ankus.PgFunction, Ankus.PgRequires(typeof(Functions), nameof(A))]
+                public static int Z() => 2;
+            }
+            """);
+        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+    }
+
+    /// <summary>
+    /// Disabled SQL retains its typed prerequisite and remains a dependency target.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesRetainDisabledDeclarations()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            [assembly: Ankus.PgSql("after", "SELECT 'after';")]
+            [assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.A), DeclarationId = "after")]
+            public static class Functions
+            {
+                [Ankus.PgFunction(GenerateSql = false), Ankus.PgRequires(typeof(Functions), nameof(Z))]
+                public static int A() => 1;
+                [Ankus.PgFunction(Sql = "SELECT 'before';")] public static int Z() => 2;
+            }
+            """);
+        Assert.AreEqual("SELECT 'before';\nSELECT 'after';\n", ManifestValue(compilation, "Ankus.Sql"));
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.HasCount(3, graph.Items);
+        Assert.IsEmpty(graph.Items[1].Sql);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+        Assert.AreSequenceEqual<string>([graph.Items[1].Id], graph.Items[2].Dependencies);
+    }
+
+    /// <summary>
+    /// Attached operator prerequisites are hoisted ahead of a complete function SQL replacement.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesPreserveReplacementFamilies()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            public static class Functions
+            {
+                [Ankus.PgFunction(Sql = "SELECT 'replacement';"), Ankus.PgOperator("@", Id = "operator")]
+                [Ankus.PgRequires(typeof(Functions), nameof(Z), DeclarationId = "operator")]
+                public static int A(int value) => value;
+                [Ankus.PgFunction(Sql = "SELECT 'prerequisite';")] public static int Z() => 2;
+            }
+            """);
+        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'replacement';\n", ManifestValue(compilation, "Ankus.Sql"));
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem replacement = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("replacement", StringComparison.Ordinal)));
+        Assert.Contains(graph.Items[0].Id, replacement.Dependencies);
+        Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "operator"));
+    }
+
+    /// <summary>
+    /// Aggregate Requires constraints also precede generated support methods, including one method shared by two roles.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesOrderAggregateHelpers()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            [assembly: Ankus.PgSql("after", "SELECT 'after helper';")]
+            [assembly: Ankus.PgRequires(typeof(Total), nameof(Total.Transition), DeclarationId = "after")]
+            [Ankus.PgAggregate(InitialCondition = "0", MovingInitialCondition = "0", MovingTransition = nameof(Transition), MovingInverse = nameof(Inverse))]
+            [Ankus.PgRequires(typeof(Z), nameof(Z.F))]
+            public static class Total
+            {
+                [Ankus.PgFunction(Name = "shared_transition")]
+                public static int Transition(int state, int value) => state + value;
+                public static int Inverse(int state, int value) => state - value;
+            }
+            public static class Z
+            {
+                [Ankus.PgFunction(Sql = "SELECT 'prerequisite';")] public static int F() => 1;
+            }
+            """);
+        string sql = ManifestValue(compilation, "Ankus.Sql");
+        AssertSqlControlBefore(sql, "SELECT 'prerequisite';", "CREATE FUNCTION \"shared_transition\"");
+        AssertSqlControlBefore(sql, "CREATE FUNCTION \"shared_transition\"", "SELECT 'after helper';");
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        ExtensionSchemaItem prerequisite = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("prerequisite", StringComparison.Ordinal)));
+        foreach (ExtensionSchemaItem item in graph.Items.Where(item => item.Id != prerequisite.Id && item.Kind is "function" or "aggregate"))
+        {
+            Assert.Contains(prerequisite.Id, item.Dependencies);
+        }
+    }
+
+    /// <summary>
+    /// A typed edge can place a shell consumer before its inferred completed-type provider.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesPreserveExplicitShellOrdering()
+    {
+        Compilation compilation = GenerateSqlControl("""
+            [assembly: Ankus.PgSql("shell", "CREATE TYPE item;")]
+            [assembly: Ankus.PgSql("types", "SELECT 'complete';")]
+            [assembly: Ankus.PgRequires(typeof(Functions), nameof(Functions.Input), DeclarationId = "types")]
+            [assembly: Ankus.PgSqlTypeProvider("types", "item")]
+            public static class Functions
+            {
+                [Ankus.PgFunction(Requires = ["shell"], Sql = "SELECT 'io';")]
+                [return: Ankus.PgSqlType("item")]
+                public static Ankus.PgDatum? Input() => null;
+                [Ankus.PgFunction(Sql = "SELECT 'consumer';")]
+                public static int Read([Ankus.PgSqlType("item")] Ankus.PgDatum value) => 7;
+            }
+            """);
+        Assert.AreEqual("CREATE TYPE item;\nSELECT 'io';\nSELECT 'complete';\nSELECT 'consumer';\n", ManifestValue(compilation, "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// A dependency on an ordinary declaration is diagnosed even when the assembly has no other Ankus attributes.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesRejectUnmappedSource()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [Ankus.PgRequires(typeof(int))] public static class Ordinary;
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.Contains("Ordinary", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsEmpty(compilation.Assembly.GetAttributes());
+    }
+
+    /// <summary>
+    /// Trigger entry points participate without requiring a redundant PgFunction attribute.
+    /// </summary>
+    /// <param name="declaration">The trigger or event-trigger method.</param>
+    [TestMethod]
+    [DataRow("[Ankus.PgTrigger] public static Ankus.PgHeapTuple? F(Ankus.PgTriggerContext context) => null;")]
+    [DataRow("[Ankus.PgEventTrigger] public static void F(Ankus.PgEventTriggerContext context) { }")]
+    public void TypedDependenciesSelectTriggerDeclarations(string declaration)
+    {
+        Compilation compilation = GenerateSqlControl($$"""
+            [assembly: Ankus.PgSql("before", "SELECT 'before';")]
+            [assembly: Ankus.PgBefore(typeof(Functions), nameof(Functions.F), DeclarationId = "before")]
+            public static class Functions { {{declaration}} }
+            """);
+        ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
+        Assert.HasCount(2, graph.Items);
+        Assert.AreEqual("SELECT 'before';", graph.Items[0].Sql);
+        Assert.AreEqual("function", graph.Items[1].Kind);
+        Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
+    }
+
+    /// <summary>
+    /// Managed references preserve global bootstrap and final-block constraints.
+    /// </summary>
+    /// <param name="order">The installation boundary.</param>
+    /// <param name="edge">The constraint that conflicts with that boundary.</param>
+    [TestMethod]
+    [DataRow("Bootstrap", "PgRequires")]
+    [DataRow("Finalize", "PgBefore")]
+    public void TypedDependenciesRejectBoundaryCycles(string order, string edge)
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
+            [assembly: Ankus.PgSql("boundary", "SELECT 1;", Order = Ankus.PgSqlOrder.{{order}})]
+            [assembly: Ankus.{{edge}}(typeof(Functions), nameof(Functions.F), DeclarationId = "boundary")]
+            public static class Functions { [Ankus.PgFunction] public static int F() => 1; }
+            """);
+        AssertSqlControlGraphError(compilation, diagnostics, "cycle");
+    }
+
+    /// <summary>
+    /// A method-level source identifier cannot silently order an unrelated declaration.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesRejectForeignSourceIdentifiers()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [assembly: Ankus.PgSql("foreign", "SELECT 1;")]
+            public static class Functions
+            {
+                [Ankus.PgFunction, Ankus.PgRequires(typeof(Functions), nameof(Z), DeclarationId = "foreign")]
+                public static int A() => 1;
+                [Ankus.PgFunction] public static int Z() => 2;
+            }
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.Contains("belonging to the attributed declaration", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+
+    /// <summary>
+    /// A type with multiple primary SQL declarations requires explicit IDs instead of an arbitrary first match.
+    /// </summary>
+    [TestMethod]
+    public void TypedDependenciesRejectAmbiguousTypes()
+    {
+        (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
+            [assembly: Ankus.PgSql("after", "SELECT 1;")]
+            [assembly: Ankus.PgRequires(typeof(Value), DeclarationId = "after")]
+            [Ankus.PgSchema("declared"), Ankus.PgType]
+            public readonly record struct Value(int Number);
+            """);
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS026", diagnostic.Id);
+        Assert.Contains("multiple SQL objects", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse(compilation.Assembly.GetAttributes().Any(static item => item.ConstructorArguments.Length == 2 &&
+            item.ConstructorArguments[0].Value is "Ankus.Sql"));
+    }
+}

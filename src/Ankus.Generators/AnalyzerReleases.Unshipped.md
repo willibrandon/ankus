@@ -27,3 +27,4 @@ ANKUS022 | Ankus | Error | Invalid PostgreSQL background-worker entry
 ANKUS023 | Ankus | Error | Invalid PostgreSQL backend test declaration or catalog
 ANKUS024 | Ankus | Error | Ambiguous reference nullability in a SQL parameter or result
 ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
+ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference

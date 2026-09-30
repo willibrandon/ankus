@@ -82,7 +82,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Declarative parity | Extended module magic preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Custom types now support PostgreSQL's four/eight-byte datum alignments, with catalog/heap/TOAST/array checks and the complete PostgreSQL 18.6/Linux x64 suite passing. Dedicated-platform CI remains required for these milestones. Typed aggregate/dependency/support references and generated SQL provenance remain open. Preserve deterministic ordering. |
+| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references now resolve exact types/methods and preserve graph ordering, replacement and selection contracts; the complete PostgreSQL 18.6/Linux x64 suite passes. Typed aggregate contracts, planner support references and generated SQL provenance remain open. Preserve deterministic ordering. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; dedicated-platform evidence remains pending. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
@@ -91,6 +91,19 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+`PgRequires` and `PgBefore` reference generated SQL through exact managed types
+and methods, with overload selection and located diagnostics. Typed edges retain
+cycle checks, shell-type ordering, aggregate helper prerequisites and graph
+selection. Native installation executes functions ordered through these edges.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,859 total,
+9,849 passed, zero failed and ten platform skips**, in **14m00.582s**.
+Release, generated API freshness and documentation checks pass. Dedicated CI
+and the full platform/version matrix remain required. Hosted Intel macOS timing
+remains unresolved; planner support references and other review gaps remain open.
+
+## Previous verified milestone — nonterminal reporting
 
 Nonterminal logging defers PostgreSQL interrupts through the complete native
 reporting operation. All four reporting capabilities restore the caller's
@@ -16889,3 +16902,49 @@ test steps ran **45m06s** and **49m48s**, respectively, before timeout. Neither
 completed integration testing. Lower package concurrency alone does not resolve
 the issue; retained target timings are being analyzed. No runs were automatically
 canceled by repository concurrency settings.
+
+### 2026-09-30 — Managed declaration references for SQL dependencies
+
+Confirmed that dependency arrays previously accepted only explicit string IDs.
+`PgRequires` and `PgBefore` now resolve exact C# types and methods through the
+compiler's symbols. Optional parameter types select overloads; assembly-level
+references identify the source SQL node through `DeclarationId`. Shared schemas,
+inherited methods, enum/custom types, aggregate support functions and trigger
+functions retain their actual generated identities. Ambiguous or absent targets
+receive `ANKUS026` at the attribute instead of partial installation SQL.
+
+Typed edges enter the existing graph before cycle checks, shell-type inference,
+replacement-family ordering and graph encoding. Aggregate prerequisites precede
+every support function, including reused helpers. Source IDs on methods/types
+must belong to that declaration. Explicit string IDs remain available.
+
+The focused generator checks pass **38/38**, zero failures/skips, **3.096s**.
+They verify exact encoded edges, overload/type identity, disabled/replaced SQL,
+aggregate helpers, shell completion and invalid/cyclic/boundary references.
+The new native installation case calls a managed function from dependent SQL
+and checks captured/input/current values. Its PostgreSQL execution, the full
+suite and remaining documentation checks are still pending at this point.
+Typed aggregate contracts, planner support references, SQL provenance and
+incremental generation remain separate open requirements.
+
+The native custom SQL scope passes **3/3** on PostgreSQL **18.6/Linux x64**,
+zero failures/skips, **2m32.376s**, including execution during installation and
+the existing SQL/file/rollback checks. Release passes with **zero warnings and
+errors, 1m30.72s**. Generated API freshness verifies **227 pages / 2,632 members**;
+the site builds **274 pages in 4.53s**, with zero check findings. The complete
+plain suite is running; no complete-suite or new platform result is claimed yet.
+
+The complete plain PostgreSQL **18.6/Linux x64** suite now passes **9,859 total,
+9,849 passed, zero failed and ten platform skips**, **14m00.582s**, with six
+package-consumer slots. Independent generator work in a separate checkout
+overlapped part of this run, so its duration is not an isolated performance
+baseline. No analyzer standards or test scope were relaxed.
+
+Prior CI was checked and recorded before committing. Alignment **36709673695**
+passes every job: Linux x64/PostgreSQL 18 **43m49s**, macOS ARM64/PostgreSQL 18
+**17m49s**, Windows x64/PostgreSQL 17 **25m29s**. Its Docs run **36709673766**
+also passes. Measurement CI **36710308935** is active; polling **36713330603**
+and reporting **36717791830** remain queued, with their Docs runs passing.
+Module-identity CI **36707043259** previously passed all platforms. Both Intel
+comparison runs timed out as recorded above; no successful full Intel result is
+claimed. No automatic cancellation was introduced.

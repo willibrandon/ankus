@@ -388,6 +388,60 @@ and custom declarations.
 ordering options, and missing/unreadable file inputs. SQL syntax, object names,
 and privileges are checked by PostgreSQL during installation.
 
+### Reference managed declarations
+
+Use `PgRequires` and `PgBefore` to reference a C# declaration directly:
+
+```csharp
+[assembly: PgSql("report-view", """
+    CREATE VIEW reporting.report_total AS SELECT reporting.count() AS total;
+    """)]
+[assembly: PgRequires(typeof(Reports), nameof(Reports.Count), DeclarationId = "report-view")]
+
+[PgSchema("reporting")]
+public static class Reports
+{
+    [PgFunction(Requires = ["report-table"])]
+    public static long Count() => Spi.ExecuteScalar<long>("SELECT count(*) FROM reporting.reports");
+}
+```
+
+The referenced method's generated SQL precedes the view. Keep the table and seed
+dependencies from the earlier examples as well. `PgBefore` reverses the order:
+the attributed declaration precedes its referenced declaration. Repeat either
+attribute to name several dependencies. Existing string `Requires` and `Before`
+arrays can be combined with these attributes.
+
+On a method, the attribute orders that method's generated function, including
+trigger functions and aggregate support methods. On a type, it orders the
+declared schema, enum, custom type or aggregate. Omit the method name to reference
+one of those type declarations. Aggregate `PgRequires` prerequisites also precede
+its support functions.
+
+Assembly attributes must set `DeclarationId` to the SQL block name or generated
+declaration ID being ordered. On a method or type, `DeclarationId` can select a
+specific attached declaration, such as an operator's `Id`; it must belong to that
+method or type. If a type declares several primary SQL objects, use their explicit
+IDs instead of a type-only reference.
+
+For an overloaded method, supply its exact managed parameter types:
+
+```csharp
+[assembly: PgRequires(typeof(Functions), nameof(Functions.Convert),
+    ParameterTypes = new[] { typeof(int) }, DeclarationId = "converted-view")]
+```
+
+An empty `ParameterTypes` array selects a parameterless overload. Omitting it,
+or setting it to `null`, requires an unambiguous method name. `int` and `int?`
+are different signatures. Lookup follows the C# declaration, including inherited
+methods; SQL names and aliases do not select an overload.
+
+`ANKUS026` identifies missing, ambiguous or invalid managed references at the
+attribute. Targets must declare SQL objects in the current extension. Disabled
+and replaced declarations keep their identities and dependencies. These edges
+also participate in shell-type ordering, dependency selection and the existing
+cycle checks; no installation script is emitted for an invalid graph.
+
 ## Relocation
 
 Custom SQL makes the extension non-relocatable by default. Set

@@ -67,7 +67,7 @@ internal static class OperatorCastDeclaration
             entity.Attachments.Add(declared.Identity);
             entity.Dependencies.Add(dependency);
             graph.Configure(entity, attribute);
-            graph.Add(entity);
+            graph.Add(entity, method);
             result.Add(entity);
             if (kind == "operator" && FunctionType.CreateResult(method)!.Sql == "boolean")
             {
