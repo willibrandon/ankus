@@ -148,7 +148,7 @@ internal sealed class FunctionDeclaration
                 value.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (schemaAttribute is not null)
             {
-                schema = schemaAttribute.ConstructorArguments[0].Value as string;
+                schema = schemaAttribute.ConstructorArguments.FirstOrDefault().Value as string;
                 if (schema is null)
                 {
                     return Invalid("PgSchema requires a non-null schema identifier.");
@@ -298,31 +298,20 @@ internal sealed class FunctionDeclaration
 
         FunctionDeclaration? Invalid(string reason)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason));
+            ReportInvalid(context, method.Locations.FirstOrDefault(), method.Name, reason);
             return null;
         }
     }
 
     /// <summary>
-    /// Validates and resolves an explicitly attributed schema, including classes without generated functions.
+    /// Reports declaration validation using the established diagnostic contract.
     /// </summary>
-    /// <param name="type">The schema-bearing class.</param>
-    /// <param name="context">The generator context receiving invalid-schema diagnostics.</param>
-    /// <returns>The schema identifier and creation policy, or null after an invalid declaration.</returns>
-    internal static (string Name, bool Create)? ReadSchema(INamedTypeSymbol type, SourceProductionContext context)
-    {
-        AttributeData attribute = type.GetAttributes().First(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
-        string? name = attribute.ConstructorArguments[0].Value as string;
-        bool create = Value(attribute, "Create", true);
-        if (!SqlText.IsIdentifier(name) || (create && name!.StartsWith("pg_", StringComparison.OrdinalIgnoreCase)))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name,
-                "A fixed schema must be a nonempty identifier of at most 63 UTF-8 bytes outside the reserved pg_ namespace."));
-            return null;
-        }
-
-        return (name!, create);
-    }
+    /// <param name="context">The diagnostic destination.</param>
+    /// <param name="location">The current declaration location.</param>
+    /// <param name="name">The authored managed name.</param>
+    /// <param name="reason">The exact validation failure.</param>
+    internal static void ReportInvalid(SourceProductionContext context, Location? location, string name, string reason)
+        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, location, name, reason));
 
     private static T Value<T>(AttributeData? attribute, string name, T fallback)
     {

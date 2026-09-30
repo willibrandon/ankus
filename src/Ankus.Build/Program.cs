@@ -159,7 +159,8 @@ try
         args[8], relocatable, schema.Sql, schema.Graph, defaultSchema));
     WriteIfDifferent(Path.Combine(output, "schema.sql"), schema.Sql);
     schema.Write(Path.Combine(output, "schema.generated.json"));
-    WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol + "\n");
+    WriteIfDifferent(Path.Combine(output, "exports.txt"), manifest.Exports + NativeSchemaEmitter.Symbol +
+        (OperatingSystem.IsWindows() ? ",DATA\n" : "\n"));
 
     var libraries = new List<string> { nativeObject };
     var compilerArguments = new List<string>();

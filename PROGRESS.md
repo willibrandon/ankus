@@ -90,7 +90,155 @@ remains incomplete; the following work is additional to the open parity gates.
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
+## Generator incrementality work in progress
+
+Confirmed that the generator retains compiler symbols and combines them with the
+complete compilation in a single output. Conversion to immutable, value-equatable
+semantic models is in progress; moving the manifest to another output registration
+alone would not address this cause.
+
+Module identity now crosses that value-model boundary before native rendering.
+Compiler symbols, syntax trees and locations are absent from the cached metadata
+models. Diagnostic coordinates resolve against the current compilation, preserving
+the exact source tree and mapped line information. Explicit overrides still take
+precedence over project and assembly defaults.
+
+The focused module selection passes **28/28** and the complete generator project
+passes **2,402/2,402**, zero failures/skips, **31.203s**, on Linux x64 with .NET
+SDK **10.0.401**. The driver tests inspect actual incremental step decisions after
+body changes, source movement, constant changes, project/assembly version changes,
+invalid-value recovery and removal. They also verify native metadata bytes and
+fresh diagnostic locations. Initial test analyzer findings were fixed without
+suppression before these passing runs.
+
+The module-only snapshot passes the complete PostgreSQL **18.6/Linux x64**
+suite: **10,043 total, 10,033 passed, zero failed, ten platform skips**, in
+**42m34.356s**. The later enum-model work and Windows repair are separate changes
+and are not covered by that run.
+Other declaration families, graph composition, whole-extension output caching,
+complete validation and dedicated-platform evidence remain open. This partial
+conversion does not close the review's generator requirement or establish an
+overall generation-time improvement.
+
+Enum analysis now also produces detached immutable contracts and graph options.
+Each enum's SQL, managed registration and native identity check render behind
+an equality boundary. The graph uses assembly-qualified declaration identities;
+an externally aliased type cannot resolve to an identically named local enum.
+Actual tracked-driver tests cover unrelated edits, source movement, individual
+label changes, referenced constants, inherited schemas, current-tree diagnostics,
+removal and SQL-policy changes. The isolated module-and-enum snapshot passes
+the complete generator project: **2,411 passed, zero failed/skipped, 31.664s**.
+Its complete PostgreSQL **18.6/Linux x64** suite passes **10,052 total,
+10,042 passed, zero failed and ten platform skips**, **42m16.160s**. This snapshot
+does not include the later schema work or Windows repair.
+
+Schemas now use the same separation between semantic validation, cached creation
+SQL and graph options. Alias merging, creation policy, fixed-schema relocation,
+inherited enum/function names and dependency ordering retain their existing
+contracts. The combined generator project passes **2,419 tests**, zero failures
+or skips, **39.896s**. Additional source-tree removal and incomplete-attribute
+cases then exposed two existing editor-time crashes: enum and function schema
+inheritance indexed a missing constructor argument. Both paths now report normal
+diagnostics and recover when the attribute is completed. The final focused
+schema/dependency scope passes **103/103**, **2.866s**, including those regressions.
+Complete validation of this combined snapshot remains pending.
+
+API freshness verifies **234 pages / 2,683 members**. The documentation site
+builds **282 pages in 4.09s** and its check reports zero errors, warnings or hints.
+The final Release build passes with **zero warnings/errors, 4m24.59s**. The
+combined complete suite is now running and remains required before committing.
+
+Repair CI **36776683824** is fully successful: Linux x64/PostgreSQL 18 in
+**22m38s**, macOS ARM64/PostgreSQL 18 in **18m33s** and Windows x64/PostgreSQL 17
+in **25m58s**, with runtime and quality jobs successful. Docs **36776683807**
+succeeded. No platform timed out.
+
+Windows validation also identified duplicate ownership of the native schema
+data export: both the C declaration and the Native AOT export manifest supplied
+it, with inconsistent data classification. The export manifest now owns that
+symbol and marks it `DATA` on Windows; the C declaration only selects its section.
+Standalone optimized-library tests verify exact schema extraction and the actual
+exported data address with link warnings treated as errors. Both legacy and graph
+variants pass on Linux x64 (**2/2, 853ms**) and Windows x64 (**2/2, 1.818s**).
+The full Windows/PostgreSQL 17.11 suite is running with this fix and the final
+generator changes. The active Linux snapshot contains the generator changes;
+its production difference is confined to the Windows-only export behavior.
+
+That local Windows run exposes a separate native-test artifact race:
+`CallbackImportsSelectIndependentTargets` cannot replace the first executable
+when linking its second program (`LNK1104`). The shared helper reused one output
+path across independent compilations. Each invocation now gets its own source,
+object and executable names inside the existing cleanup directory. The regression
+holds the first Windows executable open without write sharing during the next
+compile. The held-file regression first reproduces the old failure reliably.
+With isolated output names, the six affected native import checks pass on Windows
+x64 (**1.624s**) and Linux x64 (**1.389s**). A corrected complete Windows run
+remains required; the current attempt already has the old failure and is collecting
+other results.
+
+The first combined Windows run finishes **10,077 total, 10,051 passed, one failed
+and 25 platform skips**, **26m14.699s**. Its complete integration module passes
+all backend cases; only the old native-helper race fails. The corrected complete
+Windows/PostgreSQL **17.11** rerun is now underway with the verified helper fix.
+
+The export correction's Release build passes with **zero warnings/errors, 1.49s**.
+Updated documentation builds **282 pages in 2.51s**, verifies **234 API pages /
+2,683 members**, and reports zero check errors, warnings or hints.
+
+The final module/enum/schema snapshot passes plain `dotnet test` on
+**Linux x64/PostgreSQL 18.6**: **10,077 total, 10,065 passed, zero failed and
+12 platform skips**, **40m41.409s**. All six test modules pass, including the
+complete backend integration module (**40m40.787s**) and generator module
+(**51.350s**). This checkout does not contain the subsequent Windows data-export
+and native executable-name corrections; those have separate focused Linux
+evidence and remain subject to the corrected complete Windows run.
+
+The next function-model phase is isolated from these acceptance snapshots.
+Scalar, nullable, array, range, custom and mapped conversion contracts now have
+immutable value equality. Provider keys retain assembly identity, tuple names,
+dynamic/native-integer distinctions and nullable-value identity while ignoring
+reference nullability, matching Roslyn's default symbol comparison. Parameters
+detach SQL options, injection flags, numeric precision and exact default SQL;
+positive and negative floating-point zero remain distinct. The complete generator
+project for this type/parameter snapshot passes **2,436/2,436**, zero failures or
+skips, **30.933s**. One initial malformed-attribute test mistakenly used a valid
+omitted scale; its fixture was corrected to an invalid scale, without changing
+production validation. Set-result models and scalar/set invocation metadata now
+also detach compiler objects. Binding validation replaces immutable output
+contracts, and planner support is applied to the graph's SQL renderer without
+mutating the declaration shared with emission. The subsequent complete generator
+project passes **2,436/2,436**, zero failures or skips, **32.543s**. Per-method
+analysis/emission, other declaration families and graph/output caching are still
+in progress. This foundation is not full function incrementality.
+
 ## Current verified milestone
+
+Module identity, enums and schemas now cross immutable semantic-model boundaries
+before rendering. Actual tracked generator-driver tests verify reuse, dependent
+invalidation, source movement/removal and diagnostic recovery. Incomplete inherited
+schema attributes report diagnostics instead of crashing. Windows native schema
+data has one correctly classified export owner, and repeated native test programs
+use independent artifact paths rather than overwriting retained executables.
+
+The combined final source passes the complete plain suite on
+**Windows x64/PostgreSQL 17.11**: **10,077 total, 10,052 passed, zero failed and
+25 platform skips**, **22m47.398s**. All six modules pass; integration takes
+**22m46.743s**, generator tests **38.793s**, and native build tests **49.137s**.
+The module/enum/schema Linux x64/PostgreSQL 18.6 snapshot also passes the complete
+suite, with the later Windows-only export correction and native helper covered
+by separate Linux checks. The final affected Build test project's Release build
+passes with **zero warnings/errors, 1.54s**; the full Release, API freshness and
+documentation gates are recorded above. These durations describe the measured
+runs, not a controlled performance comparison.
+
+Before committing, CI **36776683824** and Docs **36776683807** remain successful.
+The preceding failure **36762725364** is resolved by the verified Windows repair;
+its Docs run succeeded. Previous provenance and aggregate runs remain successful.
+No previous CI run is still active. New dedicated-platform CI for this milestone
+remains pending. The full generator conversion, wider version/platform matrix and
+remaining review requirements stay open.
+
+## Previous verified milestone — Windows native probes and database names
 
 Windows standalone probes isolate backend header implementations while preserving
 the selected compiler's layout checks, live imports and executable unwind tables.
@@ -101,7 +249,8 @@ The complete plain suite passes on **Windows x64/PostgreSQL 17.11**:
 **10,043 total, 10,018 passed, zero failed, 25 platform skips**, in
 **30m16.299s**, using three package slots. Linux x64/PostgreSQL 18.6 database
 regressions and the native/COFF scope also pass. Release, API freshness and
-documentation checks pass. Dedicated CI for this repair remains pending; the
+documentation checks pass. Dedicated CI **36776683824** also passes all three
+platforms, with Docs **36776683807** successful. The
 full port, generator conversion and wider platform/version matrix remain open.
 
 ## Previous verified milestone — pgrx and PostgreSQL 19 inputs

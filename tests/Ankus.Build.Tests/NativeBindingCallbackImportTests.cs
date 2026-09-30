@@ -119,6 +119,9 @@ public sealed partial class NativeBindingNativeTests
             string main = Main.Replace("__FIRST__", accessors[0], StringComparison.Ordinal).Replace("__SECOND__", accessors[1], StringComparison.Ordinal)
                 .Replace("__AGGREGATE__", accessors[2], StringComparison.Ordinal).Replace("__EMPTY__", accessors[3], StringComparison.Ordinal);
             Assert.AreEqual("independent static callbacks preserve native values and identity\n", await RunImportedBodiesAsync(source, main, image, directory));
+            using FileStream? retainedImage = OperatingSystem.IsWindows()
+                ? File.Open(Assert.ContainsSingle(Directory.GetFiles(directory, "selected*.exe")), FileMode.Open, FileAccess.Read, FileShare.Read)
+                : null;
             byte[] defined = await CompileNativeObjectAsync("void *" + accessors[0] + "(void *target) { (void)target; return (void *)0; }");
             Assert.IsEmpty(NativeBindingCallbackImports.Select(defined));
             string none = NativeBindingCallImports.Generate(records, "#define PG_VERSION_NUM 180006\n" + Headers, defined);

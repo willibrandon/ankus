@@ -180,6 +180,7 @@ public sealed partial class ToolCommandTests
             "-o", output, "-p:AnkusPostgresMajor=" + MajorText(), "-p:AnkusPgConfigPath=" + s_installation.PgConfigPath,
             "-bl:" + Path.Combine(Path.GetDirectoryName(project)!, "sql-controls-{}.binlog")], token);
         result.EnsureSuccess("dotnet", ["publish"]);
+        Assert.DoesNotContain("LNK4197", result.StandardOutput + result.StandardError);
     }
 
     /// <summary>
@@ -188,7 +189,10 @@ public sealed partial class ToolCommandTests
     private static async Task<string[]> ReadSqlControlExportsAsync(string directory, CancellationToken token)
     {
         string path = Assert.ContainsSingle(Directory.GetFiles(Path.Combine(directory, "obj"), "exports.txt", SearchOption.AllDirectories));
-        return [.. (await File.ReadAllLinesAsync(path, token)).Where(static line => !string.IsNullOrWhiteSpace(line))];
+        string[] exports = [.. (await File.ReadAllLinesAsync(path, token)).Where(static line => !string.IsNullOrWhiteSpace(line))];
+        Assert.AreEqual(OperatingSystem.IsWindows() ? "ankus_schema_manifest,DATA" : "ankus_schema_manifest",
+            Assert.ContainsSingle(exports.Where(static line => line.StartsWith("ankus_schema_manifest", StringComparison.Ordinal))));
+        return exports;
     }
 
     /// <summary>

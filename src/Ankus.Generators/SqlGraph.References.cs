@@ -10,7 +10,7 @@ internal sealed partial class SqlGraph
     private static readonly DiagnosticDescriptor s_invalidSupport = new(
         "ANKUS027", "Invalid planner support function", "{0}", "Ankus", DiagnosticSeverity.Error,
         isEnabledByDefault: true, helpLinkUri: "https://willibrandon.github.io/ankus/function-declarations/#planner-support-functions");
-    private readonly Dictionary<ISymbol, List<SqlEntity>> _declarations = new(SymbolEqualityComparer.Default);
+    private readonly Dictionary<DeclarationIdentity, List<SqlEntity>> _declarations = [];
     private readonly List<(SqlEntity Source, SqlEntity Target)> _inheritedRequirements = [];
 
     /// <summary>
@@ -22,8 +22,17 @@ internal sealed partial class SqlGraph
     /// Associates an exact managed declaration with a SQL node, including shared schema aliases.
     /// </summary>
     internal void Register(ISymbol declaration, SqlEntity entity)
+        => Register(DeclarationIdentity.Create(declaration), declaration.ToDisplayString(), entity);
+
+    /// <summary>
+    /// Associates detached semantic identity and provenance with one installation node.
+    /// </summary>
+    /// <param name="declaration">The exact assembly-qualified declaration identity.</param>
+    /// <param name="display">The managed name used for source provenance.</param>
+    /// <param name="entity">The installation node.</param>
+    internal void Register(DeclarationIdentity declaration, string display, SqlEntity entity)
     {
-        entity.ManagedSources.Add(declaration.ToDisplayString());
+        entity.ManagedSources.Add(display);
         if (!_declarations.TryGetValue(declaration, out List<SqlEntity>? entities))
         {
             entities = [];
@@ -129,7 +138,7 @@ internal sealed partial class SqlGraph
     private SqlEntity? Source(ISymbol declaration, AttributeData attribute)
     {
         string? id = AttributeValues.Get<string?>(attribute, "DeclarationId", null);
-        _declarations.TryGetValue(declaration, out List<SqlEntity>? entities);
+        _declarations.TryGetValue(DeclarationIdentity.Create(declaration), out List<SqlEntity>? entities);
         if (id is not null)
         {
             if (!ValidName(id))
@@ -198,7 +207,7 @@ internal sealed partial class SqlGraph
 
     private SqlEntity? Primary(ISymbol declaration, AttributeData attribute)
     {
-        if (!_declarations.TryGetValue(declaration, out List<SqlEntity>? entities))
+        if (!_declarations.TryGetValue(DeclarationIdentity.Create(declaration), out List<SqlEntity>? entities))
         {
             return ReferenceError(attribute, $"'{declaration.ToDisplayString()}' does not declare a generated SQL object in this extension.");
         }

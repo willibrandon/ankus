@@ -73,8 +73,17 @@ internal sealed partial class SqlGraph
     /// <param name="attribute">The semantic attribute.</param>
     /// <param name="name">An explicit SQL name, or null to read the optional Id property.</param>
     internal void Configure(SqlEntity entity, AttributeData attribute, string? name = null)
+        => ConfigureOptions(entity, SqlDeclarationOptions.Read(attribute)!, name);
+
+    /// <summary>
+    /// Applies immutable dependency options after semantic declaration analysis.
+    /// </summary>
+    /// <param name="entity">The destination node.</param>
+    /// <param name="options">The detached authored options.</param>
+    /// <param name="name">An explicit SQL name, or null to use the optional Id.</param>
+    internal void ConfigureOptions(SqlEntity entity, SqlDeclarationOptions options, string? name = null)
     {
-        name ??= AttributeValues.Get<string?>(attribute, "Id", null);
+        name ??= options.Id;
         if (name is not null)
         {
             if (ValidName(name))
@@ -87,12 +96,12 @@ internal sealed partial class SqlGraph
             }
         }
 
-        ReadNames("Requires", entity.Requires);
-        ReadNames("Before", entity.Before);
+        ReadNames("Requires", options.Requires, entity.Requires);
+        ReadNames("Before", options.Before, entity.Before);
 
-        void ReadNames(string property, HashSet<string> destination)
+        void ReadNames(string property, EquatableArray<string?> values, HashSet<string> destination)
         {
-            foreach (string? value in AttributeValues.Strings(attribute, property))
+            foreach (string? value in values)
             {
                 if (!ValidName(value))
                 {

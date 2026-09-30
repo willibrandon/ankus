@@ -18,19 +18,32 @@ internal static class SqlGeneration
     /// <returns>Whether this policy permits schema relocation.</returns>
     internal static bool Apply(AttributeData? attribute, SqlEntity entity, IReadOnlyList<SqlEntity> related,
         IReadOnlyList<(string Token, string? Value)> substitutions, SqlGraph graph)
+        => ApplyOptions(SqlDeclarationOptions.Read(attribute), entity, related, substitutions, graph);
+
+    /// <summary>
+    /// Applies detached SQL policy while retaining compiled contracts and dependency nodes.
+    /// </summary>
+    /// <param name="options">The optional immutable declaration options.</param>
+    /// <param name="entity">The declaration's graph node.</param>
+    /// <param name="related">Additional declarations owned by this replacement.</param>
+    /// <param name="substitutions">Context-specific tokens and their values; null marks an unavailable token.</param>
+    /// <param name="graph">The installation graph and diagnostic sink.</param>
+    /// <returns>Whether this policy permits schema relocation.</returns>
+    internal static bool ApplyOptions(SqlDeclarationOptions? options, SqlEntity entity, IReadOnlyList<SqlEntity> related,
+        IReadOnlyList<(string Token, string? Value)> substitutions, SqlGraph graph)
     {
         foreach (SqlEntity member in related)
         {
             member.Owner = entity;
         }
 
-        if (attribute is null)
+        if (options is null)
         {
             return true;
         }
 
-        bool enabled = AttributeValues.Get(attribute, "GenerateSql", true);
-        string? sql = AttributeValues.Get<string?>(attribute, "Sql", null);
+        bool enabled = options.GenerateSql;
+        string? sql = options.Sql;
         if (!enabled && sql is not null)
         {
             graph.Error(entity.Location, "GenerateSql cannot be false when Sql supplies a replacement, including empty text.");
@@ -68,7 +81,7 @@ internal static class SqlGeneration
             }
 
             graph.Replace(entity, sql, related);
-            return AttributeValues.Get(attribute, "SqlRelocatable", false);
+            return options.SqlRelocatable;
         }
 
         return true;

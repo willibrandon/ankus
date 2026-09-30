@@ -78,7 +78,7 @@ internal static class NativeSchemaEmitter
 
             #if defined(_MSC_VER)
             #pragma section(".ankusc", read)
-            __declspec(allocate(".ankusc")) __declspec(dllexport)
+            __declspec(allocate(".ankusc"))
             #elif defined(__APPLE__)
             __attribute__((used, section("__DATA,__ankusc"), visibility("default")))
             #else

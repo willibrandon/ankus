@@ -14,11 +14,23 @@ literals independent of `standard_conforming_strings`. Negative numeric
 constants are parenthesized before casts so unary negation does not follow a
 narrowing conversion.
 
+Module identity, enums and schemas use immutable semantic models before rendering.
+Their cached values contain no compiler symbols or syntax trees. Diagnostic source
+coordinates are resolved against the current compilation, including mapped lines.
+Enum and schema SQL fragments are cached separately from their graph policies, so
+dependency-only edits still reorder installation SQL without rerendering unchanged
+declarations. Other declaration families and final graph composition still consume
+compiler symbols; the full incremental conversion remains in progress.
+
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
 `ExtensionPackage` writes the corresponding control-file flag. A schema-only
 extension still emits module magic and a manifest, without managed dispatchers
 or their native call dependencies.
+
+The native export manifest retains the embedded schema section during linking.
+On Windows it declares the schema symbol as `DATA`; the C declaration selects
+the section without adding a second export directive.
 
 `SqlGraph` unifies generated schemas/functions and assembly `PgSql`/`PgSqlFile`
 blocks. Schema-to-function edges are automatic; explicit `Id`, `Requires`,

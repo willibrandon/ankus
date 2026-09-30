@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Ankus.PgConfig;
 
 namespace Ankus.Build.Tests;
@@ -26,10 +27,16 @@ public sealed partial class NativeBindingNativeTests
             string sql = withGraph ? "SELECT 42;\n" : "CREATE FUNCTION \"café 🐘\"() RETURNS integer AS 'MODULE_PATHNAME', 'ankus_fn_1' LANGUAGE c;\n";
             await File.WriteAllTextAsync(source, NativeSchemaEmitter.Emit("schema_probe", "0.1.0", filename, 18, rid, false, sql,
                 withGraph ? Graph : null, withGraph ? "fixed schema" : null), context.CancellationToken);
+            string exports = Path.Combine(directory, "schema.def");
+            if (OperatingSystem.IsWindows())
+            {
+                await File.WriteAllTextAsync(exports, "EXPORTS\n    ankus_schema_manifest DATA\n", context.CancellationToken);
+            }
+
             string compiler = OperatingSystem.IsWindows() ? "clang-cl.exe" : "cc";
             string[] arguments = OperatingSystem.IsWindows()
                 ? ["/nologo", "/W4", "/WX", "/O2", "/LD", "/MT", "/Fo" + Path.Combine(directory, "schema.obj"), source,
-                    "/link", "/OPT:REF", "/OUT:" + library]
+                    "/link", "/WX", "/OPT:REF", "/DEF:" + exports, "/OUT:" + library]
                 : OperatingSystem.IsMacOS()
                     ? ["-Wall", "-Wextra", "-Werror", "-O2", "-dynamiclib", "-Wl,-dead_strip", source, "-o", library]
                     : ["-Wall", "-Wextra", "-Werror", "-O2", "-shared", "-fPIC", "-fdata-sections", "-Wl,--gc-sections", "-s", source, "-o", library];
@@ -55,6 +62,18 @@ public sealed partial class NativeBindingNativeTests
             {
                 Assert.IsNull(schema.Graph);
                 Assert.ThrowsExactly<InvalidOperationException>(() => schema.Select(["probe"]));
+            }
+
+            nint module = NativeLibrary.Load(library);
+            try
+            {
+                byte[] signature = new byte[8];
+                Marshal.Copy(NativeLibrary.GetExport(module, "ankus_schema_manifest"), signature, 0, signature.Length);
+                Assert.AreEqual("ANKUSSC\0", Encoding.ASCII.GetString(signature));
+            }
+            finally
+            {
+                NativeLibrary.Free(module);
             }
         }
         finally

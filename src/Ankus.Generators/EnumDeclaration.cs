@@ -5,68 +5,26 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Ankus.Generators;
 
 /// <summary>
-/// Validates enum contracts and emits their SQL and statically closed Native AOT registrations.
+/// Holds a validated enum contract independently of compiler symbols and attribute objects.
 /// </summary>
-internal sealed class EnumDeclaration
+/// <param name="Name">The exact SQL type name.</param>
+/// <param name="Schema">The fixed schema, or null for the installation schema.</param>
+/// <param name="Managed">The fully qualified managed enum type.</param>
+/// <param name="Labels">The members in source declaration order with exact constants and labels.</param>
+internal sealed record EnumDeclaration(string Name, string? Schema, string Managed, EquatableArray<EnumLabel> Labels)
 {
-    private static readonly DiagnosticDescriptor s_invalid = new(
-        "ANKUS006", "Invalid PostgreSQL enum", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
-
-    /// <summary>
-    /// Gets the attributed managed enum.
-    /// </summary>
-    internal INamedTypeSymbol Type
-    {
-        get;
-        private set;
-    } = null!;
-
-    /// <summary>
-    /// Gets the enum attribute and its graph options.
-    /// </summary>
-    internal AttributeData Attribute
-    {
-        get;
-        private set;
-    } = null!;
-
-    /// <summary>
-    /// Gets the exact SQL type identifier.
-    /// </summary>
-    internal string Name
-    {
-        get;
-        private set;
-    } = string.Empty;
-
-    /// <summary>
-    /// Gets the fixed or inherited schema, or null for the installation schema.
-    /// </summary>
-    internal string? Schema
-    {
-        get;
-        private set;
-    }
-
     /// <summary>
     /// Gets the qualified, quoted SQL type name.
     /// </summary>
     internal string Sql => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(Name);
 
     /// <summary>
-    /// Gets the fully qualified managed type identity.
-    /// </summary>
-    internal string Managed => Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-    /// <summary>
-    /// Gets the labels in source declaration order, independently of underlying enum values.
-    /// </summary>
-    internal List<(IFieldSymbol Field, string Label)> Labels { get; } = [];
-
-    /// <summary>
     /// Reads and validates an attributed enum, optionally reporting diagnostics.
     /// </summary>
-    internal static EnumDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null)
+    /// <param name="type">The attributed enum to analyze.</param>
+    /// <param name="reportError">The optional destination for a contract validation failure.</param>
+    /// <returns>The detached immutable contract, or null when invalid or not attributed.</returns>
+    internal static EnumDeclaration? Create(INamedTypeSymbol type, Action<string>? reportError = null)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumAttribute");
         if (attribute is null)
@@ -87,33 +45,29 @@ internal sealed class EnumDeclaration
             }
         }
 
-        var result = new EnumDeclaration
-        {
-            Type = type,
-            Attribute = attribute,
-            Name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name)),
-            Schema = AttributeValues.Get<string?>(attribute, "Schema", null),
-        };
-        for (INamedTypeSymbol? container = type.ContainingType; result.Schema is null && container is not null; container = container.ContainingType)
+        string name = AttributeValues.Get(attribute, "Name", SqlText.SnakeCase(type.Name));
+        string? schemaName = AttributeValues.Get<string?>(attribute, "Schema", null);
+        for (INamedTypeSymbol? container = type.ContainingType; schemaName is null && container is not null; container = container.ContainingType)
         {
             AttributeData? schema = container.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSchemaAttribute");
             if (schema is not null)
             {
-                result.Schema = schema.ConstructorArguments[0].Value as string;
-                if (result.Schema is null)
+                schemaName = schema.ConstructorArguments.FirstOrDefault().Value as string;
+                if (schemaName is null)
                 {
                     return Invalid("The inherited schema must have a non-null identifier.");
                 }
             }
         }
 
-        if (!SqlText.IsIdentifier(result.Name) || (result.Schema is not null && !SqlText.IsIdentifier(result.Schema)))
+        if (!SqlText.IsIdentifier(name) || (schemaName is not null && !SqlText.IsIdentifier(schemaName)))
         {
             return Invalid("Enum type and schema names must be nonempty identifiers of at most 63 UTF-8 bytes.");
         }
 
         var values = new HashSet<object>();
         var labels = new HashSet<string>(StringComparer.Ordinal);
+        var members = new List<EnumLabel>();
         foreach (IFieldSymbol field in type.GetMembers().OfType<IFieldSymbol>().Where(static field => field.HasConstantValue))
         {
             AttributeData? labelAttribute = field.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgEnumLabelAttribute");
@@ -128,14 +82,14 @@ internal sealed class EnumDeclaration
                 return Invalid("Enum members must have distinct numeric values; aliases cannot preserve distinct PostgreSQL labels.");
             }
 
-            result.Labels.Add((field, label));
+            members.Add(new(field.Name, field.ConstantValue!, label));
         }
 
-        return result;
+        return new(name, schemaName, type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), new(members));
 
         EnumDeclaration? Invalid(string reason)
         {
-            context?.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name, reason));
+            reportError?.Invoke(reason);
             return null;
         }
     }
@@ -148,9 +102,9 @@ internal sealed class EnumDeclaration
         source.AppendLine($"        global::Ankus.PgEnumRegistry.Register<{Managed}>({SymbolDisplay.FormatLiteral(Name, true)}, " +
             (Schema is null ? "null" : SymbolDisplay.FormatLiteral(Schema, true)) + ", new global::System.Collections.Generic.KeyValuePair<" + Managed + ", string>[]");
         source.AppendLine("        {");
-        foreach ((IFieldSymbol field, string label) in Labels)
+        foreach (EnumLabel label in Labels)
         {
-            source.AppendLine($"            new({Managed}.@{field.Name}, {SymbolDisplay.FormatLiteral(label, true)}),");
+            source.AppendLine($"            new({Managed}.@{label.Member}, {SymbolDisplay.FormatLiteral(label.Label, true)}),");
         }
 
         source.AppendLine("        });");
