@@ -379,7 +379,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        var graph = new SqlGraph(context);
+        var graph = new SqlGraph(context, settings.Directory);
         var schemas = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool fixedSchema = !schemaTypes.IsEmpty;
         foreach (INamedTypeSymbol type in schemaTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))

@@ -8,7 +8,7 @@ namespace Ankus.PgConfig.Tests;
 /// Verifies graph framing, exact dependency selection and executable attachment contracts using independent fixtures.
 /// </summary>
 [TestClass]
-public sealed class ExtensionSchemaGraphTests
+public sealed partial class ExtensionSchemaGraphTests
 {
     /// <summary>
     /// An independent graph retains SQL, aliases, dependencies and stable DOT identities without runtime execution.

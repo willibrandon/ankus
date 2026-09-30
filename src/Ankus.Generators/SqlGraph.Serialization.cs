@@ -42,13 +42,14 @@ internal sealed partial class SqlGraph
         using var stream = new MemoryStream();
         using (var writer = new BinaryWriter(stream, utf8, leaveOpen: true))
         {
-            writer.Write(Encoding.ASCII.GetBytes("ANKUSG1\0"));
+            writer.Write(Encoding.ASCII.GetBytes("ANKUSG2\0"));
+            WriteText(SqlProvenance.Preamble);
             writer.Write(_ordered.Count);
             foreach (SqlEntity entity in _ordered)
             {
                 WriteText(entity.Key);
                 WriteText(entity.Kind);
-                WriteText(entity.SqlTemplate.Replace("\r\n", "\n").Replace('\r', '\n'));
+                WriteText(SqlProvenance.Render(entity, _projectDirectory).Replace("\r\n", "\n").Replace('\r', '\n'));
                 WriteText(entity.Owner?.Key ?? string.Empty);
                 WriteTexts(entity.Names.Concat(entity.SelectionNames));
                 WriteTexts(entity.Dependencies.Select(static dependency => dependency.Key));

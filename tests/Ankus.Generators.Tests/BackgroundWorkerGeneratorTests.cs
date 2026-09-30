@@ -20,7 +20,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         Assert.AreSequenceEqual(["Pg_magic_func", "_PG_init", "Run"],
             ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         string entry = native[native.IndexOf("PGDLLEXPORT void Run(Datum argument)\n", StringComparison.Ordinal)..];
         AssertOrdered(entry, ["ankus_worker_active = true", "ankus_worker_attach(3)", "ankus_ensure_initialized()",
@@ -91,8 +91,8 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("worker_first", exports);
         Assert.Contains("Second", exports);
         Assert.ContainsSingle(exports.Where(static name => name == "_PG_init"));
-        Assert.Contains("answer", ManifestValue(compilation, "Ankus.Sql"));
-        Assert.DoesNotContain("worker_first", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("answer", InstallationBody(compilation));
+        Assert.DoesNotContain("worker_first", InstallationBody(compilation));
     }
 
     /// <summary>

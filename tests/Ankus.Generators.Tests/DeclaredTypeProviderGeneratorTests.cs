@@ -36,10 +36,10 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation explicitOrder = GenerateSqlControl(block + DeclaredProviderConsumer(kind, "Requires = [\"types\"]"));
         Compilation inferred = GenerateSqlControl(block +
             "[assembly: Ankus.PgSqlTypeProvider(\"types\", \"item\")]" + DeclaredProviderConsumer(kind, string.Empty));
-        string sql = ManifestValue(inferred, "Ankus.Sql");
+        string sql = InstallationBody(inferred);
         Assert.StartsWith("CREATE TYPE item AS (number integer);\nCREATE FUNCTION ", sql);
         Assert.Contains(signature, sql);
-        Assert.AreEqual(ManifestValue(explicitOrder, "Ankus.Sql"), sql);
+        Assert.AreEqual(InstallationBody(explicitOrder), sql);
         Assert.AreEqual("true", ManifestValue(inferred, "Ankus.Relocatable"));
         AssertSqlControlBoundary(explicitOrder, inferred);
     }
@@ -78,7 +78,7 @@ public sealed partial class PgFunctionGeneratorTests
             """ + provider + "public static class Functions { [Ankus.PgFunction(Sql = \"SELECT 'consumer';\", SqlRelocatable = true)] " +
             "public static int Read(" + binding + " Ankus.PgDatum? value) => 7; }");
         Assert.AreEqual(matches ? "SELECT 'provider';\nSELECT 'consumer';\n" : "SELECT 'consumer';\nSELECT 'provider';\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
     }
 
     /// <summary>
@@ -105,7 +105,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Assert.AreEqual("SELECT 'first';\nSELECT 'unqualified';\nSELECT 'other';\nSELECT 'second';\nSELECT 'qualified';\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
     }
 
@@ -129,7 +129,7 @@ public sealed partial class PgFunctionGeneratorTests
             """;
         Compilation baseline = GenerateSqlControl(source);
         Compilation provider = GenerateSqlControl("[assembly: Ankus.PgSqlTypeProvider(\"unused\", \"unreferenced\")]" + source);
-        Assert.AreEqual(ManifestValue(baseline, "Ankus.Sql"), ManifestValue(provider, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(baseline), InstallationBody(provider));
         AssertSqlControlBoundary(baseline, provider);
         Assert.AreEqual("true", ManifestValue(provider, "Ankus.Relocatable"));
     }
@@ -154,7 +154,7 @@ public sealed partial class PgFunctionGeneratorTests
                     => [(null, null)];
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("SELECT 'first type';\nSELECT 'second type';\nCREATE FUNCTION \"read\"", sql);
         Assert.Contains("RETURNS TABLE (\"first\" \"first\", \"second\" \"second\"[])", sql);
     }
@@ -178,7 +178,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgDatum? Final(int state) => null;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         AssertSqlControlBefore(sql, "SELECT 'input type';", "CREATE FUNCTION \"values_transition\"");
         AssertSqlControlBefore(sql, "SELECT 'result type';", "CREATE FUNCTION \"values_final\"");
         AssertSqlControlBefore(sql, "CREATE FUNCTION \"values_final\"", "CREATE AGGREGATE \"values\"");
@@ -197,7 +197,7 @@ public sealed partial class PgFunctionGeneratorTests
         string id = SymbolDisplay.FormatLiteral("provider " + new string('é', 64) + " \" block", true);
         Compilation compilation = GenerateSqlControl("[assembly: Ankus.PgSql(" + id + ", \"SELECT 'provider';\")]" +
             "[assembly: Ankus.PgSqlTypeProvider(" + id + ", \"item\")]" + DeclaredProviderConsumer("raw-result", string.Empty));
-        Assert.StartsWith("SELECT 'provider';\nCREATE FUNCTION \"read\"()\nRETURNS \"item\"", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.StartsWith("SELECT 'provider';\nCREATE FUNCTION \"read\"()\nRETURNS \"item\"", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -239,7 +239,7 @@ public sealed partial class PgFunctionGeneratorTests
                 context.CancellationToken);
             AssertSqlControlCompilation(output, diagnostics);
             Assert.AreEqual(index == 1 ? "SELECT 'original';\nSELECT 'consumer';\n" : "SELECT 'consumer';\nSELECT 'original';\n",
-                ManifestValue(output, "Ankus.Sql"));
+                InstallationBody(output));
             Assert.AreEqual(index == 2 ? "false" : "true", ManifestValue(output, "Ankus.Relocatable"));
             if (previous is not null)
             {
@@ -254,7 +254,7 @@ public sealed partial class PgFunctionGeneratorTests
         driver.ReplaceAdditionalText(original, replacement).RunGeneratorsAndUpdateCompilation(input, out Compilation changed,
             out ImmutableArray<Diagnostic> changedErrors, context.CancellationToken);
         AssertSqlControlCompilation(changed, changedErrors);
-        Assert.AreEqual("SELECT 'changed';\nSELECT 'consumer';\n", ManifestValue(changed, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'changed';\nSELECT 'consumer';\n", InstallationBody(changed));
         AssertSqlControlBoundary(previous!, changed);
     }
 
@@ -287,7 +287,7 @@ public sealed partial class PgFunctionGeneratorTests
             {
                 (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(attributes + consumer, [file], new SqlOptions(project));
                 AssertSqlControlCompilation(compilation, diagnostics);
-                Assert.AreEqual("SELECT 'provider';\nSELECT 'consumer';\nSELECT 'after';\n", ManifestValue(compilation, "Ankus.Sql"));
+                Assert.AreEqual("SELECT 'provider';\nSELECT 'consumer';\nSELECT 'after';\n", InstallationBody(compilation));
                 native ??= ManifestValue(compilation, "Ankus.NativeSource");
                 Assert.AreEqual(native, ManifestValue(compilation, "Ankus.NativeSource"));
             }
@@ -316,8 +316,8 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation inferred = GenerateSqlControl(supplier + generated + consumer.Replace("OPTIONS", string.Empty, StringComparison.Ordinal));
         Compilation explicitOrder = GenerateSqlControl(supplier + generated +
             consumer.Replace("OPTIONS", "Requires = [\"declared\"]", StringComparison.Ordinal));
-        string sql = ManifestValue(inferred, "Ankus.Sql");
-        Assert.AreEqual(ManifestValue(explicitOrder, "Ankus.Sql"), sql);
+        string sql = InstallationBody(inferred);
+        Assert.AreEqual(InstallationBody(explicitOrder), sql);
         AssertSqlControlBefore(sql, "SELECT 'supplier';", "CREATE FUNCTION \"read\"");
         Assert.Contains("RETURNS \"item\"[]", sql);
         AssertSqlControlBoundary(explicitOrder, inferred);
@@ -344,7 +344,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgHeapTuple?[]? Read([Ankus.PgCompositeType("item")] Ankus.PgHeapTuple?[]? value) => value;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("SELECT 'supplier';\nCREATE FUNCTION \"read\"(\"value\" \"item\"[])\nRETURNS \"item\"[]", sql);
         Assert.DoesNotContain("CREATE TYPE", sql);
     }
@@ -454,7 +454,7 @@ public sealed partial class PgFunctionGeneratorTests
         else
         {
             AssertSqlControlCompilation(compilation, diagnostics);
-            Assert.AreEqual("SELECT 1;\n", ManifestValue(compilation, "Ankus.Sql"));
+            Assert.AreEqual("SELECT 1;\n", InstallationBody(compilation));
             Assert.AreEqual(schema ? "false" : "true", ManifestValue(compilation, "Ankus.Relocatable"));
         }
     }
@@ -495,7 +495,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Assert.AreEqual("CREATE TYPE item;\nSELECT 'io';\n" + (path == "before" ? "SELECT 'bridge';\n" : string.Empty) +
-            "SELECT 'middle';\nSELECT 'complete';\nSELECT 'consumer';\n", ManifestValue(compilation, "Ankus.Sql"));
+            "SELECT 'middle';\nSELECT 'complete';\nSELECT 'consumer';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -518,7 +518,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Assert.AreEqual("CREATE TYPE item;\nSELECT 'io';\nSELECT 'complete';\nSELECT 'consumer';\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
     }
 
     /// <summary>
@@ -605,7 +605,7 @@ public sealed partial class PgFunctionGeneratorTests
             """.Replace("POLICY", disabled ? "GenerateSql = false" : "Sql = \"SELECT 'bundle';\"", StringComparison.Ordinal));
         Assert.AreEqual("SELECT 'first';\nSELECT 'provider';\nSELECT 'before';\n" +
             (disabled ? string.Empty : "SELECT 'bundle';\n") + "SELECT 'after';\nSELECT 'last';\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
         Assert.HasCount(1, SqlControlExports(compilation));
     }
 
@@ -631,7 +631,7 @@ public sealed partial class PgFunctionGeneratorTests
                 "[Ankus.PgSchema(\"fixed\", Requires = [\"z-prerequisite\"])] public static class Schema;"));
         Assert.AreEqual(expected, ManifestValue(compilation, "Ankus.Relocatable"));
         Assert.AreEqual((schema is null ? string.Empty : "SELECT 'schema prerequisite';\nCREATE SCHEMA IF NOT EXISTS \"fixed\";\n") + "SELECT 'provider';\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
     }
 
     /// <summary>

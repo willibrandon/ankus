@@ -19,7 +19,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
         Assert.AreSequenceEqual(["Pg_magic_func", "_PG_init"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         IMethodSymbol[] dispatchers = [.. compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers().OfType<IMethodSymbol>()];
         Assert.HasCount(ready ? 2 : 1, dispatchers);
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");

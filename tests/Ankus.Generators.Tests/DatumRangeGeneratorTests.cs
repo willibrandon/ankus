@@ -34,7 +34,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsGreaterThan(scalar, range);
         Assert.Contains("ReadMapped<", managed);
         Assert.DoesNotContain("ReadRange<", managed);
-        Assert.DoesNotContain("CREATE TYPE", ManifestValue(mapped, "Ankus.Sql"));
+        Assert.DoesNotContain("CREATE TYPE", InstallationBody(mapped));
     }
 
     /// <summary>
@@ -64,8 +64,8 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RegisterRange<global::Value<long>>(\"wide_range\", \"custom\"", managed);
         Assert.Contains("new global::Converter<int>()", managed);
         Assert.Contains("new global::Converter<long>()", managed);
-        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", ManifestValue(compilation, "Ankus.Sql"));
-        Assert.DoesNotContain("RETURNS \"custom\".\"wide_range\"", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", InstallationBody(compilation));
+        Assert.DoesNotContain("RETURNS \"custom\".\"wide_range\"", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public sealed partial class PgFunctionGeneratorTests
         string source = providers + DatumRangeSource("\"bounds\"", scalarOwned: true) +
             DatumMappingMethods("Ankus.PgRange<Value>?", string.Empty);
         Compilation compilation = GenerateSqlControl(source);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         int scalar = sql.IndexOf("CREATE DOMAIN bound AS integer;", StringComparison.Ordinal);
         int range = sql.IndexOf("CREATE TYPE bounds AS RANGE (subtype=bound);", StringComparison.Ordinal);
         Assert.IsGreaterThan(-1, scalar);
@@ -135,7 +135,7 @@ public sealed partial class PgFunctionGeneratorTests
         string valid = read ? "public static int Consume(Ankus.PgRange<Value> value) => 1;" :
             "public static Ankus.PgRange<Value> Produce() => new();";
         Compilation compilation = GenerateSqlControl(prefix + "public static class Functions { [Ankus.PgFunction] " + valid + " }");
-        Assert.Contains(read ? "RETURNS integer" : "RETURNS \"pg_catalog\".\"int4range\"", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains(read ? "RETURNS integer" : "RETURNS \"pg_catalog\".\"int4range\"", InstallationBody(compilation));
         string invalid = read ? "public static Ankus.PgRange<Value>? Produce() => null;" :
             "public static int Consume(Ankus.PgArray<Ankus.PgRange<Value>?>? value) => 1;";
         AssertDatumMappingError(prefix + "public static class Functions { [Ankus.PgFunction] " + invalid + " }", "ANKUS019",
@@ -195,7 +195,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = GenerateDatumMappingReference(
             DatumMappingMethods("Ankus.PgRange<Value>?", string.Empty), [dependency]);
         AssertSqlControlCompilation(compilation, diagnostics);
-        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", InstallationBody(compilation));
         Assert.Contains("RegisterValue<global::Value>(\"int4\"", DatumMappingManaged(compilation));
         Assert.Contains("RegisterRange<global::Value>(\"int4range\"", DatumMappingManaged(compilation));
     }
@@ -213,14 +213,14 @@ public sealed partial class PgFunctionGeneratorTests
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new PgFunctionGenerator().AsSourceGenerator());
         driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation before, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         AssertSqlControlCompilation(before, errors);
-        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", ManifestValue(before, "Ankus.Sql"));
+        Assert.Contains("RETURNS \"pg_catalog\".\"int4range\"", InstallationBody(before));
         input = input.ReplaceSyntaxTree(input.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
             source.Replace("\"int4range\"", "\"new_range\"", StringComparison.Ordinal), cancellationToken: context.CancellationToken));
         driver.RunGeneratorsAndUpdateCompilation(input, out Compilation after, out errors, context.CancellationToken);
         AssertSqlControlCompilation(after, errors);
         Assert.Contains("RegisterRange<global::Value>(\"new_range\"", DatumMappingManaged(after));
-        Assert.Contains("RETURNS \"pg_catalog\".\"new_range\"", ManifestValue(after, "Ankus.Sql"));
-        Assert.DoesNotContain("\"int4range\"", ManifestValue(after, "Ankus.Sql"));
+        Assert.Contains("RETURNS \"pg_catalog\".\"new_range\"", InstallationBody(after));
+        Assert.DoesNotContain("\"int4range\"", InstallationBody(after));
     }
 
     /// <summary>
@@ -252,8 +252,8 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation raw = GenerateSqlControl(template.Replace("TYPE", "Ankus.PgDatum", StringComparison.Ordinal)
             .Replace("INPUT", "[" + binding + "]", StringComparison.Ordinal).Replace("OUTPUT", "[return: " + binding + "]", StringComparison.Ordinal));
         Assert.AreEqual(NormalizedDatumSql(raw), NormalizedDatumSql(mapped));
-        Assert.Contains("STYPE = \"pg_catalog\".\"int4range\"", ManifestValue(mapped, "Ankus.Sql"));
-        Assert.Contains("MSTYPE = \"pg_catalog\".\"int4range\"", ManifestValue(mapped, "Ankus.Sql"));
+        Assert.Contains("STYPE = \"pg_catalog\".\"int4range\"", InstallationBody(mapped));
+        Assert.Contains("MSTYPE = \"pg_catalog\".\"int4range\"", InstallationBody(mapped));
     }
 
     /// <summary>

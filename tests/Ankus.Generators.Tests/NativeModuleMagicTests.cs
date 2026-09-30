@@ -49,7 +49,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[assembly: Ankus.PgModule]");
         Assert.IsEmpty(diagnostics);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation));
         Assert.Contains("PG_MODULE_MAGIC_EXT", ManifestValue(compilation, "Ankus.NativeSource"));
         Assert.Contains("Pg_magic_func\n", ManifestValue(compilation, "Ankus.Exports"));
     }

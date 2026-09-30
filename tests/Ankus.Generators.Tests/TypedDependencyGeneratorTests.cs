@@ -33,7 +33,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
-        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'consumer';\nSELECT 'after';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'consumer';\nSELECT 'after';\n", InstallationBody(compilation));
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
         Assert.AreSequenceEqual<string>([graph.Items[1].Id], graph.Items[2].Dependencies);
@@ -64,7 +64,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         AssertSqlControlBefore(sql, "SELECT 'before';", $"SELECT '{expected}';");
         foreach (string other in new[] { "empty", "number", "nullable", "text" })
         {
@@ -93,7 +93,7 @@ public sealed partial class PgFunctionGeneratorTests
             """ + declaration);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
-        AssertSqlControlBefore(ManifestValue(compilation, "Ankus.Sql"), "SELECT 'before';", sql);
+        AssertSqlControlBefore(InstallationBody(compilation), "SELECT 'before';", sql);
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
-        Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"shared\";\nSELECT 'before';\nSELECT 'inherited';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"shared\";\nSELECT 'before';\nSELECT 'inherited';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -198,7 +198,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction(Sql = "SELECT 'before';")] public static int Z() => 2;
             }
             """);
-        Assert.AreEqual("SELECT 'before';\nSELECT 'after';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'before';\nSELECT 'after';\n", InstallationBody(compilation));
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         Assert.HasCount(3, graph.Items);
         Assert.IsEmpty(graph.Items[1].Sql);
@@ -221,7 +221,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction(Sql = "SELECT 'prerequisite';")] public static int Z() => 2;
             }
             """);
-        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'replacement';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'replacement';\n", InstallationBody(compilation));
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         ExtensionSchemaItem replacement = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("replacement", StringComparison.Ordinal)));
         Assert.Contains(graph.Items[0].Id, replacement.Dependencies);
@@ -281,7 +281,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Read([Ankus.PgSqlType("item")] Ankus.PgDatum value) => 7;
             }
             """);
-        Assert.AreEqual("CREATE TYPE item;\nSELECT 'io';\nSELECT 'complete';\nSELECT 'consumer';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE TYPE item;\nSELECT 'io';\nSELECT 'complete';\nSELECT 'consumer';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -315,7 +315,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         Assert.HasCount(2, graph.Items);
-        Assert.AreEqual("SELECT 'before';", graph.Items[0].Sql);
+        Assert.AreEqual("/* <begin connected objects> */\n-- before\n\nSELECT 'before';\n/* </end connected objects> */\n\n", graph.Items[0].Sql);
         Assert.AreEqual("function", graph.Items[1].Kind);
         Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
     }

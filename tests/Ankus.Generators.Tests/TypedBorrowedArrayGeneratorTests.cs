@@ -65,7 +65,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgArrayView<Value?>? MovingFinal(Ankus.PgArrayView<Value?>? state) => state;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("RETURNS SETOF \"pg_catalog\".\"int4\"[]", sql);
         Assert.Contains("STYPE = \"pg_catalog\".\"int4\"[]", sql);
         Assert.Contains("MSTYPE = \"pg_catalog\".\"int4\"[]", sql);
@@ -92,7 +92,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<Ankus.PgArrayView<Value>?> Rows() => [null];
             }
             """);
-        Assert.Contains("RETURNS SETOF \"pg_catalog\".\"int4\"[]", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("RETURNS SETOF \"pg_catalog\".\"int4\"[]", InstallationBody(compilation));
         Assert.Contains("Converter(), false, true);", DatumMappingManaged(compilation));
     }
 
@@ -155,7 +155,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgArrayView<Value?>? Read(Ankus.PgArrayView<Value?>? value) => value;
             }
             """);
-        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'type';\nSELECT 'consumer';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'prerequisite';\nSELECT 'type';\nSELECT 'consumer';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -184,7 +184,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Ankus.PgArrayView<Other?>? Final(int state) => null;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         AssertSqlControlBefore(sql, "SELECT 'first';", "SELECT 'table';");
         AssertSqlControlBefore(sql, "SELECT 'second';", "SELECT 'table';");
         AssertSqlControlBefore(sql, "SELECT 'prerequisite';", "SELECT 'second';");
@@ -211,7 +211,7 @@ public sealed partial class PgFunctionGeneratorTests
                     [Ankus.PgCompositeType("item")] Ankus.PgArrayView<Ankus.PgHeapTuple?>? value) => value;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("SELECT 'supplier';\nCREATE FUNCTION \"read\"(\"value\" \"item\"[])\nRETURNS \"item\"[]", sql);
         Assert.DoesNotContain("CREATE TYPE", sql);
     }

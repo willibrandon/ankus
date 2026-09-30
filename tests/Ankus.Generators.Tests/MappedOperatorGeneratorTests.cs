@@ -110,7 +110,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(15, managed.Split(".ReadMapped<global::Value>()", StringSplitOptions.None).Length - 1);
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.AreEqual(1, native.Split("ankus_read_polymorphic(FunctionCallInfo call, int index, AnkusValue *value)", StringSplitOptions.None).Length - 1);
-        Assert.DoesNotContain("CREATE TYPE", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.DoesNotContain("CREATE TYPE", InstallationBody(compilation));
         Assert.HasCount(8, SqlControlExports(compilation));
     }
 
@@ -175,8 +175,8 @@ public sealed partial class PgFunctionGeneratorTests
             external: false, name: "key", type: "Other");
         Compilation first = GenerateSqlControl(provider + value + other);
         Compilation reversed = GenerateSqlControl(provider + other + value);
-        Assert.AreEqual(ManifestValue(first, "Ankus.Sql"), ManifestValue(reversed, "Ankus.Sql"));
-        Assert.StartsWith("SELECT 'complete';\nCREATE FUNCTION ", ManifestValue(first, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(first), InstallationBody(reversed));
+        Assert.StartsWith("SELECT 'complete';\nCREATE FUNCTION ", InstallationBody(first));
         Assert.ContainsSingle(OperatorCastStatements(first).Where(static statement => statement == "SELECT 'complete';"));
         string managed = DatumMappingManaged(first);
         Assert.Contains("RegisterReference<global::Value>", managed);
@@ -257,7 +257,7 @@ public sealed partial class PgFunctionGeneratorTests
         if (equality == "valid")
         {
             Compilation compilation = GenerateSqlControl(source);
-            string sql = ManifestValue(compilation, "Ankus.Sql");
+            string sql = InstallationBody(compilation);
             Assert.DoesNotContain("\"key_eq\"", sql);
             Assert.Contains("OPERATOR 3 \"mapped\".= (\"mapped\".\"key\",\"mapped\".\"key\")", sql);
             Assert.Contains("OPERATOR 1 \"mapped\".= (\"mapped\".\"key\",\"mapped\".\"key\")", sql);
@@ -312,7 +312,7 @@ public sealed partial class PgFunctionGeneratorTests
         string role = kind == "ordering" ? "cmp" : "hash";
         string options = disabled ? "GenerateSql=false" : "Sql=\"SELECT '" + token + "';\", SqlRelocatable=true";
         Compilation changed = GenerateSqlControl(source.Replace("[Ankus." + attribute + "]", "[Ankus." + attribute + "(" + options + ")]", StringComparison.Ordinal));
-        string sql = ManifestValue(changed, "Ankus.Sql");
+        string sql = InstallationBody(changed);
         string family = string.Join("\n", OperatorCastStatements(baseline).Where(statement => statement.StartsWith("CREATE OPERATOR FAMILY", StringComparison.Ordinal) ||
             statement.StartsWith("CREATE OPERATOR CLASS", StringComparison.Ordinal)).Where(statement => statement.Contains(" USING " + (kind == "ordering" ? "btree" : "hash"), StringComparison.Ordinal)));
         Assert.HasCount(2, family.Split('\n'));
@@ -346,7 +346,7 @@ public sealed partial class PgFunctionGeneratorTests
             .Replace("\"key\"", "\"" + name + "\"", StringComparison.Ordinal) + "}";
         Compilation first = GenerateSqlControl(one + two);
         Compilation second = GenerateSqlControl(two + one);
-        Assert.AreEqual(ManifestValue(first, "Ankus.Sql"), ManifestValue(second, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(first), InstallationBody(second));
         string[] helpers = [.. OperatorCastStatements(first).Where(static statement => statement.StartsWith("CREATE FUNCTION", StringComparison.Ordinal))];
         Assert.HasCount(16, helpers);
         var identifiers = new List<string>();

@@ -82,7 +82,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. Explicitly named nonexistent aggregate roles already fail validation. Six static abstract aggregate interfaces now provide compiler-checked required and optional callbacks, including explicit/inherited/default implementations and tuple input metadata. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of the typed contracts is pending. |
 | PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
-| Declarative parity | Extended module magic and four/eight-byte custom datum alignment pass focused native tests and complete dedicated-platform CI. Managed `PgRequires`/`PgBefore` references resolve exact types/methods and preserve graph ordering, replacement and selection contracts. `PgSupportFunction` adds checked planner references and installation prerequisites, with actual row estimates and same-backend error recovery. Typed aggregate capabilities preserve owned state, real parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform validation of these references and contracts is pending. Generated SQL provenance remains open. Preserve deterministic ordering. |
+| Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. The complete PostgreSQL 18.6/Linux x64 suite passes; dedicated-platform planner, aggregate and provenance validation remains pending. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
@@ -91,6 +91,21 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+Generated installation SQL identifies its source files, lines, managed
+declarations and prerequisites. These comments survive standalone library
+extraction and selected-object scripts. Authored SQL bodies and deterministic
+dependency order remain intact; the reader also accepts the original graph
+format. Paths and labels are normalized and escaped before becoming comments.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,992 total,
+9,982 passed, zero failed and ten platform skips**, in **18m28.563s**.
+Release, API freshness and documentation checks pass. Dedicated-platform
+provenance CI and the remaining version/platform matrix are still required.
+Incremental generation, runtime performance, tooling, author APIs and other
+review requirements remain open.
+
+## Previous verified milestone — typed aggregate capabilities
 
 `IPgAggregate<TState, TArgs>` and five optional capability interfaces give
 aggregate callbacks compiler-checked contracts. Scalar, tuple and empty argument
@@ -17233,3 +17248,74 @@ runs pass. The reported Windows port failure in **36713330603** is addressed
 by pushed commit `f9984ac`, with dedicated CI pending. Both earlier hosted Intel
 macOS comparisons still have one-hour timeout outcomes; no successful full
 Intel validation is claimed and no runs were automatically canceled.
+
+## Generated SQL provenance review work
+
+The missing SQL provenance is confirmed against pgrx's source/dependency comments
+and connected-component markers. The implementation adds source locations,
+managed declarations, resolved prerequisites and authored SQL file attribution
+without changing declaration ordering or SQL bodies. Project-relative paths and
+escaped labels avoid exposing build roots or turning comments into statements.
+Shared declarations and generated family members retain their origins.
+
+Installation and encoded graph fragments use the same renderer. A second graph
+format retains the script preamble for full and selected extraction; the original
+format remains readable with its original SQL. The graph reader suite passes
+**427/427**, zero failures/skips, **2.017s**, including independent new-format
+fixtures, all truncation positions and the total byte limit. New source-comment
+cases reproduce the missing behavior before implementation and now pass.
+
+Existing declaration tests now read exact SQL bodies from validated annotation
+frames, preserving authored comments and quoted marker text. Direct provenance,
+graph/manifest equality and artifact checks still compare complete output. The
+complete generator suite, real PostgreSQL schema extraction/selection and final
+milestone gates are in progress; this work is not yet a completed milestone.
+
+The complete generator suite now passes **2,388/2,388**, zero failures/skips,
+**26.737s**. The **20** new provenance cases include Unix/Windows/UNC path
+normalization, control characters and surrogate handling, relocation-stable
+output, physical source lines, shared declarations, generated families,
+suppression/replacement and exact preservation of authored comments. Release
+and real-backend extraction validation are next. Aggregate Docs **36742158283**
+succeeds; its CI and the planner/port milestones remain queued, while dependency
+CI is still active.
+
+The provenance Release build passes with zero warnings/errors (**1m15.66s**).
+API freshness passes (**234 pages / 2,649 members**), the site builds **282
+pages in 3.18s**, and the documentation check reports zero errors, warnings or
+hints. The focused PostgreSQL 18.6/Linux x64 artifact tests are running; the
+complete suite remains required before committing this milestone.
+
+Dependency CI **36724466429** has now completed successfully on all three
+platforms: Linux x64/PostgreSQL 18 **44m11s**, macOS ARM64/PostgreSQL 18
+**17m57s**, and Windows x64/PostgreSQL 17 **30m55s**. Its runtime and quality
+jobs also pass. The subsequent planner, port-repair and aggregate runs remain
+pending; the Windows port fix is not yet counted as verified by its own CI run.
+
+The focused PostgreSQL **18.6/Linux x64** extraction/installation run passes
+**5/5**, zero failures/skips, **5m23.888s**. It checks a library without valid
+sidecars, exact extracted bytes, selected objects in fixed/default schemas,
+catalog ownership and rollback/recovery, plus empty SQL for GUC-only and
+disabled-type consumers. A complete plain `dotnet test` run is now underway.
+
+### SQL provenance milestone completed locally
+
+The complete plain `dotnet test` run passes **9,992 total, 9,982 passed,
+zero failed and ten platform skips**, PostgreSQL **18.6/Linux x64**, in
+**18m28.563s** with six package-test slots. All six test modules pass. This
+includes standalone artifact extraction, selected-schema catalog ownership,
+rollback and same-backend recovery, plus the original schema-reuse scenarios.
+The new managed cases independently verify exact annotation text, unchanged
+authored SQL, portable paths, deterministic output, legacy graph compatibility
+and malformed input boundaries. Release and API/site checks above also pass.
+No warnings or analyzer standards were relaxed.
+
+Before committing, previous CI outcomes were checked and recorded. Reporting
+**36717791830** and dependency **36724466429** succeed on all three platforms.
+Planner **36730262684** has passed quality, runtime and macOS ARM64/PostgreSQL
+18 (**17m52s**); Linux x64/PostgreSQL 18 and Windows x64/PostgreSQL 17 remain
+active. Port-repair **36737755545** and aggregate **36742158434** remain queued,
+and their Docs runs pass. The reported Windows failure in **36713330603** is
+addressed by `f9984ac`, with Windows regression evidence already recorded and
+its dedicated CI still pending. Hosted Intel macOS's one-hour timeout and the
+remaining review/platform requirements stay open. No runs were canceled.

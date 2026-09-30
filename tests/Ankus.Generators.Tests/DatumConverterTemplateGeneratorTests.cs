@@ -332,7 +332,7 @@ public sealed partial class PgFunctionGeneratorTests
             """ + TemplateBoxAndConverter);
         Assert.Contains("RegisterValue<global::Box<int>>(\"item\", null, global::Ankus.PgTypeOrigin.ThisExtension", DatumMappingManaged(compilation));
         Assert.Contains("new global::Converter<int>(), true, true);", DatumMappingManaged(compilation));
-        Assert.AreEqual("CREATE DOMAIN item AS integer;\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE DOMAIN item AS integer;\n", InstallationBody(compilation));
         Assert.DoesNotContain("Box<long>", DatumMappingManaged(compilation));
     }
 

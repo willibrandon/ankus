@@ -23,7 +23,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertInitializationCompilationSucceeds(compilation, diagnostics);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func", "_PG_init"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         IMethodSymbol callback = InitializationCallback(compilation);
@@ -293,7 +293,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation mixed, ImmutableArray<Diagnostic> mixedDiagnostics) = Generate(declarations + initialization);
         AssertInitializationCompilationSucceeds(baseline, baselineDiagnostics);
         AssertInitializationCompilationSucceeds(mixed, mixedDiagnostics);
-        Assert.AreEqual(ManifestValue(baseline, "Ankus.Sql"), ManifestValue(mixed, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(baseline), InstallationBody(mixed));
         Assert.AreEqual("false", ManifestValue(mixed, "Ankus.Relocatable"));
         Assert.AreSequenceEqual(ManifestValue(baseline, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries),
             ManifestValue(mixed, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries).Where(static name => name != "_PG_init"));
@@ -356,7 +356,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("ANKUS013", error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static item => item.Severity == DiagnosticSeverity.Error));
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers());
     }

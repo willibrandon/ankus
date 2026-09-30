@@ -526,6 +526,10 @@ The native library also embeds its installation SQL and publication identity.
 without loading the library or reading sidecar files. `ankus schema` builds the
 selected project first; `--output schema.sql` writes the script to a file.
 
+Generated SQL comments identify source files, lines, managed declarations and
+dependencies. These comments remain available when extracting SQL from the
+published library.
+
 Pass declaration names to emit their SQL and dependencies. Add `--dot dependencies.dot`
 to export the full graph. Selected scripts attach objects to an existing extension;
 `--no-alter-extension` emits only their creation SQL.

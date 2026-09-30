@@ -15,10 +15,11 @@ public sealed class ExtensionSchemaGraph
         "schema", "function", "type", "enum", "operator", "cast", "aggregate", "sql", "equality", "ordering", "hashing",
     };
 
-    private ExtensionSchemaGraph(ExtensionSchemaItem[] items)
+    private ExtensionSchemaGraph(ExtensionSchemaItem[] items, string preamble)
     {
+        Preamble = preamble;
         Items = Array.AsReadOnly(items);
-        var sql = new StringBuilder();
+        var sql = new StringBuilder(preamble);
         foreach (ExtensionSchemaItem item in items)
         {
             sql.Append(item.Sql);
@@ -28,8 +29,13 @@ public sealed class ExtensionSchemaGraph
             }
         }
 
-        Sql = sql.Length == 0 ? "-- No installable objects declared.\n" : sql.ToString();
+        Sql = sql.Length == preamble.Length ? preamble + "-- No installable objects declared.\n" : sql.ToString();
     }
+
+    /// <summary>
+    /// Gets the generator's script preamble, or empty text for legacy embedded graphs.
+    /// </summary>
+    internal string Preamble { get; }
 
     /// <summary>
     /// Gets declarations in their verified installation order.
@@ -61,7 +67,8 @@ public sealed class ExtensionSchemaGraph
         try
         {
             byte[] bytes = Convert.FromBase64String(encoded);
-            if (bytes.Length is < 12 or > MaximumBytes || !bytes.AsSpan(0, 8).SequenceEqual("ANKUSG1\0"u8))
+            if (bytes.Length is < 12 or > MaximumBytes ||
+                !bytes.AsSpan(0, 8).SequenceEqual("ANKUSG1\0"u8) && !bytes.AsSpan(0, 8).SequenceEqual("ANKUSG2\0"u8))
             {
                 throw new FormatException("Invalid embedded SQL graph header.");
             }
@@ -69,6 +76,7 @@ public sealed class ExtensionSchemaGraph
             using var stream = new MemoryStream(bytes, writable: false);
             stream.Position = 8;
             using var reader = new BinaryReader(stream, s_utf8);
+            string preamble = bytes[6] == (byte)'2' ? ReadText(reader, allowEmpty: true) : string.Empty;
             int count = ReadCount(reader, MaximumItems);
             if (count > (stream.Length - stream.Position) / 28)
             {
@@ -114,7 +122,7 @@ public sealed class ExtensionSchemaGraph
                 throw new FormatException("Unexpected trailing embedded SQL graph data.");
             }
 
-            return new ExtensionSchemaGraph(items);
+            return new ExtensionSchemaGraph(items, preamble);
         }
         catch (Exception error) when (error is EndOfStreamException or DecoderFallbackException or OverflowException)
         {

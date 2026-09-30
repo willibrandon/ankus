@@ -30,6 +30,11 @@ declarations. SQL is trusted extension source: PostgreSQL executes it when
 PostgreSQL records objects created by the script as extension members. A failed
 installation rolls back its objects and data changes.
 
+Generated installation scripts retain the block's SQL text and add separate
+source and dependency comments. `PgSqlFile` blocks also identify their SQL file.
+The same comments survive [schema extraction](/getting-started/publishing/#inspect-installation-sql),
+including extraction from a published library without source files beside it.
+
 ## Declare supplied types
 
 Use `PgSqlTypeProvider` to identify a type created by a `PgSql` or `PgSqlFile`

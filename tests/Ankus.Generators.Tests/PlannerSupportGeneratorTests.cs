@@ -28,7 +28,7 @@ public sealed partial class PgFunctionGeneratorTests
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         Assert.HasCount(2, graph.Items);
         string identity = (schema is null ? string.Empty : "\"planner\".") + "\"renamed_support\"";
-        Assert.StartsWith("CREATE FUNCTION " + identity, graph.Items[0].Sql);
+        Assert.StartsWith("CREATE FUNCTION " + identity, DeclarationBodies(compilation).First());
         Assert.Contains("SUPPORT " + identity, graph.Items[1].Sql);
         Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
     }
@@ -83,8 +83,10 @@ public sealed partial class PgFunctionGeneratorTests
             public class Derived : Base;
             """);
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
-        ExtensionSchemaItem consumer = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"a\"", StringComparison.Ordinal)));
-        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"selected_support\"", StringComparison.Ordinal)));
+        ExtensionSchemaItem consumer = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("a")));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("selected_support")));
+        Assert.Contains("CREATE FUNCTION \"a\"", consumer.Sql);
+        Assert.Contains("CREATE FUNCTION \"selected_support\"", support.Sql);
         Assert.Contains("SUPPORT \"selected_support\"", consumer.Sql);
         Assert.AreSequenceEqual<string>([support.Id], consumer.Dependencies);
     }
@@ -192,7 +194,15 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
         Assert.HasCount(2, graph.Items);
-        Assert.AreEqual(expectedSql, graph.Items[1].Sql);
+        if (expectedSql.Length == 0)
+        {
+            Assert.IsEmpty(graph.Items[1].Sql);
+        }
+        else
+        {
+            Assert.AreEqual(expectedSql + "\n", DeclarationBodies(compilation).Last());
+        }
+
         Assert.AreSequenceEqual<string>([graph.Items[0].Id], graph.Items[1].Dependencies);
     }
 
@@ -215,7 +225,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(compilation, "Ankus.SqlGraph"));
-        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.StartsWith("CREATE FUNCTION \"z\"", StringComparison.Ordinal)));
+        ExtensionSchemaItem support = Assert.ContainsSingle(graph.Items.Where(static item => item.Kind == "function" && item.Names.Contains("z")));
         ExtensionSchemaItem helper = Assert.ContainsSingle(graph.Items.Where(static item => item.Sql.Contains("SUPPORT \"z\"", StringComparison.Ordinal)));
         Assert.AreEqual("function", helper.Kind);
         Assert.AreSequenceEqual<string>([support.Id], helper.Dependencies);
@@ -248,7 +258,7 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation valid = GenerateSqlControl(source.Replace(reference, string.Empty, StringComparison.Ordinal));
         ExtensionSchemaGraph graph = ExtensionSchemaGraph.Parse(ManifestValue(valid, "Ankus.SqlGraph"));
         ExtensionSchemaItem transition = Assert.ContainsSingle(graph.Items.Where(static item =>
-            item.Sql.StartsWith("CREATE FUNCTION \"counter_transition\"", StringComparison.Ordinal)));
+            item.Kind == "function" && item.Names.Contains("counter_transition")));
         Assert.Contains("(\"state\" internal)\nRETURNS internal", transition.Sql);
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);

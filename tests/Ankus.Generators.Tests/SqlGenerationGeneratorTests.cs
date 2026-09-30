@@ -22,8 +22,8 @@ public sealed partial class PgFunctionGeneratorTests
     {
         Compilation original = GenerateSqlControl(SqlControlSource(kind, string.Empty));
         Compilation explicitDefaults = GenerateSqlControl(SqlControlSource(kind, "GenerateSql = true, Sql = null, SqlRelocatable = true"));
-        Assert.Contains(declaration, ManifestValue(original, "Ankus.Sql"));
-        Assert.AreEqual(ManifestValue(original, "Ankus.Sql"), ManifestValue(explicitDefaults, "Ankus.Sql"));
+        Assert.Contains(declaration, InstallationBody(original));
+        Assert.AreEqual(InstallationBody(original), InstallationBody(explicitDefaults));
         Assert.AreEqual("true", ManifestValue(explicitDefaults, "Ankus.Relocatable"));
         AssertSqlControlBoundary(original, explicitDefaults);
     }
@@ -48,8 +48,8 @@ public sealed partial class PgFunctionGeneratorTests
         AssertSqlControlBoundary(original, disabled);
         AssertSqlControlBoundary(original, replacement);
         string export = Assert.ContainsSingle(SqlControlExports(original));
-        string replacedSql = ManifestValue(replacement, "Ankus.Sql");
-        string disabledSql = ManifestValue(disabled, "Ankus.Sql");
+        string replacedSql = InstallationBody(replacement);
+        string disabledSql = InstallationBody(disabled);
         Assert.DoesNotContain("CREATE FUNCTION", replacedSql);
         Assert.DoesNotContain("CREATE FUNCTION", disabledSql);
         Assert.StartsWith($"SELECT '{export}', 'MODULE_PATHNAME';\n", replacedSql);
@@ -84,7 +84,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         Compilation original = GenerateSqlControl(SqlControlSource("scalar", string.Empty));
         Compilation replacement = GenerateSqlControl(SqlControlSource("scalar", "Sql = " + SymbolDisplay.FormatLiteral(literal, quote: true)));
-        Assert.AreEqual(expected, ManifestValue(replacement, "Ankus.Sql"));
+        Assert.AreEqual(expected, InstallationBody(replacement));
         Assert.AreEqual("false", ManifestValue(replacement, "Ankus.Relocatable"));
         AssertSqlControlBoundary(original, replacement);
     }
@@ -100,7 +100,7 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation compilation = GenerateSqlControl(SqlControlSource("scalar", "Sql = " + SymbolDisplay.FormatLiteral(literal, quote: true)));
         string export = Assert.ContainsSingle(SqlControlExports(compilation));
         Assert.AreEqual($"SELECT 'MODULE_PATHNAME', '{export}', $$quotes' ; \\ café 😀 {export}$$, '@UNKNOWN@', '{{value}}';\n" +
-            $"-- MODULE_PATHNAME {export} @function_name@\n", ManifestValue(compilation, "Ankus.Sql"));
+            $"-- MODULE_PATHNAME {export} @function_name@\n", InstallationBody(compilation));
         Assert.Contains($"PG_FUNCTION_INFO_V1({export});", ManifestValue(compilation, "Ankus.NativeSource"));
         Assert.Contains("pg_finfo_" + export, ManifestValue(compilation, "Ankus.Exports").Split('\n'));
     }
@@ -115,7 +115,7 @@ public sealed partial class PgFunctionGeneratorTests
         const string bigint = "[Ankus.PgFunction(Sql = \"SELECT 'bigint:@FUNCTION_NAME@';\")] public static long Echo(long value) => value;";
         Compilation first = GenerateSqlControl("public static class Functions {" + integer + bigint + "}");
         Compilation reversed = GenerateSqlControl("public static class Functions {" + bigint + integer + "}");
-        Assert.AreEqual(ManifestValue(first, "Ankus.Sql"), ManifestValue(reversed, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(first), InstallationBody(reversed));
         AssertSqlControlBoundary(first, reversed);
         string[] exports = SqlControlExports(first);
         Assert.HasCount(2, exports);
@@ -128,7 +128,7 @@ public sealed partial class PgFunctionGeneratorTests
                 method.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(context.CancellationToken).ToString().Contains(argument, StringComparison.Ordinal))));
             string export = callback.Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
             Assert.Contains(export, exports);
-            Assert.Contains($"SELECT '{type}:{export}';\n", ManifestValue(first, "Ankus.Sql"));
+            Assert.Contains($"SELECT '{type}:{export}';\n", InstallationBody(first));
         }
     }
 
@@ -163,7 +163,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.AreEqual(originalNative, native);
             Assert.AreEqual(originalExports, exports);
             Assert.AreEqual(relocatable, ManifestValue(output, "Ankus.Relocatable"));
-            string sql = ManifestValue(output, "Ankus.Sql");
+            string sql = InstallationBody(output);
             if (expected is null)
             {
                 Assert.StartsWith("CREATE FUNCTION \"echo\"(\"value\" integer)\nRETURNS integer", sql);
@@ -200,7 +200,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static string Render(int value, int modifier) => value.ToString();
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("SELECT 'first';\n", sql);
         AssertSqlControlBefore(sql, "SELECT 'prepare';", "SELECT 'whole replacement';");
         AssertSqlControlBefore(sql, "SELECT 'before operator';", "SELECT 'whole replacement';");
@@ -241,7 +241,7 @@ public sealed partial class PgFunctionGeneratorTests
         string graph = source.Replace("BEFORE", incomingBefore ? ", Before = new[] { \"operator\" }" : string.Empty, StringComparison.Ordinal)
             .Replace("REQUIRES", incomingBefore ? string.Empty : ", Requires = new[] { \"middle\" }", StringComparison.Ordinal);
         Compilation disabled = GenerateSqlControl(graph.Replace("CONTROL", "GenerateSql = false", StringComparison.Ordinal));
-        Assert.AreEqual("SELECT 'middle';\nSELECT 'after';\n", ManifestValue(disabled, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'middle';\nSELECT 'after';\n", InstallationBody(disabled));
         (Compilation replacement, ImmutableArray<Diagnostic> diagnostics) = Generate(graph.Replace("CONTROL", "Sql = \"SELECT 'replacement';\"", StringComparison.Ordinal));
         AssertSqlControlGraphError(replacement, diagnostics, "cycle");
     }
@@ -291,7 +291,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Value Convert(Ankus.PgArray<Mood?> input) => new(input.Count);
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         AssertSqlControlBefore(sql, "CREATE SCHEMA IF NOT EXISTS \"ordered\";", "CREATE TYPE \"ordered\".\"mood\" AS ENUM");
         AssertSqlControlBefore(sql, "CREATE TYPE \"ordered\".\"mood\" AS ENUM", "SELECT 'replacement';");
         AssertSqlControlBefore(sql, "CREATE TYPE \"ordered\".\"value\" (", "SELECT 'replacement';");
@@ -319,7 +319,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int? MovingInverse(int state, int value) => state - value;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.HasCount(2, SqlControlExports(compilation));
         string[] replacements = [.. sql.Split('\n').Where(static line => line.StartsWith("SELECT 'ankus_fn_", StringComparison.Ordinal))];
         Assert.ContainsSingle(replacements);

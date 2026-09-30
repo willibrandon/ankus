@@ -23,6 +23,7 @@ internal sealed partial class SqlGraph
     /// </summary>
     internal void Register(ISymbol declaration, SqlEntity entity)
     {
+        entity.ManagedSources.Add(declaration.ToDisplayString());
         if (!_declarations.TryGetValue(declaration, out List<SqlEntity>? entities))
         {
             entities = [];

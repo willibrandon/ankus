@@ -27,7 +27,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "[assembly: Ankus.PgGucPrefix(" + SymbolDisplay.FormatLiteral(prefix, true) + ")]");
         AssertGucCompilation(compilation, diagnostics);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func", "_PG_init"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         Assert.IsEmpty(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers());
@@ -148,7 +148,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         Assert.IsGreaterThan(lastPrefix, loader.IndexOf("ANKUS_MANAGED_INVOKE(status, error, ankus_managed_", StringComparison.Ordinal));
         Assert.ContainsSingle(ManifestValue(compilation, "Ankus.Exports").Split('\n').Where(static item => item == "_PG_init"));
-        Assert.Contains("CREATE FUNCTION \"read\"()\nRETURNS integer", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.Contains("CREATE FUNCTION \"read\"()\nRETURNS integer", InstallationBody(compilation).ReplaceLineEndings("\n"));
     }
 
     /// <summary>

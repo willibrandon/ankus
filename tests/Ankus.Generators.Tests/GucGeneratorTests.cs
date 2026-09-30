@@ -28,7 +28,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public enum Mode : ulong { First = 42, Last = ulong.MaxValue } public static partial class Settings { [" + attribute +
             "] public static partial " + type + " Value { get; } }");
         AssertGucCompilation(compilation, diagnostics);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func", "_PG_init"], ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
@@ -147,7 +147,7 @@ public sealed partial class PgFunctionGeneratorTests
         string native = ManifestValue(compilation, "Ankus.NativeSource").ReplaceLineEndings("\n");
         Assert.Contains("    { \"\", 0, true },\n    { \"\\141\\154\\151\\141\\163\", 0, false },\n    { \"\\172\\145\\162\\157\", 1, true },", native);
         Assert.Contains(".boot.integer = 0", native);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         string managed = string.Join("\n", compilation.SyntaxTrees.Select(static tree => tree.ToString()));
         Assert.Contains("0 => global::Mode.@Maximum, 1 => global::Mode.@Zero", managed);
         Assert.Contains("global::Mode.@Maximum => 0, global::Mode.@Zero => 1", managed);
@@ -482,7 +482,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual("pg_finfo_" + exports[2], exports[3]);
         Assert.AreEqual($"CREATE FUNCTION \"read\"()\nRETURNS integer AS 'MODULE_PATHNAME', '{exports[2]}' LANGUAGE c " +
             "VOLATILE PARALLEL UNSAFE STRICT SECURITY INVOKER NOT LEAKPROOF COST 1;\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         int loader = native.IndexOf("PGDLLEXPORT void _PG_init(void)\n", StringComparison.Ordinal);
         int binding = native.IndexOf("ankus_read_guc = ankus_guc_read;", loader, StringComparison.Ordinal);

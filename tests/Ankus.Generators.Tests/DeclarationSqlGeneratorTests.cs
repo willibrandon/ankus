@@ -21,10 +21,10 @@ public sealed partial class PgFunctionGeneratorTests
     {
         Compilation baseline = GenerateSqlControl(DeclarationSource(kind, string.Empty));
         Compilation explicitDefaults = GenerateSqlControl(DeclarationSource(kind, "GenerateSql = true, Sql = null, SqlRelocatable = true"));
-        string defaultSql = ManifestValue(baseline, "Ankus.Sql");
+        string defaultSql = InstallationBody(baseline);
         string owned = DeclarationOwnedSql(kind, baseline);
         Assert.Contains(owned, defaultSql);
-        Assert.AreEqual(defaultSql, ManifestValue(explicitDefaults, "Ankus.Sql"));
+        Assert.AreEqual(defaultSql, InstallationBody(explicitDefaults));
         AssertSqlControlBoundary(baseline, explicitDefaults);
         Assert.AreEqual("true", ManifestValue(explicitDefaults, "Ankus.Relocatable"));
         string retained = defaultSql.Replace(owned, string.Empty, StringComparison.Ordinal);
@@ -41,9 +41,9 @@ public sealed partial class PgFunctionGeneratorTests
         {
             Compilation changed = GenerateSqlControl(DeclarationSource(kind, options));
             AssertSqlControlBoundary(baseline, changed);
-            Assert.AreEqual(defaultSql.Replace(owned, replacement, StringComparison.Ordinal), ManifestValue(changed, "Ankus.Sql"));
+            Assert.AreEqual(defaultSql.Replace(owned, replacement, StringComparison.Ordinal), InstallationBody(changed));
             Assert.AreEqual(relocatable, ManifestValue(changed, "Ankus.Relocatable"));
-            string changedSql = ManifestValue(changed, "Ankus.Sql");
+            string changedSql = InstallationBody(changed);
             Assert.DoesNotContain(owned, changedSql);
             Assert.AreEqual(retained, replacement.Length == 0 ? changedSql : changedSql.Replace(replacement, string.Empty, StringComparison.Ordinal));
         }
@@ -73,8 +73,8 @@ public sealed partial class PgFunctionGeneratorTests
         AssertSqlControlBoundary(baseline, replacement);
         AssertSqlControlBoundary(replacement, reversed);
         AssertSqlControlBoundary(baseline, disabled);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(disabled, "Ankus.Sql"));
-        Assert.AreEqual(ManifestValue(replacement, "Ankus.Sql"), ManifestValue(reversed, "Ankus.Sql"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(disabled));
+        Assert.AreEqual(InstallationBody(replacement), InstallationBody(reversed));
         var expected = new StringBuilder();
         string[] names = ["alpha", "beta"];
         foreach (string name in names)
@@ -92,7 +92,7 @@ public sealed partial class PgFunctionGeneratorTests
             expected.Append(";\n");
         }
 
-        Assert.AreEqual(expected.ToString(), ManifestValue(replacement, "Ankus.Sql"));
+        Assert.AreEqual(expected.ToString(), InstallationBody(replacement));
         string[] exports = SqlControlExports(replacement);
         Assert.HasCount(binary ? 8 : 4, exports);
         Assert.HasCount(exports.Length, exports.Distinct(StringComparer.Ordinal));
@@ -143,7 +143,7 @@ public sealed partial class PgFunctionGeneratorTests
             "), Ankus.PgEquality, Ankus." + attribute + "(OPTIONS)] public enum Value { Low = -1, High = 7 }";
         Compilation baseline = GenerateSqlControl(source.Replace("OPTIONS", "Sql = null", StringComparison.Ordinal));
         string export = Assert.ContainsSingle(SqlControlExports(baseline).Where(symbol => symbol.EndsWith("_" + role, StringComparison.Ordinal)));
-        string helperLine = Assert.ContainsSingle(ManifestValue(baseline, "Ankus.Sql").Split('\n').Where(line => line.Contains("'" + export + "'", StringComparison.Ordinal)));
+        string helperLine = Assert.ContainsSingle(InstallationBody(baseline).Split('\n').Where(line => line.Contains("'" + export + "'", StringComparison.Ordinal)));
         string helper = helperLine["CREATE FUNCTION ".Length..helperLine.IndexOf('(', StringComparison.Ordinal)];
         string quotedSchema = "\"" + schema.Replace("\"", "\"\"", StringComparison.Ordinal) + "\".";
         Assert.StartsWith(quotedSchema, helper);
@@ -161,7 +161,7 @@ public sealed partial class PgFunctionGeneratorTests
         string literal = "SELECT @MODULE_PATHNAME@, " + token + ", " + token + ", '" + otherToken + "', '@INPUT_FUNCTION_NAME@'; -- tail";
         Compilation replacement = GenerateSqlControl(source.Replace("OPTIONS", "Sql = " + SymbolDisplay.FormatLiteral(literal, true), StringComparison.Ordinal));
         AssertSqlControlBoundary(baseline, replacement);
-        string sql = ManifestValue(replacement, "Ankus.Sql");
+        string sql = InstallationBody(replacement);
         Assert.Contains(helperLine + "\n", sql);
         Assert.EndsWith($"SELECT MODULE_PATHNAME, {helper}, {helper}, '{otherToken}', '@INPUT_FUNCTION_NAME@'; -- tail\n", sql);
         Assert.DoesNotContain("CREATE OPERATOR FAMILY", sql);
@@ -182,7 +182,7 @@ public sealed partial class PgFunctionGeneratorTests
             "'@RECEIVE_FUNCTION_NAME@', '@SEND_FUNCTION_NAME@', '@COMPARISON_FUNCTION_SQL@', '@HASH_FUNCTION_SQL@';";
         Compilation compilation = GenerateSqlControl(DeclarationSource(kind, "Sql = " + SymbolDisplay.FormatLiteral(literal, true)));
         Assert.Contains("SELECT 'MODULE_PATHNAME', '@FUNCTION_NAME@', '@INPUT_FUNCTION_NAME@', '@OUTPUT_FUNCTION_NAME@', " +
-            "'@RECEIVE_FUNCTION_NAME@', '@SEND_FUNCTION_NAME@', '@COMPARISON_FUNCTION_SQL@', '@HASH_FUNCTION_SQL@';\n", ManifestValue(compilation, "Ankus.Sql"));
+            "'@RECEIVE_FUNCTION_NAME@', '@SEND_FUNCTION_NAME@', '@COMPARISON_FUNCTION_SQL@', '@HASH_FUNCTION_SQL@';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -210,7 +210,7 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation changed = GenerateSqlControl(source.Replace("PARENT", parent, StringComparison.Ordinal).Replace("HELPER", helper, StringComparison.Ordinal));
         AssertSqlControlBoundary(baseline, changed);
         string expected = (helperDisabled ? string.Empty : "SELECT 'helper';\n") + (parentDisabled ? string.Empty : "SELECT 'parent';\n");
-        Assert.AreEqual(expected.Length == 0 ? "-- No installable objects declared.\n" : expected, ManifestValue(changed, "Ankus.Sql"));
+        Assert.AreEqual(expected.Length == 0 ? "-- No installable objects declared.\n" : expected, InstallationBody(changed));
         Assert.AreEqual(parentDisabled && helperDisabled ? "true" : "false", ManifestValue(changed, "Ankus.Relocatable"));
     }
 
@@ -228,9 +228,9 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation changed = GenerateSqlControl(source.Replace("ORDERING", kind == "ordering" ? "GenerateSql = false" : "Sql = null", StringComparison.Ordinal)
             .Replace("HASHING", kind == "hashing" ? "GenerateSql = false" : "Sql = null", StringComparison.Ordinal));
         AssertSqlControlBoundary(baseline, changed);
-        Assert.AreEqual(ManifestValue(baseline, "Ankus.Sql").Replace(DeclarationOwnedSql(kind, baseline), string.Empty, StringComparison.Ordinal), ManifestValue(changed, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(baseline).Replace(DeclarationOwnedSql(kind, baseline), string.Empty, StringComparison.Ordinal), InstallationBody(changed));
         Assert.HasCount(8, SqlControlExports(changed));
-        Assert.Contains(DeclarationOwnedSql(kind == "ordering" ? "hashing" : "ordering", baseline), ManifestValue(changed, "Ankus.Sql"));
+        Assert.Contains(DeclarationOwnedSql(kind == "ordering" ? "hashing" : "ordering", baseline), InstallationBody(changed));
     }
 
     /// <summary>
@@ -255,13 +255,13 @@ public sealed partial class PgFunctionGeneratorTests
         const string dependency = "Id = \"parent\", Requires = new[] { \"before\" }, ";
         Compilation replacement = GenerateSqlControl(graph + DeclarationSource(kind, dependency + "Sql = \"SELECT 'replacement';\""));
         Compilation disabled = GenerateSqlControl(graph + DeclarationSource(kind, dependency + "GenerateSql = false"));
-        string sql = ManifestValue(replacement, "Ankus.Sql");
+        string sql = InstallationBody(replacement);
         Assert.StartsWith("SELECT 'first';\n", sql);
         Assert.EndsWith("SELECT 'last';\n", sql);
         AssertSqlControlBefore(sql, "SELECT 'before';", "SELECT 'replacement';");
         AssertSqlControlBefore(sql, "SELECT 'incoming';", "SELECT 'replacement';");
         AssertSqlControlBefore(sql, "SELECT 'replacement';", "SELECT 'after';");
-        string disabledSql = ManifestValue(disabled, "Ankus.Sql");
+        string disabledSql = InstallationBody(disabled);
         AssertSqlControlBefore(disabledSql, "SELECT 'before';", "SELECT 'after';");
         AssertSqlControlBefore(disabledSql, "SELECT 'incoming';", "SELECT 'after';");
         Assert.DoesNotContain("SELECT 'replacement';", disabledSql);
@@ -381,10 +381,10 @@ public sealed partial class PgFunctionGeneratorTests
             driver = driver.RunGeneratorsAndUpdateCompilation(current, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
             AssertSqlControlCompilation(output, diagnostics);
             baseline ??= output;
-            originalSql ??= ManifestValue(output, "Ankus.Sql");
+            originalSql ??= InstallationBody(output);
             owned ??= DeclarationOwnedSql(kind, output);
             AssertSqlControlBoundary(baseline, output);
-            Assert.AreEqual(replacement is null ? originalSql : originalSql.Replace(owned, replacement, StringComparison.Ordinal), ManifestValue(output, "Ankus.Sql"));
+            Assert.AreEqual(replacement is null ? originalSql : originalSql.Replace(owned, replacement, StringComparison.Ordinal), InstallationBody(output));
             Assert.AreEqual(relocatable, ManifestValue(output, "Ankus.Relocatable"));
         }
     }
@@ -426,7 +426,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.AreEqual(expected, ManifestValue(compilation, "Ankus.Relocatable"));
             if (fixedSchema)
             {
-                AssertSqlControlBefore(ManifestValue(compilation, "Ankus.Sql"), "CREATE SCHEMA IF NOT EXISTS \"Fixed \"\" Schema\";", "SELECT 1;");
+                AssertSqlControlBefore(InstallationBody(compilation), "CREATE SCHEMA IF NOT EXISTS \"Fixed \"\" Schema\";", "SELECT 1;");
             }
         }
     }
@@ -542,7 +542,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static string DeclarationIoExport(Compilation compilation, string name, string role)
     {
-        string line = Assert.ContainsSingle(ManifestValue(compilation, "Ankus.Sql").Split('\n').Where(line =>
+        string line = Assert.ContainsSingle(InstallationBody(compilation).Split('\n').Where(line =>
             line.StartsWith("CREATE FUNCTION \"" + name + "_" + role + "\"(", StringComparison.Ordinal)));
         string export = line.Split('\'')[3];
         Assert.Contains(export, SqlControlExports(compilation));

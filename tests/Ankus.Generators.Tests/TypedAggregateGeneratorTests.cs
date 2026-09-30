@@ -42,8 +42,8 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"described\"(\"input\" integer)", ManifestValue(compilation, "Ankus.Sql"));
-        Assert.Contains("STYPE = bigint", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"described\"(\"input\" integer)", InstallationBody(compilation));
+        Assert.Contains("STYPE = bigint", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed partial class PgFunctionGeneratorTests
             $"RETURNS bigint AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c VOLATILE PARALLEL UNSAFE STRICT SECURITY INVOKER NOT LEAKPROOF COST 1;\n" +
             "CREATE AGGREGATE \"typed_total\"(\"input\" integer) (\n    SFUNC = \"typed_total_transition\",\n    STYPE = bigint,\n" +
             "    FINALFUNC_MODIFY = READ_ONLY,\n    INITCOND = E'0',\n    PARALLEL = UNSAFE\n);\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Grouped : Ankus.IPgAggregate<long, " + arguments + "> { " +
             "public static long Transition(Ankus.PgAggregateContext context, long state, " + arguments + " values) => state; }");
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"grouped_transition\"(\"state\" bigint, " + sqlArguments + ")", sql);
         Assert.Contains("CREATE AGGREGATE \"grouped\"(" + sqlArguments + ")", sql);
         Assert.Contains("CALLED ON NULL INPUT", sql);
@@ -104,7 +104,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[Ankus.PgAggregate(InitialCondition=\"0\")] public sealed class Shape : Ankus.IPgAggregate<long, " + arguments + "> { " +
             "public static long Transition(Ankus.PgAggregateContext context, long state, " + arguments + " values) => state; }");
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"shape\"(" + signature + ")", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"shape\"(" + signature + ")", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -121,7 +121,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"single\"(\"item1\" integer)", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"single\"(\"item1\" integer)", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CALLED ON NULL INPUT", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CALLED ON NULL INPUT", InstallationBody(compilation));
         string generated = AggregateCallback(compilation, "transition").DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken).ToString();
         Assert.Contains("string? value =", generated);
         Assert.Contains("result->IsNull = 1;", generated);
@@ -163,7 +163,7 @@ public sealed partial class PgFunctionGeneratorTests
         string[] exports = ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.HasCount(5, exports);
         Assert.HasCount(5, exports.Distinct(StringComparer.Ordinal));
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"first_total_transition\"", sql);
         Assert.Contains("CREATE FUNCTION \"second_total_transition\"", sql);
     }
@@ -195,7 +195,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"capabilities_deserialize\"(\"bytes\" bytea, internal)", sql);
         foreach ((string option, string role) in new (string, string)[]
         {
@@ -228,7 +228,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"rank_values_final\"(\"state\" integer, \"hypothetical\" integer, \"__ankus_extra_1\" integer)", sql);
         Assert.Contains("CREATE AGGREGATE \"rank_values\"(\"hypothetical\" integer ORDER BY \"input\" integer)", sql);
         Assert.Contains("FINALFUNC_EXTRA", sql);
@@ -336,7 +336,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE FUNCTION \"first_stored_final\"(\"state\" internal, \"__ankus_extra_1\" anyelement)", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE FUNCTION \"first_stored_final\"(\"state\" internal, \"__ankus_extra_1\" anyelement)", InstallationBody(compilation));
         string native = ManifestValue(compilation, "Ankus.NativeSource");
         Assert.Contains("const bool polymorphic[2] = {false, true};", native);
         Assert.Contains("const bool required[2] = {false, false};", native);
@@ -363,7 +363,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"amounts\"(\"price\" numeric, \"charge\" numeric)", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"amounts\"(\"price\" numeric, \"charge\" numeric)", InstallationBody(compilation));
         string generated = AggregateCallback(compilation, "transition").DeclaringSyntaxReferences.Single().GetSyntax(context.CancellationToken).ToString();
         Assert.Contains("arguments[1].ReadNumeric().Rescale(5, 2)", generated);
         Assert.Contains("arguments[2].ReadNumeric().Rescale(6, 3)", generated);
@@ -386,7 +386,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"bound_values\"(\"raw\" \"pg_catalog\".\"int4\", \"row\" \"app\".\"item\")", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"bound_values\"(\"raw\" \"pg_catalog\".\"int4\", \"row\" \"app\".\"item\")", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -410,7 +410,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"many_values_transition\"(\"state\" bigint, \"head\" integer, " + prefix + "\"tail\" integer[])", sql);
         Assert.Contains("CREATE AGGREGATE \"many_values\"(\"head\" integer, " + prefix + "\"tail\" integer[])", sql);
     }
@@ -469,6 +469,6 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertAggregateCompilation(compilation, diagnostics);
         Assert.Contains("CREATE FUNCTION \"extra_names_final\"(\"state\" integer, \"__ankus_extra_1\" integer, \"__ankus_extra_2\" integer)",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
     }
 }

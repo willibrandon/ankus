@@ -31,7 +31,7 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation mapped = GenerateSqlControl(DatumMappingSource(declaration) + DatumMappingMethods("Value" + suffix, string.Empty));
         Compilation raw = GenerateSqlControl(DatumMappingMethods("Ankus.PgDatum" + suffix, binding));
         Assert.AreEqual(NormalizedDatumSql(raw), NormalizedDatumSql(mapped));
-        string sql = ManifestValue(mapped, "Ankus.Sql");
+        string sql = InstallationBody(mapped);
         Assert.Contains("RETURNS TABLE (\"first\" \"pg_catalog\".\"int4\", \"second\" integer)", sql);
         Assert.Contains(optional ? " CALLED ON NULL INPUT " : " STRICT ", sql);
         Assert.AreEqual("true", ManifestValue(mapped, "Ankus.Relocatable"));
@@ -77,7 +77,7 @@ public sealed partial class PgFunctionGeneratorTests
             .Replace("INPUT", "[" + rawBinding + "]", StringComparison.Ordinal)
             .Replace("OUTPUT", "[return: " + rawBinding + "]", StringComparison.Ordinal));
         Assert.AreEqual(NormalizedDatumSql(raw), NormalizedDatumSql(mapped));
-        string sql = ManifestValue(mapped, "Ankus.Sql");
+        string sql = InstallationBody(mapped);
         Assert.Contains("STYPE = \"pg_catalog\".\"int4\"", sql);
         Assert.Contains("MSTYPE = \"pg_catalog\".\"int4\"", sql);
         Assert.Contains("CREATE CAST (\"pg_catalog\".\"int4\" AS integer)", sql);
@@ -100,7 +100,7 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation compilation = GenerateSqlControl(DatumMappingSource(reader: read, writer: !read) +
             "public static class Functions { [Ankus.PgFunction] " + methods + " }");
         Assert.Contains(read ? "\"value\" \"pg_catalog\".\"int4\")\nRETURNS integer" : "RETURNS SETOF \"pg_catalog\".\"int4\"",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
         Assert.Contains(read ? "Converter(), true, false);" : "Converter(), false, true);", DatumMappingManaged(compilation));
     }
 
@@ -190,8 +190,8 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Final(Ankus.PgAggregateState<Value>? state) => 7;
             }
             """);
-        Assert.Contains("RETURNS TABLE (\"mapped\" \"pg_catalog\".\"int4\", \"raw\" \"pg_catalog\".\"text\")", ManifestValue(compilation, "Ankus.Sql"));
-        Assert.Contains("STYPE = internal", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("RETURNS TABLE (\"mapped\" \"pg_catalog\".\"int4\", \"raw\" \"pg_catalog\".\"text\")", InstallationBody(compilation));
+        Assert.Contains("STYPE = internal", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -275,7 +275,7 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction(Sql = "SELECT 'raw';", SqlRelocatable = true)] public static int C([Ankus.PgSqlType("item")] Ankus.PgDatum value) => 7;
             }
             """);
-        Assert.AreEqual("SELECT 'provider';\nSELECT 'first';\nSELECT 'second';\nSELECT 'raw';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'provider';\nSELECT 'first';\nSELECT 'second';\nSELECT 'raw';\n", InstallationBody(compilation));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         Assert.Contains("RegisterValue<global::Value>(\"item\", null", DatumMappingManaged(compilation));
         Assert.Contains("RegisterValue<global::Other>(\"item\", null", DatumMappingManaged(compilation));
@@ -335,12 +335,12 @@ public sealed partial class PgFunctionGeneratorTests
             """ + DatumMappingSource(external: false, schema: "placed") +
             "public static class Functions { [Ankus.PgFunction(Sql=\"SELECT 'consumer';\", SqlRelocatable=true)] public static Value Read()=>default; }");
         Assert.AreEqual("SELECT 'prerequisite';\nCREATE SCHEMA IF NOT EXISTS \"placed\";\nSELECT 'provider';\nSELECT 'consumer';\n",
-            ManifestValue(owned, "Ankus.Sql"));
+            InstallationBody(owned));
         Assert.AreEqual("false", ManifestValue(owned, "Ankus.Relocatable"));
         Compilation external = GenerateSqlControl("[assembly: Ankus.PgSql(\"unused\", \"SELECT 'provider';\", Relocatable=true)]" +
             "[assembly: Ankus.PgSqlTypeProvider(\"unused\", \"int4\", Schema=\"pg_catalog\")]" + DatumMappingSource() +
             "public static class Functions { [Ankus.PgFunction(Sql=\"SELECT 'external';\", SqlRelocatable=true)] public static Value Read()=>default; }");
-        Assert.AreEqual("SELECT 'external';\nSELECT 'provider';\n", ManifestValue(external, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'external';\nSELECT 'provider';\n", InstallationBody(external));
     }
 
     /// <summary>
@@ -370,7 +370,7 @@ public sealed partial class PgFunctionGeneratorTests
         else
         {
             Assert.AreEqual("SELECT 'shell';\nSELECT 'input';\nSELECT 'complete';\nSELECT 'consumer';\n",
-                ManifestValue(GenerateSqlControl(source), "Ankus.Sql"));
+                InstallationBody(GenerateSqlControl(source)));
         }
     }
 
@@ -399,7 +399,7 @@ public sealed partial class PgFunctionGeneratorTests
                 public static Other Final(int state) => default;
             }
             """);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         AssertSqlControlBefore(sql, "SELECT 'one';", "SELECT 'table';");
         AssertSqlControlBefore(sql, "SELECT 'two';", "SELECT 'table';");
         AssertSqlControlBefore(sql, "SELECT 'two';", "CREATE FUNCTION \"total_final\"");
@@ -429,7 +429,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             public static class Probe { public static int Run() => Converter.Constructions; }
             """);
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation));
         Assert.AreEqual("Pg_magic_func\n", ManifestValue(compilation, "Ankus.Exports"));
         Assert.Contains("Converter(), true, false);", DatumMappingManaged(compilation));
         using var stream = new MemoryStream();
@@ -517,7 +517,7 @@ public sealed partial class PgFunctionGeneratorTests
             Compilation compilation = GenerateSqlControl(source);
             Assert.Contains("RegisterValue<global::First>(\"int4\", \"pg_catalog\", global::Ankus.PgTypeOrigin.External, typeof(global::Converter), static () => new global::Converter(), true, false);", DatumMappingManaged(compilation));
             Assert.Contains("RegisterValue<global::Second>(\"int4\", \"pg_catalog\", global::Ankus.PgTypeOrigin.External, typeof(global::Converter), static () => new global::Converter(), false, true);", DatumMappingManaged(compilation));
-            Assert.Contains("\"value\" \"pg_catalog\".\"int4\")\nRETURNS \"pg_catalog\".\"int4\"", ManifestValue(compilation, "Ankus.Sql"));
+            Assert.Contains("\"value\" \"pg_catalog\".\"int4\")\nRETURNS \"pg_catalog\".\"int4\"", InstallationBody(compilation));
         }
     }
 
@@ -544,7 +544,7 @@ public sealed partial class PgFunctionGeneratorTests
         {
             Compilation compilation = GenerateSqlControl(source);
             Assert.Contains("RETURNS " + (schema ? "\"" + identifier + "\".\"Mixed \"\" Name\"" : "\"pg_catalog\".\"" + identifier + "\"") + " AS",
-                ManifestValue(compilation, "Ankus.Sql"));
+                InstallationBody(compilation));
             Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         }
     }
@@ -567,11 +567,11 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains("RegisterValue<global::Value>(", DatumMappingManaged(compilation));
         if (providerOnly)
         {
-            Assert.AreEqual("SELECT 'provider';\n", ManifestValue(compilation, "Ankus.Sql"));
+            Assert.AreEqual("SELECT 'provider';\n", InstallationBody(compilation));
         }
         else
         {
-            Assert.Contains("\"value\" \"pg_catalog\".\"item\")\nRETURNS \"pg_catalog\".\"item\"", ManifestValue(compilation, "Ankus.Sql"));
+            Assert.Contains("\"value\" \"pg_catalog\".\"item\")\nRETURNS \"pg_catalog\".\"item\"", InstallationBody(compilation));
         }
 
         (Compilation unrelated, ImmutableArray<Diagnostic> unrelatedErrors) = GenerateDatumMappingReference(
@@ -752,19 +752,19 @@ public sealed partial class PgFunctionGeneratorTests
         GeneratorDriver driver = CSharpGeneratorDriver.Create([new PgFunctionGenerator().AsSourceGenerator()], [original], optionsProvider: new SqlOptions(project));
         driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation before, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         AssertSqlControlCompilation(before, errors);
-        Assert.StartsWith("SELECT 'original';\n", ManifestValue(before, "Ankus.Sql"));
-        Assert.Contains("RETURNS \"first\" AS", ManifestValue(before, "Ankus.Sql"));
+        Assert.StartsWith("SELECT 'original';\n", InstallationBody(before));
+        Assert.Contains("RETURNS \"first\" AS", InstallationBody(before));
         Assert.AreEqual("true", ManifestValue(before, "Ankus.Relocatable"));
         input = input.ReplaceSyntaxTree(input.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(Source("Second", "placed"), cancellationToken: context.CancellationToken));
         driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation metadata, out errors, context.CancellationToken);
         AssertSqlControlCompilation(metadata, errors);
-        Assert.Contains("RETURNS \"placed\".\"Second\" AS", ManifestValue(metadata, "Ankus.Sql"));
+        Assert.Contains("RETURNS \"placed\".\"Second\" AS", InstallationBody(metadata));
         Assert.Contains("RegisterValue<global::Value>(\"Second\", \"placed\"", DatumMappingManaged(metadata));
         Assert.AreEqual("false", ManifestValue(metadata, "Ankus.Relocatable"));
         driver.ReplaceAdditionalText(original, changed).RunGeneratorsAndUpdateCompilation(input, out Compilation file, out errors, context.CancellationToken);
         AssertSqlControlCompilation(file, errors);
-        Assert.AreEqual(ManifestValue(metadata, "Ankus.Sql").Replace("SELECT 'original';", "SELECT 'changed';", StringComparison.Ordinal),
-            ManifestValue(file, "Ankus.Sql"));
+        Assert.AreEqual(InstallationBody(metadata).Replace("SELECT 'original';", "SELECT 'changed';", StringComparison.Ordinal),
+            InstallationBody(file));
         AssertSqlControlBoundary(metadata, file);
     }
 
@@ -844,7 +844,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     private static string NormalizedDatumSql(Compilation compilation)
     {
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         string[] exports = SqlControlExports(compilation);
         for (int index = 0; index < exports.Length; index++)
         {

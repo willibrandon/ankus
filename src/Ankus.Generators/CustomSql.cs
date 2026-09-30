@@ -63,7 +63,11 @@ internal static class CustomSql
                 continue;
             }
 
-            var entity = new SqlEntity("2:sql:" + name, sql!, location) { Order = order };
+            var entity = new SqlEntity("2:sql:" + name, sql!, location)
+            {
+                Order = order,
+                SourceFile = attribute.AttributeClass?.Name == "PgSqlFileAttribute" ? attribute.ConstructorArguments[1].Value as string : null,
+            };
             graph.Configure(entity, attribute, name);
             graph.Add(entity);
             if (!blocks.ContainsKey(name!))

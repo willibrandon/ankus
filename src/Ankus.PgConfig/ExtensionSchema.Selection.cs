@@ -66,7 +66,12 @@ public sealed partial class ExtensionSchema
         }
 
         ExtensionSchemaItem[] ordered = [.. graph.Items.Where(item => selected.Contains(item.Id))];
-        var script = new StringBuilder(alterExtension ? "BEGIN;\n\n" : string.Empty);
+        var script = new StringBuilder(graph.Preamble);
+        if (alterExtension)
+        {
+            script.Append("BEGIN;\n\n");
+        }
+
         var warnings = new List<string>();
         var attached = new HashSet<string>(StringComparer.Ordinal);
         string extension = "\"" + Name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";

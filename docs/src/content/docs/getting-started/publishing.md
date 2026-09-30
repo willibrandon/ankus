@@ -127,6 +127,19 @@ declarations in dependency order. It retains PostgreSQL's `MODULE_PATHNAME`
 marker, which `CREATE EXTENSION` resolves through the control file. Extracting
 SQL does not install the extension or replace those installation files.
 
+Generated scripts include a header and comments identifying each declaration's
+physical source file and line, managed name and resolved prerequisites. Source
+paths are relative to the project; files outside the project show only their
+filename. SQL file declarations also identify the authored SQL file. The
+connected-object markers separate installation steps without changing their
+deterministic dependency order.
+
+These comments stay in the library's embedded schema and in selected scripts.
+They help trace SQL changes back to C# or authored SQL. Change those sources and
+regenerate the script; source line comments reflect the build that produced the
+library. Older libraries remain readable with the metadata they originally
+contained.
+
 ### Select declarations
 
 Pass one or more SQL names, managed declaration names, signatures, or explicit

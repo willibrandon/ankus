@@ -25,7 +25,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("CREATE SCHEMA IF NOT EXISTS \"Mixed \"\" schema\";", sql);
         Assert.Contains("CREATE OR REPLACE FUNCTION \"Mixed \"\" schema\".\"value\"(\"input count\" integer DEFAULT ((-12)::integer), \"amount\" numeric DEFAULT ((12345678901234567890.123456789)::numeric))", sql);
         Assert.Contains("IMMUTABLE PARALLEL SAFE STRICT SECURITY DEFINER LEAKPROOF COST 2.5", sql);
@@ -83,7 +83,7 @@ public sealed partial class PgFunctionGeneratorTests
             public static class Empty;
             """);
         Assert.IsEmpty(diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("FUNCTION \"outer\".\"f\"()", sql);
         Assert.Contains("FUNCTION \"inner\".\"f\"()", sql);
         Assert.Contains("FUNCTION \"override\".\"f\"()", sql);
@@ -109,7 +109,7 @@ public sealed partial class PgFunctionGeneratorTests
         if (valid)
         {
             Assert.IsEmpty(diagnostics);
-            Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"" + name + "\";\n", ManifestValue(compilation, "Ankus.Sql"));
+            Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"" + name + "\";\n", InstallationBody(compilation));
             Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
         }
         else
@@ -133,7 +133,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Assert.IsEmpty(diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.DoesNotContain("CREATE SCHEMA", sql);
         Assert.Contains("FUNCTION \"public\".\"f\"()", sql);
         Assert.Contains("FUNCTION \"another\".\"g\"()", sql);

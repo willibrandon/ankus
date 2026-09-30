@@ -27,7 +27,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertEnumCompilationSucceeds(compilation, diagnostics);
         Assert.AreEqual("CREATE TYPE \"Case \"\" Schema\".\"Mood \"\" Kind\" AS ENUM (E'It''s\\\\ready', E'', E'ready', E'READY', E'event');\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
         Assert.AreEqual("Pg_magic_func\n", ManifestValue(compilation, "Ankus.Exports"));
     }
@@ -40,7 +40,7 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgEnum] internal enum HTTPStatus { }");
         AssertEnumCompilationSucceeds(compilation, diagnostics);
-        Assert.AreEqual("CREATE TYPE \"http_status\" AS ENUM ();\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE TYPE \"http_status\" AS ENUM ();\n", InstallationBody(compilation));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
         Assert.AreEqual("Pg_magic_func\n", ManifestValue(compilation, "Ankus.Exports"));
     }
@@ -122,7 +122,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertEnumCompilationSucceeds(compilation, diagnostics);
-        string[] statements = ManifestValue(compilation, "Ankus.Sql").Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
+        string[] statements = InstallationBody(compilation).Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.HasCount(2, statements);
         Assert.AreEqual("CREATE TYPE \"mood\" AS ENUM (E'Happy', E'Sad');", statements[0]);
@@ -161,7 +161,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertEnumCompilationSucceeds(compilation, diagnostics);
-        string[] statements = ManifestValue(compilation, "Ankus.Sql").Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
+        string[] statements = InstallationBody(compilation).Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.AreEqual("CREATE TYPE \"Enums\".\"Order\" AS ENUM (E'highest''s', E'lowest');", statements[0]);
         Assert.StartsWith("CREATE FUNCTION \"echo\"(\"high\" \"Enums\".\"Order\" DEFAULT (E'highest''s'::\"Enums\".\"Order\"), \"low\" \"Enums\".\"Order\" DEFAULT (E'lowest'::\"Enums\".\"Order\"), \"absent\" \"Enums\".\"Order\" DEFAULT (NULL)) RETURNS \"Enums\".\"Order\" AS ", statements[1]);
@@ -202,7 +202,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertEnumCompilationSucceeds(compilation, diagnostics);
-        Assert.Contains("\"value\" \"mood\" DEFAULT ('Happy'::mood)", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("\"value\" \"mood\" DEFAULT ('Happy'::mood)", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertEnumCompilationSucceeds(compilation, diagnostics);
         string expectedType = target == "Name" ? "\"" + value + "\"" : target == "Schema" ? "\"" + value + "\".\"mood\"" : "\"mood\"";
         string expectedLabel = target == "Label" ? value : "Ready";
-        Assert.AreEqual("CREATE TYPE " + expectedType + " AS ENUM (E'" + expectedLabel + "');\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE TYPE " + expectedType + " AS ENUM (E'" + expectedLabel + "');\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -315,7 +315,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertEnumCompilationSucceeds(compilation, diagnostics);
         Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"inner\";\nCREATE SCHEMA IF NOT EXISTS \"outer\";\n" +
             "CREATE TYPE \"inner\".\"same\" AS ENUM (E'Two');\nCREATE TYPE \"existing\".\"same\" AS ENUM (E'Three');\nCREATE TYPE \"outer\".\"same\" AS ENUM (E'One');\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
     }
 
@@ -340,7 +340,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertEnumCompilationSucceeds(compilation, diagnostics);
-        string[] statements = ManifestValue(compilation, "Ankus.Sql").Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
+        string[] statements = InstallationBody(compilation).Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.HasCount(5, statements);
         Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"types\";", statements[0]);
@@ -407,8 +407,8 @@ public sealed partial class PgFunctionGeneratorTests
         AssertEnumCompilationSucceeds(left, leftDiagnostics);
         AssertEnumCompilationSucceeds(right, rightDiagnostics);
         const string expected = "CREATE TYPE \"alpha\" AS ENUM (E'Last', E'First');\nCREATE TYPE \"zeta\" AS ENUM (E'Second', E'First');\n";
-        Assert.AreEqual(expected, ManifestValue(left, "Ankus.Sql"));
-        Assert.AreEqual(expected, ManifestValue(right, "Ankus.Sql"));
+        Assert.AreEqual(expected, InstallationBody(left));
+        Assert.AreEqual(expected, InstallationBody(right));
         Assert.AreSequenceEqual(left.SyntaxTrees.Skip(1).Select(static tree => tree.ToString()),
             right.SyntaxTrees.Skip(1).Select(static tree => tree.ToString()));
     }

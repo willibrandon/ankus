@@ -27,7 +27,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("SELECT 'first';\nCREATE SCHEMA IF NOT EXISTS \"s\";\nCREATE TABLE s.t(n int);\nCREATE FUNCTION \"s\".\"f\"()", sql);
         Assert.EndsWith("CREATE VIEW s.v AS SELECT s.f();\nSELECT 'last';\n", sql);
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
@@ -45,8 +45,8 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation right, ImmutableArray<Diagnostic> reordered) = Generate(second + first);
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(reordered);
-        Assert.AreEqual("SELECT $$quotes' ; \\ café$$; -- tail\nSELECT 2;\n", ManifestValue(left, "Ankus.Sql"));
-        Assert.AreEqual(ManifestValue(left, "Ankus.Sql"), ManifestValue(right, "Ankus.Sql"));
+        Assert.AreEqual("SELECT $$quotes' ; \\ café$$; -- tail\nSELECT 2;\n", InstallationBody(left));
+        Assert.AreEqual(InstallationBody(left), InstallationBody(right));
         Assert.AreEqual("true", ManifestValue(left, "Ankus.Relocatable"));
         Assert.AreEqual("Pg_magic_func\n", ManifestValue(left, "Ankus.Exports"));
     }
@@ -97,7 +97,7 @@ public sealed partial class PgFunctionGeneratorTests
             [Ankus.PgSchema("s", Id = "two", Create = false)] public static class B;
             """);
         Assert.IsEmpty(diagnostics);
-        Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"s\";\nCREATE TABLE s.t(n int);\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("CREATE SCHEMA IF NOT EXISTS \"s\";\nCREATE TABLE s.t(n int);\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -113,7 +113,7 @@ public sealed partial class PgFunctionGeneratorTests
             [assembly: Ankus.PgSqlFile("seed", "sql\\nested/../seed.sql", Relocatable = true)]
             """, [file], options);
         Assert.IsEmpty(diagnostics);
-        Assert.AreEqual("SELECT 'file'; -- exact\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'file'; -- exact\n", InstallationBody(compilation));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
     }
 
@@ -132,7 +132,7 @@ public sealed partial class PgFunctionGeneratorTests
             [assembly: Ankus.PgSqlFile("seed", "sql setup/seed.sql", Relocatable = true)]
             """, [file], options);
         Assert.IsEmpty(diagnostics);
-        Assert.AreEqual("SELECT 'aliased';\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 'aliased';\n", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -172,11 +172,11 @@ public sealed partial class PgFunctionGeneratorTests
             [original], optionsProvider: new SqlOptions(project));
         driver = driver.RunGeneratorsAndUpdateCompilation(input, out Compilation first, out ImmutableArray<Diagnostic> initialErrors, context.CancellationToken);
         Assert.IsEmpty(initialErrors);
-        Assert.AreEqual("SELECT 1;\n", ManifestValue(first, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 1;\n", InstallationBody(first));
         driver.ReplaceAdditionalText(original, replacement).RunGeneratorsAndUpdateCompilation(input, out Compilation second,
             out ImmutableArray<Diagnostic> updatedErrors, context.CancellationToken);
         Assert.IsEmpty(updatedErrors);
-        Assert.AreEqual("SELECT 2;\n", ManifestValue(second, "Ankus.Sql"));
+        Assert.AreEqual("SELECT 2;\n", InstallationBody(second));
     }
 
     private sealed class SqlInput(string path, string? content) : AdditionalText

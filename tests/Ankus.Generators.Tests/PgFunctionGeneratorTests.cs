@@ -262,11 +262,11 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
     }
 
     private (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Generate(string source,
-        IEnumerable<AdditionalText>? files = null, Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptionsProvider? options = null)
+        IEnumerable<AdditionalText>? files = null, Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptionsProvider? options = null, string path = "")
     {
         CSharpCompilation compilation = CSharpCompilation.Create(
             "GeneratorTest",
-            [CSharpSyntaxTree.ParseText(source, cancellationToken: context.CancellationToken)],
+            [CSharpSyntaxTree.ParseText(source, path: path, cancellationToken: context.CancellationToken)],
             s_references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable));

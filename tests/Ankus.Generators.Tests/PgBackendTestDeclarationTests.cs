@@ -30,7 +30,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsTrue(catalog.IsStatic);
         Assert.IsNull(catalog.SetMethod);
         Assert.AreEqual("System.Collections.Generic.IReadOnlyList<Ankus.PgTestCase>", catalog.Type.ToDisplayString());
-        Assert.AreEqual("-- No installable objects declared.\n", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.AreEqual("-- No installable objects declared.\n", InstallationBody(compilation));
         Assert.DoesNotContain("ankus_test_", ManifestValue(compilation, "Ankus.Exports"));
         Assert.DoesNotContain("ankus_test_", ManifestValue(compilation, "Ankus.NativeSource"));
     }
@@ -58,7 +58,7 @@ public sealed partial class PgFunctionGeneratorTests
             """, options: new BackendOptions(enabled));
         Assert.IsEmpty(diagnostics);
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"ordinary\"()", sql);
         Assert.AreEqual(expected, sql.Contains("CREATE FUNCTION \"ankus_test_", StringComparison.Ordinal));
         Assert.AreEqual(expected, ManifestValue(compilation, "Ankus.Exports").Contains("ankus_test_", StringComparison.Ordinal));

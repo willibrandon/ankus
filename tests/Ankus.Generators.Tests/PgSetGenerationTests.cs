@@ -586,7 +586,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertSetCompilationSucceeds(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("CREATE SCHEMA IF NOT EXISTS \"states\";\nSELECT 'before';\n" +
             "CREATE TYPE \"states\".\"first\" AS ENUM (E'Ready');\nCREATE TYPE \"states\".\"second\" AS ENUM (E'Waiting');\nCREATE FUNCTION \"rows\"()", sql);
         Assert.StartsWith("CREATE FUNCTION \"rows\"() RETURNS TABLE (\"state\" \"states\".\"first\", \"others\" \"states\".\"second\"[]) AS ", SetFunctionSql(compilation));
@@ -618,7 +618,7 @@ public sealed partial class PgFunctionGeneratorTests
             [Ankus.PgEnum] public enum Mood { First, Second }
             """);
         AssertSetCompilationSucceeds(compilation, diagnostics);
-        Assert.StartsWith("CREATE TYPE \"mood\" AS ENUM (E'First', E'Second');\nCREATE FUNCTION \"rows\"()", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.StartsWith("CREATE TYPE \"mood\" AS ENUM (E'First', E'Second');\nCREATE FUNCTION \"rows\"()", InstallationBody(compilation));
         string result = table ? "TABLE (\"state\" " + sqlType + ")" : "SETOF " + sqlType;
         Assert.StartsWith("CREATE FUNCTION \"rows\"() RETURNS " + result + " AS ", SetFunctionSql(compilation));
     }
@@ -659,9 +659,9 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation right, ImmutableArray<Diagnostic> rightDiagnostics) = Generate(second + first);
         AssertSetCompilationSucceeds(left, leftDiagnostics);
         AssertSetCompilationSucceeds(right, rightDiagnostics);
-        Assert.Contains("RETURNS SETOF integer", ManifestValue(left, "Ankus.Sql"));
-        Assert.Contains("RETURNS TABLE (\"id\" integer, \"name\" text)", ManifestValue(left, "Ankus.Sql"));
-        Assert.AreEqual(ManifestValue(left, "Ankus.Sql"), ManifestValue(right, "Ankus.Sql"));
+        Assert.Contains("RETURNS SETOF integer", InstallationBody(left));
+        Assert.Contains("RETURNS TABLE (\"id\" integer, \"name\" text)", InstallationBody(left));
+        Assert.AreEqual(InstallationBody(left), InstallationBody(right));
         Assert.AreEqual(ManifestValue(left, "Ankus.Exports"), ManifestValue(right, "Ankus.Exports"));
         Assert.AreSequenceEqual(left.SyntaxTrees.Skip(1).Select(static tree => tree.ToString()), right.SyntaxTrees.Skip(1).Select(static tree => tree.ToString()));
     }
@@ -685,7 +685,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <returns>The function's SQL declaration with line breaks replaced by spaces.</returns>
     private static string SetFunctionSql(Compilation compilation, string qualifiedName = "\"rows\"")
     {
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         int start = sql.IndexOf("CREATE FUNCTION " + qualifiedName + "(", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, start);
         int end = sql.IndexOf(";\n", start, StringComparison.Ordinal);

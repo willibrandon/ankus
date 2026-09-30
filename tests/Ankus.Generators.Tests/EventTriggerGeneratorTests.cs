@@ -23,7 +23,7 @@ public sealed partial class PgFunctionGeneratorTests
         string nativeName = callback.Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
         Assert.AreEqual($"CREATE FUNCTION \"audit_ddl\"()\nRETURNS event_trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c " +
             "VOLATILE PARALLEL UNSAFE CALLED ON NULL INPUT SECURITY INVOKER NOT LEAKPROOF COST 1;\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func", nativeName, "pg_finfo_" + nativeName],
             ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
@@ -108,7 +108,7 @@ public sealed partial class PgFunctionGeneratorTests
         string nativeName = EventTriggerCallback(compilation).Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
         Assert.AreEqual($"CREATE FUNCTION \"audit\"()\nRETURNS event_trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c " +
             "VOLATILE PARALLEL UNSAFE CALLED ON NULL INPUT SECURITY INVOKER NOT LEAKPROOF COST 1;\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed partial class PgFunctionGeneratorTests
         string nativeName = EventTriggerCallback(compilation).Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
         Assert.AreEqual($"CREATE OR REPLACE FUNCTION \"Évent \"\"Schema\".\"audit\"()\nRETURNS event_trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c " +
             "STABLE PARALLEL RESTRICTED CALLED ON NULL INPUT SECURITY DEFINER LEAKPROOF COST 2.5 SUPPORT \"planner\".\"support\" " +
-            "SET search_path TO \"pg_catalog\", \"$user\", \"Mixed Schema\";\n", ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            "SET search_path TO \"pg_catalog\", \"$user\", \"Mixed Schema\";\n", InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
     }
 
@@ -152,7 +152,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[Ankus.PgEventTrigger, Ankus.PgFunction(NullInput = Ankus.PgNullInput." + option + ")] " +
             "public static void Audit(Ankus.PgEventTriggerContext context) { } }");
         AssertEventTriggerCompilationSucceeds(compilation, diagnostics);
-        Assert.Contains("PARALLEL UNSAFE " + sql + " SECURITY INVOKER", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("PARALLEL UNSAFE " + sql + " SECURITY INVOKER", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -275,7 +275,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertEventTriggerCompilationSucceeds(compilation, diagnostics);
-        string[] declarations = [.. ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n").Split('\n')
+        string[] declarations = [.. InstallationBody(compilation).ReplaceLineEndings("\n").Split('\n')
             .Where(static line => line.StartsWith("CREATE FUNCTION", StringComparison.Ordinal))];
         Assert.AreSequenceEqual(["CREATE FUNCTION \"audit\"()", other.Contains("Schema", StringComparison.Ordinal)
             ? "CREATE FUNCTION \"other\".\"audit\"()" : "CREATE FUNCTION \"audit\"(\"value\" integer)"], declarations);
@@ -303,7 +303,7 @@ public sealed partial class PgFunctionGeneratorTests
             $"CREATE FUNCTION \"audit\".\"callback\"()\nRETURNS event_trigger AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c " +
             "VOLATILE PARALLEL UNSAFE CALLED ON NULL INPUT SECURITY INVOKER NOT LEAKPROOF COST 1;\n" +
             "CREATE EVENT TRIGGER audit_ddl ON ddl_command_end EXECUTE FUNCTION audit.callback();\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreEqual("false", ManifestValue(compilation, "Ankus.Relocatable"));
     }
 
@@ -358,7 +358,7 @@ public sealed partial class PgFunctionGeneratorTests
             Assert.AreEqual(ManifestValue(first, key), ManifestValue(second, key));
         }
 
-        string sql = ManifestValue(first, "Ankus.Sql").ReplaceLineEndings("\n");
+        string sql = InstallationBody(first).ReplaceLineEndings("\n");
         Assert.AreSequenceEqual([
             "CREATE FUNCTION \"add\"(\"left\" integer, \"right\" integer)",
             "CREATE FUNCTION \"answer\"()",

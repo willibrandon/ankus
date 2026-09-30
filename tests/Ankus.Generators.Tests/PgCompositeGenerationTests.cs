@@ -388,5 +388,5 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     private static string CompositeSql(Compilation compilation)
-        => ManifestValue(compilation, "Ankus.Sql").Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal);
+        => InstallationBody(compilation).Replace("\nRETURNS", " RETURNS", StringComparison.Ordinal);
 }

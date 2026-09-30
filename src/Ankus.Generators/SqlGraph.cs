@@ -14,6 +14,11 @@ internal sealed partial class SqlGraph
     private readonly List<SqlEntity> _ordered = [];
     private readonly List<(SqlEntity Entry, HashSet<SqlEntity> Members)> _replacements = [];
     private readonly SourceProductionContext _context;
+
+    /// <summary>
+    /// Retains the compiler-visible root for portable source attribution.
+    /// </summary>
+    private readonly string _projectDirectory;
     private bool _invalid;
     private bool _emitted;
 
@@ -21,7 +26,12 @@ internal sealed partial class SqlGraph
     /// Creates a graph whose validation errors are reported to the current generator run.
     /// </summary>
     /// <param name="context">The diagnostic sink and cancellation token.</param>
-    internal SqlGraph(SourceProductionContext context) => _context = context;
+    /// <param name="projectDirectory">The compiler-visible root for portable source comments.</param>
+    internal SqlGraph(SourceProductionContext context, string projectDirectory)
+    {
+        _context = context;
+        _projectDirectory = projectDirectory;
+    }
 
     /// <summary>
     /// Registers an installation node.
@@ -216,7 +226,7 @@ internal sealed partial class SqlGraph
             }
         }
 
-        var result = new StringBuilder();
+        var result = new StringBuilder(SqlProvenance.Preamble);
         int emitted = 0;
         while (ready.Count != 0)
         {
@@ -224,11 +234,7 @@ internal sealed partial class SqlGraph
             SqlEntity entity = ready.Min!;
             ready.Remove(entity);
             _ordered.Add(entity);
-            result.Append(entity.Sql);
-            if (entity.Sql.Length != 0 && entity.Sql[entity.Sql.Length - 1] != '\n')
-            {
-                result.Append('\n');
-            }
+            result.Append(SqlProvenance.Render(entity, _projectDirectory).Replace("\0", string.Empty));
 
             emitted++;
             foreach (SqlEntity dependent in dependents[entity])
@@ -248,6 +254,11 @@ internal sealed partial class SqlGraph
         }
 
         _emitted = true;
+        if (result.Length == SqlProvenance.Preamble.Length)
+        {
+            result.Append("-- No installable objects declared.\n");
+        }
+
         return result.ToString();
 
         bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)

@@ -24,7 +24,7 @@ public sealed partial class PgFunctionGeneratorTests
             $"RETURNS bigint AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c VOLATILE PARALLEL UNSAFE STRICT SECURITY INVOKER NOT LEAKPROOF COST 1;\n" +
             "CREATE AGGREGATE \"sum_values\"(\"value\" integer) (\n    SFUNC = \"sum_values_transition\",\n    STYPE = bigint,\n" +
             "    FINALFUNC_MODIFY = READ_ONLY,\n    INITCOND = E'0',\n    PARALLEL = UNSAFE\n);\n",
-            ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n"));
+            InstallationBody(compilation).ReplaceLineEndings("\n"));
         Assert.AreSequenceEqual(["Pg_magic_func", nativeName, "pg_finfo_" + nativeName],
             ManifestValue(compilation, "Ankus.Exports").Split('\n', StringSplitOptions.RemoveEmptyEntries));
         Assert.AreEqual("true", ManifestValue(compilation, "Ankus.Relocatable"));
@@ -92,7 +92,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n");
+        string sql = InstallationBody(compilation).ReplaceLineEndings("\n");
         Assert.Contains("CREATE FUNCTION \"transfer_deserialize\"(\"bytes\" bytea, internal)\nRETURNS internal", sql);
         string nativeName = AggregateCallback(compilation, "deserialize").Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
         Assert.Contains($"RETURNS internal AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c VOLATILE PARALLEL UNSAFE STRICT", sql);
@@ -128,7 +128,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n");
+        string sql = InstallationBody(compilation).ReplaceLineEndings("\n");
         Assert.Contains("CREATE FUNCTION \"rank_values_final\"(\"state\" integer, \"hypothetical\" integer, \"unused\" integer)\nRETURNS bigint", sql);
         Assert.Contains("CREATE AGGREGATE \"rank_values\"(\"hypothetical\" integer ORDER BY \"value\" integer) (", sql);
         Assert.Contains("    FINALFUNC = \"rank_values_final\",\n    FINALFUNC_EXTRA,\n    FINALFUNC_MODIFY = READ_WRITE,", sql);
@@ -155,7 +155,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql").ReplaceLineEndings("\n");
+        string sql = InstallationBody(compilation).ReplaceLineEndings("\n");
         Assert.Contains("    FINALFUNC_MODIFY = SHAREABLE,\n    SSPACE = 8,", sql);
         Assert.Contains("    MSFUNC = \"moving_moving_transition\",\n    MINVFUNC = \"moving_moving_inverse\",\n    MSTYPE = bigint,\n" +
             "    MFINALFUNC = \"moving_moving_final\",\n    MFINALFUNC_EXTRA,\n    MFINALFUNC_MODIFY = READ_ONLY,\n    MSSPACE = 16,\n    MINITCOND = E'0'", sql);
@@ -180,7 +180,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgAggregate(InitialCondition=\"0\")] " +
             "public static class CountValues { public static int Transition(int state" + parameter + ") => state + 1; }");
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"count_values\"(" + signature + ") (", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"count_values\"(" + signature + ") (", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -197,7 +197,7 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("[Ankus.PgAggregate(" + option + ")] " +
             "public static class TextState { public static string? Transition(string? state, string? value) => state; }");
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         if (expected is null)
         {
             Assert.DoesNotContain("INITCOND", sql);
@@ -334,7 +334,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.StartsWith("CREATE SCHEMA IF NOT EXISTS \"outer\";\nCREATE OR REPLACE FUNCTION \"helper schema\".\"Quoted \"\" Helper\"(\"state\" integer, \"Quoted \"\" Input\" integer)\nRETURNS integer AS ", sql);
         Assert.Contains("LANGUAGE c IMMUTABLE PARALLEL RESTRICTED STRICT SECURITY DEFINER LEAKPROOF COST 7.5 SUPPORT \"planner\".\"support\" SET search_path TO \"pg_catalog\", \"Case Schema\";\n", sql);
         Assert.EndsWith("CREATE AGGREGATE \"aggregate schema\".\"Quoted \"\" Sum\"(\"Quoted \"\" Input\" integer) (\n" +
@@ -368,7 +368,7 @@ public sealed partial class PgFunctionGeneratorTests
             """;
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         string[] declarations = [.. sql.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Where(static line => line.StartsWith("CREATE ", StringComparison.Ordinal) || line.StartsWith("SELECT ", StringComparison.Ordinal))];
         Assert.AreSequenceEqual([
@@ -380,7 +380,7 @@ public sealed partial class PgFunctionGeneratorTests
             "SELECT 'installed';"], declarations);
         (Compilation repeated, ImmutableArray<Diagnostic> repeatedDiagnostics) = Generate(source);
         AssertAggregateCompilation(repeated, repeatedDiagnostics);
-        Assert.AreEqual(sql, ManifestValue(repeated, "Ankus.Sql"));
+        Assert.AreEqual(sql, InstallationBody(repeated));
         Assert.AreEqual(ManifestValue(compilation, "Ankus.NativeSource"), ManifestValue(repeated, "Ankus.NativeSource"));
     }
 
@@ -400,11 +400,11 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertAggregateCompilation(compilation, diagnostics);
         Assert.HasCount(2, compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers().OfType<IMethodSymbol>());
-        string[] functions = [.. ManifestValue(compilation, "Ankus.Sql").Split('\n').Where(static line => line.StartsWith("CREATE FUNCTION", StringComparison.Ordinal))];
+        string[] functions = [.. InstallationBody(compilation).Split('\n').Where(static line => line.StartsWith("CREATE FUNCTION", StringComparison.Ordinal))];
         Assert.AreSequenceEqual(["CREATE FUNCTION \"shared_moving_inverse\"(\"state\" integer, \"value\" integer)",
             "CREATE FUNCTION \"add_value\"(\"state\" integer, \"value\" integer)"], functions);
-        Assert.Contains("SFUNC = \"add_value\",", ManifestValue(compilation, "Ankus.Sql"));
-        Assert.Contains("MSFUNC = \"add_value\",", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("SFUNC = \"add_value\",", InstallationBody(compilation));
+        Assert.Contains("MSFUNC = \"add_value\",", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -428,7 +428,7 @@ public sealed partial class PgFunctionGeneratorTests
             "[Ankus.PgAggregate] public static class Typed { " + result + "public static " + type + " Transition(" + parameter + type +
             " state," + parameter + type + " value)=>state; }");
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains("CREATE FUNCTION \"typed_transition\"(\"state\" " + sqlType + ", \"value\" " + sqlType + ")\nRETURNS " + sqlType + " AS ", sql);
         Assert.Contains("CREATE AGGREGATE \"typed\"(\"value\" " + sqlType + ") (\n    SFUNC = \"typed_transition\",\n    STYPE = " + sqlType + ",", sql);
     }
@@ -447,7 +447,7 @@ public sealed partial class PgFunctionGeneratorTests
         AssertAggregateCompilation(compilation, diagnostics);
         Assert.EndsWith("CREATE AGGREGATE \"flags\"(\"value\" integer) (\n    SFUNC = \"flags_transition\",\n    STYPE = integer,\n" +
             "    FINALFUNC_EXTRA,\n    FINALFUNC_MODIFY = SHAREABLE,\n    MFINALFUNC_EXTRA,\n    MFINALFUNC_MODIFY = READ_WRITE,\n    PARALLEL = UNSAFE\n);\n",
-            ManifestValue(compilation, "Ankus.Sql"));
+            InstallationBody(compilation));
     }
 
     /// <summary>
@@ -479,7 +479,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains("CREATE AGGREGATE \"ordered\"(\"direct\" integer ORDER BY \"value\" integer)", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains("CREATE AGGREGATE \"ordered\"(\"direct\" integer ORDER BY \"value\" integer)", InstallationBody(compilation));
     }
 
     /// <summary>
@@ -506,7 +506,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertAggregateCompilation(compilation, diagnostics);
-        string sql = ManifestValue(compilation, "Ankus.Sql");
+        string sql = InstallationBody(compilation);
         Assert.Contains(state == "uint" ? "STYPE = oid," : "STYPE = inet,", sql);
         Assert.DoesNotContain("INITCOND", sql);
         Assert.Contains(" PARALLEL UNSAFE STRICT ", sql);
@@ -543,7 +543,7 @@ public sealed partial class PgFunctionGeneratorTests
             """);
         AssertAggregateCompilation(compilation, diagnostics);
         Assert.AreSequenceEqual(["CREATE AGGREGATE \"one\".\"same\"(\"value\" integer) (", "CREATE AGGREGATE \"two\".\"same\"(\"value\" integer) (",
-            "CREATE AGGREGATE \"one\".\"same\"(\"value\" bigint) ("], ManifestValue(compilation, "Ankus.Sql").Split('\n')
+            "CREATE AGGREGATE \"one\".\"same\"(\"value\" bigint) ("], InstallationBody(compilation).Split('\n')
                 .Where(static line => line.StartsWith("CREATE AGGREGATE", StringComparison.Ordinal)));
     }
 
@@ -607,7 +607,7 @@ public sealed partial class PgFunctionGeneratorTests
 
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertAggregateCompilation(compilation, diagnostics);
-        Assert.Contains((option == "aggregate" ? "CREATE AGGREGATE" : "CREATE FUNCTION") + " \"" + name + "\"(", ManifestValue(compilation, "Ankus.Sql"));
+        Assert.Contains((option == "aggregate" ? "CREATE AGGREGATE" : "CREATE FUNCTION") + " \"" + name + "\"(", InstallationBody(compilation));
     }
 
     /// <summary>

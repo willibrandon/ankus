@@ -68,6 +68,20 @@ internal sealed class SqlEntity
     internal Location? Location { get; }
 
     /// <summary>
+    /// Gets the exact managed declarations that contribute to this installation node.
+    /// </summary>
+    internal HashSet<string> ManagedSources { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets or sets the authored SQL file path when the fragment comes from an additional file.
+    /// </summary>
+    internal string? SourceFile
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
     /// Gets dependency aliases exported by this node.
     /// </summary>
     internal HashSet<string> Names { get; } = new(StringComparer.Ordinal);
