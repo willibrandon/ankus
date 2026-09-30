@@ -110,7 +110,7 @@ internal static class NativeBindingLayoutCommand
         }
         else
         {
-            options.AddRange(installation.PreprocessorArguments);
+            options.AddRange(await installation.GetPreprocessorArgumentsAsync(cancellationToken));
             if (arguments.Length == 7 && arguments[6].Length != 0)
             {
                 options.Add("--target=" + arguments[6]);

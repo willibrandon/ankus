@@ -75,6 +75,19 @@ public sealed class PostgresInstallation
     public IReadOnlyList<string> PreprocessorArguments { get; }
 
     /// <summary>
+    /// Resolves preprocessor arguments for native compilation on the current platform.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels native SDK discovery.</param>
+    /// <returns>PostgreSQL's arguments with the active macOS SDK selected when compiling on macOS.</returns>
+    /// <remarks>
+    /// On macOS, SDKROOT selects an absolute installed SDK path; otherwise the active Apple developer tools select it.
+    /// Historical SDK roots from PostgreSQL's build machine are replaced. Other arguments and the recorded properties remain unchanged.
+    /// </remarks>
+    /// <exception cref="DirectoryNotFoundException">An explicit macOS SDK path does not identify an installed directory.</exception>
+    public Task<IReadOnlyList<string>> GetPreprocessorArgumentsAsync(CancellationToken cancellationToken = default)
+        => NativeCompilerArguments.CreateAsync(PreprocessorArguments, cancellationToken);
+
+    /// <summary>
     /// Gets the Ankus version selector for this installation, such as <c>pg18</c>.
     /// </summary>
     public string Label => Version.Label;
@@ -216,10 +229,13 @@ public sealed class PostgresInstallation
         return Path.Combine(BinDirectory, executableName);
     }
 
-    private static async Task<string> QueryAsync(
-        string pgConfigPath,
-        string argument,
-        CancellationToken cancellationToken)
+    private static Task<string> QueryAsync(string pgConfigPath, string argument, CancellationToken cancellationToken)
+        => QueryAsync(pgConfigPath, [argument], cancellationToken);
+
+    /// <summary>
+    /// Queries an installation or SDK tool without invoking a shell and joins the process before cancellation returns.
+    /// </summary>
+    internal static async Task<string> QueryAsync(string pgConfigPath, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var process = new Process();
@@ -230,7 +246,10 @@ public sealed class PostgresInstallation
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        process.StartInfo.ArgumentList.Add(argument);
+        foreach (string argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
 
         if (!process.Start())
         {
@@ -260,18 +279,19 @@ public sealed class PostgresInstallation
         }
 
         string rawOutput = await standardOutput.ConfigureAwait(false);
-        string output = argument == "--cppflags" ? rawOutput.TrimEnd('\r', '\n') : rawOutput.Trim();
+        bool preprocessorFlags = arguments is ["--cppflags"];
+        string output = preprocessorFlags ? rawOutput.TrimEnd('\r', '\n') : rawOutput.Trim();
         string error = (await standardError.ConfigureAwait(false)).Trim();
 
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"'{pgConfigPath} {argument}' exited with code {process.ExitCode}: {error}");
+                $"'{pgConfigPath} {string.Join(' ', arguments)}' exited with code {process.ExitCode}: {error}");
         }
 
-        if (output.Length == 0 && argument != "--cppflags")
+        if (output.Length == 0 && !preprocessorFlags)
         {
-            throw new InvalidOperationException($"'{pgConfigPath} {argument}' returned no output.");
+            throw new InvalidOperationException($"'{pgConfigPath} {string.Join(' ', arguments)}' returned no output.");
         }
 
         return output;

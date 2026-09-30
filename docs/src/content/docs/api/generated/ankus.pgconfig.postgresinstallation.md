@@ -273,6 +273,33 @@ Returns: [Task&lt;PostgresInstallation&gt;](https://learn.microsoft.com/dotnet/a
 
 The discovered PostgreSQL installation.
 
+<a id="member-4c4d388db4d122f9"></a>
+
+### GetPreprocessorArgumentsAsync(CancellationToken)
+
+Resolves preprocessor arguments for native compilation on the current platform.
+
+```csharp
+public Task<IReadOnlyList<string>> GetPreprocessorArgumentsAsync(CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels native SDK discovery.
+
+Returns: [Task&lt;IReadOnlyList&lt;string&gt;&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+PostgreSQL's arguments with the active macOS SDK selected when compiling on macOS.
+
+Exceptions:
+
+- [DirectoryNotFoundException](https://learn.microsoft.com/dotnet/api/system.io.directorynotfoundexception): An explicit macOS SDK path does not identify an installed directory.
+
+On macOS, SDKROOT selects an absolute installed SDK path; otherwise the active Apple developer tools select it.
+Historical SDK roots from PostgreSQL's build machine are replaced. Other arguments and the recorded properties remain unchanged.
+
 <a id="member-5afc9641d33c7e20"></a>
 
 ### GetRegressionDriverPathAsync(CancellationToken)

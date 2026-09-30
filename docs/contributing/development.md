@@ -44,6 +44,12 @@ worker process; incompatible compiler/library builds fail explicitly.
 The `header-frontend-check` engineering command checks a compiler's version and
 required option without modifying the machine; see [engineering apps](../../eng/README.md).
 
+On macOS, native compilation uses the active developer tools’ SDK from `xcrun`,
+or an explicit absolute `SDKROOT` path. PostgreSQL’s recorded SDK path may belong
+to its package build machine; Ankus replaces that path while retaining its
+include directories and definitions. The same selection applies to bindings,
+layout probes and native extension code.
+
 ## PostgreSQL discovery
 
 Ankus checks `~/.ankus/config.json`, installations under `~/.ankus/postgres/`,

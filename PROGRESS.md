@@ -87,21 +87,22 @@ remains incomplete; the following work is additional to the open parity gates.
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
-| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. A weekly/manual GitHub-hosted Intel macOS full-suite workflow is prepared with runtime/package/binding caches; actionlint passes, but execution evidence is pending. Existing focused version probes are not full-suite coverage. |
+| Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
 
-Native entry frames preserve query cancellation and terminal reports even when
-managed code catches or replaces their exceptions. Nested SPI session cleanup
-restores transaction depth before the error returns to PostgreSQL. Test schema
-reuse preserves installation SQL while recompiling native function bodies, and
-fixture publications have their own build outputs.
+Native compilation selects the installed macOS development SDK instead of
+replaying the SDK path from PostgreSQL's package build machine. The actual
+native compiler regression and complete build-tool suite pass on macOS ARM64;
+the hosted Intel full-suite rerun remains required.
 
-The complete PostgreSQL **18.6/Linux x64** suite passes **9,677 total,
-9,668 passed, zero failed and nine Windows-only skips**, in **15m07.127s**.
-Release, API freshness, documentation and workflow validation pass. The detailed
-review-remediation evidence and outstanding requirements are recorded below.
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,687 total,
+9,677 passed, zero failed and ten platform skips**, in **16m36.014s**.
+Release, API freshness and documentation validation pass. Previous milestones
+preserve cancellation/terminal reports, repair nested session cleanup and worker
+signal state, and isolate fixture publication outputs. Detailed evidence and
+outstanding review/port requirements are recorded below.
 
 ## Previous verified milestone — test data directories
 
@@ -16216,3 +16217,47 @@ macOS 14 SDK on the macOS 26 runner. Ankus passed that historical path directly
 to Clang. SDK selection is being corrected in build tooling; no full Intel suite
 ran, and no timeout occurred. All other open review and parity requirements
 remain open, including unrecovered raw/memory errors.
+
+### 2026-09-30 — Select the installed macOS development SDK
+
+Hosted Intel macOS run **36676499264**, job **109768769646**, failed before
+tests because Homebrew PostgreSQL recorded a macOS 14 SDK directory that does
+not exist on the macOS 26 runner. Passing those historical flags directly to
+Clang made `-Werror,-Wmissing-sysroot` stop extension compilation. The runtime
+build succeeded; this was neither a runtime-patch failure nor a timeout.
+
+`PostgresInstallation.GetPreprocessorArgumentsAsync` now selects the active
+Apple developer tools' SDK with `xcrun`, or an explicit absolute installed
+`SDKROOT`. It replaces historical sysroot arguments and retains PostgreSQL's
+other definitions, includes and argument boundaries. Invalid explicit SDKs
+fail clearly. Recorded installation metadata remains available unchanged;
+ordinary installation discovery does not require developer tools.
+
+Extension compilation, header collection, binding-cache preprocessing, layout
+probes, selected-body linking and native integration fixtures use the same
+public API. No production friend assembly, warning suppression or historical
+SDK installation is involved.
+
+Validation:
+
+- Focused argument/SDK tests: **21/21** on Linux x64 and macOS ARM64.
+- Complete macOS ARM64 build-tool suite: **1,152 total, 1,145 passed, zero
+  failed, seven platform skips**, **1m23.949s**. A regression compiles and
+  executes native C using the installed SDK despite an intentionally absent
+  recorded SDK; it verifies the result and that the absent directory stays absent.
+- Release: **zero warnings/errors, 2m13.07s**. API freshness: **221 pages /
+  2,612 members**. Site: **268 pages, 7.43s**; checks report zero errors,
+  warnings and hints.
+- Final complete plain `dotnet test` on PostgreSQL **18.6/Linux x64**:
+  **9,687 total, 9,677 passed, zero failed, ten platform skips** (nine
+  Windows-only and one macOS-only), **16m36.014s**, six package slots.
+  An earlier SDK candidate also passed before the helper moved to the shared
+  public API; the final run includes every native fixture using that API.
+
+Previous CI **36676480212** and Docs **36676480219** succeeded. Full platform
+durations were Linux **40m12s**, macOS ARM64 **16m27s** and Windows **29m32s**.
+Before commit and push, worker-fix CI **36679348597** has successful quality/runtime jobs, macOS
+ARM64/PostgreSQL 18 (**16m51s**) and Windows/PostgreSQL 17 (**32m57s**);
+Linux/PostgreSQL 18 is still running. Docs **36679348588** succeeds. Intel **36676499264** remains
+failed as diagnosed above; a new run must validate this SDK fix. All other open
+review and parity requirements remain open.

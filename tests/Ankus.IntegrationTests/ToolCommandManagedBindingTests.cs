@@ -641,7 +641,7 @@ public sealed partial class ToolCommandTests
             ? ["/nologo", "/std:c11", "/WX", "/O2", "/c", "/I" + s_installation.ServerIncludeDirectory, "/I" + s_installation.IncludeDirectory,
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32"),
                 "/I" + Path.Combine(s_installation.ServerIncludeDirectory, "port", "win32_msvc"), "/Fo" + artifact, file]
-            : [.. s_installation.PreprocessorArguments, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2", "-fPIC", "-c",
+            : [.. await s_installation.GetPreprocessorArgumentsAsync(token), "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-O2", "-fPIC", "-c",
                 "-isystem", s_installation.ServerIncludeDirectory, "-isystem", s_installation.IncludeDirectory, file, "-o", artifact];
         await ProcessRunner.RunCheckedAsync(compiler, options, s_environment, token, workingDirectory: directory);
         string archiver = OperatingSystem.IsWindows() ? "lib.exe" : "ar";

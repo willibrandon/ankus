@@ -182,7 +182,7 @@ try
     else
     {
         compiler = args[3];
-        compilerArguments.AddRange(installation.PreprocessorArguments);
+        compilerArguments.AddRange(await installation.GetPreprocessorArgumentsAsync(CancellationToken.None));
         if (!string.IsNullOrEmpty(args[10]))
         {
             compilerArguments.Add($"--target={args[10]}");

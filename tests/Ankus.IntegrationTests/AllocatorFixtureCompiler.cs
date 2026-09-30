@@ -124,7 +124,7 @@ internal static class AllocatorFixtureCompiler
         else
         {
             compiler = "cc";
-            arguments = [.. installation.PreprocessorArguments,
+            arguments = [.. await installation.GetPreprocessorArgumentsAsync(cancellationToken),
                 "-O2", "-fPIC", "-Wall", "-Wextra", "-Werror",
                 "-isystem", installation.ServerIncludeDirectory,
                 "-isystem", installation.IncludeDirectory];

@@ -35,7 +35,7 @@ internal static class NativeBindingSourceCache
                 : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang");
             string[] frontend = ["", arguments[0], arguments[1], directory, compiler,
                 arguments.Length >= 5 ? arguments[4] : "", arguments.Length >= 6 ? arguments[5] : "", arguments.Length >= 7 ? arguments[6] : ""];
-            List<string> options = NativeBindingHeaderCommand.CreateArguments(installation, frontend);
+            List<string> options = await NativeBindingHeaderCommand.CreateArgumentsAsync(installation, frontend, cancellationToken);
             NativeBindingNodeRoots roots = NativeBindingNodeRecords.CreateRoots(catalog, NativeBindingResources.ReadHeaders(catalog.PostgresMajor),
                 NativeBindingHeaderHelpers.RequiredTypes);
             string headers = NativeBindingHeaderTarget.GenerateSource(roots.Source, catalog.PostgresMajor);

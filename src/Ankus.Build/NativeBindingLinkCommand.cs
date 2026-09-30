@@ -69,7 +69,7 @@ internal static class NativeBindingLinkCommand
             }
             else
             {
-                options.AddRange(installation.PreprocessorArguments);
+                options.AddRange(await installation.GetPreprocessorArgumentsAsync(token));
                 if (arguments[6].Length != 0)
                 {
                     options.Add("--target=" + arguments[6]);

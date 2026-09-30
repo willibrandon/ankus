@@ -84,7 +84,7 @@ internal static class NativeBindingHeaderCommand
     /// <summary>
     /// Inspects declarations and constants using the selected header command's exact frontend arguments.
     /// </summary>
-    internal static Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
+    internal static async Task InspectAsync(PostgresInstallation installation, string[] arguments, string source, string observations,
         string output, CancellationToken cancellationToken, bool dumpAst = true, string? serializedAst = null, bool inspectBodies = false)
     {
         if (dumpAst && serializedAst is not null)
@@ -93,7 +93,7 @@ internal static class NativeBindingHeaderCommand
         }
 
         string compiler = arguments.Length >= 5 && arguments[4].Length != 0 ? arguments[4] : OperatingSystem.IsWindows() ? "clang-cl.exe" : "clang";
-        List<string> options = CreateArguments(installation, arguments);
+        List<string> options = await CreateArgumentsAsync(installation, arguments, cancellationToken);
         options.Add(OperatingSystem.IsWindows() ? "/Zs" : "-fsyntax-only");
         if (dumpAst)
         {
@@ -105,13 +105,13 @@ internal static class NativeBindingHeaderCommand
             options.AddRange(["-Xclang", "-emit-pch", "-Xclang", "-o", "-Xclang", serializedAst]);
         }
 
-        return CompileAsync(compiler, [.. options, source], observations, output, cancellationToken, inspectBodies);
+        await CompileAsync(compiler, [.. options, source], observations, output, cancellationToken, inspectBodies);
     }
 
     /// <summary>
     /// Retains the same language, diagnostic, include and target options for preprocessing and semantic inspection.
     /// </summary>
-    internal static List<string> CreateArguments(PostgresInstallation installation, string[] arguments)
+    internal static async Task<List<string>> CreateArgumentsAsync(PostgresInstallation installation, string[] arguments, CancellationToken cancellationToken)
     {
         var options = new List<string>();
         if (OperatingSystem.IsWindows())
@@ -123,7 +123,7 @@ internal static class NativeBindingHeaderCommand
         }
         else
         {
-            options.AddRange(installation.PreprocessorArguments);
+            options.AddRange(await installation.GetPreprocessorArgumentsAsync(cancellationToken));
             // PostgreSQL's configured headers may use GNU typeof while requiring C11 semantics.
             options.AddRange(["-std=gnu11", "-Wall", "-Wextra", "-Werror", "-isystem", installation.ServerIncludeDirectory,
                 "-isystem", installation.IncludeDirectory]);
