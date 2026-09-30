@@ -778,6 +778,11 @@ static void PrepareReports(string repositoryRoot)
         Directory.Delete(destination, true);
     }
 
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
+    {
+        SaveBuildTimings(repositoryRoot);
+    }
+
     foreach ((string directory, string pattern) in new[] { ("test-results", "*.trx"), ("test-logs", "*.log") })
     {
         string source = Path.Combine(repositoryRoot, "artifacts", directory);
@@ -799,6 +804,58 @@ static void PrepareReports(string repositoryRoot)
             File.WriteAllText(Path.Combine(target, Path.GetFileName(file)), contents);
         }
     }
+}
+
+// Replay existing logs without rebuilding. Persist only target/task names and
+// durations; binary logs and their environment/property payloads stay local.
+static void SaveBuildTimings(string repositoryRoot)
+{
+    string logs = Path.Combine(repositoryRoot, "artifacts", "test-logs");
+    Directory.CreateDirectory(logs);
+    string[] roots = [logs,
+        .. Directory.EnumerateDirectories(Path.GetTempPath(), "ankus package tests *")];
+    List<string> report = [];
+    EnumerationOptions options = new() { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint };
+    IEnumerable<string> files = Directory.EnumerateFiles(Path.Combine(repositoryRoot, "artifacts"), "*.binlog")
+        .Concat(roots.SelectMany(root => Directory.EnumerateFiles(root, "*.binlog", options)));
+    foreach (string file in files.Order(StringComparer.Ordinal))
+    {
+        report.Add("Build: " + Path.GetFileName(file));
+        string output;
+        try
+        {
+            output = Capture(GetDotNetHost(), ["msbuild", file, "-nologo", "-verbosity:quiet", "-clp:PerformanceSummary"]);
+        }
+        catch (InvalidOperationException)
+        {
+            report.Add("Timing replay unavailable; the build log may be incomplete after cancellation.");
+            continue;
+        }
+
+        bool include = false;
+        int rows = 0;
+        foreach (string line in output.Split('\n'))
+        {
+            string text = line.Trim();
+            if (text is "Target Performance Summary:" or "Task Performance Summary:")
+            {
+                include = true;
+                report.Add(text);
+            }
+            else if (include && AutomationPatterns.BuildTiming().IsMatch(text))
+            {
+                report.Add(text);
+                rows++;
+            }
+        }
+
+        if (rows == 0)
+        {
+            report.Add("No completed target/task timings were recorded; the build log may be incomplete.");
+        }
+    }
+
+    File.WriteAllLines(Path.Combine(logs, "build-timings.log"), report);
 }
 
 static void BuildTests(string repositoryRoot)
@@ -1075,6 +1132,12 @@ static string QuoteArgument(string argument)
 /// </summary>
 internal static partial class AutomationPatterns
 {
+    /// <summary>
+    /// Matches a performance row with an MSBuild target/task name and no command or property payload.
+    /// </summary>
+    [GeneratedRegex(@"^\d+ ms\s+[A-Za-z_][A-Za-z0-9_.]*\s+\d+ calls$", RegexOptions.CultureInvariant)]
+    internal static partial Regex BuildTiming();
+
     /// <summary>
     /// Matches a full lowercase Git commit ID.
     /// </summary>

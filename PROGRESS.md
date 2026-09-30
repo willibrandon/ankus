@@ -16739,3 +16739,32 @@ were still active at cancellation. No failed assertion was reported, but the
 integration suite did not complete. These timings locate the critical path in
 fixture/publication work; they do not yet isolate a compiler/cache bottleneck.
 The earlier missing macOS SDK error is fixed; this timeout remains unresolved.
+
+### 2026-09-30 — Hosted publication timing and controlled comparison
+
+The detailed Intel test log confirms the publication/setup critical path but
+does not separate native compilation, managed binding compilation and restore.
+Hosted report preparation now replays existing fixture and retained consumer
+binary logs and exports only target/task names and durations. Raw logs, command
+arguments, properties and environment payloads remain local. Unfinished logs
+are explicitly identified instead of being presented as successful builds.
+This is further diagnostic evidence, not a claimed timeout fix.
+
+The additional-platform workflow now accepts the same package-test concurrency
+input as the primary workflow. The next comparison uses identical code and full
+suites with different slot counts; no tests are removed or sharded, and every
+job retains its 60-minute limit.
+
+The CI app builds in Release and actionlint passes. Executing report preparation
+against an actual completed publication log plus an incomplete log succeeds,
+retains measured binding/compiler targets and marks the incomplete evidence.
+The exported report contains no source paths or environment/property payloads.
+The unchanged runtime/test source immediately preceding this automation change
+passed the complete PostgreSQL **18.6/Linux x64** suite: **9,791 total, zero
+failed**, as recorded above.
+
+Before commit, alignment `be53c31` is pushed: Docs **36709673766** succeeds and
+CI **36709673695** is queued. Module CI **36707043259** is queued and its Docs
+run succeeds. Reporting CI **36702143685** is active. Selection CI
+**36701969924** and Docs succeed on all dedicated platforms. Intel
+**36702158595** timed out; no complete hosted Intel result is claimed.

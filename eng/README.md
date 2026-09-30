@@ -87,6 +87,14 @@ Hosted test runs also print each completed case and its duration. These records
 remain in the job log if a timeout prevents the final integration TRX from being
 written. Captured test output is printed for failures.
 
+Hosted report preparation also replays retained build logs into
+`build-timings.log`, containing only target/task names and durations. This covers
+fixture publication and package-consumer logs still present after a timeout;
+unfinished logs are labelled explicitly. Raw binary logs remain local.
+The additional-platform workflow accepts `package-test-concurrency` on manual
+dispatch, matching the primary workflow. Compare the same commit with complete
+test suites when tuning it; a timed-out subset is not validation.
+
 The Linux service runs under its own unprivileged account. Provision PostgreSQL
 18 with server headers, Clang 20 or later with matching libclang, and the .NET
 runtime build prerequisites, Valgrind and matching libc debug symbols once

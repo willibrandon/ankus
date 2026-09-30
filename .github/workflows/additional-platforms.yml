@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '17 5 * * 2'
   workflow_dispatch:
+    inputs:
+      package-test-concurrency:
+        description: Package-consumer slots (empty uses the fixture default)
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -111,6 +116,8 @@ jobs:
           key: ${{ steps.binding-cache.outputs.cache-primary-key }}
 
       - name: Run full PostgreSQL tests
+        env:
+          ANKUS_PACKAGE_TEST_CONCURRENCY: ${{ inputs.package-test-concurrency || '' }}
         run: dotnet run --file ./eng/Ankus.Ci.cs -- runtime-test-run
 
       - name: Prepare test reports
