@@ -13,6 +13,7 @@ internal static class NativeBackgroundWorkerBridge
         #include "access/xact.h"
         #include "libpq/pqsignal.h"
         #include "postmaster/bgworker.h"
+        #include "postmaster/interrupt.h"
         #include "storage/ipc.h"
         #include "storage/latch.h"
         #include "storage/pmsignal.h"
@@ -81,10 +82,20 @@ internal static class NativeBackgroundWorkerBridge
         #endif
             switch (postgres_signal_arg)
             {
-                case SIGHUP: ankus_worker_hup = 1; break;
-                case SIGTERM: ankus_worker_term = 1; break;
-                case SIGINT: ankus_worker_int = 1; break;
-                case SIGCHLD: ankus_worker_child = 1; break;
+                case SIGHUP:
+                    ankus_worker_hup = 1;
+                    ConfigReloadPending = 1;
+                    break;
+                case SIGTERM:
+                    ankus_worker_term = 1;
+                    ShutdownRequestPending = 1;
+                    break;
+                case SIGINT:
+                    ankus_worker_int = 1;
+                    break;
+                case SIGCHLD:
+                    ankus_worker_child = 1;
+                    break;
             }
 
             SetLatch(MyLatch);
@@ -435,7 +446,7 @@ internal static class NativeBackgroundWorkerBridge
                         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("invalid background-worker latch timeout")));
                     }
 
-                    if (ankus_worker_term || !PostmasterIsAlive())
+                    if (ShutdownRequestPending || ankus_worker_term || !PostmasterIsAlive())
                     {
                         (void) ankus_worker_consume(2);
                         result->value = 0;
@@ -446,7 +457,7 @@ internal static class NativeBackgroundWorkerBridge
                         (request->value >= 0 ? WL_TIMEOUT : 0), request->value >= 0 ? (long) request->value : 0, PG_WAIT_EXTENSION);
                     ResetLatch(MyLatch);
                     CHECK_FOR_INTERRUPTS();
-                    result->value = (ankus_worker_consume(2) == 0 && (events & WL_POSTMASTER_DEATH) == 0) ? 1 : 0;
+                    result->value = (ankus_worker_consume(2) == 0 && !ShutdownRequestPending && (events & WL_POSTMASTER_DEATH) == 0) ? 1 : 0;
                     break;
                 }
                 case 11:
@@ -472,9 +483,10 @@ internal static class NativeBackgroundWorkerBridge
                     ankus_worker_transaction(request);
                     break;
                 case 14:
-                    result->value = (!ankus_worker_term && PostmasterIsAlive()) ? 1 : 0;
+                    result->value = (!ShutdownRequestPending && !ankus_worker_term && PostmasterIsAlive()) ? 1 : 0;
                     break;
                 case 15:
+                    ConfigReloadPending = 0;
                     ProcessConfigFile(PGC_SIGHUP);
                     break;
                 default:

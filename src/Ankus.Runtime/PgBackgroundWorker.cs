@@ -54,7 +54,7 @@ public static class PgBackgroundWorker
     public static string Extra => NativeBackgroundWorker.ReadText(2);
 
     /// <summary>
-    /// Gets whether the postmaster is alive and no unconsumed termination signal is pending.
+    /// Gets whether the postmaster is alive and termination has not been requested.
     /// </summary>
     public static bool CanContinue => NativeBackgroundWorker.Boolean(14);
 
@@ -75,7 +75,7 @@ public static class PgBackgroundWorker
         => NativeBackgroundWorker.SignalOperation(9, signals);
 
     /// <summary>
-    /// Waits on the worker's latch, returning false for postmaster death or a consumed termination request.
+    /// Waits on the worker's latch, returning false for postmaster death or termination, even after consuming its observation.
     /// </summary>
     /// <param name="timeout">A whole-millisecond timeout, or null to wait indefinitely.</param>
     /// <returns>Whether the worker may continue after waking.</returns>

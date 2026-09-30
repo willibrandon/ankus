@@ -172,8 +172,10 @@ Generated entries install native reload and termination handlers before calling
 managed code. `Wait` sleeps on PostgreSQL's latch, wakes for a signal or timeout,
 and returns false for termination or postmaster death. Its optional timeout
 accepts whole milliseconds; null waits indefinitely and zero polls immediately.
-It consumes a pending termination request. `CanContinue` checks postmaster
-liveness and an unconsumed termination request without waiting.
+It consumes the termination observation. The shutdown request remains pending:
+`Wait` and `CanContinue` keep returning false after termination, even if
+`ConsumeSignals` has already cleared that observation. `CanContinue` also checks
+postmaster liveness without waiting.
 
 `ConsumeSignals` returns and clears only the selected observations. To observe
 interrupt or child signals, first add them with `AttachSignalHandlers`. Signal
@@ -181,7 +183,11 @@ handlers record flags and wake the latch; managed code processes them after
 waking. These observations are flags: multiple deliveries before consumption
 can coalesce. Consuming one selection leaves other pending observations intact;
 consuming the same selection again returns no flags unless another signal arrived.
-Reloading configuration is explicit through `ReloadConfiguration()`.
+The reload and termination handlers also set PostgreSQL's corresponding native
+flags, so backend helpers see the same requests. Reloading configuration is
+explicit through `ReloadConfiguration()`, which clears the native reload flag
+before processing the configuration. A signal received during reload remains
+pending for another pass.
 
 `Name`, `Type` and `Extra` return owned strings from the current registration.
 `Type` defaults to `Name`. Registration text uses strict UTF-8 and must fit the

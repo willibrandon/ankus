@@ -79,7 +79,7 @@ remains incomplete; the following work is additional to the open parity gates.
 |---|---|
 | Swallowed cancellation and terminal reports | Confirmed. Native entry frames retain cancellation and terminal severity; `PgQueryCanceledException` preserves PostgreSQL diagnostics through the .NET cancellation contract. Focused managed tests pass **67/67** on Linux x64 and Windows x64. Native cancellation/logging and nested-session cleanup pass on Linux x64/macOS ARM64 with PostgreSQL 18.6 and Windows x64 with PostgreSQL 17.11. Session closure restores transaction depth before rethrow. The complete PostgreSQL 18.6/Linux x64 suite passes **9,677 total, zero failed, nine Windows-only skips**; detailed platform evidence follows below. |
 | Raw/memory errors without rollback | Confirmed outside explicit recovery. Entry failure, cleanup and explicit-subtransaction recovery still need implementation and backend evidence. A lighter guard must preserve this rule. |
-| Worker signal globals | Confirmed against pgrx signal handlers. PostgreSQL reload/shutdown globals must accompany Ankus flags; native signal evidence remains required. |
+| Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; current full platform CI remains required. |
 | Nullable declarations and aggregate roles | Oblivious reference nullability is currently treated as required. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
 | PostgreSQL selection | Direct discovery and CLI selection still default to 18. Project-property selection must reach the ordinary test fixture and CLI defaults without overriding explicit selections. |
 | Declarative parity | Verify and complete typed aggregate/dependency/support references, extended module magic, custom alignment and generated SQL provenance. Preserve deterministic ordering. |
@@ -16144,7 +16144,8 @@ Validation:
   cases pass. The final four schema cases pass in **4m10.725s**, with source
   hashes verified against this candidate.
 - Windows x64/PostgreSQL **17.11**: the same **77** native cases pass; the
-  corrected four schema cases are still running. This is focused evidence,
+  final four schema cases pass in **9m26.239s**, with source hashes verified.
+  This is focused evidence,
   not a complete current Windows or macOS suite.
 - Release: zero warnings/errors, **1m24.39s**. API freshness: **221 pages,
   2,611 members**. Site build: **268 pages**, **9.44s**; site checks and all
@@ -16173,3 +16174,45 @@ Before this commit, previous CI **36668534239** and Docs **36668534219** are
 successful. Platform durations were Linux **37m14s**, macOS ARM64 **15m24s** and
 Windows **24m02s**, with no timeout. Full platform CI for this candidate will run
 after push; completed earlier runs are not evidence for newly added tests.
+
+After push `6b91367`, CI **36676480212**, Docs **36676480219** and the first
+hosted Intel macOS run **36676499264** are active. The corrected Windows schema
+run completed successfully after push, as recorded above. No current complete
+platform result or hosted Intel result is claimed yet. Independent review fixes
+continue while these runs execute.
+
+### 2026-09-29 — Background-worker native signal state
+
+Reload and termination handlers now set PostgreSQL's native
+`ConfigReloadPending` and `ShutdownRequestPending` flags. Reload clears its native
+flag before processing configuration, preserving a signal arriving during that
+work. Consuming a termination observation never clears the shutdown request:
+`Wait` and `CanContinue` continue to reject further work.
+
+`BackgroundWorkersRegisterAndShareState` sends real signals and verifies both
+native globals, explicit reload consumption and shutdown after observation
+consumption. Its parent requires the final shutdown assertion marker, so an
+exception in worker cleanup cannot falsely satisfy the test.
+
+Validation on PostgreSQL **18.6/Linux x64**:
+
+- Focused worker regression: **1/1**, **5m24.062s**.
+- Complete plain `dotnet test`: **9,677 total, 9,668 passed, zero failed,
+  nine Windows-only skips**, **17m22.354s**, six package slots.
+- Release: **zero warnings/errors, 1m57.88s**. API freshness: **221 pages /
+  2,611 members**. Site: **268 pages, 7.43s**; checks report zero errors,
+  warnings and hints.
+
+Before commit, preceding CI **36676480212** has successful quality/runtime jobs,
+macOS ARM64/PostgreSQL 18 (**16m27s**) and Windows x64/PostgreSQL 17
+(**29m32s**). Linux/PostgreSQL 18 is still running. Docs **36676480219** succeeds.
+These platform results validate the preceding cancellation/publication milestone,
+not the new worker change.
+
+Hosted Intel macOS run **36676499264** failed during extension compilation.
+Its cold runtime build succeeded in **20m43s** and was cached; the entire runtime
+job took **24m26s**. PostgreSQL's recorded preprocessor flags name an absent
+macOS 14 SDK on the macOS 26 runner. Ankus passed that historical path directly
+to Clang. SDK selection is being corrected in build tooling; no full Intel suite
+ran, and no timeout occurred. All other open review and parity requirements
+remain open, including unrecovered raw/memory errors.

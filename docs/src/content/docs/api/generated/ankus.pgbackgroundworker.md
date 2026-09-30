@@ -205,7 +205,7 @@ Extra text preserves UTF-8 independently of those metadata restrictions.
 
 ### Wait(TimeSpan?)
 
-Waits on the worker's latch, returning false for postmaster death or a consumed termination request.
+Waits on the worker's latch, returning false for postmaster death or termination, even after consuming its observation.
 
 ```csharp
 public static bool Wait(TimeSpan? timeout = null)
@@ -228,7 +228,7 @@ Whether the worker may continue after waking.
 
 ### CanContinue
 
-Gets whether the postmaster is alive and no unconsumed termination signal is pending.
+Gets whether the postmaster is alive and termination has not been requested.
 
 ```csharp
 public static bool CanContinue { get; }

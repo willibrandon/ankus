@@ -107,7 +107,7 @@ public sealed partial class ToolCommandTests
             Assert.IsGreaterThan(0, workerPid);
             Assert.AreNotEqual(connection.ProcessID, workerPid);
             Assert.AreNotEqual(staticPid, workerPid);
-            Assert.AreEqual("511", fields[1]);
+            Assert.AreEqual("1023", fields[1]);
             Assert.AreEqual("28", fields[2]);
             Assert.AreEqual("1", fields[3]);
             Assert.AreEqual("2", fields[5]);
@@ -409,7 +409,17 @@ public sealed partial class ToolCommandTests
                             PgBackgroundWorkerSignals.Reload | PgBackgroundWorkerSignals.Interrupt);
                         if ((signals & PgBackgroundWorkerSignals.Reload) != 0)
                         {
+                            if (NativeGlobals.ConfigReloadPending == 0)
+                            {
+                                throw new InvalidOperationException("PostgreSQL did not observe the reload signal.");
+                            }
+
                             PgBackgroundWorker.ReloadConfiguration();
+                            if (NativeGlobals.ConfigReloadPending != 0)
+                            {
+                                throw new InvalidOperationException("Completed configuration reload remained pending.");
+                            }
+
                             errors |= 32;
                         }
 
@@ -431,6 +441,15 @@ public sealed partial class ToolCommandTests
 
                         Errors.Exchange(errors);
                     }
+
+                    if (NativeGlobals.ShutdownRequestPending == 0 || PgBackgroundWorker.CanContinue ||
+                        PgBackgroundWorker.ConsumeSignals(PgBackgroundWorkerSignals.Terminate) != PgBackgroundWorkerSignals.None ||
+                        PgBackgroundWorker.Wait(TimeSpan.Zero))
+                    {
+                        throw new InvalidOperationException("Consuming a termination observation must not undo the shutdown request.");
+                    }
+
+                    Errors.Exchange(errors | 512);
                 }
                 finally
                 {
