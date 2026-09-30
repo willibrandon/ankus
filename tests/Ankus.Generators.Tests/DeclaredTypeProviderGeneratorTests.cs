@@ -228,7 +228,8 @@ public sealed partial class PgFunctionGeneratorTests
             [original], optionsProvider: new SqlOptions(project));
         CSharpCompilation input = CSharpCompilation.Create("ProviderIncremental",
             [CSharpSyntaxTree.ParseText(sources[0], cancellationToken: context.CancellationToken)], s_references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true,
+                nullableContextOptions: NullableContextOptions.Enable));
         Compilation? previous = null;
         for (int index = 0; index < sources.Length; index++)
         {

@@ -670,6 +670,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     context.ReportDiagnostic(Diagnostic.Create(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name));
                     continue;
                 }
+
+                if (!SqlNullability.Validate(method, parameters.Where(static parameter => !parameter.IsInjected)
+                    .Select(static parameter => parameter.Symbol), set?.Types ?? [method.ReturnType], context))
+                {
+                    continue;
+                }
             }
 
             string name = tests.TryGetValue(method, out PgTestDeclaration? test) ? test.FunctionName : GetSqlName(method);

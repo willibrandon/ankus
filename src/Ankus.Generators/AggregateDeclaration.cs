@@ -255,6 +255,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             }
 
             IParameterSymbol[] parameters = [.. method.Parameters.Skip(hasContext ? 1 : 0)];
+            if (!SqlNullability.Validate(method, parameters, [method.ReturnType], context))
+            {
+                return null;
+            }
+
             AggregateType? result = AggregateType.Create(method.ReturnType, method.GetReturnTypeAttributes());
             AggregateType?[] types = [.. parameters.Select(static parameter => AggregateType.Create(parameter.Type, parameter.GetAttributes()))];
             if (result is null || types.Any(static value => value is null) || parameters.Length + (role == "Deserialize" ? 1 : 0) > 100)

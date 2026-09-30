@@ -16457,3 +16457,39 @@ Before commit, raw-error CI **36690992874** still has successful macOS, quality
 and runtime jobs, with Linux/Windows active; Docs **36690992891** succeeds.
 Intel **36683495828** remains timed out. A fresh full Intel run is required;
 the local pass does not resolve its timing outcome.
+
+### 2026-09-30 — Explicit SQL reference nullability
+
+Confirmed that oblivious reference types were inferred as required SQL values.
+The generator now reports **ANKUS024** at the parameter or result type and links
+to the public SQL-nullability guide. SQL functions, casts, operators, aggregate
+callbacks and SETOF/TABLE columns require explicit reference annotations.
+Array elements retain their own contract, including oblivious types captured
+inside a type alias. Injected contexts, sequence containers and unrelated
+managed aggregate payload members are outside that SQL-value check. Explicit
+`NullInput` options do not replace the managed contract.
+
+The complete generator suite passes **2,215/2,215**, **1m13.805s**, after
+integration with the raw-error milestone. New cases verify diagnostic locations,
+rejected SQL emission, aliases and payload boundaries, plus exact required/NULL
+inference with annotations enabled. An existing manually constructed Roslyn
+compilation now enables annotations, matching the other generator fixtures.
+No warning or analyzer mode was relaxed.
+
+Release passes with **zero warnings/errors, 1m34.33s**. API freshness passes
+**221 pages / 2,612 members**; site checks report zero errors, warnings and hints,
+and the site builds successfully. The complete plain PostgreSQL **18.6/Linux
+x64** suite, including packed consumers, is now running. This candidate is not
+yet a verified complete milestone and has not been committed.
+
+The complete plain run subsequently passes on PostgreSQL **18.6/Linux x64**:
+**9,731 total, 9,721 passed, zero failed, ten platform skips**, **14m48.867s**,
+six package-consumer slots. This includes packed consumers and actual backend
+execution. Release, API freshness and site checks pass as recorded above.
+
+Before commit, raw-error CI **36690992874** has successful macOS ARM64/PostgreSQL
+18 (**17m10s**) and Windows/PostgreSQL 17 (**31m22s**) full jobs; Linux remains
+active. Quality, runtime jobs and Docs **36690992891** succeed. Path-fix CI
+**36693516529** is queued. Hosted Intel **36693552190** has restored its runtime
+and is building tests; its complete result is still pending. The prior Intel
+timeout remains unresolved. Other confirmed review and full-port gaps remain open.

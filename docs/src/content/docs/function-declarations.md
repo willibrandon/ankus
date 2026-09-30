@@ -10,6 +10,18 @@ and must preserve the managed wrapper's argument, result and NULL contracts.
 See [custom SQL](/custom-sql/#replace-function-sql) for placeholders, dependencies
 and relocation.
 
+## SQL nullability
+
+Enable nullable annotations with `<Nullable>enable</Nullable>` in your project,
+or `#nullable enable annotations` around your SQL declarations. A reference such
+as `string` requires a value; `string?` accepts SQL NULL. Array elements, set
+columns and aggregate callback values follow the same rule.
+
+Disabled annotations leave reference nullability ambiguous. Ankus reports
+`ANKUS024` at the affected declaration instead of inferring a required SQL value.
+Explicit `NullInput` settings do not replace the managed value contract. Value
+types and injected contexts do not need reference annotations.
+
 ## Named arguments and defaults
 
 C# parameter names become snake-case SQL argument names. Optional constants
