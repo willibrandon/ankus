@@ -152,6 +152,13 @@ It allows at most three attempts within one `StartupTimeout`, cleans each failed
 attempt's data and sockets, and retains its server log. Other startup failures
 are reported immediately; cancellation stops further attempts.
 
+Tests that exercise a fixed configured port first bind a candidate listener.
+Candidate selection skips occupied ports and operating-system exclusions,
+including Windows exclusions reported as access denied. It stops after 32
+unsuccessful candidates and preserves the last socket error. An explicitly
+requested PostgreSQL port is still used exactly as requested; startup does not
+silently select a different port for it.
+
 For a separate PostgreSQL 18 build, set `ANKUS_TEST_PG_CONFIG` to its `pg_config`
 path for the integration test process. The fixture uses that installation for
 both native publishing and cluster startup, preserving the user's registered

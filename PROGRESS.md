@@ -17026,3 +17026,57 @@ Polling **36713330603** is active; reporting **36717791830** and dependency
 references **36724466429** remain queued. Their Docs runs pass. Both hosted
 Intel comparison runs remain timed out; this milestone does not resolve that
 separate performance requirement. No automatic cancellation was introduced.
+
+### 2026-09-30 — Windows fixed-port candidate allocation
+
+Interrupt-polling CI **36713330603**, Windows job **109932482344**, failed
+`PackagedExtensionFixtureUsesSavedTestPortAndCleansUp` while reserving a random
+test port. The full test step reported **4,096 total, 4,076 passed, one failed,
+19 skips**, **27m38.399s**; compilation had passed. The failure was socket
+`AccessDenied` before PostgreSQL startup, not a runtime or interrupt assertion.
+
+The test allocator sampled ports without accounting for Windows excluded ranges
+and retried only `AddressAlreadyInUse`. Candidate selection now recognizes both
+unavailability errors, preserves its existing 32-attempt bound and final socket
+error, and propagates unrelated failures immediately. Production explicit-port
+requests and cluster startup behavior are unchanged. The old assumption that
+the fixed test range always lies outside ephemeral ranges has been removed.
+
+A real Windows excluded-port reproduction fails on the first candidate, then
+successfully binds and connects through the replacement listener. All **five**
+allocator regressions pass on Windows x64, zero failures/skips, **411ms**,
+using MSTest **All** with warnings as errors. They check both unavailable-port
+errors, actual socket ownership, bounded exhaustion, final error identity and
+immediate propagation of an unrelated network failure. The affected PostgreSQL
+tests and complete isolated repair validation are still running.
+
+The affected PostgreSQL tests now pass **16/16**, zero failures/skips, on
+PostgreSQL **18.6/Linux x64**, **5m38.263s**. This includes the original failed
+packaged fixture, fixed-port startup and collision/cleanup behavior. The site
+builds **275 pages in 13.92s** and reports zero errors/warnings/hints. Release
+and the complete plain suite remain pending.
+
+The reported CI run is now terminal: Linux x64/PostgreSQL 18 succeeds in
+**44m02s**, macOS ARM64/PostgreSQL 18 in **17m47s**, and Windows x64/PostgreSQL 17
+fails in **30m39s** with the one allocation failure above. Quality and all
+runtime jobs succeed. Reporting CI **36717791830** is active; dependency and
+planner-support runs **36724466429** and **36730262684** are queued. Their Docs
+runs succeed. The separate hosted Intel macOS timeout remains unresolved.
+
+Release passes with **zero warnings/errors, 52.66s**. API freshness verifies
+**228 pages / 2,636 members**. The complete plain PostgreSQL **18.6/Linux x64**
+suite is running in the isolated repair checkout with six package slots.
+
+The complete plain suite now passes **9,892 total, 9,882 passed, zero failed
+and ten platform skips**, **18m45.276s**, on PostgreSQL **18.6/Linux x64** with
+six package slots. This validates the isolated repair without the unfinished
+typed aggregate changes. The five Windows allocator regressions and actual
+excluded-port reproduction passed separately; complete Windows CI validation
+of the repair is pending.
+
+Previous CI was checked again before committing: reporting **36717791830**
+has passing Windows x64/PostgreSQL 17 (**32m27s**) and macOS ARM64/PostgreSQL 18
+(**17m59s**) jobs, with Linux still active. Dependency **36724466429** and
+planner-support **36730262684** remain queued; their Docs runs pass. The reported
+Windows allocation failure and separate hosted Intel timeouts remain recorded
+above. No runs were canceled.
