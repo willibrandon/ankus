@@ -49,6 +49,19 @@ Unknown runtime subtypes are rejected to preserve stored type identity.
 
 ## Properties
 
+<a id="member-f18bfc6eb0e993a0"></a>
+
+### Alignment
+
+Gets or sets the PostgreSQL datum alignment, defaulting to four bytes.
+Does not add payload padding or change the codec's storage representation.
+
+```csharp
+public PgTypeAlignment Alignment { get; set; }
+```
+
+Value: [PgTypeAlignment](/api/ankus.pgtypealignment/)
+
 <a id="member-594646e63b31a1b7"></a>
 
 ### BinaryProtocol

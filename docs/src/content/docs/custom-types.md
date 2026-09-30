@@ -27,6 +27,24 @@ For a manually declared SQL type or an existing external type, use
 [`PgDatumType` with reader and writer converters](/raw-values/#reusable-scalar-mappings)
 to control scalar storage conversion independently of type DDL and serialization.
 
+## Datum alignment
+
+Generated types use PostgreSQL's four-byte (`int4`) alignment. Select eight-byte
+(`double`) alignment when the database storage contract requires it:
+
+```csharp
+[PgType(Alignment = PgTypeAlignment.EightBytes)]
+public sealed record Reading(string Sensor, decimal Value, string? Unit);
+```
+
+`PgTypeAlignment.FourBytes` selects the default explicitly. PostgreSQL requires
+at least four-byte alignment for these variable-length types; invalid enum values
+produce a build diagnostic. This setting controls the datum's database storage
+alignment. It does not change the serializer's bytes, add padding to the payload,
+or change the managed type's layout. The variable-length header still precedes
+the payload. Changing the storage alignment of an existing type requires a data
+migration, as with other changes to its native storage contract.
+
 ## Generated contracts
 
 The default serializer supports:

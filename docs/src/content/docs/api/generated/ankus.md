@@ -179,6 +179,7 @@ Assembly: `Ankus.Runtime.dll`
 - [PgTriggerLevel](/api/ankus.pgtriggerlevel/)
 - [PgTriggerOperation](/api/ankus.pgtriggeroperation/)
 - [PgTriggerTiming](/api/ankus.pgtriggertiming/)
+- [PgTypeAlignment](/api/ankus.pgtypealignment/)
 - [PgTypeOrigin](/api/ankus.pgtypeorigin/)
 - [PgVolatility](/api/ankus.pgvolatility/)
 

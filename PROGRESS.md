@@ -81,8 +81,8 @@ remains incomplete; the following work is additional to the open parity gates.
 | Raw/memory errors without rollback | Confirmed and corrected. Native frames retain unrecovered errors, block further backend work and preserve original diagnostics through managed catches and cleanup. Explicit rollback recovers resources. Real LWLock, allocator, aggregate and iterator cases and the complete PostgreSQL 18.6/Linux x64 suite pass. Full CI also passes on Linux x64/macOS ARM64 with PostgreSQL 18 and Windows x64 with PostgreSQL 17. A lighter guard must preserve this rule. |
 | Worker signal globals | Confirmed against pgrx signal handlers. The fix sets native reload/shutdown globals, clears reload before processing, and keeps shutdown pending after signal consumption. The real-signal regression and complete suite pass on PostgreSQL 18.6/Linux x64; full CI also succeeds on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
 | Nullable declarations and aggregate roles | Confirmed oblivious-reference inference is corrected by ANKUS024, with precise type locations and explicit SQL nullability required. The complete PostgreSQL 18.6/Linux x64 suite passes. Explicitly named nonexistent aggregate roles already fail validation; conventional optional roles still lack a typed compiler contract. |
-| PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. Dedicated-platform CI remains required for this milestone. |
-| Declarative parity | Extended module magic now preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Dedicated-platform CI remains required. Typed aggregate/dependency/support references, custom alignment and generated SQL provenance remain open. Preserve deterministic ordering. |
+| PostgreSQL selection | Confirmed and corrected. Project evaluation, test-host runtime configuration and CLI defaults honor the selected major and installation. Explicit choices retain precedence. The complete PostgreSQL 17.11/Linux x64 suite passes, including packed consumers and actual backend execution. CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. |
+| Declarative parity | Extended module magic preserves assembly/project identity with explicit overrides; PostgreSQL 17/18 native checks and the full PostgreSQL 18.6/Linux x64 suite pass. Custom types now support PostgreSQL's four/eight-byte datum alignments, with catalog/heap/TOAST/array checks and the complete PostgreSQL 18.6/Linux x64 suite passing. Dedicated-platform CI remains required for these milestones. Typed aggregate/dependency/support references and generated SQL provenance remain open. Preserve deterministic ordering. |
 | Runtime APIs and performance | Verify interrupt polling, interrupt-safe reporting, SPI read/write semantics, numeric representation and guard/array costs with measurements before changing the recovery contract. |
 | Tooling and upstream drift | Verify pgrx/header/PG19 inputs, general build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding. Test-command custom data directories and schema reuse have real installed-consumer evidence below; remaining platform/version combinations stay open. |
 | .NET author experience | Verify incremental generation, actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation. |
@@ -91,6 +91,19 @@ remains incomplete; the following work is additional to the open parity gates.
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Migration/host-runtime guides, representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
 ## Current verified milestone
+
+Custom types support explicit four-byte or eight-byte PostgreSQL datum alignment.
+The default remains four bytes. Undefined values fail generation; alignment does
+not change managed layouts or serialized bytes. Real backend tests verify catalog
+metadata, heap and external TOAST storage, array bounds/NULLs and codec invariance.
+
+The complete PostgreSQL **18.6/Linux x64** suite passes **9,791 total,
+9,781 passed, zero failed and ten platform skips**, in **18m34.345s**.
+Release, generated API freshness and documentation checks pass. Dedicated CI
+and the complete version/platform matrix remain required. Hosted Intel macOS
+still times out; the detailed evidence below does not claim that issue fixed.
+
+## Previous verified milestone — Native module identity
 
 Native modules use PostgreSQL 18's extended name/version metadata, defaulting to
 the managed assembly name and evaluated project version. `[PgModule]` provides
@@ -16672,3 +16685,57 @@ PG17 remain active; Docs **36701969956** succeeds. Reporting CI **36702143685**
 is queued. Hosted Intel **36702158595** has passed compilation and is still
 running its full suite. Its earlier timeout remains unresolved. The preceding
 complete dedicated-platform CI **36695387927** succeeds as recorded above.
+
+### 2026-09-30 — Custom type datum alignment: validation in progress
+
+Confirmed that generated base types always selected `int4` alignment. The new
+`PgType.Alignment` setting offers `PgTypeAlignment.FourBytes` (the existing
+default) and `EightBytes`. PostgreSQL rejects smaller alignments for variable-
+length types; the generator rejects undefined enum values before emitting type
+DDL. This describes PostgreSQL datum storage and does not infer CLR alignment,
+insert payload padding or alter codec bytes. The custom-types guide explains
+the storage contract and migration requirement.
+
+In an isolated checkout, all **six** generator cases pass (**3.001s**). Real
+PostgreSQL **18.6/Linux x64** checks pass **three of three**, zero failures/skips,
+**3m24.684s**: exact catalog alignment, stored boundary integers and large text,
+external TOAST storage, array bounds/NULLs and unchanged binary payloads. The
+first native run exposed reserved SQL identifiers in the new fixture; those
+were corrected before this successful run. The temporary checkout was archived
+and removed after copying the verified candidate into the main checkout.
+
+The module-identity milestone is pushed as `ef98cdd`. Full combined validation,
+Release and API/site checks for the alignment candidate are still required;
+the complete platform/version matrix and hosted Intel timeout remain open.
+
+The combined Release build now passes with **zero warnings/errors, 1m40.70s**.
+API freshness verifies **224 pages / 2,621 members**; the site builds **271 pages
+in 3.79s**, and checks report zero errors, warnings or hints. The complete plain
+PostgreSQL **18.6/Linux x64** suite is running on the combined main checkout.
+No complete-suite result or commit is claimed for alignment yet. Module-identity
+Docs **36707043118** succeeds and CI **36707043259** is queued. The preceding
+selection CI still has Linux and Windows active after its successful macOS job.
+
+The complete combined PostgreSQL **18.6/Linux x64** suite now passes **9,791
+total, 9,781 passed, zero failed and ten platform skips**, **18m34.345s**, with
+six package-consumer slots. This includes all nine new alignment cases. Isolated
+interrupt work overlapped the end of validation, so the duration is not an
+isolated performance baseline. The assertion/behavior review records exact
+catalog/storage/array outcomes and separate invalid-value partitions.
+
+Before commit, PostgreSQL-selection CI **36701969924** succeeds across all
+dedicated platforms: Linux PG18 **42m54s**, macOS ARM64 PG18 **17m33s**, Windows
+PG17 **33m48s**. Docs **36701969956** succeeds. Reporting CI **36702143685** is
+active; module-identity CI **36707043259** is queued and Docs **36707043118**
+succeeds. None of these pending runs is counted as successful evidence.
+
+Hosted Intel **36702158595** again reached its **60-minute execution limit**.
+Compilation succeeded; MSBuild reported **13m38.58s**. Complete tests began at
+10:41:18 UTC and timed out at 11:25:40 UTC. Five managed test modules passed;
+the first native integration results appeared about **21m28s** after test start.
+The first three package-consumer selection cases then passed in **9m45s–9m47s**
+each, with three package slots and four logical processors. Native AOT compilers
+were still active at cancellation. No failed assertion was reported, but the
+integration suite did not complete. These timings locate the critical path in
+fixture/publication work; they do not yet isolate a compiler/cache bottleneck.
+The earlier missing macOS SDK error is fixed; this timeout remains unresolved.

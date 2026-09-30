@@ -50,6 +50,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     internal bool BinaryProtocol => AttributeValues.Get(Attribute, "BinaryProtocol", false);
 
     /// <summary>
+    /// Gets the validated PostgreSQL datum alignment for variable-length storage.
+    /// </summary>
+    internal string Alignment => AttributeValues.Get(Attribute, "Alignment", 0) == 0 ? "int4" : "double";
+
+    /// <summary>
     /// Gets whether this type has a statically proved native payload.
     /// </summary>
     internal bool NativeLayout => nativeSize != 0;
@@ -98,6 +103,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         if (attribute is null)
         {
             return null;
+        }
+
+        if (AttributeValues.Get(attribute, "Alignment", 0) is not (0 or 1))
+        {
+            return Invalid("Alignment must be PgTypeAlignment.FourBytes or PgTypeAlignment.EightBytes for variable-length storage.");
         }
 
         object? codecArgument = attribute.ConstructorArguments.FirstOrDefault().Value;

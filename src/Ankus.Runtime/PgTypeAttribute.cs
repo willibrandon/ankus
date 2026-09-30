@@ -19,6 +19,16 @@ public sealed class PgTypeAttribute(Type? codec = null) : Attribute
     public Type? Codec { get; } = codec;
 
     /// <summary>
+    /// Gets or sets the PostgreSQL datum alignment, defaulting to four bytes.
+    /// Does not add payload padding or change the codec's storage representation.
+    /// </summary>
+    public PgTypeAlignment Alignment
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
     /// Gets or sets a PgTypeTextCodec for custom SQL text with generated CBOR or packed native storage.
     /// Cannot be combined with an explicit storage codec.
     /// </summary>

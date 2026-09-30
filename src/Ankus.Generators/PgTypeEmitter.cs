@@ -31,7 +31,7 @@ internal static class PgTypeEmitter
             sql.AppendLine("    RECEIVE = " + prefix + type.Function("recv") + ", SEND = " + prefix + type.Function("send") + ",");
         }
 
-        sql.AppendLine("    ALIGNMENT = int4, STORAGE = extended);");
+        sql.AppendLine("    ALIGNMENT = " + type.Alignment + ", STORAGE = extended);");
         return sql.ToString();
 
         void EmitFunction(string role, string operation, FunctionType input, FunctionType result)
