@@ -85,7 +85,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI now passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
-| .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph and artifact rendering also passes the complete PostgreSQL 18.6/Linux suite; its fresh platform CI remains required. New asynchronous and ordinary-signature diagnostics remain separate drafts with native/platform acceptance required. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
+| .NET author experience | Cached declaration, conversion, catalog and method-inventory stages pass complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI, including reference/provider/native-compilation models. Final graph and artifact rendering passes the complete PostgreSQL 18.6/Linux suite and Linux/macOS CI; repaired Windows assertions pass the complete PostgreSQL 17.11 suite locally, with fresh CI still required. Separate asynchronous and ordinary-signature snapshots pass complete PostgreSQL 18.6/Linux native acceptance; promotion and platform evidence remain required. Broader diagnostics/code fixes, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain open. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
@@ -359,6 +359,133 @@ and retained. CI/Docs **36926097352/36926097484**, **36923610125/36923610026**,
 corrected generator-test failure, resolved by subsequent complete platform runs.
 None of these previous runs remains active; no run is canceled. Fresh
 dedicated-platform CI for final composition remains required.
+
+The final-composition milestone is committed and pushed as **e7ddb38**. The
+same eighteen preceding CI/Docs outcomes are checked and retained immediately
+before push. Fresh CI **36930730662** and Docs **36930730659** are active.
+Asynchronous and ordinary-signature diagnostic snapshots continue their separate
+complete backend suites; neither is promoted or counted as native-accepted yet.
+
+## Installation-schema search paths in progress
+
+Confirmed the reserved `@extschema@` path was quoted as an ordinary identifier
+and did not require non-relocatable control metadata. The separate draft now
+preserves PostgreSQL's token, leaves ordinary schema names quoted, and makes
+generated paths non-relocatable. Suppressed and replacement SQL retain their own
+explicit policy. `PgTest.SearchPath` provides the same function-local behavior
+without allowing a backend test to declare a production export.
+
+Selected SQL has an explicit installation-schema overload and CLI `--schema`
+option, retaining the existing overload and unchanged full installation SQL.
+Targets are checked for fixed-schema conflicts, exact UTF-8 identifier limits,
+NUL and invalid Unicode. Publication tokens resolve in one pass, without
+interpreting token-looking text inside inserted identifiers or library paths.
+
+Focused Linux x64 checks pass **17 generator cases, zero failures/skips,
+2.579s**, and **15 SQL-selection cases, zero failures/skips, 795ms**. The earlier
+generator draft retained a failed fixture combining production/test attributes;
+the final fixture uses the dedicated test option and preserves the established
+export-role validation. Native installed-consumer checks are running against
+PostgreSQL **18.6**, including schema quoting, caller-path restoration and
+selected SQL execution. Backend-test native execution, public/API/site checks
+and the complete native/platform gates remain required before promotion.
+
+Composition CI **36930730662** currently has successful quality and runtime
+jobs, with all three complete platform suites still active. Docs **36930730659**
+succeeds. The asynchronous/signature native suites remain separately active;
+no draft is counted as accepted from a partial run and no run was canceled.
+
+## Windows final-source newline assertions
+
+Composition CI **36930730662** completes with Linux x64/PostgreSQL 18 success
+(**24m29s**), macOS ARM64/PostgreSQL 18 success (**20m07s**) and Windows
+x64/PostgreSQL 17 failure (**25m22s**). Quality, all runtime jobs and Docs
+**36930730659** succeed. Windows backend integration passes **4,181 tests**,
+zero failures and **19 platform skips**; the generator has **21 failed cases**.
+
+The failing comparisons use cached host-newline fragments as substrings of final
+LF source. Final rendering correctly applies the documented LF convention.
+The repair normalizes expected fragments at that boundary while preserving
+exact cache equality and current generated contracts. Removal assertions also
+normalize their expected fragments, so CRLF cannot make a negative assertion
+vacuously pass. Both generated-file readers now assert the full output contains
+no CR. No production behavior, analyzer policy or test selection changes.
+Focused and complete Windows verification are required before this repair is
+committed; the independent native diagnostics and search-path drafts continue
+without mutation.
+
+The corrected Windows x64 focused scope passes **37/37**, zero failures/skips,
+**4.372s**. The complete generator project also passes **2,924/2,924**, zero
+failures/skips, **36.230s**. This includes all 21 failed CI cases and the stronger
+negative/whole-file assertions. An isolated source snapshot matches all **119**
+owned hashes. Release/API/site and plain complete PostgreSQL 17.11/Windows x64
+verification remain required; no narrower run is counted as full platform proof.
+
+The repair's Release build succeeds on Windows x64/PostgreSQL **17.11** with
+**zero warnings/errors, 1m19.86s**, and Linux x64/PostgreSQL **18.6** with
+**zero warnings/errors, 1m18.46s**. API freshness verifies **234 pages / 2,677
+members**. The site builds **282 pages in 3.63s** and its check reports zero
+errors, warnings or hints. All **119** owned source hashes match both the main
+checkout and isolated Windows validator after the checks. Plain full Windows
+`dotnet test` has started without filters or excluded modules; its terminal
+result remains required before commit.
+
+The final plain complete PostgreSQL **17.11/Windows x64** suite passes all six
+modules: **10,628 total, 10,603 passed, zero failed and 25 platform skips**,
+**26m35.066s**. Integration takes **26m33.064s**. All **119** owned source hashes
+match the validator and primary checkout after the terminal success. The local
+verifier uses three package slots; CI uses six, so these durations are not a
+controlled CI performance comparison. All 21 original failures are resolved;
+exact cached-fragment equality, negative removal checks and whole-file LF
+assertions remain enforced.
+
+Immediately before this repair commit, eighteen preceding CI/Docs outcomes are
+checked and retained. **36930730662** has the documented Windows assertion
+failure, with Linux/macOS, quality and runtime success; Docs **36930730659**
+succeeds. The intermediate composition, method-inventory, reference/provider,
+native-compilation, datum and aggregate runs remain successful. Historical
+**36862078230** retains its earlier corrected failure; subsequent runs resolved
+it. No preceding run remains active or was canceled. Fresh repair CI is pending.
+
+The separate search-path native focus now passes **3/3**, zero failures/skips,
+**8m01.314s**, on PostgreSQL **18.6/Linux x64**. The first draft's two failures
+were a fixture expecting an unquoted control boolean; the correction verifies
+its semantic value with the existing parser. Actual Native AOT functions and
+a `PgTest` callback resolve the owned table in ordinary and quoted installation
+schemas, restore the caller's path after success/error, replay selected SQL with
+correct extension membership, reject relocation and conflicting control policy,
+and preserve same-session recovery. This remains focused evidence: final
+generated API/site and complete native/platform acceptance are still required.
+
+The final search-path source now passes its complete generator project
+(**2,941/2,941, 51.486s**) and complete SQL-selection project
+(**442/442, 2.039s**), both with zero failures/skips. Release succeeds with
+**zero warnings/errors, 2m15.87s**; API freshness verifies **235 pages / 2,680
+members**. The site builds **283 pages in 9.12s** and checks with zero errors,
+warnings or hints. Its first site invocation lacked dependencies; installing
+the unchanged frozen lockfile corrects that validation environment. All **138**
+owned hashes match after the checks. Plain full PostgreSQL **18.6/Linux x64**
+acceptance has started on this immutable source; its terminal result and platform
+evidence remain required before promotion.
+
+## Synchronous diagnostics acceptance in progress
+
+The immutable asynchronous-diagnostic snapshot completes plain full `dotnet test`
+on PostgreSQL **18.6/Linux x64**: **10,653 total, 10,641 passed, zero failed,
+12 platform skips**, **52m09.048s**. All six modules finish; integration takes
+**52m07.992s**. Terminal logs are retained and all **126** source hashes match
+after the run; the removed graph-serialization source remains absent. This
+establishes local native acceptance for that draft, not Windows/macOS evidence
+or acceptance of the later signature/search-path drafts. Promotion waits for
+the independently scoped Windows CI repair.
+
+The later ordinary-signature snapshot also completes plain full `dotnet test`
+on PostgreSQL **18.6/Linux x64**: **10,689 total, 10,677 passed, zero failed,
+12 platform skips**, **50m48.066s**. All six modules finish; integration takes
+**50m47.081s**. All **142** owned hashes match after the run and the old graph
+serializer remains absent. This establishes local native acceptance for that
+separate snapshot; Windows/macOS evidence and promotion remain required. The
+Windows assertion repair is still completing its own full suite first.
 
 The final diagnostics snapshot's Release build succeeds with **zero warnings or
 errors, 2m32.02s**. Site publication checks are running after that build;

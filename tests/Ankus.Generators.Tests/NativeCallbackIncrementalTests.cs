@@ -38,7 +38,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(IncrementalStepRunReason.Cached, reason);
         Assert.AreEqual(original, emission);
         Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
-        Assert.Contains(emission, CallbackProperties(driver)!);
+        Assert.Contains(emission.ReplaceLineEndings("\n"), CallbackProperties(driver)!);
         Assert.Contains("global::Functions.@Handle(argument0, argument1)", emission);
         Assert.Contains("global::Ankus.NativeRawCallback.ValidateBinding<global::Hook>()", emission);
         AssertCallbackCompiles(second);
@@ -79,7 +79,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(IncrementalStepRunReason.Cached, CallbackEmission(driver, "OtherCallback").Reason);
         Assert.AreNotEqual(original, emission);
         Assert.Contains(expected, emission);
-        Assert.Contains(emission, CallbackProperties(driver)!);
+        Assert.Contains(emission.ReplaceLineEndings("\n"), CallbackProperties(driver)!);
         AssertCallbackCompiles(output);
     }
 
@@ -314,8 +314,8 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(removeFirst ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Cached,
             CallbackEmission(driver, survivorName).Reason);
         string combined = CallbackProperties(driver)!;
-        Assert.Contains(survivor, combined);
-        Assert.DoesNotContain(removed, combined);
+        Assert.Contains(survivor.ReplaceLineEndings("\n"), combined);
+        Assert.DoesNotContain(removed.ReplaceLineEndings("\n"), combined);
         Assert.DoesNotContain(" @" + removedName + "\n", combined.Replace("\r\n", "\n", StringComparison.Ordinal));
         AssertCallbackCompiles(output);
 
@@ -373,6 +373,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Returns the actual composed property output, or null when the current inventory contains no valid callbacks.
     /// </summary>
-    private static string? CallbackProperties(GeneratorDriver driver) => Assert.ContainsSingle(driver.GetRunResult().Results)
-        .GeneratedSources.SingleOrDefault(static source => source.HintName == "NativeCallbackProperties.g.cs").SourceText?.ToString();
+    private static string? CallbackProperties(GeneratorDriver driver)
+    {
+        string? source = Assert.ContainsSingle(driver.GetRunResult().Results)
+            .GeneratedSources.SingleOrDefault(static generated => generated.HintName == "NativeCallbackProperties.g.cs").SourceText?.ToString();
+        if (source is not null)
+        {
+            Assert.DoesNotContain("\r", source);
+        }
+
+        return source;
+    }
 }

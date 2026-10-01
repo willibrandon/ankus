@@ -35,7 +35,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(boundary, PgTestBoundary(driver, "global::Extension.Checks.@First").Emission);
         Assert.AreEqual(ManifestValue(first, "Ankus.NativeSource"), ManifestValue(second, "Ankus.NativeSource"));
         Assert.AreEqual(ManifestValue(first, "Ankus.Exports"), ManifestValue(second, "Ankus.Exports"));
-        Assert.Contains(catalog, PgTestCatalogSource(driver)!);
+        Assert.Contains(catalog.ReplaceLineEndings("\n"), PgTestCatalogSource(driver)!);
         Assert.AreEqual(included, ManifestValue(second, "Ankus.NativeSource").Contains(boundary.NativeName, StringComparison.Ordinal));
     }
 
@@ -115,7 +115,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.Contains(target + "(", boundary.Managed);
         Assert.Contains(boundary.NativeName, ManifestValue(output, "Ankus.Exports"));
         Assert.DoesNotContain(oldNative, ManifestValue(output, "Ankus.Exports"));
-        Assert.Contains(PgTestCatalog(driver, owner).Emission.Source, PgTestCatalogSource(driver)!);
+        Assert.Contains(PgTestCatalog(driver, owner).Emission.Source.ReplaceLineEndings("\n"), PgTestCatalogSource(driver)!);
     }
 
     /// <summary>
@@ -463,6 +463,15 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Gets the current composed host-discovery source, or null when no valid tests remain.
     /// </summary>
-    private static string? PgTestCatalogSource(GeneratorDriver driver) => Assert.ContainsSingle(driver.GetRunResult().Results)
-        .GeneratedSources.SingleOrDefault(static source => source.HintName == "PostgresTests.g.cs").SourceText?.ToString();
+    private static string? PgTestCatalogSource(GeneratorDriver driver)
+    {
+        string? source = Assert.ContainsSingle(driver.GetRunResult().Results)
+            .GeneratedSources.SingleOrDefault(static generated => generated.HintName == "PostgresTests.g.cs").SourceText?.ToString();
+        if (source is not null)
+        {
+            Assert.DoesNotContain("\r", source);
+        }
+
+        return source;
+    }
 }

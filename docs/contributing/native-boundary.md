@@ -33,7 +33,7 @@ surviving contracts; Roslyn can rerender a survivor when its positional input
 entry changes.
 
 The final compositor normalizes generated source and exports to LF on every
-platform. Cached native fragments may use the host newline convention; compare
+platform. Cached fragments may use the host newline convention; compare
 composed boundaries using the final LF representation while retaining exact
 initialization and cleanup assertions.
 
