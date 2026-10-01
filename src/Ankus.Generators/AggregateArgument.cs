@@ -5,25 +5,20 @@ namespace Ankus.Generators;
 /// <summary>
 /// Reconstructs one managed argument from its flattened SQL slots.
 /// </summary>
-/// <param name="type">The closed interface argument type.</param>
-/// <param name="start">The first SQL slot consumed by this argument.</param>
-/// <param name="count">The number of SQL slots.</param>
-/// <param name="tuple">Whether the argument is a tuple rather than one scalar.</param>
-internal sealed class AggregateArgument(ITypeSymbol type, int start, int count, bool tuple)
+/// <param name="Managed">The exact closed managed argument spelling.</param>
+/// <param name="Start">The first SQL slot consumed by this argument.</param>
+/// <param name="Count">The number of SQL slots.</param>
+/// <param name="Tuple">Whether the argument is a tuple rather than one scalar.</param>
+internal sealed record AggregateArgument(string Managed, int Start, int Count, bool Tuple)
 {
-    /// <summary>
-    /// Gets the exact managed type, retaining nested nullable annotations.
-    /// </summary>
-    internal string Managed { get; } = Format(type);
-
     /// <summary>
     /// Reconstructs the argument from expressions that already own any borrowed values.
     /// </summary>
     /// <param name="values">Expressions ordered by native SQL slot.</param>
     /// <returns>The managed scalar, tuple or empty argument group.</returns>
     internal string Read(IReadOnlyList<string> values)
-        => count == 0 ? "default(" + Managed + ")" : !tuple ? values[start] :
-            count == 1 ? "new " + Managed + "(" + values[start] + ")" : "(" + string.Join(", ", values.Skip(start).Take(count)) + ")";
+        => Count == 0 ? "default(" + Managed + ")" : !Tuple ? values[Start] :
+            Count == 1 ? "new " + Managed + "(" + values[Start] + ")" : "(" + string.Join(", ", values.Skip(Start).Take(Count)) + ")";
 
     /// <summary>
     /// Formats a type without erasing reference nullability.

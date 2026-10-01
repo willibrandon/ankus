@@ -38,6 +38,21 @@ internal sealed record FunctionSqlEmission(string Header, EquatableArray<Functio
             Result.Emit(providers) + Tail;
 
     /// <summary>
+    /// Renders specialized scalar callbacks through the shared grammar while retaining typed input and result fragments.
+    /// </summary>
+    /// <param name="name">The escaped schema-aware function name.</param>
+    /// <param name="replace">Whether installation replaces a compatible function.</param>
+    /// <param name="options">The validated execution clauses.</param>
+    /// <param name="arguments">The ordered typed argument fragments, including unnamed callback inputs.</param>
+    /// <param name="result">The exact scalar catalog identity and ownership.</param>
+    /// <param name="nativeName">The assembly-specific native entry identity.</param>
+    /// <returns>The immutable SQL fragments preceding planner support.</returns>
+    internal static FunctionSqlEmission CreateScalar(string name, bool replace, string options, EquatableArray<Argument> arguments,
+        SqlTypeTemplate result, string nativeName)
+        => new(Head(name, replace), arguments, new(string.Empty, new([new Argument(string.Empty, result, string.Empty)]), string.Empty),
+            End(options, nativeName));
+
+    /// <summary>
     /// Formats specialized callback families through the same function definition grammar.
     /// </summary>
     /// <param name="declaration">The validated SQL declaration.</param>

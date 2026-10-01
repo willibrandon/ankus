@@ -6,32 +6,12 @@ namespace Ankus.Generators;
 /// <summary>
 /// Retains a validated SQL argument independently of the managed parameter that supplies it.
 /// </summary>
-/// <param name="type">The SQL identity and native conversion contract.</param>
-/// <param name="name">The validated unquoted SQL argument name.</param>
-/// <param name="variadic">Whether PostgreSQL collects trailing inputs into this argument.</param>
-/// <param name="attributes">The validated conversion metadata for this argument.</param>
-internal sealed class AggregateParameter(AggregateType type, string name, bool variadic, ImmutableArray<AttributeData> attributes)
+/// <param name="Type">The SQL identity and native conversion contract.</param>
+/// <param name="Name">The validated unquoted SQL argument name.</param>
+/// <param name="IsVariadic">Whether PostgreSQL collects trailing inputs into this argument.</param>
+/// <param name="Precision">The validated optional numeric conversion metadata.</param>
+internal sealed record AggregateParameter(AggregateType Type, string Name, bool IsVariadic, NumericPrecision? Precision)
 {
-    /// <summary>
-    /// Gets the SQL identity, nullability and native conversion contract.
-    /// </summary>
-    internal AggregateType Type { get; } = type;
-
-    /// <summary>
-    /// Gets the unquoted SQL argument name.
-    /// </summary>
-    internal string Name { get; } = name;
-
-    /// <summary>
-    /// Gets whether this argument has PostgreSQL's variadic input contract.
-    /// </summary>
-    internal bool IsVariadic { get; } = variadic;
-
-    /// <summary>
-    /// Gets the conversion attributes belonging to this SQL argument.
-    /// </summary>
-    internal ImmutableArray<AttributeData> Attributes { get; } = attributes;
-
     /// <summary>
     /// Resolves a SQL parameter name from its managed source declaration.
     /// </summary>

@@ -32,7 +32,7 @@ internal static class AggregateContract
     /// <summary>
     /// Builds optional capability helpers without using conventional method-name lookup.
     /// </summary>
-    internal static bool Create(AggregateDeclaration aggregate, SourceProductionContext context)
+    internal static bool Create(AggregateDeclaration aggregate, GeneratorDiagnostics context)
     {
         INamedTypeSymbol type = aggregate.Type;
         INamedTypeSymbol[] interfaces = Interfaces(type);
@@ -132,7 +132,7 @@ internal static class AggregateContract
                     return false;
                 }
 
-                arguments.Add(new(parameterType, start, slots.Count - start, tuple));
+                arguments.Add(new(AggregateArgument.Format(parameterType), start, slots.Count - start, tuple));
             }
 
             bool extra = role == "Final" && aggregate.FinalExtra || role == "MovingFinal" && aggregate.MovingFinalExtra;
@@ -149,7 +149,7 @@ internal static class AggregateContract
                     }
                     while (!names.Add(extraName));
 
-                    slots.Add(new(input.Type.AsNullable(), extraName, false, input.Attributes));
+                    slots.Add(new(input.Type.AsNullable(), extraName, false, input.Precision));
                 }
             }
 
@@ -182,7 +182,7 @@ internal static class AggregateContract
                 return false;
             }
 
-            aggregate.Helpers.Add(role, new(method, role, [.. slots], result, declaration, new(type, contract, [.. arguments])));
+            aggregate.Helpers.Add(role, new(method, role, [.. slots], result, declaration, AggregateInvocation.Create(type, contract, arguments)));
 
             bool AddSlot(ITypeSymbol valueType, string name, bool variadic, ImmutableArray<AttributeData> attributes, IParameterSymbol source, bool grouped = false)
             {
@@ -202,7 +202,7 @@ internal static class AggregateContract
                     return Invalid(source, "Aggregate inputs require supported SQL types, valid names and no SQL defaults.");
                 }
 
-                slots.Add(new(value, name, variadic, attributes));
+                slots.Add(new(value, name, variadic, NumericConstraint.Read(attributes)));
                 return true;
             }
         }

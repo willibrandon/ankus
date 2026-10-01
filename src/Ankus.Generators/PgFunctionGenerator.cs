@@ -80,10 +80,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Where(static type => type is not null && type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute))
             .Select(static (type, _) => type!);
         IncrementalValueProvider<EquatableArray<SchemaPipeline.SchemaOutput>> schemas = SchemaPipeline.Register(context);
-        IncrementalValuesProvider<INamedTypeSymbol> aggregates = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Ankus.PgAggregateAttribute",
-            static (node, _) => node is TypeDeclarationSyntax,
-            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValueProvider<EquatableArray<AggregatePipeline.Output>> aggregates = AggregatePipeline.Register(context);
         IncrementalValuesProvider<ISymbol> requires = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgRequiresAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
         IncrementalValuesProvider<ISymbol> before = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -111,7 +108,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             projectDirectory.Select(static (settings, _) => settings.Version));
         IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context, files,
             projectDirectory.Select(static (settings, _) => settings.Directory));
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
@@ -130,11 +127,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static void Generate(SourceProductionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
         ImmutableArray<AttributeData> customSql, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
-        EquatableArray<EnumPipeline.EnumOutput> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, GucPipeline.PropertyInputs propertyInputs,
+        EquatableArray<EnumPipeline.EnumOutput> enumTypes, EquatableArray<AggregatePipeline.Output> aggregateOutputs, GucPipeline.PropertyInputs propertyInputs,
         GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation,
         ImmutableArray<ISymbol> references, NativeModuleMagic.ModuleOutput module)
     {
+        ImmutableArray<INamedTypeSymbol> aggregateTypes = [.. aggregateOutputs.Select(value =>
+            compilation.Assembly.GetTypeByMetadataName(value.Analysis.MetadataName)).OfType<INamedTypeSymbol>()];
         ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
         ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
@@ -222,8 +221,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
-        var aggregateMethods = new HashSet<IMethodSymbol>(aggregateTypes.SelectMany(AggregateDeclaration.SelectedMethods), SymbolEqualityComparer.Default);
-        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(method));
+        var aggregateMethods = new HashSet<DeclarationIdentity>(aggregateOutputs.SelectMany(static value => value.Analysis.Selected));
+        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(DeclarationIdentity.Create(method)));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(NativeBindingBridge.Binding(compilation));
@@ -644,7 +643,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasVarlenaReader = false;
         foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
         {
-            if (aggregateMethods.Contains(method) || InitializeDeclaration.IsInitializer(method) || BackgroundWorkerDeclaration.IsWorker(method))
+            if (aggregateMethods.Contains(DeclarationIdentity.Create(method)) || InitializeDeclaration.IsInitializer(method) || BackgroundWorkerDeclaration.IsWorker(method))
             {
                 continue;
             }
@@ -838,37 +837,45 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             return;
         }
 
-        var supportFunctions = new Dictionary<string, (IMethodSymbol Method, SqlEntity Entity)>(StringComparer.Ordinal);
-        foreach (INamedTypeSymbol type in aggregateTypes.OrderBy(static value => value.ToDisplayString(), StringComparer.Ordinal))
+        var supportFunctions = new Dictionary<string, (DeclarationIdentity Method, SqlEntity Entity)>(StringComparer.Ordinal);
+        foreach (AggregatePipeline.Output output in aggregateOutputs.OrderBy(static value => value.Analysis.Display, StringComparer.Ordinal))
         {
-            AggregateDeclaration? aggregate = AggregateDeclaration.Create(type, context);
-            if (aggregate is null)
+            AggregatePipeline.Analysis analysis = output.Analysis;
+            foreach (GeneratorProblem problem in analysis.Problems)
+            {
+                problem.Report(compilation, context);
+            }
+
+            if (analysis.Model is not { } aggregate || output.Sql is not { } aggregateSql)
             {
                 continue;
             }
 
             if (!names.Add(aggregate.Signature))
             {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, type.Locations.FirstOrDefault(), aggregate.Name));
+                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, analysis.Location?.Resolve(compilation), aggregate.Name));
                 continue;
             }
 
-            var entity = new SqlEntity("2:aggregate:" + type.ToDisplayString(), PgAggregateEmitter.EmitAggregate(aggregate, typeProviders), type.Locations.FirstOrDefault()) { Kind = "aggregate" };
-            entity.SelectionNames.UnionWith([aggregate.Name, aggregate.QualifiedName, aggregate.Signature, type.ToDisplayString()]);
+            var entity = new SqlEntity("2:aggregate:" + analysis.Display, aggregateSql.Compose(typeProviders), analysis.Location?.Resolve(compilation)) { Kind = "aggregate" };
+            entity.SelectionNames.UnionWith([aggregate.Name, aggregate.QualifiedName, aggregate.Signature, analysis.Display]);
             if (aggregate.Schema is not null)
             {
                 entity.SelectionNames.Add(aggregate.Schema + "." + aggregate.Name);
             }
 
-            entity.Attachments.Add("AGGREGATE " + PgAggregateEmitter.Identity(aggregate, typeProviders));
-            graph.Configure(entity, aggregate.Attribute);
-            fixedSchema |= !SqlGeneration.Apply(aggregate.Attribute, entity, [], [], graph);
-            graph.Add(entity, type);
+            entity.Attachments.Add("AGGREGATE " + aggregateSql.Identity(typeProviders));
+            graph.ConfigureOptions(entity, analysis.Options);
+            fixedSchema |= !SqlGeneration.ApplyOptions(analysis.Options, entity, [], [], graph);
+            graph.Add(entity);
+            graph.Register(analysis.Identity, analysis.Display, entity);
             AddSchemaDependency(entity, aggregate.Schema);
-            foreach (AggregateHelper helper in aggregate.Helpers.Values)
+            foreach (AggregatePipeline.HelperOutput helperOutput in output.Helpers)
             {
-                if (supportFunctions.TryGetValue(helper.Signature, out (IMethodSymbol Method, SqlEntity Entity) existing) &&
-                    SymbolEqualityComparer.Default.Equals(existing.Method, helper.Method))
+                AggregatePipeline.HelperAnalysis helperAnalysis = helperOutput.Analysis;
+                AggregateHelperModel helper = helperAnalysis.Model;
+                if (supportFunctions.TryGetValue(helper.Signature, out (DeclarationIdentity Method, SqlEntity Entity) existing) &&
+                    existing.Method == helperAnalysis.Identity)
                 {
                     entity.Dependencies.Add(existing.Entity);
                     graph.InheritRequirements(entity, existing.Entity);
@@ -877,33 +884,36 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
                 if (!names.Add(helper.Signature))
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(s_invalidName, helper.Method.Locations.FirstOrDefault(), helper.Declaration.QualifiedName));
+                    context.ReportDiagnostic(Diagnostic.Create(s_invalidName, helperAnalysis.Location?.Resolve(compilation), helper.Declaration.QualifiedName));
                     continue;
                 }
 
-                string callback = GetCallbackName(type.ContainingAssembly.Identity + ":" + helper.Invocation.Identity,
-                    "aggregate_" + SqlText.SnakeCase(helper.Role));
-                SqlFunction helperSql = PgAggregateEmitter.EmitHelper(helper, callback, ensureManagedReady, managed, native, exports, typeProviders);
-                var support = new SqlEntity("1:aggregate-helper:" + type.ToDisplayString() + ":" + helper.Role, helperSql, helper.Method.Locations.FirstOrDefault()) { Kind = "function" };
-                support.SelectionNames.UnionWith([helper.Declaration.Name, helper.Declaration.QualifiedName, helper.Signature, helper.Method.Name, helper.Method.ToDisplayString(),
-                    helper.Method.ContainingType.ToDisplayString() + "." + helper.Method.Name]);
-                support.Attachments.Add("FUNCTION " + PgAggregateEmitter.HelperIdentity(helper, typeProviders));
+                string callback = helperAnalysis.Callback;
+                managed.Append(helperOutput.Boundary.Managed);
+                helperOutput.Boundary.Native.AppendTo(native, ensureManagedReady);
+                exports.Append(helperOutput.Boundary.Exports);
+                var helperSql = new SqlFunction(helper.Declaration, helperOutput.Sql.Compose(typeProviders), helperOutput.SqlModel.IsPlannerSupport, requiresAggregateContext: true);
+                var support = new SqlEntity("1:aggregate-helper:" + analysis.Display + ":" + helper.Role, helperSql, helperAnalysis.Location?.Resolve(compilation)) { Kind = "function" };
+                support.SelectionNames.UnionWith([helper.Declaration.Name, helper.Declaration.QualifiedName, helper.Signature, helperAnalysis.Name, helperAnalysis.Display,
+                    helperAnalysis.Container + "." + helperAnalysis.Name]);
+                support.Attachments.Add("FUNCTION " + helperOutput.SqlModel.Name + "(" +
+                    string.Join(",", helperOutput.SqlModel.Parameters.Select(parameter => parameter.Type.Emit(typeProviders))) + ")");
                 if (helper.Declaration.Schema is not null)
                 {
                     support.SelectionNames.Add(helper.Declaration.Schema + "." + helper.Declaration.Name);
                 }
 
-                AttributeData? function = helper.Method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-                if (function is not null)
+                if (helperAnalysis.Options is not null)
                 {
-                    graph.Configure(support, function);
+                    graph.ConfigureOptions(support, helperAnalysis.Options);
                 }
 
-                fixedSchema |= !SqlGeneration.Apply(function, support, [],
+                fixedSchema |= !SqlGeneration.ApplyOptions(helperAnalysis.Options, support, [],
                     [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
-                graph.Add(support, helper.Method);
+                graph.Add(support);
+                graph.Register(helperAnalysis.Identity, helperAnalysis.Display, support);
                 graph.InheritRequirements(entity, support);
-                supportFunctions.Add(helper.Signature, (helper.Method, support));
+                supportFunctions.Add(helper.Signature, (helperAnalysis.Identity, support));
                 entity.Dependencies.Add(support);
                 AddSchemaDependency(support, helper.Declaration.Schema);
                 foreach (AggregateType contract in helper.Types.Concat([helper.Result]))
@@ -1075,7 +1085,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     /// <summary>
     /// Keeps managed entry symbols distinct across assemblies, including synthetic initialization entries.
     /// </summary>
-    private static string GetCallbackName(string identity, string sqlName)
+    internal static string GetCallbackName(string identity, string sqlName)
     {
         using SHA256 hash = SHA256.Create();
         byte[] bytes = hash.ComputeHash(Encoding.UTF8.GetBytes(identity));

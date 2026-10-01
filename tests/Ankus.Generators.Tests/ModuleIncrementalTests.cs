@@ -250,7 +250,7 @@ public sealed partial class PgFunctionGeneratorTests
     private GeneratorDriver RunModule(GeneratorDriver driver, CSharpCompilation compilation, out Compilation output)
     {
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out output, out ImmutableArray<Diagnostic> diagnostics, context.CancellationToken);
-        Assert.IsEmpty(diagnostics);
+        Assert.IsEmpty(diagnostics, string.Join("\n", diagnostics));
         ImmutableArray<Diagnostic> errors = output.GetDiagnostics(context.CancellationToken);
         Assert.IsEmpty(errors.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error), string.Join("\n", errors));
         return driver;

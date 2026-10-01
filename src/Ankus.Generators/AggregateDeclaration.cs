@@ -24,8 +24,8 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Reports the common aggregate diagnostic at the offending declaration.
     /// </summary>
-    internal static void ReportInvalid(ISymbol source, string name, string message, SourceProductionContext context)
-        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, source.Locations.FirstOrDefault(), name, message));
+    internal static void ReportInvalid(ISymbol source, string name, string message, GeneratorDiagnostics context)
+        => context.Report(s_invalid, source.Locations.FirstOrDefault(), name, message);
 
     /// <summary>
     /// Gets the aggregate's managed declaration container.
@@ -166,6 +166,15 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     internal string Signature => QualifiedName + "(" + string.Join(",", Direct.Concat(Inputs).Select(static value => value.Sql)) + ")";
 
     /// <summary>
+    /// Freezes complete validated role and catalog semantics without retaining compiler state.
+    /// </summary>
+    /// <returns>The immutable aggregate and support contract.</returns>
+    internal AggregateModel Freeze() => new(Name, Schema, Kind, Parallel, Initial, MovingInitial, FinalExtra, MovingFinalExtra,
+        FinalModify, MovingFinalModify, AttributeValues.Get(Attribute, "StateSize", 0), AttributeValues.Get(Attribute, "MovingStateSize", 0),
+        Attribute.NamedArguments.Any(static argument => argument.Key == "MovingFinalModify"), SortOperator, new(Direct),
+        new(Helpers.Values.Select(static helper => helper.Freeze())));
+
+    /// <summary>
     /// Reserves selected support methods from ordinary function discovery, including invalid aggregate declarations.
     /// </summary>
     internal static IEnumerable<IMethodSymbol> SelectedMethods(INamedTypeSymbol type)
@@ -174,7 +183,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// <summary>
     /// Creates a complete aggregate contract or reports declaration diagnostics.
     /// </summary>
-    internal static AggregateDeclaration? Create(INamedTypeSymbol type, SourceProductionContext context)
+    internal static AggregateDeclaration? Create(INamedTypeSymbol type, GeneratorDiagnostics context)
     {
         AttributeData attribute = type.GetAttributes().First(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgAggregateAttribute");
         var aggregate = new AggregateDeclaration(type, attribute)
@@ -226,7 +235,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
         if (!AggregateContract.Interfaces(type).Any(static capability => capability.Name == "IPgAggregate"))
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_missingContract, type.Locations.FirstOrDefault(), type.Name));
+            context.Report(s_missingContract, type.Locations.FirstOrDefault(), type.Name);
             return null;
         }
 
@@ -401,7 +410,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 
         AggregateDeclaration? Invalid(string message)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name, message));
+            context.Report(s_invalid, type.Locations.FirstOrDefault(), type.Name, message);
             return null;
         }
     }

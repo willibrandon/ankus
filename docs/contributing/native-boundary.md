@@ -141,6 +141,18 @@ preserved. Removing an earlier declaration can recreate a surviving positional
 Roslyn input while preserving its exact rendered contracts. Other declaration
 families and the final output compositor remain in progress.
 
+Aggregate capabilities also validate into immutable contracts. Each selected
+support role caches its constrained managed call, owned-state conversions and
+native header/body independently. Aggregate DDL and support-function SQL have
+separate typed projections: numeric conversion changes affect the selected
+boundary, while catalog names and execution policies affect the relevant SQL.
+Provider ownership, authored dependencies, SQL replacement, shared support
+identities and current initialization compose afterward. Diagnostics resolve
+against current source trees. Inherited generic support methods reserve their
+open definitions from ordinary function discovery; closed identities still
+distinguish published support functions. Datum discovery and the final graph
+and output compositor remain unfinished.
+
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
 `ExtensionPackage` writes the corresponding control-file flag. A schema-only

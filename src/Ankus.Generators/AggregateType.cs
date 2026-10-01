@@ -6,23 +6,11 @@ namespace Ankus.Generators;
 /// <summary>
 /// Describes an aggregate-only internal state or an ordinary supported SQL datum.
 /// </summary>
-internal sealed class AggregateType(FunctionType? datum, string? payload, bool nullable)
+/// <param name="Datum">The ordinary datum conversion, absent for managed internal state.</param>
+/// <param name="Payload">The exact managed internal-state payload spelling.</param>
+/// <param name="Nullable">Whether the SQL value can be null.</param>
+internal sealed record AggregateType(FunctionType? Datum, string? Payload, bool Nullable)
 {
-    /// <summary>
-    /// Gets the ordinary datum conversion contract, absent for managed internal state.
-    /// </summary>
-    internal FunctionType? Datum { get; } = datum;
-
-    /// <summary>
-    /// Gets the managed payload type of an internal state wrapper.
-    /// </summary>
-    internal string? Payload { get; } = payload;
-
-    /// <summary>
-    /// Gets whether the SQL value can be null.
-    /// </summary>
-    internal bool Nullable { get; } = nullable;
-
     /// <summary>
     /// Gets whether this value has PostgreSQL's internal SQL type.
     /// </summary>
@@ -85,7 +73,7 @@ internal sealed class AggregateType(FunctionType? datum, string? payload, bool n
     /// <summary>
     /// Emits a nullable-aware managed read for a validated native argument slot.
     /// </summary>
-    internal string Read(string slot, ImmutableArray<AttributeData> attributes)
+    internal string Read(string slot, NumericPrecision? precision)
         => IsManagedState ? "global::Ankus.NativeAggregate.Read<" + Payload + ">(" + slot + ")" + (Nullable ? string.Empty : "!") :
-            ManagedConversion.Read(Datum!, slot, NumericConstraint.Rescale(attributes));
+            ManagedConversion.Read(Datum!, slot, precision?.Suffix ?? string.Empty);
 }

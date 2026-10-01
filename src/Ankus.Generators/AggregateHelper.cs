@@ -45,6 +45,13 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role,
     internal AggregateInvocation Invocation { get; } = invocation;
 
     /// <summary>
+    /// Freezes the validated conversion and invocation values needed by helper rendering.
+    /// </summary>
+    /// <returns>The immutable support contract without method symbols or attributes.</returns>
+    internal AggregateHelperModel Freeze() => new(Role, new(Parameters), Result, Declaration, Invocation,
+        NumericConstraint.Read(Method.GetReturnTypeAttributes()));
+
+    /// <summary>
     /// Gets whether PostgreSQL supplies an extra SQL-nonnull internal dummy argument.
     /// </summary>
     internal bool Deserialize => Role == "Deserialize";
