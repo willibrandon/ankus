@@ -131,7 +131,11 @@ installing, and packaging include them so existing databases can use
 
 ## Function types
 
-Declare functions as synchronous static methods. The generator uses these type mappings:
+Declare functions as synchronous static methods.
+Compiler diagnostics distinguish `async` methods, task results and asynchronous
+enumerators. See [backend threads and tasks](docs/src/content/docs/reference/execution.md#backend-threads-and-tasks).
+
+The generator uses these type mappings:
 
 | C# | PostgreSQL |
 |---|---|

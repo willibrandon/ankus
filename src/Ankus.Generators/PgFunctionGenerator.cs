@@ -15,11 +15,6 @@ namespace Ankus.Generators;
 [Generator]
 public sealed class PgFunctionGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor s_invalidFunction = new(
-        "ANKUS001", "Unsupported PostgreSQL function",
-        "'{0}' must be an accessible, synchronous, non-generic static method using supported SQL types or injected PgMemoryContext parameters, with by-value parameters and at most 100 SQL arguments",
-        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
-
     private static readonly DiagnosticDescriptor s_invalidName = new(
         "ANKUS002", "Invalid PostgreSQL function name",
         "SQL name '{0}' must contain 1-63 lowercase ASCII letters, digits, or underscores, and its SQL signature must be unique",
@@ -1058,47 +1053,6 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         return result.ToString();
-    }
-
-    /// <summary>
-    /// Reports the established unsupported-function diagnostic through shared semantic validation.
-    /// </summary>
-    /// <param name="method">The invalid managed declaration.</param>
-    /// <param name="context">The current diagnostic destination.</param>
-    internal static void ReportUnsupported(IMethodSymbol method, GeneratorDiagnostics context)
-        => context.Report(s_invalidFunction, method.Locations.FirstOrDefault(), method.Name);
-
-    /// <summary>
-    /// Checks managed calling and accessibility constraints before rendering a function model.
-    /// </summary>
-    /// <param name="method">The attributed method being validated.</param>
-    /// <param name="parameters">The detached managed argument contracts.</param>
-    /// <param name="set">The optional validated iterator shape.</param>
-    /// <param name="result">The scalar return contract, or null for an unsupported scalar or a set.</param>
-    /// <returns>Whether the method can use a generated native dispatcher.</returns>
-    internal static bool IsSupported(IMethodSymbol method, FunctionParameter[] parameters, SetResult? set, FunctionType? result)
-    {
-        if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
-            method.ReturnsByRef || method.ReturnsByRefReadonly ||
-            (set is null && result is null) || parameters.Count(static parameter => !parameter.IsInjected) > 100 ||
-            method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-            parameters.Any(static parameter => parameter.RefKind != RefKind.None ||
-                (!parameter.IsInjected && parameter.Type is null) ||
-                (parameter.IsParams && parameter.Type?.IsVector != true)))
-        {
-            return false;
-        }
-
-        for (INamedTypeSymbol? type = method.ContainingType; type is not null; type = type.ContainingType)
-        {
-            if (type.IsGenericType || type.IsFileLocal ||
-                type.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>

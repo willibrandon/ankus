@@ -57,6 +57,43 @@ calls, schema placement, and PostgreSQL execution options.
 
 See [enumerated types](/enums/) for custom C# enums, labels and type dependencies.
 
+## Function signatures
+
+SQL entry methods must be synchronous, concrete static methods. Declare the
+method and every containing type `public` or `internal`. Generic methods,
+generic containing types and file-local types cannot provide the concrete call
+required by the generated Native AOT dispatcher.
+
+Pass parameters and return values by value. PostgreSQL supplies SQL datums, not
+C# `ref`, `in`, `out` or `ref readonly` slots. Injected `PgMemoryContext` and
+`PgFunctionContext` parameters also use by-value passing. At most 100 SQL
+arguments are allowed; injected contexts do not count toward that limit.
+
+Use a [supported type](#types), a [custom type](/custom-types/) or an explicit
+[datum mapping](/raw-values/#reusable-scalar-mappings) for inputs and results.
+`params T[]` requires a supported SQL array conversion. `params byte[]` is
+invalid because `byte[]` maps to scalar `bytea`; use `params byte[][]` for
+variadic binary values. Ankus does not adapt span-based `params` collections.
+
+Invalid signatures report a specific error at the offending declaration:
+
+| Diagnostic | Required correction |
+| --- | --- |
+| ANKUS033 | Declare a static entry method. |
+| ANKUS034 | Make the method and containing types public or internal. |
+| ANKUS035 | Use a non-generic entry method in non-generic containing types. |
+| ANKUS036 | Put the entry attribute on a concrete implementation. |
+| ANKUS037 | Return the SQL value by value. |
+| ANKUS038 | Pass arguments and injected contexts by value. |
+| ANKUS039 | Give the result a supported SQL conversion. |
+| ANKUS040 | Give the parameter a supported SQL conversion. |
+| ANKUS041 | Use a supported SQL array for the variadic parameter. |
+| ANKUS042 | Reduce the number of SQL arguments to 100 or fewer. |
+| ANKUS043 | Move the method out of a file-local type. |
+
+Task and asynchronous iterator diagnostics are described in
+[execution constraints](/reference/execution/#backend-threads-and-tasks).
+
 ## Types
 
 | C# | PostgreSQL |

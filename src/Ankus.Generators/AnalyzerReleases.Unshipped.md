@@ -2,7 +2,6 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|------
-ANKUS001 | Ankus | Error | Unsupported PostgreSQL function signature
 ANKUS002 | Ankus | Error | Invalid or duplicate PostgreSQL function name
 ANKUS003 | Ankus | Error | Invalid numeric precision or scale constraint
 ANKUS004 | Ankus | Error | Invalid PostgreSQL function or schema declaration
@@ -31,3 +30,17 @@ ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
 ANKUS027 | Ankus | Error | Invalid generated planner support function
 ANKUS028 | Ankus | Error | Incompatible typed aggregate implementation nullability
 ANKUS029 | Ankus | Error | Missing PostgreSQL aggregate capability contract
+ANKUS030 | Ankus | Error | Asynchronous PostgreSQL function
+ANKUS031 | Ankus | Error | Task-returning PostgreSQL function
+ANKUS032 | Ankus | Error | Asynchronous PostgreSQL set result
+ANKUS033 | Ankus | Error | PostgreSQL function must be static
+ANKUS034 | Ankus | Error | PostgreSQL function is inaccessible
+ANKUS035 | Ankus | Error | PostgreSQL function has open type parameters
+ANKUS036 | Ankus | Error | PostgreSQL function has no callable implementation
+ANKUS037 | Ankus | Error | PostgreSQL function cannot return by reference
+ANKUS038 | Ankus | Error | PostgreSQL argument cannot be passed by reference
+ANKUS039 | Ankus | Error | Unsupported PostgreSQL result type
+ANKUS040 | Ankus | Error | Unsupported PostgreSQL parameter type
+ANKUS041 | Ankus | Error | PostgreSQL variadic parameter must map to an array
+ANKUS042 | Ankus | Error | Too many PostgreSQL function arguments
+ANKUS043 | Ankus | Error | PostgreSQL function is in a file-local type

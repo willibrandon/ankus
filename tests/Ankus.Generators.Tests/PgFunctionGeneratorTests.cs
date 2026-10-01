@@ -99,28 +99,28 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
     /// Verifies unsupported CLR signatures produce an actionable diagnostic instead of unsafe or uncompilable wrappers.
     /// </summary>
     /// <param name="method">The unsupported attributed method declaration.</param>
+    /// <param name="expected">The precise reason the calling contract is invalid.</param>
     [TestMethod]
-    [DataRow("public int Instance() => 1;")]
-    [DataRow("private static int Hidden() => 1;")]
-    [DataRow("public static System.Uri WrongResult() => new(\"https://example.com\");")]
-    [DataRow("public static int WrongArgument(System.Uri value) => 1;")]
-    [DataRow("public static int[][] Nested(int[][] value) => value;")]
-    [DataRow("public static int[,] Rectangular(int[,] value) => value;")]
-    [DataRow("public static Ankus.PgArray<Ankus.PgArray<int>> Nested(Ankus.PgArray<Ankus.PgArray<int>> value) => value;")]
-    [DataRow("public static Ankus.PgArray<byte> ByteElements(Ankus.PgArray<byte> value) => value;")]
-    [DataRow("public static Ankus.PgInternal[] InternalArray(Ankus.PgInternal[] value) => value;")]
-    [DataRow("public static Ankus.PgArray<Ankus.PgInternal> InternalArray(Ankus.PgArray<Ankus.PgInternal> value) => value;")]
-    [DataRow("public static byte[] ScalarParams(params byte[] value) => value;")]
-    [DataRow("public static int SpanParams(params System.ReadOnlySpan<int> value) => value.Length;")]
-    [DataRow("public static int ByReference(ref int value) => value;")]
-    [DataRow("public static int Generic<T>() => 1;")]
-    [DataRow("public static async void Unobserved() { await System.Threading.Tasks.Task.Yield(); }")]
-    public void UnsupportedSignaturesAreRejected(string method)
+    [DataRow("public int Instance() => 1;", "ANKUS033")]
+    [DataRow("private static int Hidden() => 1;", "ANKUS034")]
+    [DataRow("public static System.Uri WrongResult() => new(\"https://example.com\");", "ANKUS039")]
+    [DataRow("public static int WrongArgument(System.Uri value) => 1;", "ANKUS040")]
+    [DataRow("public static int[][] Nested(int[][] value) => value;", "ANKUS039")]
+    [DataRow("public static int[,] Rectangular(int[,] value) => value;", "ANKUS039")]
+    [DataRow("public static Ankus.PgArray<Ankus.PgArray<int>> Nested(Ankus.PgArray<Ankus.PgArray<int>> value) => value;", "ANKUS039")]
+    [DataRow("public static Ankus.PgArray<byte> ByteElements(Ankus.PgArray<byte> value) => value;", "ANKUS039")]
+    [DataRow("public static Ankus.PgInternal[] InternalArray(Ankus.PgInternal[] value) => value;", "ANKUS039")]
+    [DataRow("public static Ankus.PgArray<Ankus.PgInternal> InternalArray(Ankus.PgArray<Ankus.PgInternal> value) => value;", "ANKUS039")]
+    [DataRow("public static byte[] ScalarParams(params byte[] value) => value;", "ANKUS041")]
+    [DataRow("public static int SpanParams(params System.ReadOnlySpan<int> value) => value.Length;", "ANKUS041")]
+    [DataRow("public static int ByReference(ref int value) => value;", "ANKUS038")]
+    [DataRow("public static int Generic<T>() => 1;", "ANKUS035")]
+    public void UnsupportedSignaturesAreRejected(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public class Functions { [Ankus.PgFunction] " + method + " }");
 
         Diagnostic error = Assert.ContainsSingle(diagnostics);
-        Assert.AreEqual("ANKUS001", error.Id);
+        Assert.AreEqual(expected, error.Id);
         Assert.AreEqual(DiagnosticSeverity.Error, error.Severity);
         Assert.IsTrue(error.Location.IsInSource);
     }
@@ -213,15 +213,16 @@ public sealed partial class PgFunctionGeneratorTests(TestContext context)
     /// Verifies generics and inaccessible containing types do not produce invalid method references.
     /// </summary>
     /// <param name="source">A function inside an unsupported containing type.</param>
+    /// <param name="expected">The precise reason the calling contract is invalid.</param>
     [TestMethod]
-    [DataRow("public class Container<T> { [Ankus.PgFunction] public static int Add() => 1; }")]
-    [DataRow("file class Container { [Ankus.PgFunction] public static int Add() => 1; }")]
-    [DataRow("public class Outer { private class Inner { [Ankus.PgFunction] public static int Add() => 1; } }")]
-    public void UnsupportedContainersAreRejected(string source)
+    [DataRow("public class Container<T> { [Ankus.PgFunction] public static int Add() => 1; }", "ANKUS035")]
+    [DataRow("file class Container { [Ankus.PgFunction] public static int Add() => 1; }", "ANKUS043")]
+    [DataRow("public class Outer { private class Inner { [Ankus.PgFunction] public static int Add() => 1; } }", "ANKUS034")]
+    public void UnsupportedContainersAreRejected(string source, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
 
-        Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

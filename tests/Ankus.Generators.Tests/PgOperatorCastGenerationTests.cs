@@ -498,19 +498,20 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="attribute">The attribute triggering function discovery.</param>
     /// <param name="method">The unsupported managed declaration.</param>
+    /// <param name="expected">The precise reason the calling contract is invalid.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgOperator(\"?\")]", "private static string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgCast]", "private static string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgOperator(\"?\")]", "public string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgCast]", "public string Render(int value) => \"\";")]
-    [DataRow("[Ankus.PgOperator(\"?\")]", "public static string Render<T>(int value) => \"\";")]
-    [DataRow("[Ankus.PgCast]", "public static string Render<T>(int value) => \"\";")]
-    [DataRow("[Ankus.PgOperator(\"?\")]", "public static System.Uri Render(int value) => new(\"https://example.com\");")]
-    [DataRow("[Ankus.PgCast]", "public static System.Uri Render(int value) => new(\"https://example.com\");")]
-    public void OperatorCastDiscoveryRetainsNativeFunctionRestrictions(string attribute, string method)
+    [DataRow("[Ankus.PgOperator(\"?\")]", "private static string Render(int value) => \"\";", "ANKUS034")]
+    [DataRow("[Ankus.PgCast]", "private static string Render(int value) => \"\";", "ANKUS034")]
+    [DataRow("[Ankus.PgOperator(\"?\")]", "public string Render(int value) => \"\";", "ANKUS033")]
+    [DataRow("[Ankus.PgCast]", "public string Render(int value) => \"\";", "ANKUS033")]
+    [DataRow("[Ankus.PgOperator(\"?\")]", "public static string Render<T>(int value) => \"\";", "ANKUS035")]
+    [DataRow("[Ankus.PgCast]", "public static string Render<T>(int value) => \"\";", "ANKUS035")]
+    [DataRow("[Ankus.PgOperator(\"?\")]", "public static System.Uri Render(int value) => new(\"https://example.com\");", "ANKUS039")]
+    [DataRow("[Ankus.PgCast]", "public static System.Uri Render(int value) => new(\"https://example.com\");", "ANKUS039")]
+    public void OperatorCastDiscoveryRetainsNativeFunctionRestrictions(string attribute, string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public class Functions { " + attribute + method + " }");
-        Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

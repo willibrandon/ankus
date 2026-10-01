@@ -15,11 +15,24 @@ it. SPI, native bindings, logging and PostgreSQL-owned resource APIs require
 that active thread and the appropriate invocation phase. Calling them from
 `Task.Run` throws `InvalidOperationException`.
 
-Generated SQL functions are synchronous. An `async` method, `Task` result or
+Generated SQL functions are synchronous. An `async` method, `Task`/`ValueTask` result or
 `IAsyncEnumerable<T>` does not become an asynchronous PostgreSQL function.
 Await continuations, thread-pool work and timer callbacks do not inherit backend
 access. `ConfigureAwait(false)` does not change that rule, and synchronously
 waiting for a task does not grant its worker thread access either.
+
+The generator reports these contracts separately, at the asynchronous keyword or
+return type:
+
+| Diagnostic | Unsupported SQL function contract |
+| --- | --- |
+| `ANKUS030` | An `async` entry method, including `async void` and partial implementations. |
+| `ANKUS031` | A `Task`, `Task<T>`, `ValueTask` or `ValueTask<T>` result. Return the completed SQL value. |
+| `ANKUS032` | An `IAsyncEnumerable<T>` result. SETOF and TABLE functions use synchronous `IEnumerable<T>`. |
+
+These checks use framework type identity; a user-defined SQL type named `Task`
+does not become an asynchronous result. Keep the PostgreSQL entry method
+synchronous and finish its work before returning.
 
 Managed worker threads can compute over detached managed values using operations
 that do not call PostgreSQL. Some owned-value APIs, such as `PgNumeric`

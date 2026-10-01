@@ -54,9 +54,9 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="diagnostic">The expected diagnostic identifier.</param>
     [TestMethod]
     [DataRow("public static int Apply([Ankus.PgParameter] Ankus.PgFunctionContext call) => 42;", "ANKUS004")]
-    [DataRow("public static int Apply(ref Ankus.PgFunctionContext call) => 42;", "ANKUS001")]
-    [DataRow("public static int Apply(Ankus.PgFunctionContext[] calls) => 42;", "ANKUS001")]
-    [DataRow("public static Ankus.PgFunctionContext Apply(Ankus.PgFunctionContext call) => call;", "ANKUS001")]
+    [DataRow("public static int Apply(ref Ankus.PgFunctionContext call) => 42;", "ANKUS038")]
+    [DataRow("public static int Apply(Ankus.PgFunctionContext[] calls) => 42;", "ANKUS040")]
+    [DataRow("public static Ankus.PgFunctionContext Apply(Ankus.PgFunctionContext call) => call;", "ANKUS039")]
     public void InvalidFunctionContextShapesAreDiagnosed(string method, string diagnostic)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");

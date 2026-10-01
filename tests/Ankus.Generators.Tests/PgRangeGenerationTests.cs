@@ -57,6 +57,6 @@ public sealed partial class PgFunctionGeneratorTests
             }
             """);
         Assert.IsNotEmpty(diagnostics);
-        Assert.IsTrue(diagnostics.All(static diagnostic => diagnostic.Id == "ANKUS001"));
+        Assert.IsTrue(diagnostics.All(static diagnostic => diagnostic.Id == "ANKUS039"));
     }
 }

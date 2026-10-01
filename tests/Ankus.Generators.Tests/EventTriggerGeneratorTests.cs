@@ -327,7 +327,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="attribute">The incorrect discovery marker.</param>
     /// <param name="diagnostic">The expected diagnostic.</param>
     [TestMethod]
-    [DataRow("Ankus.PgFunction", "ANKUS001")]
+    [DataRow("Ankus.PgFunction", "ANKUS040")]
     [DataRow("Ankus.PgTrigger", "ANKUS010")]
     public void EventTriggerContextRequiresTheEventMarker(string attribute, string diagnostic)
         => AssertInvalidEventTrigger("public static class Functions { [" + attribute + "] " +

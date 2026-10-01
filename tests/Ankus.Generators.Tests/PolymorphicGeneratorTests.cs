@@ -52,9 +52,9 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("public static Ankus.PgAnyElement Value(int input) => null!;", "ANKUS004")]
     [DataRow("public static System.Collections.Generic.IEnumerable<Ankus.PgAnyArray> Value() => null!;", "ANKUS004")]
-    [DataRow("public static int Value(Ankus.PgAnyElement[] inputs) => 0;", "ANKUS001")]
+    [DataRow("public static int Value(Ankus.PgAnyElement[] inputs) => 0;", "ANKUS040")]
     [DataRow("public static Ankus.PgArrayView Value(int input) => null!;", "ANKUS004")]
-    [DataRow("public static int Value(Ankus.PgArrayView[] inputs) => 0;", "ANKUS001")]
+    [DataRow("public static int Value(Ankus.PgArrayView[] inputs) => 0;", "ANKUS040")]
     public void InvalidPolymorphicSignaturesAreDiagnosed(string method, string diagnostic)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public static class Functions { [Ankus.PgFunction] " + method + " }");

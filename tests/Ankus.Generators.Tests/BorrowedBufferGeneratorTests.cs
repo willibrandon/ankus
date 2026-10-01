@@ -67,6 +67,6 @@ public sealed partial class PgFunctionGeneratorTests
                 public static int Value({{type}} values) => 0;
             }
             """);
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS001");
+        AssertVirtualContextDiagnostic(diagnostics, "ANKUS040");
     }
 }

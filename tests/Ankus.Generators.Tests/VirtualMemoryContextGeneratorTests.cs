@@ -131,7 +131,7 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Functions { [Ankus.PgFunction] public static int Apply(" + parameters + ") => 42; }");
         if (count == 101)
         {
-            AssertVirtualContextDiagnostic(diagnostics, "ANKUS001");
+            AssertVirtualContextDiagnostic(diagnostics, "ANKUS042");
             return;
         }
 
@@ -401,20 +401,21 @@ public sealed partial class PgFunctionGeneratorTests
     /// Only the exact by-value context parameter is virtual; references, collections, results, and lookalikes remain unsupported.
     /// </summary>
     /// <param name="method">The unsupported function declaration.</param>
+    /// <param name="expected">The precise reason the calling contract is invalid.</param>
     [TestMethod]
-    [DataRow("public static int Apply(ref Ankus.PgMemoryContext context) => 42;")]
-    [DataRow("public static int Apply(in Ankus.PgMemoryContext context) => 42;")]
-    [DataRow("public static int Apply(out Ankus.PgMemoryContext context) { context = null!; return 42; }")]
-    [DataRow("public static int Apply(Ankus.PgMemoryContext[] contexts) => contexts.Length;")]
-    [DataRow("public static int Apply(Ankus.PgArray<Ankus.PgMemoryContext> contexts) => 42;")]
-    [DataRow("public static Ankus.PgMemoryContext Apply(Ankus.PgMemoryContext context) => context;")]
-    [DataRow("public static int Apply(Other.PgMemoryContext context) => 42;")]
-    [DataRow("public static int Apply<T>(Ankus.PgMemoryContext context) => 42;")]
-    public void UnsupportedVirtualContextShapesAreRejected(string method)
+    [DataRow("public static int Apply(ref Ankus.PgMemoryContext context) => 42;", "ANKUS038")]
+    [DataRow("public static int Apply(in Ankus.PgMemoryContext context) => 42;", "ANKUS038")]
+    [DataRow("public static int Apply(out Ankus.PgMemoryContext context) { context = null!; return 42; }", "ANKUS038")]
+    [DataRow("public static int Apply(Ankus.PgMemoryContext[] contexts) => contexts.Length;", "ANKUS040")]
+    [DataRow("public static int Apply(Ankus.PgArray<Ankus.PgMemoryContext> contexts) => 42;", "ANKUS040")]
+    [DataRow("public static Ankus.PgMemoryContext Apply(Ankus.PgMemoryContext context) => context;", "ANKUS039")]
+    [DataRow("public static int Apply(Other.PgMemoryContext context) => 42;", "ANKUS040")]
+    [DataRow("public static int Apply<T>(Ankus.PgMemoryContext context) => 42;", "ANKUS035")]
+    public void UnsupportedVirtualContextShapesAreRejected(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate(
             "namespace Other { public sealed class PgMemoryContext; } public static class Functions { [Ankus.PgFunction] " + method + " }");
-        AssertVirtualContextDiagnostic(diagnostics, "ANKUS001");
+        AssertVirtualContextDiagnostic(diagnostics, expected);
     }
 
     /// <summary>

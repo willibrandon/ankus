@@ -406,8 +406,8 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="declaration">The invalid managed declaration.</param>
     /// <param name="id">The existing diagnostic identity.</param>
     [TestMethod]
-    [DataRow("[Ankus.PgFunction(GenerateSql = false)] public static System.Uri Bad() => new(\"https://example.com\");", "ANKUS001")]
-    [DataRow("[Ankus.PgFunction(Sql = \"\")] public static int Bad(ref int value) => value;", "ANKUS001")]
+    [DataRow("[Ankus.PgFunction(GenerateSql = false)] public static System.Uri Bad() => new(\"https://example.com\");", "ANKUS039")]
+    [DataRow("[Ankus.PgFunction(Sql = \"\")] public static int Bad(ref int value) => value;", "ANKUS038")]
     [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\", NullInput = Ankus.PgNullInput.CalledOnNull)] public static int Bad(int value) => value;", "ANKUS004")]
     [DataRow("[Ankus.PgFunction(GenerateSql = false), Ankus.PgOperator(\"@\")] public static int Bad() => 1;", "ANKUS007")]
     [DataRow("[Ankus.PgFunction(Sql = \"SELECT 1;\"), Ankus.PgCast] public static int Bad(int value) => value;", "ANKUS007")]

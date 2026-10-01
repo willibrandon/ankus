@@ -290,7 +290,7 @@ public sealed partial class PgFunctionGeneratorTests
             public enum Mood { Happy }
             public static class Functions { [Ankus.PgFunction] public static {{managed}} Echo({{managed}} value) => value; }
             """);
-        Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual("ANKUS039", Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

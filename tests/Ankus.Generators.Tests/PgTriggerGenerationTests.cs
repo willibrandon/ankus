@@ -323,7 +323,7 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     public void TriggerContextRequiresTheTriggerMarker()
         => AssertInvalidTrigger("public static class Functions { [Ankus.PgFunction] " +
-            "public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS001");
+            "public static Ankus.PgHeapTuple? Audit(Ankus.PgTriggerContext context) => null; }", "ANKUS040");
 
     /// <summary>
     /// Checks generator diagnostics and compiler diagnostics before emitting the generated assembly.

@@ -32,7 +32,7 @@ public sealed partial class PgFunctionGeneratorTests
         DeclarationIdentity identity = DeclarationIdentity.Create(unresolved);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _,
             out ImmutableArray<Diagnostic> errors, context.CancellationToken);
-        Assert.AreEqual("ANKUS001", Assert.ContainsSingle(errors).Id);
+        Assert.AreEqual(result ? "ANKUS039" : "ANKUS040", Assert.ContainsSingle(errors).Id);
 
         SyntaxTree tree = CSharpSyntaxTree.ParseText(source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), tree);
@@ -43,7 +43,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(identity.GetHashCode(), current.GetHashCode());
         driver = driver.RunGeneratorsAndUpdateCompilation(edited, out _, out errors, context.CancellationToken);
         Diagnostic error = Assert.ContainsSingle(errors);
-        Assert.AreEqual("ANKUS001", error.Id);
+        Assert.AreEqual(result ? "ANKUS039" : "ANKUS040", error.Id);
         Assert.AreSame(tree, error.Location.SourceTree);
 
         driver = RunModule(driver, edited.ReplaceSyntaxTree(tree, CSharpSyntaxTree.ParseText(

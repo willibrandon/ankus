@@ -143,7 +143,7 @@ public sealed partial class PgFunctionGeneratorTests
             }
             public static class Functions { [Ankus.PgFunction] public static int Read({{parameter}} value)=>0; }
             """);
-        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS001"));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics.Where(static value => value.Id == "ANKUS040"));
         Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 

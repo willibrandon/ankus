@@ -139,7 +139,7 @@ public sealed partial class PgFunctionGeneratorTests
         CSharpCompilation initial = ModuleCompilation(Source);
         GeneratorDriver driver = ModuleDriver().RunGeneratorsAndUpdateCompilation(initial, out _, out ImmutableArray<Diagnostic> first, context.CancellationToken);
         Diagnostic previous = Assert.ContainsSingle(first);
-        Assert.AreEqual("ANKUS001", previous.Id);
+        Assert.AreEqual("ANKUS039", previous.Id);
         SyntaxTree edited = CSharpSyntaxTree.ParseText(Source + "\n// independent edit", path: "Module.cs", cancellationToken: context.CancellationToken);
         driver = driver.RunGeneratorsAndUpdateCompilation(initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), edited), out _, out ImmutableArray<Diagnostic> errors, context.CancellationToken);
         Diagnostic current = Assert.ContainsSingle(errors);

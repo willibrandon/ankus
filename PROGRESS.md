@@ -447,6 +447,11 @@ native-compilation, datum and aggregate runs remain successful. Historical
 **36862078230** retains its earlier corrected failure; subsequent runs resolved
 it. No preceding run remains active or was canceled. Fresh repair CI is pending.
 
+The repair is committed and pushed as **d08bdc6**. The same eighteen preceding
+outcomes are checked and retained immediately before push. Fresh CI
+**36937809216** and Docs **36937809147** are queued; their outcomes remain
+required. The separate review snapshots continue independently.
+
 The separate search-path native focus now passes **3/3**, zero failures/skips,
 **8m01.314s**, on PostgreSQL **18.6/Linux x64**. The first draft's two failures
 were a fixture expecting an unquoted control boolean; the correction verifies
@@ -486,6 +491,38 @@ on PostgreSQL **18.6/Linux x64**: **10,689 total, 10,677 passed, zero failed,
 serializer remains absent. This establishes local native acceptance for that
 separate snapshot; Windows/macOS evidence and promotion remain required. The
 Windows assertion repair is still completing its own full suite first.
+
+After the Windows repair is accepted and pushed, the diagnostics draft takes
+those two test corrections and the accepted maintainer-guide status. Exactly
+three owned paths change; every production source remains byte-identical to the
+native-accepted signature snapshot above. The merged complete generator project
+passes **2,985/2,985**, zero failures/skips (**52.653s**), and Release succeeds
+with **zero warnings/errors, 2m40.77s**. Final API/site checks precede promotion.
+The complete backend evidence remains attributed to its original immutable
+snapshot, rather than presented as a different run.
+
+Final merged API freshness verifies **234 pages / 2,677 members**. The site
+builds **282 pages in 2.54s** and checks with zero errors, warnings or hints.
+All **142** owned hashes match the remote validator and promoted primary source.
+This milestone replaces the ordinary-function catch-all with **ANKUS030–043**:
+separate asynchronous contracts, calling/access/generic constraints, by-reference
+slots, unsupported conversions, variadic shape, SQL argument limits and file-local
+owners. Diagnostics identify the authored cause and link to the relevant guide.
+Original negative fixtures retain their rejected inputs and now require the
+specific error. New cases prove current/mapped locations, framework identity,
+cache behavior, compiled repair values and valid neighbors beside invalid entries.
+Broader specialized diagnostics and code fixes remain open; no asynchronous
+adapter or automatic semantic rewrite is added.
+
+Before this diagnostics commit, twenty preceding CI/Docs outcomes are checked
+and retained. Repair CI **36937809216** has successful quality and all three
+runtime jobs, with all three complete platform suites still running; Docs
+**36937809147** succeeds. **36930730662** retains the Windows assertion failure
+resolved by the complete local repair; its Docs run succeeds. The intervening
+method-inventory, reference/provider, native-compilation, datum and aggregate
+runs remain successful. Historical **36862078230** is already resolved by later
+complete runs. No reported failure is outstanding, no run is canceled, and fresh
+diagnostics platform evidence remains required.
 
 The final diagnostics snapshot's Release build succeeds with **zero warnings or
 errors, 2m32.02s**. Site publication checks are running after that build;

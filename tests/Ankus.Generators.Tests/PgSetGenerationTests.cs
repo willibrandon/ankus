@@ -530,17 +530,18 @@ public sealed partial class PgFunctionGeneratorTests
     /// Set return support does not make sets legal inputs or admit asynchronous and inaccessible Native AOT callbacks.
     /// </summary>
     /// <param name="method">The unsupported ordinary function contract.</param>
+    /// <param name="expected">The exact diagnostic for that restriction.</param>
     [TestMethod]
-    [DataRow("public static int Rows(System.Collections.Generic.IEnumerable<int> values) => 1;")]
-    [DataRow("public static System.Collections.Generic.IAsyncEnumerable<int> Rows() => null!;")]
-    [DataRow("public static System.Threading.Tasks.Task<int> Rows() => System.Threading.Tasks.Task.FromResult(1);")]
-    [DataRow("private static System.Collections.Generic.IEnumerable<int> Rows() => System.Array.Empty<int>();")]
-    [DataRow("public System.Collections.Generic.IEnumerable<int> Rows() => System.Array.Empty<int>();")]
-    [DataRow("public static System.Collections.Generic.IEnumerable<int> Rows<T>() => System.Array.Empty<int>();")]
-    public void SetSupportRetainsOrdinaryFunctionRestrictions(string method)
+    [DataRow("public static int Rows(System.Collections.Generic.IEnumerable<int> values) => 1;", "ANKUS040")]
+    [DataRow("public static System.Collections.Generic.IAsyncEnumerable<int> Rows() => null!;", "ANKUS032")]
+    [DataRow("public static System.Threading.Tasks.Task<int> Rows() => System.Threading.Tasks.Task.FromResult(1);", "ANKUS031")]
+    [DataRow("private static System.Collections.Generic.IEnumerable<int> Rows() => System.Array.Empty<int>();", "ANKUS034")]
+    [DataRow("public System.Collections.Generic.IEnumerable<int> Rows() => System.Array.Empty<int>();", "ANKUS033")]
+    [DataRow("public static System.Collections.Generic.IEnumerable<int> Rows<T>() => System.Array.Empty<int>();", "ANKUS035")]
+    public void SetSupportRetainsOrdinaryFunctionRestrictions(string method, string expected)
     {
         (_, ImmutableArray<Diagnostic> diagnostics) = Generate("public class Functions { [Ankus.PgFunction] " + method + " }");
-        Assert.AreEqual("ANKUS001", Assert.ContainsSingle(diagnostics).Id);
+        Assert.AreEqual(expected, Assert.ContainsSingle(diagnostics).Id);
     }
 
     /// <summary>

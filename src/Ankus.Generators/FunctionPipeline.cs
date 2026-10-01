@@ -82,16 +82,18 @@ internal static class FunctionPipeline
         var problems = new List<GeneratorProblem>();
         var diagnostics = new GeneratorDiagnostics((descriptor, location, arguments) =>
             problems.Add(new(descriptor, GeneratorLocation.Create(location, attribute.SemanticModel.Compilation), new(arguments))), cancellationToken);
+        if (!SynchronousDeclaration.Validate(method, attribute.SemanticModel.Compilation, diagnostics))
+        {
+            return new(DeclarationIdentity.Create(method), null, null, SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static value =>
+                    value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")), new(problems),
+                GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
+        }
+
         FunctionParameter[] parameters = FunctionParameter.Create(method);
         SetResult? set = SetResult.Create(method, diagnostics, out bool validSet);
         FunctionType? result = set is null ? FunctionType.CreateResult(method) : null;
         bool valid = validSet && SqlTypeReference.Validate(method, ref set, diagnostics);
-        if (valid && !PgFunctionGenerator.IsSupported(method, parameters, set, result))
-        {
-            PgFunctionGenerator.ReportUnsupported(method, diagnostics);
-            valid = false;
-        }
-
+        valid = valid && FunctionSignature.Validate(method, parameters, set, result, diagnostics);
         valid = valid && SqlNullability.Validate(method, method.Parameters.Where((_, index) => !parameters[index].IsInjected),
             set is null ? [method.ReturnType] : SetResult.OutputTypes(method), diagnostics);
         valid = valid && NumericConstraint.Validate(method, diagnostics, set);

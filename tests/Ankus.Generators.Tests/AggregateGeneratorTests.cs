@@ -756,7 +756,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     [TestMethod]
     public void AggregateStateDoesNotBecomeOrdinarySqlType()
-        => AssertInvalidAggregate("public static class Invalid { [Ankus.PgFunction] public static Ankus.PgAggregateState<int>? Echo(Ankus.PgAggregateState<int>? state)=>state; }", "ANKUS001");
+        => AssertInvalidAggregate("public static class Invalid { [Ankus.PgFunction] public static Ankus.PgAggregateState<int>? Echo(Ankus.PgAggregateState<int>? state)=>state; }", "ANKUS039");
 
     /// <summary>
     /// Distinct direct and aggregated parameters must not emit duplicate SQL names across their separate callbacks.
