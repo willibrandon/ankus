@@ -87,8 +87,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             "Ankus.PgBeforeAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
         IncrementalValuesProvider<ISymbol> plannerSupport = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgSupportFunctionAttribute", static (_, _) => true, static (attributeContext, _) => attributeContext.TargetSymbol);
-        IncrementalValueProvider<ImmutableArray<ISymbol>> references = requires.Collect().Combine(before.Collect()).Combine(plannerSupport.Collect())
+        IncrementalValueProvider<ImmutableArray<ISymbol>> referenceDeclarations = requires.Collect().Combine(before.Collect()).Combine(plannerSupport.Collect())
             .Select(static (input, _) => input.Left.Left.AddRange(input.Left.Right).AddRange(input.Right));
+        IncrementalValueProvider<EquatableArray<SqlReferenceModel>> references = SqlReferencePipeline.Register(context, referenceDeclarations);
         IncrementalValueProvider<GucPipeline.PropertyInputs> propertyInputs = NativeCallbackPipeline.Register(context)
             .Combine(GucPipeline.Register(context))
             .Select(static (value, _) => new GucPipeline.PropertyInputs(value.Left, value.Right));
@@ -96,6 +97,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
                 "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute" or
                 "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute").ToImmutableArray());
+        IncrementalValueProvider<EquatableArray<SqlProviderModel>> providers = SqlProviderPipeline.Register(context, customSql);
         IncrementalValueProvider<GucPrefixPipeline.Output> prefixes = GucPrefixPipeline.Register(context);
         IncrementalValueProvider<ImmutableArray<(string Path, string? Text)>> files = context.AdditionalTextsProvider
             .Select(static (file, token) => (file.Path, file.GetText(token)?.ToString())).Collect();
@@ -110,11 +112,12 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             projectDirectory.Select(static (settings, _) => settings.Directory));
         IncrementalValueProvider<DatumPipeline.Output> mappings = DatumPipeline.Register(context, methods, datumTypes.Collect(), rangeTypes.Collect(),
             aggregates, customSql, derivedOperators.Collect(), projectDirectory.Select(static (settings, _) => settings.IncludeTests));
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(context.CompilationProvider.Combine(references).Combine(module)),
+        IncrementalValueProvider<NativeCompilationPipeline.Output> nativeCompilation = NativeCompilationPipeline.Register(context);
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(providers).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(context.CompilationProvider.Combine(references).Combine(module).Combine(nativeCompilation)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
-                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right));
+                input.Right.Left.Left.Left, input.Right.Left.Left.Right, input.Right.Left.Right, input.Right.Right));
     }
 
     /// <summary>
@@ -127,23 +130,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
 
     private static void Generate(SourceProductionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
-        ImmutableArray<AttributeData> customSql, EquatableArray<CustomSqlPipeline.Output> customBlocks,
+        EquatableArray<SqlProviderModel> providers, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, EquatableArray<AggregatePipeline.Output> aggregateOutputs, GucPipeline.PropertyInputs propertyInputs,
         GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, Compilation compilation,
-        ImmutableArray<ISymbol> references, NativeModuleMagic.ModuleOutput module)
+        EquatableArray<SqlReferenceModel> references, NativeModuleMagic.ModuleOutput module, NativeCompilationPipeline.Output nativeCompilation)
     {
         ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
         ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, OperatorCastPipeline.Output> operatorModels = methodInputs.OperatorCasts.ToLookup(static value => value.Analysis.Identity);
-        bool referencedCallbacks = compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly =>
-            assembly.GetAttributes().Any(static attribute =>
-                attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
-                attribute.ConstructorArguments.Length == 2 &&
-                attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
-                attribute.ConstructorArguments[1].Value is "1"));
-        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
+        bool referencedCallbacks = nativeCompilation.Analysis.ReferencedCallbacks;
+        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && providers.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
         {
             return;
         }
@@ -225,8 +223,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(DeclarationIdentity.Create(method)));
         if (hasMemoryFunctionCallbacks)
         {
-            native.AppendLine(NativeBindingBridge.Binding(compilation));
-            native.AppendLine(NativeNodeBridge.Layouts(compilation));
+            native.AppendLine(nativeCompilation.Binding);
+            native.AppendLine(nativeCompilation.Layouts);
             native.AppendLine(NativeMemoryBridge.CleanupBinding);
         }
 
@@ -375,7 +373,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         fixedSchema |= !CustomSql.Add(customBlocks, compilation, graph, out Dictionary<string, SqlEntity> sqlBlocks);
-        SqlFunctionProviders.Add(customSql, sqlBlocks, graph);
+        SqlFunctionProviders.Add(providers, sqlBlocks, graph, compilation);
         var typeProviders = new SqlTypeProviders(graph);
         var exports = new StringBuilder("Pg_magic_func\n");
         managed.AppendLine("// <auto-generated />");
@@ -563,7 +561,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        fixedSchema |= !typeProviders.Add(customSql, sqlBlocks, schemas, mappings, compilation);
+        fixedSchema |= !typeProviders.Add(providers, sqlBlocks, schemas, mappings, compilation);
         if (ensureManagedReady)
         {
             native.AppendLine(PgModuleLoadEmitter.State);
@@ -619,7 +617,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         if (initializer is not null || moduleLoad is not null || gucs.Count != 0 || !prefixes.IsEmpty || hasNativeCallbacks || hasWorkers)
         {
             PgInitializeEmitter.Emit(initializer, initializer is null
-                    ? GetCallbackName(compilation.Assembly.Identity.ToString(), "initialize") : initializer.Declaration.Callback,
+                    ? GetCallbackName(nativeCompilation.Analysis.Assembly, "initialize") : initializer.Declaration.Callback,
                 hasGucHooks, registration.ToString(), managed, native, exports, hasNativeCallbacks || hasWorkers, moduleLoad is not null);
         }
 
@@ -937,7 +935,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         managed.AppendLine("}");
-        graph.ResolveReferences(references.Add(compilation.Assembly));
+        graph.ResolveReferences(references, compilation);
         string? installation = graph.Emit();
         if (installation is null)
         {

@@ -1,5 +1,3 @@
-using Microsoft.CodeAnalysis;
-
 namespace Ankus.Generators;
 
 /// <summary>
@@ -10,12 +8,10 @@ internal static class NativeBindingBridge
     /// <summary>
     /// Emits the unique companion identity visible to this extension's C# compilation.
     /// </summary>
-    /// <param name="compilation">The extension and its resolved native declaration references.</param>
+    /// <param name="identity">The detached measured companion identity.</param>
     /// <returns>A native constant, empty when no unique valid binding contract is present.</returns>
-    internal static string Binding(Compilation compilation)
+    internal static string Binding(string? identity)
     {
-        INamedTypeSymbol? binding = compilation.GetTypeByMetadataName("Ankus.Postgres.NativeBinding");
-        string? identity = binding?.GetMembers("Identity").OfType<IFieldSymbol>().SingleOrDefault()?.ConstantValue as string;
         if (identity is null || identity.Length != 64 || !identity.All(static value => value is >= '0' and <= '9' or >= 'A' and <= 'F'))
         {
             identity = "";

@@ -95,7 +95,25 @@ from the range's catalog identity and origin. Registration rendering neither
 resolves PostgreSQL catalogs nor executes author code. Managed type providers
 consume detached identities, including Roslyn's tuple-label distinctions, and
 resolve diagnostic coordinates against the current compilation. Semantic mapping
-discovery and its registered rendering pipeline remain work in progress.
+discovery feeds a tracked rendering pipeline. Derived equality, ordering and
+hashing helpers retain independent managed/native and typed SQL contracts;
+composition still applies current provider ownership, initialization and graph
+diagnostics.
+
+Assembly SQL providers and managed declaration references also retain comparable
+metadata without compiler symbols or attribute objects. References preserve
+exact overload selection; providers preserve named versus managed constructors
+and explicit schema arguments, including null. Current graph composition applies
+ownership, support references and prerequisite edges after metadata cache hits.
+Cached failures resolve against current source trees. Unresolved editor types
+retain structural identities without assuming a containing assembly exists.
+
+Compilation-wide capabilities detach the extension assembly identity, referenced
+native callback marker and unique measured binding/layout constants. Binding
+identity and node layout lookup render independently, so changing one does not
+invalidate the other. Missing or ambiguous companions and nonconstant or
+duplicate editor fields retain the fail-closed native checks. No metadata
+inspection loads or executes a referenced assembly.
 
 Native callback properties also detach their exact invocation types, native
 prototype index, assembly-scoped registration identity and partial declaration

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -36,26 +35,24 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <summary>
     /// Validates declared providers and adds their known schema prerequisites.
     /// </summary>
-    /// <param name="attributes">The tracked assembly SQL and provider attributes.</param>
+    /// <param name="providers">The detached assembly provider declarations.</param>
     /// <param name="blocks">Valid inline and file SQL blocks.</param>
     /// <param name="schemas">Declared schema nodes.</param>
     /// <param name="mappings">Validated closed mappings requiring managed provider identities.</param>
     /// <param name="compilation">The compilation owning current provider diagnostic coordinates.</param>
     /// <returns>Whether all provider names are independent of a fixed schema.</returns>
-    internal bool Add(ImmutableArray<AttributeData> attributes, IReadOnlyDictionary<string, SqlEntity> blocks,
+    internal bool Add(EquatableArray<SqlProviderModel> providers, IReadOnlyDictionary<string, SqlEntity> blocks,
         IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeModel> mappings, Compilation compilation)
     {
         bool relocatable = true;
         var namedClaims = new HashSet<(string? Schema, string Name)>();
-        foreach (AttributeData attribute in attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() ==
-            "Ankus.PgSqlTypeProviderAttribute"))
+        foreach (SqlProviderModel provider in providers.Where(static item => !item.Function))
         {
-            Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
-            string? sqlId = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[0].Value as string : null;
-            string? name = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[1].Value as string : null;
-            string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
-            bool managed = attribute.AttributeConstructor is { Parameters.Length: 2 } constructor &&
-                constructor.Parameters[1].Type.ToDisplayString() == "System.Type";
+            Location? location = provider.Location?.Resolve(compilation);
+            string? sqlId = provider.BlockId;
+            string? name = provider.Name;
+            string? schema = provider.Schema;
+            bool managed = provider.Managed;
             DatumTypeModel? mapping = null;
             if (string.IsNullOrWhiteSpace(sqlId) || !SqlText.IsText(sqlId!))
             {
@@ -65,8 +62,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
 
             if (managed)
             {
-                mapping = attribute.ConstructorArguments[1].Value is ITypeSymbol supplied
-                    ? mappings.FirstOrDefault(item => item.Reference.Type == ManagedTypeIdentity.Create(supplied)) : null;
+                mapping = provider.Type is { } supplied ? mappings.FirstOrDefault(item => item.Reference.Type == supplied) : null;
                 if (mapping is null)
                 {
                     graph.Error(location, "A managed type provider must name a registered PgDatumType mapping.");
@@ -79,7 +75,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                     continue;
                 }
 
-                if (attribute.NamedArguments.Any(static item => item.Key == "Schema"))
+                if (provider.SchemaAuthored)
                 {
                     graph.Error(location, "A managed type provider obtains its schema from PgDatumType and cannot specify Schema.");
                     continue;

@@ -17,7 +17,7 @@ internal sealed record DeclarationIdentity(string Assembly, SymbolKind Kind, str
     /// <param name="symbol">The resolved managed declaration.</param>
     /// <returns>An immutable declaration key.</returns>
     internal static DeclarationIdentity Create(ISymbol symbol)
-        => new((symbol as IAssemblySymbol ?? symbol.ContainingAssembly).Identity.ToString(), symbol.Kind,
+        => new((symbol as IAssemblySymbol ?? symbol.ContainingAssembly)?.Identity.ToString() ?? string.Empty, symbol.Kind,
             Key(symbol));
 
     /// <summary>
@@ -62,8 +62,8 @@ internal sealed record DeclarationIdentity(string Assembly, SymbolKind Kind, str
                 Join([.. function.Signature.UnmanagedCallingConventionTypes.Select(TypeKey)]), Key(function.Signature)),
             ITypeParameterSymbol parameter => Join("parameter", parameter.TypeParameterKind.ToString(),
                 parameter.Ordinal.ToString(CultureInfo.InvariantCulture), parameter.ContainingSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)),
-            INamedTypeSymbol named => Join("named", named.ContainingAssembly.Identity.ToString(),
-                named.ContainingType is { } container ? TypeKey(container) : named.ContainingNamespace.ToDisplayString(),
+            INamedTypeSymbol named => Join("named", named.ContainingAssembly?.Identity.ToString() ?? string.Empty,
+                named.ContainingType is { } container ? TypeKey(container) : named.ContainingNamespace?.ToDisplayString() ?? string.Empty,
                 named.MetadataName, Join([.. named.TypeArguments.Select(TypeKey)])),
             _ => Join(type.Kind.ToString(), type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
         };

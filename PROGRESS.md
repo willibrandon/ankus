@@ -85,7 +85,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI now passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
-| .NET author experience | Cached module, enum, schema, ordinary function conversion/SQL, trigger, worker, lifecycle, custom SQL, GUC/prefix, native callback, backend-test, operator/cast, custom-type storage/I/O and aggregate stages have complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI. The datum/derived pipeline, including SQL, now passes the complete PostgreSQL 18.6/Linux suite; its final commit/platform gates remain pending. Reference/provider/native-compilation and method-inventory drafts pass complete generator checks but require native/platform acceptance. Final graph/output caching is open. Actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain required. |
+| .NET author experience | Cached module, enum, schema, ordinary function conversion/SQL, trigger, worker, lifecycle, custom SQL, GUC/prefix, native callback, backend-test, operator/cast, custom-type storage/I/O, aggregate and datum/derived stages have complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI. Reference/provider/native-compilation also passes the complete PostgreSQL 18.6/Linux suite; its fresh platform CI remains pending. Method-inventory and final graph/output drafts pass complete generator checks but require native/platform acceptance. Actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain required. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
@@ -123,6 +123,75 @@ durations are not a controlled performance comparison.
 
 ## Generator incrementality work in progress
 
+The separate final-composition draft now freezes named extension inputs and only
+the source coordinates used by graph validation and attribution. Compiler trees
+remain at semantic discovery and final diagnostic reporting; graph composition
+captures original diagnostic descriptors, arguments and tree ordinals. Duplicate
+physical paths do not merge separate diagnostic origins. Physical SQL provenance
+and mapped diagnostic locations retain their existing contracts.
+
+The detached graph foundation passes the complete generator project: **2,900
+passed, zero failed or skipped, 1m12.910s**. Independent source-fragment plans
+and managed/native/export/manifest rendering are being verified next. The first
+plan build correctly rejected reading `Environment.NewLine` from an analyzer;
+the builder now uses the established LF output convention without suppression.
+These draft results do not establish full final-output incrementality or native
+acceptance. The unchanged reference/provider/compiler and method-inventory
+snapshots still have complete PostgreSQL **18.6/Linux x64** runs active.
+
+Datum CI **36919410165** now succeeds completely: Linux x64/PostgreSQL 18
+**24m34s**, macOS ARM64/PostgreSQL 18 **20m10s**, and Windows x64/PostgreSQL 17
+**24m24s**. Quality and all runtime jobs succeed; Docs **36919410152** also
+succeeds. No job timed out or was canceled. These observed durations are not a
+controlled performance comparison.
+
+The independent managed/native/export/manifest plan draft also passes the full
+generator project: **2,910 passed, zero failed or skipped, 1m10.432s**. Actual
+tracked production steps retain final rendering after body edits, longer bodies,
+source movement and SQL policy changes, with current compiled consumer behavior.
+SQL provenance, installation joining and graph encoding are now being separated
+into their own detached cache stages. Their complete checks and native acceptance
+remain required; no full-generator completion claim is made yet.
+
+The final SQL/graph separation draft passes **2,917 generator tests**, zero failed
+or skipped, **54.248s**. Measured binding/layout changes now keep actual SQL
+component rendering, installation joining and graph encoding cached while native
+source updates. Direct encoding checks round-trip empty/populated graphs through
+the actual consumer and cover immediately below, at and above the 32 MiB wire
+limit. Additional UTF-8 and count-limit cases are being checked before the frozen
+draft proceeds to complete backend acceptance.
+
+The separate reference/provider/compiler snapshot completes plain full
+`dotnet test` on PostgreSQL **18.6/Linux x64**: **10,593 total, 10,581 passed,
+zero failed and 12 platform skips**, **50m36.437s** across all six modules.
+The tracked process exits **0**, with overall build-plus-test duration
+**52m21.975s**. All **93** source hashes are verified against the completed
+validator before promoting exactly **18** changed owned files. Overlapping local
+validation prevents treating this duration as a performance comparison.
+
+API freshness verifies **234 pages / 2,677 members**; the site builds **282 pages
+in 3.55s** and its check reports zero errors, warnings or hints. The initial main
+Release invocation overlapped the API-generation build and emitted one file-copy
+retry warning. The serialized final Release gate remains required before commit.
+
+The final serialized main Release succeeds with **zero warnings/errors, 25.90s**.
+All **93** owned source hashes remain equal to the completed backend snapshot.
+API and site evidence above covers unchanged final documentation inputs. The
+complete final-composition draft additionally passes **2,924 generator tests**,
+zero failures or skips, **57.379s**, including multibyte UTF-8 and exact
+100,000-entry declaration/field boundaries through the real graph consumer.
+Its own complete backend and platform acceptance still remain required.
+
+Immediately before the reference/provider/compiler milestone's commit, the
+preceding twelve CI/Docs outcomes are checked and retained. CI/Docs
+**36919410165/36919410152**, **36912867177/36912867325**,
+**36906152335/36906152445**, **36892948019/36892947844**,
+**36879599985/36879599988**, and CI **36869737910** succeed. CI **36862078230**
+retains its previously recorded generator-harness failure, corrected and proven
+by the later complete platform runs. No preceding run remains active. Fresh
+platform CI for this milestone remains required; the method-inventory complete
+suite continues on its unchanged snapshot.
+
 The frozen datum/derived snapshot now passes plain full `dotnet test` on
 PostgreSQL **18.6/Linux x64**: **10,556 total, 10,544 passed, zero failed and
 12 platform skips**, **48m05.859s**. All six modules complete, including real
@@ -146,6 +215,17 @@ outcomes are rechecked and retained. CI/Docs **36912867177/36912867325**,
 generator-harness failure, corrected and verified by the later complete platform
 runs. No preceding run remains active. The separate reference/provider/compiler
 and method-inventory native suites continue without changing their frozen inputs.
+
+The **18-file** datum/derived milestone is committed and pushed as **64a1c01**.
+The same twelve preceding outcomes are rechecked and retained immediately before
+push. Fresh CI **36919410165** and Docs **36919410152** are running. The separate
+reference/provider/compiler and method-inventory snapshots continue their plain
+complete PostgreSQL **18.6/Linux x64** suites with unchanged inputs. Their final
+results and subsequent platform validation remain required.
+
+All three runtime jobs in CI **36919410165** now succeed. Quality and the three
+complete platform suites remain active; Docs **36919410152** is also active.
+No failures have been reported at this observation.
 
 The separate reference/provider draft now freezes assembly SQL type and function
 inventory without retaining compiler attributes. Current graph composition keeps

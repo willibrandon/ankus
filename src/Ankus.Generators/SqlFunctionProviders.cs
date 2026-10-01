@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -11,17 +10,19 @@ internal static class SqlFunctionProviders
     /// <summary>
     /// Associates declared functions with their custom SQL graph nodes.
     /// </summary>
-    /// <param name="attributes">The assembly's tracked SQL attributes.</param>
+    /// <param name="providers">The detached assembly provider declarations.</param>
     /// <param name="blocks">The validated custom SQL blocks.</param>
     /// <param name="graph">The graph and its declaration diagnostics.</param>
-    internal static void Add(ImmutableArray<AttributeData> attributes, IReadOnlyDictionary<string, SqlEntity> blocks, SqlGraph graph)
+    /// <param name="compilation">The compiler state owning current diagnostic coordinates.</param>
+    internal static void Add(EquatableArray<SqlProviderModel> providers, IReadOnlyDictionary<string, SqlEntity> blocks, SqlGraph graph,
+        Compilation compilation)
     {
         var claimed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (AttributeData attribute in attributes.Where(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgSqlFunctionProviderAttribute"))
+        foreach (SqlProviderModel provider in providers.Where(static item => item.Function))
         {
-            Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
-            string? blockId = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[0].Value as string : null;
-            string? signature = attribute.ConstructorArguments.Length == 2 ? attribute.ConstructorArguments[1].Value as string : null;
+            Location? location = provider.Location?.Resolve(compilation);
+            string? blockId = provider.BlockId;
+            string? signature = provider.Name;
             if (string.IsNullOrWhiteSpace(blockId) || !blocks.TryGetValue(blockId!, out SqlEntity? block))
             {
                 graph.Error(location, "A function provider must name an existing PgSql or PgSqlFile block.");

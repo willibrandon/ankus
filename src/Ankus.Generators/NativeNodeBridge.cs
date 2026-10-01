@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -12,16 +11,15 @@ internal static class NativeNodeBridge
     /// <summary>
     /// Emits the exact measured node layouts visible to this extension's C# compilation.
     /// </summary>
-    /// <param name="compilation">The extension and its resolved native declaration references.</param>
+    /// <param name="layouts">The detached measured node layout constant.</param>
     /// <returns>Native node includes and a validated layout lookup.</returns>
-    internal static string Layouts(Compilation compilation)
-    {
-        INamedTypeSymbol? binding = compilation.GetTypeByMetadataName("Ankus.Postgres.NativeBinding");
-        string? layouts = binding?.GetMembers("NodeLayouts").OfType<IFieldSymbol>().SingleOrDefault()?.ConstantValue as string;
-        return "#include \"nodes/nodes.h\"\n" + Layouts(layouts);
-    }
+    internal static string Layouts(string? layouts)
+        => "#include \"nodes/nodes.h\"\n" + LayoutLookup(layouts);
 
-    private static string Layouts(string? encoded)
+    /// <summary>
+    /// Validates complete layout metadata before emitting any native switch arms.
+    /// </summary>
+    private static string LayoutLookup(string? encoded)
     {
         var cases = new StringBuilder();
         var tags = new HashSet<uint>();

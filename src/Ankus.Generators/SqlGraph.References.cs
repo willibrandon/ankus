@@ -54,45 +54,46 @@ internal sealed partial class SqlGraph
     /// <summary>
     /// Resolves typed edges after all declarations exist and before ordering or encoding the graph.
     /// </summary>
-    internal void ResolveReferences(IEnumerable<ISymbol> declarations)
+    internal void ResolveReferences(IEnumerable<SqlReferenceModel> references, Compilation compilation)
     {
-        foreach (ISymbol declaration in declarations.Distinct(SymbolEqualityComparer.Default)
-            .OrderBy(static symbol => symbol.ToDisplayString(), StringComparer.Ordinal))
+        foreach (SqlReferenceModel reference in references)
         {
-            foreach (AttributeData attribute in declaration.GetAttributes().Where(IsReference))
+            _context.CancellationToken.ThrowIfCancellationRequested();
+            if (reference.Error is not null)
             {
-                _context.CancellationToken.ThrowIfCancellationRequested();
-                bool plannerSupport = attribute.AttributeClass!.Name == "PgSupportFunctionAttribute";
-                if (plannerSupport && (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not string))
-                {
-                    ReferenceError(attribute, "A planner support reference requires a non-null method name.");
-                    continue;
-                }
+                ReferenceError(reference, reference.Error, compilation);
+                continue;
+            }
 
-                SqlEntity? source = Source(declaration, attribute);
-                if (source is null)
-                {
-                    continue;
-                }
+            SqlEntity? source = Source(reference, compilation);
+            if (source is null)
+            {
+                continue;
+            }
 
-                SqlEntity? target = Target(attribute);
-                if (target is null)
-                {
-                    continue;
-                }
+            if (reference.TargetError is not null)
+            {
+                ReferenceError(reference, reference.TargetError, compilation);
+                continue;
+            }
 
-                if (plannerSupport)
-                {
-                    BindPlannerSupport(declaration, attribute, source, target);
-                }
-                else if (attribute.AttributeClass!.Name == "PgBeforeAttribute")
-                {
-                    target.DeclaredDependencies.Add(source);
-                }
-                else
-                {
-                    source.RequiredDeclarations.Add(target);
-                }
+            SqlEntity? target = Primary(reference.Target!, reference, compilation);
+            if (target is null)
+            {
+                continue;
+            }
+
+            if (reference.Kind == "PgSupportFunctionAttribute")
+            {
+                BindPlannerSupport(reference, source, target, compilation);
+            }
+            else if (reference.Kind == "PgBeforeAttribute")
+            {
+                target.DeclaredDependencies.Add(source);
+            }
+            else
+            {
+                source.RequiredDeclarations.Add(target);
             }
         }
 
@@ -103,31 +104,29 @@ internal sealed partial class SqlGraph
         }
     }
 
-    private void BindPlannerSupport(ISymbol declaration, AttributeData attribute, SqlEntity source, SqlEntity target)
+    private void BindPlannerSupport(SqlReferenceModel reference, SqlEntity source, SqlEntity target, Compilation compilation)
     {
         if (source.Function is null)
         {
-            ReferenceError(attribute, "PgSupportFunction must annotate a generated PostgreSQL function.");
+            ReferenceError(reference, "PgSupportFunction must annotate a generated PostgreSQL function.", compilation);
             return;
         }
 
-        AttributeData? function = declaration.GetAttributes().FirstOrDefault(static candidate =>
-            candidate.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-        if (function is not null && AttributeValues.Get<string?>(function, "SupportFunction", null) is not null)
+        if (reference.ExternalSupport)
         {
-            ReferenceError(attribute, "Choose either PgSupportFunction or the external PgFunction.SupportFunction SQL name, not both.");
+            ReferenceError(reference, "Choose either PgSupportFunction or the external PgFunction.SupportFunction SQL name, not both.", compilation);
             return;
         }
 
         if (target.Function is not { IsPlannerSupport: true } support)
         {
-            ReferenceError(attribute, "A planner support function must take exactly one nonvariadic SQL internal argument and return scalar SQL internal.");
+            ReferenceError(reference, "A planner support function must take exactly one nonvariadic SQL internal argument and return scalar SQL internal.", compilation);
             return;
         }
 
         if (support.RequiresAggregateContext)
         {
-            ReferenceError(attribute, "An aggregate helper requires an aggregate invocation and cannot serve as planner support; select an ordinary PgFunction method.");
+            ReferenceError(reference, "An aggregate helper requires an aggregate invocation and cannot serve as planner support; select an ordinary PgFunction method.", compilation);
             return;
         }
 
@@ -135,99 +134,55 @@ internal sealed partial class SqlGraph
         source.Function.SetPlannerSupport(support.Declaration.TemplateName);
     }
 
-    private SqlEntity? Source(ISymbol declaration, AttributeData attribute)
+    private SqlEntity? Source(SqlReferenceModel reference, Compilation compilation)
     {
-        string? id = AttributeValues.Get<string?>(attribute, "DeclarationId", null);
-        _declarations.TryGetValue(DeclarationIdentity.Create(declaration), out List<SqlEntity>? entities);
+        SqlReferenceModel.Declaration declaration = reference.Source;
+        string? id = reference.DeclarationId;
+        _declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? entities);
         if (id is not null)
         {
             if (!ValidName(id))
             {
-                return ReferenceError(attribute, "DeclarationId must be nonempty text without zero characters or invalid Unicode.");
+                return ReferenceError(reference, "DeclarationId must be nonempty text without zero characters or invalid Unicode.", compilation);
             }
 
-            SqlEntity[] matches = [.. (declaration is IAssemblySymbol ? _entities : entities ?? [])
+            SqlEntity[] matches = [.. (declaration.Assembly ? _entities : entities ?? [])
                 .Where(entity => entity.Names.Contains(id))];
-            return matches.Length == 1 ? matches[0] : ReferenceError(attribute,
-                $"DeclarationId '{id}' must identify exactly one SQL declaration belonging to the attributed declaration.");
+            return matches.Length == 1 ? matches[0] : ReferenceError(reference,
+                $"DeclarationId '{id}' must identify exactly one SQL declaration belonging to the attributed declaration.", compilation);
         }
 
-        if (declaration is IAssemblySymbol)
+        if (declaration.Assembly)
         {
-            return ReferenceError(attribute, "An assembly-level SQL dependency requires DeclarationId to identify the declaration being ordered.");
+            return ReferenceError(reference, "An assembly-level SQL dependency requires DeclarationId to identify the declaration being ordered.", compilation);
         }
 
-        return Primary(declaration, attribute);
+        return Primary(declaration, reference, compilation);
     }
 
-    private SqlEntity? Target(AttributeData attribute)
+    private SqlEntity? Primary(SqlReferenceModel.Declaration declaration, SqlReferenceModel reference, Compilation compilation)
     {
-        if (attribute.ConstructorArguments.Length != 2 ||
-            attribute.ConstructorArguments[0].Value is not INamedTypeSymbol { TypeKind: not TypeKind.Error, IsUnboundGenericType: false } type)
+        if (!_declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? entities))
         {
-            return ReferenceError(attribute, "A SQL dependency requires a non-null declared type.");
+            return ReferenceError(reference, $"'{declaration.Display}' does not declare a generated SQL object in this extension.", compilation);
         }
 
-        string? member = attribute.ConstructorArguments[1].Value as string;
-        TypedConstant parameters = attribute.NamedArguments.FirstOrDefault(static argument => argument.Key == "ParameterTypes").Value;
-        bool selectedParameters = parameters.Kind == TypedConstantKind.Array && !parameters.IsNull;
-        if (member is null)
-        {
-            return selectedParameters ? ReferenceError(attribute, "ParameterTypes requires a method name.") : Primary(type, attribute);
-        }
-
-        if (string.IsNullOrWhiteSpace(member) || !SqlText.IsText(member))
-        {
-            return ReferenceError(attribute, "A SQL dependency method name must be nonempty valid text.");
-        }
-
-        if (selectedParameters && parameters.Values.Any(static parameter => parameter.Value is not ITypeSymbol { TypeKind: not TypeKind.Error }))
-        {
-            return ReferenceError(attribute, "ParameterTypes must contain non-null managed types.");
-        }
-
-        ISymbol[] members = [];
-        for (INamedTypeSymbol? container = type; container is not null && members.Length == 0; container = container.BaseType)
-        {
-            members = [.. container.GetMembers(member)];
-        }
-
-        IMethodSymbol[] methods = [.. members.OfType<IMethodSymbol>().Where(method => !selectedParameters ||
-            method.Parameters.Length == parameters.Values.Length && method.Parameters.Select(static parameter => parameter.Type)
-                .SequenceEqual(parameters.Values.Select(static parameter => (ITypeSymbol)parameter.Value!), SymbolEqualityComparer.Default))];
-        if (methods.Length != 1)
-        {
-            return ReferenceError(attribute, methods.Length == 0
-                ? $"SQL dependency method '{type.ToDisplayString()}.{member}' was not found with the selected parameter types."
-                : $"SQL dependency method '{type.ToDisplayString()}.{member}' is ambiguous; set ParameterTypes to select one overload.");
-        }
-
-        return Primary(methods[0], attribute);
-    }
-
-    private SqlEntity? Primary(ISymbol declaration, AttributeData attribute)
-    {
-        if (!_declarations.TryGetValue(DeclarationIdentity.Create(declaration), out List<SqlEntity>? entities))
-        {
-            return ReferenceError(attribute, $"'{declaration.ToDisplayString()}' does not declare a generated SQL object in this extension.");
-        }
-
-        SqlEntity[] primary = [.. entities.Where(entity => declaration is IMethodSymbol
+        SqlEntity[] primary = [.. entities.Where(entity => declaration.Method
             ? entity.Kind == "function" : entity.Kind is "schema" or "type" or "enum" or "aggregate")];
         if (primary.Length == 0)
         {
             primary = [.. entities];
         }
 
-        return primary.Length == 1 ? primary[0] : ReferenceError(attribute,
-            $"'{declaration.ToDisplayString()}' declares multiple SQL objects; use their explicit dependency IDs.");
+        return primary.Length == 1 ? primary[0] : ReferenceError(reference,
+            $"'{declaration.Display}' declares multiple SQL objects; use their explicit dependency IDs.", compilation);
     }
 
-    private SqlEntity? ReferenceError(AttributeData attribute, string message)
+    private SqlEntity? ReferenceError(SqlReferenceModel reference, string message, Compilation compilation)
     {
         _invalid = true;
-        _context.ReportDiagnostic(Diagnostic.Create(attribute.AttributeClass?.Name == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
-            attribute.ApplicationSyntaxReference?.GetSyntax(_context.CancellationToken).GetLocation(), message));
+        _context.ReportDiagnostic(Diagnostic.Create(reference.Kind == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
+            reference.Location?.Resolve(compilation), message));
         return null;
     }
 }
