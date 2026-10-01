@@ -481,7 +481,96 @@ aggregate commit, CI **36829172698 / 36824559166 / 36817997137** and Docs
 **36829172626 / 36824559193 / 36817997156** are checked again. The latest two CI
 runs and all three Docs runs succeed; the older worker-readiness failure in
 **36817997137** is resolved by its successful successors. No run is queued or
-active. Fresh three-platform CI remains required for the aggregate commit.
+active. The aggregate milestone is pushed as **c8c0f7b**. Fresh three-platform
+CI **36844268550** and Docs **36844268403** now succeed completely for this
+commit. All three full platform jobs pass: Linux x64/PostgreSQL 18
+(**23m59s**), macOS ARM64/PostgreSQL 18 (**19m31s**) and Windows
+x64/PostgreSQL 17 (**23m07s**). Quality and all runtime jobs also pass;
+no job times out. These are observed durations, not a controlled performance
+comparison. All six test modules execute on each platform, with **10,316 total
+and zero failures**: Linux has **12** platform skips, macOS **24** and Windows
+**25**. Integration execution takes **22m10.011s** on Linux,
+**17m57.919s** on macOS and **20m42.882s** on Windows.
+
+Configuration generator conversion continues in a separate current-base draft.
+Validated settings detach property/type/container, enum, hook and native
+registration contracts into comparable models and cache their source fragments
+independently. Prefix declarations also separate literal validation from native
+rendering. Current diagnostics, ASCII name uniqueness and deterministic
+registration remain composition responsibilities; native setting values are
+never cached. The existing GUC generator scope passes **135/135**, zero failures
+or skips (**3.630s**). New tracked-driver cases pass **19/19**, zero failures or
+skips (**3.412s**), checking all five setting kinds after implementation edits
+and source movement, changed defaults, hook renames, current-tree diagnostics
+and repair, and cached prefix rendering. The initial wiring build identifies
+an unavailable netstandard API and a field-naming diagnostic; both are fixed
+without suppression. A new rename test initially changes unrelated type and
+attribute names; its edit is corrected to rename only the intended method.
+These results precede the aggregate milestone base merge. The merged draft is
+independently hash-verified before a complete generator run; its result,
+remaining configuration cache cases and real backend acceptance are still
+pending. The first complete current-base generator run passes **2,643/2,643**,
+zero failures/skips (**36.024s**), before further cache-boundary cases.
+Six additional regressions reproduce stale native real defaults and bounds
+when changing positive zero to negative zero or back. Boxed .NET real equality
+considers the values equal; the detached model now uses exact bit identity
+for real constants, while retaining typed equality for other validated primitives.
+The corrected affected scope passes **160/160**, zero failures/skips
+(**3.234s**), including all six reproductions. Expanded metadata, referenced
+constants/enum labels, property containers/nullability and prefix inventory
+cases expose a test assumption about enum ordinals: native ordinals follow
+declaration order, independent of underlying managed magnitudes. The test now
+changes an actual label contract and retains the declaration-order mapping.
+Current diagnostic and removal checks also retain the dedicated prefix ID and
+Roslyn's positional-input behavior, with exact surviving output equality.
+The final affected scope passes **181/181**, zero failures/skips (**3.560s**).
+The complete generator project then passes **2,670/2,670**, zero failures/skips
+(**38.711s**). Twelve owned source/doc files are independently SHA256-verified
+before that run. Final Release passes with **zero warnings/errors, 4m54.63s**.
+API freshness verifies **234 pages / 2,677 members**. The site builds **282
+pages in 8.49s** and its check reports zero errors, warnings or hints.
+Complete plain `dotnet test` against PostgreSQL **18.6 / Linux x64** starts
+at **10:10:32 UTC on October 1, 2026**, using the same frozen twelve-file
+snapshot, SDK **10.0.401**, LLVM **23** and patched runtime **10.0.12**.
+That complete acceptance now passes across all six modules: **10,362 total,
+10,350 passed, zero failed and 12 platform skips**, **43m58.870s** reported
+testing time and **46m27.731s** wall time, terminal exit **0**. Integration
+takes **43m58.177s**. All twelve source files are independently hash-verified
+again in the completed backend snapshot, development draft and primary checkout
+after transfer. This configuration milestone is now in the primary checkout.
+Its final local Release build passes with zero warnings/errors (**1m27.51s**).
+Before commit, CI **36844268550 / 36829172698 / 36824559166** and Docs
+**36844268403 / 36829172626 / 36824559193** are checked again: all succeed,
+with no queued or active successor. Fresh three-platform CI for the configuration
+milestone remains required.
+Final compilation-dependent output composition remains open.
+
+Native callback conversion proceeds independently while the configuration
+backend run remains active. Validated partial-property containers, exact ordered
+Invoke argument/result contracts, selected native prototype indexes and
+assembly-qualified registration identities now detach into immutable models.
+The managed property and dispatcher render in their own tracked per-property
+stage. Runtime binding validation, address registration, exact value transport,
+managed error capture and capability restoration retain their existing behavior.
+Current diagnostics and canonical declaration selection remain composition work.
+
+The affected callback scope passes **86/86**, zero failures/skips (**4.771s**),
+including existing actual dispatch/error/cleanup cases and **24** new tracked
+driver cases. Dependent signature, lexical, native-index and assembly changes
+invalidate their artifacts; implementation edits and movement retain cache
+entries. Removal checks distinguish Roslyn's removed historical output from the
+current surviving positional entry and verify its exact final artifact.
+The complete generator project passes **2,648/2,648**, zero failures/skips
+(**30.286s**) on this separate aggregate-base draft. Seven owned source/doc
+files are hash-frozen afterward, with no intervening source edits, and verified
+before Release validation. The Release solution build passes with zero warnings
+or errors (**1m16.29s**). API freshness verifies **234 pages / 2,677 members**;
+the site builds **282 pages in 8.42s** and its check reports zero errors,
+warnings or hints. The same seven source files remain independently hash-verified
+after those gates. This callback conversion is not merged or committed;
+it still requires composition with the configuration milestone and complete
+native backend acceptance of the combined source. Neither draft closes
+the remaining declaration families or final graph/output caching.
 
 The reset-callback review claim is checked against a separate native-only
 PostgreSQL 18.6 / Linux x64 control. It loads no Ankus library and uses its own
@@ -494,6 +583,21 @@ explicitly permits callback errors and removes each callback before invoking it;
 pgrx also guards its memory-context drop callback. The warning alone therefore
 does not establish an Ankus leak. Aggregate/iterator cleanup involving owned SPI
 resources and secondary raw failures still needs its own boundary evidence.
+
+The claim that an ordinary lightweight-lock guard rejects `PgInterrupts.Check()`
+is also checked against actual PostgreSQL **18.6 / Linux x64**. Two newly
+published consumer cases exercise shared and exclusive guards, with idle polling
+and real backend cancellation flags. Both held checks complete before release;
+the pending cancellation then raises exact SQLSTATE **57014**. Four repetitions
+per mode retain zero interrupt holdoffs afterward, recover in the same backend,
+preserve the shared value, and permit acquisition by an independent backend.
+Both cases pass, zero failures/skips (**4m05.019s** reported testing time).
+The broad review claim is false in the current implementation. Scoped `Read`/
+`Mutate` reference borrows and held spinlocks continue to forbid backend entry;
+those restrictions protect native lifetime and short critical-section contracts.
+The XML reference and shared-memory guide now distinguish those scopes. This
+additional test/doc draft still requires integration with the next complete
+acceptance snapshot; no production interrupt or lock guard is bypassed.
 No error is suppressed or downgraded based on this control.
 
 Before the combined correctness commit, previous runs were checked again:

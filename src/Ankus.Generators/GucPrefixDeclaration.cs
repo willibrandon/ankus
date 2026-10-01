@@ -18,15 +18,15 @@ internal static class GucPrefixDeclaration
     /// <param name="attributes">The assembly prefix declarations.</param>
     /// <param name="context">The diagnostic output context.</param>
     /// <returns>Distinct literal prefixes in deterministic ordinal order.</returns>
-    internal static ImmutableArray<string> Read(ImmutableArray<AttributeData> attributes, SourceProductionContext context)
+    internal static ImmutableArray<string> Read(ImmutableArray<AttributeData> attributes, GeneratorDiagnostics context)
     {
         var prefixes = new SortedSet<string>(StringComparer.Ordinal);
         foreach (AttributeData attribute in attributes)
         {
             if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].Value is not string prefix || !SqlText.IsText(prefix))
             {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalid, attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation(),
-                    "A configuration prefix must be nonnull Unicode text without zero characters."));
+                context.Report(s_invalid, attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation(),
+                    "A configuration prefix must be nonnull Unicode text without zero characters.");
                 continue;
             }
 
@@ -42,7 +42,7 @@ internal static class GucPrefixDeclaration
     /// <param name="prefixes">The validated literal prefixes.</param>
     /// <param name="native">The native library source.</param>
     /// <param name="registration">The ordered native initialization statements.</param>
-    internal static void Emit(ImmutableArray<string> prefixes, StringBuilder native, StringBuilder registration)
+    internal static void Emit(EquatableArray<string> prefixes, StringBuilder native, StringBuilder registration)
     {
         if (prefixes.IsEmpty)
         {

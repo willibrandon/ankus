@@ -13,6 +13,11 @@ internal sealed class GucDeclaration
         "ANKUS014", "Invalid PostgreSQL configuration declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     /// <summary>
+    /// Identifies invalid setting contracts and current duplicate-name constraints.
+    /// </summary>
+    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
+
+    /// <summary>
     /// Gets the defining partial property.
     /// </summary>
     internal IPropertySymbol Property
@@ -169,7 +174,7 @@ internal sealed class GucDeclaration
     /// <param name="property">The candidate property.</param>
     /// <param name="context">The generator diagnostic context.</param>
     /// <returns>A validated native declaration, or null on failure.</returns>
-    internal static GucDeclaration? Create(IPropertySymbol property, SourceProductionContext context)
+    internal static GucDeclaration? Create(IPropertySymbol property, GeneratorDiagnostics context)
     {
         AttributeData[] attributes = [.. property.GetAttributes().Where(IsGucAttribute)];
         if (attributes.Length != 1)
@@ -327,8 +332,8 @@ internal sealed class GucDeclaration
     /// <param name="property">The offending declaration.</param>
     /// <param name="context">The generator diagnostic context.</param>
     /// <param name="reason">The actionable contract failure.</param>
-    internal static void Error(IPropertySymbol property, SourceProductionContext context, string reason)
-        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, property.Locations.FirstOrDefault(), property.Name, reason));
+    internal static void Error(IPropertySymbol property, GeneratorDiagnostics context, string reason)
+        => context.Report(InvalidDiagnostic, property.Locations.FirstOrDefault(), property.Name, reason);
 
     /// <summary>
     /// Maps PostgreSQL's ASCII-only case folding without changing high-bit Unicode characters.

@@ -89,6 +89,17 @@ Graph composition still applies current dependencies, ordering, relocation,
 provider ownership and authored SQL-file provenance. Invalid cached text reports
 against the current source tree and prevents a partial installation script.
 
+Configuration properties validate into comparable registration, property,
+enum and hook contracts. Native descriptors, managed dispatchers and partial
+getters render per property. Real constants compare by their bits so changing
+the sign of a zero default or bound invalidates its native descriptor. Current
+diagnostic coordinates remain separate from rendered values; duplicate names
+and registration order use PostgreSQL's ASCII comparison. Assembly prefixes
+retain their literal case-sensitive inventory and cache native registration
+separately. These caches never retain live backend setting values. Removing an
+earlier declaration can recreate a surviving positional Roslyn input while
+preserving its exact rendered contract.
+
 Other declaration families and final graph composition still consume compiler
 symbols; their rendering and complete output caching remain in progress.
 
