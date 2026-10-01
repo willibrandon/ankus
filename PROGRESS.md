@@ -279,6 +279,48 @@ previous CI outcomes were checked and recorded again: **36817997137** retains
 its reported Windows startup-race failure, which the local complete Windows run
 now repairs; **36817997156** and the earlier CI/Docs predecessors succeed.
 No run is active. Fresh platform CI for the two milestones remains required.
+The ordered milestones are pushed as **234461d** and **01622b0**. Previous
+CI/Docs outcomes were checked and recorded again before pushing; no earlier run
+was active. Fresh CI **36824559166** and Docs **36824559193** now succeed
+completely. All six modules pass in every complete platform job: Linux
+x64/PostgreSQL 18 **23m55s**, macOS ARM64/PostgreSQL 18 **19m24s**, Windows
+x64/PostgreSQL 17 **22m57s**. Each platform runs **10,293 tests**, with zero
+failures and respectively **12**, **24** and **25** platform skips. The complete
+generator project passes **2,611/2,611** on each platform. Quality and all three
+runtime jobs pass too; no job times out. These are observed CI durations, not
+controlled performance comparisons. The pending GUC and path-test changes are
+excluded from this pushed source.
+
+Further review of the remaining lock and cleanup claims distinguishes the API
+boundaries before changing them. The current interrupt checker rejects held
+spinlocks and active scoped lightweight-lock reference borrows, but does not
+reject an ordinary lightweight-lock guard. Its native operation uses the selected
+headers' `CHECK_FOR_INTERRUPTS`, whose `ProcessInterrupts` respects interrupt
+holdoffs; Windows queued-signal dispatch must also remain intact. Additional
+real pending-interrupt/borrow coverage remains required before treating this
+review area as closed.
+
+PostgreSQL's `MemoryContextCallResetCallbacks` explicitly removes each callback
+before invocation because a callback can raise ERROR. pgrx likewise guards its
+`leak_and_drop_on_delete` callback. The broad claim that all reset-callback errors
+are forbidden is therefore unsupported. Secondary errors specifically during
+transaction abort, primary diagnostic preservation and complete resource cleanup
+still require investigation and evidence; no cleanup error is suppressed or
+reclassified based on that broad claim.
+
+The conventional aggregate path is being retired in an isolated draft. Before
+changing production, three uncontracted declarations with intended optional
+callbacks reproduce silent omission (**three failed/one passed**, **2.745s**;
+the valid typed helper case passes). The draft requires
+`IPgAggregate<TState, TArgs>`, reports a dedicated missing-contract **ANKUS029**,
+and resolves callbacks exclusively through capability interfaces. Eight new
+checks pass (**2.798s**), including exact diagnostics, real C# errors for
+misspelled declared optional members and legitimate helper names. A broader
+typed scope passes **84/84**, zero failures/skips (**3.656s**), after moving the
+existing missing-transition case to the dedicated diagnostic expectation.
+Sample and consumer migration is underway. Conventional fixtures/literals,
+callback-string API removal, complete generator/backend acceptance and public
+guide migration remain pending; this draft is not merged or committed.
 
 Pure configuration validation is also confirmed to mark a callback as failed
 unnecessarily. Five new actual backend cases on macOS ARM64/PostgreSQL **18.6**
@@ -315,8 +357,24 @@ already resolve directory ancestors. Their unchanged resolver is moved into the
 shared integration environment, and authored-script ownership checks now resolve
 both paths before enforcing the same root containment. Actual file bytes,
 PostgreSQL installation, rollback and upgrades remain asserted. The original
-failed run is retained and is not counted as complete acceptance. Affected macOS
-verification and the final complete source snapshot remain pending.
+failed run is retained and is not counted as complete acceptance. The affected
+macOS ownership, authored-script and upgrade scope passes **8/8**, zero
+failures/skips, **3m41.325s**. The final Release build again has zero
+warnings/errors (**2m09.45s**). A hash-verified combined **40-file** source
+snapshot passes plain complete PostgreSQL **18.6/Linux x64** tests with
+SDK **10.0.401**, LLVM **23** and the patched runtime **10.0.12**: **10,303 total,
+10,291 passed, zero failed and 12 platform skips**, **43m26.802s**, terminal
+exit **0**. All six modules complete, including the real Native AOT consumers
+and Valgrind cases. Integration takes **43m26.092s**. The primary checkout's
+**39 owned source files** match that accepted snapshot by SHA256; only this
+progress document is excluded from comparison. The macOS directory-alias
+correction and configuration validation correction are ready for separate
+coherent commits. The aggregate capability migration remains isolated.
+
+Before the directory-alias commit, prior CI outcomes were checked again.
+CI **36824559166** and Docs **36824559193** succeed, including all complete
+platform jobs recorded above. The earlier Windows failure in **36817997137**
+is resolved by that fresh complete run. No previous run remains active.
 
 Before the combined correctness commit, previous runs were checked again:
 CI **36807387606**, Docs **36807387783**, and the earlier CI/Docs successors

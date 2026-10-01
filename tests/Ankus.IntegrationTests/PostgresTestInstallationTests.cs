@@ -36,8 +36,8 @@ public sealed class PostgresTestInstallationTests(TestContext context)
             }
 
             await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(source, Path.Combine(stagingParent, "server"), token);
-            string ownedRoot = PhysicalDirectory(new DirectoryInfo(owner.RootDirectory)) + Path.DirectorySeparatorChar;
-            Assert.StartsWith(ownedRoot, PhysicalDirectory(new DirectoryInfo(owner.Installation.SharedDirectory)));
+            string ownedRoot = IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(owner.RootDirectory)) + Path.DirectorySeparatorChar;
+            Assert.StartsWith(ownedRoot, IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(owner.Installation.SharedDirectory)));
             string?[] directories = [null, "", "../../escape", outside];
             for (int index = 0; index < directories.Length; index++)
             {
@@ -70,7 +70,7 @@ public sealed class PostgresTestInstallationTests(TestContext context)
                 {
                     Assert.AreNotEqual(directory, staged["directory"]);
                     target = Path.GetFullPath(Path.Combine(owner.Installation.SharedDirectory, staged["directory"]));
-                    Assert.StartsWith(ownedRoot, PhysicalDirectory(new DirectoryInfo(target)));
+                    Assert.StartsWith(ownedRoot, IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(target)));
                 }
                 else
                 {
@@ -155,23 +155,5 @@ public sealed class PostgresTestInstallationTests(TestContext context)
         {
             Directory.Delete(root, recursive: true);
         }
-    }
-
-    /// <summary>
-    /// Resolves ancestor aliases before comparing ownership, including macOS's temporary-directory aliases.
-    /// </summary>
-    /// <param name="directory">The existing directory to resolve.</param>
-    /// <returns>The absolute directory path with symbolic-link ancestors resolved.</returns>
-    private static string PhysicalDirectory(DirectoryInfo directory)
-    {
-        if (directory.Parent is null)
-        {
-            return directory.FullName;
-        }
-
-        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
-        return resolved.Parent is DirectoryInfo parent
-            ? Path.Combine(PhysicalDirectory(parent), resolved.Name)
-            : resolved.FullName;
     }
 }

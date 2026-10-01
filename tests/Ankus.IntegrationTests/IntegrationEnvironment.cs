@@ -41,6 +41,24 @@ internal static class IntegrationEnvironment
         => Path.Combine(RepositoryRoot, "artifacts", "native", RuntimeInformation.RuntimeIdentifier);
 
     /// <summary>
+    /// Resolves ancestor aliases before comparing ownership, including macOS's temporary-directory aliases.
+    /// </summary>
+    /// <param name="directory">The existing directory to resolve.</param>
+    /// <returns>The absolute directory path with symbolic-link ancestors resolved.</returns>
+    internal static string PhysicalDirectory(DirectoryInfo directory)
+    {
+        if (directory.Parent is null)
+        {
+            return directory.FullName;
+        }
+
+        DirectoryInfo resolved = (DirectoryInfo?)directory.ResolveLinkTarget(returnFinalTarget: true) ?? directory;
+        return resolved.Parent is DirectoryInfo parent
+            ? Path.Combine(PhysicalDirectory(parent), resolved.Name)
+            : resolved.FullName;
+    }
+
+    /// <summary>
     /// Creates cluster settings using an automatically discovered local installation.
     /// </summary>
     /// <param name="cancellationToken">Cancels PostgreSQL discovery.</param>

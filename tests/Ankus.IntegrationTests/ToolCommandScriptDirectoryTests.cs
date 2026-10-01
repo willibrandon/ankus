@@ -135,8 +135,9 @@ public sealed partial class ToolCommandTests
             ? await PostgresTestInstallation.StageAsync(s_installation, CreateDirectory(), token) : null;
         PostgresTestInstallation installationOwner = _caseInstallation ?? owned!;
         PostgresInstallation installation = installationOwner.Installation;
-        Assert.StartsWith(installationOwner.RootDirectory + Path.DirectorySeparatorChar, installation.LibraryDirectory);
-        Assert.StartsWith(installationOwner.RootDirectory + Path.DirectorySeparatorChar, installation.SharedDirectory);
+        string ownedRoot = IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(installationOwner.RootDirectory)) + Path.DirectorySeparatorChar;
+        Assert.StartsWith(ownedRoot, IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(installation.LibraryDirectory)));
+        Assert.StartsWith(ownedRoot, IntegrationEnvironment.PhysicalDirectory(new DirectoryInfo(installation.SharedDirectory)));
         string linkedDestination = Path.Combine(installationOwner.RootDirectory, "directory link target", "after link");
         if (kind == "linked-parent")
         {
