@@ -74,7 +74,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreNotEqual(original.Native, changed.Native);
         Assert.AreEqual(original.Property, changed.Property);
         Assert.Contains(expected, changed.Native);
-        Assert.Contains(changed.Native, ManifestValue(output, "Ankus.NativeSource"));
+        Assert.Contains(changed.Native.ReplaceLineEndings("\n"), ManifestValue(output, "Ankus.NativeSource"));
         AssertGucCompilation(output, []);
     }
 
@@ -110,7 +110,7 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedGucEmission(driver, "demo.other").Reason);
         Assert.AreEqual(original.Property, changed.Property);
         Assert.Contains(expected, changed.Native);
-        Assert.Contains(changed.Native, ManifestValue(output, "Ankus.NativeSource"));
+        Assert.Contains(changed.Native.ReplaceLineEndings("\n"), ManifestValue(output, "Ankus.NativeSource"));
         AssertGucCompilation(output, []);
     }
 

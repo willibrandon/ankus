@@ -543,7 +543,34 @@ Before commit, CI **36844268550 / 36829172698 / 36824559166** and Docs
 **36844268403 / 36829172626 / 36824559193** are checked again: all succeed,
 with no queued or active successor. Fresh three-platform CI for the configuration
 milestone remains required.
+The configuration sources are committed as **7a4fccb**. Immediately before
+push, those three CI runs and three Docs runs are checked again and remain
+successful, with no queued or active run.
+The push succeeds. New CI **36853197866** and Docs **36853197974** start for
+**7a4fccb**; their complete outcomes are pending.
+Docs **36853197974** succeeds. All three runtime jobs succeed; quality and all
+three complete platform test jobs remain in progress in **36853197866**.
 Final compilation-dependent output composition remains open.
+
+CI **36853197866** completes with quality, runtime, Linux and macOS success,
+but Windows reports **11** generator assertion failures. Its real PostgreSQL
+integration module passes **4,169 tests**, zero failures and **19** platform
+skips. Linux and macOS execute all six modules with **10,362 total**, zero
+failures and respectively **12 / 24** platform skips. Platform jobs take
+**23m56s / 19m38s / 24m18s** for Linux/macOS/Windows; none times out.
+The failed assertions compare host-native CRLF setting fragments to the final
+LF-normalized native manifest. Both affected comparisons now use the documented
+final representation, retaining exact fragment, default/bound and cache assertions.
+The corrected **11/11** cases pass on Windows x64 (**3.418s**); complete generator
+and final verification remain required before committing this repair.
+The complete generator scope now passes **2,670/2,670** on both Windows x64
+(**37.020s**) and Linux x64 (**38.738s**). Final Release succeeds with zero
+warnings/errors (**1m40.53s**). API freshness verifies **234 pages / 2,677
+members**; the site builds **282 pages in 5.40s** and its check has zero errors,
+warnings or hints. The single changed test file is hash-frozen and independently
+verified in the Windows snapshot. Complete plain `dotnet test` against PostgreSQL
+**17.11 / Windows x64** is running; the native runtime and production generator
+sources are unchanged by this assertion repair.
 
 Native callback conversion proceeds independently while the configuration
 backend run remains active. Validated partial-property containers, exact ordered
@@ -571,6 +598,107 @@ after those gates. This callback conversion is not merged or committed;
 it still requires composition with the configuration milestone and complete
 native backend acceptance of the combined source. Neither draft closes
 the remaining declaration families or final graph/output caching.
+After the configuration commit, the callback draft moves onto **7a4fccb**.
+The two property families now compose detached inventories, eliminating the
+remaining property-symbol input. The obsolete transitional callback/settings
+container is removed. The independent lightweight-lock evidence and reference
+updates are included in the next twelve-file snapshot. Its exact source is
+transferred and independently hash-verified; the complete generator project
+passes **2,694/2,694**, zero failures/skips (**39.257s**). Combined Release
+succeeds with zero warnings/errors (**3m21.97s**). API freshness verifies **234
+pages / 2,677 members**; the site builds **282 pages in 9.15s** and its check
+has zero errors, warnings or hints. The twelve owned files are independently
+hash-verified again before starting complete plain `dotnet test` against
+PostgreSQL **18.6 / Linux x64**. This combined native acceptance remains active;
+no generator-only result substitutes for it.
+This complete acceptance now passes all six modules: **10,388 total, 10,376
+passed, zero failed and 12 platform skips**, **44m11.354s** reported testing time
+and **46m14.858s** wall time, terminal exit **0**. Integration takes
+**44m10.671s**. All twelve source hashes remain independently verified in both
+the completed native snapshot and development checkout. The same twelve files
+are transferred to the primary checkout and independently verified there before
+its final Release build. The Windows assertion repair remains a separate test-only
+change; its complete local acceptance is still active. Fresh platform CI remains
+required for the native callback milestone.
+The assertion repair's complete plain Windows x64/PostgreSQL **17.11** run now
+passes all six modules: **10,362 total, 10,337 passed, zero failed and 25 platform
+skips**, **37m39.941s** reported testing time and **39m24.738s** wall time,
+terminal exit **0**. This resolves the recorded eleven CI assertion failures
+without changing production behavior or analyzer policy. The accepted callback
+source is subsequently transferred to that completed snapshot for a separate
+complete generator check; its three-platform backend CI is still required.
+The primary checkout's first Release succeeds with zero warnings/errors
+(**48.68s**), and its generator reports **2,694/2,694** (**38.174s**).
+Subsequent source-hash verification detects that API generation consumed an old
+local runtime XML file: the source archive retained timestamps older than that
+checkout's outputs. The transferred inputs are refreshed without changing their
+contents, and the final build, generator and documentation gates are repeated.
+The first local results do not replace verification of the current source.
+The repeated current-source Release succeeds with zero warnings/errors
+(**1m15.97s**), and the complete generator passes **2,694/2,694** with zero
+failures/skips (**36.742s**). API freshness verifies **234 pages / 2,677 members**;
+the site builds **282 pages in 3.62s**, and its check reports zero errors,
+warnings or hints. All twelve accepted source hashes and the independent
+Windows assertion-repair hash are verified again after these checks.
+The complete combined generator also passes on Windows x64: **2,694/2,694**,
+zero failures/skips (**30.262s**). Before committing, CI is checked again:
+**36853197866** retains its recorded Windows assertion failure, now resolved by
+the complete local Windows repair; quality, runtime and Linux/macOS are
+successful. Docs **36853197974** succeeds. Earlier CI **36844268550 /
+36829172698 / 36824559166** and their Docs runs remain successful. No prior run
+is queued or active. Fresh three-platform CI is required after this milestone.
+
+The relative PostgreSQL-path finding now has packed-consumer evidence in a
+separate two-file draft. All **seven** plain-test selection cases pass against
+PostgreSQL **18.6 / Linux x64** (**6m59.001s**), including extension-only relative
+selection, equally nested projects sharing a project-relative setting, and a
+shared import explicitly anchored with `MSBuildThisFileDirectory`. Each case
+publishes the Native AOT extension and proves the selected server major and
+native function result in PostgreSQL. The existing four absolute/override cases
+remain covered. Relative paths retain ordinary per-project MSBuild semantics;
+the public setting reference explains how to anchor a shared installation.
+No production rebasing workaround is justified by these passing boundaries.
+Composition and complete-suite acceptance of this evidence draft remain pending.
+
+Backend-test generator conversion proceeds in a separate configuration-base
+draft. Validation detaches exact test metadata, lexical partial catalog owners,
+SQL declarations and managed invocation contracts. Discovery renders per owner
+in deterministic signature order; native dispatchers and SQL fragments render
+independently. Expected-error and ignore-reason changes affect discovery only,
+schemas affect discovery and SQL, and ordinary source/body edits retain rendering
+caches. Native test inclusion remains final composition policy. Reading the
+catalog retains its existing behavior without evaluating extension author code.
+The affected scope passes **63/63**, zero failures/skips (**4.553s**), including
+**30** new tracked and validation cases. Current-tree diagnostics, cached invalid
+models, repair, inherited catalog-name conflicts, constants, lexical changes,
+partial-file movement, membership/order and assembly identities are checked
+through the production driver. Inspection additionally finds that the draft
+initially bypasses conversion-policy validation when using cached test boundaries;
+three regressions reproduce the missing column/raw/composite diagnostics. The
+pipeline now runs the original validators before detaching native contracts, and
+all three pass. No published implementation contained that draft regression.
+Seven owned source/documentation files are hash-frozen and independently verified
+before a complete generator run. Composition with the callback milestone, final
+Release/docs and real complete native backend acceptance remain required. This
+draft does not close the remaining generator families or final output caching.
+The complete generator project for this frozen draft passes **2,700/2,700**,
+zero failures/skips (**33.171s**); all seven source hashes are reverified before
+starting its Release solution build.
+That Release build succeeds with zero warnings/errors (**1m21.20s**), and all
+seven source hashes remain independently verified afterward. Final documentation
+and composed native backend acceptance are still pending.
+Final API freshness verifies **234 pages / 2,677 members**. The site builds
+**282 pages in 10.14s**, and its check reports zero errors, warnings or hints.
+All seven draft source hashes are independently verified after these gates;
+composition and complete native backend acceptance remain required.
+The backend-test draft now composes with the accepted twelve-file callback and
+lightweight-lock milestone, the Windows assertion repair, and the two-file
+relative-installation evidence. Both overlapping source files merge cleanly;
+the earlier seven-file draft archive is retained independently. All **twenty**
+owned files are hash-frozen and verified in the combined native snapshot.
+The combined generator passes **2,724/2,724**, zero failures/skips (**35.186s**).
+Its Release, final documentation and complete native backend acceptance remain
+required before merging this next milestone.
 
 The reset-callback review claim is checked against a separate native-only
 PostgreSQL 18.6 / Linux x64 control. It loads no Ankus library and uses its own

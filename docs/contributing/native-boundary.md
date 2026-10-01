@@ -80,6 +80,16 @@ initialization still composes current registration and capability requirements.
 Removing an earlier syntax tree can recreate a surviving phase's positional
 Roslyn input; the resulting artifacts retain the same invocation contract.
 
+Native callback properties also detach their exact invocation types, native
+prototype index, assembly-scoped registration identity and partial declaration
+containers before rendering. The managed property and dispatcher fragment is
+cached per property. Implementation edits and source movement preserve that
+fragment; signature or lexical contract changes invalidate its dependent output.
+Invalid declarations report against current source trees, and composition removes
+deleted properties. A removed positional input can recreate the surviving entry;
+its exact source contract remains equal. Binding checks, native addresses and
+borrowed lifetimes remain runtime operations on every property access and call.
+
 Assembly SQL declarations also detach authored constants, graph policies and
 current diagnostic coordinates. Per-block file selection uses tracked
 AdditionalFiles and the compiler-visible project directory. Unchanged selected

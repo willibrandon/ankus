@@ -119,6 +119,11 @@ readers return. Keep callbacks synchronous and finite, and perform backend work
 outside them. Owning a lightweight-lock guard without an active `Read` callback
 continues to permit backend calls with the error behavior described below.
 
+`PgInterrupts.Check()` is permitted under ordinary shared and exclusive guards.
+PostgreSQL defers pending cancellation while the lock is held and delivers it
+after release. Checks are rejected inside `Read` and `Mutate` callbacks, where
+an original shared reference is borrowed, and while holding a spinlock.
+
 ## Mutating original values
 
 An exclusive lightweight-lock guard or a spinlock guard provides `Mutate` for

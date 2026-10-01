@@ -31,12 +31,16 @@ public static void Check()
 
 Exceptions:
 
-- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): No backend callback is active, or a held lock forbids backend access.
+- [InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception): No backend callback is active, or a spinlock or scoped shared-memory borrow forbids backend access.
 - [PgQueryCanceledException](/api/ankus.pgquerycanceledexception/): PostgreSQL has canceled the current query.
 
 Call periodically in long loops that do not otherwise enter PostgreSQL.
 An idle check reads callback-scoped native flags without a native call.
 PostgreSQL interrupt holdoffs still apply. Catching a cancellation does
 not clear it: subsequent checks and callback completion retain the error.
+Ordinary shared and exclusive lightweight-lock guards defer pending
+interrupts until release. Checks inside scoped shared-memory Read or
+Mutate callbacks, or while holding a spinlock, are rejected to preserve
+the borrowed reference and short critical-section contracts.
 A worker transaction retains cancellation until rollback; its caller can then handle the exception
 and continue through [RunTransaction(Action)](/api/ankus.pgbackgroundworker/#member-cc4c154898bd56ae).

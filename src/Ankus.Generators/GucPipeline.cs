@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -112,9 +111,9 @@ internal static class GucPipeline
     internal sealed record Output(Analysis Analysis, GucEmission? Emission);
 
     /// <summary>
-    /// Separates legacy native callback properties from detached configuration declarations.
+    /// Composes detached native callbacks and configuration declarations without retaining property symbols.
     /// </summary>
-    /// <param name="Callbacks">The native callback properties still requiring compiler-state conversion.</param>
+    /// <param name="Callbacks">The detached native callback declarations and cached fragments.</param>
     /// <param name="Settings">The detached configuration declarations.</param>
-    internal sealed record PropertyInputs(ImmutableArray<IPropertySymbol> Callbacks, EquatableArray<Output> Settings);
+    internal sealed record PropertyInputs(EquatableArray<NativeCallbackPipeline.Output> Callbacks, EquatableArray<Output> Settings);
 }

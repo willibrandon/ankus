@@ -63,7 +63,7 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
     /// <param name="property">The candidate property.</param>
     /// <param name="context">The diagnostic destination.</param>
     /// <returns>A complete callback declaration, or null after an error diagnostic.</returns>
-    internal static NativeCallbackDeclaration? Create(IPropertySymbol property, SourceProductionContext context)
+    internal static NativeCallbackDeclaration? Create(IPropertySymbol property, GeneratorDiagnostics context)
     {
         AttributeData[] attributes = [.. property.GetAttributes().Where(IsAttribute)];
         if (attributes.Length != 1 || property.GetAttributes().Any(GucDeclaration.IsGucAttribute))
@@ -132,7 +132,7 @@ internal sealed class NativeCallbackDeclaration(IPropertySymbol property, IMetho
 
         NativeCallbackDeclaration? Invalid(string message)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, property.Locations.FirstOrDefault(), property.Name, message));
+            context.Report(s_invalid, property.Locations.FirstOrDefault(), property.Name, message);
             return null;
         }
     }
