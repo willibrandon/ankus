@@ -4,12 +4,10 @@ namespace Ankus.Generators;
 /// Retains a validated function declaration until cross-function identities and prerequisites have been resolved.
 /// </summary>
 /// <param name="declaration">The configured identity and execution options.</param>
-/// <param name="arguments">The complete SQL argument declarations.</param>
-/// <param name="result">The SQL result declaration.</param>
-/// <param name="nativeName">The generated native entry point.</param>
+/// <param name="definition">The rendered definition preceding graph-selected support and its statement terminator.</param>
 /// <param name="isPlannerSupport">Whether the SQL signature is a nonvariadic scalar internal-to-internal function.</param>
 /// <param name="requiresAggregateContext">Whether the native entry point requires an aggregate or window invocation.</param>
-internal sealed class SqlFunction(FunctionDeclaration declaration, string arguments, string result, string nativeName,
+internal sealed class SqlFunction(FunctionDeclaration declaration, string definition,
     bool isPlannerSupport, bool requiresAggregateContext = false)
 {
     private string? _plannerSupport;
@@ -30,6 +28,20 @@ internal sealed class SqlFunction(FunctionDeclaration declaration, string argume
     internal bool RequiresAggregateContext { get; } = requiresAggregateContext;
 
     /// <summary>
+    /// Composes specialized callback families using the shared SQL definition grammar.
+    /// </summary>
+    /// <param name="declaration">The validated SQL identity and execution options.</param>
+    /// <param name="arguments">The complete argument clauses.</param>
+    /// <param name="result">The complete return clause.</param>
+    /// <param name="nativeName">The generated native entry identity.</param>
+    /// <param name="isPlannerSupport">Whether the signature is a scalar internal-to-internal function.</param>
+    /// <param name="requiresAggregateContext">Whether calls require aggregate or window context.</param>
+    /// <returns>A fresh graph-owned function with no retained compiler symbols.</returns>
+    internal static SqlFunction Create(FunctionDeclaration declaration, string arguments, string result, string nativeName,
+        bool isPlannerSupport, bool requiresAggregateContext = false)
+        => new(declaration, FunctionSqlEmission.Format(declaration, arguments, result, nativeName), isPlannerSupport, requiresAggregateContext);
+
+    /// <summary>
     /// Adds graph-resolved planner support without mutating the immutable declaration shared with emission.
     /// </summary>
     /// <param name="name">The quoted SQL function name with its schema selection marker.</param>
@@ -40,6 +52,5 @@ internal sealed class SqlFunction(FunctionDeclaration declaration, string argume
     /// </summary>
     /// <returns>The complete SQL definition with schema selection markers retained.</returns>
     internal string Emit()
-        => $"CREATE {(Declaration.Replace ? "OR REPLACE " : string.Empty)}FUNCTION {Declaration.TemplateName}({arguments})\n" +
-            $"RETURNS {result} AS 'MODULE_PATHNAME', '{nativeName}' LANGUAGE c {Declaration.Options}{(_plannerSupport is null ? string.Empty : " SUPPORT " + _plannerSupport)};\n";
+        => definition + (_plannerSupport is null ? string.Empty : " SUPPORT " + _plannerSupport) + ";\n";
 }

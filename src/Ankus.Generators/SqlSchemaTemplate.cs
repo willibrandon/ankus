@@ -19,17 +19,7 @@ internal static class SqlSchemaTemplate
     /// <param name="providers">The declared SQL providers, when available.</param>
     /// <returns>The type template, retaining built-in and external type resolution.</returns>
     internal static string Type(FunctionType type, SqlTypeProviders? providers = null)
-    {
-        if (type.Element is { } element)
-        {
-            return Type(element, providers) + "[]";
-        }
-
-        bool defaultSchema = type.Enumeration is { Schema: null } || type.CustomType is { Schema: null } ||
-            type.DatumType is { Schema: null, External: false } ||
-            type.Binding is { Schema: null } binding && providers?.Contains(binding) == true;
-        return (defaultSchema ? "\0" : string.Empty) + type.Sql;
-    }
+        => SqlTypeTemplate.Create(type).Emit(providers);
 
     /// <summary>
     /// Formats a function identity while excluding injected managed parameters.

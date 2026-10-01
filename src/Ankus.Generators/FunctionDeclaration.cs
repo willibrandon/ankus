@@ -44,13 +44,21 @@ internal sealed record FunctionDeclaration
     internal string TemplateName => (Schema is null ? "\0" : string.Empty) + QualifiedName;
 
     /// <summary>
-    /// Gets the named SQL argument declarations, including variadic and default clauses.
+    /// Gets the validated SQL argument contracts before extension-provider qualification.
     /// </summary>
-    internal string Arguments
+    internal EquatableArray<SqlFunctionParameter> Parameters
     {
         get;
         private init;
-    } = string.Empty;
+    } = new([]);
+
+    /// <summary>
+    /// Renders named SQL arguments with the current extension's catalog providers.
+    /// </summary>
+    /// <param name="providers">The graph's validated catalog identities, or null when no provider inventory is available.</param>
+    /// <returns>The ordered argument declarations, including variadic and exact default clauses.</returns>
+    internal string Arguments(SqlTypeProviders? providers = null)
+        => string.Join(", ", Parameters.Select(parameter => parameter.Emit(providers)));
 
     /// <summary>
     /// Gets the validated SQL execution options.
@@ -90,11 +98,9 @@ internal sealed record FunctionDeclaration
     /// <param name="sqlNullability">Explicit SQL parameter nullability for a specialized callback, excluding synthetic arguments that cannot be null.</param>
     /// <param name="schemaFallback">The specialized declaration's schema when the callback does not override it.</param>
     /// <param name="parameterModels">The ordered SQL and injected parameters, or null to resolve them from the method.</param>
-    /// <param name="providers">The extension type providers used for default-schema qualification.</param>
     /// <returns>The declaration, or null after reporting an invalid contract.</returns>
     internal static FunctionDeclaration? Create(IMethodSymbol method, string name, GeneratorDiagnostics context, SetResult? set = null,
-        bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null,
-        SqlTypeProviders? providers = null)
+        bool contextParameter = false, IReadOnlyList<bool>? sqlNullability = null, string? schemaFallback = null, FunctionParameter[]? parameterModels = null)
     {
         AttributeData? attribute = method.GetAttributes().FirstOrDefault(static value => value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
         var declaration = new FunctionDeclaration();
@@ -229,7 +235,7 @@ internal sealed record FunctionDeclaration
             return declaration;
         }
 
-        var parameters = new List<string>();
+        var parameters = new List<SqlFunctionParameter>();
         var parameterNames = new HashSet<string>(StringComparer.Ordinal);
         bool defaultSeen = false;
         foreach (FunctionParameter model in parameterModels ?? FunctionParameter.Create(method))
@@ -283,11 +289,10 @@ internal sealed record FunctionDeclaration
             }
 
             defaultSeen |= expression is not null;
-            parameters.Add((model.IsParams ? "VARIADIC " : string.Empty) + SqlText.Identifier(parameterName) + " " + SqlSchemaTemplate.Type(type, providers) +
-                (expression is null ? string.Empty : " DEFAULT (" + expression + ")"));
+            parameters.Add(new(parameterName, type, model.IsParams, expression));
         }
 
-        declaration = declaration with { Arguments = string.Join(", ", parameters) };
+        declaration = declaration with { Parameters = new(parameters) };
         return declaration;
 
         FunctionDeclaration? Invalid(string reason)

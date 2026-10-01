@@ -24,7 +24,7 @@ internal static class TriggerDeclaration
     /// <param name="method">The attributed callback.</param>
     /// <param name="context">The generator context receiving diagnostics.</param>
     /// <returns>Whether the trigger callback can be generated.</returns>
-    internal static bool Validate(IMethodSymbol method, SourceProductionContext context)
+    internal static bool Validate(IMethodSymbol method, GeneratorDiagnostics context)
     {
         if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract ||
             method.ReturnsByRef || method.ReturnsByRefReadonly ||
@@ -68,7 +68,7 @@ internal static class TriggerDeclaration
 
         bool Invalid(string reason)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason));
+            context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason);
             return false;
         }
     }

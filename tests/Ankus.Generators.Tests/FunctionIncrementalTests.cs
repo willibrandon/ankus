@@ -145,6 +145,7 @@ public sealed partial class PgFunctionGeneratorTests
         string initialized = new StringBuilder(emission.Native.Header).AppendLine("    ankus_ensure_initialized();").Append(emission.Native.Body).ToString().ReplaceLineEndings("\n");
 
         Assert.AreEqual(IncrementalStepRunReason.Cached, reason);
+        Assert.AreEqual(IncrementalStepRunReason.Cached, TrackedFunctionSqlEmission(driver, "value").Reason);
         Assert.Contains(uninitialized, ManifestValue(first, "Ankus.NativeSource"));
         Assert.DoesNotContain(initialized, ManifestValue(first, "Ankus.NativeSource"));
         Assert.Contains(initialized, ManifestValue(second, "Ankus.NativeSource"));
@@ -228,12 +229,15 @@ public sealed partial class PgFunctionGeneratorTests
         string survivorName = removeFirst ? "other" : "value";
         FunctionEmission removed = TrackedFunctionEmission(driver, removedName).Emission;
         FunctionEmission survivor = TrackedFunctionEmission(driver, survivorName).Emission;
+        FunctionSqlEmission survivorSql = TrackedFunctionSqlEmission(driver, survivorName).Emission;
         CSharpCompilation edited = initial.RemoveSyntaxTrees(removeFirst ? initial.SyntaxTrees.First() : initial.SyntaxTrees.Last());
         driver = RunModule(driver, edited, out Compilation output);
 
         (FunctionEmission emission, IncrementalStepRunReason reason) = TrackedFunctionEmission(driver, survivorName);
         Assert.AreEqual(removeFirst ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Cached, reason);
         Assert.AreEqual(survivor, emission);
+        Assert.AreEqual(removeFirst ? IncrementalStepRunReason.Modified : IncrementalStepRunReason.Cached, TrackedFunctionSqlEmission(driver, survivorName).Reason);
+        Assert.AreEqual(survivorSql, TrackedFunctionSqlEmission(driver, survivorName).Emission);
         Assert.DoesNotContain(removed.NativeName, ManifestValue(output, "Ankus.NativeSource"));
         Assert.DoesNotContain(removed.NativeName, ManifestValue(output, "Ankus.Exports"));
         Assert.DoesNotContain("\"" + removedName + "\"", InstallationBody(output));

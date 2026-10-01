@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -9,12 +8,16 @@ namespace Ankus.Generators;
 internal static class PgBackgroundWorkerEmitter
 {
     /// <summary>
-    /// Appends one statically bound managed dispatcher and selected-header native worker export.
+    /// Renders a statically bound dispatcher and selected-header native worker export from immutable contracts.
     /// </summary>
-    internal static void Emit(BackgroundWorkerDeclaration declaration, string callback,
-        StringBuilder managed, StringBuilder native, StringBuilder exports)
+    /// <param name="declaration">The validated detached invocation and native identities.</param>
+    /// <returns>The independently cached managed, native and export artifacts.</returns>
+    internal static BackgroundWorkerEmission Emit(BackgroundWorkerDeclaration declaration)
     {
-        IMethodSymbol method = declaration.Method;
+        var managed = new StringBuilder();
+        var native = new StringBuilder();
+        var exports = new StringBuilder();
+        string callback = declaration.Callback;
         managed.AppendLine($$"""
                 [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
                     EntryPoint = "{{callback}}", CallConvs = [typeof(global::System.Runtime.CompilerServices.CallConvCdecl)])]
@@ -29,7 +32,7 @@ internal static class PgBackgroundWorkerEmitter
                     {
                         try
                         {
-                            {{method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}}.@{{method.Name}}(argument);
+                            {{declaration.Target}}(argument);
                         }
                         finally
                         {
@@ -103,5 +106,6 @@ internal static class PgBackgroundWorkerEmitter
             }
             """);
         exports.AppendLine(declaration.EntryPoint);
+        return new(declaration.EntryPoint, managed.ToString(), native.ToString(), exports.ToString());
     }
 }

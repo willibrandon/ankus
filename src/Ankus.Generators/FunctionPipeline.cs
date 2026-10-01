@@ -27,8 +27,16 @@ internal static class FunctionPipeline
             value.Set is null ? PgFunctionEmitter.EmitBoundary(value.Invocation, [.. value.Parameters], value.Result!, value.Callback) :
                 PgSetEmitter.EmitBoundary(value.Invocation, [.. value.Parameters], value.Set, value.Callback))
             .WithTrackingName("FunctionEmission");
-        return analysis.Collect().Combine(emission.Collect()).Select(static (value, _) =>
-            new EquatableArray<FunctionOutput>(value.Left.Select((item, index) => new FunctionOutput(item, value.Right[index]))));
+        IncrementalValuesProvider<FunctionDeclaration?> declarations = analysis.Select(static (value, _) => value.Declaration)
+            .WithTrackingName("FunctionDeclaration");
+        IncrementalValuesProvider<FunctionSqlModel?> sqlModels = analysis.Select(static (value, _) => value.Declaration is null ? null :
+            FunctionSqlModel.Create(value.Declaration, value.Model!.Result, value.Model.Set, value.Model.Callback.Replace("ankus_managed_", "ankus_fn_")))
+            .WithTrackingName("FunctionSqlModel");
+        IncrementalValuesProvider<FunctionSqlEmission?> sql = sqlModels.Select(static (value, _) => value is null ? null :
+            FunctionSqlEmission.Create(value)).WithTrackingName("FunctionSqlEmission");
+        return analysis.Collect().Combine(emission.Collect()).Combine(declarations.Collect()).Combine(sql.Collect()).Select(static (value, _) =>
+            new EquatableArray<FunctionOutput>(value.Left.Left.Left.Select((item, index) =>
+                new FunctionOutput(item, value.Left.Left.Right[index], value.Left.Right[index], value.Right[index]))));
     }
 
     /// <summary>
@@ -61,8 +69,11 @@ internal static class FunctionPipeline
         valid = valid && SqlNullability.Validate(method, method.Parameters.Where((_, index) => !parameters[index].IsInjected),
             set is null ? [method.ReturnType] : SetResult.OutputTypes(method), diagnostics);
         valid = valid && NumericConstraint.Validate(method, diagnostics, set);
+        string name = PgFunctionGenerator.GetSqlName(method);
+        FunctionDeclaration? declaration = valid ? FunctionDeclaration.Create(method, name, diagnostics, set, parameterModels: parameters) : null;
+        valid = valid && declaration is not null;
         return new(DeclarationIdentity.Create(method), valid ? new(new(parameters), result, set, MethodInvocation.Create(method),
-            PgFunctionGenerator.GetCallbackName(method, PgFunctionGenerator.GetSqlName(method))) : null,
+            PgFunctionGenerator.GetCallbackName(method, name)) : null, declaration, SqlDeclarationOptions.Read(attribute.Attributes[0])!,
             new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
     }
 
@@ -81,21 +92,29 @@ internal static class FunctionPipeline
     /// </summary>
     /// <param name="Identity">The assembly-qualified method identity.</param>
     /// <param name="Model">The validated conversion model, or null after a reported validation failure.</param>
+    /// <param name="Declaration">The validated SQL options and input contracts, or null after a validation failure.</param>
+    /// <param name="Options">The detached SQL generation and graph dependency policy.</param>
     /// <param name="Problems">Diagnostics to resolve on the current source trees.</param>
     /// <param name="Location">The declaring source coordinates, including invalid duplicate signatures.</param>
-    internal sealed record FunctionAnalysis(DeclarationIdentity Identity, FunctionModel? Model, EquatableArray<GeneratorProblem> Problems, GeneratorLocation? Location);
+    internal sealed record FunctionAnalysis(DeclarationIdentity Identity, FunctionModel? Model, FunctionDeclaration? Declaration,
+        SqlDeclarationOptions Options, EquatableArray<GeneratorProblem> Problems, GeneratorLocation? Location);
 
     /// <summary>
     /// Supplies one analyzed function and its independently cached boundary artifacts.
     /// </summary>
     /// <param name="Analysis">The detached semantic values and current diagnostic coordinates.</param>
     /// <param name="Emission">The rendered boundary, or null after semantic validation failed.</param>
-    internal sealed record FunctionOutput(FunctionAnalysis Analysis, FunctionEmission? Emission);
+    /// <param name="Declaration">The independently cached SQL declaration contract, or null after validation failed.</param>
+    /// <param name="Sql">The independently rendered SQL fragments, or null after validation failed.</param>
+    internal sealed record FunctionOutput(FunctionAnalysis Analysis, FunctionEmission? Emission, FunctionDeclaration? Declaration, FunctionSqlEmission? Sql);
 
     /// <summary>
     /// Supplies fresh legacy declarations and detached function contracts to the remaining graph conversion.
     /// </summary>
     /// <param name="Methods">The declarations still needed by unconverted graph and callback families.</param>
     /// <param name="Functions">The independently analyzed ordinary functions.</param>
-    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions);
+    /// <param name="Triggers">The independently analyzed row and event callbacks.</param>
+    /// <param name="Workers">The independently analyzed background-worker entries.</param>
+    /// <param name="Lifecycle">The canonical initialization phases with independently rendered callbacks.</param>
+    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle);
 }

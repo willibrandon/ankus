@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -33,13 +32,10 @@ internal static class PgModuleLoadEmitter
     /// <summary>
     /// Emits an independently retryable registration phase without enabling fork support prematurely.
     /// </summary>
-    /// <param name="method">The validated module registration method.</param>
     /// <param name="callback">Its assembly-specific native symbol.</param>
-    /// <param name="managed">The managed dispatch source.</param>
     /// <param name="native">The native library source.</param>
-    internal static void Emit(IMethodSymbol method, string callback, StringBuilder managed, StringBuilder native)
+    internal static void Emit(string callback, StringBuilder native)
     {
-        PgInitializeEmitter.EmitManaged(method, callback, managed);
         native.AppendLine($$"""
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"

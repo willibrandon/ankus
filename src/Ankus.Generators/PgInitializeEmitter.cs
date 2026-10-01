@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -11,7 +10,7 @@ internal static class PgInitializeEmitter
     /// <summary>
     /// Appends the managed callback, native loader entry point, and export without declaring a SQL function.
     /// </summary>
-    /// <param name="method">The optional validated initialization method.</param>
+    /// <param name="declaration">The optional cached initialization dispatcher.</param>
     /// <param name="callback">The assembly-specific managed initialization symbol.</param>
     /// <param name="hasHooks">Whether configuration registration can enter managed hooks.</param>
     /// <param name="registration">Native setting registration followed by prefix checking statements.</param>
@@ -20,14 +19,14 @@ internal static class PgInitializeEmitter
     /// <param name="exports">The native linker exports.</param>
     /// <param name="hasNativeCallbacks">Whether static native callbacks require initialization and fork support.</param>
     /// <param name="hasModuleLoad">Whether an immediate module registration callback precedes initialization.</param>
-    internal static void Emit(IMethodSymbol? method, string callback, bool hasHooks, string registration,
+    internal static void Emit(LifecycleEmission? declaration, string callback, bool hasHooks, string registration,
         StringBuilder managed, StringBuilder native, StringBuilder exports, bool hasNativeCallbacks = false, bool hasModuleLoad = false)
     {
-        bool requiresEnsure = method is not null || hasHooks || hasNativeCallbacks || hasModuleLoad;
-        bool warmRuntime = method is null && requiresEnsure && !hasModuleLoad;
-        if (method is not null)
+        bool requiresEnsure = declaration is not null || hasHooks || hasNativeCallbacks || hasModuleLoad;
+        bool warmRuntime = declaration is null && requiresEnsure && !hasModuleLoad;
+        if (declaration is not null)
         {
-            EmitManaged(method, callback, managed);
+            managed.Append(declaration.Managed);
         }
         else if (warmRuntime)
         {
@@ -62,13 +61,13 @@ internal static class PgInitializeEmitter
             """ : string.Empty;
         string ensureDeclaration = requiresEnsure && !hasHooks ? "static void ankus_ensure_initialized(void);\n" : string.Empty;
         string registrationDeclaration = hasHooks ? string.Empty : "static bool ankus_registration_complete = false;";
-        string errorDeclaration = method is null ? string.Empty : """
+        string errorDeclaration = declaration is null ? string.Empty : """
                 AnkusMemoryApi memory = {0};
                 ankus_memory_initialize(&memory);
                 AnkusError *error = MemoryContextAllocZero(caller, sizeof(AnkusError));
                 volatile bool snapshot_owned = false;
             """;
-        string invocation = method is null ? (warmRuntime ? $"        {callback}();\n" : string.Empty) : $$"""
+        string invocation = declaration is null ? (warmRuntime ? $"        {callback}();\n" : string.Empty) : $$"""
                     if (IsTransactionState() && !ActiveSnapshotSet())
                     {
                         PushActiveSnapshot(GetTransactionSnapshot());
@@ -91,7 +90,7 @@ internal static class PgInitializeEmitter
                     }
 
             """;
-        string errorCleanup = method is null ? string.Empty : """
+        string errorCleanup = declaration is null ? string.Empty : """
                     if (snapshot_owned)
                     {
                         snapshot_owned = false;
@@ -101,7 +100,7 @@ internal static class PgInitializeEmitter
                     ankus_release_error(error);
                     pfree(error);
             """;
-        string cleanup = method is null ? string.Empty : """
+        string cleanup = declaration is null ? string.Empty : """
                 ankus_release_error(error);
                 pfree(error);
             """;
@@ -110,7 +109,7 @@ internal static class PgInitializeEmitter
             #include "utils/memutils.h"
             #include "utils/snapmgr.h"
 
-            {{(method is null ? (warmRuntime ? $"extern void {callback}(void);" : string.Empty) : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
+            {{(declaration is null ? (warmRuntime ? $"extern void {callback}(void);" : string.Empty) : $"extern int {callback}(AnkusError *, AnkusGucReadBinding, AnkusExecute, AnkusInitializationLog, AnkusMemoryApi *);")}}
             {{forkDeclaration}}
             static int ankus_initialization_state = 0;
             {{registrationDeclaration}}
@@ -204,10 +203,10 @@ internal static class PgInitializeEmitter
     /// <summary>
     /// Emits the common managed error and capability boundary for one initialization phase.
     /// </summary>
-    /// <param name="method">The validated phase handler.</param>
+    /// <param name="target">The fully qualified managed invocation target.</param>
     /// <param name="callback">Its native symbol.</param>
     /// <param name="managed">The managed dispatch source.</param>
-    internal static void EmitManaged(IMethodSymbol method, string callback, StringBuilder managed)
+    internal static void EmitManaged(string target, string callback, StringBuilder managed)
     {
         managed.AppendLine($$"""
                     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(
@@ -224,7 +223,7 @@ internal static class PgInitializeEmitter
                         {
                             previousMemory = global::Ankus.NativeMemoryContext.Enter(memory);
                             memoryEntered = true;
-                            {{method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}}.@{{method.Name}}();
+                            {{target}}();
                             return 0;
                         }
                         catch (global::System.Exception exception)

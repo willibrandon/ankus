@@ -20,40 +20,30 @@ internal static class InitializeDeclaration
             "Ankus.PgInitializeAttribute" or "Ankus.PgModuleLoadAttribute");
 
     /// <summary>
-    /// Validates every initialization declaration and selects at most one callback for each phase.
+    /// Validates one canonical phase declaration and detaches its invocation and callback identity.
     /// </summary>
-    /// <param name="methods">The discovered attributed methods.</param>
-    /// <param name="context">The generator context receiving diagnostics.</param>
-    /// <returns>The initialization and module-load callbacks, or no callbacks when declarations are invalid.</returns>
-    internal static (IMethodSymbol? Initialize, IMethodSymbol? ModuleLoad) Select(IEnumerable<IMethodSymbol> methods, SourceProductionContext context)
-    {
-        IMethodSymbol[] initializers = [.. methods.Where(IsInitializer).Select(static method => method.PartialDefinitionPart ?? method)
-            .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal)];
-        bool valid = true;
-        foreach (IMethodSymbol method in initializers)
-        {
-            valid &= Validate(method, context);
-        }
+    /// <param name="method">The attributed method normalized to its partial definition.</param>
+    /// <param name="context">The current semantic diagnostic receiver.</param>
+    /// <returns>The immutable phase contract, or null after validation fails.</returns>
+    internal static LifecycleDeclaration? Create(IMethodSymbol method, GeneratorDiagnostics context)
+        => Validate(method, context) ? new(HasAttribute(method, "Ankus.PgModuleLoadAttribute"),
+            MethodInvocation.Create(method).Target, PgFunctionGenerator.GetCallbackName(method,
+                HasAttribute(method, "Ankus.PgModuleLoadAttribute") ? "module_load" : "initialize")) : null;
 
-        IMethodSymbol[] ready = [.. initializers.Where(static method => HasAttribute(method, "Ankus.PgInitializeAttribute"))];
-        IMethodSymbol[] load = [.. initializers.Where(static method => HasAttribute(method, "Ankus.PgModuleLoadAttribute"))];
-        foreach ((IMethodSymbol[] declarations, string attribute) in new[] { (ready, "PgInitialize"), (load, "PgModuleLoad") })
-        {
-            if (declarations.Length > 1)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalid, declarations[1].Locations.FirstOrDefault(), declarations[1].Name,
-                    $"An assembly can declare only one {attribute} callback."));
-                valid = false;
-            }
-        }
-
-        return valid ? (ready.SingleOrDefault(), load.SingleOrDefault()) : (null, null);
-    }
+    /// <summary>
+    /// Reports extension-wide phase collisions against the current declaring source location.
+    /// </summary>
+    /// <param name="location">The current canonical definition location.</param>
+    /// <param name="name">The original method name.</param>
+    /// <param name="moduleLoad">Whether the conflicting phase is module registration.</param>
+    /// <param name="context">The current diagnostic receiver.</param>
+    internal static void ReportDuplicate(Location? location, string name, bool moduleLoad, GeneratorDiagnostics context)
+        => context.Report(s_invalid, location, name, $"An assembly can declare only one {(moduleLoad ? "PgModuleLoad" : "PgInitialize")} callback.");
 
     /// <summary>
     /// Rejects unsupported signatures, inaccessible containers, and SQL-only metadata.
     /// </summary>
-    private static bool Validate(IMethodSymbol method, SourceProductionContext context)
+    private static bool Validate(IMethodSymbol method, GeneratorDiagnostics context)
     {
         if (HasAttribute(method, "Ankus.PgInitializeAttribute") && HasAttribute(method, "Ankus.PgModuleLoadAttribute"))
         {
@@ -95,7 +85,7 @@ internal static class InitializeDeclaration
 
         bool Invalid(string reason)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason));
+            context.Report(s_invalid, method.Locations.FirstOrDefault(), method.Name, reason);
             return false;
         }
     }
@@ -103,6 +93,6 @@ internal static class InitializeDeclaration
     /// <summary>
     /// Finds a phase marker on a normalized method declaration.
     /// </summary>
-    private static bool HasAttribute(IMethodSymbol method, string name)
+    internal static bool HasAttribute(IMethodSymbol method, string name)
         => method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == name);
 }

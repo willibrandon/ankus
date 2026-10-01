@@ -28,7 +28,7 @@ internal static class PgSetEmitter
     {
         FunctionEmission emission = EmitBoundary(method, parameters, set, callback);
         emission.AppendTo(managed, native, exports, ensureInitialized);
-        return new(declaration, declaration.Arguments, set.TemplateSql(providers), emission.NativeName, false);
+        return SqlFunction.Create(declaration, declaration.Arguments(providers), set.TemplateSql(providers), emission.NativeName, false);
     }
 
     /// <summary>

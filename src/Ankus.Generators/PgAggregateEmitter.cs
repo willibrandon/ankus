@@ -142,7 +142,7 @@ internal static class PgAggregateEmitter
         native.AppendLine();
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
-        return new(helper.Declaration, helper.Arguments(providers), Type(helper.Result, providers), nativeName,
+        return SqlFunction.Create(helper.Declaration, helper.Arguments(providers), Type(helper.Result, providers), nativeName,
             !helper.Deserialize && helper.Types.Length == 1 && helper.Types[0].IsInternal && helper.Result.IsInternal &&
             !helper.Parameters.Any(static parameter => parameter.IsVariadic), requiresAggregateContext: true);
     }

@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -9,19 +8,17 @@ namespace Ankus.Generators;
 internal static class PgTriggerEmitter
 {
     /// <summary>
-    /// Appends trigger callback dispatch, the native boundary, SQL, and linker exports.
+    /// Renders a validated callback independently of SQL and current initialization selection.
     /// </summary>
-    /// <param name="method">The validated trigger method.</param>
-    /// <param name="declaration">The common SQL declaration options.</param>
-    /// <param name="callback">The assembly-specific managed callback symbol.</param>
-    /// <param name="ensureInitialized">Whether the native entry point must complete deferred managed initialization.</param>
-    /// <param name="managed">The generated managed source.</param>
-    /// <param name="native">The generated native source.</param>
-    /// <param name="exports">The native linker export list.</param>
-    /// <returns>The SQL function contract to render after dependency resolution.</returns>
-    internal static SqlFunction Emit(IMethodSymbol method, FunctionDeclaration declaration, string callback, bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder exports)
+    /// <param name="target">The fully qualified managed callback invocation target.</param>
+    /// <param name="callback">The assembly-specific native callback symbol.</param>
+    /// <returns>The immutable managed, native and linker artifacts.</returns>
+    internal static FunctionEmission EmitBoundary(string target, string callback)
     {
+        var managed = new StringBuilder();
+        var native = new StringBuilder();
+        var header = new StringBuilder();
+        var exports = new StringBuilder();
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
@@ -40,7 +37,7 @@ internal static class PgTriggerEmitter
         managed.AppendLine("            global::Ankus.PgTriggerContext context = global::Ankus.NativeValue.ReadTriggerContext(");
         managed.AppendLine("                new global::System.ReadOnlySpan<global::Ankus.NativeValue>(arguments, 12));");
         managed.AppendLine("            global::Ankus.PgHeapTuple? value = " +
-            method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + method.Name + "(context);");
+            target + "(context);");
         managed.AppendLine("            if (context.Timing == global::Ankus.PgTriggerTiming.After)");
         managed.AppendLine("            {");
         managed.AppendLine("                result->IsNull = 1;");
@@ -88,20 +85,16 @@ internal static class PgTriggerEmitter
         managed.AppendLine("        }");
         managed.AppendLine("    }");
         managed.AppendLine();
-        native.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
-        native.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
-        native.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
-        native.AppendLine("{");
-        if (ensureInitialized)
-        {
-            native.AppendLine("    ankus_ensure_initialized();");
-        }
+        header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *);");
+        header.AppendLine($"PG_FUNCTION_INFO_V1({nativeName});");
+        header.AppendLine($"PGDLLEXPORT Datum {nativeName}(PG_FUNCTION_ARGS)");
+        header.AppendLine("{");
 
         native.AppendLine($"    return ankus_trigger_call(fcinfo, {callback});");
         native.AppendLine("}");
         native.AppendLine();
         exports.AppendLine(nativeName);
         exports.AppendLine("pg_finfo_" + nativeName);
-        return new(declaration, string.Empty, "trigger", nativeName, false);
+        return new(managed.ToString(), new(header.ToString(), native.ToString()), exports.ToString(), nativeName, false);
     }
 }

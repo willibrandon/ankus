@@ -28,7 +28,7 @@ internal static class PgFunctionEmitter
     {
         FunctionEmission emission = EmitBoundary(method, parameterModels, result, callback);
         emission.AppendTo(managed, native, exports, ensureInitialized);
-        return new(declaration, declaration.Arguments, SqlSchemaTemplate.Type(result, providers), emission.NativeName, emission.IsPlannerSupport);
+        return SqlFunction.Create(declaration, declaration.Arguments(providers), SqlSchemaTemplate.Type(result, providers), emission.NativeName, emission.IsPlannerSupport);
     }
 
     /// <summary>

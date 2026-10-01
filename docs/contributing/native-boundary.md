@@ -7,8 +7,8 @@ native library. Extension authors write attributed C# methods.
 ## Declaration metadata
 
 `FunctionDeclaration` resolves parameter names/defaults, the nearest containing
-`PgSchema`, function-level overrides, and PostgreSQL execution options from
-Roslyn symbols. It never loads or executes the extension assembly. Identifiers
+`PgSchema`, function-level overrides, and PostgreSQL execution options during
+per-method semantic analysis. It never loads or executes the extension assembly. Identifiers
 are quoted, UTF-8 length is checked, and generated string constants use escape
 literals independent of `standard_conforming_strings`. Negative numeric
 constants are parenthesized before casts so unary negation does not follow a
@@ -37,8 +37,51 @@ platform. Cached native fragments may use the host newline convention; compare
 composed boundaries using the final LF representation while retaining exact
 initialization and cleanup assertions.
 
-Other declaration families, function SQL declarations and final graph composition
-still consume compiler symbols; the full incremental conversion remains in progress.
+Ordinary function SQL declarations also retain immutable argument, execution
+and schema contracts. Source movement preserves declaration equality, while
+referenced planner constants and inherited schemas invalidate dependent values.
+Validated argument types receive qualification from the current provider graph
+during composition, so adding a provider still updates schema markers and
+prerequisites after a declaration cache hit. SQL replacement, suppression and
+dependency policies use detached authored values independently of native rendering.
+
+Function DDL fragments render in their own tracked cache stage. Static CREATE,
+argument/default, result-column and execution text is retained alongside typed
+catalog fragments. Composition applies current provider ownership to those typed
+identifiers and adds current planner-support references afterward. A provider or
+support-reference change updates the resulting graph without rerendering the
+unchanged function SQL fragments. Scalar, SETOF and TABLE shapes use the same
+fragment grammar; specialized callback families share its complete-definition
+formatter.
+
+Row and event trigger signatures also validate per method into immutable invocation
+and common SQL contracts. Their managed/native/export boundaries and zero-argument
+SQL render separately, retaining cache entries after implementation edits and
+source movement. Managed renames invalidate native entry identities, while inherited
+schemas and execution options invalidate SQL independently. Current initialization
+is inserted before native trigger work during composition; invalid signatures
+report on the current source tree and disappear after repair.
+
+Background-worker signatures, native export identities and managed targets also
+cross an immutable per-method boundary. Worker dispatch and host guards render
+independently of current source coordinates. Duplicate exports are selected from
+the current inventory, with diagnostics attached to the current definition.
+Partial declarations use their canonical definition once; worker-only extensions
+retain the backend and memory helpers needed by their native host. Assembly
+identity changes invalidate managed callback symbols while authored worker
+exports remain stable.
+
+Initialization and module-load phase validation now also produce immutable
+invocation contracts. Their managed callback rendering is cached per canonical
+method; module-load native snapshot and error guards share that cached boundary.
+Current phase selection reports duplicate or invalid declarations against current
+source trees and disables both phases after any phase error. Deferred native
+initialization still composes current registration and capability requirements.
+Removing an earlier syntax tree can recreate a surviving phase's positional
+Roslyn input; the resulting artifacts retain the same invocation contract.
+
+Other declaration families and final graph composition still consume compiler
+symbols; their rendering and complete output caching remain in progress.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and
