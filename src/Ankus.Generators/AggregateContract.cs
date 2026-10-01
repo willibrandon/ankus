@@ -81,7 +81,8 @@ internal static class AggregateContract
                 return Invalid(method, "Aggregate capabilities require scalar results, required by-value inputs and an unannotated invocation context.");
             }
 
-            if (!SqlTypeReference.ValidateValue(contract.ReturnType, method.GetReturnTypeAttributes(), method, "return", context) ||
+            if (!AggregateContractNullability.Validate(contract, method, context) ||
+                !SqlTypeReference.ValidateValue(contract.ReturnType, method.GetReturnTypeAttributes(), method, "return", context) ||
                 !NumericConstraint.ValidateValue(contract.ReturnType, method.GetReturnTypeAttributes(), context) ||
                 !SqlNullability.ValidateValue(contract.ReturnType, method, method.Name + " result", context))
             {

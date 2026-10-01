@@ -273,6 +273,12 @@ PostgreSQL **18.6/Linux x64**, SDK **10.0.401**, LLVM **23**: **10,293 total,
 exit **0**. Integration takes **43m11.199s**, and the generator module
 **58.881s**. This separate acceptance is not evidence for the subsequent Windows
 worker-readiness repair or new configuration validation regressions.
+The typed nullability correction is merged into the primary checkout. The
+readiness repair is committed first as **234461d**. Before the aggregate commit,
+previous CI outcomes were checked and recorded again: **36817997137** retains
+its reported Windows startup-race failure, which the local complete Windows run
+now repairs; **36817997156** and the earlier CI/Docs predecessors succeed.
+No run is active. Fresh platform CI for the two milestones remains required.
 
 Pure configuration validation is also confirmed to mark a callback as failed
 unnecessarily. Five new actual backend cases on macOS ARM64/PostgreSQL **18.6**

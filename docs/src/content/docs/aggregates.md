@@ -39,6 +39,18 @@ Arrays remain single SQL values. Include SQL nullability in the interface's type
 arguments; it determines the generated SQL boundary even when an implementation
 always returns a present value.
 
+Ankus also checks the implementation's nullable contract. `ANKUS028` rejects
+an input that requires a present value when its interface accepts NULL, or a
+result that might be NULL when its interface promises a present value. These
+are errors even when C# reports the interface mismatch as a warning. Arrays,
+tuple elements and owned-state payload annotations are checked too.
+
+An implementation can accept broader inputs or guarantee a non-null result.
+These safe differences preserve the interface's SQL nullability and `STRICT`
+policy. Standard `AllowNull`, `DisallowNull`, `MaybeNull`, `NotNull` and
+`NotNullIfNotNull` annotations participate in this check; a conditional return
+promise requires its referenced interface input to be non-null.
+
 ```csharp
 [PgAggregate(Name = "weighted_total", InitialCondition = "0")]
 public sealed class WeightedTotal : IPgAggregate<long, (int? Amount, int? Weight)>
