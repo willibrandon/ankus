@@ -141,13 +141,14 @@ public sealed partial class PgFunctionGeneratorTests
             "public static class Lifecycle { [Ankus.PgInitialize] public static void Ready() { } }", path: "Lifecycle.cs", cancellationToken: context.CancellationToken));
         driver = RunModule(driver, edited, out Compilation second);
         (FunctionEmission emission, IncrementalStepRunReason reason) = TrackedFunctionEmission(driver, "value");
-        string initialized = new StringBuilder(emission.Native.Header).AppendLine("    ankus_ensure_initialized();").Append(emission.Native.Body).ToString();
+        string uninitialized = (emission.Native.Header + emission.Native.Body).ReplaceLineEndings("\n");
+        string initialized = new StringBuilder(emission.Native.Header).AppendLine("    ankus_ensure_initialized();").Append(emission.Native.Body).ToString().ReplaceLineEndings("\n");
 
         Assert.AreEqual(IncrementalStepRunReason.Cached, reason);
-        Assert.Contains(emission.Native.Header + emission.Native.Body, ManifestValue(first, "Ankus.NativeSource"));
+        Assert.Contains(uninitialized, ManifestValue(first, "Ankus.NativeSource"));
         Assert.DoesNotContain(initialized, ManifestValue(first, "Ankus.NativeSource"));
         Assert.Contains(initialized, ManifestValue(second, "Ankus.NativeSource"));
-        Assert.DoesNotContain(emission.Native.Header + emission.Native.Body, ManifestValue(second, "Ankus.NativeSource"));
+        Assert.DoesNotContain(uninitialized, ManifestValue(second, "Ankus.NativeSource"));
         Assert.AreEqual(InstallationBody(first), InstallationBody(second));
     }
 

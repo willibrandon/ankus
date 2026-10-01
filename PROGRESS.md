@@ -90,6 +90,32 @@ remains incomplete; the following work is additional to the open parity gates.
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
 
+## Windows boundary-comparison repair
+
+CI run **36793282633** for `bf6911c` completes successfully on Linux
+x64/PostgreSQL 18 (**22m48s**) and macOS ARM64/PostgreSQL 18 (**18m19s**).
+Quality, all three runtime jobs and Docs run **36793282456** also succeed.
+Windows x64/PostgreSQL 17 completes in **27m34s** with two failing cases of
+`FunctionEmissionComposesChangedInitialization`; its backend integration module
+passes **4,132 tests**, zero failures, with **19 platform skips**.
+
+The generator already normalizes final native source to LF. Those two assertions
+compared that final source with cached fragments containing the host's CRLF
+newlines. Normalize the expected composed boundaries to the documented LF
+representation, retaining exact initialization placement, its absence from the
+uninitialized entry, cache decisions and unchanged SQL. No production behavior or
+analyzer policy changes.
+
+The repaired complete generator project passes **2,452/2,452**, zero failures or
+skips, on Linux x64 (**26.334s**) and Windows x64 (**26.286s**). The solution
+Release build passes with zero warnings/errors (**2m54.67s**), API freshness
+checks **234 pages / 2,683 members**, and the documentation site builds
+**282 pages** with zero check diagnostics. Plain full `dotnet test` against
+PostgreSQL **18.6/Linux x64** passes **10,107 total, 10,095 passed, zero failed,
+12 platform skips**, **42m06.938s**. All six modules complete; integration takes
+**42m06.327s**. SQL/trigger/worker/lifecycle incrementality work is separate and
+is not part of this repair snapshot. Fresh dedicated-platform CI remains pending.
+
 ## Generator incrementality work in progress
 
 Confirmed that the generator retains compiler symbols and combines them with the

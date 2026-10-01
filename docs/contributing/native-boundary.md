@@ -32,6 +32,11 @@ failed conversion model remains unchanged. Removing declarations preserves the
 surviving contracts; Roslyn can rerender a survivor when its positional input
 entry changes.
 
+The final compositor normalizes generated source and exports to LF on every
+platform. Cached native fragments may use the host newline convention; compare
+composed boundaries using the final LF representation while retaining exact
+initialization and cleanup assertions.
+
 Other declaration families, function SQL declarations and final graph composition
 still consume compiler symbols; the full incremental conversion remains in progress.
 
