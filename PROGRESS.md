@@ -647,6 +647,48 @@ the complete local Windows repair; quality, runtime and Linux/macOS are
 successful. Docs **36853197974** succeeds. Earlier CI **36844268550 /
 36829172698 / 36824559166** and their Docs runs remain successful. No prior run
 is queued or active. Fresh three-platform CI is required after this milestone.
+These fourteen owned files are committed as **6af98cf**. Immediately before
+push, the recorded failed CI **36853197866**, successful Docs **36853197974**,
+and the three earlier CI/Docs pairs are checked again with unchanged outcomes;
+none is queued or active.
+Push succeeds. CI **36862078230** and Docs **36862078167** start for
+**6af98cf**; their complete outcomes are pending. The next twenty-file backend-test
+snapshot remains independent of these running platform jobs.
+Docs **36862078167** succeeds; runtime jobs succeed and quality/full platform
+tests are still in progress in **36862078230**.
+CI **36862078230** completes: quality, all runtimes, Linux and macOS succeed;
+Windows fails two callback-removal generator cases. Platform jobs take
+**24m07s / 19m48s / 23m00s** on Linux/macOS/Windows, without timeouts. The real
+Windows PostgreSQL **17.11** integration module passes **4,171 tests**, zero
+failures and **19** platform skips (**20m45.187s**).
+The removal test used an LF-only multiline text replacement. In the Git Windows
+CRLF checkout, the replacement never removed the declaration, so the cache and
+absence assertions correctly failed. Its input edit now removes the property
+syntax node and explicitly asserts absence before running the driver. Both
+first/last removal paths run with independent LF and CRLF inputs, preserving
+the exact cache, survivor, removed-dispatcher and empty-inventory assertions.
+All **four** focused cases pass on Linux x64 (**3.579s**) and Windows x64
+(**4.529s**). Complete Release generator scopes pass **2,696/2,696**, zero
+failures/skips, on Linux (**51.911s**) and Windows (**43.975s**).
+Release succeeds with zero warnings/errors (**1m39.59s**); API freshness verifies
+**234 pages / 2,677 members**. The single changed test file is hash-frozen and
+independently verified in the Windows snapshot. Complete plain Release
+`dotnet test` against PostgreSQL **17.11 / Windows x64** is underway. This test
+repair does not change callback generation, native behavior or analyzer policy.
+The final site builds **282 pages in 4.60s**, and its check reports zero errors,
+warnings or hints. The Windows complete run remains active; no focused result
+substitutes for its terminal outcome.
+The complete plain Release Windows x64/PostgreSQL **17.11** run now passes all
+six modules: **10,390 total, 10,365 passed, zero failed and 25 platform skips**,
+**27m08.490s** reported testing time / **28m22.098s** wall time, exit **0**.
+The integration module takes **27m07.305s**. The frozen repaired test hash is
+independently reverified in both checkouts after completion. Immediately before
+commit, CI **36862078230** retains the recorded two generator harness failures,
+now resolved by this complete local Windows run; quality, runtimes, Linux and
+macOS succeed. Docs **36862078167** succeeds. Earlier **36853197866** retains
+its separately resolved Windows assertion failure; **36844268550 / 36829172698**
+and their Docs runs succeed. None of the latest eight runs is queued or active.
+Fresh three-platform CI is still required for the repair.
 
 The relative PostgreSQL-path finding now has packed-consumer evidence in a
 separate two-file draft. All **seven** plain-test selection cases pass against
@@ -699,6 +741,32 @@ owned files are hash-frozen and verified in the combined native snapshot.
 The combined generator passes **2,724/2,724**, zero failures/skips (**35.186s**).
 Its Release, final documentation and complete native backend acceptance remain
 required before merging this next milestone.
+The development branch moves onto committed **6af98cf** without changing any of
+those twenty file hashes. Its retained stash reports duplicate former-untracked
+callback files already present in the accepted commit; all are independently
+verified identical, and the nine next-milestone files are restored successfully.
+The combined native snapshot's Release succeeds with zero warnings/errors
+(**4m12.75s**), and API freshness verifies **234 pages / 2,677 members**.
+Final site checks and complete plain native acceptance remain pending.
+The combined site builds **282 pages in 9.23s**, and its check reports zero
+errors, warnings or hints. All twenty source hashes are verified again after
+these gates. Complete plain `dotnet test` against PostgreSQL **18.6 / Linux x64**
+starts for this frozen combined snapshot; its terminal outcome remains pending.
+Inspection finds the same LF-only text-edit pattern in the unpublished draft's
+partial-test file-movement case. Its input edit and compilation proof must also
+be repaired before publishing the backend-test milestone. The active native
+snapshot remains immutable; its outcome applies to the recorded twenty-file
+source, not a future repaired test revision.
+The original frozen combined snapshot completes all six plain Linux modules:
+**10,421 total, 10,409 passed, zero failed and 12 platform skips**,
+**45m08.548s** reported testing time / **47m35.691s** wall time, exit **0**.
+All twenty source hashes are reverified afterward. PostgreSQL **18.6 / Linux
+x64** runs the actual published Native AOT extensions.
+The unpublished movement test now removes the method's syntax node, proves its
+absence in the original partial tree, and exercises both LF and CRLF input.
+Its two cases and the four callback-removal cases pass **6/6**, zero failures or
+skips (**3.467s**), with compilation and exact catalog-cache assertions intact.
+This revised test snapshot requires its own final acceptance before publication.
 
 The reset-callback review claim is checked against a separate native-only
 PostgreSQL 18.6 / Linux x64 control. It loads no Ankus library and uses its own
@@ -711,6 +779,15 @@ explicitly permits callback errors and removes each callback before invoking it;
 pgrx also guards its memory-context drop callback. The warning alone therefore
 does not establish an Ankus leak. Aggregate/iterator cleanup involving owned SPI
 resources and secondary raw failures still needs its own boundary evidence.
+Six additional aggregate/iterator cases now combine caught raw native cleanup
+errors with owned retained SPI plans and optional cursors. They require ten
+implicit-abort repetitions, exact SQLSTATE/message and cleanup counts, baseline
+plan/portal inventories, zero failed recovery frames, and successful subsequent
+work in the same backend. Distinct ordinary/abort cleanup counters prove the
+intended path. The five-file source snapshot is independently hash-verified;
+focused real PostgreSQL **18.6 / Linux x64** execution is underway. These cases
+are not yet accepted, and no production error policy is changed from the review
+claim alone.
 
 The claim that an ordinary lightweight-lock guard rejects `PgInterrupts.Check()`
 is also checked against actual PostgreSQL **18.6 / Linux x64**. Two newly

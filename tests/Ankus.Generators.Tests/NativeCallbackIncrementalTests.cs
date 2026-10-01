@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Ankus.Generators.Tests;
 
@@ -284,23 +285,29 @@ public sealed partial class PgFunctionGeneratorTests
     /// Removing a property drops its import and dispatcher while preserving exact surviving callback artifacts.
     /// </summary>
     /// <param name="removeFirst">Whether removal shifts the survivor's positional syntax input.</param>
+    /// <param name="lineEnding">The source text newline convention, independent of the checkout.</param>
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public void NativeCallbackEmissionPreservesSurvivorsAfterRemoval(bool removeFirst)
+    [DataRow(false, "\n")]
+    [DataRow(true, "\n")]
+    [DataRow(false, "\r\n")]
+    [DataRow(true, "\r\n")]
+    public void NativeCallbackEmissionPreservesSurvivorsAfterRemoval(bool removeFirst, string lineEnding)
     {
-        string source = CallbackCacheSource();
+        string source = CallbackCacheSource().ReplaceLineEndings(lineEnding);
         CSharpCompilation initial = ModuleCompilation(source);
         GeneratorDriver driver = RunModule(ModuleDriver(), initial, out _);
         string removedName = removeFirst ? "Callback" : "OtherCallback";
         string survivorName = removeFirst ? "OtherCallback" : "Callback";
         string removed = CallbackEmission(driver, removedName).Source;
         string survivor = CallbackEmission(driver, survivorName).Source;
-        string declaration = removeFirst ?
-            "[Ankus.PgNativeCallback(nameof(Handle))]\n    public static partial Hook Callback { get; }" :
-            "[Ankus.PgNativeCallback(nameof(OtherHandle))]\n    public static partial OtherHook OtherCallback { get; }";
-        CSharpCompilation edited = initial.ReplaceSyntaxTree(initial.SyntaxTrees.Single(), CSharpSyntaxTree.ParseText(
-            source.Replace(declaration, "", StringComparison.Ordinal), path: "Module.cs", cancellationToken: context.CancellationToken));
+        SyntaxTree tree = initial.SyntaxTrees.Single();
+        SyntaxNode root = tree.GetRoot(context.CancellationToken);
+        PropertyDeclarationSyntax declaration = root.DescendantNodes().OfType<PropertyDeclarationSyntax>()
+            .Single(property => property.Identifier.ValueText == removedName);
+        SyntaxNode editedRoot = root.RemoveNode(declaration, SyntaxRemoveOptions.KeepExteriorTrivia)!;
+        Assert.DoesNotContain(removedName, editedRoot.DescendantNodes().OfType<PropertyDeclarationSyntax>()
+            .Select(static property => property.Identifier.ValueText));
+        CSharpCompilation edited = initial.ReplaceSyntaxTree(tree, tree.WithRootAndOptions(editedRoot, tree.Options));
         driver = RunModule(driver, edited, out Compilation output);
 
         Assert.AreEqual(survivor, CallbackEmission(driver, survivorName).Source);
