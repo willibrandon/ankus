@@ -30,6 +30,10 @@ public sealed partial class ToolCommandTests
         string pid = process.ToString(CultureInfo.InvariantCulture);
         try
         {
+            await WaitForCancellationWorkerAsync(connection, cluster, process,
+                "cancellation_pid() = " + pid, requireAlive: false);
+            Assert.IsTrue(Assert.IsInstanceOfType<bool>(await PackageGucScalarAsync(connection,
+                "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE pid = " + pid + ")")));
             await ExecutePackageGucAsync(connection, "SELECT cancellation_release()");
             if (mode == 2)
             {

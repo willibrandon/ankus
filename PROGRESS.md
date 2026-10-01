@@ -213,7 +213,32 @@ the generator module **45.280s**. Validation uses .NET SDK **10.0.400**,
 patched runtime **10.0.12**, LLVM **21** and Valgrind. This observed duration is
 not a controlled performance comparison with the earlier failed memory-filesystem
 run. The verified source correction is merged into the primary checkout;
-aggregate nullability remains a separate, uncommitted scope.
+aggregate nullability remains a separate scope.
+The combined correction is pushed as **e138b31**. Before pushing, previous CI
+and Docs outcomes were checked and recorded again; all were completed
+successfully, with no earlier run in progress. CI **36817997137** is now complete:
+quality and all three runtime jobs pass; complete Linux x64/PostgreSQL 18
+(**23m57s**) and macOS ARM64/PostgreSQL 18 (**19m31s**) jobs pass. The Windows
+x64/PostgreSQL 17 job fails (**25m53s**): **4,154 integration tests pass, two
+fail and 19 skip**, with integration taking **23m19.079s**. Both failures are new
+worker cases that assume a worker is connected immediately after PostgreSQL
+reports startup. The cancellation case checks activity too early; the terminal
+case treats the initial absence as completed termination and reads the startup
+log before the worker reports FATAL. An isolated correction waits for the worker's
+existing post-connect PID signal and verifies actual activity before releasing
+its transaction gate. The corrected three worker cases pass on Windows
+x64/PostgreSQL **17.11**, zero failures/skips, **3m47.398s**. The plain complete
+Windows suite including the independent aggregate correction passes all six
+modules: **10,293 total, 10,268 passed, zero failed and 25 platform skips**,
+**26m05.298s**, terminal exit **0**. Integration takes **26m04.137s**, and the
+generator module **47.158s**. Windows verification uses SDK **10.0.401** and
+LLVM **21.1.7**. This snapshot excludes the subsequent pure-GUC
+correction and directory-alias test correction.
+Docs **36817997156** passes. No job times out.
+Before committing the readiness repair, these CI/Docs outcomes and their earlier
+successful predecessors were checked and recorded again. No run is active.
+The reported Windows failure is reproduced and repaired locally; fresh CI for
+the repair remains required.
 
 Independent generator regressions also reproduce the typed aggregate nullability
 gap: unsafe state/input narrowing and nullable result weakening all compile with
@@ -222,11 +247,12 @@ advisory C# warnings and receive no Ankus error (**three failing new cases**,
 interface contract, retain valid broader inputs and stronger results, and preserve
 ordinary .NET nullable annotations. The isolated correction now checks input and
 result promises before generating callbacks, with dedicated error **ANKUS028**
-at the implementation type and a public help link. It retains directional array
+at the incompatible parameter or return type and a public help link. It retains directional array
 and tuple conversions, invariant managed-state payloads, explicit/inherited/default
 implementations and standard nullable flow attributes. All **30 new cases** and
 the complete generator project pass **2,611/2,611**, zero failures/skips,
-**35.485s** on Linux x64. A draft conditional-return case incorrectly treated a
+**35.485s** on Linux x64 and **27.184s** on macOS ARM64. A draft conditional-return
+case incorrectly treated a
 non-nullable `ValueTuple` argument as nullable; its expectation was corrected and
 separate nullable/non-nullable state cases prove the actual conditional boundary.
 The revised aggregate guide and three new real-backend cases are in an independent
@@ -237,8 +263,54 @@ NULL-only and empty groups, plus same-session recovery. Existing typed aggregate
 state, moving, ordered, parallel and polymorphic cases remain included. Site
 build/freshness checks **234 pages / 2,685 members**, builds **282 pages**
 (**9.24s**) and reports zero check diagnostics. This work is not included in
-the earlier correction's completed plain full-suite snapshot; its own complete
-acceptance and Release checks remain pending.
+the earlier correction's completed plain full-suite snapshot. Final Release passes with zero warnings/errors
+(**1m28.23s**). An earlier overlapping build lost two MSBuild child nodes; its
+failure is retained and the cause has not been established. The serialized
+rebuild captures a binary log and uses disk-backed temporary storage. The
+hash-verified final **33-file** snapshot passes plain complete tests on
+PostgreSQL **18.6/Linux x64**, SDK **10.0.401**, LLVM **23**: **10,293 total,
+10,281 passed, zero failed and 12 platform skips**, **43m11.808s**, terminal
+exit **0**. Integration takes **43m11.199s**, and the generator module
+**58.881s**. This separate acceptance is not evidence for the subsequent Windows
+worker-readiness repair or new configuration validation regressions.
+
+Pure configuration validation is also confirmed to mark a callback as failed
+unnecessarily. Five new actual backend cases on macOS ARM64/PostgreSQL **18.6**
+all reproduce the original error: catching an unknown name or mismatched typed
+reader still prevents subsequent native access (**zero passed/five failed**,
+**1m39.755s**). The separate correction validates the extension's own registry
+name and reader kind before any PostgreSQL allocation or guarded backend work.
+It returns the same SQLSTATE/message as an owned API diagnostic. Admission still
+rejects an already failed frame, and actual allocation/conversion/read errors
+retain their original native capture and rollback requirements.
+Ten new cases cover both ordinary function calls and scoped check hooks. The
+affected native configuration, unrecovered-error and cancellation scope passes
+**60/60**, zero failures/skips, **1m44.145s**, on macOS ARM64/PostgreSQL **18.6**,
+SDK **10.0.401**. They prove a later interrupt check, getter and SQL call in the
+same frame, exact diagnostics, retained storage and successful later assignment.
+An initial draft fixture used the wrong exception property and failed before
+backend execution; it is not counted as reproduction evidence. The hash-verified
+combined **37-file** snapshot is now under plain complete macOS acceptance.
+This configuration correction remains independent and uncommitted. Combined
+Release passes with zero warnings/errors (**3m15.47s**). Documentation gates
+generate and verify **234 API pages / 2,685 members**, build **282 site pages**
+(**9.03s**) and report zero check errors, warnings or hints. Its complete macOS
+acceptance remains open; the affected Linux backend scope also passes **60/60**,
+zero failures/skips (**4m25.007s**). The readiness repair
+also passes all three worker cases on Linux x64/PostgreSQL **18.6**, zero
+failures/skips, **6m47.586s**.
+
+The first combined full macOS run finishes **10,303 total, 10,274 passed,
+five failed and 24 platform skips**, **18m10.898s**, terminal exit **2**.
+All five failures compare a staged library path resolved by PostgreSQL with an
+unresolved temporary-directory alias. They refer to the same physical location;
+the lexical prefix assertion is wrong. The existing installation-ownership tests
+already resolve directory ancestors. Their unchanged resolver is moved into the
+shared integration environment, and authored-script ownership checks now resolve
+both paths before enforcing the same root containment. Actual file bytes,
+PostgreSQL installation, rollback and upgrades remain asserted. The original
+failed run is retained and is not counted as complete acceptance. Affected macOS
+verification and the final complete source snapshot remain pending.
 
 Before the combined correctness commit, previous runs were checked again:
 CI **36807387606**, Docs **36807387783**, and the earlier CI/Docs successors
