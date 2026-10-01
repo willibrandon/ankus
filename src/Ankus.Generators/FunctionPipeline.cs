@@ -116,5 +116,6 @@ internal static class FunctionPipeline
     /// <param name="Triggers">The independently analyzed row and event callbacks.</param>
     /// <param name="Workers">The independently analyzed background-worker entries.</param>
     /// <param name="Lifecycle">The canonical initialization phases with independently rendered callbacks.</param>
-    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle);
+    /// <param name="Tests">The independently analyzed tests, discovery catalogs and native boundaries.</param>
+    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, PgTestPipeline.Output Tests);
 }

@@ -689,6 +689,18 @@ macOS succeed. Docs **36862078167** succeeds. Earlier **36853197866** retains
 its separately resolved Windows assertion failure; **36844268550 / 36829172698**
 and their Docs runs succeed. None of the latest eight runs is queued or active.
 Fresh three-platform CI is still required for the repair.
+The repair is committed and pushed as **f1e9709**. Immediately before push, the
+latest eight CI/Docs outcomes are checked again with the recorded conclusions
+unchanged and no active prior run. New CI **36869737910** is in progress;
+its platform outcomes remain pending. Independent review work continues.
+Quality, all runtime jobs and the macOS ARM64/PostgreSQL 18 complete platform
+job now succeed in **36869737910**. Linux and Windows complete jobs remain
+active at the latest check; no completed platform failure is reported.
+CI **36869737910** completes successfully: quality, all runtimes and all three
+complete platform jobs pass. Linux x64/PostgreSQL 18 takes **24m02s**,
+macOS ARM64/PostgreSQL 18 **19m37s**, and Windows x64/PostgreSQL 17 **22m01s**.
+No timeout or cancellation occurs. This closes the recorded callback-removal
+harness failure on the actual CRLF Windows checkout.
 
 The relative PostgreSQL-path finding now has packed-consumer evidence in a
 separate two-file draft. All **seven** plain-test selection cases pass against
@@ -788,6 +800,112 @@ intended path. The five-file source snapshot is independently hash-verified;
 focused real PostgreSQL **18.6 / Linux x64** execution is underway. These cases
 are not yet accepted, and no production error policy is changed from the review
 claim alone.
+All **six** new cases pass, zero failures/skips (**5m30.988s** reported testing
+time), against PostgreSQL **18.6 / Linux x64**. Across the ten repetitions per
+case, owned plan/portal inventories return to baseline, managed cleanup is
+exactly once, the original native diagnostics remain mandatory despite a catch,
+failed-frame/idle-poll counters return to zero, and subsequent successful work
+uses the original backend. The broader aggregate/set-returning scope is running.
+These four fixture/test files are composed with the revised backend-test draft
+for final full-suite acceptance; no production reset-callback workaround is
+introduced based on the unconfirmed leak claim.
+The complete affected aggregate/set-returning scope passes **230/230**, zero
+failures/skips (**4m32.113s**), including the earlier resource, failure and
+cleanup cases. All five source hashes are independently verified after both
+native runs. The revised composed backend-test/resource draft passes its entire
+Release generator scope **2,727/2,727**, zero failures/skips (**55.716s**).
+Final Release/documentation and complete plain native acceptance are pending.
+The revised composed Release solution build succeeds with **zero warnings or
+errors, 2m30.60s**. The current backend-test movement and callback-removal tests
+are part of the verified **2,727-case** generator snapshot. Final documentation
+checks and complete plain native acceptance remain required before publication.
+API freshness verifies **234 pages / 2,677 members**. The revised site builds
+**282 pages in 2.50s**, and its check reports zero errors, warnings or hints.
+All twenty-four composed source hashes are independently verified after these
+gates. Complete plain `dotnet test` against PostgreSQL **18.6 / Linux x64**
+starts for this final frozen backend-test/resource snapshot. Its terminal result
+remains required; the original twenty-file run does not replace this acceptance.
+The final composed plain acceptance now passes all six Linux x64/PostgreSQL
+**18.6** modules: **10,430 total, 10,418 passed, zero failed and 12 platform
+skips**, **45m12.960s** reported testing time / **46m29.320s** wall time,
+terminal exit **0**. Integration takes **45m12.219s**. All twenty-four source
+hashes are independently verified in the completed native snapshot and development
+checkout, then transferred and verified in the primary checkout. The copied input
+timestamps are refreshed without changing contents before its final Release
+build, avoiding old local outputs after archive transfer. The previous CI
+**36869737910** and all three platform jobs succeed; its predecessor's two
+Windows removal failures are resolved. Docs **36862078167** succeeds. Older
+**36853197866** retains its separately resolved assertion failure; **36844268550**
+and its Docs successor succeed. None of the latest eight runs is active.
+Fresh CI for this combined backend-test/resource milestone remains required.
+The primary checkout's current-source Release succeeds with **zero warnings or
+errors, 1m28.67s**. Final primary documentation checks are underway before
+committing the thirteen accepted source/test/doc files and their progress record.
+Final primary API freshness verifies **234 pages / 2,677 members**; its site
+builds **282 pages in 3.20s**, with zero errors, warnings or hints in the check.
+The twenty-four accepted source hashes match again after these gates. Immediately
+before commit, the latest eight CI/Docs outcomes are checked again: **36869737910**
+succeeds; older failures retain the resolved dispositions recorded above. No
+previous run is queued or active. Fresh platform and documentation CI follows
+publication of this verified milestone.
+
+The next independent operator/cast generator draft is integrated against the
+current backend-test composition, retaining the older draft separately. Validated
+catalog signatures, typed SQL operands/results and dependency policies detach
+before rendering; alias-only backing functions use the shared full conversion
+validators. Provider ownership and graph edges are applied to current cached
+typed fragments. Its affected scope passes **80/80** (**7.223s**), and its entire
+generator project passes **2,765/2,765** (**40.248s**), zero failures/skips.
+The **38** added cases prove implementation/movement cache hits, dependent
+constants and nullability, current provider/dependency changes, identities,
+removal, duplicate inventories, current-tree diagnostics/repair, multiple roles
+and partial methods through compiled generated output. Twenty-five source hashes
+are independently verified in both checkouts. This draft remains separate from
+the active twenty-four-file correctness/backend-test acceptance. Release, docs
+and full native acceptance remain required before publication; C# operator
+declaration targets and final extension output caching are still open.
+After Windows CI completes, the independent operator/cast draft starts local
+Release validation. Two local invocations select system Clang **19**, below the
+documented preprocessing minimum, because their PATH names absent LLVM
+directories. Both fail the explicit compiler-identity check. The installed
+Clang **21** is verified directly and selected for the corrected run. No source,
+diagnostic severity or compiler validation is changed to bypass that prerequisite.
+The corrected independent operator/cast Release succeeds with **zero warnings
+or errors, 1m12.17s**. API freshness verifies **234 pages / 2,677 members**;
+the site builds **282 pages in 12.07s**, and its check reports zero errors,
+warnings or hints. All twenty-five source hashes remain independently verified
+after these gates. Complete native acceptance is still required before merging
+this separate next generator family.
+
+An independent custom-type draft now detaches the closed default-serialization
+graph into immutable node-index contracts. Recursive types remain finite;
+exact nullable member shapes, constructor argument order, enum names and typed
+polymorphic discriminators remain explicit model values. A separate renderer
+uses those values without retaining compiler symbols. Before adding new cases,
+the complete generator scope passes **2,765/2,765** (**32.063s**). An initial
+local test launch lost an MSBuild child before compilation; its suggested
+temporary failure file is absent. The subsequent diagnostic build succeeds
+with zero warnings/errors (**7.88s**), followed by that complete passing suite.
+No source or warning policy is changed to hide the launch failure.
+Four new model/runtime cases initially use unsupported probe result shapes;
+the existing probe accepts only `string[]`. Their return shape is corrected
+while retaining recursive graph, equality/hash, constructor and tag assertions.
+All **four** now pass, zero failures/skips (**2.920s**), compiling and executing
+the actual generated codec. Body edits preserve the model and rendering while
+executing the new constructor body; numeric and equal-looking text tags remain
+distinct in actual output. Thirty composed source hashes are frozen for the
+next complete generator run. Custom-type declaration caching, Release/docs,
+composed native acceptance and final extension output caching remain open.
+The frozen thirty-file custom-type graph draft passes its complete generator
+scope **2,769/2,769**, zero failures/skips (**31.251s**). All source hashes are
+independently reverified before starting the Release solution build. This result
+does not yet establish cached custom-type declaration output or native platform
+acceptance of the separate draft.
+Its Release succeeds with **zero warnings/errors, 1m16.04s**. API freshness
+verifies **234 pages / 2,677 members**; the site builds **282 pages in 8.80s**,
+and its check reports zero errors, warnings or hints. All thirty source hashes
+remain independently verified after these gates. This graph-only draft remains
+separate; its complete native acceptance and full declaration pipeline are open.
 
 The claim that an ordinary lightweight-lock guard rejects `PgInterrupts.Check()`
 is also checked against actual PostgreSQL **18.6 / Linux x64**. Two newly

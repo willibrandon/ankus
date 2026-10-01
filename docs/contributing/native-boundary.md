@@ -62,6 +62,15 @@ schemas and execution options invalidate SQL independently. Current initializati
 is inserted before native trigger work during composition; invalid signatures
 report on the current source tree and disappear after repair.
 
+Backend tests separate exact discovery metadata, partial catalog containers and
+native invocation contracts. Catalogs render per declaring type in deterministic
+managed signature order. Expected-error and ignore-reason changes invalidate only
+discovery; schema changes invalidate discovery and SQL, while body edits and source
+movement retain rendering caches. Native test inclusion remains a composition
+setting, so ordinary host discovery is available in either publication mode.
+Current diagnostics use source coordinates independently of these cache models;
+no catalog generation or discovery executes extension author code.
+
 Background-worker signatures, native export identities and managed targets also
 cross an immutable per-method boundary. Worker dispatch and host guards render
 independently of current source coordinates. Duplicate exports are selected from

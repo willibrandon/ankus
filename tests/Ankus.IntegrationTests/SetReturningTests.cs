@@ -473,6 +473,69 @@ public sealed class SetReturningTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
+    /// A caught raw cleanup error cannot leak retained SPI resources or recovery frames during implicit transaction cleanup.
+    /// </summary>
+    /// <param name="openCursor">Whether the iterator owns a portal as well as its plan.</param>
+    /// <param name="executorFailure">Whether an executor error precedes the cleanup error.</param>
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task NativeIteratorCleanupErrorsReleaseOwnedResourcesAcrossImplicitAborts(bool openCursor, bool executorFailure)
+    {
+        CancellationToken token = context.CancellationToken;
+        await using NpgsqlConnection connection = await PostgresFixture.Cluster.OpenConnectionAsync(token);
+        int backend = connection.ProcessID;
+        const string resources = """
+            SELECT ARRAY[
+                (SELECT count(*) FROM ankus_test_memory.contexts WHERE name = 'SPI Plan'),
+                (SELECT count(*) FROM pg_cursors)]
+            """;
+        await using var command = new NpgsqlCommand("SELECT set_values.set_reset()", connection);
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = resources;
+        long[] baseline = Assert.IsInstanceOfType<long[]>(await command.ExecuteScalarAsync(token));
+        string source = $"set_values.set_owned_resources_with_cleanup_error({openCursor})";
+        for (int index = 0; index < 10; index++)
+        {
+            command.CommandText = executorFailure
+                ? $"SELECT 1/(CASE WHEN value='Low'::datatype.enum_mood THEN 0 ELSE 1 END) FROM (SELECT {source} AS value) input"
+                : $"SELECT value::text FROM {source} value";
+            PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
+            Assert.AreEqual("42704", error.SqlState);
+            Assert.AreEqual("ExtensibleNodeMethods \"ankus_missing_iterator_cleanup\" was not registered", error.MessageText);
+            command.CommandText = "SELECT set_values.set_status()";
+            int[] status = Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(index + 1, status[12], "Each acquired iterator must execute its finally block once.");
+            Assert.AreEqual(executorFailure ? 0 : index + 1, status[8], "Ordinary cleanup still permits SPI queries.");
+            Assert.AreEqual(executorFailure ? index + 1 : 0, status[9], "Executor abort must use restricted cleanup.");
+            Assert.AreEqual(0, status[10]);
+            Assert.AreEqual(0, status[11]);
+            command.CommandText = "SELECT set_values.set_native_cleanup_caught()";
+            Assert.AreEqual(index + 1, await command.ExecuteScalarAsync(token));
+            command.CommandText = resources;
+            Assert.AreSequenceEqual(baseline, Assert.IsInstanceOfType<long[]>(await command.ExecuteScalarAsync(token)),
+                $"Retained SPI resources after failure {index}.");
+            command.CommandText = "SELECT set_values.set_interrupt_state()";
+            Assert.AreSequenceEqual([0, 0], Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
+            command.CommandText = "SELECT 42";
+            Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
+            Assert.AreEqual(backend, connection.ProcessID);
+        }
+
+        command.CommandText = $"SELECT value::text FROM set_values.set_owned_resources({openCursor}) value";
+        Assert.AreEqual("Low", await command.ExecuteScalarAsync(token));
+        command.CommandText = "SELECT set_values.set_status()";
+        Assert.AreEqual(11, Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token))[12]);
+        command.CommandText = "SELECT set_values.set_native_cleanup_caught()";
+        Assert.AreEqual(10, await command.ExecuteScalarAsync(token));
+        command.CommandText = resources;
+        Assert.AreSequenceEqual(baseline, Assert.IsInstanceOfType<long[]>(await command.ExecuteScalarAsync(token)));
+        Assert.AreEqual(backend, connection.ProcessID);
+    }
+
+    /// <summary>
     /// Abort cleanup releases an adopted parent-transaction cursor that PostgreSQL's subtransaction cleanup would preserve.
     /// </summary>
     [TestMethod]

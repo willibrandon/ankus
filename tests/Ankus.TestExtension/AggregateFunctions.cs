@@ -383,6 +383,11 @@ public static class AggregateFunctions
             _disposed = true;
             s_disposed++;
             s_live--;
+            if (_mode is "resources_native" or "resources_native_transition")
+            {
+                ProbeNativeCleanupFailure();
+            }
+
             Cursor?.Dispose();
             Plan?.Dispose();
             if (_mode is "cleanup_native" or "cleanup_native_transition")
@@ -433,7 +438,7 @@ public static class AggregateFunctions
         {
             long previous = state?.Value.Sum ?? 0;
             state = new PgAggregateState<TrackedState>(new TrackedState(s_mode) { Sum = previous });
-            if (s_mode is "resources" or "resources_error")
+            if (s_mode is "resources" or "resources_error" or "resources_native" or "resources_native_transition")
             {
                 state.Value.Plan = Spi.Prepare("SELECT 42").Keep();
                 state.Value.Cursor = Spi.OpenCursor("SELECT generate_series(1,100)");
@@ -442,7 +447,7 @@ public static class AggregateFunctions
         }
 
         s_retained = state;
-        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error" or "cleanup_native_transition")
+        if (value == 2 && s_mode is "transition_error" or "dispose_error_transition" or "resources_error" or "cleanup_native_transition" or "resources_native_transition")
         {
             throw new PgException("P7801", "aggregate transition failed", "owned aggregate detail", "retry valid inputs");
         }

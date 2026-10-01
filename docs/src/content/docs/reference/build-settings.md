@@ -27,6 +27,23 @@ Set extension properties in your project file:
 | `AnkusLibClangPath` | Matching library from the selected Clang installation | Selects `libclang` when it is installed separately |
 | `AnkusBindingCacheDirectory` | Ankus's directory in the current user's local application data | Selects shared generated sources, compiled companions and native objects |
 
+Relative `AnkusPgConfigPath` file paths use each project's directory, including
+when the property comes from an imported file. A bare executable name, such as
+`pg_config`, uses `PATH`. A test project without its own PostgreSQL selection
+inherits the extension project's evaluated installation.
+
+For a shared installation beside `Directory.Build.props`, anchor the path to that
+file so projects in different directories select the same installation:
+
+```xml
+<PropertyGroup>
+  <AnkusPgConfigPath>$(MSBuildThisFileDirectory)postgres/bin/pg_config</AnkusPgConfigPath>
+</PropertyGroup>
+```
+
+Use `pg_config.exe` on Windows. An absolute installation path also works across
+extension and test projects.
+
 ## Native module identity
 
 On PostgreSQL 18 and later, Ankus includes the project's `AssemblyName` and

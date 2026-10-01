@@ -315,24 +315,45 @@ public static class SetFunctions
     /// Suspends with an owned kept SPI plan and optional cursor before native enum output lookup can fail.
     /// </summary>
     [PgFunction]
-    public static IEnumerable<EnumMood> SetOwnedResources(bool openCursor)
+    public static IEnumerable<EnumMood> SetOwnedResources(bool openCursor) => CreateOwnedResources(openCursor, cleanupError: false);
+
+    /// <summary>
+    /// Catches a raw native cleanup error before releasing its owned SPI plan and optional cursor.
+    /// </summary>
+    /// <param name="openCursor">Whether enumeration also owns a portal.</param>
+    /// <returns>The single observable value before disposal.</returns>
+    [PgFunction]
+    public static IEnumerable<EnumMood> SetOwnedResourcesWithCleanupError(bool openCursor) => CreateOwnedResources(openCursor, cleanupError: true);
+
+    /// <summary>
+    /// Holds retained SPI ownership until cleanup, including after an unrecovered raw error.
+    /// </summary>
+    private static IEnumerable<EnumMood> CreateOwnedResources(bool openCursor, bool cleanupError)
     {
-        using SpiPreparedStatement plan = Spi.Prepare("SELECT 1 /* Ankus set resource probe */");
+        using SpiPreparedStatement plan = Spi.Prepare("SELECT 1 /* Ankus set resource probe */").Keep();
+        using SpiCursor? cursor = openCursor ? plan.OpenCursor() : null;
         try
         {
-            if (openCursor)
-            {
-                using SpiCursor cursor = plan.OpenCursor();
-                yield return cursor.Fetch(1)[0].Get<int>(0) == 1 ? EnumMood.Low : EnumMood.Medium;
-            }
-            else
-            {
-                yield return plan.ExecuteScalar<int>() == 1 ? EnumMood.Low : EnumMood.Medium;
-            }
+            int value = cursor is null ? plan.ExecuteScalar<int>() : cursor.Fetch(1)[0].Get<int>(0);
+            yield return value == 1 ? EnumMood.Low : EnumMood.Medium;
         }
         finally
         {
             s_iteratorFinally++;
+            if (cleanupError)
+            {
+                try
+                {
+                    Spi.Execute("SELECT 42");
+                    s_cleanupSpi++;
+                }
+                catch (InvalidOperationException)
+                {
+                    s_cleanupDenied++;
+                }
+
+                ProbeNativeCleanupFailure();
+            }
         }
     }
 
@@ -427,6 +448,35 @@ public static class SetFunctions
         foreach (int value in CreateProbe(3, 0, cleanupSql: true))
         {
             yield return invalidValue && value == 2 ? (EnumMood)12345 : EnumMood.Low;
+        }
+    }
+
+    /// <summary>
+    /// Counts a caught raw cleanup error while leaving native recovery mandatory.
+    /// </summary>
+    private static void ProbeNativeCleanupFailure()
+    {
+        try
+        {
+            RaiseNativeError();
+        }
+        catch (Exception exception)
+        {
+            if (exception is PgException { SqlState: "42704" })
+            {
+                s_nativeCleanupCaught++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Raises a native lookup error beneath the selected-header raw-call guard.
+    /// </summary>
+    private static unsafe void RaiseNativeError()
+    {
+        fixed (byte* name = "ankus_missing_iterator_cleanup\0"u8)
+        {
+            _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
         }
     }
 
@@ -575,29 +625,6 @@ public static class SetFunctions
             {
                 s_finally++;
                 s_live--;
-            }
-        }
-
-        private static void ProbeNativeCleanupFailure()
-        {
-            try
-            {
-                RaiseNativeError();
-            }
-            catch (Exception exception)
-            {
-                if (exception is PgException { SqlState: "42704" })
-                {
-                    s_nativeCleanupCaught++;
-                }
-            }
-        }
-
-        private static unsafe void RaiseNativeError()
-        {
-            fixed (byte* name = "ankus_missing_iterator_cleanup\0"u8)
-            {
-                _ = Ankus.Postgres.NativeMethods.GetCustomScanMethods((nint)name, false);
             }
         }
 

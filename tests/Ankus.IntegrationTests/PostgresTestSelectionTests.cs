@@ -14,19 +14,41 @@ public sealed partial class ToolCommandTests
     [TestMethod]
     [DataRow("project")]
     [DataRow("extension-project")]
+    [DataRow("extension-relative")]
+    [DataRow("project-relative")]
+    [DataRow("import-relative")]
     [DataRow("build-major")]
     [DataRow("build-path")]
     public async Task PlainTestHonorsProjectPostgresSelection(string selection)
     {
         CancellationToken token = context.CancellationToken;
         string output = await CreateSelectionProjectAsync(token);
-        string properties = selection == "extension-project"
+        string properties = selection is "extension-project" or "extension-relative"
             ? Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj")
             : Path.Combine(output, "Directory.Build.props");
+        string extensionDirectory = Path.Combine(output, "src", "TestCommandProbe");
+        string pgConfig = selection switch
+        {
+            "extension-relative" or "project-relative" => Path.GetRelativePath(extensionDirectory, s_installation.PgConfigPath),
+            "import-relative" => "$(MSBuildThisFileDirectory)" + Path.GetRelativePath(output, s_installation.PgConfigPath),
+            "build-path" => "missing-pg-config",
+            _ => s_installation.PgConfigPath,
+        };
+        if (selection is "extension-relative" or "project-relative")
+        {
+            Assert.IsFalse(Path.IsPathRooted(pgConfig), "The consumer must exercise a genuinely relative installation path.");
+            Assert.AreEqual(s_installation.PgConfigPath, Path.GetFullPath(pgConfig, extensionDirectory));
+            if (selection == "project-relative")
+            {
+                Assert.AreEqual(s_installation.PgConfigPath, Path.GetFullPath(pgConfig,
+                    Path.Combine(output, "tests", "TestCommandProbe.Tests")));
+            }
+        }
+
         XDocument document = XDocument.Load(properties);
         document.Root!.Add(new XElement("PropertyGroup",
             new XElement("AnkusPostgresMajor", selection == "build-major" ? DifferentMajor() : s_installation.Version.Major),
-            new XElement("AnkusPgConfigPath", selection == "build-path" ? "missing-pg-config" : s_installation.PgConfigPath)));
+            new XElement("AnkusPgConfigPath", pgConfig)));
         document.Save(properties);
         string[] arguments = selection switch
         {
