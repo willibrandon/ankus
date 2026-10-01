@@ -103,7 +103,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             .Select(static (property, _) => property!);
         IncrementalValueProvider<ImmutableArray<AttributeData>> customSql = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
-                "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute" or "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute" or
+                "Ankus.PgSqlTypeProviderAttribute" or "Ankus.PgSqlFunctionProviderAttribute" or
                 "Ankus.PgRequiresAttribute" or "Ankus.PgBeforeAttribute").ToImmutableArray());
         IncrementalValueProvider<ImmutableArray<AttributeData>> prefixes = context.CompilationProvider.Select(static (compilation, _) =>
             compilation.Assembly.GetAttributes().Where(static attribute => attribute.AttributeClass?.ToDisplayString() ==
@@ -117,7 +117,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     BuildProperty(options.GlobalOptions, "Version")));
         IncrementalValueProvider<NativeModuleMagic.ModuleOutput> module = NativeModuleMagic.Register(context,
             projectDirectory.Select(static (settings, _) => settings.Version));
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(files).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
+        IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context, files,
+            projectDirectory.Select(static (settings, _) => settings.Directory));
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(properties.Collect()).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
@@ -134,7 +136,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
 
     private static void Generate(SourceProductionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
-        ImmutableArray<AttributeData> customSql, ImmutableArray<(string Path, string? Text)> files,
+        ImmutableArray<AttributeData> customSql, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, ImmutableArray<IPropertySymbol> properties,
         ImmutableArray<AttributeData> prefixAttributes, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
@@ -150,7 +152,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 attribute.ConstructorArguments.Length == 2 &&
                 attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
                 attribute.ConstructorArguments[1].Value is "1"));
-        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
+        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && properties.IsEmpty && prefixAttributes.IsEmpty && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
         {
             return;
         }
@@ -393,7 +395,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        fixedSchema |= !CustomSql.Add(customSql, files, settings.Directory, graph, out Dictionary<string, SqlEntity> sqlBlocks);
+        fixedSchema |= !CustomSql.Add(customBlocks, compilation, graph, out Dictionary<string, SqlEntity> sqlBlocks);
         SqlFunctionProviders.Add(customSql, sqlBlocks, graph);
         var typeProviders = new SqlTypeProviders(graph);
         var exports = new StringBuilder("Pg_magic_func\n");

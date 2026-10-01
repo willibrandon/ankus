@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -9,91 +8,87 @@ namespace Ankus.Generators;
 internal static class CustomSql
 {
     /// <summary>
-    /// Adds custom SQL nodes and reports whether all blocks permit schema relocation.
+    /// Adds resolved blocks using current graph options and diagnostic source trees.
     /// </summary>
-    /// <param name="attributes">The assembly's SQL attributes.</param>
-    /// <param name="files">AdditionalFiles paths and their tracked content.</param>
-    /// <param name="projectDirectory">The compiler-visible project directory.</param>
+    /// <param name="outputs">The cached SQL blocks and current detached declaration metadata.</param>
+    /// <param name="compilation">The current compilation used to resolve diagnostic coordinates.</param>
     /// <param name="graph">The installation dependency graph.</param>
     /// <param name="blocks">The successfully read SQL blocks, indexed by dependency identifier.</param>
     /// <returns>Whether every custom block explicitly permits relocation.</returns>
-    internal static bool Add(ImmutableArray<AttributeData> attributes,
-        ImmutableArray<(string Path, string? Text)> files, string projectDirectory, SqlGraph graph,
+    internal static bool Add(EquatableArray<CustomSqlPipeline.Output> outputs, Compilation compilation, SqlGraph graph,
         out Dictionary<string, SqlEntity> blocks)
     {
         blocks = new(StringComparer.Ordinal);
         bool relocatable = true;
-        foreach (AttributeData attribute in attributes.Where(static attribute => attribute.AttributeClass?.ToDisplayString() is
-            "Ankus.PgSqlAttribute" or "Ankus.PgSqlFileAttribute"))
+        foreach (CustomSqlPipeline.Output output in outputs)
         {
-            Location? location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation();
-            if (attribute.ConstructorArguments.Length != 2)
+            CustomSqlPipeline.Analysis analysis = output.Analysis;
+            CustomSqlPipeline.Resolution resolution = output.Resolution;
+            Location? location = analysis.Location?.Resolve(compilation);
+            if (resolution.Error is not null)
             {
-                graph.Error(location, "Custom SQL declarations require a name and a SQL string or file path.");
+                graph.Error(location, resolution.Error);
                 continue;
             }
 
-            string? name = attribute.ConstructorArguments[0].Value as string;
-            string? sql = attribute.ConstructorArguments[1].Value as string;
-            if (string.IsNullOrWhiteSpace(name) || !SqlText.IsText(name!))
+            if (analysis.Order is < 0 or > 2)
             {
-                graph.Error(location, "Custom SQL requires a nonempty dependency name with valid Unicode and no zero characters.");
+                graph.Error(location, $"Custom SQL '{resolution.Name}' has an undefined PgSqlOrder value.");
                 continue;
             }
 
-            if (attribute.AttributeClass?.Name == "PgSqlFileAttribute")
+            var entity = new SqlEntity("2:sql:" + resolution.Name, resolution.Sql!, location)
             {
-                sql = ReadFile(sql, location, files, projectDirectory, graph);
-                if (sql is null)
-                {
-                    continue;
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(sql) || !SqlText.IsText(sql!))
-            {
-                graph.Error(location, $"Custom SQL '{name}' must contain nonempty SQL with valid Unicode and no zero characters.");
-                continue;
-            }
-
-            int order = AttributeValues.Get(attribute, "Order", 0);
-            if (order is < 0 or > 2)
-            {
-                graph.Error(location, $"Custom SQL '{name}' has an undefined PgSqlOrder value.");
-                continue;
-            }
-
-            var entity = new SqlEntity("2:sql:" + name, sql!, location)
-            {
-                Order = order,
-                SourceFile = attribute.AttributeClass?.Name == "PgSqlFileAttribute" ? attribute.ConstructorArguments[1].Value as string : null,
+                Order = analysis.Order,
+                SourceFile = analysis.Input.File ? analysis.Input.Content : null,
             };
-            graph.Configure(entity, attribute, name);
+            graph.ConfigureOptions(entity, analysis.Options, resolution.Name);
             graph.Add(entity);
-            if (!blocks.ContainsKey(name!))
+            if (!blocks.ContainsKey(resolution.Name!))
             {
-                blocks.Add(name!, entity);
+                blocks.Add(resolution.Name!, entity);
             }
 
-            relocatable &= AttributeValues.Get(attribute, "Relocatable", false);
+            relocatable &= analysis.Relocatable;
         }
 
         return relocatable;
     }
 
-    private static string? ReadFile(string? path, Location? location,
-        ImmutableArray<(string Path, string? Text)> files, string projectDirectory, SqlGraph graph)
+    /// <summary>
+    /// Selects exact tracked content without reading the filesystem or retaining compiler objects.
+    /// </summary>
+    /// <param name="input">The detached authored name, content and declaration kind.</param>
+    /// <param name="files">The compiler's tracked file paths and content.</param>
+    /// <param name="projectDirectory">The compiler-visible project directory.</param>
+    /// <returns>The selected content or an owned diagnostic message.</returns>
+    internal static CustomSqlPipeline.Selection Select(CustomSqlPipeline.Input input,
+        EquatableArray<CustomSqlPipeline.FileInput> files, string projectDirectory)
     {
-        string? fullPath = Normalize(path, projectDirectory);
+        if (!input.ValidArguments)
+        {
+            return new(input.Name, null, "Custom SQL declarations require a name and a SQL string or file path.");
+        }
+
+        if (string.IsNullOrWhiteSpace(input.Name) || !SqlText.IsText(input.Name!))
+        {
+            return new(input.Name, null, "Custom SQL requires a nonempty dependency name with valid Unicode and no zero characters.");
+        }
+
+        if (!input.File)
+        {
+            return new(input.Name, input.Content, null);
+        }
+
+        string? fullPath = Normalize(input.Content, projectDirectory);
         if (fullPath is null)
         {
-            graph.Error(location, "PgSqlFile requires a valid path and a compiler-visible MSBuildProjectDirectory for relative paths. Use Ankus.Sdk or expose that property with CompilerVisibleProperty.");
-            return null;
+            return new(input.Name, null, "PgSqlFile requires a valid path and a compiler-visible MSBuildProjectDirectory for relative paths. Use Ankus.Sdk or expose that property with CompilerVisibleProperty.");
         }
 
         StringComparison comparison = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        (string Path, string? Text)[] matches = [.. files.Where(file => string.Equals(Normalize(file.Path, projectDirectory), fullPath, comparison))];
-        string? relativePath = NormalizeRelative(path, projectDirectory);
+        CustomSqlPipeline.FileInput[] matches = [.. files.Where(file => string.Equals(Normalize(file.Path, projectDirectory), fullPath, comparison))];
+        string? relativePath = NormalizeRelative(input.Content, projectDirectory);
         if (matches.Length == 0 && relativePath is not null)
         {
             string suffix = Path.DirectorySeparatorChar + relativePath;
@@ -106,12 +101,22 @@ internal static class CustomSql
 
         if (matches.Length != 1 || matches[0].Text is null)
         {
-            graph.Error(location, $"SQL file '{path}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.");
-            return null;
+            return new(input.Name, null, $"SQL file '{input.Content}' must resolve to exactly one readable AdditionalFiles input. Include it with <AdditionalFiles Include=\"...\" />.");
         }
 
-        return matches[0].Text;
+        return new(input.Name, matches[0].Text, null);
     }
+
+    /// <summary>
+    /// Validates selected SQL text independently of graph options, source coordinates and other files.
+    /// </summary>
+    /// <param name="selection">The selected name, exact text and input diagnostic.</param>
+    /// <returns>The validated block or an owned diagnostic message.</returns>
+    internal static CustomSqlPipeline.Resolution Resolve(CustomSqlPipeline.Selection selection)
+        => selection.Error is not null ? new(selection.Name, null, selection.Error) :
+            string.IsNullOrWhiteSpace(selection.Sql) || !SqlText.IsText(selection.Sql!)
+                ? new(selection.Name, null, $"Custom SQL '{selection.Name}' must contain nonempty SQL with valid Unicode and no zero characters.")
+                : new(selection.Name, selection.Sql, null);
 
     private static string? NormalizeRelative(string? path, string projectDirectory)
     {

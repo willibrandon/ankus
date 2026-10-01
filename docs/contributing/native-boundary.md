@@ -80,6 +80,15 @@ initialization still composes current registration and capability requirements.
 Removing an earlier syntax tree can recreate a surviving phase's positional
 Roslyn input; the resulting artifacts retain the same invocation contract.
 
+Assembly SQL declarations also detach authored constants, graph policies and
+current diagnostic coordinates. Per-block file selection uses tracked
+AdditionalFiles and the compiler-visible project directory. Unchanged selected
+text retains cached validation after unrelated file edits, directory aliases or
+source movement; changed selected content invalidates only dependent blocks.
+Graph composition still applies current dependencies, ordering, relocation,
+provider ownership and authored SQL-file provenance. Invalid cached text reports
+against the current source tree and prevents a partial installation script.
+
 Other declaration families and final graph composition still consume compiler
 symbols; their rendering and complete output caching remain in progress.
 
