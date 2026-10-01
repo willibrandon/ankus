@@ -13,7 +13,6 @@ internal static class OperatorCastDeclaration
     /// <summary>
     /// Adds cached operator and cast declarations with current source attribution, providers and graph policy.
     /// </summary>
-    /// <param name="method">The current backing method used by managed dependency references.</param>
     /// <param name="outputs">The independently analyzed and rendered attached declarations.</param>
     /// <param name="dependency">The current backing-function graph node.</param>
     /// <param name="graph">The current installation graph.</param>
@@ -23,7 +22,7 @@ internal static class OperatorCastDeclaration
     /// <param name="providers">The current catalog provider inventory.</param>
     /// <param name="compilation">The current compilation used to reattach diagnostic coordinates.</param>
     /// <returns>The current attached nodes and their prerequisites.</returns>
-    internal static List<SqlEntity> Add(IMethodSymbol method, IEnumerable<OperatorCastPipeline.Output> outputs, SqlEntity dependency,
+    internal static List<SqlEntity> Add(IEnumerable<OperatorCastPipeline.Output> outputs, SqlEntity dependency,
         SqlGraph graph, HashSet<string> names, SourceProductionContext context, Dictionary<string, SqlEntity> operators,
         SqlTypeProviders providers, Compilation compilation)
     {
@@ -53,7 +52,8 @@ internal static class OperatorCastDeclaration
             entity.Attachments.Add(attachment);
             entity.Dependencies.Add(dependency);
             graph.ConfigureOptions(entity, analysis.Options);
-            graph.Add(entity, method);
+            graph.Add(entity);
+            graph.Register(analysis.Identity, analysis.Display, entity);
             result.Add(entity);
             if (analysis.BooleanOperator)
             {

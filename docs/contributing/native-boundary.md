@@ -145,8 +145,14 @@ separately. These caches never retain live backend setting values. Removing an
 earlier declaration can recreate a surviving positional Roslyn input while
 preserving its exact rendered contract.
 
-Other declaration families and final graph composition still consume compiler
-symbols; their rendering and complete output caching remain in progress.
+The current method inventory also retains immutable selection names, exact
+overload identities, role markers, source coordinates and sequence/raw transport
+requirements. Ordinary and alias-only backing functions, triggers and backend
+tests reuse their validated rendering stages during composition. Initialization
+and worker callbacks retain their separate pipelines and existing conflict
+diagnostics. Graph registration uses detached method identities and provenance;
+it no longer needs raw method symbols. Current diagnostic/source mapping and
+complete independent extension output caching remain in progress.
 Operator and cast attributes also detach validated catalog identities, typed
 operand/result fragments and authored dependency policies. Alias-only backing
 functions share the ordinary conversion validators and render independently.

@@ -62,7 +62,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(tests.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
-        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = methods.Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
+        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = MethodInventoryPipeline.Register(context, methods).Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
             .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left, value.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
         IncrementalValueProvider<EquatableArray<CustomTypePipeline.Output>> customTypes = CustomTypePipeline.Register(context);
@@ -136,7 +136,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, Compilation compilation,
         EquatableArray<SqlReferenceModel> references, NativeModuleMagic.ModuleOutput module, NativeCompilationPipeline.Output nativeCompilation)
     {
-        ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
+        EquatableArray<MethodInventoryModel> methods = methodInputs.Methods;
         ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, OperatorCastPipeline.Output> operatorModels = methodInputs.OperatorCasts.ToLookup(static value => value.Analysis.Identity);
@@ -147,12 +147,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         ILookup<DeclarationIdentity, PgTestPipeline.TestOutput> testModels = methodInputs.Tests.Tests.ToLookup(static value => value.Analysis.Identity);
-        var tests = new Dictionary<IMethodSymbol, PgTestPipeline.TestOutput>(SymbolEqualityComparer.Default);
-        foreach (IMethodSymbol method in methods.Where(PgTestDeclaration.IsTest).OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
+        var tests = new Dictionary<MethodInventoryModel, PgTestPipeline.TestOutput>();
+        foreach (MethodInventoryModel method in methods.Where(static method => method.Test).OrderBy(static method => method.Display, StringComparer.Ordinal))
         {
-            GeneratorLocation? location = GeneratorLocation.Create(method.Locations.FirstOrDefault(), compilation);
-            PgTestPipeline.TestOutput test = testModels[DeclarationIdentity.Create(method)]
-                .First(value => value.Analysis.Location == location);
+            PgTestPipeline.TestOutput test = testModels[method.Identity]
+                .First(value => value.Analysis.Location == method.Location);
             foreach (GeneratorProblem problem in test.Analysis.Problems)
             {
                 problem.Report(compilation, context);
@@ -172,7 +171,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 string.Concat(methodInputs.Tests.Catalogs.Select(static value => value.Source)));
             if (!settings.IncludeTests)
             {
-                methods = [.. methods.Where(method => !tests.ContainsKey(method))];
+                methods = new(methods.Where(method => !tests.ContainsKey(method)));
             }
         }
 
@@ -220,7 +219,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<DeclarationIdentity>(aggregateOutputs.SelectMany(static value => value.Analysis.Selected));
-        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(DeclarationIdentity.Create(method)));
+        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(method.Identity));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(nativeCompilation.Binding);
@@ -281,8 +280,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionInvocation.Source);
 
             if (!aggregateOutputs.IsEmpty || selectedDerivedTypes.Any(static model => model.Value?.DatumType is not null) ||
-                methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
-                FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true)))
+                methods.Any(static method => method.Sequence || method.RawTransport))
             {
                 native.AppendLine(NativeDatumBridge.PolymorphicInput);
             }
@@ -299,17 +297,17 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 native.AppendLine(NativeAggregateBridge.Source);
             }
 
-            if (methods.Any(TriggerDeclaration.IsTrigger))
+            if (methods.Any(static method => method.Trigger))
             {
                 native.AppendLine(NativeTriggerBridge.Source);
             }
 
-            if (methods.Any(EventTriggerDeclaration.IsEventTrigger))
+            if (methods.Any(static method => method.EventTrigger))
             {
                 native.AppendLine(NativeEventTriggerBridge.Source);
             }
 
-            if (methods.Any(static method => SetResult.IsSequence(method.ReturnType)))
+            if (methods.Any(static method => method.Sequence))
             {
                 native.AppendLine(NativeSetBridge.Source);
             }
@@ -639,20 +637,20 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         var operatorEntities = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         bool hasVarlenaReader = false;
-        foreach (IMethodSymbol method in methods.OrderBy(static method => method.ToDisplayString(), StringComparer.Ordinal))
+        foreach (MethodInventoryModel method in methods.OrderBy(static method => method.Display, StringComparer.Ordinal))
         {
-            if (aggregateMethods.Contains(DeclarationIdentity.Create(method)) || InitializeDeclaration.IsInitializer(method) || BackgroundWorkerDeclaration.IsWorker(method))
+            if (aggregateMethods.Contains(method.Identity) || method.Initializer || method.Worker)
             {
                 continue;
             }
 
-            bool trigger = TriggerDeclaration.IsTrigger(method);
-            bool eventTrigger = EventTriggerDeclaration.IsEventTrigger(method);
+            bool trigger = method.Trigger;
+            bool eventTrigger = method.EventTrigger;
             bool contextParameter = trigger || eventTrigger;
-            GeneratorLocation? methodLocation = GeneratorLocation.Create(method.Locations.FirstOrDefault(), compilation);
-            FunctionPipeline.FunctionOutput? functionOutput = functionModels[DeclarationIdentity.Create(method)]
+            GeneratorLocation? methodLocation = method.Location;
+            FunctionPipeline.FunctionOutput? functionOutput = functionModels[method.Identity]
                 .FirstOrDefault(value => value.Analysis.Location == methodLocation);
-            TriggerPipeline.TriggerOutput? triggerOutput = contextParameter ? triggerModels[DeclarationIdentity.Create(method)]
+            TriggerPipeline.TriggerOutput? triggerOutput = contextParameter ? triggerModels[method.Identity]
                 .FirstOrDefault(value => value.Analysis.Location == methodLocation) : null;
             if (triggerOutput is { Analysis.Model: null })
             {
@@ -677,53 +675,21 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             tests.TryGetValue(method, out PgTestPipeline.TestOutput? testOutput);
             FunctionPipeline.FunctionModel? model = testOutput?.Analysis.Model ?? analysis?.Model;
-            FunctionParameter[] parameters = contextParameter ? [] : model is null ? FunctionParameter.Create(method) : [.. model.Parameters];
+            FunctionParameter[] parameters = contextParameter ? [] : [.. model!.Parameters];
             SetResult? set = model?.Set;
             FunctionType? scalarResult = model?.Result;
-            if (!contextParameter && model is null)
-            {
-                set = SetResult.Create(method, context, out bool validSet);
-                if (!validSet || !SqlTypeReference.Validate(method, ref set, context))
-                {
-                    continue;
-                }
-
-                scalarResult = set is null ? FunctionType.CreateResult(method) : null;
-                if (!IsSupported(method, parameters, set, scalarResult))
-                {
-                    ReportUnsupported(method, context);
-                    continue;
-                }
-
-                if (!SqlNullability.Validate(method, method.Parameters.Where((_, index) => !parameters[index].IsInjected),
-                    set is null ? [method.ReturnType] : SetResult.OutputTypes(method), context))
-                {
-                    continue;
-                }
-            }
-
-            string name = testOutput?.Analysis.Declaration!.Case.FunctionName ?? GetSqlName(method);
-            if (!contextParameter && model is null && !NumericConstraint.Validate(method, context, set))
-            {
-                continue;
-            }
-
-            FunctionDeclaration? declaration = triggerOutput?.Declaration ?? testOutput?.Analysis.Declaration?.Function ?? functionOutput?.Declaration ??
-                FunctionDeclaration.Create(method, name, context, set, contextParameter, parameterModels: parameters);
-            if (declaration is null)
-            {
-                continue;
-            }
+            FunctionDeclaration declaration = (triggerOutput?.Declaration ?? testOutput?.Analysis.Declaration?.Function ?? functionOutput?.Declaration)!;
+            string name = declaration.Name;
 
             string signature = declaration.QualifiedName + "(" + (contextParameter ? string.Empty : string.Join(",", parameters.Where(static parameter => !parameter.IsInjected).Select(
                 static parameter => parameter.Type!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, method.Locations.FirstOrDefault(), name));
+                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, methodLocation?.Resolve(compilation), name));
                 continue;
             }
 
-            string callback = model?.Callback ?? GetCallbackName(method, name);
+            string callback = (model?.Callback ?? triggerOutput?.Analysis.Model?.Callback)!;
             FunctionEmission? functionEmission = testOutput?.Emission ?? functionOutput?.Emission;
             FunctionSqlEmission? functionSql = testOutput?.Sql ?? functionOutput?.Sql;
             SqlFunction sql;
@@ -741,32 +707,20 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     hasVarlenaReader = true;
                 }
 
-                if (functionEmission is { } emission)
-                {
-                    emission.AppendTo(managed, native, exports, ensureManagedReady);
-                    sql = new(declaration, functionSql!.Compose(typeProviders), emission.IsPlannerSupport);
-                }
-                else
-                {
-                    sql = PgFunctionEmitter.Emit(MethodInvocation.Create(method), parameters, scalarResult!, declaration, callback, ensureManagedReady, managed, native, exports, typeProviders);
-                }
+                FunctionEmission emission = functionEmission!;
+                emission.AppendTo(managed, native, exports, ensureManagedReady);
+                sql = new(declaration, functionSql!.Compose(typeProviders), emission.IsPlannerSupport);
             }
             else
             {
-                if (functionEmission is { } emission)
-                {
-                    emission.AppendTo(managed, native, exports, ensureManagedReady);
-                    sql = new(declaration, functionSql!.Compose(typeProviders), false);
-                }
-                else
-                {
-                    sql = PgSetEmitter.Emit(MethodInvocation.Create(method), parameters, declaration, set, callback, ensureManagedReady, managed, native, exports, typeProviders);
-                }
+                FunctionEmission emission = functionEmission!;
+                emission.AppendTo(managed, native, exports, ensureManagedReady);
+                sql = new(declaration, functionSql!.Compose(typeProviders), false);
             }
 
-            var entity = new SqlEntity("1:function:" + method.ToDisplayString(), sql, method.Locations.FirstOrDefault()) { Kind = "function" };
-            entity.SelectionNames.UnionWith([name, declaration.QualifiedName, signature, method.Name, method.ToDisplayString(),
-                method.ContainingType.ToDisplayString() + "." + method.Name]);
+            var entity = new SqlEntity("1:function:" + method.Display, sql, methodLocation?.Resolve(compilation)) { Kind = "function" };
+            entity.SelectionNames.UnionWith([name, declaration.QualifiedName, signature, method.Name, method.Display,
+                method.Owner + "." + method.Name]);
             if (declaration.Schema is not null)
             {
                 entity.SelectionNames.Add(declaration.Schema + "." + name);
@@ -774,16 +728,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             entity.Attachments.Add("FUNCTION " + SqlSchemaTemplate.Function(declaration, contextParameter ? [] :
                 parameters.Where(static parameter => !parameter.IsInjected).Select(static parameter => parameter.Type!), typeProviders));
-            SqlDeclarationOptions? functionOptions = triggerOutput?.Analysis.Options ?? analysis?.Options ?? SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(
-                static attribute => attribute.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute"));
+            SqlDeclarationOptions? functionOptions = triggerOutput?.Analysis.Options ?? analysis?.Options ?? method.Options;
             if (functionOptions is not null)
             {
                 graph.ConfigureOptions(entity, functionOptions);
             }
 
-            graph.Add(entity, method);
+            graph.Add(entity);
+            graph.Register(method.Identity, method.Display, entity);
             List<SqlEntity> related = contextParameter ? [] :
-                OperatorCastDeclaration.Add(method, operatorModels[DeclarationIdentity.Create(method)]
+                OperatorCastDeclaration.Add(operatorModels[method.Identity]
                     .Where(value => value.Analysis.Location == methodLocation), entity, graph, relatedNames, context, operatorEntities, typeProviders, compilation);
             fixedSchema |= !SqlGeneration.ApplyOptions(functionOptions, entity, related,
                 [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -137,14 +136,14 @@ internal static class FunctionPipeline
     internal sealed record FunctionOutput(FunctionAnalysis Analysis, FunctionEmission? Emission, FunctionDeclaration? Declaration, FunctionSqlEmission? Sql);
 
     /// <summary>
-    /// Supplies fresh legacy declarations and detached function contracts to the remaining graph conversion.
+    /// Supplies detached method inventory and independently cached function contracts to graph composition.
     /// </summary>
-    /// <param name="Methods">The declarations still needed by unconverted graph and callback families.</param>
+    /// <param name="Methods">The current immutable selection and native capability inventory.</param>
     /// <param name="Functions">The independently analyzed ordinary functions.</param>
     /// <param name="Triggers">The independently analyzed row and event callbacks.</param>
     /// <param name="Workers">The independently analyzed background-worker entries.</param>
     /// <param name="Lifecycle">The canonical initialization phases with independently rendered callbacks.</param>
     /// <param name="OperatorCasts">The attached operator and cast catalog declarations and fragments.</param>
     /// <param name="Tests">The independently analyzed tests, discovery catalogs and native boundaries.</param>
-    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, EquatableArray<OperatorCastPipeline.Output> OperatorCasts, PgTestPipeline.Output Tests);
+    internal sealed record MethodInputs(EquatableArray<MethodInventoryModel> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, EquatableArray<OperatorCastPipeline.Output> OperatorCasts, PgTestPipeline.Output Tests);
 }

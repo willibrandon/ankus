@@ -192,6 +192,53 @@ by the later complete platform runs. No preceding run remains active. Fresh
 platform CI for this milestone remains required; the method-inventory complete
 suite continues on its unchanged snapshot.
 
+The **19-file** reference/provider/compiler milestone is committed and pushed as
+**4182680**. The same twelve preceding CI outcomes are checked and retained
+immediately before push. Fresh CI **36923610125** has successful runtime jobs
+and active quality/full platform suites; Docs **36923610026** has succeeded.
+
+The final-composition snapshot now also passes its Release build with **zero
+warnings/errors, 3m48.69s**, and API freshness with **234 pages / 2,677 members**.
+Its public site/API inputs match the verified milestone above. All **119** owned
+source hashes are checked again, and the replaced graph-serialization source is
+absent. Plain full `dotnet test` on PostgreSQL **18.6/Linux x64** has started
+against the immutable snapshot. The independent method-inventory full suite
+continues on its unchanged input; both complete outcomes and later platform
+acceptance remain required.
+
+Quality in CI **36923610125** has now succeeded as well. All three complete
+platform jobs remain active with no reported failure. The two independent
+complete backend validators remain live against unchanged snapshots.
+
+The frozen method-inventory snapshot completes plain full `dotnet test` on
+PostgreSQL **18.6/Linux x64**: **10,604 total, 10,592 passed, zero failed and
+12 platform skips**, **50m41.966s**, across all six modules. This includes real
+published Native AOT extensions and packed consumers. The durable process exits
+**0**, with overall build-plus-test duration **52m19.686s**. All **96** source
+hashes are reverified locally and against the completed validator before
+promoting exactly **seven** changed owned files. The final Release build of
+that unchanged snapshot succeeds with **zero warnings/errors, 2m36.10s**.
+API/site checks and fresh platform CI remain required for this milestone.
+Overlapping independent checks prevent treating this duration as a performance
+comparison. The separate final-composition full suite remains active and its
+result cannot be inferred from the method-inventory acceptance.
+
+Fresh API verification of the unchanged method-inventory snapshot succeeds:
+**234 pages / 2,677 members**. Its site builds **282 pages in 9.15s**, and
+`pnpm check` reports zero errors, warnings or hints. The primary checkout and
+completed validator retain the same **96** owned source hashes.
+
+Before the method-inventory commit, the preceding sixteen CI/Docs outcomes are
+checked and retained. CI **36923610125** has successful runtime/quality jobs
+and three active full-platform suites, with no reported failure; Docs
+**36923610026** succeeds. CI/Docs **36919410165/36919410152**,
+**36912867177/36912867325**, **36906152335/36906152445**,
+**36892948019/36892947844**, **36879599985/36879599988**, CI
+**36869737910**, and Docs **36862078167/36853197974** succeed. CI
+**36862078230** retains its already corrected generator-harness failure;
+subsequent full-platform results prove that repair. Fresh platform CI for the
+method-inventory milestone remains required. No active run is canceled.
+
 The frozen datum/derived snapshot now passes plain full `dotnet test` on
 PostgreSQL **18.6/Linux x64**: **10,556 total, 10,544 passed, zero failed and
 12 platform skips**, **48m05.859s**. All six modules complete, including real
