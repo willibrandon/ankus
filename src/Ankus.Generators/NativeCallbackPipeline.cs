@@ -48,7 +48,7 @@ internal static class NativeCallbackPipeline
     /// <param name="compilation">The compilation owning current diagnostic locations.</param>
     /// <param name="context">The diagnostic production destination.</param>
     /// <returns>The valid canonical callback outputs in discovery order.</returns>
-    internal static List<Output> Select(EquatableArray<Output> outputs, Compilation compilation, SourceProductionContext context)
+    internal static List<Output> Select(EquatableArray<Output> outputs, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         var result = new List<Output>();
         var identities = new HashSet<DeclarationIdentity>();

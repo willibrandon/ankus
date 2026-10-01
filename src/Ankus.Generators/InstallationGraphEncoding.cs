@@ -2,33 +2,30 @@ using System.Text;
 
 namespace Ankus.Generators;
 
-internal sealed partial class SqlGraph
+/// <summary>
+/// Encodes detached installation nodes with the schema reader's exact format and allocation limits.
+/// </summary>
+internal static class InstallationGraphEncoding
 {
     /// <summary>
     /// Encodes the resolved installation graph independently of runtime serializers or analyzer-side dependencies.
     /// </summary>
-    /// <returns>The versioned base64 graph consumed by build tools and native schema readers.</returns>
-    internal string? Encode()
+    /// <param name="nodes">The ordered graph fields and independently rendered SQL.</param>
+    /// <returns>The versioned base64 graph or its original validation error.</returns>
+    internal static Output Encode(EquatableArray<InstallationGraphModel.EncodedNode> nodes)
     {
-        if (!_emitted)
+        if (nodes.Count > 100_000)
         {
-            throw new InvalidOperationException("The installation graph must be validated and emitted before encoding.");
-        }
-
-        if (_ordered.Count > 100_000)
-        {
-            Error(null, "An embedded installation graph cannot exceed 100,000 declarations.");
-            return null;
+            return new(null, "An embedded installation graph cannot exceed 100,000 declarations.");
         }
 
         try
         {
-            return EncodeCore();
+            return new(EncodeCore(nodes), null);
         }
         catch (FormatException error)
         {
-            Error(null, error.Message);
-            return null;
+            return new(null, error.Message);
         }
     }
 
@@ -36,7 +33,7 @@ internal sealed partial class SqlGraph
     /// Writes length-delimited graph fields while enforcing the consumer's allocation limits.
     /// </summary>
     /// <returns>The bounded graph in base64 format.</returns>
-    private string EncodeCore()
+    private static string EncodeCore(EquatableArray<InstallationGraphModel.EncodedNode> nodes)
     {
         var utf8 = new UTF8Encoding(false, true);
         using var stream = new MemoryStream();
@@ -44,15 +41,15 @@ internal sealed partial class SqlGraph
         {
             writer.Write(Encoding.ASCII.GetBytes("ANKUSG2\0"));
             WriteText(SqlProvenance.Preamble);
-            writer.Write(_ordered.Count);
-            foreach (SqlEntity entity in _ordered)
+            writer.Write(nodes.Count);
+            foreach (InstallationGraphModel.EncodedNode entity in nodes)
             {
                 WriteText(entity.Key);
                 WriteText(entity.Kind);
-                WriteText(SqlProvenance.Render(entity, _projectDirectory).Replace("\r\n", "\n").Replace('\r', '\n'));
-                WriteText(entity.Owner?.Key ?? string.Empty);
-                WriteTexts(entity.Names.Concat(entity.SelectionNames));
-                WriteTexts(entity.Dependencies.Select(static dependency => dependency.Key));
+                WriteText(entity.Sql);
+                WriteText(entity.Owner);
+                WriteTexts(entity.Names);
+                WriteTexts(entity.Dependencies);
                 WriteTexts(entity.Attachments);
             }
 
@@ -86,4 +83,11 @@ internal sealed partial class SqlGraph
 
         return Convert.ToBase64String(stream.ToArray());
     }
+
+    /// <summary>
+    /// Contains graph bytes or a deterministic bounds error for the current diagnostic boundary.
+    /// </summary>
+    /// <param name="Graph">The encoded graph, or none when a size limit is exceeded.</param>
+    /// <param name="Error">The original validation error, or none after successful encoding.</param>
+    internal sealed record Output(string? Graph, string? Error);
 }

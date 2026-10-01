@@ -42,7 +42,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <param name="compilation">The compilation owning current provider diagnostic coordinates.</param>
     /// <returns>Whether all provider names are independent of a fixed schema.</returns>
     internal bool Add(EquatableArray<SqlProviderModel> providers, IReadOnlyDictionary<string, SqlEntity> blocks,
-        IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeModel> mappings, Compilation compilation)
+        IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeModel> mappings, GeneratorSourceResolver compilation)
     {
         bool relocatable = true;
         var namedClaims = new HashSet<(string? Schema, string Name)>();

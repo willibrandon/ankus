@@ -25,4 +25,18 @@ internal sealed record FunctionEmission(string Managed, NativeFunctionEmission N
         Native.AppendTo(native, ensureInitialized);
         exports.Append(Exports);
     }
+
+    /// <summary>
+    /// Retains independently cached conversion artifacts in the extension's rendering plans.
+    /// </summary>
+    /// <param name="managed">The managed dispatcher plan.</param>
+    /// <param name="native">The native entry plan.</param>
+    /// <param name="exports">The linker export plan.</param>
+    /// <param name="ensureInitialized">Whether initialization must precede backend work.</param>
+    internal void AppendTo(GeneratorSourceBuilder managed, GeneratorSourceBuilder native, GeneratorSourceBuilder exports, bool ensureInitialized)
+    {
+        managed.Append(Managed);
+        Native.AppendTo(native, ensureInitialized);
+        exports.Append(Exports);
+    }
 }

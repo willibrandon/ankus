@@ -23,8 +23,8 @@ internal static class OperatorCastDeclaration
     /// <param name="compilation">The current compilation used to reattach diagnostic coordinates.</param>
     /// <returns>The current attached nodes and their prerequisites.</returns>
     internal static List<SqlEntity> Add(IEnumerable<OperatorCastPipeline.Output> outputs, SqlEntity dependency,
-        SqlGraph graph, HashSet<string> names, SourceProductionContext context, Dictionary<string, SqlEntity> operators,
-        SqlTypeProviders providers, Compilation compilation)
+        SqlGraph graph, HashSet<string> names, GeneratorDiagnostics context, Dictionary<string, SqlEntity> operators,
+        SqlTypeProviders providers, GeneratorSourceResolver compilation)
     {
         var result = new List<SqlEntity>();
         foreach (OperatorCastPipeline.Output output in outputs)

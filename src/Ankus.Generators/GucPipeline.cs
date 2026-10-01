@@ -54,7 +54,7 @@ internal static class GucPipeline
     /// <param name="compilation">The current compilation owning diagnostic coordinates.</param>
     /// <param name="context">The diagnostic output destination.</param>
     /// <returns>The validated, distinct current settings in PostgreSQL name order.</returns>
-    internal static List<Output> Select(EquatableArray<Output> outputs, Compilation compilation, SourceProductionContext context)
+    internal static List<Output> Select(EquatableArray<Output> outputs, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         var result = new List<Output>();
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -79,7 +79,7 @@ internal static class GucPipeline
 
             if (!names.Add(GucDeclaration.Fold(model.Name)))
             {
-                var diagnostics = new GeneratorDiagnostics(context);
+                GeneratorDiagnostics diagnostics = context;
                 diagnostics.Report(GucDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name,
                     "GUC names must be unique under PostgreSQL's ASCII case-insensitive comparison.");
                 continue;

@@ -17,4 +17,12 @@ internal sealed record GeneratorProblem(DiagnosticDescriptor Descriptor, Generat
     /// <param name="context">The current source production context.</param>
     internal void Report(Compilation compilation, SourceProductionContext context)
         => context.ReportDiagnostic(Diagnostic.Create(Descriptor, Location?.Resolve(compilation), Arguments.ToArray()));
+
+    /// <summary>
+    /// Captures a cached diagnostic during detached graph composition.
+    /// </summary>
+    /// <param name="sources">The detached current source attribution.</param>
+    /// <param name="context">The composition diagnostic collector.</param>
+    internal void Report(GeneratorSourceResolver sources, GeneratorDiagnostics context)
+        => context.Report(Descriptor, Location?.Resolve(sources), [.. Arguments]);
 }

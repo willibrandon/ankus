@@ -39,7 +39,7 @@ internal static class LifecyclePipeline
     /// <param name="context">The production diagnostic receiver.</param>
     /// <returns>The two validated phase emissions, or no callbacks after any phase validation failure.</returns>
     internal static (LifecycleEmission? Initialize, LifecycleEmission? ModuleLoad) Select(
-        EquatableArray<LifecycleOutput> outputs, Compilation compilation, SourceProductionContext context)
+        EquatableArray<LifecycleOutput> outputs, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         LifecycleOutput[] ordered = [.. outputs.OrderBy(static value => value.Analysis.SortName, StringComparer.Ordinal)];
         bool valid = true;

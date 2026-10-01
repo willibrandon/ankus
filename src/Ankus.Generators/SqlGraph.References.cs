@@ -54,7 +54,7 @@ internal sealed partial class SqlGraph
     /// <summary>
     /// Resolves typed edges after all declarations exist and before ordering or encoding the graph.
     /// </summary>
-    internal void ResolveReferences(IEnumerable<SqlReferenceModel> references, Compilation compilation)
+    internal void ResolveReferences(IEnumerable<SqlReferenceModel> references, GeneratorSourceResolver compilation)
     {
         foreach (SqlReferenceModel reference in references)
         {
@@ -104,7 +104,7 @@ internal sealed partial class SqlGraph
         }
     }
 
-    private void BindPlannerSupport(SqlReferenceModel reference, SqlEntity source, SqlEntity target, Compilation compilation)
+    private void BindPlannerSupport(SqlReferenceModel reference, SqlEntity source, SqlEntity target, GeneratorSourceResolver compilation)
     {
         if (source.Function is null)
         {
@@ -134,7 +134,7 @@ internal sealed partial class SqlGraph
         source.Function.SetPlannerSupport(support.Declaration.TemplateName);
     }
 
-    private SqlEntity? Source(SqlReferenceModel reference, Compilation compilation)
+    private SqlEntity? Source(SqlReferenceModel reference, GeneratorSourceResolver compilation)
     {
         SqlReferenceModel.Declaration declaration = reference.Source;
         string? id = reference.DeclarationId;
@@ -160,7 +160,7 @@ internal sealed partial class SqlGraph
         return Primary(declaration, reference, compilation);
     }
 
-    private SqlEntity? Primary(SqlReferenceModel.Declaration declaration, SqlReferenceModel reference, Compilation compilation)
+    private SqlEntity? Primary(SqlReferenceModel.Declaration declaration, SqlReferenceModel reference, GeneratorSourceResolver compilation)
     {
         if (!_declarations.TryGetValue(declaration.Identity, out List<SqlEntity>? entities))
         {
@@ -178,11 +178,11 @@ internal sealed partial class SqlGraph
             $"'{declaration.Display}' declares multiple SQL objects; use their explicit dependency IDs.", compilation);
     }
 
-    private SqlEntity? ReferenceError(SqlReferenceModel reference, string message, Compilation compilation)
+    private SqlEntity? ReferenceError(SqlReferenceModel reference, string message, GeneratorSourceResolver compilation)
     {
         _invalid = true;
-        _context.ReportDiagnostic(Diagnostic.Create(reference.Kind == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
-            reference.Location?.Resolve(compilation), message));
+        _context.Report(reference.Kind == "PgSupportFunctionAttribute" ? s_invalidSupport : s_invalidReference,
+            reference.Location?.Resolve(compilation), message);
         return null;
     }
 }

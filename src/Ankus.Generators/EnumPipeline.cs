@@ -73,11 +73,11 @@ internal static class EnumPipeline
     /// <param name="analysis">The detached enum analysis.</param>
     /// <param name="compilation">The current compilation owning diagnostic source trees.</param>
     /// <param name="context">The diagnostic destination.</param>
-    internal static void Report(EnumAnalysis analysis, Compilation compilation, SourceProductionContext context)
+    internal static void Report(EnumAnalysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         if (analysis.Error is not null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error));
+            context.Report(s_invalid, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
         }
     }
 

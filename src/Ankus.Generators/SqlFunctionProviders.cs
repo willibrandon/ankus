@@ -15,7 +15,7 @@ internal static class SqlFunctionProviders
     /// <param name="graph">The graph and its declaration diagnostics.</param>
     /// <param name="compilation">The compiler state owning current diagnostic coordinates.</param>
     internal static void Add(EquatableArray<SqlProviderModel> providers, IReadOnlyDictionary<string, SqlEntity> blocks, SqlGraph graph,
-        Compilation compilation)
+        GeneratorSourceResolver compilation)
     {
         var claimed = new HashSet<string>(StringComparer.Ordinal);
         foreach (SqlProviderModel provider in providers.Where(static item => item.Function))

@@ -45,7 +45,7 @@ internal static class NativeModuleMagic
     /// <param name="module">The detached module metadata and validation results.</param>
     /// <param name="compilation">The current compilation receiving source diagnostics.</param>
     /// <param name="context">The generator's diagnostic destination.</param>
-    internal static void Report(ModuleOutput module, Compilation compilation, SourceProductionContext context)
+    internal static void Report(ModuleOutput module, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         Report(module.NameError, compilation, context);
         Report(module.VersionError, compilation, context);
@@ -91,12 +91,12 @@ internal static class NativeModuleMagic
     /// <summary>
     /// Reports an invalid value on the current source tree without retaining compiler state in cached data.
     /// </summary>
-    private static void Report(ModuleProblem? problem, Compilation compilation, SourceProductionContext context)
+    private static void Report(ModuleProblem? problem, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         if (problem is not null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalidIdentity,
-                problem.Location?.Resolve(compilation) ?? Location.None, "PgModule." + problem.Property));
+            context.Report(s_invalidIdentity,
+                problem.Location?.Resolve(compilation) ?? Location.None, "PgModule." + problem.Property);
         }
     }
 

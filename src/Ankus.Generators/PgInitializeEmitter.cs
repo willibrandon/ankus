@@ -20,7 +20,7 @@ internal static class PgInitializeEmitter
     /// <param name="hasNativeCallbacks">Whether static native callbacks require initialization and fork support.</param>
     /// <param name="hasModuleLoad">Whether an immediate module registration callback precedes initialization.</param>
     internal static void Emit(LifecycleEmission? declaration, string callback, bool hasHooks, string registration,
-        StringBuilder managed, StringBuilder native, StringBuilder exports, bool hasNativeCallbacks = false, bool hasModuleLoad = false)
+        GeneratorSourceBuilder managed, GeneratorSourceBuilder native, GeneratorSourceBuilder exports, bool hasNativeCallbacks = false, bool hasModuleLoad = false)
     {
         bool requiresEnsure = declaration is not null || hasHooks || hasNativeCallbacks || hasModuleLoad;
         bool warmRuntime = declaration is null && requiresEnsure && !hasModuleLoad;

@@ -113,11 +113,73 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<DatumPipeline.Output> mappings = DatumPipeline.Register(context, methods, datumTypes.Collect(), rangeTypes.Collect(),
             aggregates, customSql, derivedOperators.Collect(), projectDirectory.Select(static (settings, _) => settings.IncludeTests));
         IncrementalValueProvider<NativeCompilationPipeline.Output> nativeCompilation = NativeCompilationPipeline.Register(context);
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(providers).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(context.CompilationProvider.Combine(references).Combine(module).Combine(nativeCompilation)),
-            static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
+        IncrementalValueProvider<ExtensionCompositionInput> inputs = methodInputs.Combine(schemas).Combine(providers).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(references.Combine(module).Combine(nativeCompilation))
+            .Select(static (input, _) => new ExtensionCompositionInput(
+                input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
-                input.Right.Left.Left.Left, input.Right.Left.Left.Right, input.Right.Left.Right, input.Right.Right));
+                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right))
+            .WithTrackingName("ExtensionCompositionInput");
+        IncrementalValueProvider<GeneratorSourceMap> sources = inputs.Combine(context.CompilationProvider)
+            .Select(static (value, token) => GeneratorSourceMap.Create(value.Left.Locations(), value.Right, token))
+            .WithTrackingName("ExtensionSourceMap");
+        IncrementalValueProvider<GeneratorCompositionContext.Output> composition = inputs.Combine(sources)
+            .Select(static (value, token) => Compose(value.Left, value.Right, token))
+            .WithTrackingName("ExtensionComposition");
+        IncrementalValuesProvider<InstallationGraphModel.Node> graphNodes = composition
+            .SelectMany(static (value, _) => value.Manifest?.Metadata.Graph.Nodes ?? new EquatableArray<InstallationGraphModel.Node>([]))
+            .WithTrackingName("ExtensionGraphNode");
+        IncrementalValuesProvider<string> sqlComponents = graphNodes.Select(static (value, _) => value.Provenance)
+            .WithTrackingName("ExtensionSqlProvenanceModel")
+            .Select(static (value, _) => NormalizeLineEndings(SqlProvenance.Render(value)))
+            .WithTrackingName("ExtensionSqlComponentEmission");
+        IncrementalValueProvider<string> installation = sqlComponents.Collect().Select(static (value, _) => new EquatableArray<string>(value))
+            .WithTrackingName("ExtensionInstallationModel")
+            .Select(static (value, _) => RenderInstallation(value)).WithTrackingName("ExtensionInstallationEmission");
+        IncrementalValueProvider<InstallationGraphEncoding.Output> graph = graphNodes.Collect().Combine(sqlComponents.Collect())
+            .Select(static (value, _) => new EquatableArray<InstallationGraphModel.EncodedNode>(value.Left.Select((node, index) =>
+                new InstallationGraphModel.EncodedNode(node.Key, node.Kind, value.Right[index], node.Owner, node.Names, node.Dependencies, node.Attachments))))
+            .WithTrackingName("ExtensionGraphModel")
+            .Select(static (value, _) => InstallationGraphEncoding.Encode(value)).WithTrackingName("ExtensionGraphEmission");
+        IncrementalValuesProvider<GeneratorCompositionContext.Artifact> artifacts = composition
+            .SelectMany(static (value, _) => value.Artifacts).WithTrackingName("ExtensionArtifactPlan");
+        context.RegisterSourceOutput(artifacts.Combine(graph).Where(static value => !value.Left.RequiresGraph || value.Right.Error is null)
+            .Select(static (value, _) => value.Left).Select(static (value, _) => (value.Name, Source: value.Plan.Render()))
+            .WithTrackingName("ExtensionArtifactEmission"), static (output, artifact) => output.AddSource(artifact.Name, artifact.Source));
+        IncrementalValueProvider<GeneratorSourcePlan?> native = composition.Select(static (value, _) => value.Manifest?.Native)
+            .WithTrackingName("ExtensionNativePlan");
+        IncrementalValueProvider<string?> nativeSource = native.Select(static (value, _) => value?.Render())
+            .WithTrackingName("ExtensionNativeEmission");
+        IncrementalValueProvider<GeneratorSourcePlan?> exports = composition.Select(static (value, _) => value.Manifest?.Exports)
+            .WithTrackingName("ExtensionExportPlan");
+        IncrementalValueProvider<string?> exportSource = exports.Select(static (value, _) => value?.Render())
+            .WithTrackingName("ExtensionExportEmission");
+        IncrementalValueProvider<GeneratorCompositionContext.ManifestMetadata?> metadata = composition.Select(static (value, _) => value.Manifest?.Metadata)
+            .WithTrackingName("ExtensionManifestMetadata");
+        context.RegisterSourceOutput(metadata.Combine(nativeSource).Combine(exportSource).Combine(installation).Combine(graph)
+            .Select(static (value, _) => RenderManifest(value.Left.Left.Left.Left, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right))
+            .WithTrackingName("ExtensionManifestEmission"), static (output, manifest) =>
+            {
+                if (manifest is not null)
+                {
+                    output.AddSource("ExtensionManifest.g.cs", manifest);
+                }
+            });
+        context.RegisterSourceOutput(graph, static (output, value) =>
+        {
+            if (value.Error is not null)
+            {
+                output.ReportDiagnostic(Diagnostic.Create(SqlGraph.InvalidDiagnostic, null, value.Error));
+            }
+        });
+        context.RegisterSourceOutput(composition.Select(static (value, _) => value.Problems).WithTrackingName("ExtensionProblems")
+            .Combine(context.CompilationProvider), static (output, value) =>
+            {
+                foreach (GeneratorProblem problem in value.Left)
+                {
+                    problem.Report(value.Right, output);
+                }
+            });
     }
 
     /// <summary>
@@ -129,11 +191,27 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
     private static string? BuildProperty(AnalyzerConfigOptions options, string name)
         => options.TryGetValue("build_property." + name, out string? value) && !string.IsNullOrEmpty(value) ? value : null;
 
-    private static void Generate(SourceProductionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
+    /// <summary>
+    /// Validates and composes detached declaration contracts without consulting compiler objects.
+    /// </summary>
+    /// <param name="input">The complete immutable declaration inventory.</param>
+    /// <param name="sources">The detached source attribution.</param>
+    /// <param name="cancellationToken">The current composition cancellation token.</param>
+    /// <returns>The immutable source artifacts and original diagnostics.</returns>
+    private static GeneratorCompositionContext.Output Compose(ExtensionCompositionInput input, GeneratorSourceMap sources, CancellationToken cancellationToken)
+    {
+        var resolver = new GeneratorSourceResolver(sources);
+        var context = new GeneratorCompositionContext(resolver, cancellationToken);
+        Generate(context, input.Methods, input.Schemas, input.Providers, input.CustomBlocks, input.Settings, input.Enums, input.Aggregates, input.Properties,
+            input.Prefixes, input.CustomTypes, input.Mappings, resolver, input.References, input.Module, input.NativeCompilation);
+        return context.Freeze();
+    }
+
+    private static void Generate(GeneratorCompositionContext context, FunctionPipeline.MethodInputs methodInputs, EquatableArray<SchemaPipeline.SchemaOutput> schemaTypes,
         EquatableArray<SqlProviderModel> providers, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, EquatableArray<AggregatePipeline.Output> aggregateOutputs, GucPipeline.PropertyInputs propertyInputs,
-        GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, Compilation compilation,
+        GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, GeneratorSourceResolver compilation,
         EquatableArray<SqlReferenceModel> references, NativeModuleMagic.ModuleOutput module, NativeCompilationPipeline.Output nativeCompilation)
     {
         EquatableArray<MethodInventoryModel> methods = methodInputs.Methods;
@@ -190,7 +268,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         var names = new HashSet<string>(StringComparer.Ordinal);
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
-        var managed = new StringBuilder();
+        var managed = new GeneratorSourceBuilder();
         string? magic = module.Source;
         if (magic is null)
         {
@@ -198,7 +276,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             return;
         }
 
-        StringBuilder native = new StringBuilder(NativeBridge.Source).Append(magic);
+        GeneratorSourceBuilder native = new GeneratorSourceBuilder(NativeBridge.Source).Append(magic);
         foreach (GeneratorProblem problem in prefixOutput.Analysis.Problems)
         {
             problem.Report(compilation, context);
@@ -373,7 +451,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         fixedSchema |= !CustomSql.Add(customBlocks, compilation, graph, out Dictionary<string, SqlEntity> sqlBlocks);
         SqlFunctionProviders.Add(providers, sqlBlocks, graph, compilation);
         var typeProviders = new SqlTypeProviders(graph);
-        var exports = new StringBuilder("Pg_magic_func\n");
+        var exports = new GeneratorSourceBuilder("Pg_magic_func\n");
         managed.AppendLine("// <auto-generated />");
         managed.AppendLine("#nullable enable");
         managed.AppendLine("namespace Ankus.Generated;");
@@ -685,7 +763,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 static parameter => parameter.Type!.Sql))) + ")";
             if (!IsValidName(name) || !names.Add(signature))
             {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, methodLocation?.Resolve(compilation), name));
+                context.Report(s_invalidName, methodLocation?.Resolve(compilation), name);
                 continue;
             }
 
@@ -808,7 +886,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             if (!names.Add(aggregate.Signature))
             {
-                context.ReportDiagnostic(Diagnostic.Create(s_invalidName, analysis.Location?.Resolve(compilation), aggregate.Name));
+                context.Report(s_invalidName, analysis.Location?.Resolve(compilation), aggregate.Name);
                 continue;
             }
 
@@ -839,7 +917,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
                 if (!names.Add(helper.Signature))
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(s_invalidName, helperAnalysis.Location?.Resolve(compilation), helper.Declaration.QualifiedName));
+                    context.Report(s_invalidName, helperAnalysis.Location?.Resolve(compilation), helper.Declaration.QualifiedName);
                     continue;
                 }
 
@@ -890,32 +968,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         managed.AppendLine("}");
         graph.ResolveReferences(references, compilation);
-        string? installation = graph.Emit();
+        InstallationGraphModel? installation = graph.Freeze();
         if (installation is null)
         {
             return;
         }
 
-        string? encodedGraph = graph.Encode();
-        if (encodedGraph is null)
-        {
-            return;
-        }
-
-        string managedSource = NormalizeLineEndings(managed.ToString());
-        string nativeSource = NormalizeLineEndings(native.ToString());
-        string installationSql = NormalizeLineEndings(
-            installation.Length == 0 ? "-- No installable objects declared.\n" : installation);
-        string exportManifest = NormalizeLineEndings(exports.ToString());
-        context.AddSource("ExtensionDispatchers.g.cs", managedSource);
-        string metadata = "// <auto-generated />\n" +
-            Metadata("Ankus.NativeSource", nativeSource) +
-            Metadata("Ankus.Sql", installationSql) +
-            Metadata("Ankus.SqlGraph", encodedGraph) +
-            Metadata("Ankus.Relocatable", fixedSchema ? "false" : "true") +
-            Metadata("Ankus.Exports", exportManifest) +
-            (hasNativeCallbacks ? Metadata("Ankus.NativeCallbacks", "1") : string.Empty);
-        context.AddSource("ExtensionManifest.g.cs", metadata);
+        context.AddSource("ExtensionDispatchers.g.cs", managed.Freeze(), requiresGraph: true);
+        context.SetManifest(new(native.Freeze(), exports.Freeze(), new(installation, !fixedSchema, hasNativeCallbacks)));
 
         void AddSchemaDependency(SqlEntity entity, string? schema)
         {
@@ -930,10 +990,47 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
     }
 
+    /// <summary>
+    /// Encodes the manifest only after its graph, native source or export inputs change.
+    /// </summary>
+    /// <param name="metadata">The validated installation metadata, or no extension.</param>
+    /// <param name="nativeSource">The independently cached native source.</param>
+    /// <param name="exportManifest">The independently cached linker exports.</param>
+    /// <param name="installation">The independently cached complete installation script.</param>
+    /// <param name="graph">The independently encoded graph and size validation result.</param>
+    /// <returns>The established compiler manifest, or no source after composition fails.</returns>
+    private static string? RenderManifest(GeneratorCompositionContext.ManifestMetadata? metadata, string? nativeSource, string? exportManifest,
+        string installation, InstallationGraphEncoding.Output graph)
+    {
+        if (metadata is null || graph.Error is not null)
+        {
+            return null;
+        }
+
+        return "// <auto-generated />\n" +
+            Metadata("Ankus.NativeSource", nativeSource!) +
+            Metadata("Ankus.Sql", installation) +
+            Metadata("Ankus.SqlGraph", graph.Graph!) +
+            Metadata("Ankus.Relocatable", metadata.Relocatable ? "true" : "false") +
+            Metadata("Ankus.Exports", exportManifest!) +
+            (metadata.NativeCallbacks ? Metadata("Ankus.NativeCallbacks", "1") : string.Empty);
+    }
+
+    /// <summary>
+    /// Joins current component SQL independently of native sources and encoded graph fields.
+    /// </summary>
+    /// <param name="components">The ordered cached connected-component texts.</param>
+    /// <returns>The established complete installation script without schema insertion markers.</returns>
+    private static string RenderInstallation(EquatableArray<string> components)
+    {
+        string sql = string.Concat(components).Replace("\0", string.Empty);
+        return SqlProvenance.Preamble + (sql.Length == 0 ? "-- No installable objects declared.\n" : sql);
+    }
+
     private static string Metadata(string key, string value)
         => $"[assembly: global::System.Reflection.AssemblyMetadata(\"{key}\", {SymbolDisplay.FormatLiteral(value, quote: true)})]\n";
 
-    private static string NormalizeLineEndings(string value)
+    internal static string NormalizeLineEndings(string value)
     {
         if (value.IndexOf('\r') < 0)
         {

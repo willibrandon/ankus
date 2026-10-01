@@ -109,11 +109,11 @@ internal static class CustomTypePipeline
     /// <param name="analysis">The cached semantic result and current coordinates.</param>
     /// <param name="compilation">The compilation owning the current source trees.</param>
     /// <param name="context">The diagnostic destination.</param>
-    internal static void Report(Analysis analysis, Compilation compilation, SourceProductionContext context)
+    internal static void Report(Analysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         if (analysis.Error is not null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(CustomTypeDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error));
+            context.Report(CustomTypeDeclaration.InvalidDiagnostic, analysis.Location?.Resolve(compilation), analysis.Name, analysis.Error);
         }
     }
 

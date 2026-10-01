@@ -151,15 +151,35 @@ requirements. Ordinary and alias-only backing functions, triggers and backend
 tests reuse their validated rendering stages during composition. Initialization
 and worker callbacks retain their separate pipelines and existing conflict
 diagnostics. Graph registration uses detached method identities and provenance;
-it no longer needs raw method symbols. Current diagnostic/source mapping and
-complete independent extension output caching remain in progress.
+it no longer needs raw method symbols.
+
+The final compositor freezes named declaration inputs and a comparable
+map of only relevant source coordinates. Graph validation uses transient,
+tree-free locations and captures original diagnostic descriptors, arguments and
+tree ordinals. Final reporting binds those coordinates to the current compiler
+trees, including mapped lines. Separate trees with identical physical paths and
+spans remain distinct. SQL provenance retains physical file and line comments.
+
+Managed dispatchers, native C and linker exports retain ordered cached fragment
+plans before final rendering. Their tracked rendering stages can reuse unchanged
+plans after body, source-coordinate or SQL-only policy edits. Manifest rendering
+combines separately cached native/export source with current installation and
+graph metadata. Installation order freezes after ownership, dependency and cycle
+validation. Portable SQL provenance renders per connected component; installation
+joining and bounded graph encoding use independent caches, so changing measured
+ABI constants does not rerender unchanged SQL. Encoding failures retain their
+original diagnostic and prevent dispatcher/manifest publication while preserving
+the established auxiliary source behavior. The complete PostgreSQL 18.6/Linux
+x64 suite verifies these caches alongside real Native AOT extension execution.
+Full platform CI and the remaining PostgreSQL/platform matrix are still required.
+
 Operator and cast attributes also detach validated catalog identities, typed
 operand/result fragments and authored dependency policies. Alias-only backing
 functions share the ordinary conversion validators and render independently.
 Current type-provider ownership is applied to typed SQL fragments during graph
 composition, so provider or dependency edits do not rerender unchanged catalog
 grammar. Current diagnostics and duplicate inventories remain composition work.
-This does not yet remove compiler inputs from the final extension compositor.
+
 Custom types validate into immutable storage and I/O contracts. Recursive
 serialization graphs use node indexes, retaining exact nullable members, selected
 constructor order, enum names and polymorphic discriminator identities without

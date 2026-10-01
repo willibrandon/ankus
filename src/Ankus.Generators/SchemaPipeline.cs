@@ -49,7 +49,7 @@ internal static class SchemaPipeline
     /// <param name="analysis">The detached semantic analysis.</param>
     /// <param name="compilation">The compilation owning the current source trees.</param>
     /// <param name="context">The diagnostic destination.</param>
-    internal static void Report(SchemaAnalysis analysis, Compilation compilation, SourceProductionContext context)
+    internal static void Report(SchemaAnalysis analysis, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
         => FunctionDeclaration.ReportInvalid(context, analysis.Location?.Resolve(compilation), analysis.Name,
             "A fixed schema must be a nonempty identifier of at most 63 UTF-8 bytes outside the reserved pg_ namespace.");
 

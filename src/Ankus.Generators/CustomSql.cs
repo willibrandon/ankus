@@ -15,7 +15,7 @@ internal static class CustomSql
     /// <param name="graph">The installation dependency graph.</param>
     /// <param name="blocks">The successfully read SQL blocks, indexed by dependency identifier.</param>
     /// <returns>Whether every custom block explicitly permits relocation.</returns>
-    internal static bool Add(EquatableArray<CustomSqlPipeline.Output> outputs, Compilation compilation, SqlGraph graph,
+    internal static bool Add(EquatableArray<CustomSqlPipeline.Output> outputs, GeneratorSourceResolver compilation, SqlGraph graph,
         out Dictionary<string, SqlEntity> blocks)
     {
         blocks = new(StringComparer.Ordinal);

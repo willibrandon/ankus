@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -22,9 +21,9 @@ internal static class DerivedOperatorDeclaration
     /// </summary>
     internal static bool Emit(DerivedOperatorModel model, Dictionary<string, SqlEntity> types, SqlTypeProviders providers,
         Dictionary<string, SqlEntity> schemas, HashSet<string> functions,
-        HashSet<string> relatedNames, Dictionary<string, SqlEntity> operators, SqlGraph graph, SourceProductionContext context,
-        Compilation compilation, IReadOnlyDictionary<string, DerivedHelperEmission> helpers, DerivedSqlEmission? sql, bool ensureInitialized,
-        StringBuilder managed, StringBuilder native, StringBuilder exports, out bool relocatable)
+        HashSet<string> relatedNames, Dictionary<string, SqlEntity> operators, SqlGraph graph, GeneratorDiagnostics context,
+        GeneratorSourceResolver compilation, IReadOnlyDictionary<string, DerivedHelperEmission> helpers, DerivedSqlEmission? sql, bool ensureInitialized,
+        GeneratorSourceBuilder managed, GeneratorSourceBuilder native, GeneratorSourceBuilder exports, out bool relocatable)
     {
         relocatable = true;
         SqlDeclarationOptions? equality = model.Equality;
@@ -95,7 +94,7 @@ internal static class DerivedOperatorDeclaration
 
         bool Invalid(string message)
         {
-            context.ReportDiagnostic(Diagnostic.Create(s_invalid, model.Location?.Resolve(compilation), model.DiagnosticName, message));
+            context.Report(s_invalid, model.Location?.Resolve(compilation), model.DiagnosticName, message);
             return false;
         }
 

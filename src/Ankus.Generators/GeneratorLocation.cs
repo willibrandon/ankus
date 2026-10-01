@@ -39,4 +39,11 @@ internal readonly record struct GeneratorLocation(int TreeIndex, TextSpan Span)
     /// <returns>The current source location.</returns>
     internal Location Resolve(Compilation compilation)
         => Location.Create(compilation.SyntaxTrees.ElementAt(TreeIndex), Span);
+
+    /// <summary>
+    /// Resolves graph attribution without retaining or consulting a compiler object.
+    /// </summary>
+    /// <param name="sources">The detached physical and mapped source positions.</param>
+    /// <returns>A transient graph location with the original source coordinates.</returns>
+    internal Location Resolve(GeneratorSourceResolver sources) => sources.Resolve(this);
 }

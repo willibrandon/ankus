@@ -33,7 +33,7 @@ internal static class BackgroundWorkerPipeline
     /// <param name="compilation">The current diagnostic source trees.</param>
     /// <param name="context">The production diagnostic receiver.</param>
     /// <returns>The valid workers with unique current native exports.</returns>
-    internal static List<WorkerOutput> Select(EquatableArray<WorkerOutput> outputs, Compilation compilation, SourceProductionContext context)
+    internal static List<WorkerOutput> Select(EquatableArray<WorkerOutput> outputs, GeneratorSourceResolver compilation, GeneratorDiagnostics context)
     {
         var selected = new List<WorkerOutput>();
         var names = new HashSet<string>(StringComparer.Ordinal);

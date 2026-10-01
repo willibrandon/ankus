@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -10,24 +9,29 @@ internal sealed partial class SqlGraph
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS005", "Invalid installation SQL dependency", "{0}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    /// <summary>
+    /// Gets the original diagnostic used for detached graph encoding bounds.
+    /// </summary>
+    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
+
     private readonly List<SqlEntity> _entities = [];
     private readonly List<SqlEntity> _ordered = [];
     private readonly List<(SqlEntity Entry, HashSet<SqlEntity> Members)> _replacements = [];
-    private readonly SourceProductionContext _context;
+    private readonly GeneratorDiagnostics _context;
 
     /// <summary>
     /// Retains the compiler-visible root for portable source attribution.
     /// </summary>
     private readonly string _projectDirectory;
     private bool _invalid;
-    private bool _emitted;
 
     /// <summary>
     /// Creates a graph whose validation errors are reported to the current generator run.
     /// </summary>
     /// <param name="context">The diagnostic sink and cancellation token.</param>
     /// <param name="projectDirectory">The compiler-visible root for portable source comments.</param>
-    internal SqlGraph(SourceProductionContext context, string projectDirectory)
+    internal SqlGraph(GeneratorDiagnostics context, string projectDirectory)
     {
         _context = context;
         _projectDirectory = projectDirectory;
@@ -123,16 +127,15 @@ internal sealed partial class SqlGraph
     internal void Error(Location? location, string message)
     {
         _invalid = true;
-        _context.ReportDiagnostic(Diagnostic.Create(s_invalid, location, message));
+        _context.Report(s_invalid, location, message);
     }
 
     /// <summary>
-    /// Resolves references and returns deterministic dependency-ordered SQL, or null after an error.
+    /// Resolves references and freezes deterministic installation order without rendering sources.
     /// </summary>
-    /// <returns>The complete script or null when the graph is invalid.</returns>
-    internal string? Emit()
+    /// <returns>The detached rendering contract, or null when the graph is invalid.</returns>
+    internal InstallationGraphModel? Freeze()
     {
-        _emitted = false;
         _ordered.Clear();
         var names = new Dictionary<string, SqlEntity>(StringComparer.Ordinal);
         foreach (SqlEntity entity in _entities)
@@ -235,7 +238,6 @@ internal sealed partial class SqlGraph
             }
         }
 
-        var result = new StringBuilder(SqlProvenance.Preamble);
         int emitted = 0;
         while (ready.Count != 0)
         {
@@ -243,7 +245,6 @@ internal sealed partial class SqlGraph
             SqlEntity entity = ready.Min!;
             ready.Remove(entity);
             _ordered.Add(entity);
-            result.Append(SqlProvenance.Render(entity, _projectDirectory).Replace("\0", string.Empty));
 
             emitted++;
             foreach (SqlEntity dependent in dependents[entity])
@@ -262,13 +263,7 @@ internal sealed partial class SqlGraph
             return null;
         }
 
-        _emitted = true;
-        if (result.Length == SqlProvenance.Preamble.Length)
-        {
-            result.Append("-- No installable objects declared.\n");
-        }
-
-        return result.ToString();
+        return new(new EquatableArray<InstallationGraphModel.Node>(_ordered.Select(entity => InstallationGraphModel.Node.Create(entity, _projectDirectory))));
 
         bool ExplicitlyFollows(SqlEntity provider, SqlEntity consumer)
         {

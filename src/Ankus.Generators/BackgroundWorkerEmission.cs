@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Ankus.Generators;
 
 /// <summary>
@@ -17,7 +15,7 @@ internal sealed record BackgroundWorkerEmission(string EntryPoint, string Manage
     /// <param name="managed">The assembly's dispatcher source.</param>
     /// <param name="native">The assembly's native source.</param>
     /// <param name="exports">The assembly's linker exports.</param>
-    internal void AppendTo(StringBuilder managed, StringBuilder native, StringBuilder exports)
+    internal void AppendTo(GeneratorSourceBuilder managed, GeneratorSourceBuilder native, GeneratorSourceBuilder exports)
     {
         managed.Append(Managed);
         native.Append(Native);
