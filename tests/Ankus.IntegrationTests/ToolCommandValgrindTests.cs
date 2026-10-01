@@ -123,24 +123,28 @@ public sealed partial class ToolCommandTests
     public async Task ValgrindMissingToolPreservesDataAndDryRuns()
     {
         CancellationToken token = context.CancellationToken;
+        await using PostgresTestInstallation owner = await PostgresTestInstallation.StageAsync(s_installation, CreateDirectory(), token);
+        PostgresInstallation installation = owner.Installation;
         string home = CreateDirectory();
         string project = PrepareRegressionProject();
         string suite = Path.Combine(Path.GetDirectoryName(project)!, "pg_regress");
         await WriteRegressionCaseAsync(suite, "native", "SELECT 42;", "42\n", token);
         string executables = CreateDirectory();
+        // Staging selects the installation's real pg_config binary. Distribution
+        // wrappers may require other commands that this intentionally empty PATH hides.
         var environment = new Dictionary<string, string?>(s_environment) { ["PATH"] = executables };
         ProcessResult missing = await ProcessRunner.RunAsync(s_tool, ["start", "--home", home, "--pg", MajorText(),
-            "--pg-config", s_installation.PgConfigPath, "--valgrind"], environment, token, workingDirectory: s_root);
+            "--pg-config", installation.PgConfigPath, "--valgrind"], environment, token, workingDirectory: s_root);
         Assert.AreEqual(1, missing.ExitCode, missing.StandardOutput + missing.StandardError);
         Assert.Contains("Install Valgrind", missing.StandardError);
-        var cluster = new PostgresDevelopmentCluster(s_installation, home);
+        var cluster = new PostgresDevelopmentCluster(installation, home);
         Assert.IsFalse(Directory.Exists(cluster.DataDirectory));
         Assert.IsFalse(File.Exists(cluster.LogFilePath));
         string[] before = Directory.GetFiles(home, "*", SearchOption.AllDirectories);
         string dotnet = Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator)
             .Select(static directory => Path.Combine(directory, "dotnet")).First(File.Exists);
         File.CreateSymbolicLink(Path.Combine(executables, "dotnet"), dotnet);
-        ProcessResult dry = await ProcessRunner.RunAsync(s_tool, [.. RegressionOptions(s_installation, home, project, 12345),
+        ProcessResult dry = await ProcessRunner.RunAsync(s_tool, [.. RegressionOptions(installation, home, project, 12345),
             "--valgrind", "--dry-run"], environment, token, workingDirectory: s_root);
         Assert.AreEqual(0, dry.ExitCode, dry.StandardOutput + dry.StandardError);
         Assert.Contains("Would start PostgreSQL under Valgrind Memcheck", dry.StandardOutput);

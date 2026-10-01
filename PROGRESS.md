@@ -85,7 +85,7 @@ remains incomplete; the following work is additional to the open parity gates.
 | Declarative parity | Extended module magic, custom datum alignment and managed `PgRequires`/`PgBefore` references pass complete dedicated-platform CI. `PgSupportFunction` provides checked planner references and prerequisites. Typed aggregate capabilities cover owned state, parallel transport, moving windows, ordered/hypothetical calls and polymorphic final-extra values. Generated SQL now retains source lines, managed declarations, prerequisites and connected-object markers through publication and full/selected extraction, preserving deterministic ordering. Planner, aggregate and provenance milestones now pass full CI on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. The remaining version/platform matrix is still required. |
 | Runtime APIs and performance | Guarded `PgInterrupts.Check()` supports managed loops, retained cancellation and Windows queued signals. Nonterminal reporting now defers interrupts through native emission and cleanup, preserving inherited holdoffs on success and failure. Direct/native checks and the complete PostgreSQL 18.6/Linux x64 suite pass; full reporting CI also passes on Linux x64/macOS ARM64 PostgreSQL 18 and Windows x64 PostgreSQL 17. SPI read/write semantics, numeric representation and guard/array costs remain open. Preserve the recovery contract and measure performance claims. |
 | Tooling and upstream drift | The pgrx 0.19.3 inventory and OID refresh plus PostgreSQL 19 beta 4 SQLSTATE alignment pass complete PostgreSQL 18.6 and 19 beta 4/Linux x64 suites. Independent binding generation passes for all seven majors on Linux x64, plus macOS ARM64/PostgreSQL 18.6 and Windows x64/PostgreSQL 17.11. Refresh/repair CI now passes the complete dedicated-platform suites; the remaining full version/platform matrix is still required. General build-property forwarding, package prefix, account/privilege selection, benchmarks, scriptable info, environment selection and regression scaffolding remain open. Test-command custom data directories and schema reuse have real installed-consumer evidence below. |
-| .NET author experience | Cached module, enum, schema, ordinary function conversion/SQL, trigger, worker, lifecycle, custom SQL, GUC/prefix, native callback and backend-test stages have complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI. Operator/cast passes complete Linux acceptance; fresh dedicated-platform CI is pending. Custom-type storage/I/O and aggregate call drafts pass complete generator checks, with native/pipeline acceptance pending. Remaining declaration families and final graph/output caching are open. Actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain required. |
+| .NET author experience | Cached module, enum, schema, ordinary function conversion/SQL, trigger, worker, lifecycle, custom SQL, GUC/prefix, native callback, backend-test and operator/cast stages have complete PostgreSQL 18.6/Linux acceptance and dedicated-platform CI. Custom-type storage/I/O passes complete Linux acceptance and final Release/docs gates; fresh dedicated-platform CI is pending. The aggregate pipeline passes complete generator checks, with native acceptance pending. Remaining declaration families and final graph/output caching are open. Actionable diagnostics, templates, namespace/API discoverability, formatting/parsing/comparison helpers, safe parameter binding, raw-call visibility and testing discovery/framework documentation remain required. |
 | Packaging | Added the MIT license, copyright Brandon Williams, and shared author/license/project/repository metadata following the author's other repository. Verified the metadata in all seven locally packed packages, including the Linux runtime package; no packages are published. |
 | Platform coverage | Complete full-suite evidence for the supported major/platform combinations, including macOS x64 and library-suffix boundaries. Use GitHub-hosted runners where dedicated machines cannot cover the target, retaining complete suites and appropriate caches. The first weekly/manual GitHub-hosted Intel macOS run built and cached the runtime, then exposed a stale PostgreSQL build-time SDK path before tests. Native builds now select the installed macOS SDK; a successful complete Intel run remains required. Existing focused version probes are not full-suite coverage. |
 | Documentation and samples | Marked the old macOS checkpoint-server prototype as superseded by stock-server evidence and labelled higher-level custom scans as additional Ankus scope. Added the pgrx migration guide and expanded .NET hosting guidance for threads, signals, memory and backend lifetimes. Converted the public average sample to compiler-checked aggregate capabilities and verified its PostgreSQL behavior. Other representative samples and a more navigable evidence archive remain required. Reference-repository process rules do not replace this repository's progress requirements. |
@@ -918,6 +918,18 @@ succeed. Older failures **36862078230** and **36853197866** retain their recorde
 resolved dispositions, verified by the succeeding complete Windows jobs. No
 preceding run is active. Fresh full-platform CI follows this locally verified
 operator/cast milestone; custom-type and aggregate drafts remain separate.
+The nine-file milestone is committed and pushed as **f1ae482**. The same eight
+preceding outcomes are checked and retained immediately before push, with no
+active previous run or new unresolved failure. Fresh CI **36892948019** and
+Docs **36892947844** are active. Independent custom-type native validation and
+aggregate generator work continue without waiting for their completion.
+Docs **36892947844** succeeds. CI **36892948019** has successful runtime jobs;
+quality and all three complete platform suites are still active. No result from
+those active jobs is treated as completed platform proof.
+CI **36892948019** now succeeds in full, including quality, runtime jobs and
+all three complete platform suites. Linux x64/PostgreSQL 18 takes **24m28s**,
+macOS ARM64/PostgreSQL 18 **20m09s**, and Windows x64/PostgreSQL 17 **22m50s**.
+Docs **36892947844** succeeds. No timeout or cancellation occurs.
 
 An independent custom-type draft now detaches the closed default-serialization
 graph into immutable node-index contracts. Recursive types remain finite;
@@ -981,6 +993,42 @@ separate custom-type snapshot advances the same validation checkout. All
 forty-one hashes match before its plain complete PostgreSQL **18.6/Linux x64**
 run starts; its outcome remains pending. Neither generator nor documentation
 checks alone establish native acceptance of the new storage-rendering pipeline.
+That plain complete run finishes **10,491 total, 10,478 passed, one failed and
+12 platform skips**, **46m02.958s** (process elapsed **48m18.060s**). All six
+modules execute; five pass, and the integration module reports one existing
+missing-Valgrind fixture failure. Its intentionally empty child PATH prevents
+Debian's distribution `pg_config` wrapper from finding `tail`, so PostgreSQL
+selection fails before the intended missing-instrumentation check. The fixture
+now stages the selected installation and uses its real copied `pg_config`
+binary, preserving the restricted PATH and all data/dry-run assertions. The
+original forty-one hashes and terminal log are retained before advancing to the
+forty-two-file corrected snapshot. Focused verification and a new plain complete
+run are required; the custom-type milestone is not accepted or published yet.
+The corrected missing-tool fixture passes **1/1**, zero failures/skips
+(**6m16.909s**, including its native fixture setup), against PostgreSQL
+**18.6/Linux x64**. The forty-two-file snapshot also passes a new Release build
+with **zero warnings/errors, 1m19.15s**. Source hashes are verified again before
+the corrected plain complete suite starts. That complete result remains pending;
+the focused pass does not replace the required full acceptance.
+The corrected plain complete PostgreSQL **18.6/Linux x64** suite now succeeds
+in all six modules: **10,491 total, 10,479 passed, zero failed and 12 platform
+skips**, **45m21.424s** (process elapsed **46m34.290s**). The original forty-two
+source hashes and terminal logs are verified and retained before any later
+snapshot advances the validator. This supplies complete native acceptance for
+the custom-type pipeline and the missing-instrumentation fixture repair.
+The fifteen changed owned files are copied to the primary checkout and all
+forty-two hashes verify there. Its final Release and documentation gates are
+in progress before commit; fresh dedicated-platform CI remains required.
+The primary Release build now succeeds with **zero warnings/errors, 1m21.09s**.
+API freshness verifies **234 pages / 2,677 members**; the site builds **282 pages
+in 5.26s**, and its check reports zero errors, warnings or hints. All forty-two
+source hashes still match the accepted complete-suite snapshot. Before commit,
+the preceding eight CI outcomes are checked and retained: CI **36892948019** and
+Docs **36892947844**, CI/Docs **36879599985/36879599988**, CI **36869737910**,
+and Docs **36862078167/36853197974** succeed. CI **36862078230** retains its
+previously resolved line-ending failure, fixed and verified in the succeeding
+complete platform jobs. No preceding run remains active. Aggregate development
+remains separate and unaccepted pending its real-backend validation.
 
 The next independent aggregate draft detaches constrained invocation signatures,
 nullable tuple argument groups, state/datum identities and numeric slot precision
@@ -991,6 +1039,75 @@ has zero warnings/errors (**2.45s**). Forty-seven composed source hashes are
 frozen separately. Aggregate helper/declaration pipelines, independent rendering,
 current graph composition, native acceptance and final output caching remain open;
 this draft is not merged or published.
+That separate draft now also freezes complete aggregate options and helper
+contracts, including numeric output precision, state-size estimates and authored
+moving-final policy. Helper managed/native rendering takes only those typed
+values, retaining the existing owned-state boundary and exact callback identity.
+Native initialization composes outside its cached-body contract. The shared
+`GeneratorDiagnostics` sink retains existing aggregate diagnostic contracts while
+making incremental analysis possible. The scoped generator build succeeds with
+zero warnings/errors (**4.22s**). Five new detached-model cases pass
+**5/5**, zero failures/skips (**3.698s**), requiring model equality/hash after
+implementation edits, actual generated compilation, unchanged native/SQL output
+and precise selected numeric rescaling. Their initial test build used a
+returning form of `Assert.IsNotNull` unsupported by the pinned MSTest API; it is
+corrected to an ordinary null assertion with compiler flow analysis. Fifty-three
+source hashes are frozen separately. The complete generator rerun, aggregate
+pipeline/cache wiring, Release/docs and native acceptance remain required.
+The frozen fifty-three-file aggregate composition now passes its complete
+generator scope **2,793/2,793**, zero failures/skips (**30.400s**), with all
+source hashes independently reverified afterward. This verifies the detached
+semantic/rendering step; registered cache stages, current graph conversion and
+the final output compositor remain unfinished. No native acceptance is claimed
+for this separate aggregate draft.
+The next separate aggregate draft projects DDL into SQL-only contracts and
+escaped emission fragments, retaining typed provider ownership until current
+graph composition. Transition state names and non-direct final names remain
+support-function metadata; they do not invalidate aggregate DDL. Managed
+invocation, nullable conversions and numeric precision are excluded from that
+DDL projection. Two added production-driver cases require changed support SQL,
+unchanged aggregate SQL/native output and successful generated compilation after
+those support parameter renames. The seven detached-model cases pass **7/7**
+(**3.073s**); the final complete generator scope passes **2,795/2,795**, zero
+failures/skips (**31.194s**). The scoped build has zero warnings/errors
+(**2.30s**), and all fifty-five source hashes are verified and archived. These
+are detached-contract/rendering gates; aggregate cache registration, current
+graph conversion, Release/docs and native acceptance remain required before
+publication. The custom-type validator retains its independent frozen inputs.
+The following aggregate draft registers the production analysis and independent
+per-role managed/native and SQL rendering stages. Its final graph consumes
+detached identities, authored policy and cached fragments; only current datum
+discovery still resolves the aggregate container against compiler state. Native
+initialization, shared support selection and typed provider ownership compose
+after cache hits. The obsolete direct aggregate rendering entry points are
+removed. Original validation descriptors and locations remain intact.
+Twenty-two new tracked-driver cases cover body/movement reuse, current compiled
+constrained calls, numeric rescaling, independent roles, execution/initial/name
+policy, current invalid trees and repair, initialization, assembly identity,
+private explicit/inherited/default implementations, SQL disablement/replacement,
+dependencies, provider ownership, shared support and removal. A generic inherited
+`PgFunction` helper exposed a real discovery bug: its open declaration was also
+validated as an ordinary function. Selected support methods now reserve their
+generic definitions from ordinary discovery, retaining exact closed identities
+for published helper sharing and references. The corrected expanded scope passes
+**21/21**, zero failures/skips (**3.072s**); after adding independent final-role
+precision coverage, the complete generator scope passes **2,817/2,817**, zero
+failures/skips (**31.640s**). The diagnostic harness now includes the actual
+generator messages when validation unexpectedly fails.
+Several local launches report MSB4166 before tests start, with no retained
+worker exception file. The diagnostic build succeeds with **zero warnings/errors,
+6.22s**. Resetting the stale local build servers restores the complete normal
+generator build/test run; no repository build policy or analyzer setting changes.
+The sixty-one-file composition also passes Release with **zero warnings/errors,
+1m13.84s**; API freshness verifies **234 pages / 2,677 members**, the site builds
+**282 pages in 8.53s**, and its check reports zero errors, warnings or hints.
+All source hashes remain verified after the checks.
+Two additional fixture files declare shared inherited integer helpers plus a
+distinct closed bigint helper, and require actual values, separate initial
+conditions, exactly two catalog overloads and same-session recovery after an
+illegal direct helper call. Their sixty-three-file composition passes Release
+with **zero warnings/errors, 36.71s**. Native execution and the complete suite
+remain required; the independent custom-type native run retains its inputs.
 
 The claim that an ordinary lightweight-lock guard rejects `PgInterrupts.Check()`
 is also checked against actual PostgreSQL **18.6 / Linux x64**. Two newly

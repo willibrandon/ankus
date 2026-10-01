@@ -148,7 +148,7 @@ internal static class PgFunctionEmitter
     /// <param name="parameters">The ordered SQL argument conversions.</param>
     /// <param name="result">The scalar result conversion.</param>
     /// <returns>The independently rendered header and body.</returns>
-    private static NativeFunctionEmission CreateNative(string name, string callback, FunctionType[] parameters, FunctionType result)
+    internal static NativeFunctionEmission CreateNative(string name, string callback, FunctionType[] parameters, FunctionType result)
     {
         var header = new StringBuilder();
         header.AppendLine($"extern int {callback}(const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *, FunctionCallInfo);");

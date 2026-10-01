@@ -65,10 +65,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = methods.Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
             .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left, value.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
-        IncrementalValuesProvider<INamedTypeSymbol> customTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Ankus.PgTypeAttribute",
-            static (node, _) => node is BaseTypeDeclarationSyntax,
-            static (attributeContext, _) => (INamedTypeSymbol)attributeContext.TargetSymbol);
+        IncrementalValueProvider<EquatableArray<CustomTypePipeline.Output>> customTypes = CustomTypePipeline.Register(context);
         IncrementalValuesProvider<INamedTypeSymbol> datumTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgDatumTypeAttribute",
             static (node, _) => node is BaseTypeDeclarationSyntax,
@@ -114,7 +111,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             projectDirectory.Select(static (settings, _) => settings.Version));
         IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context, files,
             projectDirectory.Select(static (settings, _) => settings.Directory));
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(propertyInputs).Combine(prefixes).Combine(customTypes.Collect()).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates.Collect()).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
@@ -134,7 +131,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ImmutableArray<AttributeData> customSql, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, ImmutableArray<INamedTypeSymbol> aggregateTypes, GucPipeline.PropertyInputs propertyInputs,
-        GucPrefixPipeline.Output prefixOutput, ImmutableArray<INamedTypeSymbol> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
+        GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
         ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation,
         ImmutableArray<ISymbol> references, NativeModuleMagic.ModuleOutput module)
     {
@@ -247,7 +244,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             if (!customTypes.IsEmpty)
             {
                 native.AppendLine(NativeCustomTypeBridge.TextSource);
-                if (customTypes.Any(static type => CustomTypeDeclaration.Create(type)?.BinaryProtocol == true))
+                if (customTypes.Any(static type => type.Analysis.Model?.BinaryProtocol == true))
                 {
                     native.AppendLine(NativeCustomTypeBridge.BinarySource);
                 }
@@ -458,9 +455,10 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
         if (!customTypes.IsEmpty)
         {
-            foreach (INamedTypeSymbol type in customTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
+            foreach (CustomTypePipeline.Output output in customTypes.OrderBy(static type => type.Analysis.Display, StringComparer.Ordinal))
             {
-                CustomTypeDeclaration.Create(type, context)?.EmitRegistration(managed);
+                CustomTypePipeline.Report(output.Analysis, compilation, context);
+                managed.Append(output.Emission?.Registration);
             }
         }
 
@@ -489,17 +487,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine("    (void) type;");
         }
 
-        var baseTypes = new List<CustomTypeDeclaration>();
-        foreach (INamedTypeSymbol type in customTypes.OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
+        CustomTypePipeline.Output[] baseTypes = [.. customTypes.Where(static type => type.Emission is not null)
+            .OrderBy(static type => type.Analysis.Display, StringComparer.Ordinal)];
+        foreach (CustomTypePipeline.Output output in baseTypes)
         {
-            CustomTypeDeclaration? custom = CustomTypeDeclaration.Create(type);
-            if (custom is null)
-            {
-                continue;
-            }
-
-            baseTypes.Add(custom);
-            custom.EmitNativeTypeCheck(native);
+            native.Append(output.Emission!.TypeCheck);
         }
 
         if (hasBackend)
@@ -509,9 +501,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine();
         }
 
-        foreach (CustomTypeDeclaration custom in baseTypes)
+        foreach (CustomTypePipeline.Output output in baseTypes)
         {
-            custom.EmitSerializer(managed);
+            CustomTypeModel custom = output.Analysis.Model!;
+            CustomTypePipeline.Emission emission = output.Emission!;
+            managed.Append(emission.Serializer);
             names.Add(custom.Function("in") + "(cstring)");
             names.Add(custom.Function("out") + "(" + custom.Sql + ")");
             if (custom.BinaryProtocol)
@@ -520,9 +514,15 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 names.Add(custom.Function("send") + "(" + custom.Sql + ")");
             }
 
-            string typeSql = PgTypeEmitter.Emit(custom, ensureManagedReady, managed, native, exports);
-            var entity = new SqlEntity("1:type:" + custom.Managed, typeSql, custom.Type.Locations.FirstOrDefault()) { Kind = "type" };
-            entity.SelectionNames.UnionWith([custom.Name, custom.Sql, custom.Type.ToDisplayString()]);
+            managed.Append(emission.Io.Managed);
+            foreach (NativeFunctionEmission boundary in emission.Io.Native)
+            {
+                boundary.AppendTo(native, ensureManagedReady);
+            }
+
+            exports.Append(emission.Io.Exports);
+            var entity = new SqlEntity("1:type:" + custom.Managed, emission.Io.Sql, output.Analysis.Location?.Resolve(compilation)) { Kind = "type" };
+            entity.SelectionNames.UnionWith([custom.Name, custom.Sql, output.Analysis.Display]);
             if (custom.Schema is not null)
             {
                 entity.SelectionNames.Add(custom.Schema + "." + custom.Name);
@@ -537,15 +537,16 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                     "FUNCTION " + typePrefix + custom.Function("send") + "(" + typePrefix + custom.Sql + ")"]);
             }
 
-            graph.Configure(entity, custom.Attribute);
-            fixedSchema |= !SqlGeneration.Apply(custom.Attribute, entity, [],
+            graph.ConfigureOptions(entity, output.Analysis.Options);
+            fixedSchema |= !SqlGeneration.ApplyOptions(output.Analysis.Options, entity, [],
                 [
                     ("@INPUT_FUNCTION_NAME@", custom.NativeFunction("in")),
                     ("@OUTPUT_FUNCTION_NAME@", custom.NativeFunction("out")),
                     ("@RECEIVE_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("recv") : null),
                     ("@SEND_FUNCTION_NAME@", custom.BinaryProtocol ? custom.NativeFunction("send") : null),
                 ], graph);
-            graph.Add(entity, custom.Type);
+            graph.Add(entity);
+            graph.Register(output.Analysis.Identity, output.Analysis.Display, entity);
             if (!enumNames.Add(custom.Sql))
             {
                 graph.Error(entity.Location, "Duplicate PostgreSQL type name " + custom.Sql + ".");

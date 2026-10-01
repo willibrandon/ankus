@@ -10,9 +10,12 @@ internal static class PgTypeEmitter
     /// <summary>
     /// Emits the shell, I/O functions, and completed variable-length base type in dependency order.
     /// </summary>
-    internal static string Emit(CustomTypeDeclaration type, bool ensureInitialized, StringBuilder managed, StringBuilder native, StringBuilder exports)
+    internal static Emission Create(CustomTypeIoModel type)
     {
-        FunctionType custom = FunctionType.Create(type.Type)!;
+        FunctionType custom = FunctionType.CustomIo(type);
+        var managed = new StringBuilder();
+        var exports = new StringBuilder();
+        var native = new List<NativeFunctionEmission>();
         FunctionType text = FunctionType.CreateIoBuffer("cstring", "cstring");
         string prefix = type.Schema is null ? "\0" : string.Empty;
         var sql = new StringBuilder("CREATE TYPE " + prefix + type.Sql + ";\n");
@@ -32,14 +35,14 @@ internal static class PgTypeEmitter
         }
 
         sql.AppendLine("    ALIGNMENT = " + type.Alignment + ", STORAGE = extended);");
-        return sql.ToString();
+        return new(sql.ToString(), managed.ToString(), new(native), exports.ToString());
 
         void EmitFunction(string role, string operation, FunctionType input, FunctionType result)
         {
             string callback = "ankus_managed_" + type.Symbol + "_type_" + role;
             string symbol = type.NativeFunction(role);
             EmitManaged(callback, operation, type, managed);
-            PgFunctionEmitter.EmitNative(symbol, callback, [input], result, ensureInitialized, native);
+            native.Add(PgFunctionEmitter.CreateNative(symbol, callback, [input], result));
             sql.AppendLine("CREATE FUNCTION " + prefix + type.Function(role) + "(" + SqlSchemaTemplate.Type(input) + ") RETURNS " + SqlSchemaTemplate.Type(result) +
                 " AS 'MODULE_PATHNAME', '" + symbol + "' LANGUAGE c IMMUTABLE " +
                 (role == "in" && type.NullInputErrorMessage is not null ? "CALLED ON NULL INPUT" : "STRICT") + " PARALLEL SAFE;");
@@ -51,7 +54,7 @@ internal static class PgTypeEmitter
     /// <summary>
     /// Runs a closed codec operation with owned diagnostics and deterministic backend-scope restoration.
     /// </summary>
-    private static void EmitManaged(string callback, string operation, CustomTypeDeclaration type, StringBuilder source)
+    private static void EmitManaged(string callback, string operation, CustomTypeIoModel type, StringBuilder source)
     {
         source.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         source.AppendLine("        EntryPoint = \"" + callback + "\",");
@@ -92,4 +95,13 @@ internal static class PgTypeEmitter
         source.AppendLine("    }");
         source.AppendLine();
     }
+
+    /// <summary>
+    /// Keeps type I/O source independent of extension-wide initialization and graph metadata.
+    /// </summary>
+    /// <param name="Sql">The shell, I/O declarations and completed type SQL.</param>
+    /// <param name="Managed">The closed managed codec entry points.</param>
+    /// <param name="Native">The native conversion and cleanup boundaries.</param>
+    /// <param name="Exports">The exact exported entry and function-info symbols.</param>
+    internal sealed record Emission(string Sql, string Managed, EquatableArray<NativeFunctionEmission> Native, string Exports);
 }

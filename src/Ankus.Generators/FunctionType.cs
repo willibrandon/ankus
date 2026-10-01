@@ -17,6 +17,16 @@ internal sealed record FunctionType
     /// </summary>
     internal static FunctionType IndexSupportResult() => new("int", "integer", "INT32", "Int32", "Integral", false, false);
 
+    /// <summary>
+    /// Creates an already validated custom type's non-null I/O conversion without repeating semantic analysis.
+    /// </summary>
+    /// <param name="type">The detached payload and catalog identity.</param>
+    /// <returns>The scalar conversion used by generated input and output functions.</returns>
+    internal static FunctionType CustomIo(CustomTypeIoModel type) => new(type.Managed, type.Sql, "custom", "custom", string.Empty, false, !type.IsValueType)
+    {
+        CustomType = type.Type,
+    };
+
     private FunctionType(string managed, string sql, string reader, string writer, string field, bool nullable, bool reference)
     {
         Managed = managed;

@@ -128,6 +128,18 @@ Current type-provider ownership is applied to typed SQL fragments during graph
 composition, so provider or dependency edits do not rerender unchanged catalog
 grammar. Current diagnostics and duplicate inventories remain composition work.
 This does not yet remove compiler inputs from the final extension compositor.
+Custom types validate into immutable storage and I/O contracts. Recursive
+serialization graphs use node indexes, retaining exact nullable members, selected
+constructor order, enum names and polymorphic discriminator identities without
+holding compiler symbols or cyclic model objects. Registration, codec rendering,
+native catalog checks and scalar I/O use separate tracked inputs. A member or tag
+change regenerates its codec while unchanged registration and I/O remain cached;
+binary, alignment and null-input policy changes affect I/O independently of storage.
+Current graph options, source diagnostics and extension initialization compose
+outside those cached fragments. The storage representation and direct calls are
+preserved. Removing an earlier declaration can recreate a surviving positional
+Roslyn input while preserving its exact rendered contracts. Other declaration
+families and the final output compositor remain in progress.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and

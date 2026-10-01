@@ -9,10 +9,15 @@ namespace Ankus.Generators;
 /// Validates a generated base type and its statically constructed storage codec.
 /// </summary>
 internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSymbol? codec, INamedTypeSymbol? textCodec,
-    DefaultTypeSerializer? serializer, int nativeSize, AttributeData attribute, string name, string? schema)
+    SerializationModel? serializer, int nativeSize, AttributeData attribute, string name, string? schema)
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS017", "Invalid PostgreSQL base type", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    /// <summary>
+    /// Gets the shared descriptor for current-tree custom-type validation errors.
+    /// </summary>
+    internal static DiagnosticDescriptor InvalidDiagnostic => s_invalid;
 
     /// <summary>
     /// Gets the attributed managed type.
@@ -78,18 +83,6 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     }
 
     /// <summary>
-    /// Gets a qualified I/O function name while keeping long SQL type identifiers intact.
-    /// </summary>
-    internal string Function(string role)
-        => Qualify(Encoding.UTF8.GetByteCount(Name) + role.Length + 1 <= 63 ? Name + "_" + role : "ankus_" + Symbol + "_" + role);
-
-    /// <summary>
-    /// Gets the native PostgreSQL entry point for an enabled I/O role.
-    /// </summary>
-    /// <param name="role">The input, output, receive or send role suffix.</param>
-    internal string NativeFunction(string role) => "ankus_fn_" + Symbol + "_type_" + role;
-
-    /// <summary>
     /// Quotes an identifier in the type's selected schema.
     /// </summary>
     private string Qualify(string identifier) => (Schema is null ? string.Empty : SqlText.Identifier(Schema) + ".") + SqlText.Identifier(identifier);
@@ -97,7 +90,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     /// <summary>
     /// Reads and validates an attributed base type, optionally reporting diagnostics.
     /// </summary>
-    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null)
+    internal static CustomTypeDeclaration? Create(INamedTypeSymbol type, SourceProductionContext? context = null, Action<string>? report = null)
     {
         AttributeData? attribute = type.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgTypeAttribute");
         if (attribute is null)
@@ -144,7 +137,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
             return Invalid("PgType requires an accessible, non-generic class, struct, or enum without PgEnum. Abstract classes require generated serialization with declared concrete variants.");
         }
 
-        DefaultTypeSerializer? serializer = null;
+        SerializationModel? serializer = null;
         if (textCodec is not null && ValidateCodec(textCodec, type, "PgTypeTextCodec") is { } textError)
         {
             return Invalid(textError);
@@ -197,6 +190,7 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
         CustomTypeDeclaration? Invalid(string message)
         {
             context?.ReportDiagnostic(Diagnostic.Create(s_invalid, type.Locations.FirstOrDefault(), type.Name, message));
+            report?.Invoke(message);
             return null;
         }
     }
@@ -287,56 +281,11 @@ internal sealed class CustomTypeDeclaration(INamedTypeSymbol type, INamedTypeSym
     }
 
     /// <summary>
-    /// Emits registration with all nullable and collection instantiations visible to Native AOT.
+    /// Detaches the fully validated storage contract without retaining compiler symbols or attributes.
     /// </summary>
-    internal void EmitRegistration(StringBuilder source)
-    {
-        source.AppendLine("        global::Ankus.PgTypeRegistry.Register" + (NativeLayout ? "Native" : Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
-            Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
-            (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) + ", " +
-            (NativeLayout ? nativeSize.ToString(CultureInfo.InvariantCulture) + ", " : string.Empty) + "static () => new " +
-            (codec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "Codec_" + Symbol) + "());");
-    }
-
-    /// <summary>
-    /// Emits an owned serializer for a type without an explicit codec.
-    /// </summary>
-    internal void EmitSerializer(StringBuilder source)
-    {
-        if (nativeSize != 0)
-        {
-            source.AppendLine("    private sealed class Codec_" + Symbol + " : global::Ankus.PgTypeCodec<" + Managed + ">");
-            source.AppendLine("    {");
-            source.AppendLine("        private readonly global::Ankus.PgNativeTypeCodec<" + Managed + "> _codec = new(" +
-                nativeSize.ToString(CultureInfo.InvariantCulture) + ", static () => new " + textCodec!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "());");
-            source.AppendLine("        public override " + Managed + " Parse(string text) => _codec.Parse(text);");
-            source.AppendLine("        public override string Format(" + Managed + " value) => _codec.Format(value);");
-            source.AppendLine("        public override " + Managed + " Read(global::System.ReadOnlySpan<byte> payload) => _codec.Read(payload);");
-            source.AppendLine("        public override void Write(" + Managed + " value, global::System.Buffers.IBufferWriter<byte> destination) => _codec.Write(value, destination);");
-            source.AppendLine("    }");
-        }
-        else
-        {
-            serializer?.Emit("Codec_" + Symbol, source, textCodec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-        }
-    }
-
-    /// <summary>
-    /// Emits a catalog check that restricts native binary decoding to generated custom types.
-    /// </summary>
-    internal void EmitNativeTypeCheck(StringBuilder source)
-    {
-        source.AppendLine("    {");
-        source.AppendLine("        const AnkusValue name = { .data = (unsigned char *) " + Utf8Literal(Name) + ", .length = " + Encoding.UTF8.GetByteCount(Name).ToString(CultureInfo.InvariantCulture) + " };");
-        source.AppendLine(Schema is null ? "        const AnkusValue schema = { .is_null = 1 };" :
-            "        const AnkusValue schema = { .data = (unsigned char *) " + Utf8Literal(Schema) + ", .length = " + Encoding.UTF8.GetByteCount(Schema).ToString(CultureInfo.InvariantCulture) + " };");
-        source.AppendLine("        if (ankus_resolve_named_type(&name, &schema, true, TYPTYPE_BASE) == type) return true;");
-        source.AppendLine("    }");
-    }
-
-    /// <summary>
-    /// Escapes exact UTF-8 bytes for a generated native string literal.
-    /// </summary>
-    private static string Utf8Literal(string value) => "\"" + string.Concat(Encoding.UTF8.GetBytes(value).Select(static item =>
-        "\\x" + item.ToString("x2", CultureInfo.InvariantCulture))) + "\"";
+    /// <returns>The immutable custom-type model.</returns>
+    internal CustomTypeModel Freeze() => new(Name, Schema, Managed, Symbol, Type.IsValueType,
+        codec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+        textCodec?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), serializer, nativeSize,
+        BinaryProtocol, Alignment, NullInputErrorMessage);
 }
