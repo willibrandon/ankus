@@ -383,6 +383,119 @@ public guide. Before its separate commit, CI **36824559166** and Docs
 **36824559193** were checked and recorded again; both succeed, and no previous
 run remains active. Fresh platform CI for these two corrections remains required.
 
+The two corrections are pushed as **cd01a31** and **5970953**. Previous CI/Docs
+outcomes were checked and recorded again immediately before pushing; all latest
+platform jobs succeeded, with no earlier run active. Fresh CI **36829172698** and
+Docs **36829172626** now succeed. Each platform completes all six modules:
+**10,303 total, zero failures**, with **12 Linux**, **24 macOS** and **25 Windows**
+platform skips. Dedicated test jobs take **23m54s** on Linux x64/PostgreSQL **18**,
+**19m28s** on macOS ARM64/PostgreSQL **18**, and **22m51s** on Windows x64/PostgreSQL
+**17**. Quality and all three runtime jobs also succeed; no job times out.
+
+The isolated aggregate draft now migrates ordinary, ordered, moving, parallel,
+raw-datum, mapped-type and borrowed-value fixtures to explicit capabilities.
+Final-extra SQL slots remain part of PostgreSQL's function signature and stay
+outside the managed direct-argument group, matching pgrx's typed model. The
+existing ordinary/moving final test retains its actual results and now also
+checks exact catalog argument types, extra flags and non-strict final policies.
+Custom SQL fixtures declare transition and combine callbacks independently while
+sharing their underlying managed arithmetic. Their catalog assertions require
+both exact registrations and extension membership. Consumer Release compilation
+passes with **zero warnings/errors, 28.26s**, against the validated patched
+runtime on Linux x64/PostgreSQL **18.6**, SDK **10.0.401**, LLVM **23**. It exposed
+one missed declaration and one C# nullable value-type return mismatch; both are
+corrected before backend execution. The first launcher lacked its local runtime
+selection and failed during restore, before source validation; that prerequisite
+is corrected without production or analyzer changes. A hash-verified **34-file**
+draft passes the affected real PostgreSQL scope: **171/171**, zero failures or
+skips, **4m26.264s** reported testing duration, **6m48.748s** wall time including
+compilation. This covers ordinary, ordered, moving, parallel, polymorphic and
+typed aggregates plus independent custom SQL registration and extension
+membership. Generator declaration migration also passes an expanded scope of
+**105/105**, zero failures/skips (**3.545s**), including exact SQL signatures,
+native dispatch ownership, serializer dummy arguments and variadic tuple inputs.
+The callback-string properties are now removed from the draft API. Eight
+compiler cases first prove that those obsolete properties are still accepted
+before retirement (**eight failed**, **2.731s**), then pass after removal with
+exact **CS0246** identifiers and source locations (**eight passed**, **3.072s**).
+The previous single generator-only override case is replaced by these checks
+for all eight roles. A separate local build-node failure occurs before any tests;
+the preserved binlog reports MSB4166, with no compiler errors. The retry completes
+after shutting down local build servers. Its unavailable child diagnostic files
+do not establish a deeper process-failure cause; no repository setting is changed.
+
+Aggregate helper models now require an invocation context and interface dispatch;
+the unreachable conventional-call fallback is removed. The expanded generator
+scope still passes **112/112**, zero failures/skips (**3.737s**), including the
+eight compiler checks. Generated API reference updates **234 pages / 2,677
+members**, reflecting the removed properties and documenting native final-extra
+slots precisely. A separate **38-file** snapshot passes a broader real
+PostgreSQL fixture scope: **738/738**, zero failures/skips, **5m29.042s** reported
+testing time and **7m22.065s** wall time. It adds raw/mapped/borrowed values,
+array and varlena ownership, cleanup, relation/custom-type callbacks and literal
+SQL declarations; it precedes the final helper-model simplification.
+The final model's Release solution build succeeds with **zero warnings/errors,
+1m07.78s**, using fresh build processes. Its first ordinary build encountered a
+second MSB4166 process failure and only subsequent cancellation warnings; the
+preserved binlog has no source compiler error. Child diagnostics remain absent,
+so the underlying process-failure cause is not treated as proven or hidden by
+a repository configuration change. API freshness verifies **234 pages / 2,677
+members**. The site builds **282 pages in 8.60s**; its check reports zero errors,
+warnings or hints. The first complete generator run identifies **167 failures /
+2,626 total**, **28.592s**, in remaining conventional declarations. The next
+complete migrations reduce this to **85 / 2,624** (**29.592s**), then **38 /
+2,624** (**29.660s**), and finally pass **2,624/2,624**, zero failures or skips,
+**29.921s**. Compiler-invalid capabilities now assert exact C# errors as well as
+ANKUS012 and absent callbacks; C#-valid PostgreSQL contracts retain semantic
+diagnostics. All eight retired string options retain their compiler checks,
+replacing the obsolete override-specific rows. Nullable invocation context is
+tested as a safe implementation accepting the non-null injected context.
+Mapped scalar/array/range cases prove each requested callback's diagnostic
+location, compile valid capabilities, and retain absence of partial artifacts.
+SQL replacement, provider/dependency ordering, borrowed ownership, nullability,
+native ABI and memory/error-boundary fixtures are migrated. Export checks count
+the actual native callbacks separately from constrained managed dispatch helpers.
+Package-consumer aggregate declarations and the internal-state guide are also
+migrated; they remain subject to complete packaged backend acceptance.
+
+A **64-file** snapshot is transferred and independently SHA256-verified before
+starting plain, complete `dotnet test` on Linux x64 / PostgreSQL 18.6. This new
+acceptance completes successfully across all six modules: **10,316 total,
+10,304 passed, zero failed, 12 platform skips**, **43m41.559s** reported testing
+time and **45m12.426s** wall time, terminal exit **0**. Integration takes
+**43m40.822s** and the generator module **1m00.186s**. Validation uses SDK
+**10.0.401**, LLVM **23**, PostgreSQL **18.6** and patched runtime **10.0.12**.
+The previous 738-case scope is not substituted for this complete outcome.
+The refreshed Release solution build passes with zero warnings or
+errors (**33.66s**); API freshness verifies **234 pages / 2,677 members**.
+The updated site builds **282 pages in 4.28s** and its check has zero errors,
+warnings or hints. All 64 owned source files are independently SHA256-verified
+again in the completed backend snapshot and primary checkout after transfer.
+Full platform CI for this new architecture remains required.
+Latest main CI **36829172698** and Docs **36829172626** are
+checked again and remain successful, with no queued or running successor. The
+verified aggregate sources are now in the primary checkout. Its final Release
+solution build passes with zero warnings/errors (**1m36.37s**), and the source
+remains identical to the completed backend snapshot. Immediately before this
+aggregate commit, CI **36829172698 / 36824559166 / 36817997137** and Docs
+**36829172626 / 36824559193 / 36817997156** are checked again. The latest two CI
+runs and all three Docs runs succeed; the older worker-readiness failure in
+**36817997137** is resolved by its successful successors. No run is queued or
+active. Fresh three-platform CI remains required for the aggregate commit.
+
+The reset-callback review claim is checked against a separate native-only
+PostgreSQL 18.6 / Linux x64 control. It loads no Ankus library and uses its own
+isolated cluster. Ten repeated primary SQL failures include five secondary
+native reset-callback errors. PostgreSQL emits the same five
+`AbortTransaction while in ABORT state` warnings. All ten subsequent queries
+recover in the same backend, report exactly one callback per failed query,
+and find zero remaining named parent or child contexts. PostgreSQL's allocator
+explicitly permits callback errors and removes each callback before invoking it;
+pgrx also guards its memory-context drop callback. The warning alone therefore
+does not establish an Ankus leak. Aggregate/iterator cleanup involving owned SPI
+resources and secondary raw failures still needs its own boundary evidence.
+No error is suppressed or downgraded based on this control.
+
 Before the combined correctness commit, previous runs were checked again:
 CI **36807387606**, Docs **36807387783**, and the earlier CI/Docs successors
 are all completed successfully. No previous run is still in progress. Fresh

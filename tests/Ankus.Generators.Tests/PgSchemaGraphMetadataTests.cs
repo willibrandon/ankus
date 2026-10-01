@@ -41,9 +41,9 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             [Ankus.PgAggregate(Schema = "s", InitialCondition = "0")]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>
             {
-                public static int Transition(int state, int value) => state + value;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value;
             }
             """);
         Assert.IsEmpty(diagnostics);
@@ -59,21 +59,23 @@ public sealed partial class PgFunctionGeneratorTests
     /// </summary>
     /// <param name="options">The aggregate's argument mode.</param>
     /// <param name="parameters">The aggregated transition inputs.</param>
+    /// <param name="arguments">The compiler-checked input group.</param>
     /// <param name="final">An optional final callback carrying direct arguments.</param>
     /// <param name="identity">The exact identity accepted after ADD AGGREGATE.</param>
     [TestMethod]
-    [DataRow("", "", "", "AGGREGATE \"aggregate_probe\"(*)")]
-    [DataRow("", ", params int[] values", "", "AGGREGATE \"aggregate_probe\"(VARIADIC integer[])")]
-    [DataRow("Kind = Ankus.PgAggregateKind.OrderedSet,", ", int value", "", "AGGREGATE \"aggregate_probe\"(ORDER BY integer)")]
-    [DataRow("Kind = Ankus.PgAggregateKind.OrderedSet,", ", int value", "public static int Final(int state, int direct) => state;",
+    [DataRow("", "System.ValueTuple arguments", "System.ValueTuple", "", "AGGREGATE \"aggregate_probe\"(*)")]
+    [DataRow("", "params int[] values", "int[]", "", "AGGREGATE \"aggregate_probe\"(VARIADIC integer[])")]
+    [DataRow("Kind = Ankus.PgAggregateKind.OrderedSet,", "int value", "int", "", "AGGREGATE \"aggregate_probe\"(ORDER BY integer)")]
+    [DataRow("Kind = Ankus.PgAggregateKind.OrderedSet,", "int value", "int", "public static int Final(Ankus.PgAggregateContext context,int state, int direct) => state;",
         "AGGREGATE \"aggregate_probe\"(integer ORDER BY integer)")]
-    public void SchemaGraphPreservesAggregateAttachmentSignatures(string options, string parameters, string final, string identity)
+    public void SchemaGraphPreservesAggregateAttachmentSignatures(string options, string parameters, string arguments, string final, string identity)
     {
+        string finalCapability = final.Length == 0 ? string.Empty : ",Ankus.IPgFinalizingAggregate<int,int,int>";
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             [Ankus.PgAggregate({{options}} InitialCondition = "0")]
-            public static class AggregateProbe
+            public sealed class AggregateProbe : Ankus.IPgAggregate<int,{{arguments}}>{{finalCapability}}
             {
-                public static int Transition(int state{{parameters}}) => state;
+                public static int Transition(Ankus.PgAggregateContext context,int state,{{parameters}}) => state;
                 {{final}}
             }
             """);

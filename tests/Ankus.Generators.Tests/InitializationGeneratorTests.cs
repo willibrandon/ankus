@@ -172,9 +172,9 @@ public sealed partial class PgFunctionGeneratorTests
             }
 
             [Ankus.PgAggregate(InitialCondition = "0")]
-            public static class Sum
+            public sealed class Sum : Ankus.IPgAggregate<int,int>
             {
-                public static int Transition(int state, int value) => state + value;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value;
             }
             """;
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);

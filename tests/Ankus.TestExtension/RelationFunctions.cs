@@ -513,11 +513,11 @@ internal sealed partial class RelationJsonContext : JsonSerializerContext;
 /// </summary>
 [PgAggregate(Name = "last_relation")]
 [PgSchema("relations")]
-public static class LastRelationAggregate
+public sealed class LastRelationAggregate : IPgAggregate<PgRelation?, PgRelation?>
 {
     /// <summary>
     /// Selects the last nonnull relation and transfers its OID to the native transition state.
     /// </summary>
     [PgFunction]
-    public static PgRelation? Transition(PgRelation? state, PgRelation? value) => value ?? state;
+    public static PgRelation? Transition(PgAggregateContext context, PgRelation? state, PgRelation? value) => value ?? state;
 }

@@ -244,7 +244,7 @@ public static class DeclaredTypeProviderFunctions
 /// Retains a SQL-provided composite under the aggregate owner's lifetime.
 /// </summary>
 [PgAggregate(Name = "first_pair", Schema = "type_providers")]
-public static class DeclaredPairAggregate
+public sealed class DeclaredPairAggregate : IPgAggregate<PgDatum?, PgDatum?>
 {
     /// <summary>
     /// Copies the first present input beyond later transition callbacks.

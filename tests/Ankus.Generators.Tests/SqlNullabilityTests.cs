@@ -83,13 +83,15 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate($$"""
             #nullable disable
             [Ankus.PgAggregate]
-            public static class Values
+            public sealed class Values : Ankus.IPgAggregate<{{state}},int>
             {
-                public static {{state}} Transition({{state}} state, int value) => state;
+                public static {{state}} Transition(Ankus.PgAggregateContext context,{{state}} state, int value) => state;
             }
             """);
-        Assert.HasCount(2, diagnostics);
-        Assert.AreSequenceEqual(["ANKUS024", "ANKUS024"], diagnostics.Select(static diagnostic => diagnostic.Id));
+        Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+        Assert.AreEqual("ANKUS024", diagnostic.Id);
+        Assert.Contains("Transition result", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         Assert.DoesNotContain("CREATE AGGREGATE", ManifestValue(compilation, "Ankus.Sql"));
         Assert.DoesNotContain("CREATE FUNCTION", ManifestValue(compilation, "Ankus.Sql"));
     }
@@ -137,12 +139,13 @@ public sealed partial class PgFunctionGeneratorTests
             }
             #nullable enable
             [Ankus.PgAggregate]
-            public static class Values
+            public sealed class Values : Ankus.IPgAggregate<Ankus.PgAggregateState<Payload>?,int>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<Payload>?,System.ValueTuple,int>
             {
-                public static Ankus.PgAggregateState<Payload> Transition(Ankus.PgAggregateState<Payload>? state, int value)
+                public static Ankus.PgAggregateState<Payload> Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<Payload>? state, int value)
                     => state ?? new(new Payload());
 
-                public static int Final(Ankus.PgAggregateState<Payload>? state) => state?.Value.Name.Length ?? 0;
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<Payload>? state,System.ValueTuple direct) => state?.Value.Name.Length ?? 0;
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);

@@ -9,7 +9,7 @@ Namespace: [Ankus](/api/ankus/)
 
 Assembly: `Ankus.Runtime.dll`
 
-Declares a PostgreSQL aggregate from the typed static callback methods in a class or struct.
+Declares a PostgreSQL aggregate from a class or struct implementing compiler-checked aggregate capabilities.
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class|AttributeTargets.Struct, Inherited = false)]
@@ -43,47 +43,12 @@ public string[] Before { get; set; }
 
 Value: [string[]](https://learn.microsoft.com/dotnet/api/system.string)
 
-<a id="member-45d876bab92903c2"></a>
-
-### Combine
-
-Gets or sets the optional combine callback name.
-
-```csharp
-public string Combine { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-<a id="member-379bebbf46091f85"></a>
-
-### Deserialize
-
-Gets or sets the optional state deserialization callback name.
-
-```csharp
-public string Deserialize { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-<a id="member-d29024b787760b9c"></a>
-
-### Final
-
-Gets or sets the optional final callback name.
-
-```csharp
-public string Final { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
 <a id="member-3e8b3a4d23acb4c1"></a>
 
 ### FinalExtra
 
-Gets or sets whether Final receives extra SQL NULL arguments describing the aggregate input types.
+Gets or sets whether the native final function receives extra SQL NULL slots describing the aggregate input types.
+These slots resolve SQL types and are not passed to the managed final capability.
 
 ```csharp
 public bool FinalExtra { get; set; }
@@ -153,23 +118,12 @@ public PgAggregateKind Kind { get; set; }
 
 Value: [PgAggregateKind](/api/ankus.pgaggregatekind/)
 
-<a id="member-b7791ba18a7d88a9"></a>
-
-### MovingFinal
-
-Gets or sets the optional moving final callback name.
-
-```csharp
-public string MovingFinal { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
 <a id="member-7da738f0c45dceaf"></a>
 
 ### MovingFinalExtra
 
-Gets or sets whether MovingFinal receives extra SQL NULL arguments describing the aggregate input types.
+Gets or sets whether the native moving final function receives extra SQL NULL slots describing the aggregate input types.
+These slots resolve SQL types and are not passed to the managed moving final capability.
 
 ```csharp
 public bool MovingFinalExtra { get; set; }
@@ -201,18 +155,6 @@ public string? MovingInitialCondition { get; set; }
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
-<a id="member-bd5c2358f359d900"></a>
-
-### MovingInverse
-
-Gets or sets the optional moving inverse callback name.
-
-```csharp
-public string MovingInverse { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
 <a id="member-b309ae1b1ca60e55"></a>
 
 ### MovingStateSize
@@ -224,18 +166,6 @@ public int MovingStateSize { get; set; }
 ```
 
 Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
-
-<a id="member-f6178b58534452f3"></a>
-
-### MovingTransition
-
-Gets or sets the optional moving transition callback name.
-
-```csharp
-public string MovingTransition { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
 
 <a id="member-4a9c71891e87c13e"></a>
 
@@ -281,18 +211,6 @@ Gets or sets a fixed existing SQL schema, overriding the enclosing PgSchema decl
 
 ```csharp
 public string? Schema { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
-
-<a id="member-826d479b795d5af4"></a>
-
-### Serialize
-
-Gets or sets the optional state serialization callback name.
-
-```csharp
-public string Serialize { get; set; }
 ```
 
 Value: [string](https://learn.microsoft.com/dotnet/api/system.string)
@@ -350,15 +268,3 @@ public int StateSize { get; set; }
 ```
 
 Value: [int](https://learn.microsoft.com/dotnet/api/system.int32)
-
-<a id="member-78d0dd164b8176b4"></a>
-
-### Transition
-
-Gets or sets the required transition callback name.
-
-```csharp
-public string Transition { get; set; }
-```
-
-Value: [string](https://learn.microsoft.com/dotnet/api/system.string)

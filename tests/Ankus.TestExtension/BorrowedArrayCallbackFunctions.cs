@@ -97,15 +97,17 @@ public static partial class BorrowedArrayFunctions
     /// Retains an array snapshot across transition and final callbacks until the aggregate owner expires.
     /// </summary>
     [PgAggregate(Name = "array_view_first")]
-    public static class FirstArray
+    public sealed class FirstArray : IPgAggregate<PgAggregateState<PgArrayView>?, PgArrayView?>,
+        IPgFinalizingAggregate<PgAggregateState<PgArrayView>?, ValueTuple, string?[]?>
     {
         /// <summary>
         /// Retains only the first present input and promptly releases later unused snapshots.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The previously retained snapshot.</param>
         /// <param name="value">The next input snapshot or SQL NULL.</param>
         /// <returns>The first present array state.</returns>
-        public static PgAggregateState<PgArrayView>? Transition(PgAggregateState<PgArrayView>? state, PgArrayView? value)
+        public static PgAggregateState<PgArrayView>? Transition(PgAggregateContext context, PgAggregateState<PgArrayView>? state, PgArrayView? value)
         {
             if (state is null && value is not null)
             {
@@ -119,8 +121,11 @@ public static partial class BorrowedArrayFunctions
         /// <summary>
         /// Reads all retained native metadata and elements after transition callbacks have ended.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The first array or no present input.</param>
+        /// <param name="arguments">The empty direct argument group.</param>
         /// <returns>The exact snapshot or SQL NULL.</returns>
-        public static string?[]? Final(PgAggregateState<PgArrayView>? state) => state is null ? null : Snapshot(state.Value);
+        public static string?[]? Final(PgAggregateContext context, PgAggregateState<PgArrayView>? state, ValueTuple arguments)
+            => state is null ? null : Snapshot(state.Value);
     }
 }

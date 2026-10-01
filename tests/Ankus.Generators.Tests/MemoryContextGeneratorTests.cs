@@ -32,7 +32,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static class Functions { [Ankus.PgEventTrigger] public static void Audit(Ankus.PgEventTriggerContext context) { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
         "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, AnkusMemoryApi *")]
-    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public static class Total { public static int Transition(int state, int value) => Ankus.PgMemoryContext.Current.Run(() => state + value); }",
+    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class Total : Ankus.IPgAggregate<int,int> { " +
+        "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => Ankus.PgMemoryContext.Current.Run(() => state + value); }",
         "Ankus.NativeValue*,Ankus.NativeValue*,Ankus.NativeCallError*,nint,Ankus.NativeValue*,int,nint,nint,nint",
         "const AnkusValue *, AnkusValue *, AnkusError *, AnkusExecute, const AnkusValue *, int, void *, void *, AnkusMemoryApi *")]
     [DataRow("public static class Functions { [Ankus.PgInitialize] public static void Initialize() { Ankus.PgMemoryContext.Current.Run(() => { }); } }",
@@ -52,7 +53,8 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         AssertMemoryCompilationSucceeds(compilation, diagnostics);
         IMethodSymbol callback = Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!
-            .GetMembers().OfType<IMethodSymbol>().Where(static method => !method.ReturnsVoid));
+            .GetMembers().OfType<IMethodSymbol>().Where(static method => !method.ReturnsVoid && method.GetAttributes().Any(static attribute =>
+                attribute.AttributeClass?.ToDisplayString() == "System.Runtime.InteropServices.UnmanagedCallersOnlyAttribute")));
         Assert.AreEqual(managedParameters, string.Join(',', callback.Parameters.Select(static parameter => parameter.Type.ToDisplayString())));
         Assert.AreEqual(SpecialType.System_Int32, callback.ReturnType.SpecialType);
         AttributeData entry = Assert.ContainsSingle(callback.GetAttributes());
@@ -128,12 +130,13 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             [Ankus.PgAggregate]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<Ankus.PgAggregateState<int>?,int>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<int>?,System.ValueTuple,int>
             {
-                public static Ankus.PgAggregateState<int> Transition(Ankus.PgAggregateState<int>? state, int value)
+                public static Ankus.PgAggregateState<int> Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state, int value)
                     => new((state?.Value ?? 0) + value);
 
-                public static int Final(Ankus.PgAggregateState<int>? state) => state?.Value ?? 0;
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<int>? state,System.ValueTuple direct) => state?.Value ?? 0;
             }
             """);
         AssertMemoryCompilationSucceeds(compilation, diagnostics);

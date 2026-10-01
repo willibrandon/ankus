@@ -171,11 +171,12 @@ public sealed partial class PgFunctionGeneratorTests
             [assembly: Ankus.PgSqlTypeProvider("a-input", "input")]
             [assembly: Ankus.PgSqlTypeProvider("z-result", "result")]
             [Ankus.PgAggregate(InitialCondition = "0")]
-            public static class Values
+            public sealed class Values : Ankus.IPgAggregate<int,Ankus.PgDatum?>,
+                Ankus.IPgFinalizingAggregate<int,System.ValueTuple,Ankus.PgDatum?>
             {
-                public static int Transition(int state, [Ankus.PgSqlType("input")] Ankus.PgDatum? value) => state + 1;
+                public static int Transition(Ankus.PgAggregateContext context,int state, [Ankus.PgSqlType("input")] Ankus.PgDatum? value) => state + 1;
                 [return: Ankus.PgSqlType("result")]
-                public static Ankus.PgDatum? Final(int state) => null;
+                public static Ankus.PgDatum? Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct) => null;
             }
             """);
         string sql = InstallationBody(compilation);
@@ -658,7 +659,7 @@ public sealed partial class PgFunctionGeneratorTests
             "composite-set" => "[return: Ankus.PgCompositeType(\"item\")] public static System.Collections.Generic.IEnumerable<Ankus.PgHeapTuple?> Read() => [null];",
             "composite-table" => "[return: Ankus.PgCompositeType(\"item\", Column = \"first\"), Ankus.PgCompositeType(\"item\", Column = \"second\")] " +
                 "public static System.Collections.Generic.IEnumerable<(Ankus.PgHeapTuple? First, Ankus.PgArray<Ankus.PgHeapTuple?>? Second)> Read() => [(null, null)];",
-            "aggregate" => "[return: Ankus.PgSqlType(\"item\")] public static Ankus.PgDatum? Transition(" +
+            "aggregate" => "[return: Ankus.PgSqlType(\"item\")] public static Ankus.PgDatum? Transition(Ankus.PgAggregateContext context," +
                 "[Ankus.PgSqlType(\"item\")] Ankus.PgDatum? state, [Ankus.PgSqlType(\"item\")] Ankus.PgDatum? value) => state ?? value;",
             "operator" => "[Ankus.PgOperator(\"===\")] public static bool Read([Ankus.PgSqlType(\"item\")] Ankus.PgDatum left," +
                 "[Ankus.PgSqlType(\"item\")] Ankus.PgDatum right) => left.TypeOid == right.TypeOid;",
@@ -666,7 +667,7 @@ public sealed partial class PgFunctionGeneratorTests
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
         return kind == "aggregate"
-            ? "[Ankus.PgAggregate(" + options + ")] public static class First { " + declaration + " }"
+            ? "[Ankus.PgAggregate(" + options + ")] public sealed class First : Ankus.IPgAggregate<Ankus.PgDatum?,Ankus.PgDatum?> { " + declaration + " }"
             : "public static class Functions { " + function + declaration + " }";
     }
 

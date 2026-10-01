@@ -438,9 +438,9 @@ public sealed partial class ToolCommandTests
             }
             [PgAggregate(Name="declared_total", InitialCondition="0", Requires=new[]{"package-type","package-enum","package-ordering","package-hashing","gate"},
                 Sql={{JsonSerializer.Serialize(aggregate)}}, SqlRelocatable=true)]
-            public static class Total
+            public sealed class Total : IPgAggregate<int,int>
             {
-                [PgFunction(Name="package_step")] public static int Transition(int state,int value) => checked(state+value);
+                [PgFunction(Name="package_step")] public static int Transition(PgAggregateContext context,int state,int value) => checked(state+value);
             }
             {{DeclarationCodecSource}}
             """;

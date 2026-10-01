@@ -84,7 +84,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("[Ankus.PgSchema(\"declared\")] public static class Value;", "CREATE SCHEMA IF NOT EXISTS \"declared\";")]
     [DataRow("[Ankus.PgEnum] public enum Value { First }", "CREATE TYPE \"value\" AS ENUM")]
     [DataRow("[Ankus.PgType] public readonly record struct Value(int Number);", "CREATE TYPE \"value\" (")]
-    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public static class Value { public static int Transition(int state, int value) => state + value; }", "CREATE AGGREGATE \"value\"")]
+    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class Value : Ankus.IPgAggregate<int,int> { " +
+        "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value; }", "CREATE AGGREGATE \"value\"")]
     public void TypedDependenciesSelectTypeDeclarations(string declaration, string sql)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
@@ -229,7 +230,7 @@ public sealed partial class PgFunctionGeneratorTests
     }
 
     /// <summary>
-    /// Aggregate Requires constraints also precede generated support methods, including one method shared by two roles.
+    /// Aggregate Requires constraints precede every compiler-selected support method, including independent moving helpers.
     /// </summary>
     [TestMethod]
     public void TypedDependenciesOrderAggregateHelpers()
@@ -237,13 +238,15 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation compilation = GenerateSqlControl("""
             [assembly: Ankus.PgSql("after", "SELECT 'after helper';")]
             [assembly: Ankus.PgRequires(typeof(Total), nameof(Total.Transition), DeclarationId = "after")]
-            [Ankus.PgAggregate(InitialCondition = "0", MovingInitialCondition = "0", MovingTransition = nameof(Transition), MovingInverse = nameof(Inverse))]
+            [Ankus.PgAggregate(InitialCondition = "0", MovingInitialCondition = "0")]
             [Ankus.PgRequires(typeof(Z), nameof(Z.F))]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<int,int>
             {
                 [Ankus.PgFunction(Name = "shared_transition")]
-                public static int Transition(int state, int value) => state + value;
-                public static int Inverse(int state, int value) => state - value;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int value) => Add(state,value);
+                public static int MovingTransition(Ankus.PgAggregateContext context,int state, int value) => Add(state,value);
+                public static int MovingInverse(Ankus.PgAggregateContext context,int state, int value) => state - value;
+                private static int Add(int state,int value) => state + value;
             }
             public static class Z
             {

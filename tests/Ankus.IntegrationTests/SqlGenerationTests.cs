@@ -217,7 +217,7 @@ public sealed class SqlGenerationTests(TestContext context)
         }, context.CancellationToken);
 
     /// <summary>
-    /// One replacement helper serves shared roles, and disabled helper SQL does not suppress its aggregate.
+    /// Independently registered capabilities share managed arithmetic, and disabled helper SQL does not suppress its aggregate.
     /// </summary>
     [TestMethod]
     public async Task CustomSqlAggregateHelpersExecuteIndependentlyOfParents()
@@ -231,13 +231,16 @@ public sealed class SqlGenerationTests(TestContext context)
             "SELECT sql_generation.supplied_sum(value) FROM(VALUES(1),(NULL),(2),(3)) rows(value)"));
         Assert.AreSequenceEqual([0, 0, 0, 0, 0, 0, 0, 3, 0], await Status(connection));
         Assert.IsTrue(await Scalar<bool>(connection, """
-            SELECT aggtransfn=aggcombinefn AND aggtransfn='sql_generation.shared_step(integer,integer)'::regprocedure
+            SELECT aggtransfn='sql_generation.shared_step(integer,integer)'::regprocedure
+                AND aggcombinefn='sql_generation.shared_combine(integer,integer)'::regprocedure
                 AND (SELECT count(*) FROM pg_proc WHERE pronamespace='sql_generation'::regnamespace AND proname='shared_step')=1
+                AND (SELECT count(*) FROM pg_proc WHERE pronamespace='sql_generation'::regnamespace AND proname='shared_combine')=1
             FROM pg_aggregate WHERE aggfnoid='sql_generation.custom_sum(integer)'::regprocedure
             """));
-        Assert.AreSequenceEqual(["shared_step:c:4", "supplied_step:sql:100"], await Strings(connection, """
+        Assert.AreSequenceEqual(["shared_combine:c:4", "shared_step:c:4", "supplied_step:sql:100"], await Strings(connection, """
             SELECT p.proname||':'||l.lanname||':'||p.procost::text FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang
             WHERE p.oid IN('sql_generation.shared_step(integer,integer)'::regprocedure,
+                'sql_generation.shared_combine(integer,integer)'::regprocedure,
                 'sql_generation.supplied_step(integer,integer)'::regprocedure) ORDER BY p.proname
             """));
         Assert.IsTrue(await Scalar<bool>(connection, """
@@ -294,12 +297,12 @@ public sealed class SqlGenerationTests(TestContext context)
         await using NpgsqlConnection connection = await Open();
         Assert.AreSequenceEqual(["cast:true", "custom_convert:true", "custom_event:true", "custom_scalar:true",
             "custom_set:true", "custom_sum:true", "custom_table:true", "custom_trigger:true", "operator:true",
-            "shared_step:true", "strict_scalar:true", "supplied_step:true", "supplied_sum:true", "type:true"],
+            "shared_combine:true", "shared_step:true", "strict_scalar:true", "supplied_step:true", "supplied_sum:true", "type:true"],
             await Strings(connection, """
                 WITH expected(label,classid,objid) AS (
                     SELECT proname::text,'pg_proc'::regclass,oid FROM pg_proc WHERE pronamespace='sql_generation'::regnamespace
                         AND proname IN('custom_scalar','strict_scalar','custom_set','custom_table','custom_trigger','custom_event',
-                            'shared_step','custom_sum','supplied_step','supplied_sum','custom_convert')
+                            'shared_step','shared_combine','custom_sum','supplied_step','supplied_sum','custom_convert')
                     UNION ALL SELECT 'type','pg_type'::regclass,'sql_generation.override_token'::regtype::oid
                     UNION ALL SELECT 'operator','pg_operator'::regclass,oid FROM pg_operator
                         WHERE oprnamespace='sql_generation'::regnamespace AND oprname='##'

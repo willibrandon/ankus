@@ -188,12 +188,14 @@ public static class InternalFunctions
     /// Uses general internal state in serial, moving, and real parallel aggregation.
     /// </summary>
     [PgAggregate(Name = "state_total", ParallelSafety = PgParallelSafety.Safe)]
-    public static class Total
+    public sealed class Total : IPgAggregate<PgInternal?, int?>, IPgFinalizingAggregate<PgInternal?, ValueTuple, long?>,
+        IPgMovingAggregate<PgInternal?, int?>, IPgMovingFinalizingAggregate<PgInternal?, ValueTuple, long?>,
+        IPgCombinableAggregate<PgInternal?>, IPgSerializableAggregate<PgInternal>
     {
         /// <summary>
         /// Creates aggregate-owned managed state and records input or a controlled failure mode.
         /// </summary>
-        public static PgInternal Transition(PgInternal? state, int? value)
+        public static PgInternal Transition(PgAggregateContext context, PgInternal? state, int? value)
         {
             state ??= CreateCounter();
             Counter counter = state.Get<Counter>();
@@ -217,17 +219,17 @@ public static class InternalFunctions
         /// <summary>
         /// Reads the result without consuming managed state.
         /// </summary>
-        public static long? Final(PgInternal? state) => state?.Get<Counter>().Total;
+        public static long? Final(PgAggregateContext context, PgInternal? state, ValueTuple arguments) => state?.Get<Counter>().Total;
 
         /// <summary>
         /// Creates moving state under PostgreSQL's window owner.
         /// </summary>
-        public static PgInternal MovingTransition(PgInternal? state, int? value) => Transition(state, value);
+        public static PgInternal MovingTransition(PgAggregateContext context, PgInternal? state, int? value) => Transition(context, state, value);
 
         /// <summary>
         /// Removes a departing value while retaining the same owned state.
         /// </summary>
-        public static PgInternal MovingInverse(PgInternal? state, int? value)
+        public static PgInternal MovingInverse(PgAggregateContext context, PgInternal? state, int? value)
         {
             state!.Get<Counter>().Total -= value ?? 0;
             return state;
@@ -236,12 +238,12 @@ public static class InternalFunctions
         /// <summary>
         /// Reads the bounded frame without changing the state.
         /// </summary>
-        public static long? MovingFinal(PgInternal? state) => Final(state);
+        public static long? MovingFinal(PgAggregateContext context, PgInternal? state, ValueTuple arguments) => Final(context, state, arguments);
 
         /// <summary>
         /// Copies temporary worker state into the destination aggregate owner.
         /// </summary>
-        public static PgInternal? Combine(PgInternal? state, PgInternal? other)
+        public static PgInternal? Combine(PgAggregateContext context, PgInternal? state, PgInternal? other)
         {
             s_combines++;
             if (other is null)
@@ -263,7 +265,7 @@ public static class InternalFunctions
         /// <summary>
         /// Serializes values without transporting managed or native pointer identities.
         /// </summary>
-        public static byte[] Serialize(PgInternal state)
+        public static byte[] Serialize(PgAggregateContext context, PgInternal state)
         {
             Counter counter = state.Get<Counter>();
             if (counter.Failure == -2)
@@ -281,7 +283,7 @@ public static class InternalFunctions
         /// <summary>
         /// Recreates state under the native deserializer's temporary owner.
         /// </summary>
-        public static PgInternal Deserialize(byte[] bytes)
+        public static PgInternal Deserialize(PgAggregateContext context, byte[] bytes)
         {
             s_deserializes++;
             PgInternal state = CreateCounter();

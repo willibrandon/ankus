@@ -32,9 +32,9 @@ public sealed partial class PgFunctionGeneratorTests
                 [Ankus.PgFunction] public static System.Collections.Generic.IEnumerable<(Value? A, Value B)> Table(Value value) => [(value,value)];
                 [Ankus.PgFunction, Ankus.PgCast] public static long Convert(Value value) => 1;
                 [Ankus.PgFunction, Ankus.PgOperator("===")] public static bool Equal(Value left, Value right) => true;
-                [Ankus.PgAggregate] public static class First
+                [Ankus.PgAggregate] public sealed class First : Ankus.IPgAggregate<Value?,Value?>
                 {
-                    public static Value? Transition(Value? state, Value? value) => state ?? value;
+                    public static Value? Transition(Ankus.PgAggregateContext context,Value? state, Value? value) => state ?? value;
                 }
             }
             """);

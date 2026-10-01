@@ -9,6 +9,11 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
 {
     private static readonly DiagnosticDescriptor s_invalid = new(
         "ANKUS012", "Invalid PostgreSQL aggregate declaration", "'{0}': {1}", "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true);
+    private static readonly DiagnosticDescriptor s_missingContract = new(
+        "ANKUS029", "Missing PostgreSQL aggregate contract",
+        "'{0}' must implement IPgAggregate<TState, TArgs>; declare optional callbacks through their aggregate capability interfaces",
+        "Ankus", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        helpLinkUri: "https://willibrandon.github.io/ankus/aggregates/#compiler-checked-aggregate-contracts");
     private static readonly string[] s_roles = ["Transition", "Final", "Combine", "Serialize", "Deserialize", "MovingTransition", "MovingInverse", "MovingFinal"];
 
     /// <summary>
@@ -164,11 +169,7 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
     /// Reserves selected support methods from ordinary function discovery, including invalid aggregate declarations.
     /// </summary>
     internal static IEnumerable<IMethodSymbol> SelectedMethods(INamedTypeSymbol type)
-    {
-        AttributeData attribute = type.GetAttributes().First(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgAggregateAttribute");
-        return s_roles.SelectMany(role => type.GetMembers(AttributeValues.Get(attribute, role, role)).OfType<IMethodSymbol>())
-            .Concat(AggregateContract.SelectedMethods(type));
-    }
+        => AggregateContract.SelectedMethods(type);
 
     /// <summary>
     /// Creates a complete aggregate contract or reports declaration diagnostics.
@@ -223,108 +224,15 @@ internal sealed class AggregateDeclaration(INamedTypeSymbol type, AttributeData 
             return Invalid("Initial conditions must contain valid Unicode without zero characters.");
         }
 
-        bool typed = AggregateContract.Interfaces(type).Length != 0;
-        if (typed && !AggregateContract.Create(aggregate, context))
+        if (!AggregateContract.Interfaces(type).Any(static capability => capability.Name == "IPgAggregate"))
         {
+            context.ReportDiagnostic(Diagnostic.Create(s_missingContract, type.Locations.FirstOrDefault(), type.Name));
             return null;
         }
 
-        foreach (string role in typed ? [] : s_roles)
+        if (!AggregateContract.Create(aggregate, context))
         {
-            bool explicitName = attribute.NamedArguments.Any(argument => argument.Key == role);
-            string name = AttributeValues.Get(attribute, role, role);
-            if (explicitName && attribute.NamedArguments.First(argument => argument.Key == role).Value.Value is not string)
-            {
-                return Invalid($"The {role} callback name cannot be null.");
-            }
-
-            IMethodSymbol[] candidates = [.. type.GetMembers(name).OfType<IMethodSymbol>()];
-            if (candidates.Length == 0 && !explicitName && role != "Transition")
-            {
-                continue;
-            }
-
-            if (candidates.Length != 1)
-            {
-                return Invalid($"The {role} callback '{name}' must identify exactly one method in the aggregate container.");
-            }
-
-            IMethodSymbol method = candidates[0];
-            bool hasContext = method.Parameters.Length > 0 && method.Parameters[0].Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString() == "Ankus.PgAggregateContext";
-            if (!method.IsStatic || method.IsAsync || method.IsGenericMethod || method.IsAbstract || method.ReturnsVoid ||
-                method.ReturnsByRef || method.ReturnsByRefReadonly || method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) ||
-                method.Parameters.Any(static parameter => parameter.RefKind != RefKind.None || parameter.IsOptional) ||
-                hasContext && (method.Parameters[0].NullableAnnotation == NullableAnnotation.Annotated || method.Parameters[0].IsParams || method.Parameters[0].GetAttributes().Length != 0))
-            {
-                return Invalid($"The {role} callback must be accessible, synchronous, non-generic and static, with required by-value inputs and an optional leading nonnull PgAggregateContext.");
-            }
-
-            if (method.GetAttributes().Any(static item => item.AttributeClass?.ToDisplayString() is "Ankus.PgTriggerAttribute" or "Ankus.PgEventTriggerAttribute" or
-                    "Ankus.PgOperatorAttribute" or "Ankus.PgCastAttribute") ||
-                method.GetReturnTypeAttributes().Any(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgColumnNamesAttribute") ||
-                SetResult.IsSequence(method.ReturnType))
-            {
-                return Invalid($"The {role} callback cannot also declare a trigger, operator, cast, or set result.");
-            }
-
-            if (!SqlTypeReference.Validate(method, context) || !NumericConstraint.Validate(method, context))
-            {
-                return null;
-            }
-
-            IParameterSymbol[] parameters = [.. method.Parameters.Skip(hasContext ? 1 : 0)];
-            if (!SqlNullability.Validate(method, parameters, [method.ReturnType], context))
-            {
-                return null;
-            }
-
-            AggregateType? result = AggregateType.Create(method.ReturnType, method.GetReturnTypeAttributes());
-            AggregateType?[] types = [.. parameters.Select(static parameter => AggregateType.Create(parameter.Type, parameter.GetAttributes()))];
-            if (result is null || types.Any(static value => value is null) || parameters.Length + (role == "Deserialize" ? 1 : 0) > 100)
-            {
-                return Invalid($"The {role} callback requires supported SQL values or concrete PgAggregateState<T> state, with at most 100 SQL parameters.");
-            }
-
-            var names = new HashSet<string>(StringComparer.Ordinal);
-            if (result.Datum?.IsSqlPolymorphic == true && !types.Any(static value => value!.Datum?.IsSqlPolymorphic == true))
-            {
-                return Invalid($"The {role} callback's polymorphic result requires a polymorphic parameter; use FinalExtra to pass an aggregate input type to an internal-state final callback.");
-            }
-
-            foreach (IParameterSymbol parameter in parameters)
-            {
-                string parameterName = AggregateParameter.ReadName(parameter);
-                AttributeData[] naming = [.. parameter.GetAttributes().Where(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgParameterAttribute")];
-                if (!SqlText.IsIdentifier(parameterName) || !names.Add(parameterName) ||
-                    naming.Length > 1 || naming.Any(static item => AttributeValues.Get<string?>(item, "Element", null) is not null ||
-                        item.NamedArguments.Any(static argument => argument.Key == "Default")))
-                {
-                    return Invalid("Aggregate support argument names must be distinct identifiers, and support arguments cannot declare SQL defaults.");
-                }
-            }
-
-            AttributeData? function = method.GetAttributes().FirstOrDefault(static item => item.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute");
-            string helperName = SqlText.SnakeCase(type.Name) + "_" + SqlText.SnakeCase(role);
-            if (function is not null)
-            {
-                helperName = AttributeValues.Get(function, "Name", helperName);
-            }
-
-            if (!SqlText.IsIdentifier(helperName))
-            {
-                return Invalid("Aggregate support function names must be valid identifiers of at most 63 UTF-8 bytes.");
-            }
-
-            FunctionDeclaration? declaration = FunctionDeclaration.Create(method, helperName, context, contextParameter: true,
-                sqlNullability: [.. types.Select(static value => value!.Nullable)], schemaFallback: aggregate.Schema);
-            if (declaration is null)
-            {
-                return null;
-            }
-
-            aggregate.Helpers.Add(role, new(method, role, hasContext,
-                [.. parameters.Select((parameter, index) => new AggregateParameter(types[index]!, AggregateParameter.ReadName(parameter),
-                    parameter.IsParams || AggregateParameter.ReadVariadic(parameter.GetAttributes()), parameter.GetAttributes()))], result, declaration));
+            return null;
         }
 
         AggregateHelper transition = aggregate.Helpers["Transition"];

@@ -11,12 +11,13 @@ public static class AggregateOperatorFunctions
     /// </summary>
     [PgAggregate(Name = "operator_order", Kind = PgAggregateKind.OrderedSet,
         FinalModify = PgAggregateFinalModify.ReadOnly, Requires = ["aggregate-support"])]
-    public static class OperatorOrder
+    public sealed class OperatorOrder : IPgAggregate<PgAggregateState<List<int>>?, int?>,
+        IPgFinalizingAggregate<PgAggregateState<List<int>>?, bool, string>
     {
         /// <summary>
         /// Retains each nonnull integer in input order.
         /// </summary>
-        public static PgAggregateState<List<int>> Transition(PgAggregateState<List<int>>? state, int? value)
+        public static PgAggregateState<List<int>> Transition(PgAggregateContext context, PgAggregateState<List<int>>? state, int? value)
         {
             state ??= new([]);
             if (value.HasValue)

@@ -10,12 +10,13 @@ public static class AggregateCollationFunctions
     /// Counts values before, equivalent to, and after a direct argument under the selected native ordering.
     /// </summary>
     [PgAggregate(Name = "collation_compare", Kind = PgAggregateKind.OrderedSet, Requires = ["aggregate-support"])]
-    public static class CollationCompare
+    public sealed class CollationCompare : IPgAggregate<PgAggregateState<List<string?>>?, string?>,
+        IPgFinalizingAggregate<PgAggregateState<List<string?>>?, string?, long[]>
     {
         /// <summary>
         /// Keeps every owned input, including SQL NULL, for final comparison.
         /// </summary>
-        public static PgAggregateState<List<string?>> Transition(PgAggregateState<List<string?>>? state, string? value)
+        public static PgAggregateState<List<string?>> Transition(PgAggregateContext context, PgAggregateState<List<string?>>? state, string? value)
         {
             state ??= new PgAggregateState<List<string?>>([]);
             state.Value.Add(value);

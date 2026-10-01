@@ -777,12 +777,14 @@ public static class MappedArrayFunctions
 /// Retains detached reference vectors independently of shaped aggregate arguments.
 /// </summary>
 [PgAggregate(Name = "retain_vector", Schema = "mapped_arrays")]
-public static class MappedArrayRetainVectorAggregate
+public sealed class MappedArrayRetainVectorAggregate : IPgAggregate<PgAggregateState<List<ArrayText?[]?>>?, ArrayText?[]?>,
+    IPgFinalizingAggregate<PgAggregateState<List<ArrayText?[]?>>?, ValueTuple, string>
 {
     /// <summary>
     /// Rechecks all previous vectors in later transitions before retaining the next input.
     /// </summary>
-    public static PgAggregateState<List<ArrayText?[]?>> Transition(PgAggregateState<List<ArrayText?[]?>>? state, ArrayText?[]? value)
+    public static PgAggregateState<List<ArrayText?[]?>> Transition(PgAggregateContext context,
+        PgAggregateState<List<ArrayText?[]?>>? state, ArrayText?[]? value)
     {
         state ??= new([]);
         foreach (ArrayText?[]? previous in state.Value)
@@ -797,7 +799,7 @@ public static class MappedArrayRetainVectorAggregate
     /// <summary>
     /// Distinguishes every retained vector, NULL cell, empty vector and whole SQL NULL at finalization.
     /// </summary>
-    public static string Final(PgAggregateState<List<ArrayText?[]?>>? state)
+    public static string Final(PgAggregateContext context, PgAggregateState<List<ArrayText?[]?>>? state, ValueTuple arguments)
         => state is null ? "empty" : string.Join(';', state.Value.Select(Describe));
 
     /// <summary>
@@ -811,13 +813,14 @@ public static class MappedArrayRetainVectorAggregate
 /// Retains detached shaped text arrays across aggregate transitions and finalization.
 /// </summary>
 [PgAggregate(Name = "retain", Schema = "mapped_arrays")]
-public static class MappedArrayRetainAggregate
+public sealed class MappedArrayRetainAggregate : IPgAggregate<PgAggregateState<List<PgArray<ArrayText?>?>>?, PgArray<ArrayText?>?>,
+    IPgFinalizingAggregate<PgAggregateState<List<PgArray<ArrayText?>?>>?, ValueTuple, string>
 {
     /// <summary>
     /// Rechecks every previous array after its original callback storage has ended.
     /// </summary>
     public static PgAggregateState<List<PgArray<ArrayText?>?>> Transition(
-        PgAggregateState<List<PgArray<ArrayText?>?>>? state, PgArray<ArrayText?>? value)
+        PgAggregateContext context, PgAggregateState<List<PgArray<ArrayText?>?>>? state, PgArray<ArrayText?>? value)
     {
         state ??= new([]);
         foreach (PgArray<ArrayText?>? previous in state.Value)
@@ -832,7 +835,7 @@ public static class MappedArrayRetainAggregate
     /// <summary>
     /// Reads retained text, SQL NULL, empty arrays, and nondefault bounds independently.
     /// </summary>
-    public static string Final(PgAggregateState<List<PgArray<ArrayText?>?>>? state)
+    public static string Final(PgAggregateContext context, PgAggregateState<List<PgArray<ArrayText?>?>>? state, ValueTuple arguments)
         => state is null ? "empty" : string.Join(';', state.Value.Select(MappedArrayFunctions.DescribeText));
 }
 
@@ -840,35 +843,38 @@ public static class MappedArrayRetainAggregate
 /// Uses a mapped array as ordinary and moving aggregate state and output.
 /// </summary>
 [PgAggregate(Name = "collect", Schema = "mapped_arrays", InitialCondition = "{}", MovingInitialCondition = "{}")]
-public static class MappedArrayCollectAggregate
+public sealed class MappedArrayCollectAggregate : IPgAggregate<PgArray<ArrayValue?>, ArrayValue?>,
+    IPgFinalizingAggregate<PgArray<ArrayValue?>, ValueTuple, PgArray<ArrayValue?>>,
+    IPgCombinableAggregate<PgArray<ArrayValue?>>, IPgMovingAggregate<PgArray<ArrayValue?>, ArrayValue?>,
+    IPgMovingFinalizingAggregate<PgArray<ArrayValue?>, ValueTuple, PgArray<ArrayValue?>>
 {
     /// <summary>
     /// Appends one mapped scalar without collapsing a NULL element.
     /// </summary>
-    public static PgArray<ArrayValue?> Transition(PgArray<ArrayValue?> state, ArrayValue? value)
+    public static PgArray<ArrayValue?> Transition(PgAggregateContext context, PgArray<ArrayValue?> state, ArrayValue? value)
         => new([.. state, value]);
 
     /// <summary>
     /// Concatenates independently decoded mapped array states.
     /// </summary>
-    public static PgArray<ArrayValue?> Combine(PgArray<ArrayValue?> state, PgArray<ArrayValue?> other)
+    public static PgArray<ArrayValue?> Combine(PgAggregateContext context, PgArray<ArrayValue?> state, PgArray<ArrayValue?> other)
         => new([.. state, .. other]);
 
     /// <summary>
     /// Returns the complete ordinary state as a mapped array result.
     /// </summary>
-    public static PgArray<ArrayValue?> Final(PgArray<ArrayValue?> state) => state;
+    public static PgArray<ArrayValue?> Final(PgAggregateContext context, PgArray<ArrayValue?> state, ValueTuple arguments) => state;
 
     /// <summary>
     /// Appends a row under the moving aggregate transport.
     /// </summary>
-    public static PgArray<ArrayValue?> MovingTransition(PgArray<ArrayValue?> state, ArrayValue? value)
-        => Transition(state, value);
+    public static PgArray<ArrayValue?> MovingTransition(PgAggregateContext context, PgArray<ArrayValue?> state, ArrayValue? value)
+        => Transition(context, state, value);
 
     /// <summary>
     /// Removes precisely the outgoing first row, including a NULL value.
     /// </summary>
-    public static PgArray<ArrayValue?> MovingInverse(PgArray<ArrayValue?> state, ArrayValue? value)
+    public static PgArray<ArrayValue?> MovingInverse(PgAggregateContext context, PgArray<ArrayValue?> state, ArrayValue? value)
     {
         if (state[0] != value)
         {
@@ -881,5 +887,5 @@ public static class MappedArrayCollectAggregate
     /// <summary>
     /// Returns mapped array state under the moving final helper.
     /// </summary>
-    public static PgArray<ArrayValue?> MovingFinal(PgArray<ArrayValue?> state) => state;
+    public static PgArray<ArrayValue?> MovingFinal(PgAggregateContext context, PgArray<ArrayValue?> state, ValueTuple arguments) => state;
 }

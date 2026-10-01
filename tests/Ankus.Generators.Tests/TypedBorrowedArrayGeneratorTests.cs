@@ -55,14 +55,18 @@ public sealed partial class PgFunctionGeneratorTests
         Compilation compilation = GenerateSqlControl(DatumMappingSource(declaration, writer: false) +
             TypedBorrowedArrayMethods("Ankus.PgArrayView<Value?>?") + """
             [Ankus.PgAggregate]
-            public static class First
+            public sealed class First : Ankus.IPgAggregate<Ankus.PgArrayView<Value?>?,int>,
+                Ankus.IPgCombinableAggregate<Ankus.PgArrayView<Value?>?>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgArrayView<Value?>?,System.ValueTuple,Ankus.PgArrayView<Value?>?>,
+                Ankus.IPgMovingAggregate<Ankus.PgArrayView<Value?>?,int>,
+                Ankus.IPgMovingFinalizingAggregate<Ankus.PgArrayView<Value?>?,System.ValueTuple,Ankus.PgArrayView<Value?>?>
             {
-                public static Ankus.PgArrayView<Value?>? Transition(Ankus.PgArrayView<Value?>? state, int value) => state;
-                public static Ankus.PgArrayView<Value?>? Combine(Ankus.PgArrayView<Value?>? left, Ankus.PgArrayView<Value?>? right) => left ?? right;
-                public static Ankus.PgArrayView<Value?>? Final(Ankus.PgArrayView<Value?>? state) => state;
-                public static Ankus.PgArrayView<Value?>? MovingTransition(Ankus.PgArrayView<Value?>? state, int value) => state;
-                public static Ankus.PgArrayView<Value?>? MovingInverse(Ankus.PgArrayView<Value?>? state, int value) => state;
-                public static Ankus.PgArrayView<Value?>? MovingFinal(Ankus.PgArrayView<Value?>? state) => state;
+                public static Ankus.PgArrayView<Value?>? Transition(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? state, int value) => state;
+                public static Ankus.PgArrayView<Value?>? Combine(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? left, Ankus.PgArrayView<Value?>? right) => left ?? right;
+                public static Ankus.PgArrayView<Value?>? Final(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? state,System.ValueTuple direct) => state;
+                public static Ankus.PgArrayView<Value?>? MovingTransition(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? state, int value) => state;
+                public static Ankus.PgArrayView<Value?>? MovingInverse(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? state, int value) => state;
+                public static Ankus.PgArrayView<Value?>? MovingFinal(Ankus.PgAggregateContext context,Ankus.PgArrayView<Value?>? state,System.ValueTuple direct) => state;
             }
             """);
         string sql = InstallationBody(compilation);
@@ -178,10 +182,11 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<(Ankus.PgArrayView<Value> First, Ankus.PgArrayView<Other?> Second)> Rows() => [];
             }
             [Ankus.PgAggregate(InitialCondition = "0")]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>,
+                Ankus.IPgFinalizingAggregate<int,System.ValueTuple,Ankus.PgArrayView<Other?>?>
             {
-                public static int Transition(int state, int input) => state + input;
-                public static Ankus.PgArrayView<Other?>? Final(int state) => null;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int input) => state + input;
+                public static Ankus.PgArrayView<Other?>? Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct) => null;
             }
             """);
         string sql = InstallationBody(compilation);

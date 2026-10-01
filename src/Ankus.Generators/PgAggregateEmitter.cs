@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
 
@@ -24,7 +23,7 @@ internal static class PgAggregateEmitter
         StringBuilder managed, StringBuilder native, StringBuilder exports, SqlTypeProviders providers)
     {
         string nativeName = callback.Replace("ankus_managed_", "ankus_fn_");
-        helper.Invocation?.Emit(managed, callback);
+        helper.Invocation.Emit(managed, callback);
         managed.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(");
         managed.AppendLine($"        EntryPoint = \"{callback}\",");
         managed.AppendLine("        CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]");
@@ -50,20 +49,13 @@ internal static class PgAggregateEmitter
         }
 
         var arguments = new List<string>();
-        if (helper.ContextParameter && helper.Invocation is null)
-        {
-            arguments.Add("context");
-        }
-
         for (int index = 0; index < helper.Types.Length; index++)
         {
             string argument = helper.Types[index].Read("arguments[" + index.ToString(CultureInfo.InvariantCulture) + "]", helper.Parameters[index].Attributes);
             arguments.Add(helper.Types[index].Datum?.HasRelations == true ? "relationScope.Add(" + argument + ")" : argument);
         }
 
-        string invocation = helper.Invocation?.Read(callback, arguments) ??
-            helper.Method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ".@" + helper.Method.Name +
-                "(" + string.Join(", ", arguments) + ")";
+        string invocation = helper.Invocation.Read(callback, arguments);
         if (helper.Result.Datum?.HasRelations == true)
         {
             invocation = "relationScope.Add(" + invocation + ")";

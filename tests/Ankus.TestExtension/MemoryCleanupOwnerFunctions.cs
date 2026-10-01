@@ -279,15 +279,17 @@ public static class MemoryCleanupOwnerFunctions
     /// Owns an aggregate payload that attempts destructive memory access from native reset cleanup.
     /// </summary>
     [PgAggregate(Name = "memory_cleanup_sum")]
-    public static class CleanupSum
+    public sealed class CleanupSum : IPgAggregate<PgAggregateState<CleanupPayload>?, int>,
+        IPgFinalizingAggregate<PgAggregateState<CleanupPayload>?, ValueTuple, int>
     {
         /// <summary>
         /// Retains the executor handle while accumulating an ordinary sum.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The existing owned payload.</param>
         /// <param name="value">The next input.</param>
         /// <returns>The attached aggregate state.</returns>
-        public static PgAggregateState<CleanupPayload> Transition(PgAggregateState<CleanupPayload>? state, int value)
+        public static PgAggregateState<CleanupPayload> Transition(PgAggregateContext context, PgAggregateState<CleanupPayload>? state, int value)
         {
             state ??= new PgAggregateState<CleanupPayload>(new CleanupPayload(FindExecutor()));
             state.Value.Sum += value;
@@ -297,9 +299,11 @@ public static class MemoryCleanupOwnerFunctions
         /// <summary>
         /// Returns the sum before PostgreSQL releases the owned payload.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The live aggregate state.</param>
+        /// <param name="arguments">The empty direct argument group.</param>
         /// <returns>The accumulated sum.</returns>
-        public static int Final(PgAggregateState<CleanupPayload>? state) => state?.Value.Sum ?? 0;
+        public static int Final(PgAggregateContext context, PgAggregateState<CleanupPayload>? state, ValueTuple arguments) => state?.Value.Sum ?? 0;
     }
 
     /// <summary>

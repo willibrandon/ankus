@@ -365,13 +365,14 @@ public static class VarlenaOwnershipFunctions
     /// Retains wrapper arguments across aggregate transitions and finalization.
     /// </summary>
     [PgAggregate(Name = "varlena_collect")]
-    public static class Collect
+    public sealed class Collect : IPgAggregate<PgAggregateState<List<PgVarlena<Packet>?>>?, PgVarlena<Packet>?>,
+        IPgFinalizingAggregate<PgAggregateState<List<PgVarlena<Packet>?>>?, ValueTuple, string>
     {
         /// <summary>
         /// Rechecks every previously retained argument before retaining the current one.
         /// </summary>
         public static PgAggregateState<List<PgVarlena<Packet>?>> Transition(
-            PgAggregateState<List<PgVarlena<Packet>?>>? state, PgVarlena<Packet>? value)
+            PgAggregateContext context, PgAggregateState<List<PgVarlena<Packet>?>>? state, PgVarlena<Packet>? value)
         {
             state ??= new([]);
             foreach (PgVarlena<Packet>? previous in state.Value)
@@ -395,7 +396,7 @@ public static class VarlenaOwnershipFunctions
         /// <summary>
         /// Reads actual wrapper payloads only after all transition callbacks have returned.
         /// </summary>
-        public static string Final(PgAggregateState<List<PgVarlena<Packet>?>>? state) => state is null ? "empty" :
+        public static string Final(PgAggregateContext context, PgAggregateState<List<PgVarlena<Packet>?>>? state, ValueTuple arguments) => state is null ? "empty" :
             string.Join(',', state.Value.Select(static value => value?.Value.Leaf.Number.ToString(CultureInfo.InvariantCulture) ?? "NULL"));
     }
 
@@ -409,13 +410,14 @@ public static class VarlenaOwnershipFunctions
     /// Retains all wrapper elements and dimensions across aggregate callbacks.
     /// </summary>
     [PgAggregate(Name = "varlena_collect_arrays")]
-    public static class CollectArrays
+    public sealed class CollectArrays : IPgAggregate<PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>?, PgArray<PgVarlena<Packet>?>?>,
+        IPgFinalizingAggregate<PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>?, ValueTuple, string>
     {
         /// <summary>
         /// Reads preceding arrays after their transition callback and temporary memory have ended.
         /// </summary>
         public static PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>> Transition(
-            PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>? state, PgArray<PgVarlena<Packet>?>? value)
+            PgAggregateContext context, PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>? state, PgArray<PgVarlena<Packet>?>? value)
         {
             state ??= new([]);
             foreach (PgArray<PgVarlena<Packet>?>? previous in state.Value)
@@ -430,7 +432,7 @@ public static class VarlenaOwnershipFunctions
         /// <summary>
         /// Observes retained values, NULL elements and nondefault lower bounds.
         /// </summary>
-        public static string Final(PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>? state) => state is null ? "empty" :
+        public static string Final(PgAggregateContext context, PgAggregateState<List<PgArray<PgVarlena<Packet>?>?>>? state, ValueTuple arguments) => state is null ? "empty" :
             string.Join(';', state.Value.Select(DescribeArray));
     }
 
@@ -438,13 +440,14 @@ public static class VarlenaOwnershipFunctions
     /// Retains wrapper vectors across aggregate callbacks independently of shaped arrays.
     /// </summary>
     [PgAggregate(Name = "varlena_collect_vectors")]
-    public static class CollectVectors
+    public sealed class CollectVectors : IPgAggregate<PgAggregateState<List<PgVarlena<Packet>?[]?>>?, PgVarlena<Packet>?[]?>,
+        IPgFinalizingAggregate<PgAggregateState<List<PgVarlena<Packet>?[]?>>?, ValueTuple, string>
     {
         /// <summary>
         /// Rechecks prior vector elements before accepting another transition input.
         /// </summary>
         public static PgAggregateState<List<PgVarlena<Packet>?[]?>> Transition(
-            PgAggregateState<List<PgVarlena<Packet>?[]?>>? state, PgVarlena<Packet>?[]? value)
+            PgAggregateContext context, PgAggregateState<List<PgVarlena<Packet>?[]?>>? state, PgVarlena<Packet>?[]? value)
         {
             state ??= new([]);
             foreach (PgVarlena<Packet>?[]? previous in state.Value)
@@ -468,7 +471,7 @@ public static class VarlenaOwnershipFunctions
         /// <summary>
         /// Reads every retained vector element during finalization.
         /// </summary>
-        public static string Final(PgAggregateState<List<PgVarlena<Packet>?[]?>>? state) => state is null ? "empty" :
+        public static string Final(PgAggregateContext context, PgAggregateState<List<PgVarlena<Packet>?[]?>>? state, ValueTuple arguments) => state is null ? "empty" :
             string.Join(';', state.Value.Select(static value => value is null ? "NULL" : string.Join(',', value.Select(Saved))));
     }
 

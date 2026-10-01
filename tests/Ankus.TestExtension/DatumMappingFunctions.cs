@@ -532,57 +532,64 @@ public static class DatumMappingFunctions
 /// Retains a detached mapped reference across aggregate transitions.
 /// </summary>
 [PgAggregate(Name = "first_text", Schema = "datum_mappings")]
-public static class MappedTextAggregate
+public sealed class MappedTextAggregate : IPgAggregate<MappedText?, MappedText?>
 {
     /// <summary>
     /// Keeps the first present text without retaining its input datum owner.
     /// </summary>
+    /// <param name="context">The aggregate invocation and owner.</param>
     /// <param name="state">The prior state.</param>
     /// <param name="value">The new input.</param>
     /// <returns>The retained first value.</returns>
-    public static MappedText? Transition(MappedText? state, MappedText? value) => state ?? value;
+    public static MappedText? Transition(PgAggregateContext context, MappedText? state, MappedText? value) => state ?? value;
 }
 
 /// <summary>
 /// Writes typed SQL NULL from a present CLR final result after ordinary aggregate transitions.
 /// </summary>
 [PgAggregate(Name = "writer_final", Schema = "datum_mappings", InitialCondition = "0")]
-public static class MappedWriterAggregate
+public sealed class MappedWriterAggregate : IPgAggregate<int, int>, IPgFinalizingAggregate<int, ValueTuple, AdversarialMappedInt>
 {
     /// <summary>
     /// Accumulates the requested output mode.
     /// </summary>
+    /// <param name="context">The aggregate invocation and owner.</param>
     /// <param name="state">The prior mode sum.</param>
     /// <param name="value">The current increment.</param>
     /// <returns>The next sum.</returns>
-    public static int Transition(int state, int value) => checked(state + value);
+    public static int Transition(PgAggregateContext context, int state, int value) => checked(state + value);
 
     /// <summary>
     /// Returns a present mapped object whose writer controls the native NULL flag.
     /// </summary>
+    /// <param name="context">The aggregate invocation and owner.</param>
     /// <param name="state">The requested writer mode.</param>
+    /// <param name="arguments">The empty direct argument group.</param>
     /// <returns>The present managed final result.</returns>
-    public static AdversarialMappedInt Final(int state) => new(state);
+    public static AdversarialMappedInt Final(PgAggregateContext context, int state, ValueTuple arguments) => new(state);
 }
 
 /// <summary>
 /// Applies native domain constraints to a writer-produced final NULL.
 /// </summary>
 [PgAggregate(Name = "required_final", Schema = "datum_mappings", InitialCondition = "0")]
-public static class MappedRequiredAggregate
+public sealed class MappedRequiredAggregate : IPgAggregate<int, int>, IPgFinalizingAggregate<int, ValueTuple, MappedRequired>
 {
     /// <summary>
     /// Keeps a simple integer state.
     /// </summary>
+    /// <param name="context">The aggregate invocation and owner.</param>
     /// <param name="state">The prior state.</param>
     /// <param name="value">The next integer.</param>
     /// <returns>The next state.</returns>
-    public static int Transition(int state, int value) => checked(state + value);
+    public static int Transition(PgAggregateContext context, int state, int value) => checked(state + value);
 
     /// <summary>
     /// Produces a present object whose writer returns a domain-typed NULL.
     /// </summary>
+    /// <param name="context">The aggregate invocation and owner.</param>
     /// <param name="state">The accumulated output mode.</param>
+    /// <param name="arguments">The empty direct argument group.</param>
     /// <returns>The domain wrapper.</returns>
-    public static MappedRequired Final(int state) => new(state);
+    public static MappedRequired Final(PgAggregateContext context, int state, ValueTuple arguments) => new(state);
 }

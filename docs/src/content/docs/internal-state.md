@@ -12,9 +12,10 @@ Create state once, then retrieve it with the same managed type:
 
 ```csharp
 [PgAggregate]
-public static class CountValues
+public sealed class CountValues : IPgAggregate<PgInternal?, int?>,
+    IPgFinalizingAggregate<PgInternal?, ValueTuple, long>
 {
-    public static PgInternal Transition(PgInternal? state, int? value)
+    public static PgInternal Transition(PgAggregateContext context, PgInternal? state, int? value)
     {
         state ??= PgInternal.Create(new Counter());
         if (value.HasValue)
@@ -25,11 +26,16 @@ public static class CountValues
         return state;
     }
 
-    public static long Final(PgInternal? state) => state?.Get<Counter>().Count ?? 0;
+    public static long Final(PgAggregateContext context, PgInternal? state, ValueTuple arguments)
+        => state?.Get<Counter>().Count ?? 0;
 
     private sealed class Counter
     {
-        public long Count { get; set; }
+        public long Count
+        {
+            get;
+            set;
+        }
     }
 }
 ```

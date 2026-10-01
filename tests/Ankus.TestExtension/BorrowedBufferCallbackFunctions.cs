@@ -147,15 +147,17 @@ public static partial class BorrowedBufferFunctions
     /// Retains the first present text snapshot across aggregate transition and final callbacks.
     /// </summary>
     [PgAggregate(Name = "text_first")]
-    public static class FirstText
+    public sealed class FirstText : IPgAggregate<PgAggregateState<PgTextView>?, PgTextView?>,
+        IPgFinalizingAggregate<PgAggregateState<PgTextView>?, ValueTuple, string?>
     {
         /// <summary>
         /// Keeps the first present input and releases all later unused private views.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The prior retained input.</param>
         /// <param name="value">The next independently owned snapshot.</param>
         /// <returns>The first present value or no state.</returns>
-        public static PgAggregateState<PgTextView>? Transition(PgAggregateState<PgTextView>? state, PgTextView? value)
+        public static PgAggregateState<PgTextView>? Transition(PgAggregateContext context, PgAggregateState<PgTextView>? state, PgTextView? value)
         {
             if (state is null && value is not null)
             {
@@ -169,24 +171,28 @@ public static partial class BorrowedBufferFunctions
         /// <summary>
         /// Reads native text after the transition callbacks that supplied it have ended.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The first value or no present input.</param>
+        /// <param name="arguments">The empty direct argument group.</param>
         /// <returns>The copied text or SQL NULL.</returns>
-        public static string? Final(PgAggregateState<PgTextView>? state) => state?.Value.ToString();
+        public static string? Final(PgAggregateContext context, PgAggregateState<PgTextView>? state, ValueTuple arguments) => state?.Value.ToString();
     }
 
     /// <summary>
     /// Retains the first present binary snapshot across aggregate transition and final callbacks.
     /// </summary>
     [PgAggregate(Name = "bytea_first")]
-    public static class FirstBytea
+    public sealed class FirstBytea : IPgAggregate<PgAggregateState<PgByteaView>?, PgByteaView?>,
+        IPgFinalizingAggregate<PgAggregateState<PgByteaView>?, ValueTuple, byte[]?>
     {
         /// <summary>
         /// Keeps the first present input and releases all later unused private views.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The prior retained input.</param>
         /// <param name="value">The next independently owned snapshot.</param>
         /// <returns>The first present value or no state.</returns>
-        public static PgAggregateState<PgByteaView>? Transition(PgAggregateState<PgByteaView>? state, PgByteaView? value)
+        public static PgAggregateState<PgByteaView>? Transition(PgAggregateContext context, PgAggregateState<PgByteaView>? state, PgByteaView? value)
         {
             if (state is null && value is not null)
             {
@@ -200,9 +206,11 @@ public static partial class BorrowedBufferFunctions
         /// <summary>
         /// Copies native bytes after the transition callbacks that supplied them have ended.
         /// </summary>
+        /// <param name="context">The aggregate invocation and owner.</param>
         /// <param name="state">The first value or no present input.</param>
+        /// <param name="arguments">The empty direct argument group.</param>
         /// <returns>The exact bytes or SQL NULL.</returns>
-        public static byte[]? Final(PgAggregateState<PgByteaView>? state)
+        public static byte[]? Final(PgAggregateContext context, PgAggregateState<PgByteaView>? state, ValueTuple arguments)
             => state is null ? null : state.Value.DangerousGetSpan().ToArray();
     }
 }

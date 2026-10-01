@@ -88,8 +88,9 @@ final modification rules are the same as for the methods described below.
 
 A typed aggregate has exactly one transition contract and at most one of each
 optional capability. Implement the corresponding interface when adding a
-callback. Callback-name overrides such as `Combine = nameof(...)` belong to the
-conventional method model and cannot be combined with these interfaces.
+callback. Ankus reports `ANKUS029` when an attributed container does not implement
+`IPgAggregate<TState, TArgs>`. Callback selection uses the declared interfaces;
+ordinary helper methods do not declare additional aggregate capabilities.
 
 Apply parameter metadata to a tuple group with `Element` selecting its exact
 C# element name. Each SQL input retains its own name, numeric constraint or
@@ -112,25 +113,24 @@ inputs do not accept SQL defaults.
 
 ## Support methods and declaration options
 
-Declarations without capability interfaces can use conventional static support
-methods. The first SQL parameter and return value of `Transition` are the state;
-its remaining parameters are aggregated inputs. A state-only transition defines
-a zero-argument aggregate, and a final `params T[]` parameter is variadic.
-The generator discovers the method names below. The matching attribute property
-accepts a `nameof(...)` override when a different name is useful.
+Every callback receives `PgAggregateContext` first, followed by the interface's
+state and argument group. The context is not an SQL argument. A `ValueTuple`
+input group defines a zero-argument aggregate. Scalar and tuple argument groups
+retain their declared SQL types; mark a trailing array input variadic with
+`PgParameter.Variadic` or a scalar array group's `params` parameter.
 
-| Method | Managed parameters after an optional leading context | Result |
+| Method | Managed parameters after the context | Result |
 |---|---|---|
 | `Transition` | State, aggregated inputs | State |
-| `Final` | State, direct arguments, optional extra input slots | SQL result |
+| `Final` | State, direct argument group | SQL result |
 | `Combine` | Destination state, partial state | Destination state |
 | `Serialize` | Managed state | `byte[]` |
 | `Deserialize` | `byte[]` | New managed state |
 | `MovingTransition` | Moving state, aggregated inputs | Moving state |
 | `MovingInverse` | Moving state, departing inputs | Moving state or NULL to restart |
-| `MovingFinal` | Moving state, direct arguments, optional extra input slots | Same SQL result type as ordinary execution |
+| `MovingFinal` | Moving state, direct argument group | Same SQL result type as ordinary execution |
 
-All methods are accessible synchronous static methods. Add `[PgFunction]` to a
+All callbacks implement synchronous static interface members. Add `[PgFunction]` to a
 support method for its SQL name, schema, volatility, parallel safety, search
 path, NULL policy, or other ordinary function settings. Support functions are
 aggregate entry points; invoke them through an aggregate in SQL. Their C# bodies
@@ -172,10 +172,11 @@ wrapper represents SQL NULL. Return an ordinary SQL value from `Final`.
 
 ```csharp
 [PgAggregate(Name = "collect_count")]
-public static class CollectCount
+public sealed class CollectCount : IPgAggregate<PgAggregateState<List<int>>?, int?>,
+    IPgFinalizingAggregate<PgAggregateState<List<int>>?, ValueTuple, int>
 {
     public static PgAggregateState<List<int>> Transition(
-        PgAggregateState<List<int>>? state, int? value)
+        PgAggregateContext context, PgAggregateState<List<int>>? state, int? value)
     {
         state ??= new([]);
         if (value is { } number)
@@ -186,7 +187,8 @@ public static class CollectCount
         return state;
     }
 
-    public static int Final(PgAggregateState<List<int>>? state) => state?.Value.Count ?? 0;
+    public static int Final(PgAggregateContext context, PgAggregateState<List<int>>? state, ValueTuple arguments)
+        => state?.Value.Count ?? 0;
 }
 ```
 
@@ -254,9 +256,9 @@ arrays. PostgreSQL resolves state and result types from the aggregate inputs:
 
 ```csharp
 [PgAggregate]
-public static class FirstValue
+public sealed class FirstValue : IPgAggregate<PgAnyElement, PgAnyElement>
 {
-    public static PgAnyElement Transition(PgAnyElement state, PgAnyElement value)
+    public static PgAnyElement Transition(PgAggregateContext context, PgAnyElement state, PgAnyElement value)
         => state;
 }
 ```
@@ -271,7 +273,8 @@ resolve a polymorphic result when the state itself is `internal`:
 
 ```csharp
 [PgAggregate(FinalExtra = true)]
-public static class FirstStoredValue
+public sealed class FirstStoredValue : IPgAggregate<PgAggregateState<PgAnyElement>?, PgAnyElement?>,
+    IPgFinalizingAggregate<PgAggregateState<PgAnyElement>?, ValueTuple, PgAnyElement?>
 {
     public static PgAggregateState<PgAnyElement>? Transition(
         PgAggregateContext context, PgAggregateState<PgAnyElement>? state,
@@ -279,12 +282,13 @@ public static class FirstStoredValue
         => state ?? (value is null ? null : new(value.CopyTo(context.MemoryContext)));
 
     public static PgAnyElement? Final(
-        PgAggregateState<PgAnyElement>? state, PgAnyElement? typeWitness)
+        PgAggregateContext context, PgAggregateState<PgAnyElement>? state, ValueTuple arguments)
         => state?.Value;
 }
 ```
 
-The extra `typeWitness` argument is always NULL. Polymorphic values also work
+The generated extra SQL input is always NULL and does not reach the managed
+final method. Polymorphic values also work
 with moving states, ordered-set comparisons, and parallel combine methods.
 
 ## Ordered and hypothetical sets

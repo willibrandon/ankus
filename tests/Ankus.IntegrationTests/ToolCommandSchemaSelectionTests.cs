@@ -187,25 +187,25 @@ public sealed partial class ToolCommandTests
             public static int Unrelated() => 99;
         }
         [PgAggregate(InitialCondition = "0")]
-        public static class Total
+        public sealed class Total : IPgAggregate<int,int>
         {
-            public static int Transition(int state, int value) => checked(state + value);
+            public static int Transition(PgAggregateContext context,int state, int value) => checked(state + value);
         }
         [PgAggregate(InitialCondition = "0")]
-        public static class CountRows
+        public sealed class CountRows : IPgAggregate<int,System.ValueTuple>
         {
-            public static int Transition(int state) => checked(state + 1);
+            public static int Transition(PgAggregateContext context,int state,System.ValueTuple arguments) => checked(state + 1);
         }
         [PgAggregate(InitialCondition = "0")]
-        public static class CountArguments
+        public sealed class CountArguments : IPgAggregate<int,int[]>
         {
-            public static int Transition(int state, params int[] values) => checked(state + values.Length);
+            public static int Transition(PgAggregateContext context,int state, params int[] values) => checked(state + values.Length);
         }
         [PgAggregate(Kind = PgAggregateKind.OrderedSet, InitialCondition = "0")]
-        public static class OrderedTotal
+        public sealed class OrderedTotal : IPgAggregate<int,int>,IPgFinalizingAggregate<int,int,int>
         {
-            public static int Transition(int state, int value) => checked(state + value);
-            public static int Final(int state, int direct) => checked(state + direct);
+            public static int Transition(PgAggregateContext context,int state, int value) => checked(state + value);
+            public static int Final(PgAggregateContext context,int state, int direct) => checked(state + direct);
         }
         """;
 }

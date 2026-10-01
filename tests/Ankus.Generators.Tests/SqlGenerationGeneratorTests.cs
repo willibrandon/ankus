@@ -304,35 +304,38 @@ public sealed partial class PgFunctionGeneratorTests
     /// A helper shared by ordinary and moving aggregate roles receives one replacement and retains aggregate SQL.
     /// </summary>
     [TestMethod]
-    public void SqlGenerationSharedAggregateHelperIsReplacedOnce()
+    public void SqlGenerationAggregateHelperReplacementPreservesIndependentMovingRoles()
     {
         Compilation compilation = GenerateSqlControl("""
             [assembly: Ankus.PgSql("before", "SELECT 'before';")]
             [assembly: Ankus.PgSql("another", "SELECT 'another parent prerequisite';")]
             [assembly: Ankus.PgSql("helper-before", "SELECT 'helper prerequisite';")]
             [assembly: Ankus.PgSql("after", "SELECT 'after';", Requires = new[] { "aggregate" })]
-            [Ankus.PgAggregate(Id = "aggregate", InitialCondition = "0", MovingInitialCondition = "0", MovingTransition = "Transition", Requires = new[] { "before", "another" })]
-            public static class Shared
+            [Ankus.PgAggregate(Id = "aggregate", InitialCondition = "0", MovingInitialCondition = "0", Requires = new[] { "before", "another" })]
+            public sealed class Shared : Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<int?,int>
             {
                 [Ankus.PgFunction(Name = "add_value", Sql = "SELECT '@FUNCTION_NAME@';", Id = "helper", Requires = new[] { "helper-before" })]
-                public static int Transition(int state, int value) => state + value;
-                public static int? MovingInverse(int state, int value) => state - value;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int value) => Add(state,value);
+                [Ankus.PgFunction(Name = "moving_add_value",NullInput=Ankus.PgNullInput.Strict)]
+                public static int? MovingTransition(Ankus.PgAggregateContext context,int? state, int value) => Add(state!.Value,value);
+                [Ankus.PgFunction(NullInput=Ankus.PgNullInput.Strict)]
+                public static int? MovingInverse(Ankus.PgAggregateContext context,int? state, int value) => state - value;
+                private static int Add(int state,int value) => state+value;
             }
             """);
         string sql = InstallationBody(compilation);
-        Assert.HasCount(2, SqlControlExports(compilation));
+        Assert.HasCount(3, SqlControlExports(compilation));
         string[] replacements = [.. sql.Split('\n').Where(static line => line.StartsWith("SELECT 'ankus_fn_", StringComparison.Ordinal))];
         Assert.ContainsSingle(replacements);
-        IMethodSymbol transition = Assert.ContainsSingle(compilation.GetTypeByMetadataName("Ankus.Generated.ExtensionDispatchers")!.GetMembers()
-            .OfType<IMethodSymbol>().Where(method => method.DeclaringSyntaxReferences.Any(reference =>
-                reference.GetSyntax(context.CancellationToken).ToString().Contains("global::Shared.@Transition(", StringComparison.Ordinal))));
+        IMethodSymbol transition = AggregateCallback(compilation, "transition");
         string transitionExport = transition.Name.Replace("ankus_managed_", "ankus_fn_", StringComparison.Ordinal);
         Assert.AreEqual($"SELECT '{transitionExport}';", replacements[0]);
         Assert.Contains(transitionExport, SqlControlExports(compilation));
         Assert.DoesNotContain("CREATE FUNCTION \"add_value\"", sql);
         Assert.Contains("CREATE FUNCTION \"shared_moving_inverse\"", sql);
+        Assert.Contains("CREATE FUNCTION \"moving_add_value\"", sql);
         Assert.Contains("SFUNC = \"add_value\",", sql);
-        Assert.Contains("MSFUNC = \"add_value\",", sql);
+        Assert.Contains("MSFUNC = \"moving_add_value\",", sql);
         AssertSqlControlBefore(sql, "SELECT 'before';", replacements[0]);
         AssertSqlControlBefore(sql, "SELECT 'another parent prerequisite';", replacements[0]);
         AssertSqlControlBefore(sql, "SELECT 'helper prerequisite';", replacements[0]);
@@ -432,11 +435,11 @@ public sealed partial class PgFunctionGeneratorTests
             "table" => attribute + " public static System.Collections.Generic.IEnumerable<(int Number, string? Text)> Echo(int value) { yield return (value, null); }",
             "trigger" => "[Ankus.PgTrigger] " + attribute + " public static Ankus.PgHeapTuple? Echo(Ankus.PgTriggerContext context) => null;",
             "event" => "[Ankus.PgEventTrigger] " + attribute + " public static void Echo(Ankus.PgEventTriggerContext context) { }",
-            "helper" => attribute + " public static long Transition(long state, int value) => state + value;",
+            "helper" => attribute + " public static long Transition(Ankus.PgAggregateContext context,long state, int value) => state + value;",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
         return kind == "helper"
-            ? "[Ankus.PgAggregate(InitialCondition = \"0\")] public static class Values {" + declaration + "}"
+            ? "[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class Values : Ankus.IPgAggregate<long,int> {" + declaration + "}"
             : "public static class Functions {" + declaration + "}";
     }
 

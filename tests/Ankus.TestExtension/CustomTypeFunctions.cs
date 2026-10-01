@@ -199,16 +199,17 @@ public static class CustomTypeFunctions
     /// Uses the stored custom value as ordinary aggregate state, including partial workers.
     /// </summary>
     [PgAggregate(Name = "custom_sum", ParallelSafety = PgParallelSafety.Safe)]
-    public static class Sum
+    public sealed class Sum : IPgAggregate<Number?, Number?>, IPgCombinableAggregate<Number?>
     {
         /// <summary>
         /// Adds each present input to independent group state.
         /// </summary>
-        public static Number? Transition(Number? state, Number? value) => value is null ? state : new(checked((state?.Value ?? 0) + value.Value.Value));
+        public static Number? Transition(PgAggregateContext context, Number? state, Number? value)
+            => value is null ? state : new(checked((state?.Value ?? 0) + value.Value.Value));
 
         /// <summary>
         /// Combines ordinary states without internal serialization callbacks.
         /// </summary>
-        public static Number? Combine(Number? left, Number? right) => Transition(left, right);
+        public static Number? Combine(PgAggregateContext context, Number? left, Number? right) => Transition(context, left, right);
     }
 }

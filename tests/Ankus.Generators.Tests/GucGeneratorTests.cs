@@ -308,7 +308,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("public static class Functions { [Ankus.PgTrigger] public static Ankus.PgHeapTuple? Row(Ankus.PgTriggerContext context) => null; }", "ankus_raise_error(error);")]
     [DataRow("public static class Functions { [Ankus.PgEventTrigger] public static void Event(Ankus.PgEventTriggerContext context) { } }", "ankus_raise_error(error);")]
     [DataRow("public static class Functions { [Ankus.PgInitialize] public static void Initialize() { } }", "ankus_raise_error(error);")]
-    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public static class SumValues { public static long Transition(long state, int value) => state + value; }", "ankus_raise_error(error);")]
+    [DataRow("[Ankus.PgAggregate(InitialCondition = \"0\")] public sealed class SumValues : Ankus.IPgAggregate<long,int> { " +
+        "public static long Transition(Ankus.PgAggregateContext context,long state, int value) => state + value; }", "ankus_raise_error(error);")]
     public void GucNativeBackendCallbacksRetainErrorRaising(string source, string call)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);

@@ -50,11 +50,6 @@ internal static class AggregateContract
 
         foreach (string role in AggregateDeclaration.Roles)
         {
-            if (aggregate.Attribute.NamedArguments.Any(argument => argument.Key == role))
-            {
-                return Invalid(type, "Typed aggregates select callbacks through their interfaces; remove callback name overrides from PgAggregate.");
-            }
-
             if (!roles.TryGetValue(role, out IMethodSymbol? contract))
             {
                 if (type.GetMembers(role).OfType<IMethodSymbol>().Any())
@@ -187,7 +182,7 @@ internal static class AggregateContract
                 return false;
             }
 
-            aggregate.Helpers.Add(role, new(method, role, true, [.. slots], result, declaration, new(type, contract, [.. arguments])));
+            aggregate.Helpers.Add(role, new(method, role, [.. slots], result, declaration, new(type, contract, [.. arguments])));
 
             bool AddSlot(ITypeSymbol valueType, string name, bool variadic, ImmutableArray<AttributeData> attributes, IParameterSymbol source, bool grouped = false)
             {

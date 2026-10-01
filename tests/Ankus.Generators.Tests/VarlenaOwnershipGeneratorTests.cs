@@ -50,12 +50,14 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(VarlenaOwnershipValueSource + """
             [Ankus.PgAggregate]
-            public static class Collect
+            public sealed class Collect :
+                Ankus.IPgAggregate<Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>?,Ankus.PgVarlena<Value>?>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>?,System.ValueTuple,int>
             {
                 public static Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>> Transition(
-                    Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>? state, Ankus.PgVarlena<Value>? value)
+                    Ankus.PgAggregateContext context,Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>? state, Ankus.PgVarlena<Value>? value)
                 { state??=new(new()); state.Value.Add(value); return state; }
-                public static int Final(Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>? state)
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<System.Collections.Generic.List<Ankus.PgVarlena<Value>?>>? state,System.ValueTuple direct)
                 { int total=0; if(state is not null) foreach(var value in state.Value) total+=value?.Value.Number??0; return total; }
             }
             """);
@@ -77,10 +79,11 @@ public sealed partial class PgFunctionGeneratorTests
     public void VarlenaOwnershipRetainedArrayArgumentsArePromoted(string array)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(VarlenaOwnershipValueSource + $$"""
-            [Ankus.PgAggregate] public static class Collect
+            [Ankus.PgAggregate] public sealed class Collect : Ankus.IPgAggregate<Ankus.PgAggregateState<{{array}}>?,{{array}}>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<{{array}}>?,System.ValueTuple,int>
             {
-                public static Ankus.PgAggregateState<{{array}}> Transition(Ankus.PgAggregateState<{{array}}>? state, {{array}} value)=>state??new(value);
-                public static int Final(Ankus.PgAggregateState<{{array}}>? state)=>state?.Value[0]?.Value.Number??0;
+                public static Ankus.PgAggregateState<{{array}}> Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<{{array}}>? state, {{array}} value)=>state??new(value);
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<{{array}}>? state,System.ValueTuple direct)=>state?.Value[0]?.Value.Number??0;
             }
             public static class Functions
             {

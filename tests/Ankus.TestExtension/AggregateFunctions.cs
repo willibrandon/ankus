@@ -97,12 +97,12 @@ public static class AggregateFunctions
     /// Adds nullable inputs to an explicit zero state.
     /// </summary>
     [PgAggregate(Name = "sum_values", InitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class SumValues
+    public sealed class SumValues : IPgAggregate<int, int?>
     {
         /// <summary>
         /// Adds a value while recording actual non-strict transition calls.
         /// </summary>
-        public static int Transition(int state, int? value)
+        public static int Transition(PgAggregateContext context, int state, int? value)
         {
             s_transition++;
             return checked(state + (value ?? 0));
@@ -113,12 +113,12 @@ public static class AggregateFunctions
     /// Lets PostgreSQL seed strict state from the first nonnull input without invoking the transition.
     /// </summary>
     [PgAggregate(Name = "strict_sum", Requires = ["aggregate-support"])]
-    public static class StrictSum
+    public sealed class StrictSum : IPgAggregate<int, int>
     {
         /// <summary>
         /// Adds two required values and records every actual invocation.
         /// </summary>
-        public static int Transition(int state, int value)
+        public static int Transition(PgAggregateContext context, int state, int value)
         {
             s_transition++;
             return checked(state + value);
@@ -129,12 +129,12 @@ public static class AggregateFunctions
     /// Distinguishes nullable state recovery and a non-strict empty final result.
     /// </summary>
     [PgAggregate(Name = "nullable_sum", Requires = ["aggregate-support"])]
-    public static class NullableSum
+    public sealed class NullableSum : IPgAggregate<int?, int?>, IPgFinalizingAggregate<int?, ValueTuple, int>
     {
         /// <summary>
         /// Returns NULL on a sentinel and otherwise starts again from zero.
         /// </summary>
-        public static int? Transition(int? state, int? value)
+        public static int? Transition(PgAggregateContext context, int? state, int? value)
         {
             s_transition++;
             return value == -999 ? null : checked((state ?? 0) + (value ?? 0));
@@ -143,7 +143,7 @@ public static class AggregateFunctions
         /// <summary>
         /// Makes a NULL final state observable without an exception.
         /// </summary>
-        public static int Final(int? state)
+        public static int Final(PgAggregateContext context, int? state, ValueTuple arguments)
         {
             s_final++;
             return state ?? 42;
@@ -154,22 +154,22 @@ public static class AggregateFunctions
     /// Keeps NULL state sticky after a strict transition returns NULL.
     /// </summary>
     [PgAggregate(Name = "sticky_sum", InitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class StickySum
+    public sealed class StickySum : IPgAggregate<int?, int>, IPgFinalizingAggregate<int, ValueTuple, int>
     {
         /// <summary>
         /// Produces a NULL state deliberately on the sentinel.
         /// </summary>
         [PgFunction(NullInput = PgNullInput.Strict)]
-        public static int? Transition(int state, int value)
+        public static int? Transition(PgAggregateContext context, int? state, int value)
         {
             s_transition++;
-            return value == -999 ? null : checked(state + value);
+            return value == -999 ? null : checked(state!.Value + value);
         }
 
         /// <summary>
         /// Is skipped by PostgreSQL when the transition state became NULL.
         /// </summary>
-        public static int Final(int state)
+        public static int Final(PgAggregateContext context, int state, ValueTuple arguments)
         {
             s_final++;
             return state;
@@ -180,27 +180,27 @@ public static class AggregateFunctions
     /// Counts rows through PostgreSQL's zero-argument aggregate signature.
     /// </summary>
     [PgAggregate(Name = "count_rows", InitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class CountRows
+    public sealed class CountRows : IPgAggregate<long, ValueTuple>
     {
         /// <summary>
         /// Counts a row without receiving any SQL input argument.
         /// </summary>
-        public static long Transition(long state) => checked(state + 1);
+        public static long Transition(PgAggregateContext context, long state, ValueTuple arguments) => checked(state + 1);
     }
 
     /// <summary>
     /// Skips rows where either ordinary input is NULL through strict PostgreSQL dispatch.
     /// </summary>
     [PgAggregate(Name = "dot_values", InitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class DotValues
+    public sealed class DotValues : IPgAggregate<int, (int left, int right)>
     {
         /// <summary>
         /// Adds the product of two required row inputs.
         /// </summary>
-        public static int Transition(int state, int left, int right)
+        public static int Transition(PgAggregateContext context, int state, (int left, int right) arguments)
         {
             s_transition++;
-            return checked(state + left * right);
+            return checked(state + arguments.left * arguments.right);
         }
     }
 
@@ -208,36 +208,36 @@ public static class AggregateFunctions
     /// Preserves a quoted initial condition and ordered input text through a no-final aggregate.
     /// </summary>
     [PgAggregate(Name = "text_values", InitialCondition = "a'b\\café:", Requires = ["aggregate-support"])]
-    public static class TextValues
+    public sealed class TextValues : IPgAggregate<string, string?>
     {
         /// <summary>
         /// Appends text and represents SQL NULL separately from an empty value.
         /// </summary>
-        public static string Transition(string state, string? value) => state + (value ?? "<NULL>");
+        public static string Transition(PgAggregateContext context, string state, string? value) => state + (value ?? "<NULL>");
     }
 
     /// <summary>
     /// Treats an explicitly empty initial state as a real value.
     /// </summary>
     [PgAggregate(Name = "empty_text", InitialCondition = "", Requires = ["aggregate-support"])]
-    public static class EmptyText
+    public sealed class EmptyText : IPgAggregate<string, string>
     {
         /// <summary>
         /// Appends the next text value.
         /// </summary>
-        public static string Transition(string state, string value) => state + value;
+        public static string Transition(PgAggregateContext context, string state, string value) => state + value;
     }
 
     /// <summary>
     /// Receives PostgreSQL's variadic array value for each input row.
     /// </summary>
     [PgAggregate(Name = "variadic_sum", InitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class VariadicSum
+    public sealed class VariadicSum : IPgAggregate<long, int?[]?>
     {
         /// <summary>
         /// Sums all nonnull array elements while preserving a NULL array's distinct path.
         /// </summary>
-        public static long Transition(long state, params int?[]? values)
+        public static long Transition(PgAggregateContext context, long state, params int?[]? values)
             => values is null ? state + 1000 : checked(state + values.Sum(static value => (long)(value ?? 0)));
     }
 
@@ -245,12 +245,12 @@ public static class AggregateFunctions
     /// Proves the distinct regular and moving callback paths with nullable input and deterministic restart.
     /// </summary>
     [PgAggregate(Name = "moving_sum", InitialCondition = "0", MovingInitialCondition = "0", Requires = ["aggregate-support"])]
-    public static class MovingSum
+    public sealed class MovingSum : IPgAggregate<int, int?>, IPgMovingAggregate<int?, int?>
     {
         /// <summary>
         /// Records regular aggregate transitions.
         /// </summary>
-        public static int Transition(int state, int? value)
+        public static int Transition(PgAggregateContext context, int state, int? value)
         {
             s_trace.Add("T:" + Text(value));
             return checked(state + (value ?? 0));
@@ -269,7 +269,7 @@ public static class AggregateFunctions
         /// <summary>
         /// Removes the oldest row or asks PostgreSQL to recompute the frame.
         /// </summary>
-        public static int? MovingInverse(int? state, int? value)
+        public static int? MovingInverse(PgAggregateContext context, int? state, int? value)
         {
             s_inverse++;
             s_trace.Add("I:" + Text(value));
@@ -287,7 +287,10 @@ public static class AggregateFunctions
     /// Owns managed state through ordinary and moving aggregate memory contexts.
     /// </summary>
     [PgAggregate(Name = "managed_sum", Requires = ["aggregate-support"])]
-    public static class ManagedSum
+    public sealed class ManagedSum : IPgAggregate<PgAggregateState<TrackedState>?, int?>,
+        IPgFinalizingAggregate<PgAggregateState<TrackedState>?, ValueTuple, long>,
+        IPgMovingAggregate<PgAggregateState<TrackedState>?, int?>,
+        IPgMovingFinalizingAggregate<PgAggregateState<TrackedState>?, ValueTuple, long>
     {
         /// <summary>
         /// Retains exact managed values and creates native ownership only on callback return.
@@ -298,7 +301,7 @@ public static class AggregateFunctions
         /// <summary>
         /// Returns a scalar result without consuming or disposing the state.
         /// </summary>
-        public static long Final(PgAggregateContext context, PgAggregateState<TrackedState>? state)
+        public static long Final(PgAggregateContext context, PgAggregateState<TrackedState>? state, ValueTuple arguments)
             => Finish(context, state);
 
         /// <summary>
@@ -310,7 +313,7 @@ public static class AggregateFunctions
         /// <summary>
         /// Removes a row or restarts just this aggregate's memory context.
         /// </summary>
-        public static PgAggregateState<TrackedState>? MovingInverse(PgAggregateState<TrackedState>? state, int? value)
+        public static PgAggregateState<TrackedState>? MovingInverse(PgAggregateContext context, PgAggregateState<TrackedState>? state, int? value)
         {
             s_inverse++;
             if (s_mode == "restart" && value == 20)
@@ -327,7 +330,7 @@ public static class AggregateFunctions
         /// <summary>
         /// Reads state without damaging later transitions in a window.
         /// </summary>
-        public static long MovingFinal(PgAggregateContext context, PgAggregateState<TrackedState>? state)
+        public static long MovingFinal(PgAggregateContext context, PgAggregateState<TrackedState>? state, ValueTuple arguments)
             => Finish(context, state);
     }
 

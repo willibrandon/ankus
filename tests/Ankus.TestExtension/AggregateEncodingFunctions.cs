@@ -10,12 +10,13 @@ public static class AggregateEncodingFunctions
     /// Retains generated Unicode strings across transitions and returns them from the final callback.
     /// </summary>
     [PgAggregate(Name = "generated_text", Requires = ["aggregate-support"])]
-    public static class GeneratedText
+    public sealed class GeneratedText : IPgAggregate<PgAggregateState<List<string>>?, int>,
+        IPgFinalizingAggregate<PgAggregateState<List<string>>?, ValueTuple, string>
     {
         /// <summary>
         /// Creates representable or deliberately unrepresentable managed text without client-side encoding failure.
         /// </summary>
-        public static PgAggregateState<List<string>> Transition(PgAggregateState<List<string>>? state, int value)
+        public static PgAggregateState<List<string>> Transition(PgAggregateContext context, PgAggregateState<List<string>>? state, int value)
         {
             state ??= new PgAggregateState<List<string>>([]);
             state.Value.Add(value == 1 ? "café" : "🐘");
@@ -27,6 +28,7 @@ public static class AggregateEncodingFunctions
         /// <summary>
         /// Preserves the generated text after managed collection and native SPI memory churn.
         /// </summary>
-        public static string Final(PgAggregateState<List<string>>? state) => state is null ? "" : string.Concat(state.Value);
+        public static string Final(PgAggregateContext context, PgAggregateState<List<string>>? state, ValueTuple arguments)
+            => state is null ? "" : string.Concat(state.Value);
     }
 }

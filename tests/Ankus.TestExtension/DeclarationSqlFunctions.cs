@@ -265,7 +265,7 @@ public static class DeclarationSqlFunctions
         CREATE AGGREGATE declaration_sql.literal_total(integer)
             (SFUNC=declaration_sql.custom_step,STYPE=integer,INITCOND='10');
         """)]
-    public static class ReplacedTotal
+    public sealed class ReplacedTotal : IPgAggregate<int, int?>
     {
         /// <summary>
         /// Adds nullable inputs and completes cleanup before reporting an owned error.
@@ -274,7 +274,7 @@ public static class DeclarationSqlFunctions
             CREATE FUNCTION declaration_sql.custom_step(integer,integer) RETURNS integer
                 AS '@MODULE_PATHNAME@','@FUNCTION_NAME@' LANGUAGE c IMMUTABLE CALLED ON NULL INPUT;
             """)]
-        public static int Transition(int state, int? value)
+        public static int Transition(PgAggregateContext context, int state, int? value)
         {
             try
             {
@@ -291,13 +291,13 @@ public static class DeclarationSqlFunctions
     /// Suppresses its parent SQL but leaves native support usable by a separately declared aggregate.
     /// </summary>
     [PgAggregate(Name = "hidden_total", GenerateSql = false, Id = "declaration.hidden-parent", InitialCondition = "0")]
-    public static class HiddenTotal
+    public sealed class HiddenTotal : IPgAggregate<int, int>
     {
         /// <summary>
         /// Adds through the retained ordinary helper registration.
         /// </summary>
         [PgFunction(Name = "hidden_step")]
-        public static int Transition(int state, int value) => checked(state + value);
+        public static int Transition(PgAggregateContext context, int state, int value) => checked(state + value);
     }
 
     /// <summary>
@@ -307,13 +307,13 @@ public static class DeclarationSqlFunctions
         CREATE AGGREGATE declaration_sql.supplied_total(integer)
             (SFUNC=declaration_sql.supplied_step,STYPE=integer,INITCOND='0');
         """)]
-    public static class SuppliedTotal
+    public sealed class SuppliedTotal : IPgAggregate<int, int>
     {
         /// <summary>
         /// Must not execute because its own declaration is suppressed.
         /// </summary>
         [PgFunction(Name = "supplied_step", GenerateSql = false, Id = "declaration.supplied-helper-anchor")]
-        public static int Transition(int state, int value) => throw new InvalidOperationException("disabled aggregate helper executed");
+        public static int Transition(PgAggregateContext context, int state, int value) => throw new InvalidOperationException("disabled aggregate helper executed");
     }
 
     /// <summary>

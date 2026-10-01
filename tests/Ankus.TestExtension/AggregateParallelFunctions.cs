@@ -37,12 +37,14 @@ public static class AggregateParallelFunctions
     /// Uses process-independent serialization and copies borrowed partial state into the final aggregate's owner.
     /// </summary>
     [PgAggregate(Name = "parallel_sum", ParallelSafety = PgParallelSafety.Safe, StateSize = 256, Requires = ["aggregate-support"])]
-    public static class ParallelSum
+    public sealed class ParallelSum : IPgAggregate<PgAggregateState<ParallelState>?, int?>,
+        IPgFinalizingAggregate<PgAggregateState<ParallelState>?, ValueTuple, long[]>,
+        IPgCombinableAggregate<PgAggregateState<ParallelState>?>, IPgSerializableAggregate<PgAggregateState<ParallelState>>
     {
         /// <summary>
         /// Retains the actual backend PID in each partial state so worker execution is independently observable.
         /// </summary>
-        public static PgAggregateState<ParallelState> Transition(PgAggregateState<ParallelState>? state, int? value)
+        public static PgAggregateState<ParallelState> Transition(PgAggregateContext context, PgAggregateState<ParallelState>? state, int? value)
         {
             state ??= new PgAggregateState<ParallelState>(new ParallelState());
             ParallelState data = state.Value;
@@ -62,7 +64,7 @@ public static class AggregateParallelFunctions
         /// <summary>
         /// Preserves the right state and copies it when a new owner must be established.
         /// </summary>
-        public static PgAggregateState<ParallelState>? Combine(PgAggregateState<ParallelState>? state, PgAggregateState<ParallelState>? other)
+        public static PgAggregateState<ParallelState>? Combine(PgAggregateContext context, PgAggregateState<ParallelState>? state, PgAggregateState<ParallelState>? other)
         {
             if (other is null)
             {
@@ -95,7 +97,7 @@ public static class AggregateParallelFunctions
         /// <summary>
         /// Serializes values and process identities, never managed handles or native addresses.
         /// </summary>
-        public static byte[]? Serialize(PgAggregateState<ParallelState> state)
+        public static byte[]? Serialize(PgAggregateContext context, PgAggregateState<ParallelState> state)
         {
             ParallelState value = state.Value;
             if (value.Failure == 1)
@@ -133,7 +135,7 @@ public static class AggregateParallelFunctions
         /// <summary>
         /// Creates temporary owned state from bytea while PostgreSQL's internal dummy stays outside managed conversion.
         /// </summary>
-        public static PgAggregateState<ParallelState> Deserialize(byte[] bytes)
+        public static PgAggregateState<ParallelState> Deserialize(PgAggregateContext context, byte[] bytes)
         {
             using var stream = new MemoryStream(bytes, writable: false);
             using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
@@ -182,7 +184,7 @@ public static class AggregateParallelFunctions
         /// <summary>
         /// Returns exact sum/count and callback evidence followed by the source backend PIDs.
         /// </summary>
-        public static long[] Final(PgAggregateState<ParallelState>? state)
+        public static long[] Final(PgAggregateContext context, PgAggregateState<ParallelState>? state, ValueTuple arguments)
         {
             if (state is null)
             {
@@ -199,17 +201,17 @@ public static class AggregateParallelFunctions
     /// </summary>
     [PgAggregate(Name = "parallel_seeded_array", InitialCondition = "{10,1}", ParallelSafety = PgParallelSafety.Safe,
         Requires = ["aggregate-support"])]
-    public static class ParallelSeededArray
+    public sealed class ParallelSeededArray : IPgAggregate<long[], int?>, IPgCombinableAggregate<long[]>
     {
         /// <summary>
         /// Adds input values while retaining the number of initial states represented by the state.
         /// </summary>
-        public static long[] Transition(long[] state, int? value) => [state[0] + (value ?? 0), state[1]];
+        public static long[] Transition(PgAggregateContext context, long[] state, int? value) => [state[0] + (value ?? 0), state[1]];
 
         /// <summary>
         /// Combines two ordinary SQL array datums, each including its independently parsed initial condition.
         /// </summary>
-        public static long[] Combine(long[] state, long[] other) => [state[0] + other[0], state[1] + other[1]];
+        public static long[] Combine(PgAggregateContext context, long[] state, long[] other) => [state[0] + other[0], state[1] + other[1]];
     }
 
     /// <summary>

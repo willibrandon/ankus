@@ -30,3 +30,4 @@ ANKUS025 | Ankus | Error | Invalid PostgreSQL native module identity
 ANKUS026 | Ankus | Error | Invalid managed SQL dependency reference
 ANKUS027 | Ankus | Error | Invalid generated planner support function
 ANKUS028 | Ankus | Error | Incompatible typed aggregate implementation nullability
+ANKUS029 | Ankus | Error | Missing PostgreSQL aggregate capability contract

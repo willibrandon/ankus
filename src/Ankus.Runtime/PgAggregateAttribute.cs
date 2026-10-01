@@ -1,7 +1,7 @@
 namespace Ankus;
 
 /// <summary>
-/// Declares a PostgreSQL aggregate from the typed static callback methods in a class or struct.
+/// Declares a PostgreSQL aggregate from a class or struct implementing compiler-checked aggregate capabilities.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class PgAggregateAttribute : Attribute
@@ -151,7 +151,8 @@ public sealed class PgAggregateAttribute : Attribute
     }
 
     /// <summary>
-    /// Gets or sets whether Final receives extra SQL NULL arguments describing the aggregate input types.
+    /// Gets or sets whether the native final function receives extra SQL NULL slots describing the aggregate input types.
+    /// These slots resolve SQL types and are not passed to the managed final capability.
     /// </summary>
     public bool FinalExtra
     {
@@ -160,7 +161,8 @@ public sealed class PgAggregateAttribute : Attribute
     }
 
     /// <summary>
-    /// Gets or sets whether MovingFinal receives extra SQL NULL arguments describing the aggregate input types.
+    /// Gets or sets whether the native moving final function receives extra SQL NULL slots describing the aggregate input types.
+    /// These slots resolve SQL types and are not passed to the managed moving final capability.
     /// </summary>
     public bool MovingFinalExtra
     {
@@ -185,76 +187,4 @@ public sealed class PgAggregateAttribute : Attribute
         get;
         set;
     }
-
-    /// <summary>
-    /// Gets or sets the required transition callback name.
-    /// </summary>
-    public string Transition
-    {
-        get;
-        set;
-    } = nameof(Transition);
-
-    /// <summary>
-    /// Gets or sets the optional final callback name.
-    /// </summary>
-    public string Final
-    {
-        get;
-        set;
-    } = nameof(Final);
-
-    /// <summary>
-    /// Gets or sets the optional combine callback name.
-    /// </summary>
-    public string Combine
-    {
-        get;
-        set;
-    } = nameof(Combine);
-
-    /// <summary>
-    /// Gets or sets the optional state serialization callback name.
-    /// </summary>
-    public string Serialize
-    {
-        get;
-        set;
-    } = nameof(Serialize);
-
-    /// <summary>
-    /// Gets or sets the optional state deserialization callback name.
-    /// </summary>
-    public string Deserialize
-    {
-        get;
-        set;
-    } = nameof(Deserialize);
-
-    /// <summary>
-    /// Gets or sets the optional moving transition callback name.
-    /// </summary>
-    public string MovingTransition
-    {
-        get;
-        set;
-    } = nameof(MovingTransition);
-
-    /// <summary>
-    /// Gets or sets the optional moving inverse callback name.
-    /// </summary>
-    public string MovingInverse
-    {
-        get;
-        set;
-    } = nameof(MovingInverse);
-
-    /// <summary>
-    /// Gets or sets the optional moving final callback name.
-    /// </summary>
-    public string MovingFinal
-    {
-        get;
-        set;
-    } = nameof(MovingFinal);
 }

@@ -76,10 +76,10 @@ public sealed partial class PgFunctionGeneratorTests
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             #nullable enable
             [Ankus.PgAggregate]
-            public static class LastRelation
+            public sealed class LastRelation : Ankus.IPgAggregate<Ankus.PgRelation?,Ankus.PgRelation?>
             {
                 [Ankus.PgFunction]
-                public static Ankus.PgRelation? Transition(Ankus.PgRelation? state, Ankus.PgRelation? value) => value ?? state;
+                public static Ankus.PgRelation? Transition(Ankus.PgAggregateContext context,Ankus.PgRelation? state, Ankus.PgRelation? value) => value ?? state;
             }
             """);
         Assert.IsEmpty(diagnostics, string.Join("\n", diagnostics));

@@ -214,10 +214,10 @@ public sealed partial class PgFunctionGeneratorTests
     {
         Compilation compilation = GenerateSqlControl("""
             [Ankus.PgAggregate(InitialCondition = "0")]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>
             {
                 [Ankus.PgSupportFunction(typeof(SupportFunctions), nameof(SupportFunctions.Z))]
-                public static int Transition(int state, int value) => state + value;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value;
             }
             public static class SupportFunctions
             {
@@ -243,10 +243,11 @@ public sealed partial class PgFunctionGeneratorTests
         const string reference = "[Ankus.PgSupportFunction(typeof(Counter), nameof(Counter.Transition))]";
         string source = $$"""
             [Ankus.PgAggregate]
-            public static class Counter
+            public sealed class Counter : Ankus.IPgAggregate<{{state}}?,System.ValueTuple>,
+                Ankus.IPgFinalizingAggregate<{{state}}?,System.ValueTuple,int>
             {
-                public static {{state}}? Transition({{state}}? state) => state;
-                public static int Final({{state}}? state) => 0;
+                public static {{state}}? Transition(Ankus.PgAggregateContext context,{{state}}? state,System.ValueTuple arguments) => state;
+                public static int Final(Ankus.PgAggregateContext context,{{state}}? state,System.ValueTuple direct) => 0;
             }
             public static class Functions
             {

@@ -4,15 +4,17 @@ namespace Ankus.Examples.Aggregates;
 /// Selects a discrete integer percentile using PostgreSQL's WITHIN GROUP ordering.
 /// </summary>
 [PgAggregate(Name = "integer_percentile", Kind = PgAggregateKind.OrderedSet, FinalModify = PgAggregateFinalModify.ReadOnly)]
-public static class DiscretePercentile
+public sealed class DiscretePercentile : IPgAggregate<PgAggregateState<List<int>>?, int?>,
+    IPgFinalizingAggregate<PgAggregateState<List<int>>?, double?, int?>
 {
     /// <summary>
     /// Retains nonnull input values in an owned group state.
     /// </summary>
+    /// <param name="context">The current aggregate invocation and state owner.</param>
     /// <param name="state">The current group state, or null before its first value.</param>
     /// <param name="value">The next aggregated input, which PostgreSQL does not sort for ordered-set callbacks.</param>
     /// <returns>The current state, or null if no nonnull input has been observed.</returns>
-    public static PgAggregateState<List<int>>? Transition(PgAggregateState<List<int>>? state, int? value)
+    public static PgAggregateState<List<int>>? Transition(PgAggregateContext context, PgAggregateState<List<int>>? state, int? value)
     {
         if (value is { } number)
         {

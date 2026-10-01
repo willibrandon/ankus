@@ -22,13 +22,13 @@ public static class TypedAggregateFunctions
         /// Retains the exact tuple, including rows with NULL fields.
         /// </summary>
         public static RankState Transition(PgAggregateContext context, RankState? state, (string? Text, int? Number) arguments)
-            => AggregateOrderedFunctions.HypotheticalRank.Transition(state, arguments.Text, arguments.Number);
+            => AggregateOrderedFunctions.HypotheticalRank.Transition(context, state, arguments);
 
         /// <summary>
         /// Uses the two direct arguments in PostgreSQL's selected ordering.
         /// </summary>
         public static long Final(PgAggregateContext context, RankState? state, (string? TargetText, int? TargetNumber) arguments)
-            => AggregateOrderedFunctions.HypotheticalRank.Final(context, state, arguments.TargetText, arguments.TargetNumber);
+            => AggregateOrderedFunctions.HypotheticalRank.Final(context, state, arguments);
     }
 
     /// <summary>
@@ -42,13 +42,13 @@ public static class TypedAggregateFunctions
         /// Retains text before its SQL input memory expires.
         /// </summary>
         public static PgAggregateState<List<string?>> Transition(PgAggregateContext context, PgAggregateState<List<string?>>? state, string? arguments)
-            => AggregateOrderedFunctions.OrderedText.Transition(state, arguments);
+            => AggregateOrderedFunctions.OrderedText.Transition(context, state, arguments);
 
         /// <summary>
         /// Sorts retained values with PostgreSQL's ordering metadata.
         /// </summary>
         public static string?[] Final(PgAggregateContext context, PgAggregateState<List<string?>>? state, ValueTuple arguments)
-            => AggregateOrderedFunctions.OrderedText.Final(context, state);
+            => AggregateOrderedFunctions.OrderedText.Final(context, state, arguments);
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public static class TypedAggregateFunctions
         /// Returns the first retained value with its original SQL identity.
         /// </summary>
         public static PgAnyElement? Final(PgAggregateContext context, PolymorphicState? state, ValueTuple arguments)
-            => PolymorphicAggregateFunctions.Moving.Final(state, null);
+            => PolymorphicAggregateFunctions.Moving.Final(context, state, arguments);
 
         /// <summary>
         /// Copies the newly entering window value into its current state owner.
@@ -82,13 +82,13 @@ public static class TypedAggregateFunctions
         /// Verifies and removes the departing value through a distinct moving capability.
         /// </summary>
         public static PolymorphicState MovingInverse(PgAggregateContext context, PolymorphicState? state, PgAnyElement? arguments)
-            => PolymorphicAggregateFunctions.Moving.MovingInverse(state, arguments);
+            => PolymorphicAggregateFunctions.Moving.MovingInverse(context, state, arguments);
 
         /// <summary>
         /// Returns the first value of the current frame through its resolved polymorphic signature.
         /// </summary>
         public static PgAnyElement? MovingFinal(PgAggregateContext context, PolymorphicState? state, ValueTuple arguments)
-            => PolymorphicAggregateFunctions.Moving.MovingFinal(state, null);
+            => PolymorphicAggregateFunctions.Moving.MovingFinal(context, state, arguments);
     }
 
     /// <summary>
@@ -187,7 +187,7 @@ public static class TypedAggregateFunctions
         /// Observes the owned result without releasing state early.
         /// </summary>
         public static long Final(PgAggregateContext context, OwnedState? state, ValueTuple arguments)
-            => AggregateFunctions.ManagedSum.Final(context, state);
+            => AggregateFunctions.ManagedSum.Final(context, state, arguments);
 
         /// <summary>
         /// Maintains independently owned moving state.
@@ -199,13 +199,13 @@ public static class TypedAggregateFunctions
         /// Removes a row or asks PostgreSQL to restart the moving state.
         /// </summary>
         public static OwnedState? MovingInverse(PgAggregateContext context, OwnedState? state, int? arguments)
-            => AggregateFunctions.ManagedSum.MovingInverse(state, arguments);
+            => AggregateFunctions.ManagedSum.MovingInverse(context, state, arguments);
 
         /// <summary>
         /// Reads the current moving result through its optional capability.
         /// </summary>
         public static long MovingFinal(PgAggregateContext context, OwnedState? state, ValueTuple arguments)
-            => AggregateFunctions.ManagedSum.MovingFinal(context, state);
+            => AggregateFunctions.ManagedSum.MovingFinal(context, state, arguments);
     }
 
     /// <summary>
@@ -219,30 +219,30 @@ public static class TypedAggregateFunctions
         /// Records exact input values and the worker process identity.
         /// </summary>
         static ParallelState IPgAggregate<ParallelState?, int?>.Transition(PgAggregateContext context, ParallelState? state, int? arguments)
-            => AggregateParallelFunctions.ParallelSum.Transition(state, arguments);
+            => AggregateParallelFunctions.ParallelSum.Transition(context, state, arguments);
 
         /// <summary>
         /// Copies borrowed partial state into the destination's owner.
         /// </summary>
         static ParallelState? IPgCombinableAggregate<ParallelState?>.Combine(PgAggregateContext context, ParallelState? state, ParallelState? other)
-            => AggregateParallelFunctions.ParallelSum.Combine(state, other);
+            => AggregateParallelFunctions.ParallelSum.Combine(context, state, other);
 
         /// <summary>
         /// Encodes worker data without process-local pointers.
         /// </summary>
         static byte[]? IPgSerializableAggregate<ParallelState>.Serialize(PgAggregateContext context, ParallelState state)
-            => AggregateParallelFunctions.ParallelSum.Serialize(state);
+            => AggregateParallelFunctions.ParallelSum.Serialize(context, state);
 
         /// <summary>
         /// Restores a temporary worker state from its bytes.
         /// </summary>
         static ParallelState IPgSerializableAggregate<ParallelState>.Deserialize(PgAggregateContext context, byte[] bytes)
-            => AggregateParallelFunctions.ParallelSum.Deserialize(bytes);
+            => AggregateParallelFunctions.ParallelSum.Deserialize(context, bytes);
 
         /// <summary>
         /// Returns values, role counters and observed process identities.
         /// </summary>
         static long[] IPgFinalizingAggregate<ParallelState?, ValueTuple, long[]>.Final(PgAggregateContext context, ParallelState? state, ValueTuple arguments)
-            => AggregateParallelFunctions.ParallelSum.Final(state);
+            => AggregateParallelFunctions.ParallelSum.Final(context, state, arguments);
     }
 }

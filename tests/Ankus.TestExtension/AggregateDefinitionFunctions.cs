@@ -36,12 +36,12 @@ public static class AggregateDefinitionFunctions
     /// Preserves an integer's full bit pattern when PostgreSQL seeds an OID state directly.
     /// </summary>
     [PgAggregate(Name = "state_seed_oid")]
-    public static class SeedOid
+    public sealed class SeedOid : IPgAggregate<uint, int>
     {
         /// <summary>
         /// Returns the native seed and counts every subsequent transition.
         /// </summary>
-        public static uint Transition(uint state, int value)
+        public static uint Transition(PgAggregateContext context, uint state, int value)
         {
             s_seedInput = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
             s_seedCalls++;
@@ -53,12 +53,12 @@ public static class AggregateDefinitionFunctions
     /// Uses PostgreSQL's implicit binary-compatible CIDR-to-INET seed conversion.
     /// </summary>
     [PgAggregate(Name = "state_seed_inet")]
-    public static class SeedInet
+    public sealed class SeedInet : IPgAggregate<PgInet, PgCidr>
     {
         /// <summary>
         /// Returns the owned seed after the second network reaches managed code.
         /// </summary>
-        public static PgInet Transition(PgInet state, PgCidr value)
+        public static PgInet Transition(PgAggregateContext context, PgInet state, PgCidr value)
         {
             s_seedInput = value.ToString();
             s_seedCalls++;
@@ -73,23 +73,23 @@ public static class AggregateDefinitionFunctions
         StateSize = int.MaxValue, MovingStateSize = 4096, FinalExtra = true, MovingFinalExtra = true,
         FinalModify = PgAggregateFinalModify.Shareable, MovingFinalModify = PgAggregateFinalModify.ReadOnly,
         ParallelSafety = PgParallelSafety.Restricted)]
-    public static class CatalogOptions
+    public sealed class CatalogOptions : IPgAggregate<long, int>, IPgMovingAggregate<long, int>
     {
         /// <summary>
         /// Adds integer inputs to a required bigint state with distinct support-function options.
         /// </summary>
         [PgFunction(Volatility = PgVolatility.Immutable, ParallelSafety = PgParallelSafety.Safe, Cost = 42)]
-        public static long Transition(long state, int value) => checked(state + value);
+        public static long Transition(PgAggregateContext context, long state, int value) => checked(state + value);
 
         /// <summary>
         /// Maintains the same result through an independently configured moving state.
         /// </summary>
-        public static long MovingTransition(long state, int value) => checked(state + value);
+        public static long MovingTransition(PgAggregateContext context, long state, int value) => checked(state + value);
 
         /// <summary>
         /// Removes a departing value from the moving state.
         /// </summary>
-        public static long MovingInverse(long state, int value) => checked(state - value);
+        public static long MovingInverse(PgAggregateContext context, long state, int value) => checked(state - value);
     }
 
     /// <summary>
@@ -98,11 +98,11 @@ public static class AggregateDefinitionFunctions
     [PgAggregate(Name = "state_catalog_flags", InitialCondition = "0", FinalExtra = true,
         MovingFinalExtra = true, FinalModify = PgAggregateFinalModify.ReadWrite,
         MovingFinalModify = PgAggregateFinalModify.Shareable)]
-    public static class CatalogFlags
+    public sealed class CatalogFlags : IPgAggregate<int, int>
     {
         /// <summary>
         /// Adds required values without a separate final function.
         /// </summary>
-        public static int Transition(int state, int value) => checked(state + value);
+        public static int Transition(PgAggregateContext context, int state, int value) => checked(state + value);
     }
 }

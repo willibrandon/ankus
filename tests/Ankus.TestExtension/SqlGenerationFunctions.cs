@@ -177,19 +177,33 @@ public static class SqlGenerationFunctions
     }
 
     /// <summary>
-    /// Reuses one configured helper for transition and combine while the aggregate definition remains generated.
+    /// Reuses managed arithmetic through independently declared transition and combine SQL callbacks.
     /// </summary>
-    [PgAggregate(Name = "custom_sum", Transition = nameof(SharedSum.Add), Combine = nameof(SharedSum.Add), InitialCondition = "0")]
-    public static class SharedSum
+    [PgAggregate(Name = "custom_sum", InitialCondition = "0")]
+    public sealed class SharedSum : IPgAggregate<int, int>, IPgCombinableAggregate<int>
     {
         /// <summary>
-        /// Adds values through the single literal helper registration.
+        /// Adds each row through a literal transition registration.
         /// </summary>
         [PgFunction(Name = "shared_step", Sql = """
             CREATE FUNCTION sql_generation.shared_step(integer,integer) RETURNS integer
                 AS '@MODULE_PATHNAME@','@FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT COST 4;
             """)]
-        public static int Add(int state, int value)
+        public static int Transition(PgAggregateContext context, int state, int value) => Add(state, value);
+
+        /// <summary>
+        /// Combines partial states through an independently declared literal registration.
+        /// </summary>
+        [PgFunction(Name = "shared_combine", Sql = """
+            CREATE FUNCTION sql_generation.shared_combine(integer,integer) RETURNS integer
+                AS '@MODULE_PATHNAME@','@FUNCTION_NAME@' LANGUAGE c IMMUTABLE STRICT COST 4;
+            """)]
+        public static int Combine(PgAggregateContext context, int state, int other) => Add(state, other);
+
+        /// <summary>
+        /// Counts both capability invocations while retaining shared arithmetic.
+        /// </summary>
+        private static int Add(int state, int value)
         {
             s_aggregateCalls++;
             return checked(state + value);
@@ -200,13 +214,13 @@ public static class SqlGenerationFunctions
     /// Keeps its generated aggregate while explicit SQL supplies the disabled support declaration.
     /// </summary>
     [PgAggregate(Name = "supplied_sum", InitialCondition = "0", Id = "sql-generation.supplied-aggregate")]
-    public static class SuppliedSum
+    public sealed class SuppliedSum : IPgAggregate<int, int>
     {
         /// <summary>
         /// Remains compiled but must never execute because a SQL-language helper replaces its disabled declaration.
         /// </summary>
         [PgFunction(Name = "supplied_step", GenerateSql = false, Id = "sql-generation.disabled-helper")]
-        public static int Transition(int state, int value) => throw new InvalidOperationException("disabled helper executed");
+        public static int Transition(PgAggregateContext context, int state, int value) => throw new InvalidOperationException("disabled helper executed");
     }
 
     /// <summary>

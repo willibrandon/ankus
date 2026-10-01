@@ -251,7 +251,7 @@ public static class RawDatumFunctions
 /// Retains raw text under ordinary aggregate state owners, including parallel combination.
 /// </summary>
 [PgAggregate(Name = "raw_first", Schema = "raw_values", ParallelSafety = PgParallelSafety.Safe)]
-public static class RawFirstAggregate
+public sealed class RawFirstAggregate : IPgAggregate<PgDatum?, PgDatum?>, IPgCombinableAggregate<PgDatum?>
 {
     /// <summary>
     /// Copies the first present input into the aggregate's long-lived owner.

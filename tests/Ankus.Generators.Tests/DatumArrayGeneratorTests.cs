@@ -132,11 +132,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("MovingFinal", true)]
     public void DatumArraysRejectUnavailableAggregateDirections(string role, bool readOnly)
     {
-        string method = readOnly ? "public static Ankus.PgArray<Value?>? " + role + "(int state) => null;" :
-            "public static int " + role + "(Value?[]? state) => 0;";
-        AssertDatumMappingError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
-            "[Ankus.PgAggregate] public static class Aggregate { " + method + " }", "ANKUS019",
-            readOnly ? "writing SQL results" : "reading SQL arguments");
+        AssertDatumAggregateDirectionError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
+            DatumAggregateDirectionSource(role, readOnly ? "Ankus.PgArray<Value?>?" : "Value?[]?"), role, readOnly);
     }
 
     /// <summary>
@@ -150,14 +147,16 @@ public sealed partial class PgFunctionGeneratorTests
     {
         const string template = """
             [Ankus.PgAggregate]
-            public static class First
+            public sealed class First : Ankus.IPgAggregate<TYPE?,int>,Ankus.IPgCombinableAggregate<TYPE?>,
+                Ankus.IPgFinalizingAggregate<TYPE?,System.ValueTuple,TYPE?>,Ankus.IPgMovingAggregate<TYPE?,int>,
+                Ankus.IPgMovingFinalizingAggregate<TYPE?,System.ValueTuple,TYPE?>
             {
-                OUTPUT public static TYPE? Transition(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? Combine(INPUT TYPE? left, INPUT TYPE? right) => left ?? right;
-                OUTPUT public static TYPE? Final(INPUT TYPE? state) => state;
-                OUTPUT public static TYPE? MovingTransition(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? MovingInverse(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? MovingFinal(INPUT TYPE? state) => state;
+                OUTPUT public static TYPE? Transition(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? Combine(Ankus.PgAggregateContext context,INPUT TYPE? left, INPUT TYPE? right) => left ?? right;
+                OUTPUT public static TYPE? Final(Ankus.PgAggregateContext context,INPUT TYPE? state,System.ValueTuple direct) => state;
+                OUTPUT public static TYPE? MovingTransition(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? MovingInverse(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? MovingFinal(Ankus.PgAggregateContext context,INPUT TYPE? state,System.ValueTuple direct) => state;
             }
             public static class Functions
             {
@@ -240,10 +239,10 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<(Value[] First, Ankus.PgArray<Other?> Second)> Rows() => [];
             }
             [Ankus.PgAggregate(InitialCondition="0")]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,System.ValueTuple,Other?[]>
             {
-                public static int Transition(int state, int input) => state + input;
-                public static Other?[] Final(int state) => [];
+                public static int Transition(Ankus.PgAggregateContext context,int state, int input) => state + input;
+                public static Other?[] Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct) => [];
             }
             """);
         string sql = InstallationBody(compilation);

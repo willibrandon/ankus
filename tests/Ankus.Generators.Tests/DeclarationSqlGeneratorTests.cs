@@ -199,9 +199,9 @@ public sealed partial class PgFunctionGeneratorTests
     {
         const string source = """
             [Ankus.PgAggregate(InitialCondition = "0", PARENT)]
-            public static class Value
+            public sealed class Value : Ankus.IPgAggregate<int,int>
             {
-                [Ankus.PgFunction(HELPER)] public static int Transition(int state, int value) => state + value;
+                [Ankus.PgFunction(HELPER)] public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value;
             }
             """;
         Compilation baseline = GenerateSqlControl(source.Replace("PARENT", "Sql = null", StringComparison.Ordinal).Replace("HELPER", "Sql = null", StringComparison.Ordinal));
@@ -333,8 +333,10 @@ public sealed partial class PgFunctionGeneratorTests
                     "[Ankus.PgType(Name = \"same\", " + policy + ")] public readonly record struct Second(int Number);",
                 "enum" => "[Ankus.PgEnum(Name = \"same\", " + policy + ")] public enum First { A }" +
                     "[Ankus.PgEnum(Name = \"same\", " + policy + ")] public enum Second { B }",
-                "aggregate" => "[Ankus.PgAggregate(Name = \"same\", " + policy + ")] public static class First { public static int Transition(int state, int value) => state + value; }" +
-                    "[Ankus.PgAggregate(Name = \"same\", " + policy + ")] public static class Second { public static int Transition(int state, int value) => state + value; }",
+                "aggregate" => "[Ankus.PgAggregate(Name = \"same\", " + policy + ")] public sealed class First : Ankus.IPgAggregate<int,int> { " +
+                    "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value; }" +
+                    "[Ankus.PgAggregate(Name = \"same\", " + policy + ")] public sealed class Second : Ankus.IPgAggregate<int,int> { " +
+                    "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value; }",
                 "ordering" => DeclarationSource(kind, policy) + "public static class Other { [Ankus.PgFunction(Name = \"value_cmp\")] public static int Compare(Value left, Value right) => 0; }",
                 "hashing" => DeclarationSource(kind, policy) + "public static class Other { [Ankus.PgFunction(Name = \"value_hash\")] public static int Hash(Value value) => 0; }",
                 _ => throw new ArgumentOutOfRangeException(nameof(kind)),
@@ -467,7 +469,8 @@ public sealed partial class PgFunctionGeneratorTests
     [TestMethod]
     [DataRow("[Ankus.PgType(POLICY)] public readonly record struct Value(System.Uri Location);", "ANKUS017")]
     [DataRow("[Ankus.PgEnum(POLICY), System.Flags] public enum Value { First = 1, Last = 2 }", "ANKUS006")]
-    [DataRow("[Ankus.PgAggregate(POLICY)] public static class Value { public static string Transition(int state, int input) => input.ToString(); }", "ANKUS012")]
+    [DataRow("[Ankus.PgAggregate(POLICY)] public sealed class Value : Ankus.IPgAggregate<long,int> { " +
+        "public static long Transition(Ankus.PgAggregateContext context,long state, int input) => state + input; }", "ANKUS012")]
     [DataRow("[Ankus.PgType, Ankus.PgEquality, Ankus.PgOrdering(POLICY)] public readonly record struct Value(int Number);", "ANKUS018")]
     [DataRow("[Ankus.PgType, Ankus.PgEquality, Ankus.PgHashing(POLICY)] public readonly record struct Value(int Number);", "ANKUS018")]
     public void DeclarationSqlDoesNotBypassContracts(string source, string id)
@@ -498,7 +501,8 @@ public sealed partial class PgFunctionGeneratorTests
             "type" => "[Ankus.PgType(" + custom + "), Ankus.PgEquality, Ankus.PgOrdering, Ankus.PgHashing] public enum Value { Low = 3, High = -1 }" + consumer,
             "enum" => "[Ankus.PgEnum(" + options + ")] public enum Value { Low = 3, High = -1 }" + consumer,
             "aggregate" => "[Ankus.PgAggregate(InitialCondition = \"0\"" + (options.Length == 0 ? string.Empty : ", " + options) +
-                ")] public static class Value { public static int Transition(int state, int value) => state + value; }",
+                ")] public sealed class Value : Ankus.IPgAggregate<int,int> { " +
+                "public static int Transition(Ankus.PgAggregateContext context,int state, int value) => state + value; }",
             "ordering" => "[Ankus.PgEnum, Ankus.PgEquality, Ankus.PgOrdering(" + options + ")] public enum Value { Low = 3, High = -1 }",
             "hashing" => "[Ankus.PgEnum, Ankus.PgEquality, Ankus.PgHashing(" + options + ")] public enum Value { Low = 3, High = -1 }",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),

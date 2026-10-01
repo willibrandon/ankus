@@ -85,12 +85,21 @@ public sealed partial class AggregateTests
         });
 
     /// <summary>
-    /// PostgreSQL sends NULL dummy arguments to both ordinary and moving finals.
+    /// Final dummy SQL slots retain their input types and stay outside ordinary and moving managed argument groups.
     /// </summary>
     [TestMethod]
-    public Task FinalExtraArgumentsRemainNullInOrdinaryAndMovingExecution()
-        => Run(nameof(FinalExtraArgumentsRemainNullInOrdinaryAndMovingExecution), async (connection, transaction, token) =>
+    public Task FinalExtraArgumentsStayOutsideOrdinaryAndMovingManagedCallbacks()
+        => Run(nameof(FinalExtraArgumentsStayOutsideOrdinaryAndMovingManagedCallbacks), async (connection, transaction, token) =>
         {
+            Assert.IsTrue(await Scalar<bool>(connection, transaction, """
+                SELECT a.aggfinalextra AND a.aggmfinalextra
+                    AND f.proargtypes='23 23'::oidvector AND m.proargtypes='23 23'::oidvector
+                    AND NOT f.proisstrict AND NOT m.proisstrict
+                FROM pg_aggregate a
+                JOIN pg_proc f ON f.oid=a.aggfinalfn
+                JOIN pg_proc m ON m.oid=a.aggmfinalfn
+                WHERE a.aggfnoid='aggregate_values.extra_sum(integer)'::regprocedure
+                """, token));
             Assert.AreEqual(60, await Scalar<int>(connection, transaction,
                 "SELECT aggregate_values.extra_sum(v) FROM (VALUES(10),(20),(30)) AS input(v)", token));
             Assert.AreEqual(0, await Scalar<int>(connection, transaction,

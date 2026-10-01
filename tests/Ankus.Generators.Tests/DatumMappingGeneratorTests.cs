@@ -53,14 +53,16 @@ public sealed partial class PgFunctionGeneratorTests
     {
         const string template = """
             [Ankus.PgAggregate]
-            public static class First
+            public sealed class First : Ankus.IPgAggregate<TYPE?,int>,Ankus.IPgCombinableAggregate<TYPE?>,
+                Ankus.IPgFinalizingAggregate<TYPE?,System.ValueTuple,TYPE?>,Ankus.IPgMovingAggregate<TYPE?,int>,
+                Ankus.IPgMovingFinalizingAggregate<TYPE?,System.ValueTuple,TYPE?>
             {
-                OUTPUT public static TYPE? Transition(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? Combine(INPUT TYPE? left, INPUT TYPE? right) => left ?? right;
-                OUTPUT public static TYPE? Final(INPUT TYPE? state) => state;
-                OUTPUT public static TYPE? MovingTransition(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? MovingInverse(INPUT TYPE? state, int value) => state;
-                OUTPUT public static TYPE? MovingFinal(INPUT TYPE? state) => state;
+                OUTPUT public static TYPE? Transition(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? Combine(Ankus.PgAggregateContext context,INPUT TYPE? left, INPUT TYPE? right) => left ?? right;
+                OUTPUT public static TYPE? Final(Ankus.PgAggregateContext context,INPUT TYPE? state,System.ValueTuple direct) => state;
+                OUTPUT public static TYPE? MovingTransition(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? MovingInverse(Ankus.PgAggregateContext context,INPUT TYPE? state, int value) => state;
+                OUTPUT public static TYPE? MovingFinal(Ankus.PgAggregateContext context,INPUT TYPE? state,System.ValueTuple direct) => state;
             }
             public static class Functions
             {
@@ -136,11 +138,8 @@ public sealed partial class PgFunctionGeneratorTests
     [DataRow("MovingFinal", true)]
     public void DatumMappingsRejectUnavailableAggregateDirections(string role, bool readOnly)
     {
-        string method = readOnly ? "public static Value " + role + "(int state) => default;" :
-            "public static int " + role + "(Value state) => 0;";
-        AssertDatumMappingError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
-            "[Ankus.PgAggregate] public static class Aggregate { " + method + " }", "ANKUS019",
-            readOnly ? "writing SQL results" : "reading SQL arguments");
+        AssertDatumAggregateDirectionError(DatumMappingSource(reader: readOnly, writer: !readOnly) +
+            DatumAggregateDirectionSource(role, "Value"), role, readOnly);
     }
 
     /// <summary>
@@ -184,10 +183,11 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<(Value Mapped, Ankus.PgDatum Raw)> Rows() => [];
             }
             [Ankus.PgAggregate]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<Ankus.PgAggregateState<Value>?,int>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgAggregateState<Value>?,System.ValueTuple,int>
             {
-                public static Ankus.PgAggregateState<Value> Transition(Ankus.PgAggregateState<Value>? state, int value) => state!;
-                public static int Final(Ankus.PgAggregateState<Value>? state) => 7;
+                public static Ankus.PgAggregateState<Value> Transition(Ankus.PgAggregateContext context,Ankus.PgAggregateState<Value>? state, int value) => state!;
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgAggregateState<Value>? state,System.ValueTuple direct) => 7;
             }
             """);
         Assert.Contains("RETURNS TABLE (\"mapped\" \"pg_catalog\".\"int4\", \"raw\" \"pg_catalog\".\"text\")", InstallationBody(compilation));
@@ -393,10 +393,10 @@ public sealed partial class PgFunctionGeneratorTests
                 public static System.Collections.Generic.IEnumerable<(Value First, Other Second)> Rows() => [];
             }
             [Ankus.PgAggregate(InitialCondition="0")]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,System.ValueTuple,Other>
             {
-                public static int Transition(int state, int input) => state + input;
-                public static Other Final(int state) => default;
+                public static int Transition(Ankus.PgAggregateContext context,int state, int input) => state + input;
+                public static Other Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct) => default;
             }
             """);
         string sql = InstallationBody(compilation);
@@ -863,7 +863,7 @@ public sealed partial class PgFunctionGeneratorTests
     /// <summary>
     /// Requires a matching precise diagnostic and the absence of all generated artifacts.
     /// </summary>
-    private void AssertDatumMappingError(string source, string id, string reason)
+    private void AssertDatumMappingError(string source, string id, string reason, string? aggregateRole = null)
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate(source);
         Assert.IsNotEmpty(diagnostics);
@@ -874,5 +874,44 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.IsEmpty(compilation.Assembly.GetAttributes().Where(static attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"));
         Assert.IsEmpty(compilation.GetDiagnostics(context.CancellationToken).Where(static error => error.Severity == DiagnosticSeverity.Error));
+        if (aggregateRole is not null)
+        {
+            Assert.IsTrue(diagnostics.Any(error => error.Location.SourceTree?.GetRoot(context.CancellationToken)
+                .FindNode(error.Location.SourceSpan).AncestorsAndSelf().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()
+                .Any(method => method.Identifier.ValueText == aggregateRole) == true), string.Join(Environment.NewLine, diagnostics));
+        }
+    }
+
+    /// <summary>
+    /// Proves the requested compiler-selected callback itself reports the missing conversion direction.
+    /// </summary>
+    private void AssertDatumAggregateDirectionError(string source, string role, bool readOnly)
+        => AssertDatumMappingError(source, "ANKUS019", readOnly ? "writing SQL results" : "reading SQL arguments", role);
+
+    /// <summary>
+    /// Builds valid C# capabilities so datum preflight errors cannot be mistaken for invalid method signatures.
+    /// </summary>
+    private static string DatumAggregateDirectionSource(string role, string value)
+    {
+        const string transition = "public static int Transition(Ankus.PgAggregateContext context,int state,int input)=>state;";
+        (string capability, string callbacks) = role switch
+        {
+            "Transition" => ("Ankus.IPgAggregate<" + value + ",int>", "public static " + value +
+                " Transition(Ankus.PgAggregateContext context," + value + " state,int input)=>default!;"),
+            "Combine" => ("Ankus.IPgAggregate<int,int>,Ankus.IPgCombinableAggregate<" + value + ">", transition +
+                "public static " + value + " Combine(Ankus.PgAggregateContext context," + value + " state," + value + " other)=>default!;"),
+            "Final" => ("Ankus.IPgAggregate<int,int>,Ankus.IPgFinalizingAggregate<int,System.ValueTuple," + value + ">", transition +
+                "public static " + value + " Final(Ankus.PgAggregateContext context,int state,System.ValueTuple direct)=>default!;"),
+            "Serialize" or "Deserialize" => ("Ankus.IPgAggregate<int,int>,Ankus.IPgSerializableAggregate<" + value + ">", transition +
+                "public static byte[] Serialize(Ankus.PgAggregateContext context," + value + " state)=>[];" +
+                "public static " + value + " Deserialize(Ankus.PgAggregateContext context,byte[] bytes)=>default!;"),
+            "MovingTransition" or "MovingInverse" => ("Ankus.IPgAggregate<int,int>,Ankus.IPgMovingAggregate<" + value + ",int>", transition +
+                "public static " + value + " MovingTransition(Ankus.PgAggregateContext context," + value + " state,int input)=>default!;" +
+                "public static " + value + " MovingInverse(Ankus.PgAggregateContext context," + value + " state,int input)=>default!;"),
+            "MovingFinal" => ("Ankus.IPgAggregate<int,int>,Ankus.IPgMovingFinalizingAggregate<int,System.ValueTuple," + value + ">", transition +
+                "public static " + value + " MovingFinal(Ankus.PgAggregateContext context,int state,System.ValueTuple direct)=>default!;"),
+            _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown aggregate capability."),
+        };
+        return "[Ankus.PgAggregate] public sealed class Aggregate : " + capability + " { " + callbacks + " }";
     }
 }

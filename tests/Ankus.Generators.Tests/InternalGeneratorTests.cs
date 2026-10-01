@@ -49,15 +49,17 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             [Ankus.PgAggregate(ParallelSafety = Ankus.PgParallelSafety.Safe)]
-            public static class Total
+            public sealed class Total : Ankus.IPgAggregate<Ankus.PgInternal?,int>,
+                Ankus.IPgFinalizingAggregate<Ankus.PgInternal?,System.ValueTuple,int>,
+                Ankus.IPgCombinableAggregate<Ankus.PgInternal?>, Ankus.IPgSerializableAggregate<Ankus.PgInternal>
             {
-                public static Ankus.PgInternal Transition(Ankus.PgInternal? state, int value)
+                public static Ankus.PgInternal Transition(Ankus.PgAggregateContext context,Ankus.PgInternal? state, int value)
                     => state ?? Ankus.PgInternal.Create(value);
-                public static int Final(Ankus.PgInternal? state) => state?.Get<int>() ?? 0;
-                public static Ankus.PgInternal? Combine(Ankus.PgInternal? left, Ankus.PgInternal? right)
+                public static int Final(Ankus.PgAggregateContext context,Ankus.PgInternal? state,System.ValueTuple direct) => state?.Get<int>() ?? 0;
+                public static Ankus.PgInternal? Combine(Ankus.PgAggregateContext context,Ankus.PgInternal? left, Ankus.PgInternal? right)
                     => left ?? (right is null ? null : Ankus.PgInternal.Create(right.Get<int>()));
-                public static byte[] Serialize(Ankus.PgInternal state) => [1];
-                public static Ankus.PgInternal Deserialize(byte[] bytes) => Ankus.PgInternal.Create(1);
+                public static byte[] Serialize(Ankus.PgAggregateContext context,Ankus.PgInternal state) => [1];
+                public static Ankus.PgInternal Deserialize(Ankus.PgAggregateContext context,byte[] bytes) => Ankus.PgInternal.Create(1);
             }
             """);
         AssertAggregateCompilation(compilation, diagnostics);

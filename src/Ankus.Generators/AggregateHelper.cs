@@ -6,11 +6,11 @@ namespace Ankus.Generators;
 /// <summary>
 /// Represents one aggregate support method and its context-free SQL signature.
 /// </summary>
-internal sealed class AggregateHelper(IMethodSymbol method, string role, bool contextParameter,
-    ImmutableArray<AggregateParameter> parameters, AggregateType result, FunctionDeclaration declaration, AggregateInvocation? invocation = null)
+internal sealed class AggregateHelper(IMethodSymbol method, string role,
+    ImmutableArray<AggregateParameter> parameters, AggregateType result, FunctionDeclaration declaration, AggregateInvocation invocation)
 {
     /// <summary>
-    /// Gets the attributed or conventionally selected managed method.
+    /// Gets the implementation selected by its aggregate capability interface.
     /// </summary>
     internal IMethodSymbol Method { get; } = method;
 
@@ -18,11 +18,6 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     /// Gets the aggregate support role used by default SQL naming and native behavior.
     /// </summary>
     internal string Role { get; } = role;
-
-    /// <summary>
-    /// Gets whether the method receives a leading managed aggregate context.
-    /// </summary>
-    internal bool ContextParameter { get; } = contextParameter;
 
     /// <summary>
     /// Gets validated SQL argument slots, excluding the managed context and native deserializer dummy.
@@ -45,9 +40,9 @@ internal sealed class AggregateHelper(IMethodSymbol method, string role, bool co
     internal FunctionDeclaration Declaration { get; } = declaration;
 
     /// <summary>
-    /// Gets the typed capability dispatch, or null for a conventional method declaration.
+    /// Gets the compiler-checked capability dispatch, including its invocation context.
     /// </summary>
-    internal AggregateInvocation? Invocation { get; } = invocation;
+    internal AggregateInvocation Invocation { get; } = invocation;
 
     /// <summary>
     /// Gets whether PostgreSQL supplies an extra SQL-nonnull internal dummy argument.

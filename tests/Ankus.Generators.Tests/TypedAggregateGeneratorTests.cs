@@ -272,19 +272,11 @@ public sealed partial class PgFunctionGeneratorTests
     /// <param name="source">A valid C# type with an invalid PostgreSQL aggregate contract.</param>
     [TestMethod]
     [DataRow("""
-        [Ankus.PgAggregate] public sealed class OnlyFinal : Ankus.IPgFinalizingAggregate<int,System.ValueTuple,int>
-        { public static int Final(Ankus.PgAggregateContext context,int state,System.ValueTuple arguments) => state; }
-        """)]
-    [DataRow("""
         [Ankus.PgAggregate(InitialCondition="0")] public sealed class Ambiguous : Ankus.IPgAggregate<int,int>,Ankus.IPgAggregate<long,int>
         {
             static int Ankus.IPgAggregate<int,int>.Transition(Ankus.PgAggregateContext context,int state,int arguments) => state;
             static long Ankus.IPgAggregate<long,int>.Transition(Ankus.PgAggregateContext context,long state,int arguments) => state;
         }
-        """)]
-    [DataRow("""
-        [Ankus.PgAggregate(InitialCondition="0",Transition=nameof(Transition))] public sealed class Override : Ankus.IPgAggregate<int,int>
-        { public static int Transition(Ankus.PgAggregateContext context,int state,int arguments) => state; }
         """)]
     [DataRow("""
         [Ankus.PgAggregate(InitialCondition="0")] public sealed class Uncontracted : Ankus.IPgAggregate<int,int>

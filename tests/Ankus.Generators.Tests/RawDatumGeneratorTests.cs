@@ -56,10 +56,10 @@ public sealed partial class PgFunctionGeneratorTests
     {
         (Compilation compilation, ImmutableArray<Diagnostic> diagnostics) = Generate("""
             [Ankus.PgAggregate]
-            public static class First
+            public sealed class First : Ankus.IPgAggregate<Ankus.PgDatum?,Ankus.PgDatum?>
             {
                 [return: Ankus.PgSqlType("custom")]
-                public static Ankus.PgDatum? Transition([Ankus.PgSqlType("custom")] Ankus.PgDatum? state,
+                public static Ankus.PgDatum? Transition(Ankus.PgAggregateContext context,[Ankus.PgSqlType("custom")] Ankus.PgDatum? state,
                     [Ankus.PgSqlType("custom")] Ankus.PgDatum? value) => state ?? value;
             }
             public static class Functions

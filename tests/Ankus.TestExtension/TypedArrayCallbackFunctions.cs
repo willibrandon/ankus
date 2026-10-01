@@ -147,12 +147,14 @@ public static partial class BorrowedArrayFunctions
     /// Keeps the first present typed array alive until the aggregate returns its exact native value.
     /// </summary>
     [PgAggregate(Name = "typed_array_first")]
-    public static class FirstTypedArray
+    public sealed class FirstTypedArray : IPgAggregate<PgAggregateState<PgArrayView<int?>>?, PgArrayView<int?>?>,
+        IPgFinalizingAggregate<PgAggregateState<PgArrayView<int?>>?, ValueTuple, PgArrayView<int?>?>
     {
         /// <summary>
         /// Retains the first snapshot and releases later inputs without traversing their cells.
         /// </summary>
-        public static PgAggregateState<PgArrayView<int?>>? Transition(PgAggregateState<PgArrayView<int?>>? state, PgArrayView<int?>? value)
+        public static PgAggregateState<PgArrayView<int?>>? Transition(PgAggregateContext context,
+            PgAggregateState<PgArrayView<int?>>? state, PgArrayView<int?>? value)
         {
             if (state is null && value is not null)
             {
@@ -166,19 +168,20 @@ public static partial class BorrowedArrayFunctions
         /// <summary>
         /// Returns the stored native array after the callbacks that created it have ended.
         /// </summary>
-        public static PgArrayView<int?>? Final(PgAggregateState<PgArrayView<int?>>? state) => state?.Value;
+        public static PgArrayView<int?>? Final(PgAggregateContext context, PgAggregateState<PgArrayView<int?>>? state, ValueTuple arguments) => state?.Value;
     }
 
     /// <summary>
     /// Uses a concrete SQL array as aggregate state, independently of managed internal state ownership.
     /// </summary>
     [PgAggregate(Name = "typed_array_sql_first")]
-    public static class FirstTypedSqlArray
+    public sealed class FirstTypedSqlArray : IPgAggregate<PgArrayView<int?>?, PgArrayView<int?>?>,
+        IPgFinalizingAggregate<PgArrayView<int?>?, ValueTuple, PgArrayView<int?>?>
     {
         /// <summary>
         /// Transfers the first present array state and releases an unused copied input.
         /// </summary>
-        public static PgArrayView<int?>? Transition(PgArrayView<int?>? state, PgArrayView<int?>? value)
+        public static PgArrayView<int?>? Transition(PgAggregateContext context, PgArrayView<int?>? state, PgArrayView<int?>? value)
         {
             if (state is null)
             {
@@ -192,6 +195,6 @@ public static partial class BorrowedArrayFunctions
         /// <summary>
         /// Returns the final concrete SQL array state.
         /// </summary>
-        public static PgArrayView<int?>? Final(PgArrayView<int?>? state) => state;
+        public static PgArrayView<int?>? Final(PgAggregateContext context, PgArrayView<int?>? state, ValueTuple arguments) => state;
     }
 }
