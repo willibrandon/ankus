@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Ankus.Generators;
 
 /// <summary>
-/// Detaches ordinary function validation and conversion contracts from compiler state.
+/// Detaches ordinary and operator/cast backing-function validation and conversion contracts from compiler state.
 /// </summary>
 internal static class FunctionPipeline
 {
@@ -21,28 +21,55 @@ internal static class FunctionPipeline
             static (attribute, token) => Analyze(attribute, token))
             .Where(static value => value is not null).Select(static (value, _) => value!)
             .WithTrackingName("FunctionAnalysis");
+        IncrementalValueProvider<EquatableArray<FunctionOutput>> functions = Render(analysis, "Function");
+        IncrementalValuesProvider<FunctionAnalysis> operators = Aliases(context, "Ankus.PgOperatorAttribute");
+        IncrementalValuesProvider<FunctionAnalysis> casts = Aliases(context, "Ankus.PgCastAttribute");
+        IncrementalValuesProvider<FunctionAnalysis> aliases = operators.Collect().Combine(casts.Collect())
+            .SelectMany(static (value, _) => value.Left.Concat(value.Right).Distinct())
+            .WithTrackingName("AliasFunctionAnalysis");
+        return functions.Combine(Render(aliases, "AliasFunction")).Select(static (value, _) =>
+            new EquatableArray<FunctionOutput>(value.Left.Concat(value.Right)));
+    }
+
+    /// <summary>
+    /// Discovers alias-only backing functions once while preserving ordinary-function and callback priorities.
+    /// </summary>
+    private static IncrementalValuesProvider<FunctionAnalysis> Aliases(IncrementalGeneratorInitializationContext context, string attributeName)
+        => context.SyntaxProvider.ForAttributeWithMetadataName(attributeName, static (node, _) => node is MethodDeclarationSyntax,
+            static (attribute, token) => attribute.TargetSymbol.GetAttributes().Any(static value =>
+                value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute") ? null : Analyze(attribute, token))
+            .Where(static value => value is not null).Select(static (value, _) => value!);
+
+    /// <summary>
+    /// Renders shared scalar and set contracts in independently tracked ordinary or alias-only pipelines.
+    /// </summary>
+    private static IncrementalValueProvider<EquatableArray<FunctionOutput>> Render(IncrementalValuesProvider<FunctionAnalysis> analysis, string prefix)
+    {
         IncrementalValuesProvider<FunctionModel?> models = analysis.Select(static (value, _) => value.Model)
-            .WithTrackingName("FunctionModel");
+            .WithTrackingName(prefix + "Model");
         IncrementalValuesProvider<FunctionEmission?> emission = models.Select(static (value, _) => value is null ? null :
             value.Set is null ? PgFunctionEmitter.EmitBoundary(value.Invocation, [.. value.Parameters], value.Result!, value.Callback) :
                 PgSetEmitter.EmitBoundary(value.Invocation, [.. value.Parameters], value.Set, value.Callback))
-            .WithTrackingName("FunctionEmission");
+            .WithTrackingName(prefix + "Emission");
         IncrementalValuesProvider<FunctionDeclaration?> declarations = analysis.Select(static (value, _) => value.Declaration)
-            .WithTrackingName("FunctionDeclaration");
+            .WithTrackingName(prefix + "Declaration");
         IncrementalValuesProvider<FunctionSqlModel?> sqlModels = analysis.Select(static (value, _) => value.Declaration is null ? null :
             FunctionSqlModel.Create(value.Declaration, value.Model!.Result, value.Model.Set, value.Model.Callback.Replace("ankus_managed_", "ankus_fn_")))
-            .WithTrackingName("FunctionSqlModel");
+            .WithTrackingName(prefix + "SqlModel");
         IncrementalValuesProvider<FunctionSqlEmission?> sql = sqlModels.Select(static (value, _) => value is null ? null :
-            FunctionSqlEmission.Create(value)).WithTrackingName("FunctionSqlEmission");
+            FunctionSqlEmission.Create(value)).WithTrackingName(prefix + "SqlEmission");
         return analysis.Collect().Combine(emission.Collect()).Combine(declarations.Collect()).Combine(sql.Collect()).Select(static (value, _) =>
             new EquatableArray<FunctionOutput>(value.Left.Left.Left.Select((item, index) =>
                 new FunctionOutput(item, value.Left.Left.Right[index], value.Left.Right[index], value.Right[index]))));
     }
 
     /// <summary>
-    /// Validates one ordinary attributed function while compiler objects remain confined to analysis.
+    /// Validates one attributed backing function while compiler objects remain confined to analysis.
     /// </summary>
-    private static FunctionAnalysis? Analyze(GeneratorAttributeSyntaxContext attribute, CancellationToken cancellationToken)
+    /// <param name="attribute">The semantically resolved method attribute.</param>
+    /// <param name="cancellationToken">The current analysis cancellation token.</param>
+    /// <returns>The detached contract and diagnostics, or null for a specialized callback role.</returns>
+    internal static FunctionAnalysis? Analyze(GeneratorAttributeSyntaxContext attribute, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var method = (IMethodSymbol)attribute.TargetSymbol;
@@ -73,7 +100,8 @@ internal static class FunctionPipeline
         FunctionDeclaration? declaration = valid ? FunctionDeclaration.Create(method, name, diagnostics, set, parameterModels: parameters) : null;
         valid = valid && declaration is not null;
         return new(DeclarationIdentity.Create(method), valid ? new(new(parameters), result, set, MethodInvocation.Create(method),
-            PgFunctionGenerator.GetCallbackName(method, name)) : null, declaration, SqlDeclarationOptions.Read(attribute.Attributes[0])!,
+            PgFunctionGenerator.GetCallbackName(method, name)) : null, declaration, SqlDeclarationOptions.Read(method.GetAttributes().FirstOrDefault(static value =>
+                value.AttributeClass?.ToDisplayString() == "Ankus.PgFunctionAttribute")),
             new(problems), GeneratorLocation.Create(method.Locations.FirstOrDefault(), attribute.SemanticModel.Compilation));
     }
 
@@ -97,7 +125,7 @@ internal static class FunctionPipeline
     /// <param name="Problems">Diagnostics to resolve on the current source trees.</param>
     /// <param name="Location">The declaring source coordinates, including invalid duplicate signatures.</param>
     internal sealed record FunctionAnalysis(DeclarationIdentity Identity, FunctionModel? Model, FunctionDeclaration? Declaration,
-        SqlDeclarationOptions Options, EquatableArray<GeneratorProblem> Problems, GeneratorLocation? Location);
+        SqlDeclarationOptions? Options, EquatableArray<GeneratorProblem> Problems, GeneratorLocation? Location);
 
     /// <summary>
     /// Supplies one analyzed function and its independently cached boundary artifacts.
@@ -116,6 +144,7 @@ internal static class FunctionPipeline
     /// <param name="Triggers">The independently analyzed row and event callbacks.</param>
     /// <param name="Workers">The independently analyzed background-worker entries.</param>
     /// <param name="Lifecycle">The canonical initialization phases with independently rendered callbacks.</param>
+    /// <param name="OperatorCasts">The attached operator and cast catalog declarations and fragments.</param>
     /// <param name="Tests">The independently analyzed tests, discovery catalogs and native boundaries.</param>
-    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, PgTestPipeline.Output Tests);
+    internal sealed record MethodInputs(ImmutableArray<IMethodSymbol> Methods, EquatableArray<FunctionOutput> Functions, EquatableArray<TriggerPipeline.TriggerOutput> Triggers, EquatableArray<BackgroundWorkerPipeline.WorkerOutput> Workers, EquatableArray<LifecyclePipeline.LifecycleOutput> Lifecycle, EquatableArray<OperatorCastPipeline.Output> OperatorCasts, PgTestPipeline.Output Tests);
 }

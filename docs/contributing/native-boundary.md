@@ -121,6 +121,13 @@ preserving its exact rendered contract.
 
 Other declaration families and final graph composition still consume compiler
 symbols; their rendering and complete output caching remain in progress.
+Operator and cast attributes also detach validated catalog identities, typed
+operand/result fragments and authored dependency policies. Alias-only backing
+functions share the ordinary conversion validators and render independently.
+Current type-provider ownership is applied to typed SQL fragments during graph
+composition, so provider or dependency edits do not rerender unchanged catalog
+grammar. Current diagnostics and duplicate inventories remain composition work.
+This does not yet remove compiler inputs from the final extension compositor.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and

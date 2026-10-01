@@ -62,8 +62,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray())
             .Combine(tests.Collect()).Select(static (input, _) => input.Left.AddRange(input.Right)
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default).ToImmutableArray());
-        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = methods.Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(PgTestPipeline.Register(context))
-            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right));
+        IncrementalValueProvider<FunctionPipeline.MethodInputs> methodInputs = methods.Combine(FunctionPipeline.Register(context)).Combine(TriggerPipeline.Register(context)).Combine(BackgroundWorkerPipeline.Register(context)).Combine(LifecyclePipeline.Register(context)).Combine(OperatorCastPipeline.Register(context)).Combine(PgTestPipeline.Register(context))
+            .Select(static (value, _) => new FunctionPipeline.MethodInputs(value.Left.Left.Left.Left.Left.Left, value.Left.Left.Left.Left.Left.Right, value.Left.Left.Left.Left.Right, value.Left.Left.Left.Right, value.Left.Left.Right, value.Left.Right, value.Right));
         IncrementalValueProvider<EquatableArray<EnumPipeline.EnumOutput>> enums = EnumPipeline.Register(context);
         IncrementalValuesProvider<INamedTypeSymbol> customTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Ankus.PgTypeAttribute",
@@ -141,6 +141,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
         ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
+        ILookup<DeclarationIdentity, OperatorCastPipeline.Output> operatorModels = methodInputs.OperatorCasts.ToLookup(static value => value.Analysis.Identity);
         bool referencedCallbacks = compilation.SourceModule.ReferencedAssemblySymbols.Any(static assembly =>
             assembly.GetAttributes().Any(static attribute =>
                 attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute" &&
@@ -784,7 +785,8 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             graph.Add(entity, method);
             List<SqlEntity> related = contextParameter ? [] :
-                OperatorCastDeclaration.Add(method, parameters, declaration, entity, graph, relatedNames, context, operatorEntities, typeProviders);
+                OperatorCastDeclaration.Add(method, operatorModels[DeclarationIdentity.Create(method)]
+                    .Where(value => value.Analysis.Location == methodLocation), entity, graph, relatedNames, context, operatorEntities, typeProviders, compilation);
             fixedSchema |= !SqlGeneration.ApplyOptions(functionOptions, entity, related,
                 [("@FUNCTION_NAME@", callback.Replace("ankus_managed_", "ankus_fn_"))], graph);
 
