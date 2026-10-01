@@ -218,6 +218,12 @@ enabling SQL. Explicit `Fatal` and `Panic` reports retain their severity after
 managed code unwinds. An unhandled `Error` follows the hook's failure policy:
 check rejection, assign FATAL, or show ERROR/FATAL according to transaction state.
 
+A typed read with an unknown Ankus setting name or a mismatched reader throws
+`PgException` with SQLSTATE `42704` or `42804`. These are API validation errors
+and can be caught without aborting a transaction. Reads and other permitted
+backend calls remain available afterwards. Actual PostgreSQL errors during a
+read still require rollback and cannot be swallowed by an ordinary `catch`.
+
 ## Parallel queries
 
 PostgreSQL restores configuration in each parallel worker. Managed state starts

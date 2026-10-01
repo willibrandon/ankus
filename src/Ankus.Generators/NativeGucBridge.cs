@@ -630,6 +630,30 @@ internal static class NativeGucBridge
             if (ankus_recovery_failed(error))
                 return 1;
 
+            AnkusGuc *definition = NULL;
+            for (int index = 0; index < ankus_guc_count; index++)
+            {
+                if (ankus_guc_name_equal(ankus_guc_definitions[index]->name_utf8, name))
+                {
+                    definition = ankus_guc_definitions[index];
+                    break;
+                }
+            }
+
+            if (definition == NULL)
+            {
+                error->sqlstate = ERRCODE_UNDEFINED_OBJECT;
+                strlcpy(error->message, "Unknown Ankus configuration parameter", sizeof(error->message));
+                return 1;
+            }
+
+            if (definition->kind != kind)
+            {
+                error->sqlstate = ERRCODE_DATATYPE_MISMATCH;
+                strlcpy(error->message, "Ankus configuration type does not match its declaration", sizeof(error->message));
+                return 1;
+            }
+
             MemoryContext caller = CurrentMemoryContext;
             MemoryContext volatile work = NULL;
             volatile int status = 0;
@@ -639,20 +663,6 @@ internal static class NativeGucBridge
                 {
                     work = AllocSetContextCreate(caller, "Ankus configuration read", ALLOCSET_SMALL_SIZES);
                     MemoryContextSwitchTo(work);
-                    AnkusGuc *definition = NULL;
-                    for (int index = 0; index < ankus_guc_count; index++)
-                    {
-                        if (ankus_guc_name_equal(ankus_guc_definitions[index]->name_utf8, name))
-                        {
-                            definition = ankus_guc_definitions[index];
-                            break;
-                        }
-                    }
-
-                    if (definition == NULL)
-                        ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("Unknown Ankus configuration parameter")));
-                    if (definition->kind != kind)
-                        ereport(ERROR, (errcode(ERRCODE_DATATYPE_MISMATCH), errmsg("Ankus configuration type does not match its declaration")));
                     if (!definition->prepared && definition->kind == 3)
                     {
                         if (definition->boot.string == NULL)

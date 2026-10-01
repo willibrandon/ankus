@@ -13,6 +13,47 @@ public static partial class GucFunctions
     private static string? s_retainedText;
 
     /// <summary>
+    /// Catches configuration API preconditions without recovering a PostgreSQL transaction.
+    /// </summary>
+    /// <param name="mode">The missing name or incompatible typed reader to exercise.</param>
+    /// <returns>The original diagnostic and subsequent successful getter/query results.</returns>
+    [PgFunction]
+    public static string GucValidationRecovery(int mode)
+    {
+        try
+        {
+            switch (mode)
+            {
+                case 0:
+                    _ = NativeGuc.ReadInt32("ankus_guc.missing");
+                    break;
+                case 1:
+                    _ = NativeGuc.ReadBoolean("ankus_guc.limit");
+                    break;
+                case 2:
+                    _ = NativeGuc.ReadInt32("ankus_guc.enabled");
+                    break;
+                case 3:
+                    _ = NativeGuc.ReadString("ankus_guc.limit");
+                    break;
+                case 4:
+                    _ = NativeGuc.ReadEnum("ankus_guc.limit");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode));
+            }
+        }
+        catch (PgException error)
+        {
+            PgInterrupts.Check();
+            return string.Create(CultureInfo.InvariantCulture,
+                $"{error.SqlState}|{error.Message}|{Limit}|{Spi.ExecuteScalar<int>("SELECT 42")}");
+        }
+
+        throw new InvalidOperationException("The invalid configuration read unexpectedly succeeded.");
+    }
+
+    /// <summary>
     /// Gets the mode used to exercise individual hook contracts.
     /// </summary>
     [PgGucString("ankus_guc.control", "", "Hook test mode")]
@@ -203,6 +244,11 @@ public static partial class GucFunctions
     internal static PgGucCheckResult<int> CheckInteger(int value, PgGucSource source)
     {
         s_events.Add($"check:{value}:{source}");
+        if (Control == "read-validation")
+        {
+            s_events.Add("validation:" + GucValidationRecovery(value));
+        }
+
         if (Control is "check-log-fatal" or "check-log-fatal-unrepresentable")
         {
             try

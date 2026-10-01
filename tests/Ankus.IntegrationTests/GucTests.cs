@@ -18,6 +18,56 @@ public sealed class GucTests(TestContext context)
         "assign:23:old=24:extra=null", "assign:22:old=23:extra=00FF0016",
     ];
     /// <summary>
+    /// Pure configuration lookup errors can be caught while native calls remain usable in the same entry frame.
+    /// </summary>
+    /// <param name="mode">The unknown setting or incompatible typed reader.</param>
+    /// <param name="state">The original diagnostic SQLSTATE.</param>
+    /// <param name="message">The original diagnostic message.</param>
+    [TestMethod]
+    [DataRow(0, "42704", "Unknown Ankus configuration parameter")]
+    [DataRow(1, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(2, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(3, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(4, "42804", "Ankus configuration type does not match its declaration")]
+    public async Task PureReadValidationDoesNotPoisonBackend(int mode, string state, string message)
+    {
+        await using NpgsqlConnection connection = await OpenAsync();
+        await ExecuteAsync(connection, "SET \"ankus_guc.limit\" = '23'");
+        Assert.AreEqual($"{state}|{message}|23|42", await ScalarAsync(connection,
+            $"SELECT datatype.guc_validation_recovery({mode})"));
+        Assert.AreEqual("23", await ScalarAsync(connection, "SHOW \"ankus_guc.limit\""));
+        await ExecuteAsync(connection, "SET \"ankus_guc.limit\" = '24'");
+        Assert.AreEqual("24", await ScalarAsync(connection, "SHOW \"ankus_guc.limit\""));
+        Assert.AreEqual(42, await ScalarAsync(connection, "SELECT 42"));
+    }
+
+    /// <summary>
+    /// Callback-scoped configuration lookup errors permit later native reads and SQL in the same check hook.
+    /// </summary>
+    /// <param name="mode">The unknown setting or incompatible typed reader.</param>
+    /// <param name="state">The original diagnostic SQLSTATE.</param>
+    /// <param name="message">The original diagnostic message.</param>
+    [TestMethod]
+    [DataRow(0, "42704", "Unknown Ankus configuration parameter")]
+    [DataRow(1, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(2, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(3, "42804", "Ankus configuration type does not match its declaration")]
+    [DataRow(4, "42804", "Ankus configuration type does not match its declaration")]
+    public async Task HookReadValidationDoesNotPoisonBackend(int mode, string state, string message)
+    {
+        await using NpgsqlConnection connection = await OpenAsync();
+        await ExecuteAsync(connection, "SET \"ankus_guc.limit\" = '23'; SET ankus_guc.control = 'read-validation'");
+        await ScalarAsync(connection, "SELECT datatype.guc_events(true)");
+        await ExecuteAsync(connection, $"SET ankus_guc.hook_int = '{mode}'");
+        Assert.Contains($"validation:{state}|{message}|23|42",
+            Assert.IsInstanceOfType<string>(await ScalarAsync(connection, "SELECT datatype.guc_events(true)")));
+        Assert.AreEqual($"False|{mode}|1.25|<null>|18446744073709551615", await ScalarAsync(connection,
+            "SELECT datatype.guc_hook_values()"));
+        Assert.AreEqual("23", await ScalarAsync(connection, "SHOW \"ankus_guc.limit\""));
+        Assert.AreEqual(42, await ScalarAsync(connection, "SELECT 42"));
+    }
+
+    /// <summary>
     /// Native defaults, nullable storage, enum labels, and retained descriptions agree with independent catalogs.
     /// </summary>
     [TestMethod]

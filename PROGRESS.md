@@ -376,6 +376,13 @@ CI **36824559166** and Docs **36824559193** succeed, including all complete
 platform jobs recorded above. The earlier Windows failure in **36817997137**
 is resolved by that fresh complete run. No previous run remains active.
 
+The directory-alias correction is committed as **cd01a31**. The configuration
+validation correction is merged into the primary checkout and retains the same
+accepted source hashes, including its ten ordinary/scoped-hook regressions and
+public guide. Before its separate commit, CI **36824559166** and Docs
+**36824559193** were checked and recorded again; both succeed, and no previous
+run remains active. Fresh platform CI for these two corrections remains required.
+
 Before the combined correctness commit, previous runs were checked again:
 CI **36807387606**, Docs **36807387783**, and the earlier CI/Docs successors
 are all completed successfully. No previous run is still in progress. Fresh
