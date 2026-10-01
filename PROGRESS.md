@@ -154,12 +154,98 @@ the primary checkout and the complete PostgreSQL **18.6/Linux x64** acceptance
 snapshot. Plain full `dotnet test` passes all six modules: **10,224 total,
 10,212 passed, zero failed and 12 platform skips**, **41m53.307s**, terminal
 exit **0**. Integration takes **41m52.632s** and the generator module **55.098s**.
-This SQL-file snapshot is separate from `010d534`; fresh platform CI is pending.
+This SQL-file snapshot is pushed as `8210d81`. CI **36807387606** and Docs
+**36807387783** succeed completely. Full platform jobs pass on macOS
+ARM64/PostgreSQL 18 (**18m26s**), Linux x64/PostgreSQL 18 (**22m44s**) and
+Windows x64/PostgreSQL 17 (**23m42s**). Quality and all three runtime jobs also
+succeed; no job times out. These are observed job durations, not controlled
+performance measurements.
 
 The appended follow-up review is being checked against current code. The stricter
 implicit `ankus test` project resolver and the temporary iterator-cleanup frame's
-missing failed-counter decrement are confirmed. Aggregate signature nullability,
-worker cancellation recovery, abort cleanup and the other findings remain under
+missing failed-counter decrement are confirmed. An isolated correction accepts
+evaluated solution/project selections and forwarded server/configuration
+properties, keeps ambiguous groups on the documented default, and balances
+iterator cleanup frames. The original row-error regression reproduces the leak:
+after rollback it observes one failed frame and one native idle interrupt call.
+The corrected **55 iterator cases** pass; the final combined snapshot is under
+plain complete PostgreSQL **18.6/Linux x64** acceptance. Its complete generator
+suite passes **2,581/2,581** on Linux x64, macOS ARM64 and Windows x64. Final
+Release has zero warnings/errors (**28.40s**); API freshness verifies **234 pages
+/ 2,685 members**, with the documentation site/check also passing.
+
+Actual worker transaction cancellation also reproduces a separate defect:
+both cancellation cases end the worker after rollback, while the swallowed
+FATAL case correctly terminates it (**one passed/two failed**, **4m21.367s**).
+A transaction-owned native recovery frame retains cancellation through abort
+without attaching it to the worker's lifetime. The initial corrected worker and
+ordinary-query cancellation scope passes **22/22** (**4m20.175s**). Final review
+moves the guard's `sigsetjmp` into a separate helper so the caller-owned frame
+retains defined contents after `longjmp`. The final affected backend scope passes
+**22/22** (**4m57.875s**), including rollback, later commit in the same worker,
+ordinary cancellation, real reload/termination and swallowed FATAL. Its complete
+generator suite passes **2,581/2,581** on Linux x64 (**27.294s**), macOS ARM64
+(**26.546s**) and Windows x64 (**32.509s**). Final Release has zero warnings/errors
+(**25.30s**); API generation/freshness verifies **234 pages / 2,685 members**.
+The site builds **282 pages** (**3.52s**) and checks without diagnostics.
+The combined correction's **24 owned files** are hash-verified in a separate
+plain complete PostgreSQL **18.6/Linux x64** acceptance snapshot. The first
+complete run finishes **10,260 total, 10,083 passed, 165 failed and 12 platform
+skips**, **13m38.512s**. Local `/tmp` is a memory filesystem and fills during
+packaged native builds; its failed run supplies no complete acceptance evidence.
+The isolated fourteen-file snapshot also finishes on PostgreSQL **18.6/Linux x64**:
+**10,257 total, 10,239 passed, six failed and 12 platform skips**, **41m55.343s**.
+All six failures are existing test-runner cases that deliberately forward
+conflicting configuration and major properties to exercise the old silent
+override. Their success inputs now agree with the selected configuration/server;
+separate rejection cases continue to enforce explicit conflicts as errors.
+Local file-preservation checks additionally assumed directory listing order.
+They now compare the complete sorted file set and retain exact byte checks for
+every file. The corrected affected scope passes **77 tests, zero failures and
+one Windows-only skip**, **6m25.004s**, including all six test-runner modes,
+configuration-conflict rejection and framework-upgrade preservation. Release
+again has zero warnings/errors (**28.36s**). The final **26-file** combined
+snapshot is hash-verified. Plain complete `dotnet test` with disk-backed
+temporary storage passes all six modules on PostgreSQL **18.6/Linux x64**:
+**10,260 total, 10,248 passed, zero failed, 12 platform skips**,
+**21m44.453s**, terminal exit **0**. Integration takes **21m43.722s**;
+the generator module **45.280s**. Validation uses .NET SDK **10.0.400**,
+patched runtime **10.0.12**, LLVM **21** and Valgrind. This observed duration is
+not a controlled performance comparison with the earlier failed memory-filesystem
+run. The verified source correction is merged into the primary checkout;
+aggregate nullability remains a separate, uncommitted scope.
+
+Independent generator regressions also reproduce the typed aggregate nullability
+gap: unsafe state/input narrowing and nullable result weakening all compile with
+advisory C# warnings and receive no Ankus error (**three failing new cases**,
+**2.815s**, original generator). The proper correction must check the static
+interface contract, retain valid broader inputs and stronger results, and preserve
+ordinary .NET nullable annotations. The isolated correction now checks input and
+result promises before generating callbacks, with dedicated error **ANKUS028**
+at the implementation type and a public help link. It retains directional array
+and tuple conversions, invariant managed-state payloads, explicit/inherited/default
+implementations and standard nullable flow attributes. All **30 new cases** and
+the complete generator project pass **2,611/2,611**, zero failures/skips,
+**35.485s** on Linux x64. A draft conditional-return case incorrectly treated a
+non-nullable `ValueTuple` argument as nullable; its expectation was corrected and
+separate nullable/non-nullable state cases prove the actual conditional boundary.
+The revised aggregate guide and three new real-backend cases are in an independent
+snapshot. The affected backend scope passes **26/26**, zero failures/skips,
+**5m27.005s**, on PostgreSQL **18.6/Linux x64**, .NET SDK **10.0.401** and LLVM
+**23**. It checks actual transition `proisstrict`, ordered NULL/present inputs,
+NULL-only and empty groups, plus same-session recovery. Existing typed aggregate
+state, moving, ordered, parallel and polymorphic cases remain included. Site
+build/freshness checks **234 pages / 2,685 members**, builds **282 pages**
+(**9.24s**) and reports zero check diagnostics. This work is not included in
+the earlier correction's completed plain full-suite snapshot; its own complete
+acceptance and Release checks remain pending.
+
+Before the combined correctness commit, previous runs were checked again:
+CI **36807387606**, Docs **36807387783**, and the earlier CI/Docs successors
+are all completed successfully. No previous run is still in progress. Fresh
+full platform CI for this combined correctness milestone remains required.
+
+Aggregate signature nullability, abort cleanup and the other findings remain under
 investigation. Previously open full-port gaps remain required. These review items
 are separate from this tested custom SQL milestone.
 

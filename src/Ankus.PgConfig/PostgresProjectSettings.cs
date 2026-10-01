@@ -38,6 +38,81 @@ public sealed class PostgresProjectSettings
     public static async Task<PostgresProjectSettings> ReadAsync(string projectPath, string configuration,
         int? postgresMajor = null, CancellationToken cancellationToken = default)
     {
+        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+        if (result.Conflict)
+        {
+            throw new InvalidOperationException("Referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use ankus test --pg.");
+        }
+
+        return result.Settings ?? new(18, null);
+    }
+
+    /// <summary>
+    /// Reads an unambiguous evaluated selection without assigning defaults to unrelated projects.
+    /// </summary>
+    /// <param name="projectPath">The project file whose imports and references participate.</param>
+    /// <param name="configuration">The effective MSBuild configuration.</param>
+    /// <param name="postgresMajor">An explicit global major, or null for declared defaults.</param>
+    /// <param name="cancellationToken">Cancels evaluation and joins the query process.</param>
+    /// <returns>The selected installation, or null when no selection is declared or references disagree.</returns>
+    /// <remarks>
+    /// Invalid property values, broken imports and circular references remain errors.
+    /// A caller can use the absence of an unambiguous selection to apply its documented default.
+    /// </remarks>
+    public static async Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration,
+        int? postgresMajor = null, CancellationToken cancellationToken = default)
+    {
+        SelectionResult result = await EvaluateAsync(projectPath, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+        return result.Conflict ? null : result.Settings;
+    }
+
+    /// <summary>
+    /// Reads a shared selection across evaluated projects without allowing an ambiguous reference chain to select a server.
+    /// </summary>
+    /// <param name="projectPaths">The project files in the selected solution.</param>
+    /// <param name="configuration">The effective MSBuild configuration.</param>
+    /// <param name="postgresMajor">An explicit global major, or null for declared defaults.</param>
+    /// <param name="cancellationToken">Cancels evaluation and joins the query processes.</param>
+    /// <returns>The shared declared selection, or null for an empty, unrelated or ambiguous group.</returns>
+    public static async Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration,
+        int? postgresMajor = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(projectPaths);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration);
+        cancellationToken.ThrowIfCancellationRequested();
+        PostgresProjectSettings? selected = null;
+        foreach (string project in projectPaths)
+        {
+            SelectionResult result = await EvaluateAsync(project, configuration, postgresMajor, cancellationToken).ConfigureAwait(false);
+            if (result.Conflict)
+            {
+                return null;
+            }
+
+            if (result.Settings is not { } current)
+            {
+                continue;
+            }
+
+            if (selected is not null && (selected.PostgresMajor != current.PostgresMajor ||
+                !string.Equals(selected.PgConfigPath, current.PgConfigPath, OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+            {
+                return null;
+            }
+
+            selected = current;
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Validates inputs and evaluates a selection without executing project targets.
+    /// </summary>
+    private static async Task<SelectionResult> EvaluateAsync(string projectPath, string configuration,
+        int? postgresMajor, CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(configuration);
         string project = Path.GetFullPath(projectPath);
@@ -55,7 +130,7 @@ public sealed class PostgresProjectSettings
         }
 
         return await ReadCoreAsync(project, properties, new HashSet<string>(OperatingSystem.IsWindows()
-            ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal), cancellationToken).ConfigureAwait(false) ?? new(18, null);
+            ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -66,7 +141,7 @@ public sealed class PostgresProjectSettings
     /// <param name="visiting">The current reference chain, used to reject cycles.</param>
     /// <param name="cancellationToken">Cancels project evaluation.</param>
     /// <returns>The declared or inherited selection, or null for projects unrelated to PostgreSQL.</returns>
-    private static async Task<PostgresProjectSettings?> ReadCoreAsync(string project, Dictionary<string, string> globalProperties,
+    private static async Task<SelectionResult> ReadCoreAsync(string project, Dictionary<string, string> globalProperties,
         HashSet<string> visiting, CancellationToken cancellationToken)
     {
         if (!visiting.Add(project))
@@ -100,7 +175,7 @@ public sealed class PostgresProjectSettings
         if (value.Length != 0 || path is not null)
         {
             visiting.Remove(project);
-            return new(major, path);
+            return new(new(major, path), false);
         }
 
         PostgresProjectSettings? inherited = null;
@@ -112,8 +187,15 @@ public sealed class PostgresProjectSettings
                 continue;
             }
 
-            PostgresProjectSettings? selection = await ReadCoreAsync(referencePath,
+            SelectionResult child = await ReadCoreAsync(referencePath,
                 ReferenceProperties(reference, globalProperties), visiting, cancellationToken).ConfigureAwait(false);
+            if (child.Conflict)
+            {
+                visiting.Remove(project);
+                return child;
+            }
+
+            PostgresProjectSettings? selection = child.Settings;
             if (selection is null)
             {
                 continue;
@@ -122,15 +204,23 @@ public sealed class PostgresProjectSettings
             if (inherited is not null && (inherited.PostgresMajor != selection.PostgresMajor ||
                 !string.Equals(inherited.PgConfigPath, selection.PgConfigPath, StringComparison.Ordinal)))
             {
-                throw new InvalidOperationException("Referenced projects select different PostgreSQL installations. Set AnkusPostgresMajor and AnkusPgConfigPath explicitly, or use ankus test --pg.");
+                visiting.Remove(project);
+                return new(null, true);
             }
 
             inherited = selection;
         }
 
         visiting.Remove(project);
-        return inherited;
+        return new(inherited, false);
     }
+
+    /// <summary>
+    /// Distinguishes an unrelated project from conflicting transitive selections.
+    /// </summary>
+    /// <param name="Settings">The declared or inherited unambiguous settings.</param>
+    /// <param name="Conflict">Whether any selected reference chain disagrees.</param>
+    private sealed record SelectionResult(PostgresProjectSettings? Settings, bool Conflict);
 
     /// <summary>
     /// Preserves the reference's explicit MSBuild property overrides and removals during evaluation.

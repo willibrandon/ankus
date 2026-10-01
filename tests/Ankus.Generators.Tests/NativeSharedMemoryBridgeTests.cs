@@ -60,7 +60,11 @@ public sealed partial class PgFunctionGeneratorTests
         Assert.DoesNotContain("palloc(", admission);
         string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
         AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6 || request->flags == 7",
-            "ankus_shared_value(request, result, error)", "PG_TRY();"]);
+            "ankus_shared_value(request, result, error)", "ankus_memory_execute_guarded(api, request, result, error, &recovered)"]);
+        string guarded = native[native.IndexOf("static int\nankus_memory_execute_guarded(", StringComparison.Ordinal)..
+            native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)];
+        AssertOrdered(guarded, ["PG_TRY();", "ankus_memory_execute(api, request, result, recovered)", "PG_CATCH();",
+            "ankus_recovery_record(error, *recovered)", "PG_END_TRY();", "ankus_shared_restore_interrupts"]);
     }
 
     /// <summary>
@@ -133,7 +137,12 @@ public sealed partial class PgFunctionGeneratorTests
         AssertOrdered(read, ["entry->lease != (uint64) request->other", "LWLockHeldByMe(entry->lock)",
             "request->length != entry->size", "result->data = (intptr_t) ankus_shared_data(entry->header)", "result->length = entry->size"]);
         string invoke = native[native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)..];
-        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_value(request, result, error)", "PG_TRY();"]);
+        AssertOrdered(invoke, ["if (ankus_memory_error_cleanup)", "request->flags == 6", "ankus_shared_value(request, result, error)",
+            "ankus_memory_execute_guarded(api, request, result, error, &recovered)"]);
+        string guarded = native[native.IndexOf("static int\nankus_memory_execute_guarded(", StringComparison.Ordinal)..
+            native.IndexOf("static int\nankus_memory_invoke(AnkusMemoryApi *api", StringComparison.Ordinal)];
+        AssertOrdered(guarded, ["PG_TRY();", "ankus_memory_execute(api, request, result, recovered)", "PG_CATCH();",
+            "ankus_recovery_record(error, *recovered)", "PG_END_TRY();", "ankus_shared_restore_interrupts"]);
     }
 
     /// <summary>

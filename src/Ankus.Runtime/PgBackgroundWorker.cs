@@ -62,6 +62,10 @@ public static class PgBackgroundWorker
     /// Adds native signal observers before unblocking signals in the worker.
     /// </summary>
     /// <param name="signals">The desired signals; reload and termination observers always remain installed.</param>
+    /// <remarks>
+    /// Observing <see cref="PgBackgroundWorkerSignals.Interrupt"/> replaces PostgreSQL's SIGINT query-cancellation handler.
+    /// Without that observer, SIGINT can cancel an active worker transaction.
+    /// </remarks>
     public static void AttachSignalHandlers(PgBackgroundWorkerSignals signals)
         => NativeBackgroundWorker.SignalOperation(8, signals);
 
@@ -103,7 +107,9 @@ public static class PgBackgroundWorker
     /// <returns>The callback result after successful commit.</returns>
     /// <remarks>
     /// Failure aborts the transaction before the original managed exception or owned PostgreSQL error returns.
-    /// Another transaction can then run. Nested worker transactions are rejected.
+    /// Query cancellation remains pending throughout the callback, even if caught there. After rollback,
+    /// the caller can catch <see cref="PgQueryCanceledException"/> and start another transaction.
+    /// FATAL and PANIC reports still terminate the worker. Nested worker transactions are rejected.
     /// </remarks>
     public static TResult RunTransaction<TResult>(Func<TResult> action) => NativeBackgroundWorker.RunTransaction(action);
 
@@ -111,6 +117,11 @@ public static class PgBackgroundWorker
     /// Executes synchronous database work in a new worker transaction and commits when the callback returns.
     /// </summary>
     /// <param name="action">The synchronous transaction body.</param>
+    /// <remarks>
+    /// A canceled callback always rolls back. Its caller can catch <see cref="PgQueryCanceledException"/>
+    /// after rollback and continue the worker; catching cancellation inside the callback cannot commit it.
+    /// FATAL and PANIC reports still terminate the worker. Nested worker transactions are rejected.
+    /// </remarks>
     public static void RunTransaction(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);

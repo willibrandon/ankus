@@ -290,6 +290,8 @@ public sealed class SetReturningTests(TestContext context)
             await using var command = new NpgsqlCommand("CREATE TEMP TABLE set_cleanup(value int); SELECT set_values.set_reset()", connection, transaction);
             await command.ExecuteNonQueryAsync(token);
             await transaction.SaveAsync("set_native_row", token);
+            command.CommandText = "SELECT set_values.set_interrupt_state()";
+            Assert.AreSequenceEqual([0, 0], Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
             command.CommandText = "SELECT array_agg(v) FROM set_values.set_probe_streaming(3,11,true) AS v";
             PostgresException error = await Assert.ThrowsExactlyAsync<PostgresException>(() => command.ExecuteScalarAsync(token));
             Assert.AreEqual("42704", error.SqlState);
@@ -302,6 +304,8 @@ public sealed class SetReturningTests(TestContext context)
             Assert.AreEqual(1, status[9]);
             Assert.AreEqual(0, status[10]);
             Assert.AreEqual(0, status[11]);
+            command.CommandText = "SELECT set_values.set_interrupt_state()";
+            Assert.AreSequenceEqual([0, 0], Assert.IsInstanceOfType<int[]>(await command.ExecuteScalarAsync(token)));
             command.CommandText = "SELECT 42";
             Assert.AreEqual(42, await command.ExecuteScalarAsync(token));
             Assert.AreEqual(backend, connection.ProcessID);

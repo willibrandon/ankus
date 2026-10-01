@@ -105,13 +105,20 @@ internal static class NativeRecoveryBridge
                 ankus_recovery_store(ankus_recovery_frame, error);
         }
 
-        static int
-        ankus_recovery_finish(AnkusRecoveryFrame *frame, AnkusError *error, int status)
+        static void
+        ankus_recovery_pop(AnkusRecoveryFrame *frame)
         {
             ankus_recovery_frame = frame->previous;
             if (frame->failed)
-            {
                 ankus_recovery_failed_frames--;
+        }
+
+        static int
+        ankus_recovery_finish(AnkusRecoveryFrame *frame, AnkusError *error, int status)
+        {
+            ankus_recovery_pop(frame);
+            if (frame->failed)
+            {
                 /* An explicit subtransaction may roll back ERROR, but must not
                  * turn a terminal report into a catchable ordinary error. */
                 if (frame->failure.report_level >= 12)

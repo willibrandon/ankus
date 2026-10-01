@@ -38,3 +38,5 @@ Call periodically in long loops that do not otherwise enter PostgreSQL.
 An idle check reads callback-scoped native flags without a native call.
 PostgreSQL interrupt holdoffs still apply. Catching a cancellation does
 not clear it: subsequent checks and callback completion retain the error.
+A worker transaction retains cancellation until rollback; its caller can then handle the exception
+and continue through [RunTransaction(Action)](/api/ankus.pgbackgroundworker/#member-cc4c154898bd56ae).

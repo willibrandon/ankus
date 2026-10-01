@@ -58,6 +58,11 @@ public sealed partial class ToolCommandTests
     [DataRow("extension-project")]
     [DataRow("explicit-major")]
     [DataRow("explicit-path")]
+    [DataRow("forwarded-major")]
+    [DataRow("forwarded-path")]
+    [DataRow("forwarded-properties")]
+    [DataRow("forwarded-last-major")]
+    [DataRow("forwarded-quoted-major")]
     public async Task CommandSelectionHonorsProjectPostgresVersion(string selection)
     {
         CancellationToken token = context.CancellationToken;
@@ -76,15 +81,176 @@ public sealed partial class ToolCommandTests
             _ => [],
         };
         string project = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
+        string[] forwarded = selection switch
+        {
+            "forwarded-major" => ["-p:AnkusPostgresMajor=" + MajorText()],
+            "forwarded-path" => ["-p:AnkusPgConfigPath=" + s_installation.PgConfigPath],
+            "forwarded-properties" => ["/property:AnkusPostgresMajor=" + MajorText() + ";Configuration=Debug"],
+            "forwarded-last-major" => ["-p:AnkusPostgresMajor=" + DifferentMajor(), "-p:AnkusPostgresMajor=" + MajorText()],
+            "forwarded-quoted-major" => ["-p:AnkusPostgresMajor=\"" + MajorText() + "\""],
+            _ => [],
+        };
         ProcessResult result = await ProcessRunner.RunAsync(s_tool,
             ["test", "--home", s_home, .. arguments, "--", "--project", project,
-                "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
+                .. forwarded, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
             SelectionEnvironment(), token, workingDirectory: CreateDirectory());
 
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
         Assert.Contains($"Testing PostgreSQL {s_installation.Version}", result.StandardOutput);
         Assert.Contains(s_postgresKey + ": dotnet test exited 0.", result.StandardOutput);
         Assert.Contains("succeeded: 1", result.StandardOutput);
+    }
+
+    /// <summary>
+    /// Implicit test selection follows solution files and evaluated SDK imports rather than literal SDK attributes.
+    /// </summary>
+    /// <param name="layout">The ordinary test project or solution layout.</param>
+    [TestMethod]
+    [DataRow("directory")]
+    [DataRow("slnx")]
+    [DataRow("sln")]
+    [DataRow("sdk-element")]
+    public async Task CommandSelectionAcceptsOrdinaryProjectLayouts(string layout)
+    {
+        CancellationToken token = context.CancellationToken;
+        string output = await CreateSelectionProjectAsync(token);
+        string extension = Path.Combine(output, "src", "TestCommandProbe", "TestCommandProbe.csproj");
+        XDocument document = XDocument.Load(extension);
+        document.Root!.Add(new XElement("PropertyGroup", new XElement("AnkusPostgresMajor", s_installation.Version.Major),
+            new XElement("AnkusPgConfigPath", s_installation.PgConfigPath)));
+        if (layout == "sdk-element")
+        {
+            document.Root.Attribute("Sdk")!.Remove();
+            document.Root.AddFirst(new XElement("Sdk", new XAttribute("Name", "Ankus.Sdk")));
+        }
+
+        document.Save(extension);
+        string project = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
+        string[] selection = layout switch
+        {
+            "directory" => [],
+            "slnx" => ["--solution", Path.Combine(output, "TestCommandProbe.slnx")],
+            "sdk-element" => ["--project", project],
+            _ => ["--solution", Path.Combine(output, "Selection.sln")],
+        };
+        if (layout == "sln")
+        {
+            (await RunDotnetAsync(["new", "sln", "--format", "sln", "--name", "Selection", "--output", output], token))
+                .EnsureSuccess("dotnet", ["new", "sln"]);
+            (await RunDotnetAsync(["sln", selection[1], "add", extension, project], token))
+                .EnsureSuccess("dotnet", ["sln", "add"]);
+        }
+
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool,
+            ["test", "--home", s_home, "--", .. selection, "--filter", "FullyQualifiedName~SelectedVersionReachesPostgres"],
+            SelectionEnvironment(), token, workingDirectory: layout == "directory" ? output : CreateDirectory());
+
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains($"Testing PostgreSQL {s_installation.Version}", result.StandardOutput);
+        Assert.Contains("succeeded: 1", result.StandardOutput);
+    }
+
+    /// <summary>
+    /// Conflicting CLI and build selectors fail before a test process starts or rewrites the caller's properties.
+    /// </summary>
+    /// <param name="conflict">The conflicting selection.</param>
+    [TestMethod]
+    [DataRow("major")]
+    [DataRow("path")]
+    [DataRow("configuration")]
+    [DataRow("all")]
+    [DataRow("empty-property")]
+    public async Task CommandSelectionRejectsConflictingBuildProperties(string conflict)
+    {
+        string[] arguments = conflict switch
+        {
+            "major" => ["--pg", MajorText(), "--", "-p:AnkusPostgresMajor=" + DifferentMajor()],
+            "path" => ["--pg-config", s_installation.PgConfigPath, "--", "-p:AnkusPgConfigPath=missing-pg-config"],
+            "configuration" => ["-c", "Release", "--", "-p:Configuration=Debug"],
+            "empty-property" => ["--", "-p:;AnkusPostgresMajor=" + MajorText() + ";;"],
+            _ => ["--all", "--", "-p:AnkusPostgresMajor=" + MajorText()],
+        };
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["test", "--home", s_home, .. arguments],
+            SelectionEnvironment(), context.CancellationToken, workingDirectory: CreateDirectory());
+
+        Assert.AreNotEqual(0, result.ExitCode);
+        string expected = conflict switch
+        {
+            "all" => "Use --all without",
+            "empty-property" => "Forwarded MSBuild properties must contain name=value",
+            _ => "Select the same",
+        };
+        Assert.Contains(expected, result.StandardOutput + result.StandardError);
+        Assert.DoesNotContain("Testing PostgreSQL", result.StandardOutput);
+    }
+
+    /// <summary>
+    /// Cluster inspection uses the current project's major and installation without requiring --pg.
+    /// </summary>
+    /// <param name="command">The non-starting cluster command.</param>
+    [TestMethod]
+    [DataRow("info")]
+    [DataRow("status")]
+    [DataRow("stop")]
+    public async Task ClusterCommandsHonorProjectSelection(string command)
+    {
+        string directory = CreateDirectory();
+        new XDocument(new XElement("Project", new XElement("PropertyGroup",
+            new XElement("AnkusPostgresMajor", s_installation.Version.Major),
+            new XElement("AnkusPgConfigPath", s_installation.PgConfigPath)))).Save(Path.Combine(directory, "Selection.csproj"));
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, [command, "--home", directory],
+            SelectionEnvironment(), context.CancellationToken, workingDirectory: directory);
+
+        Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
+        Assert.Contains(command == "info" ? "PostgreSQL: " + s_installation.Version : s_postgresKey + ":", result.StandardOutput);
+        if (command == "info")
+        {
+            Assert.Contains(s_installation.PgConfigPath, result.StandardOutput);
+        }
+        else
+        {
+            Assert.Contains("stopped", result.StandardOutput);
+        }
+
+        Assert.IsFalse(File.Exists(Path.Combine(directory, "config.json")));
+    }
+
+    /// <summary>
+    /// Standalone directories and conflicting project layouts use the documented PostgreSQL 18 fallback.
+    /// </summary>
+    /// <param name="layout">The absence or ambiguity of project selection.</param>
+    [TestMethod]
+    [DataRow("empty")]
+    [DataRow("unrelated")]
+    [DataRow("projects")]
+    [DataRow("solution")]
+    public async Task UnselectedProjectLayoutsRetainDefaultMajor(string layout)
+    {
+        string directory = CreateDirectory();
+        if (layout == "unrelated")
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "Library.csproj"), "<Project />", context.CancellationToken);
+        }
+        else if (layout is "projects" or "solution")
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "First.csproj"),
+                "<Project><PropertyGroup><AnkusPostgresMajor>13</AnkusPostgresMajor></PropertyGroup></Project>", context.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory, "Second.csproj"),
+                "<Project><PropertyGroup><AnkusPostgresMajor>19</AnkusPostgresMajor></PropertyGroup></Project>", context.CancellationToken);
+            if (layout == "solution")
+            {
+                await File.WriteAllTextAsync(Path.Combine(directory, "Selection.slnx"),
+                    "<Solution><Project Path=\"First.csproj\" /><Project Path=\"Second.csproj\" /></Solution>", context.CancellationToken);
+            }
+        }
+
+        ProcessResult result = await ProcessRunner.RunAsync(s_tool, ["info", "--home", directory],
+            SelectionEnvironment(), context.CancellationToken, workingDirectory: directory);
+        string output = result.StandardOutput + result.StandardError;
+        Assert.AreNotEqual(0, result.ExitCode);
+        Assert.Contains("PostgreSQL 18 is not registered", output);
+        Assert.DoesNotContain("Specify --project or --solution", output);
+        Assert.DoesNotContain("different PostgreSQL installations", output);
     }
 
     /// <summary>

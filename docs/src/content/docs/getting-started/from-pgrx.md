@@ -14,8 +14,8 @@ separate .NET installation.
 |---|---|---|
 | `#[pg_extern]` | `[PgFunction]` on a synchronous static method | [Functions](/function-declarations/) |
 | `#[pg_schema]` | `[PgSchema]` on a declaration container | [Custom SQL](/custom-sql/) |
-| `default!`, `variadic!`, `name!` | C# optional parameters, `params T[]`, and `[PgParameter]` | [Function signatures](/function-declarations/) |
-| `TableIterator` and named tuple columns | `IEnumerable<(int Id, string Name)>` | [Sets and tables](/sets-and-tables/) |
+| `default!`, `variadic!` | C# optional parameters and `params T[]` | [Function signatures](/function-declarations/) |
+| `TableIterator` and `name!` columns | `IEnumerable<(int Id, string Name)>`, with C# tuple element names | [Sets and tables](/sets-and-tables/) |
 | `#[pg_trigger]` | `[PgTrigger]` with `PgTriggerContext` | [Triggers](/triggers/) |
 | `#[pg_aggregate]` and `Aggregate` | `[PgAggregate]`, `IPgAggregate<TState, TArgs>` and optional capability interfaces | [Aggregates](/aggregates/) |
 | `PostgresEnum` | `[PgEnum]` and optional `[PgEnumLabel]` | [Enums](/enums/) |
@@ -94,9 +94,11 @@ Parameters are explicit `SpiParameter` values. A connected session stays inside
 its callback. Result rows are managed copies; kept plans and cursors have their
 own lifetime rules. See [SPI queries](/spi/).
 
-The convenience query APIs currently use writable SPI execution. Use the
-`readOnly` overload when you need PostgreSQL's read-only snapshot and write
-restrictions; do not infer snapshot behavior from a query beginning with `SELECT`.
+The convenience query APIs currently use writable SPI execution. Use
+`Spi.Query(sql, readOnly: true, limit: 0)` or the corresponding `SpiSession.Query`
+overload for PostgreSQL's read-only snapshot and write restrictions. The
+`Execute` and `ExecuteScalar` methods have no `readOnly` overload. A query
+beginning with `SELECT` does not select read-only snapshot behavior.
 
 Throw `PgException` to report a PostgreSQL SQLSTATE and owned diagnostic fields.
 `PgLog` supplies PostgreSQL message levels. Native errors unwind managed cleanup

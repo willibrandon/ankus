@@ -44,10 +44,12 @@ project defaults.
 
 Without an explicit selection, project commands evaluate `AnkusPostgresMajor`
 and `AnkusPgConfigPath` with the selected configuration. `ankus test` also uses
-the project selected by forwarded runner arguments. A test project without its
-own selection inherits one from its referenced extension projects; conflicting
-selections require an explicit `--pg`. Unspecified versions fall
-back to 18; standalone cluster commands retain that default. Installing or
+the project or `.sln`/`.slnx` selected by forwarded runner arguments. A test project
+without its own selection inherits one from its referenced extension projects.
+An empty or ambiguous project selection falls back to PostgreSQL 18; use an
+explicit selector to choose another version. Invalid properties and broken imports
+remain errors. `start`, `stop`, `status` and `info` use the current project's
+selection when it is unambiguous, otherwise PostgreSQL 18. Installing or
 packaging with `--from` uses the existing publication's major by default.
 
 `--all` runs each registered version in order. Every registration is checked
@@ -81,9 +83,10 @@ platform. Ankus passes individual arguments without shell interpretation.
 on `ankus test` or in the forwarded arguments so both the host build and default
 fixture publication agree. Conflicting configuration options fail before tests start.
 An explicitly configured fixture can still choose its own build configuration.
-The command's PostgreSQL build properties take precedence over forwarded values;
-a fixture that selects a different major fails rather than silently testing the
-wrong version.
+Forwarded `-p:AnkusPostgresMajor` and `-p:AnkusPgConfigPath` select the same server
+and build installation. Conflicting command selectors fail before tests start;
+`--all` cannot be combined with these properties. A fixture that selects a
+different major fails rather than silently testing the wrong version.
 
 Reports go beneath `TestResults/ankus/<invocation>/pg<major>`. Set the command's
 `--results-directory` to choose another root. Each major keeps its own directory,

@@ -319,7 +319,7 @@ internal static class NativeSetBridge
                 }
                 PG_FINALLY();
                 {
-                    ankus_recovery_frame = recovery.previous;
+                    ankus_recovery_pop(&recovery);
                     ankus_release_error(&recovery.failure);
                 }
                 PG_END_TRY();

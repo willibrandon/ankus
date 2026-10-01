@@ -1536,6 +1536,56 @@ internal static class NativeMemoryBridge
         }
 
         static int
+        ankus_memory_execute_guarded(AnkusMemoryApi *api, AnkusMemoryRequest *request,
+            AnkusMemoryResult *result, AnkusError *error, volatile bool *recovered)
+        {
+            MemoryContext caller = CurrentMemoryContext;
+            MemoryContext recovery = ankus_memory_contains(ErrorContext, caller) ? ErrorContext : caller;
+            uint32 interrupt_holdoff = InterruptHoldoffCount;
+            uint32 shared_held_before = ankus_shared_held_count;
+            uint32 cancel_holdoff = QueryCancelHoldoffCount;
+            int status = 0;
+            PG_TRY();
+            {
+                ankus_memory_execute(api, request, result, recovered);
+            }
+            PG_CATCH();
+            {
+                MemoryContext diagnostic = NULL;
+                MemoryContextSwitchTo(caller);
+                PG_TRY();
+                {
+                    diagnostic = AllocSetContextCreate(TopMemoryContext, "Ankus memory diagnostics", ALLOCSET_SMALL_SIZES);
+                    MemoryContextSwitchTo(diagnostic);
+                    ErrorData *data = ankus_copy_error_data();
+                    FlushErrorState();
+                    ankus_capture_error(data, error);
+                    ankus_recovery_record(error, *recovered);
+                    ankus_free_error_data(data);
+                    MemoryContextSwitchTo(recovery);
+                    MemoryContextDelete(diagnostic);
+                    status = 1;
+                }
+                PG_CATCH();
+                {
+                    MemoryContextSwitchTo(recovery);
+                    FlushErrorState();
+                    ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded memory failure")));
+                }
+                PG_END_TRY();
+            }
+            PG_END_TRY();
+            if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED &&
+                request->operation != ANKUS_MEMORY_SPIN))
+            {
+                InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
+                QueryCancelHoldoffCount = cancel_holdoff;
+            }
+
+            return status;
+        }
+
+        static int
         ankus_memory_invoke(AnkusMemoryApi *api, AnkusMemoryRequest *request,
             AnkusMemoryResult *result, AnkusError *error)
         {
@@ -1587,48 +1637,31 @@ internal static class NativeMemoryBridge
                 return ankus_shared_value(request, result, error);
             }
 
-            MemoryContext caller = CurrentMemoryContext;
-            MemoryContext recovery = ankus_memory_contains(ErrorContext, caller) ? ErrorContext : caller;
-            uint32 interrupt_holdoff = InterruptHoldoffCount;
-            uint32 shared_held_before = ankus_shared_held_count;
-            uint32 cancel_holdoff = QueryCancelHoldoffCount;
-            int status = 0;
             volatile bool recovered = false;
-            PG_TRY();
+            AnkusRecoveryFrame transaction = {0};
+            bool worker_transaction = request->operation == ANKUS_MEMORY_WORKER && request->flags == 13;
+            if (worker_transaction)
             {
-                ankus_memory_execute(api, request, result, &recovered);
+                /* A worker transaction owns a complete commit/abort boundary.
+                 * Keep mandatory failures here until that transaction has ended,
+                 * rather than attaching cancellation to the worker's lifetime. */
+                transaction.previous = ankus_recovery_frame;
+                ankus_recovery_frame = &transaction;
             }
-            PG_CATCH();
+
+            /* The frame lives outside the function containing sigsetjmp, so its
+             * modified fields remain defined after a PostgreSQL longjmp. */
+            int status = ankus_memory_execute_guarded(api, request, result, error, &recovered);
+            if (worker_transaction)
             {
-                MemoryContext diagnostic = NULL;
-                MemoryContextSwitchTo(caller);
-                PG_TRY();
+                /* Failure before a completed native abort still poisons the
+                 * lifetime frame. Terminal reports always propagate in finish. */
+                if (transaction.failed && !recovered)
                 {
-                    diagnostic = AllocSetContextCreate(TopMemoryContext, "Ankus memory diagnostics", ALLOCSET_SMALL_SIZES);
-                    MemoryContextSwitchTo(diagnostic);
-                    ErrorData *data = ankus_copy_error_data();
-                    FlushErrorState();
-                    ankus_capture_error(data, error);
-                    ankus_recovery_record(error, recovered);
-                    ankus_free_error_data(data);
-                    MemoryContextSwitchTo(recovery);
-                    MemoryContextDelete(diagnostic);
-                    status = 1;
+                    ankus_recovery_store(transaction.previous, &transaction.failure);
                 }
-                PG_CATCH();
-                {
-                    MemoryContextSwitchTo(recovery);
-                    FlushErrorState();
-                    ereport(FATAL, (errmsg("Unable to recover PostgreSQL state after a guarded memory failure")));
-                }
-                PG_END_TRY();
-            }
-            PG_END_TRY();
-            if (status != 0 || (request->operation != ANKUS_MEMORY_NATIVE_CALL && request->operation != ANKUS_MEMORY_SHARED &&
-                request->operation != ANKUS_MEMORY_SPIN))
-            {
-                InterruptHoldoffCount = ankus_shared_restore_interrupts(interrupt_holdoff, shared_held_before);
-                QueryCancelHoldoffCount = cancel_holdoff;
+
+                status = ankus_recovery_finish(&transaction, error, status);
             }
 
             return status;

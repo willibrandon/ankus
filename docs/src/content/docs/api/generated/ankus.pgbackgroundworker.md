@@ -38,6 +38,9 @@ Parameters:
 
 The desired signals; reload and termination observers always remain installed.
 
+Observing [Interrupt](/api/ankus.pgbackgroundworkersignals/#member-9bb207987583c356) replaces PostgreSQL's SIGINT query-cancellation handler.
+Without that observer, SIGINT can cancel an active worker transaction.
+
 <a id="member-eadb85afce2a0218"></a>
 
 ### Connect(string?, string?)
@@ -140,6 +143,10 @@ Parameters:
 
 The synchronous transaction body.
 
+A canceled callback always rolls back. Its caller can catch [PgQueryCanceledException](/api/ankus.pgquerycanceledexception/)
+after rollback and continue the worker; catching cancellation inside the callback cannot commit it.
+FATAL and PANIC reports still terminate the worker. Nested worker transactions are rejected.
+
 <a id="member-b32d9111f469168f"></a>
 
 ### RunTransaction&lt;TResult&gt;(Func&lt;TResult&gt;)
@@ -167,7 +174,9 @@ Returns: <code>TResult</code>
 The callback result after successful commit.
 
 Failure aborts the transaction before the original managed exception or owned PostgreSQL error returns.
-Another transaction can then run. Nested worker transactions are rejected.
+Query cancellation remains pending throughout the callback, even if caught there. After rollback,
+the caller can catch [PgQueryCanceledException](/api/ankus.pgquerycanceledexception/) and start another transaction.
+FATAL and PANIC reports still terminate the worker. Nested worker transactions are rejected.
 
 <a id="member-af86b71afe778288"></a>
 

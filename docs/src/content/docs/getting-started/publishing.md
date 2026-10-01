@@ -14,6 +14,8 @@ target server's operating system and architecture.
 - LLVM Clang 20 or later and its matching `libclang` library. Make `clang`
   available on Linux/macOS or `clang-cl.exe` on Windows. Ankus uses it to read
   native declarations from your PostgreSQL headers.
+  Windows also requires LLVM's `llvm-objcopy.exe` on `PATH` for native binding
+  verification; the LLVM installer supplies these tools.
 - PostgreSQL 18 with `pg_config`, server executables, and development headers.
   Windows also needs the PostgreSQL server import library.
 

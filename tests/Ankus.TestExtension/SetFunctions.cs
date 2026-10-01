@@ -1,5 +1,7 @@
 using System.Collections;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Ankus.TestExtension;
 
@@ -25,6 +27,60 @@ public static class SetFunctions
     private static int s_floodRows;
     private static long s_maxRowBytes;
     private static int s_nativeCleanupCaught;
+
+    [ThreadStatic]
+    private static nint s_interruptInvoke;
+
+    [ThreadStatic]
+    private static int s_interruptCalls;
+
+    /// <summary>
+    /// Observes the actual callback's retained-failure count and native transitions during an idle interrupt poll.
+    /// </summary>
+    /// <returns>The retained-frame count followed by the observed native invocation count.</returns>
+    [PgFunction]
+    public static unsafe int[] SetInterruptState()
+    {
+        nint active = NativeMemoryContext.Enter(0);
+        NativeMemoryContext.Exit(active);
+        // The compiler-services envelope contains provider, current owner, invoke,
+        // result owner, pending interrupt and failed-frame pointers in that order.
+        nint* envelope = (nint*)active;
+        if (active == 0 || envelope[4] == 0 || envelope[5] == 0 || s_interruptInvoke != 0)
+        {
+            throw new InvalidOperationException("The idle interrupt probe requires a complete, unnested backend capability.");
+        }
+
+        int failures = Volatile.Read(ref *(int*)envelope[5]);
+        s_interruptCalls = 0;
+        s_interruptInvoke = envelope[2];
+        envelope[2] = (nint)(delegate* unmanaged[Cdecl]<nint, void*, void*, void*, int>)&ObserveInterrupt;
+        try
+        {
+            PgInterrupts.Check();
+            return [failures, s_interruptCalls];
+        }
+        finally
+        {
+            envelope[2] = s_interruptInvoke;
+            s_interruptInvoke = 0;
+        }
+    }
+
+    /// <summary>
+    /// Counts a native transition while preserving the original guard and its cancellation behavior.
+    /// </summary>
+    /// <param name="api">The callback-scoped capability envelope.</param>
+    /// <param name="request">The original operation request.</param>
+    /// <param name="result">The original operation result.</param>
+    /// <param name="error">The original owned diagnostic transport.</param>
+    /// <returns>The original native guard's status.</returns>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe int ObserveInterrupt(nint api, void* request, void* result, void* error)
+    {
+        s_interruptCalls++;
+        return ((delegate* unmanaged[Cdecl]<nint, void*, void*, void*, int>)s_interruptInvoke)(api, request, result, error);
+    }
 
     /// <summary>
     /// Resets backend-local lifecycle counters between independent calls.

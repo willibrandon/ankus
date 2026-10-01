@@ -6,6 +6,8 @@ namespace Ankus;
 /// <remarks>
 /// Catching this exception permits managed cleanup but cannot turn a canceled query into success.
 /// The native boundary preserves SQLSTATE 57014 and the original PostgreSQL diagnostics.
+/// A worker's <see cref="PgBackgroundWorker.RunTransaction(Action)"/> aborts before returning this exception
+/// to its caller, which may then start a new transaction.
 /// </remarks>
 public sealed class PgQueryCanceledException : OperationCanceledException
 {

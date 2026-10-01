@@ -958,7 +958,8 @@ public sealed partial class ToolCommandTests
 
     private static void AssertUpgradeFilesUnchanged(string root, Dictionary<string, byte[]> expected)
     {
-        Assert.AreEquivalent<string>([.. expected.Keys], Directory.GetFiles(root, "*", SearchOption.AllDirectories));
+        Assert.AreSequenceEqual(expected.Keys.Order(StringComparer.Ordinal),
+            Directory.GetFiles(root, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal));
         foreach ((string path, byte[] content) in expected)
         {
             Assert.AreSequenceEqual(content, File.ReadAllBytes(path), path);

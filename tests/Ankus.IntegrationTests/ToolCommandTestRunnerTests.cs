@@ -35,12 +35,14 @@ public sealed partial class ToolCommandTests
         string reports = Path.Combine(output, "reports with spaces");
         string host = Path.Combine(output, "tests", "TestCommandProbe.Tests", "TestCommandProbe.Tests.csproj");
         string[] configuration = selection == "forwarded" ? [] : ["-c", "Shipping"];
+        string[] properties = selection is "all" or "all-custom-data"
+            ? ["-p:Configuration=Shipping"]
+            : ["-p:Configuration=Shipping", "-p:AnkusPostgresMajor=" + MajorText()];
         ProcessResult result = await ProcessRunner.RunAsync(s_tool,
             ["test", .. selected, .. configuration, .. dataArguments, "--results-directory", reports, "--", "--project", host,
                 "--report-trx", "--report-trx-filename", "selected.trx", "--filter",
                 "FullyQualifiedName~ConfigurationAndVersionReachBackend|FullyQualifiedName~DeclaredTestsExecuteInPostgres",
-                "--configuration", "Shipping", "-p:Configuration=Release",
-                "-p:AnkusPostgresMajor=" + DifferentMajor().ToString(CultureInfo.InvariantCulture)],
+                "--configuration", "Shipping", .. properties],
             s_environment, token, workingDirectory: output);
         Assert.AreEqual(0, result.ExitCode, result.StandardOutput + result.StandardError);
         Assert.Contains(s_postgresKey + ": dotnet test exited 0.", result.StandardOutput);

@@ -80,3 +80,70 @@ Cancels evaluation and joins the query process before returning.
 Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
 
 The evaluated PostgreSQL selection.
+
+<a id="member-b6bc86c9f621b54e"></a>
+
+### TryReadAsync(IEnumerable&lt;string&gt;, string, int?, CancellationToken)
+
+Reads a shared selection across evaluated projects without allowing an ambiguous reference chain to select a server.
+
+```csharp
+public static Task<PostgresProjectSettings?> TryReadAsync(IEnumerable<string> projectPaths, string configuration, int? postgresMajor = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPaths` — [IEnumerable&lt;string&gt;](https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1)
+
+The project files in the selected solution.
+
+`configuration` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The effective MSBuild configuration.
+
+`postgresMajor` — [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
+An explicit global major, or null for declared defaults.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels evaluation and joins the query processes.
+
+Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The shared declared selection, or null for an empty, unrelated or ambiguous group.
+
+<a id="member-17b85366d9eb9437"></a>
+
+### TryReadAsync(string, string, int?, CancellationToken)
+
+Reads an unambiguous evaluated selection without assigning defaults to unrelated projects.
+
+```csharp
+public static Task<PostgresProjectSettings?> TryReadAsync(string projectPath, string configuration, int? postgresMajor = null, CancellationToken cancellationToken = default)
+```
+
+Parameters:
+
+`projectPath` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The project file whose imports and references participate.
+
+`configuration` — [string](https://learn.microsoft.com/dotnet/api/system.string)
+
+The effective MSBuild configuration.
+
+`postgresMajor` — [int?](https://learn.microsoft.com/dotnet/api/system.int32)
+
+An explicit global major, or null for declared defaults.
+
+`cancellationToken` — [CancellationToken](https://learn.microsoft.com/dotnet/api/system.threading.cancellationtoken)
+
+Cancels evaluation and joins the query process.
+
+Returns: [Task&lt;PostgresProjectSettings&gt;](https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1)
+
+The selected installation, or null when no selection is declared or references disagree.
+
+Invalid property values, broken imports and circular references remain errors.
+A caller can use the absence of an unambiguous selection to apply its documented default.

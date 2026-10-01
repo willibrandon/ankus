@@ -167,6 +167,12 @@ its identity preserved. PostgreSQL errors, including commit failures, become
 owned `PgException` diagnostics after native cleanup. The worker may then start
 another transaction.
 
+Query cancellation raises `PgQueryCanceledException`. Catching it inside the
+transaction callback permits managed cleanup, but the transaction still aborts.
+Catch it around `RunTransaction` to continue the worker after rollback and start
+another transaction. FATAL and PANIC reports still terminate the worker, even
+when managed code catches the exception.
+
 Worker transactions cannot nest. Do not retain transaction-owned native views
 or return asynchronous work from a transaction callback. Keep PostgreSQL calls
 on the worker's owning thread; a task or timer callback is not a backend entry.
@@ -188,6 +194,9 @@ handlers record flags and wake the latch; managed code processes them after
 waking. These observations are flags: multiple deliveries before consumption
 can coalesce. Consuming one selection leaves other pending observations intact;
 consuming the same selection again returns no flags unless another signal arrived.
+Attaching `Interrupt` makes SIGINT an observation rather than PostgreSQL query
+cancellation. With the default handlers, SIGINT can cancel an active worker
+transaction, including through `pg_cancel_backend`.
 The reload and termination handlers also set PostgreSQL's corresponding native
 flags, so backend helpers see the same requests. Reloading configuration is
 explicit through `ReloadConfiguration()`, which clears the native reload flag

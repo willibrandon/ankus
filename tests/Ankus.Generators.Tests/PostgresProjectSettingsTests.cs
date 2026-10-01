@@ -312,8 +312,160 @@ public sealed class PostgresProjectSettingsTests(TestContext context)
             InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 PostgresProjectSettings.ReadAsync(project, "Shipping", cancellationToken: context.CancellationToken));
             Assert.Contains("different PostgreSQL installations", error.Message);
+            Assert.IsNull(await PostgresProjectSettings.TryReadAsync(project, "Shipping", cancellationToken: context.CancellationToken));
             PostgresProjectSettings explicitSelection = await PostgresProjectSettings.ReadAsync(project, "Shipping", 19, context.CancellationToken);
             Assert.AreEqual(19, explicitSelection.PostgresMajor);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Optional selection distinguishes unrelated libraries from direct and inherited extension settings.
+    /// </summary>
+    /// <param name="kind">The evaluated source of the optional selection.</param>
+    [TestMethod]
+    [DataRow("unrelated")]
+    [DataRow("direct")]
+    [DataRow("inherited")]
+    public async Task OptionalSelectionRetainsDeclaredSettings(string kind)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            const string properties = "<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor><AnkusPgConfigPath>postgres/pg_config</AnkusPgConfigPath></PropertyGroup>";
+            await WriteProjectAsync(directory, properties, "Extension.csproj");
+            string project = await WriteProjectAsync(directory, kind switch
+            {
+                "direct" => properties,
+                "inherited" => "<ItemGroup><ProjectReference Include=\"Extension.csproj\" /></ItemGroup>",
+                _ => "",
+            });
+
+            PostgresProjectSettings? selection = await PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken);
+            if (kind == "unrelated")
+            {
+                Assert.IsNull(selection);
+            }
+            else
+            {
+                Assert.IsNotNull(selection);
+                Assert.AreEqual(17, selection.PostgresMajor);
+                Assert.AreEqual(Path.Combine(directory, "postgres", "pg_config"), selection.PgConfigPath);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A nested conflict remains ambiguous regardless of where an agreeing sibling appears.
+    /// </summary>
+    /// <param name="conflictFirst">Whether the ambiguous reference precedes the agreeing sibling.</param>
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task OptionalSelectionPreservesTransitiveConflicts(bool conflictFirst)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            await WriteProjectAsync(directory, "<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor></PropertyGroup>", "First.csproj");
+            await WriteProjectAsync(directory, "<PropertyGroup><AnkusPostgresMajor>18</AnkusPostgresMajor></PropertyGroup>", "Second.csproj");
+            await WriteProjectAsync(directory, "<ItemGroup><ProjectReference Include=\"First.csproj\" /><ProjectReference Include=\"Second.csproj\" /></ItemGroup>", "Ambiguous.csproj");
+            string[] references = conflictFirst ? ["Ambiguous.csproj", "First.csproj"] : ["First.csproj", "Ambiguous.csproj"];
+            string project = await WriteProjectAsync(directory, "<ItemGroup>" + string.Concat(references.Select(static name =>
+                "<ProjectReference Include=\"" + name + "\" />")) + "</ItemGroup>");
+
+            Assert.IsNull(await PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
+            Assert.IsNull(await PostgresProjectSettings.TryReadAsync([Path.Combine(directory, "First.csproj"), project], "Debug", cancellationToken: context.CancellationToken));
+            Assert.IsNull(await PostgresProjectSettings.TryReadAsync([project, Path.Combine(directory, "First.csproj")], "Debug", cancellationToken: context.CancellationToken));
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => PostgresProjectSettings.ReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Optional discovery never hides a malformed major, broken import or circular reference.
+    /// </summary>
+    /// <param name="kind">The invalid evaluation condition.</param>
+    [TestMethod]
+    [DataRow("major")]
+    [DataRow("import")]
+    [DataRow("cycle")]
+    public async Task OptionalSelectionRetainsEvaluationErrors(string kind)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            string project = await WriteProjectAsync(directory, kind switch
+            {
+                "major" => "<PropertyGroup><AnkusPostgresMajor>invalid</AnkusPostgresMajor></PropertyGroup>",
+                "import" => "<Import Project=\"missing-selection.props\" />",
+                _ => "<ItemGroup><ProjectReference Include=\"Selection.csproj\" /></ItemGroup>",
+            });
+            if (kind == "major")
+            {
+                FormatException error = await Assert.ThrowsExactlyAsync<FormatException>(() =>
+                    PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
+                Assert.Contains("AnkusPostgresMajor", error.Message);
+            }
+            else
+            {
+                InvalidOperationException error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                    PostgresProjectSettings.TryReadAsync(project, "Debug", cancellationToken: context.CancellationToken));
+                Assert.Contains(kind == "import" ? "MSB4019" : "circular project reference", error.Message);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Group discovery retains one shared installation and assigns no version to empty or unrelated selections.
+    /// </summary>
+    /// <param name="kind">The project group whose selection is evaluated.</param>
+    [TestMethod]
+    [DataRow("empty")]
+    [DataRow("unrelated")]
+    [DataRow("agreement")]
+    [DataRow("conflict")]
+    public async Task OptionalGroupSelectionRequiresAgreement(string kind)
+    {
+        string directory = Directory.CreateTempSubdirectory("ankus-selection-").FullName;
+        try
+        {
+            string library = await WriteProjectAsync(directory, "", "Library.csproj");
+            string first = await WriteProjectAsync(directory,
+                "<PropertyGroup><AnkusPostgresMajor>17</AnkusPostgresMajor></PropertyGroup>", "First.csproj");
+            string second = await WriteProjectAsync(directory,
+                "<PropertyGroup><AnkusPostgresMajor>" + (kind == "conflict" ? "19" : "17") + "</AnkusPostgresMajor></PropertyGroup>", "Second.csproj");
+            string[] projects = kind switch
+            {
+                "empty" => [],
+                "unrelated" => [library],
+                _ => [library, first, second],
+            };
+            PostgresProjectSettings? selection = await PostgresProjectSettings.TryReadAsync(projects, "Debug", cancellationToken: context.CancellationToken);
+            if (kind == "agreement")
+            {
+                Assert.IsNotNull(selection);
+                Assert.AreEqual(17, selection.PostgresMajor);
+                Assert.IsNull(selection.PgConfigPath);
+            }
+            else
+            {
+                Assert.IsNull(selection);
+            }
         }
         finally
         {

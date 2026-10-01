@@ -17,6 +17,8 @@ public sealed class PgQueryCanceledException : OperationCanceledException, ISeri
 
 Catching this exception permits managed cleanup but cannot turn a canceled query into success.
 The native boundary preserves SQLSTATE 57014 and the original PostgreSQL diagnostics.
+A worker's [RunTransaction(Action)](/api/ankus.pgbackgroundworker/#member-cc4c154898bd56ae) aborts before returning this exception
+to its caller, which may then start a new transaction.
 
 Inheritance: [object](https://learn.microsoft.com/dotnet/api/system.object), [Exception](https://learn.microsoft.com/dotnet/api/system.exception), [SystemException](https://learn.microsoft.com/dotnet/api/system.systemexception), [OperationCanceledException](https://learn.microsoft.com/dotnet/api/system.operationcanceledexception)
 

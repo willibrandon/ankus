@@ -27,16 +27,18 @@ internal static partial class ToolCommand
         command.Arguments.Add(forwarded);
         command.SetAction(async (result, token) =>
         {
+            Dictionary<string, string> properties = TestProperties(result.GetValue(forwarded) ?? []);
             (string configuration, string[] arguments) = TestConfiguration(GetConfiguration(result),
                 result.GetResult("--configuration") is System.CommandLine.Parsing.OptionResult { Implicit: false },
-                result.GetValue(forwarded) ?? []);
+                result.GetValue(forwarded) ?? [], properties.GetValueOrDefault("Configuration"));
             var installations = new List<PostgresInstallation>();
             if (result.GetValue(all))
             {
                 if (result.GetResult("--pg") is System.CommandLine.Parsing.OptionResult { Implicit: false } ||
-                    result.GetValue<string?>("--pg-config") is not null)
+                    result.GetValue<string?>("--pg-config") is not null || properties.ContainsKey("AnkusPostgresMajor") ||
+                    properties.ContainsKey("AnkusPgConfigPath"))
                 {
-                    throw new ArgumentException("Use --all without --pg or --pg-config.");
+                    throw new ArgumentException("Use --all without --pg, --pg-config or forwarded PostgreSQL selection properties.");
                 }
 
                 var registry = new PostgresRegistry(result.GetValue(home));
@@ -55,7 +57,7 @@ internal static partial class ToolCommand
             }
             else
             {
-                installations.Add(await SelectAsync(result, home, token, TestProject(arguments), configuration));
+                installations.Add(await SelectAsync(result, home, token, TestProject(arguments), configuration, properties));
             }
 
             string root = Path.GetFullPath(result.GetValue(reports) ?? Path.Combine("TestResults", "ankus", Guid.NewGuid().ToString("N")));
@@ -106,7 +108,7 @@ internal static partial class ToolCommand
     /// Uses a forwarded project or solution as the source of the default PostgreSQL selection.
     /// </summary>
     /// <param name="arguments">The forwarded dotnet test arguments.</param>
-    /// <returns>The selected project, solution directory, or null for the current directory.</returns>
+    /// <returns>The selected project or solution file, or null for the current directory.</returns>
     private static string? TestProject(string[] arguments)
     {
         for (int index = 0; index < arguments.Length && arguments[index] != "--"; index++)
@@ -120,7 +122,7 @@ internal static partial class ToolCommand
                         ? argument[(option.Length + 1)..] : null;
                 if (value is not null)
                 {
-                    return option == "--solution" ? Path.GetDirectoryName(Path.GetFullPath(value)) : value;
+                    return value;
                 }
             }
         }
@@ -128,7 +130,8 @@ internal static partial class ToolCommand
         return null;
     }
 
-    private static (string Configuration, string[] Arguments) TestConfiguration(string configuration, bool explicitlySelected, string[] arguments)
+    private static (string Configuration, string[] Arguments) TestConfiguration(string configuration, bool explicitlySelected, string[] arguments,
+        string? propertyConfiguration)
     {
         var forwarded = new List<string>();
         for (int index = 0; index < arguments.Length; index++)
@@ -179,6 +182,93 @@ internal static partial class ToolCommand
             explicitlySelected = true;
         }
 
+        if (propertyConfiguration is not null)
+        {
+            if (ConfigurationError(propertyConfiguration) is string error)
+            {
+                throw new ArgumentException(error);
+            }
+
+            if (explicitlySelected && !string.Equals(configuration, propertyConfiguration, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Select the same configuration for configuration options and forwarded Configuration properties.");
+            }
+
+            configuration = propertyConfiguration;
+        }
+
         return (configuration, [.. forwarded]);
+    }
+
+    /// <summary>
+    /// Reads explicit MSBuild globals before selecting the server, retaining last-value precedence.
+    /// </summary>
+    /// <param name="arguments">The forwarded dotnet test arguments.</param>
+    /// <returns>The case-insensitive global properties preceding the test-runner separator.</returns>
+    private static Dictionary<string, string> TestProperties(string[] arguments)
+    {
+        var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int index = 0; index < arguments.Length && arguments[index] != "--"; index++)
+        {
+            string argument = arguments[index];
+            string? list = null;
+            foreach (string prefix in new[] { "-p", "/p", "-property", "/property", "--property" })
+            {
+                if (string.Equals(argument, prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (++index == arguments.Length || arguments[index] == "--")
+                    {
+                        throw new ArgumentException("A forwarded MSBuild property option requires name=value.");
+                    }
+
+                    list = arguments[index];
+                    break;
+                }
+
+                if (argument.StartsWith(prefix + ":", StringComparison.OrdinalIgnoreCase) ||
+                    argument.StartsWith(prefix + "=", StringComparison.OrdinalIgnoreCase))
+                {
+                    list = argument[(prefix.Length + 1)..];
+                    break;
+                }
+            }
+
+            if (list is null)
+            {
+                continue;
+            }
+
+            int start = 0;
+            bool quoted = false;
+            for (int offset = 0; offset <= list.Length; offset++)
+            {
+                if (offset < list.Length && list[offset] == '"')
+                {
+                    quoted = !quoted;
+                }
+
+                if (offset < list.Length && (quoted || list[offset] is not (';' or ',')))
+                {
+                    continue;
+                }
+
+                string property = list[start..offset].Trim('"');
+                int separator = property.IndexOf('=', StringComparison.Ordinal);
+                if (separator <= 0)
+                {
+                    throw new ArgumentException("Forwarded MSBuild properties must contain name=value.");
+                }
+
+                properties[property[..separator].Trim()] = Uri.UnescapeDataString(property[(separator + 1)..].Trim('"'));
+                start = offset + 1;
+            }
+
+            if (quoted)
+            {
+                throw new ArgumentException("A forwarded MSBuild property contains an unterminated quoted value.");
+            }
+        }
+
+        return properties;
     }
 }
