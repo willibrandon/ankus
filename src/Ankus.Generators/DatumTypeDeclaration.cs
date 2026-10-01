@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Ankus.Generators;
@@ -84,7 +83,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// Resolves an attributed type and optionally reports its invalid contract.
     /// </summary>
     internal static DatumTypeDeclaration? Create(INamedTypeSymbol type, IAssemblySymbol? assembly = null,
-        SourceProductionContext? context = null)
+        GeneratorDiagnostics? context = null)
     {
         type = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (RangeTypeDeclaration.Bound(type) is { } bound)
@@ -203,7 +202,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     internal static List<DatumTypeDeclaration>? Discover(Compilation compilation, ImmutableArray<INamedTypeSymbol> local,
         ImmutableArray<INamedTypeSymbol> rangeTypes,
         ImmutableArray<IMethodSymbol> methods, ImmutableArray<INamedTypeSymbol> aggregates, ImmutableArray<AttributeData> attributes,
-        SourceProductionContext context)
+        GeneratorDiagnostics context)
     {
         var candidates = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
         var requestedRanges = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.IncludeNullability);
@@ -471,7 +470,7 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     /// <summary>
     /// Validates deterministic exact and default declarations without instantiating open generic roots.
     /// </summary>
-    private static AttributeData[]? Declarations(INamedTypeSymbol type, SourceProductionContext? context)
+    private static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgDatumTypeAttribute")];
@@ -514,33 +513,28 @@ internal sealed class DatumTypeDeclaration(INamedTypeSymbol type, INamedTypeSymb
     }
 
     /// <summary>
-    /// Emits a lazy closed registration without resolving a backend catalog identity.
+    /// Freezes lazy registration constants without retaining compiler symbols or resolving backend catalogs.
     /// </summary>
-    internal void EmitRegistration(StringBuilder source)
-    {
-        if (RangeBound is { } bound)
-        {
-            source.AppendLine("        global::Ankus.PgDatumRegistry.RegisterRange<" + bound.Managed + ">(" +
-                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
-                (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) +
-                ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension") + ");");
-            return;
-        }
+    /// <returns>The immutable scalar or range registration contract.</returns>
+    internal DatumRegistrationModel FreezeRegistration()
+        => new(Managed, Type.IsValueType, Name, Schema, External,
+            RangeBound is null ? Converter.ToDisplayString(ManagedFormat) : null, CanRead, CanWrite, RangeBound?.Managed);
 
-        source.AppendLine("        global::Ankus.PgDatumRegistry.Register" + (Type.IsValueType ? "Value" : "Reference") + "<" + Managed + ">(" +
-            Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Name, true) + ", " +
-            (Schema is null ? "null" : Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema, true)) +
-            ", global::Ankus.PgTypeOrigin." + (External ? "External" : "ThisExtension") + ", typeof(" +
-            Converter.ToDisplayString(ManagedFormat) + "), static () => new " +
-            Converter.ToDisplayString(ManagedFormat) + "(), " +
-            (CanRead ? "true" : "false") + ", " + (CanWrite ? "true" : "false") + ");");
-    }
+    /// <summary>
+    /// Detaches closed mapping and provider values while preserving independent diagnostic coordinates.
+    /// </summary>
+    /// <param name="compilation">The compilation owning the current declaration locations.</param>
+    /// <returns>The immutable mapping and registration contracts.</returns>
+    internal DatumTypeModel Freeze(Compilation compilation)
+        => new(DatumTypeReference.Create(this), FreezeRegistration(),
+            RangeBound is null ? null : DatumTypeReference.Create(RangeBound),
+            GeneratorLocation.Create(Type.Locations.FirstOrDefault(), compilation));
 
     /// <summary>
     /// Reports a source-located invalid mapping contract.
     /// </summary>
-    internal static void Error(ISymbol symbol, string message, SourceProductionContext context)
-        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message));
+    internal static void Error(ISymbol symbol, string message, GeneratorDiagnostics context)
+        => context.Report(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message);
 
     /// <summary>
     /// Finds a mapped leaf inside an unsupported container shape.

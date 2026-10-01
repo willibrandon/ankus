@@ -127,7 +127,7 @@ internal static class DatumConverterTemplate
     /// <summary>
     /// Uses C# declaration binding to validate all inferred constraints before emitting consumer source.
     /// </summary>
-    internal static bool Validate(Compilation compilation, IReadOnlyList<DatumTypeDeclaration> declarations, SourceProductionContext context)
+    internal static bool Validate(Compilation compilation, IReadOnlyList<DatumTypeDeclaration> declarations, GeneratorDiagnostics context)
     {
         DatumTypeDeclaration[] inferred = [.. declarations.Where(static item => item.HasInferredConverter)];
         if (inferred.Length == 0)

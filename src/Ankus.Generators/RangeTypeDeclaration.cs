@@ -20,7 +20,7 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Validates default and exact targets independently of which finite roots are subsequently selected.
     /// </summary>
-    internal static AttributeData[]? Declarations(INamedTypeSymbol type, SourceProductionContext? context)
+    internal static AttributeData[]? Declarations(INamedTypeSymbol type, GeneratorDiagnostics? context)
     {
         AttributeData[] attributes = [.. type.GetAttributes().Where(static item =>
             item.AttributeClass?.ToDisplayString() == "Ankus.PgRangeTypeAttribute")];
@@ -70,7 +70,7 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Creates an optional closed range contract from a previously validated scalar mapping.
     /// </summary>
-    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, SourceProductionContext? context = null)
+    internal static bool TryCreate(DatumTypeDeclaration scalar, out DatumTypeDeclaration? range, GeneratorDiagnostics? context = null)
     {
         range = null;
         AttributeData[]? attributes = Declarations(scalar.Type, context);
@@ -134,6 +134,6 @@ internal static class RangeTypeDeclaration
     /// <summary>
     /// Reports a precise source-located range contract error before generated output.
     /// </summary>
-    internal static void Error(ISymbol symbol, string message, SourceProductionContext context)
-        => context.ReportDiagnostic(Diagnostic.Create(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message));
+    internal static void Error(ISymbol symbol, string message, GeneratorDiagnostics context)
+        => context.Report(s_invalid, symbol.Locations.FirstOrDefault(), symbol.Name, message);
 }

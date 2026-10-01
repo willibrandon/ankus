@@ -89,6 +89,14 @@ initialization still composes current registration and capability requirements.
 Removing an earlier syntax tree can recreate a surviving phase's positional
 Roslyn input; the resulting artifacts retain the same invocation contract.
 
+Mapped scalar and range registrations retain immutable catalog, converter and
+capability values. Range registration carries its closed scalar bound separately
+from the range's catalog identity and origin. Registration rendering neither
+resolves PostgreSQL catalogs nor executes author code. Managed type providers
+consume detached identities, including Roslyn's tuple-label distinctions, and
+resolve diagnostic coordinates against the current compilation. Semantic mapping
+discovery and its registered rendering pipeline remain work in progress.
+
 Native callback properties also detach their exact invocation types, native
 prototype index, assembly-scoped registration identity and partial declaration
 containers before rendering. The managed property and dispatcher fragment is
@@ -150,8 +158,22 @@ Provider ownership, authored dependencies, SQL replacement, shared support
 identities and current initialization compose afterward. Diagnostics resolve
 against current source trees. Inherited generic support methods reserve their
 open definitions from ordinary function discovery; closed identities still
-distinguish published support functions. Datum discovery and the final graph
-and output compositor remain unfinished.
+distinguish published support functions. The final graph and output compositor
+remain unfinished.
+
+Datum mapping discovery validates finite closed roots before immutable scalar
+and range registration contracts cross the compiler boundary. Converter factories
+remain lazy; registration rendering reads no compiler symbols or live catalog
+values. Range identities and capabilities remain independent of their scalar
+bounds. Provider matching preserves exact managed identities, including tuple
+labels, while current provider dependencies compose after registration cache hits.
+Derived equality, ordering and hashing helpers independently cache interface-call
+and conversion boundaries. Their SQL grammar uses a separate catalog projection;
+typed fragments apply current provider qualification without rewriting authored
+text. Initialization, SQL replacement, dependencies and diagnostics compose outside
+the cached fragments. Removing an earlier positional input may recreate surviving
+Roslyn inputs while preserving their exact contracts. The final graph and complete
+extension outputs still require separate caching.
 
 Schema creation precedes function DDL. Fixed schemas set `Ankus.Relocatable` to
 false in assembly metadata; `ExtensionManifest` reads that with `PEReader`, and

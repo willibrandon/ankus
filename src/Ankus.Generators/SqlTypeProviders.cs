@@ -40,9 +40,10 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
     /// <param name="blocks">Valid inline and file SQL blocks.</param>
     /// <param name="schemas">Declared schema nodes.</param>
     /// <param name="mappings">Validated closed mappings requiring managed provider identities.</param>
+    /// <param name="compilation">The compilation owning current provider diagnostic coordinates.</param>
     /// <returns>Whether all provider names are independent of a fixed schema.</returns>
     internal bool Add(ImmutableArray<AttributeData> attributes, IReadOnlyDictionary<string, SqlEntity> blocks,
-        IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeDeclaration> mappings)
+        IReadOnlyDictionary<string, SqlEntity> schemas, IReadOnlyList<DatumTypeModel> mappings, Compilation compilation)
     {
         bool relocatable = true;
         var namedClaims = new HashSet<(string? Schema, string Name)>();
@@ -55,7 +56,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             string? schema = AttributeValues.Get<string?>(attribute, "Schema", null);
             bool managed = attribute.AttributeConstructor is { Parameters.Length: 2 } constructor &&
                 constructor.Parameters[1].Type.ToDisplayString() == "System.Type";
-            DatumTypeDeclaration? mapping = null;
+            DatumTypeModel? mapping = null;
             if (string.IsNullOrWhiteSpace(sqlId) || !SqlText.IsText(sqlId!))
             {
                 graph.Error(location, "A type provider requires a nonempty SQL block identifier with valid Unicode and no zero characters.");
@@ -64,14 +65,15 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
 
             if (managed)
             {
-                mapping = mappings.FirstOrDefault(item => SymbolEqualityComparer.Default.Equals(item.Type, attribute.ConstructorArguments[1].Value as ITypeSymbol));
+                mapping = attribute.ConstructorArguments[1].Value is ITypeSymbol supplied
+                    ? mappings.FirstOrDefault(item => item.Reference.Type == ManagedTypeIdentity.Create(supplied)) : null;
                 if (mapping is null)
                 {
                     graph.Error(location, "A managed type provider must name a registered PgDatumType mapping.");
                     continue;
                 }
 
-                if (mapping.External)
+                if (mapping.Reference.External)
                 {
                     graph.Error(location, "External datum mappings cannot have an extension type provider.");
                     continue;
@@ -83,8 +85,8 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                     continue;
                 }
 
-                name = mapping.Name;
-                schema = mapping.Schema;
+                name = mapping.Reference.Name;
+                schema = mapping.Reference.Schema;
             }
 
             if (!SqlText.IsIdentifier(name) || schema is not null && !SqlText.IsIdentifier(schema))
@@ -99,9 +101,9 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
                 continue;
             }
 
-            if (mapping is not null && _managed.ContainsKey(ManagedTypeIdentity.Create(mapping.Type)))
+            if (mapping is not null && _managed.ContainsKey(mapping.Reference.Type))
             {
-                graph.Error(location, "Managed datum type '" + mapping.Managed + "' has more than one provider.");
+                graph.Error(location, "Managed datum type '" + mapping.Reference.Managed + "' has more than one provider.");
                 continue;
             }
 
@@ -120,7 +122,7 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             _providers[(schema, name!)] = (block, true);
             if (mapping is not null)
             {
-                _managed.Add(ManagedTypeIdentity.Create(mapping.Type), block);
+                _managed.Add(mapping.Reference.Type, block);
             }
 
             if (schema is not null)
@@ -133,16 +135,16 @@ internal sealed class SqlTypeProviders(SqlGraph graph)
             }
         }
 
-        foreach (DatumTypeDeclaration mapping in mappings)
+        foreach (DatumTypeModel mapping in mappings)
         {
-            if (!mapping.External && !_managed.ContainsKey(ManagedTypeIdentity.Create(mapping.Type)))
+            if (!mapping.Reference.External && !_managed.ContainsKey(mapping.Reference.Type))
             {
-                graph.Error(mapping.Type.Locations.FirstOrDefault(), "Managed datum type '" + mapping.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
+                graph.Error(mapping.Location?.Resolve(compilation), "Managed datum type '" + mapping.Reference.Managed + "' requires a PgSqlTypeProvider naming its managed identity.");
             }
 
-            if (!mapping.External && mapping.RangeBound is { External: false } bound &&
-                _managed.TryGetValue(ManagedTypeIdentity.Create(mapping.Type), out SqlEntity? rangeProvider) &&
-                _managed.TryGetValue(ManagedTypeIdentity.Create(bound.Type), out SqlEntity? boundProvider) && rangeProvider != boundProvider)
+            if (!mapping.Reference.External && mapping.RangeBound is { External: false } bound &&
+                _managed.TryGetValue(mapping.Reference.Type, out SqlEntity? rangeProvider) &&
+                _managed.TryGetValue(bound.Type, out SqlEntity? boundProvider) && rangeProvider != boundProvider)
             {
                 rangeProvider.Dependencies.Add(boundProvider);
             }

@@ -108,11 +108,13 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             projectDirectory.Select(static (settings, _) => settings.Version));
         IncrementalValueProvider<EquatableArray<CustomSqlPipeline.Output>> sqlBlocks = CustomSqlPipeline.Register(context, files,
             projectDirectory.Select(static (settings, _) => settings.Directory));
-        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(derivedOperators.Collect()).Combine(datumTypes.Collect().Combine(rangeTypes.Collect()).Combine(context.CompilationProvider.Combine(references).Combine(module))),
+        IncrementalValueProvider<DatumPipeline.Output> mappings = DatumPipeline.Register(context, methods, datumTypes.Collect(), rangeTypes.Collect(),
+            aggregates, customSql, derivedOperators.Collect(), projectDirectory.Select(static (settings, _) => settings.IncludeTests));
+        context.RegisterSourceOutput(methodInputs.Combine(schemas).Combine(customSql).Combine(sqlBlocks).Combine(projectDirectory).Combine(enums).Combine(aggregates).Combine(propertyInputs).Combine(prefixes).Combine(customTypes).Combine(mappings).Combine(context.CompilationProvider.Combine(references).Combine(module)),
             static (output, input) => Generate(output, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left, input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Left.Left.Right,
                 input.Left.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Left.Right, input.Left.Left.Left.Left.Right, input.Left.Left.Left.Right, input.Left.Left.Right, input.Left.Right,
-                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right.Left.Left, input.Right.Right.Left.Right, input.Right.Right.Right));
+                input.Right.Left.Left, input.Right.Left.Right, input.Right.Right));
     }
 
     /// <summary>
@@ -128,12 +130,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         ImmutableArray<AttributeData> customSql, EquatableArray<CustomSqlPipeline.Output> customBlocks,
         (string Directory, bool IncludeTests, string? Version) settings,
         EquatableArray<EnumPipeline.EnumOutput> enumTypes, EquatableArray<AggregatePipeline.Output> aggregateOutputs, GucPipeline.PropertyInputs propertyInputs,
-        GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, ImmutableArray<INamedTypeSymbol> derivedTypes,
-        ImmutableArray<INamedTypeSymbol> datumTypes, ImmutableArray<INamedTypeSymbol> rangeTypes, Compilation compilation,
+        GucPrefixPipeline.Output prefixOutput, EquatableArray<CustomTypePipeline.Output> customTypes, DatumPipeline.Output mappingOutput, Compilation compilation,
         ImmutableArray<ISymbol> references, NativeModuleMagic.ModuleOutput module)
     {
-        ImmutableArray<INamedTypeSymbol> aggregateTypes = [.. aggregateOutputs.Select(value =>
-            compilation.Assembly.GetTypeByMetadataName(value.Analysis.MetadataName)).OfType<INamedTypeSymbol>()];
         ImmutableArray<IMethodSymbol> methods = methodInputs.Methods;
         ILookup<DeclarationIdentity, FunctionPipeline.FunctionOutput> functionModels = methodInputs.Functions.ToLookup(static value => value.Analysis.Identity);
         ILookup<DeclarationIdentity, TriggerPipeline.TriggerOutput> triggerModels = methodInputs.Triggers.ToLookup(static value => value.Analysis.Identity);
@@ -144,7 +143,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
                 attribute.ConstructorArguments.Length == 2 &&
                 attribute.ConstructorArguments[0].Value is "Ankus.NativeCallbacks" &&
                 attribute.ConstructorArguments[1].Value is "1"));
-        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateTypes.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && derivedTypes.IsEmpty && datumTypes.IsEmpty && rangeTypes.IsEmpty)
+        if (!referencedCallbacks && !module.Declared && references.IsEmpty && methods.IsEmpty && methodInputs.Workers.IsEmpty && methodInputs.Lifecycle.IsEmpty && schemaTypes.IsEmpty && customSql.IsEmpty && customBlocks.IsEmpty && enumTypes.IsEmpty && aggregateOutputs.IsEmpty && propertyInputs.Callbacks.IsEmpty && propertyInputs.Settings.IsEmpty && !prefixOutput.Analysis.Declared && customTypes.IsEmpty && !mappingOutput.Analysis.Declared)
         {
             return;
         }
@@ -179,17 +178,18 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        List<DatumTypeDeclaration>? mappings = DatumTypeDeclaration.Discover(compilation, datumTypes, rangeTypes, methods, aggregateTypes, customSql, context);
-        if (mappings is null)
+        foreach (GeneratorProblem problem in mappingOutput.Analysis.Problems)
+        {
+            problem.Report(compilation, context);
+        }
+
+        if (!mappingOutput.Analysis.Valid)
         {
             return;
         }
 
-        INamedTypeSymbol[] selectedDerivedTypes = [.. derivedTypes.Where(static type =>
-                !DatumTypeDeclaration.IsMapped(type) || DatumTypeDeclaration.IsClosed(type))
-            .Concat(mappings.Select(static mapping => mapping.Type).Where(static type =>
-                type.GetAttributes().Any(DerivedOperatorDeclaration.IsAttribute)))
-            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)];
+        EquatableArray<DatumTypeModel> mappings = mappingOutput.Analysis.Models;
+        EquatableArray<DerivedOperatorModel> selectedDerivedTypes = mappingOutput.Analysis.Derived;
 
         var names = new HashSet<string>(StringComparer.Ordinal);
         var relatedNames = new HashSet<string>(StringComparer.Ordinal);
@@ -218,11 +218,11 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         bool hasNativeCallbacks = callbacks.Count != 0 || referencedCallbacks;
         List<BackgroundWorkerPipeline.WorkerOutput> workers = BackgroundWorkerPipeline.Select(methodInputs.Workers, compilation, context);
         bool hasWorkers = workers.Count != 0;
-        bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0;
+        bool hasFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || !methods.IsEmpty || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty;
         bool hasBackend = hasFunctionCallbacks || hasGucCheck;
         bool hasDispatchers = hasFunctionCallbacks || hasGucHooks;
         var aggregateMethods = new HashSet<DeclarationIdentity>(aggregateOutputs.SelectMany(static value => value.Analysis.Selected));
-        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateTypes.IsEmpty || !customTypes.IsEmpty || selectedDerivedTypes.Length != 0 || methods.Any(method => !aggregateMethods.Contains(DeclarationIdentity.Create(method)));
+        bool hasMemoryFunctionCallbacks = !methodInputs.Lifecycle.IsEmpty || hasWorkers || hasNativeCallbacks || hasGucHooks || !aggregateOutputs.IsEmpty || !customTypes.IsEmpty || !selectedDerivedTypes.IsEmpty || methods.Any(method => !aggregateMethods.Contains(DeclarationIdentity.Create(method)));
         if (hasMemoryFunctionCallbacks)
         {
             native.AppendLine(NativeBindingBridge.Binding(compilation));
@@ -282,7 +282,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             native.AppendLine(NativeFunctionBridge.Source);
             native.AppendLine(NativeFunctionInvocation.Source);
 
-            if (!aggregateTypes.IsEmpty || selectedDerivedTypes.Any(DatumTypeDeclaration.IsMapped) ||
+            if (!aggregateOutputs.IsEmpty || selectedDerivedTypes.Any(static model => model.Value?.DatumType is not null) ||
                 methods.Any(static method => SetResult.IsSequence(method.ReturnType) ||
                 FunctionParameter.Create(method).Any(static parameter => parameter.Type?.UsesRawTransport == true)))
             {
@@ -296,7 +296,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
 
             native.AppendLine(NativeGucBridge.ReadBinding);
             native.AppendLine(GuardedBackend.Source);
-            if (!aggregateTypes.IsEmpty)
+            if (!aggregateOutputs.IsEmpty)
             {
                 native.AppendLine(NativeAggregateBridge.Source);
             }
@@ -461,9 +461,9 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (DatumTypeDeclaration mapping in mappings.OrderBy(static mapping => mapping.RangeBound is not null))
+        foreach (string registrationSource in mappingOutput.Registrations)
         {
-            mapping.EmitRegistration(managed);
+            managed.Append(registrationSource);
         }
 
         if (!enumTypes.IsEmpty || !customTypes.IsEmpty || mappings.Count != 0)
@@ -563,7 +563,7 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
             }
         }
 
-        fixedSchema |= !typeProviders.Add(customSql, sqlBlocks, schemas, mappings);
+        fixedSchema |= !typeProviders.Add(customSql, sqlBlocks, schemas, mappings, compilation);
         if (ensureManagedReady)
         {
             native.AppendLine(PgModuleLoadEmitter.State);
@@ -824,11 +824,14 @@ public sealed class PgFunctionGenerator : IIncrementalGenerator
         }
 
         bool validOperators = true;
-        foreach (INamedTypeSymbol type in selectedDerivedTypes
-            .OrderBy(static type => type.ToDisplayString(), StringComparer.Ordinal))
+        foreach (DerivedOperatorModel model in selectedDerivedTypes)
         {
-            validOperators &= DerivedOperatorDeclaration.Emit(type, enumEntities, typeProviders, schemas, names, relatedNames, operatorEntities, graph,
-                context, ensureManagedReady, managed, native, exports, out bool relocatable);
+            Dictionary<string, DerivedHelperEmission> helpers = mappingOutput.Helpers.Where(value =>
+                value.Slot.Type == model.Identity && value.Slot.Managed == model.Managed)
+                .ToDictionary(static value => value.Slot.Role, static value => value.Emission, StringComparer.Ordinal);
+            DerivedSqlEmission? sql = mappingOutput.Sql.Single(value => value.Type == model.Identity && value.Managed == model.Managed).Emission;
+            validOperators &= DerivedOperatorDeclaration.Emit(model, enumEntities, typeProviders, schemas, names, relatedNames, operatorEntities, graph,
+                context, compilation, helpers, sql, ensureManagedReady, managed, native, exports, out bool relocatable);
             fixedSchema |= !relocatable;
         }
 
