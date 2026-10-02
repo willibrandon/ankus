@@ -827,9 +827,10 @@ static void SaveBuildTimings(string repositoryRoot)
         .. Directory.EnumerateDirectories(Path.GetTempPath(), "ankus package tests *")];
     List<string> report = [];
     EnumerationOptions options = new() { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint };
-    IEnumerable<string> files = Directory.EnumerateFiles(Path.Combine(repositoryRoot, "artifacts"), "*.binlog")
-        .Concat(roots.SelectMany(root => Directory.EnumerateFiles(root, "*.binlog", options)));
-    foreach (string file in files.Order(StringComparer.Ordinal))
+    string[] files = [.. Directory.EnumerateFiles(Path.Combine(repositoryRoot, "artifacts"), "*.binlog")
+        .Concat(roots.SelectMany(root => Directory.EnumerateFiles(root, "*.binlog", options)))
+        .Order(StringComparer.Ordinal)];
+    foreach (string file in files)
     {
         report.Add("Build: " + Path.GetFileName(file));
         string output;
@@ -866,15 +867,40 @@ static void SaveBuildTimings(string repositoryRoot)
         }
     }
 
+    if (files.Length > 0)
+    {
+        report.AddRange(ReadBindingTimings(repositoryRoot, files).Split('\n'));
+    }
+
     File.WriteAllLines(Path.Combine(logs, "build-timings.log"), report);
+}
+
+// Only fixed phase metadata reaches job logs or upload reports, never command
+// arguments or binary-log properties. Replay failure does not change test outcomes.
+static string ReadBindingTimings(string repositoryRoot, IReadOnlyList<string> files)
+{
+    try
+    {
+        return Capture(GetDotNetHost(), ["run", "--file",
+            Path.Combine(repositoryRoot, "eng", "Ankus.BuildTimings.cs"), "--", .. files]);
+    }
+    catch (InvalidOperationException)
+    {
+        return "Binding task timing reader unavailable; existing target/task summaries remain authoritative.";
+    }
 }
 
 static void BuildTests(string repositoryRoot)
 {
     string logs = Path.Combine(repositoryRoot, "artifacts", "test-logs");
     Directory.CreateDirectory(logs);
+    string binlog = Path.Combine(logs, "build-tests-" + Guid.NewGuid().ToString("N") + ".binlog");
     Run(GetDotNetHost(), ["build", "Ankus.slnx", "--configuration", "Release", "-m",
-        "-clp:PerformanceSummary", "-bl:" + Path.Combine(logs, "build-tests-{}.binlog")], repositoryRoot);
+        "-clp:PerformanceSummary", "-bl:" + binlog], repositoryRoot);
+    if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
+    {
+        Console.WriteLine(ReadBindingTimings(repositoryRoot, [binlog]));
+    }
 }
 
 static void RunUnitTestModules(string repositoryRoot)

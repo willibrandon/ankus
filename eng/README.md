@@ -10,6 +10,7 @@ repository root with `dotnet run --file`.
 | `Ankus.Oids.cs` | Regenerate or check the version-aware built-in OID catalog from pinned pgrx sources. |
 | `Ankus.Bindings.cs` | Regenerate or check native declarations, node cast graphs, header manifests and attribution from pinned pgrx bindings. |
 | `Ankus.Templates.cs` | Stage the shared extension and background-worker scaffolds for the version-matched template package. |
+| `Ankus.BuildTimings.cs` | Read individual binding-task durations and cache outcomes from retained MSBuild binary logs without exposing command arguments. |
 
 `Ankus.Ci.cs` provides these commands:
 
@@ -117,6 +118,15 @@ Hosted report preparation also replays retained build logs into
 `build-timings.log`, containing only target/task names and durations. This covers
 fixture publication and package-consumer logs still present after a timeout;
 unfinished logs are labelled explicitly. Raw binary logs remain local.
+The report also records each completed `binding-sources`, `binding-compile` and
+`binding-link` task separately, including its success and cache outcome. These
+durations include helper startup and work inside that task; concurrent task
+durations must not be added together as elapsed build time. Incomplete tasks
+have no proven duration or outcome. The reader accepts one or more local binary
+logs and performs no builds or backend calls.
+Hosted test builds print these binding timings immediately after the initial
+solution build, so the first measurements do not depend on test completion.
+
 The additional-platform workflow accepts `package-test-concurrency` on manual
 dispatch, matching the primary workflow. Compare the same commit with complete
 test suites when tuning it; a timed-out subset is not validation.

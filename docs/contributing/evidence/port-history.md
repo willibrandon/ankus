@@ -10,6 +10,139 @@ The original implementation history follows in full. Relative repository links
 are adjusted for this archive's location; reference-repository paths in code spans
 keep their original meaning.
 
+## Binding-task timing investigation, 2026-10-02
+
+Logging milestone **0e0db27** is committed and pushed. Its complete Linux x64 /
+PostgreSQL 18.6 suite passes 11,027 total, 11,013 passed, 14 platform skips and
+zero failures in 24m57.780s. CI **36998501676** has quality and all three runtime
+jobs passing; complete primary-platform suites are active. Docs **36998501642**
+passes. Compatibility CI **36988634319** adds complete PostgreSQL 16/Linux x64
+acceptance: all six TRX modules, 10,984 total, 10,970 passed, 14 platform skips,
+zero failures; job duration 27m12s. PostgreSQL 17 is active and 19 is queued.
+
+An isolated repository automation draft uses Microsoft's public
+`BinaryLogReplayEventSource` to report individual `binding-sources`,
+`binding-compile` and `binding-link` task durations from existing logs. It reads
+task-context identity and original timestamps; it performs no build or backend
+call. Controlled binary logs verify distinct overlapping nodes/submissions,
+exact 2.500/7.000/3.000-second durations, successful and failed tasks, cache
+reuse/production, an unfinished task, missing/malformed logs and exclusion of
+private message, path and command payloads. The first malformed-log check found
+an uncaught `InvalidDataException`; the corrected reader handles this explicitly
+and the full controlled check passes. Incomplete tasks retain no claimed duration
+or successful outcome.
+
+Completed Linux publication logs independently reproduce the earlier private
+reader's 4.173s source task, 1.601s managed-companion task and 0.923s native-link
+task. Two more completed logs report source/companion pairs of 4.165s/1.537s and
+4.263s/1.598s, both reused and successful. These logs came from the accepted
+Linux suite; they are not Intel baselines. The draft caller adds these sanitized
+records to existing hosted reports while retaining target/task summaries and
+keeping raw binary logs local. The real `prepare-reports` integration passes
+with controlled complete/incomplete task records and a malformed binary log;
+exact text/XML privacy replacements are verified and no raw binary is uploaded.
+The final caller rerun also passes after factoring its shared reader entry.
+Hosted builds now have a draft immediate timing replay after the initial build,
+so those first measurements do not require waiting for the integration timeout.
+Final Release/full-suite gates and actual hosted measurements are pending.
+Actual Intel phase measurements and a verified root-cause correction remain
+required; no compiler/cache/recovery policy is changed.
+
+Logging CI **36998501676** subsequently completes successfully on **0e0db27**:
+all six modules report 11,027 total on each primary platform. Linux x64/PG18 has
+11,013 passed, 14 platform skips and zero failures (26m39s job); macOS ARM64/PG18
+has 11,001 passed, 26 skips and zero failures (20m05s); Windows x64/PG17 has
+11,002 passed, 25 skips and zero failures (25m20s). Quality, runtime and Docs
+jobs also pass. These conclusions come from the completed job states and all
+downloaded TRX counters, not partial console output.
+
+The isolated timing draft passes Release with zero warnings/errors, **1m16.57s**,
+API freshness **235 pages / 2,726 members**, site build **283 pages / 8.73s** and
+zero check errors, warnings or hints. All **266** frozen source identities match
+before its complete plain PostgreSQL 18.6/Linux x64 suite starts with disk-backed
+temporary storage. The suite remains live; no complete outcome is claimed yet.
+
+An independent source-only SPI ergonomics draft addresses repetitive argument
+construction using explicit `Spi.Sql` interpolation and a typed command. Generic
+bindings preserve declared nullable/custom/raw identities rather than inferring
+types from boxed values. The existing literal SQL APIs retain their behavior,
+and every new execution overload delegates its existing snapshot/access/recovery
+path. Compiler support is placed in `Ankus.CompilerServices`. The previous audit
+already established that pgrx scalar helpers use mutable `update`; the draft
+therefore preserves writable scalar defaults and transaction-aware `Select`.
+Test research, a bounded acceptance plan and static source pairing are prepared.
+New types are unpaired; partial-type name references do not prove new overload
+coverage. No managed/native test or generated API acceptance exists for this
+draft yet. Validate and accept the timing milestone before promoting this API.
+
+Subsequent compatibility evidence completes PostgreSQL 17/Linux x64 on
+**99660ea**, CI **36988634319**: all six downloaded TRX modules report **10,984
+total, 10,970 passed, 14 platform skips, zero failures**. The job takes **27m28s**;
+PostgreSQL 19 is now running. No unfinished job is counted as acceptance.
+
+The SPI draft's focused managed checks subsequently pass **15/15**, zero skips,
+in **1.091s**, on Linux x64. Exact assertions cover literal SQL, hostile text as
+bound data, nullable/untyped NULL identities, declared-object rejection,
+single ordered evaluation, culture-invariant placeholders beyond nine,
+independent command snapshots, default/zero-OID rejection, every standalone
+access boundary and explicit composite-domain/raw envelopes. Initial builds
+detect enforced MSTest assertion diagnostics; the assertions are corrected
+without suppression or reduced analyzer standards. Runtime tests use the
+existing runtime fixture and ownership boundary rather than the static pairing
+heuristic's first referencing project.
+
+A **272-path** frozen composition is running focused native checks against
+PostgreSQL 18.6/Linux x64, with the unchanged matching runtime payload verified
+file by file. Cases exercise eleven command roles through standalone/scoped
+connections with present values and SQL NULL, plus write rollback, explicit
+read-only failures, same-backend recovery and sticky cancellation. Native
+outcomes, additional type/ownership partitions, API generation and completed
+full acceptance remain pending; these are not committed implementation claims.
+
+That unchanged **272-path** native composition subsequently passes **47/47**,
+zero skips, in **3m22.427s**. All frozen hashes verify again after the terminal
+exit-zero result. The forty-four role/value/NULL/owner rows and two recovery
+rows assert exact outputs and metadata; sticky cancellation asserts **57014**
+and a subsequent **42** from the same backend. A compiler probe confirms C# 14
+accepts literal/empty/parameterized commands and rejects formatting/alignment
+with **CS1739**. Dedicated compiler-regression tests are being added, along with
+the remaining native type/ownership partitions; full acceptance remains open.
+
+Dedicated C# 14 compiler tests subsequently pass **8/8**, zero skips, in
+**2.341s**. They pin literal/empty/value lowering, format/alignment rejection
+and the resolved `Execute(string)` versus `Execute(SpiCommand)` overloads.
+The expanded **273-path** native composition then passes **70/70**, zero skips,
+in **2m14.199s**. All frozen identities verify after terminal success. Added
+cases prove custom codecs, declared mapped base types carrying runtime
+subtypes, nullable array elements, catalog type identities and typed NULLs;
+domain datum copies outlive their original result while stale rebinding fails;
+every expired session role rejects access; and selection preserves immutable
+transactions, writable visibility and reset after rollback in the same backend.
+The source-based API generator succeeds with zero warnings/errors and writes
+**238 pages / 2,756 members**. Final accepted composition, Release/site gates
+and the complete plain suite still remain required before the SPI milestone.
+
+The timing draft's unchanged **266-path** composition subsequently completes
+plain `dotnet test` against PostgreSQL 18.6/Linux x64: **11,027 total; 11,013
+passed; zero failures; 14 platform skips; 25m10.158s**. The durable child result
+is terminal exit zero, and all frozen source identities verify afterward.
+Source-based Release/API/site gates passed before this run; current evidence is
+then composed for final documentation verification and exact owned promotion.
+Primary-platform CI **36998501676** and Docs **36998501642** remain successful;
+compatibility **36988634319** has complete 13–17 acceptance and live 19.
+No actual Intel timing baseline or performance fix is claimed from these
+completed local checks.
+
+Final composed-evidence gates subsequently pass Release with zero warnings/errors
+in **31.24s**, API freshness **235 pages / 2,726 members**, site build and zero
+check errors/warnings/hints. All 266 frozen identities verify again. Previous CI
+outcomes are checked before promotion/commit: primary **36998501676**, Docs
+**36998501642**, and preceding template primary/Docs all remain successful;
+compatibility **36988634319** has completed 13–17 and still-live 19. The milestone
+adds diagnostic automation without changing compiler, cache, guard, runtime,
+timeout or cancellation policy. Only six owned automation/evidence paths are
+promoted; the independent SPI draft and user changes remain outside this commit.
+
 ---
 
 # Ankus — pgrx → .NET Native AOT Port: Progress Tracker
